@@ -1,6 +1,8 @@
-import type {ReactNode} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import type {OrganizationDomain} from "@agenta/entities/organization"
+import {type TranslationKey} from "@agenta/i18n"
+import {useT} from "@agenta/i18n/settings"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -16,26 +18,29 @@ import {usePhoneColumns} from "../shared/usePhoneColumns"
 /** An unverified domain's token stops being usable 48 hours after it was issued. */
 const TOKEN_LIFETIME_MS = 48 * 60 * 60 * 1000
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "slug", label: "Domain", width: "minmax(0,2fr)"},
-    {key: "expires_at", label: "Expiration", width: "minmax(0,1.4fr)"},
-    {key: "is_verified", label: "Status", width: "minmax(0,1fr)"},
-    {key: "verify", label: "Verify", srOnly: true, width: "72px"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+const COLUMNS: (ListTableColumn & {label: TranslationKey<"common" | "settings">})[] = [
+    {key: "slug", label: "settings.access.domain", width: "minmax(0,2fr)"},
+    {key: "expires_at", label: "settings.access.expiration", width: "minmax(0,1.4fr)"},
+    {key: "is_verified", label: "common.status", width: "minmax(0,1fr)"},
+    {key: "verify", label: "common.verify", srOnly: true, width: "72px"},
+    {key: "actions", label: "common.actions", srOnly: true, width: "32px"},
 ]
 const PHONE_KEYS = ["slug", "is_verified", "verify", "actions"]
 
 const ExpirationCell = ({domain}: {domain: OrganizationDomain}) => {
+    const t = useT()
     if (domain.flags?.is_verified) return <span className="text-muted-foreground">-</span>
     // An unparseable `created_at` is NaN, which reads as neither expired nor live: say so.
     const createdAt = new Date(domain.created_at).getTime()
-    if (Number.isNaN(createdAt)) return <span className="text-muted-foreground">Unknown</span>
+    if (Number.isNaN(createdAt))
+        return <span className="text-muted-foreground">{t("common.unknown")}</span>
     const expiresAt = new Date(createdAt + TOKEN_LIFETIME_MS)
     const expired = new Date() > expiresAt
     return (
         <span className={expired ? "truncate text-destructive" : "truncate text-muted-foreground"}>
-            {expiresAt.toLocaleString()}
-            {expired ? " (Expired)" : ""}
+            {expired
+                ? t("settings.access.expiredDate", {date: expiresAt.toLocaleString()})
+                : expiresAt.toLocaleString()}
         </span>
     )
 }
@@ -67,12 +72,17 @@ export const DomainsSection = ({
     deleting,
     renderInstructions,
 }: DomainsSectionProps) => {
-    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const t = useT()
+    const translatedColumns = useMemo(
+        () => COLUMNS.map((column) => ({...column, label: t(column.label)})),
+        [t],
+    )
+    const {columns, shows} = usePhoneColumns(translatedColumns, PHONE_KEYS)
     const addButton = (variant?: "outline") =>
         onAdd ? (
             <Button variant={variant} onClick={onAdd} disabled={loading}>
                 <Plus size={14} />
-                Add domain
+                {t("settings.access.addDomain")}
             </Button>
         ) : null
 
@@ -80,10 +90,10 @@ export const DomainsSection = ({
         <section className="flex flex-col">
             <div className="mb-3">
                 <h2 className="m-0 text-[13px] font-medium leading-[18px] text-muted-foreground">
-                    Verified Domains
+                    {t("settings.access.verifiedDomains")}
                 </h2>
                 <p className="m-0 mt-1 text-xs text-muted-foreground">
-                    Prove you own a domain to auto-join its members and restrict invitations to it.
+                    {t("settings.access.verifiedDomainsDescription")}
                 </p>
             </div>
 
@@ -99,8 +109,8 @@ export const DomainsSection = ({
                 empty={
                     <SettingsEmpty
                         icon={getSettingsSidebarIcon("organization")}
-                        title="No domains yet"
-                        description="Add a domain and publish its DNS record to verify that you own it."
+                        title={t("settings.access.noDomainsTitle")}
+                        description={t("settings.access.noDomainsDescription")}
                         action={addButton("outline")}
                     />
                 }
@@ -117,23 +127,23 @@ export const DomainsSection = ({
                             </span>
                             {shows("expires_at") ? <ExpirationCell domain={record} /> : null}
                             {verified ? (
-                                <StatusIndicator tone="success" label="Verified" />
+                                <StatusIndicator tone="success" label={t("common.verified")} />
                             ) : (
-                                <StatusIndicator tone="warning" label="Pending" />
+                                <StatusIndicator tone="warning" label={t("common.pending")} />
                             )}
                             <span className="flex justify-end">
                                 {!verified && onVerify ? (
                                     <Button disabled={verifying} onClick={() => onVerify(record)}>
-                                        Verify
+                                        {t("common.verify")}
                                     </Button>
                                 ) : null}
                             </span>
                             <SettingsRowMenu
-                                label="Domain actions"
+                                label={t("settings.access.domainActions")}
                                 items={[
                                     {
                                         key: "refresh",
-                                        label: "Refresh token",
+                                        label: t("settings.access.refreshToken"),
                                         icon: <ArrowClockwise size={14} />,
                                         hidden: verified || !onRefreshToken,
                                         disabled: refreshing,
@@ -141,7 +151,7 @@ export const DomainsSection = ({
                                     },
                                     {
                                         key: "delete",
-                                        label: "Delete domain",
+                                        label: t("settings.access.deleteDomain"),
                                         icon: <Trash size={14} />,
                                         danger: true,
                                         hidden: !onDelete,

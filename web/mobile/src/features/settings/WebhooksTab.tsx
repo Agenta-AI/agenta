@@ -5,6 +5,7 @@ import {
     deleteWebhookAtom,
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
+import {useT} from "@agenta/i18n/settings"
 import {WebhooksPage} from "@agenta/settings-ui"
 import {
     Button,
@@ -26,6 +27,7 @@ import {WebhookFormSheet} from "./WebhookFormSheet"
  * drawer and modals do.
  */
 export const WebhooksTab = () => {
+    const t = useT()
     const deleteWebhook = useSetAtom(deleteWebhookAtom)
     const [webhookToDelete, setWebhookToDelete] = useAtom(webhookToDeleteAtom)
     const [createdSecret, setCreatedSecret] = useAtom(createdWebhookSecretAtom)
@@ -45,10 +47,12 @@ export const WebhooksTab = () => {
             renderDeleteDialog={() => (
                 <ConfirmModal
                     open={Boolean(webhookToDelete)}
-                    title="Delete subscription"
-                    description="This cannot be undone."
-                    body={<>Agenta stops delivering events to {webhookToDelete?.data?.url}.</>}
-                    confirmLabel="Delete"
+                    title={t("settings.webhooksTab.deleteTitle")}
+                    description={t("settings.webhooksTab.cannotBeUndone")}
+                    body={t("settings.webhooksTab.deleteBody", {
+                        url: webhookToDelete?.data?.url ?? "",
+                    })}
+                    confirmLabel={t("common.delete")}
                     pending={deleting}
                     error={error}
                     onClose={() => {
@@ -64,7 +68,7 @@ export const WebhooksTab = () => {
                             setWebhookToDelete(null)
                         } catch (cause) {
                             setError(
-                                (cause as Error)?.message || "Could not delete the subscription",
+                                (cause as Error)?.message || t("settings.webhooksTab.deleteFailed"),
                             )
                         } finally {
                             setDeleting(false)
@@ -81,10 +85,9 @@ export const WebhooksTab = () => {
                 >
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Save your webhook secret</DialogTitle>
+                            <DialogTitle>{t("settings.webhooksTab.secretTitle")}</DialogTitle>
                             <DialogDescription>
-                                Shown once. You need it to verify that incoming requests came from
-                                Agenta.
+                                {t("settings.webhooksTab.secretDescription")}
                             </DialogDescription>
                         </DialogHeader>
                         <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 font-mono text-xs">
@@ -97,7 +100,7 @@ export const WebhooksTab = () => {
                         ) : null}
                         <DialogFooter>
                             <Button variant="outline" onClick={closeReveal}>
-                                Done
+                                {t("common.done")}
                             </Button>
                             <Button
                                 onClick={async () => {
@@ -110,13 +113,11 @@ export const WebhooksTab = () => {
                                         setCopyError(null)
                                         setCopied(true)
                                     } catch {
-                                        setCopyError(
-                                            "Couldn't copy — select the secret above and copy it",
-                                        )
+                                        setCopyError(t("settings.webhooksTab.copyFailed"))
                                     }
                                 }}
                             >
-                                {copied ? "Copied" : "Copy secret"}
+                                {copied ? t("common.copied") : t("settings.webhooksTab.copySecret")}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

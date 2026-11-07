@@ -10,6 +10,7 @@ import {
     removeFromWorkspace,
 } from "@agenta/entities/organization"
 import {requestPasswordReset, updateUsername, useProfile} from "@agenta/entities/profile"
+import {useT} from "@agenta/i18n/settings"
 import {MembersPage} from "@agenta/settings-ui"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -50,6 +51,7 @@ import {useSettingsOrg} from "./useSettingsOrg"
 
 /** Mobile binding for Members: invite and remove as dialogs, your own name renamed in place. */
 export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsTabProps) => {
+    const t = useT()
     const {user: signedInUser} = useProfile()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(routeWorkspaceId)
     const members = org.data?.default_workspace?.members ?? []
@@ -134,7 +136,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
             onChanged()
         },
         onError: (cause: unknown) =>
-            setError((cause as Error)?.message || "Unable to send the invitation"),
+            setError((cause as Error)?.message || t("settings.membersTab.inviteError")),
     })
 
     const removeMutation = useMutation({
@@ -152,7 +154,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
             onChanged()
         },
         onError: (cause: unknown) =>
-            setError((cause as Error)?.message || "Unable to remove the member"),
+            setError((cause as Error)?.message || t("settings.membersTab.removeError")),
     })
 
     const roleMutation = useMutation({
@@ -177,12 +179,11 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
         onError: (cause: unknown) => {
             const detail = (cause as {response?: {data?: {detail?: unknown}}})?.response?.data
                 ?.detail
-            setRoleError(typeof detail === "string" ? detail : "Unable to change the role")
+            setRoleError(typeof detail === "string" ? detail : t("settings.membersTab.roleError"))
         },
     })
 
-    if (failed)
-        return <LoadError title="Could not load this organization's members" onRetry={retry} />
+    if (failed) return <LoadError title={t("settings.membersTab.loadError")} onRetry={retry} />
 
     return (
         <MembersPage
@@ -230,9 +231,9 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
             <Dialog open={inviteOpen} onOpenChange={(next) => (next ? undefined : closeInvite())}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Invite members</DialogTitle>
+                        <DialogTitle>{t("settings.membersTab.inviteTitle")}</DialogTitle>
                         <DialogDescription>
-                            They join this organization once they accept.
+                            {t("settings.membersTab.inviteDescription")}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex flex-col gap-3">
@@ -247,7 +248,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                         />
                         {showEmailError ? (
                             <p className="m-0 text-sm text-colorError">
-                                Enter a valid email address
+                                {t("settings.membersTab.invalidEmail")}
                             </p>
                         ) : null}
                         {offeredRoles.length ? (
@@ -255,7 +256,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                                 {/* Full width, like the field above it — the trigger's
                                     default is fit-to-content, which left it stranded. */}
                                 <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Role" />
+                                    <SelectValue placeholder={t("common.role")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {offeredRoles.map((entry) => (
@@ -274,7 +275,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                             onClick={closeInvite}
                             disabled={inviteMutation.isPending}
                         >
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button
                             disabled={!emailValid || roleMissing || inviteMutation.isPending}
@@ -283,7 +284,9 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                                 inviteMutation.mutate(email.trim())
                             }}
                         >
-                            {inviteMutation.isPending ? "Sending…" : "Send invitation"}
+                            {inviteMutation.isPending
+                                ? t("settings.membersTab.sending")
+                                : t("settings.membersTab.sendInvitation")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -305,13 +308,15 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Remove member</AlertDialogTitle>
+                        <AlertDialogTitle>{t("settings.membersTab.removeTitle")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            They lose access to this organization.
+                            {t("settings.membersTab.removeDescription")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <p className="m-0 text-sm">
-                        Remove {pendingRemoval?.user.username || pendingRemoval?.user.email}?
+                        {t("settings.membersTab.removeConfirm", {
+                            name: pendingRemoval?.user.username || pendingRemoval?.user.email || "",
+                        })}
                     </p>
                     {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
                     <AlertDialogFooter>
@@ -321,7 +326,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                                 onClick={() => setPendingRemoval(null)}
                                 disabled={removeMutation.isPending}
                             >
-                                Cancel
+                                {t("common.cancel")}
                             </Button>
                         </AlertDialogCancel>
                         {/* Stays open for the error; the mutation clears pendingRemoval on success. */}
@@ -334,7 +339,9 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                                     if (pendingRemoval) removeMutation.mutate(pendingRemoval)
                                 }}
                             >
-                                {removeMutation.isPending ? "Removing…" : "Remove"}
+                                {removeMutation.isPending
+                                    ? t("settings.membersTab.removing")
+                                    : t("common.remove")}
                             </Button>
                         </AlertDialogAction>
                     </AlertDialogFooter>

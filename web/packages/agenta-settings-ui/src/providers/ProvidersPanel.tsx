@@ -17,6 +17,8 @@ import {
     type OrganizationConnectionScope,
     type ProviderOwnerChoice,
 } from "@agenta/entity-ui/secretProvider"
+import {type TranslationKey} from "@agenta/i18n"
+import {useT} from "@agenta/i18n/settings"
 import {PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
 
 import {
@@ -95,10 +97,10 @@ const subscriptionProviderOf = (connection: ProviderConnection): SubscriptionPro
 }
 
 /** What a credential-set kind's form asks for, read off its fields in `providerFields.ts`. */
-const FORM_FIELDS_BY_KIND: Record<string, string> = {
-    bedrock: "AWS region and an API key or access keys",
-    azure: "Endpoint, API version and API key",
-    vertex_ai: "Project, location and credentials",
+const FORM_FIELDS_BY_KIND: Record<string, TranslationKey<"common" | "settings">> = {
+    bedrock: "settings.providers.bedrockFields",
+    azure: "settings.providers.azureFields",
+    vertex_ai: "settings.providers.vertexFields",
 }
 
 const MODEL_PROVIDERS = PROVIDER_CATALOG.filter(
@@ -108,9 +110,15 @@ const CLOUD_PLATFORMS = PROVIDER_CATALOG.filter(
     (entry) => entry.secretKind === SecretKind.CustomProvider,
 )
 
-const catalogDescription = (entry: ProviderCatalogEntry): string | undefined =>
-    entry.subtitle ??
-    (entry.secretKind === SecretKind.ProviderKey ? "API key" : FORM_FIELDS_BY_KIND[entry.kind])
+const catalogDescription = (
+    entry: ProviderCatalogEntry,
+    t: ReturnType<typeof useT>,
+): string | undefined => {
+    if (entry.subtitle) return entry.subtitle
+    if (entry.secretKind === SecretKind.ProviderKey) return t("settings.providers.apiKey")
+    const fields = FORM_FIELDS_BY_KIND[entry.kind]
+    return fields ? t(fields) : undefined
+}
 
 export const ProviderLogo = ({kind}: {kind: string}) =>
     createElement(providerIconFor(kind), {className: "size-[18px]"})
@@ -121,9 +129,9 @@ const SUBSCRIPTION_LOGO_KIND: Record<SubscriptionProvider, string> = {
     claude: "anthropic",
 }
 /** The cards' line for a sign-in not made yet. */
-const SUBSCRIPTION_HINT: Record<SubscriptionProvider, string> = {
-    chatgpt: "Sign in with your account",
-    claude: "Paste a token from Claude Code",
+const SUBSCRIPTION_HINT: Record<SubscriptionProvider, TranslationKey<"common" | "settings">> = {
+    chatgpt: "settings.providers.chatgptHint",
+    claude: "settings.providers.claudeHint",
 }
 
 const CHATGPT_NAME = subscriptionProviderName("chatgpt")
@@ -134,6 +142,7 @@ const subscriptionPlans = (
     chatgpt: ProviderConnection | null | undefined,
     claude: ProviderConnection | null | undefined,
     open: (provider: SubscriptionProvider) => void,
+    t: ReturnType<typeof useT>,
 ): SubscriptionPlan[] => {
     const chatgptConnected = subscriptionIsReady(chatgpt?.subscription)
     const loginState = chatgpt?.subscription?.loginState
@@ -146,11 +155,15 @@ const subscriptionPlans = (
             key: "chatgpt",
             logo: <ProviderLogo kind="openai" />,
             name: CHATGPT_NAME,
-            detail: subscriptionStatusLine(chatgpt?.subscription) || SUBSCRIPTION_HINT.chatgpt,
+            detail: subscriptionStatusLine(chatgpt?.subscription) || t(SUBSCRIPTION_HINT.chatgpt),
             state: chatgptConnected ? "connected" : broken ? "attention" : "available",
             brand: "neutral",
             action: {
-                label: chatgptConnected ? "Manage" : broken ? "Sign in again" : "Connect",
+                label: chatgptConnected
+                    ? t("settings.providers.manage")
+                    : broken
+                      ? t("settings.providers.signInAgain")
+                      : t("settings.providers.connect"),
                 onClick: () => open("chatgpt"),
             },
         },
@@ -158,11 +171,15 @@ const subscriptionPlans = (
             key: "claude",
             logo: <ProviderLogo kind="anthropic" />,
             name: CLAUDE_NAME,
-            detail: claudeConnected ? "Connected" : SUBSCRIPTION_HINT.claude,
+            detail: claudeConnected
+                ? t("settings.providers.connected")
+                : t(SUBSCRIPTION_HINT.claude),
             state: claudeConnected ? "connected" : "available",
             brand: "clay",
             action: {
-                label: claudeConnected ? "Manage" : "Connect",
+                label: claudeConnected
+                    ? t("settings.providers.manage")
+                    : t("settings.providers.connect"),
                 onClick: () => open("claude"),
             },
         },
@@ -190,6 +207,7 @@ export const ProvidersPanel = ({
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     subscriptionDocsUrl: string
 }) => {
+    const t = useT()
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
     const drawerGroup =
         (drawerTarget && "groupKey" in drawerTarget
@@ -274,15 +292,15 @@ export const ProvidersPanel = ({
                 name: connection.name,
                 description: source.describe(connection),
                 status: "connected",
-                statusLabel: "Connected",
+                statusLabel: t("settings.providers.connected"),
                 onOpen: (source.canOpen?.(connection) ?? true) ? () => open(connection) : undefined,
                 menu: source.manage ? (
                     <SettingsRowMenu
-                        label={`Actions for ${connection.name}`}
+                        label={t("settings.providers.actionsFor", {name: connection.name})}
                         items={[
                             {
                                 key: "edit",
-                                label: "Edit",
+                                label: t("common.edit"),
                                 icon: <PencilSimpleLine size={14} />,
                                 hidden: !(source.canOpen?.(connection) ?? true),
                                 onClick: () => open(connection),
@@ -290,7 +308,7 @@ export const ProvidersPanel = ({
                             {type: "divider"},
                             {
                                 key: "delete",
-                                label: "Delete",
+                                label: t("common.delete"),
                                 icon: <Trash size={14} />,
                                 danger: true,
                                 hidden: !canRemove,
@@ -309,9 +327,11 @@ export const ProvidersPanel = ({
                           key: `subscription:${provider}`,
                           logo: <ProviderLogo kind={SUBSCRIPTION_LOGO_KIND[provider]} />,
                           name: subscriptionProviderName(provider),
-                          description: SUBSCRIPTION_HINT[provider],
+                          description: t(SUBSCRIPTION_HINT[provider]),
                           status: "available",
-                          statusLabel: `Connect ${subscriptionProviderName(provider)}`,
+                          statusLabel: t("settings.providers.connectName", {
+                              name: subscriptionProviderName(provider),
+                          }),
                           onOpen: () => setSignInTarget({groupKey, provider, open: true}),
                       }))
                     : []
@@ -334,9 +354,9 @@ export const ProvidersPanel = ({
             key: entry.kind,
             logo: <ProviderLogo kind={entry.kind} />,
             name: entry.title,
-            description: catalogDescription(entry),
+            description: catalogDescription(entry, t),
             status: "available",
-            statusLabel: `Connect ${entry.title}`,
+            statusLabel: t("settings.providers.connectName", {name: entry.title}),
             onOpen: () => setDrawerTarget({kind: entry.kind}),
         })
 
@@ -344,20 +364,20 @@ export const ProvidersPanel = ({
             ...owned,
             {
                 key: "model-providers",
-                label: "Model providers",
+                label: t("settings.providers.modelProviders"),
                 items: MODEL_PROVIDERS.map(catalogRow),
             },
             {
                 key: "cloud-platforms",
-                label: "Cloud platforms",
+                label: t("settings.providers.cloudPlatforms"),
                 items: CLOUD_PLATFORMS.map(catalogRow),
             },
         ]
-    }, [ownerGroups, canRemoveIn, requestRemoval])
+    }, [ownerGroups, canRemoveIn, requestRemoval, t])
 
     const plans = useMemo(
-        () => subscriptionPlans(chatgpt, claude, openProjectSignIn),
-        [chatgpt, claude, openProjectSignIn],
+        () => subscriptionPlans(chatgpt, claude, openProjectSignIn, t),
+        [chatgpt, claude, openProjectSignIn, t],
     )
     const removeSubscription = useCallback(
         (connection: ProviderConnection) =>

@@ -5,6 +5,7 @@
  * current plan; picking one is the host's — checkout, switch and cancel are all its calls.
  */
 
+import {t as translate, useT} from "@agenta/i18n/billing"
 import {Button, Spinner} from "@agenta/ui/ui"
 
 import type {BillingPlanOption} from "./types"
@@ -14,9 +15,10 @@ const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 const formatPrice = (plan: BillingPlanOption) => {
     // A priced plan whose base amount is missing rendered "$undefined /month".
     const amount = plan.price?.base?.amount
-    if (amount == null) return "Contact us"
-    const prefix = plan.price?.base?.starting_at ? "Starts at " : ""
-    return `${prefix}$${amount} /month`
+    if (amount == null) return translate("billing.contactUs")
+    return translate(plan.price?.base?.starting_at ? "billing.priceStartsAt" : "billing.price", {
+        amount,
+    })
 }
 
 export interface PricingPlansProps {
@@ -41,6 +43,7 @@ const PricingCard = ({
     pendingPlan,
     onSelectPlan,
 }: {plan: BillingPlanOption} & Omit<PricingPlansProps, "plans" | "loading">) => {
+    const t = useT()
     const isPending = pendingPlan === plan.plan
     const isThisPlanCustom = plan.type === "custom"
     const isThisPlanFree = Boolean(freePlanSlug) && plan.plan === freePlanSlug
@@ -57,7 +60,7 @@ const PricingCard = ({
             disabled={isDisabled}
             onClick={() => window.open(CONTACT_URL, "_blank")}
         >
-            {isCurrentPlanCustom ? "Current plan" : "Talk to us"}
+            {isCurrentPlanCustom ? t("billing.currentPlan") : t("billing.talkToUs")}
         </Button>
     ) : (
         <Button
@@ -67,12 +70,12 @@ const PricingCard = ({
             onClick={() => onSelectPlan?.(plan)}
         >
             {isCurrent
-                ? "Current plan"
+                ? t("billing.currentPlan")
                 : isPending
-                  ? "Working…"
+                  ? t("billing.working")
                   : isThisPlanFree
-                    ? `Move to ${plan.title}`
-                    : `Upgrade to ${plan.title}`}
+                    ? t("billing.moveTo", {plan: plan.title})
+                    : t("billing.upgradeTo", {plan: plan.title})}
         </Button>
     )
 
@@ -103,6 +106,7 @@ const PricingCard = ({
 }
 
 export const PricingPlans = ({plans, loading = false, ...cardProps}: PricingPlansProps) => {
+    const t = useT()
     if (loading) {
         return (
             <div className="flex h-[400px] w-full items-center justify-center">
@@ -113,7 +117,7 @@ export const PricingPlans = ({plans, loading = false, ...cardProps}: PricingPlan
 
     return (
         <section className="mx-auto mt-4 flex flex-col gap-2">
-            <span className="font-medium text-colorText">Choose your plan</span>
+            <span className="font-medium text-colorText">{t("billing.choosePlan")}</span>
             <div className="flex flex-col gap-4 md:flex-row">
                 {plans?.map((plan) => (
                     <PricingCard key={plan.title} plan={plan} {...cardProps} />

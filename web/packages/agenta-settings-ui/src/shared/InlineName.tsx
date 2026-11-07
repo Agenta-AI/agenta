@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
+import {t} from "@agenta/i18n/settings"
 import {message} from "@agenta/ui/app-message"
 import {Input, cn} from "@agenta/ui/ui"
 
@@ -51,7 +52,7 @@ export const InlineName = ({
         try {
             await onSave(name)
         } catch (error) {
-            message.error((error as Error)?.message || "Couldn't rename this")
+            message.error((error as Error)?.message || t("settings.shared.renameFailed"))
         }
         onDone()
     }

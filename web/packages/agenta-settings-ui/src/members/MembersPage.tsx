@@ -1,6 +1,7 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n/settings"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
@@ -20,16 +21,20 @@ interface MemberRow extends WorkspaceMember {
     key: string
 }
 
-const MEMBER_COLUMN: ListTableColumn = {
+const memberColumn = (t: ReturnType<typeof useT>): ListTableColumn => ({
     key: "member",
-    label: "Member",
+    label: t("settings.members.member"),
     width: "minmax(0,2fr)",
-}
-const ROLE_COLUMN: ListTableColumn = {key: "roles", label: "Role", width: "minmax(0,1fr)"}
-const TAIL_COLUMNS: ListTableColumn[] = [
-    {key: "status", label: "Status", width: "minmax(0,1fr)"},
-    {key: "created_at", label: "Added", width: "minmax(0,1fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+})
+const roleColumn = (t: ReturnType<typeof useT>): ListTableColumn => ({
+    key: "roles",
+    label: t("settings.members.role"),
+    width: "minmax(0,1fr)",
+})
+const tailColumns = (t: ReturnType<typeof useT>): ListTableColumn[] => [
+    {key: "status", label: t("common.status"), width: "minmax(0,1fr)"},
+    {key: "created_at", label: t("settings.members.added"), width: "minmax(0,1fr)"},
+    {key: "actions", label: t("common.actions"), srOnly: true, width: "32px"},
 ]
 /** Role stays on a phone: its cell is where the role is changed. */
 const PHONE_KEYS = ["member", "roles", "status", "actions"]
@@ -84,6 +89,7 @@ export const MembersPage = ({
     onResetPassword,
     children,
 }: MembersPageProps) => {
+    const t = useT()
     const [renamingSelf, setRenamingSelf] = useState(false)
     const rows = useMemo<MemberRow[]>(
         () => members.map((member) => ({...member, key: member.user.id})),
@@ -96,8 +102,8 @@ export const MembersPage = ({
     const isOwner = (member: WorkspaceMember) => Boolean(ownerId) && member.user?.id === ownerId
 
     const allColumns = useMemo(
-        () => [MEMBER_COLUMN, ...(renderRoleCell ? [ROLE_COLUMN] : []), ...TAIL_COLUMNS],
-        [renderRoleCell],
+        () => [memberColumn(t), ...(renderRoleCell ? [roleColumn(t)] : []), ...tailColumns(t)],
+        [renderRoleCell, t],
     )
     const {columns, shows} = usePhoneColumns(allColumns, PHONE_KEYS)
 
@@ -105,7 +111,7 @@ export const MembersPage = ({
         canInviteMembers && onInvite ? (
             <Button variant={variant} onClick={onInvite} disabled={loading}>
                 <Plus size={14} />
-                Invite members
+                {t("settings.members.inviteMembers")}
             </Button>
         ) : null
 
@@ -124,8 +130,8 @@ export const MembersPage = ({
                 empty={
                     <SettingsEmpty
                         icon={getSettingsSidebarIcon("workspace")}
-                        title="No members yet"
-                        description="Invite people to collaborate in this organization. Invitations appear here until they are accepted or expire."
+                        title={t("settings.members.emptyTitle")}
+                        description={t("settings.members.emptyDescription")}
                         action={inviteButton("outline")}
                     />
                 }
@@ -141,7 +147,7 @@ export const MembersPage = ({
                                         <InlineName
                                             value={name}
                                             editing={renamingSelf && canRenameSelf(record)}
-                                            ariaLabel="Username"
+                                            ariaLabel={t("settings.members.username")}
                                             onStart={
                                                 canRenameSelf(record)
                                                     ? () => setRenamingSelf(true)
@@ -154,7 +160,7 @@ export const MembersPage = ({
                                             <Tag
                                                 size="small"
                                                 tone="info"
-                                                label="You"
+                                                label={t("settings.members.you")}
                                                 className="shrink-0"
                                             />
                                         ) : null}
@@ -170,11 +176,20 @@ export const MembersPage = ({
                                 </div>
                             ) : null}
                             {status === "expired" ? (
-                                <StatusIndicator tone="error" label="Expired" />
+                                <StatusIndicator
+                                    tone="error"
+                                    label={t("settings.members.expired")}
+                                />
                             ) : status === "pending" ? (
-                                <StatusIndicator tone="warning" label="Pending" />
+                                <StatusIndicator
+                                    tone="warning"
+                                    label={t("settings.members.pending")}
+                                />
                             ) : (
-                                <StatusIndicator tone="success" label="Active" />
+                                <StatusIndicator
+                                    tone="success"
+                                    label={t("settings.members.active")}
+                                />
                             )}
                             {shows("created_at") ? (
                                 <span className="truncate text-muted-foreground">
@@ -184,11 +199,11 @@ export const MembersPage = ({
                                 </span>
                             ) : null}
                             <SettingsRowMenu
-                                label="Member actions"
+                                label={t("settings.members.memberActions")}
                                 items={[
                                     {
                                         key: "rename",
-                                        label: "Rename",
+                                        label: t("common.rename"),
                                         icon: <PencilSimpleLine size={14} />,
                                         hidden: !canRenameSelf(record),
                                         deferred: true,
@@ -196,7 +211,7 @@ export const MembersPage = ({
                                     },
                                     {
                                         key: "resend_invite",
-                                        label: "Resend invitation",
+                                        label: t("settings.members.resendInvitation"),
                                         icon: <ArrowClockwise size={14} />,
                                         hidden:
                                             isSelf(record) ||
@@ -208,7 +223,7 @@ export const MembersPage = ({
                                     },
                                     {
                                         key: "reset_password",
-                                        label: "Reset password",
+                                        label: t("settings.members.resetPassword"),
                                         icon: <Key size={14} />,
                                         // Never mint a login link into the owner's account.
                                         hidden:
@@ -221,7 +236,7 @@ export const MembersPage = ({
                                     },
                                     {
                                         key: "remove",
-                                        label: "Remove",
+                                        label: t("settings.members.remove"),
                                         icon: <Trash size={14} />,
                                         danger: true,
                                         hidden:

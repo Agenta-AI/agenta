@@ -10,6 +10,7 @@ import {
     type WorkspaceMember,
 } from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
+import {useT} from "@agenta/i18n/settings"
 import {OrganizationsPage} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
 import {
@@ -46,6 +47,7 @@ const errorText = (error: unknown, fallback: string): string => {
 
 /** Mobile binding: create, rename in place, transfer ownership and delete for organizations. */
 export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
+    const t = useT()
     const router = useRouter()
     const queryClient = useQueryClient()
     const {user} = useProfile()
@@ -98,7 +100,12 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                 const group = groups.find((entry) => entry.organizationId === org.id)
                 const first = group?.projects[0]
                 if (!group || !first) {
-                    message.info(`${org.name ?? "This organization"} has no project to open yet`)
+                    message.info(
+                        t("settings.organizationsTab.noProjectYet", {
+                            name:
+                                org.name ?? t("settings.organizationsTab.thisOrganizationCapital"),
+                        }),
+                    )
                     return
                 }
                 switchSettingsContext(router, {
@@ -114,7 +121,7 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                 try {
                     await updateOrganization(org.id, {name})
                 } catch (cause) {
-                    throw new Error(errorText(cause, "Couldn't rename this organization"))
+                    throw new Error(errorText(cause, t("settings.organizationsTab.renameFailed")))
                 }
                 onChanged()
             }}
@@ -129,15 +136,20 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
         >
             <NameDialog
                 open={creating}
-                title="New organization"
-                description="An organization groups your workspaces, projects and the people in them."
-                placeholder="Organization name"
-                submitLabel="Create"
+                title={t("settings.organizationsTab.newTitle")}
+                description={t("settings.organizationsTab.newDescription")}
+                placeholder={t("settings.organizationsTab.namePlaceholder")}
+                submitLabel={t("common.create")}
                 pending={pending}
                 error={error}
                 onClose={() => setCreating(false)}
                 onSubmit={async (name) => {
-                    if (await run(() => createOrganization({name}), "Couldn't create it"))
+                    if (
+                        await run(
+                            () => createOrganization({name}),
+                            t("settings.organizationsTab.createFailed"),
+                        )
+                    )
                         setCreating(false)
                 }}
             />
@@ -154,7 +166,7 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                     const org = transferring
                     const done = await run(
                         () => transferOrganizationOwnership(org.id, userId),
-                        "Couldn't transfer ownership",
+                        t("settings.organizationsTab.transferFailed"),
                     )
                     if (done) setTransferring(null)
                 }}
@@ -162,10 +174,12 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
 
             <ConfirmModal
                 open={Boolean(deleting)}
-                title="Delete organization"
-                description="This cannot be undone."
-                body={`Permanently deletes ${deleting?.name ?? "this organization"}, with every workspace, project and agent in it.`}
-                confirmLabel="Delete organization"
+                title={t("settings.organizationsTab.deleteTitle")}
+                description={t("settings.organizationsTab.cannotBeUndone")}
+                body={t("settings.organizationsTab.deleteBody", {
+                    name: deleting?.name ?? t("settings.organizationsTab.thisOrganization"),
+                })}
+                confirmLabel={t("settings.organizationsTab.deleteTitle")}
                 pending={pending}
                 error={error ?? undefined}
                 onClose={() => setDeleting(null)}
@@ -174,7 +188,7 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                     const org = deleting
                     const done = await run(
                         () => deleteOrganization(org.id),
-                        "Couldn't delete this organization",
+                        t("settings.organizationsTab.deleteFailed"),
                     )
                     if (!done) return
                     setDeleting(null)
@@ -203,6 +217,7 @@ const TransferDialog = ({
     onClose: () => void
     onTransfer: (userId: string) => void
 }) => {
+    const t = useT()
     const [userId, setUserId] = useState("")
     // Each opening starts with no member chosen.
     useEffect(() => setUserId(""), [org])
@@ -220,16 +235,19 @@ const TransferDialog = ({
         >
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Transfer ownership</DialogTitle>
+                    <DialogTitle>{t("settings.organizationsTab.transferTitle")}</DialogTitle>
                     <DialogDescription>
-                        The new owner gets full control of {org?.name ?? "this organization"}. You
-                        stay a member.
+                        {t("settings.organizationsTab.transferDescription", {
+                            name: org?.name ?? t("settings.organizationsTab.thisOrganization"),
+                        })}
                     </DialogDescription>
                 </DialogHeader>
                 {candidates.length ? (
                     <Select value={userId} onValueChange={setUserId}>
                         <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Choose a member" />
+                            <SelectValue
+                                placeholder={t("settings.organizationsTab.chooseMember")}
+                            />
                         </SelectTrigger>
                         <SelectContent>
                             {candidates.map((member) => (
@@ -241,8 +259,7 @@ const TransferDialog = ({
                     </Select>
                 ) : (
                     <p className="m-0 text-sm text-muted-foreground">
-                        Invite someone to this organization first; ownership can only pass to a
-                        member.
+                        {t("settings.organizationsTab.inviteFirst")}
                     </p>
                 )}
                 {error ? (
@@ -252,10 +269,10 @@ const TransferDialog = ({
                 ) : null}
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <Button disabled={!userId || pending} onClick={() => onTransfer(userId)}>
-                        Transfer
+                        {t("settings.organizationsTab.transfer")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

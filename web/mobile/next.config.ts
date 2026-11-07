@@ -51,6 +51,7 @@ const nextConfig: NextConfig = {
         "@agenta/settings",
         "@agenta/settings-ui",
         "@agenta/home-ui",
+        "@agenta/i18n",
         "@agenta/observability",
         "@agenta/playground",
         "@agenta/playground-ui",

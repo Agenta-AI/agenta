@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react"
 
 import type {OrganizationProvider} from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n/settings"
 import {
     Button,
     Dialog,
@@ -45,6 +46,7 @@ export const SsoProviderDialog = ({
     onClose: () => void
     onSubmit: (values: SsoProviderFormValues) => Promise<void>
 }) => {
+    const t = useT()
     const isEdit = Boolean(provider)
     const [slug, setSlug] = useState("")
     const [name, setName] = useState("")
@@ -77,17 +79,17 @@ export const SsoProviderDialog = ({
     const submit = async () => {
         const trimmedSlug = slug.trim()
         if (!trimmedSlug || !SLUG_PATTERN.test(trimmedSlug)) {
-            setError("Use only lowercase letters (a-z) and hyphens (-) for the slug")
+            setError(t("settings.ssoProviderDialog.invalidSlug"))
             return
         }
         const issuer_url = issuerUrl.trim()
         const client_id = clientId.trim()
         if (!issuer_url || !client_id) {
-            setError("Issuer URL and client ID are required")
+            setError(t("settings.ssoProviderDialog.issuerAndClientRequired"))
             return
         }
         if (!isEdit && !clientSecret.trim()) {
-            setError("Enter the client secret")
+            setError(t("settings.ssoProviderDialog.enterClientSecret"))
             return
         }
 
@@ -115,7 +117,7 @@ export const SsoProviderDialog = ({
             await onSubmit(values)
             onClose()
         } catch (cause) {
-            setError(plainAccessError(cause, "Could not save the provider"))
+            setError(plainAccessError(cause, t("settings.ssoProviderDialog.saveFailed")))
         } finally {
             setPending(false)
         }
@@ -130,16 +132,23 @@ export const SsoProviderDialog = ({
         >
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{isEdit ? "Edit SSO provider" : "Add SSO provider"}</DialogTitle>
+                    <DialogTitle>
+                        {isEdit
+                            ? t("settings.ssoProviderDialog.editTitle")
+                            : t("settings.ssoProviderDialog.addTitle")}
+                    </DialogTitle>
                     <DialogDescription>
                         {isEdit
-                            ? "Saving settings clears validation and deactivates the provider. Enable it again after saving."
-                            : "After adding the provider, enable it to verify the connection."}
+                            ? t("settings.ssoProviderDialog.editDescription")
+                            : t("settings.ssoProviderDialog.addDescription")}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex flex-col gap-3">
-                    <Field label="Slug" hint="Lowercase letters and hyphens only">
+                    <Field
+                        label={t("settings.ssoProviderDialog.slug")}
+                        hint={t("settings.ssoProviderDialog.slugHint")}
+                    >
                         <Input
                             autoFocus={!isEdit}
                             value={slug}
@@ -148,35 +157,31 @@ export const SsoProviderDialog = ({
                             onChange={(event) => setSlug(event.target.value)}
                         />
                     </Field>
-                    <Field label="Name">
+                    <Field label={t("common.name")}>
                         <Input value={name} onChange={(event) => setName(event.target.value)} />
                     </Field>
-                    <Field label="Description">
+                    <Field label={t("common.description")}>
                         <Input
                             value={description}
                             onChange={(event) => setDescription(event.target.value)}
                         />
                     </Field>
-                    <Field label="Issuer URL">
+                    <Field label={t("settings.ssoProviderDialog.issuerUrl")}>
                         <Input
                             value={issuerUrl}
                             placeholder="https://idp.example.com"
                             onChange={(event) => setIssuerUrl(event.target.value)}
                         />
                     </Field>
-                    <Field label="Client ID">
+                    <Field label={t("settings.ssoProviderDialog.clientId")}>
                         <Input
                             value={clientId}
                             onChange={(event) => setClientId(event.target.value)}
                         />
                     </Field>
                     <Field
-                        label="Client secret"
-                        hint={
-                            isEdit
-                                ? "The stored secret is never shown. Leave blank to keep it."
-                                : undefined
-                        }
+                        label={t("settings.ssoProviderDialog.clientSecret")}
+                        hint={isEdit ? t("settings.ssoProviderDialog.clientSecretHint") : undefined}
                     >
                         <Input
                             type="password"
@@ -184,7 +189,10 @@ export const SsoProviderDialog = ({
                             onChange={(event) => setClientSecret(event.target.value)}
                         />
                     </Field>
-                    <Field label="Scopes" hint="Separate scopes with commas">
+                    <Field
+                        label={t("settings.ssoProviderDialog.scopes")}
+                        hint={t("settings.ssoProviderDialog.scopesHint")}
+                    >
                         <Input value={scopes} onChange={(event) => setScopes(event.target.value)} />
                     </Field>
                     {error ? (
@@ -196,10 +204,14 @@ export const SsoProviderDialog = ({
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <Button disabled={pending} onClick={() => void submit()}>
-                        {pending ? "Saving…" : isEdit ? "Save provider" : "Add provider"}
+                        {pending
+                            ? t("settings.ssoProviderDialog.saving")
+                            : isEdit
+                              ? t("settings.ssoProviderDialog.saveProvider")
+                              : t("settings.ssoProviderDialog.addProvider")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -1,3 +1,4 @@
+import {useT} from "@agenta/i18n/billing"
 import {Alert, Button} from "@agenta/ui/ui"
 
 import {formatCreditCount} from "./topUpRules"
@@ -16,6 +17,7 @@ export const TopUpPaymentNotice = ({
     checkoutSessionId: string
     onClose: () => void
 }) => {
+    const t = useT()
     const landing = useTopUpLanding({projectId, checkoutSessionId})
 
     if (landing.state === "landed")
@@ -25,11 +27,13 @@ export const TopUpPaymentNotice = ({
                 showIcon
                 closable
                 onClose={onClose}
-                message="Credits added"
+                message={t("billing.topups.creditsAdded")}
                 description={
                     landing.credits !== null
-                        ? `${formatCreditCount(landing.credits)} purchased credits are now available.`
-                        : "Your purchased credits are now available."
+                        ? t("billing.topups.creditsAvailableCount", {
+                              credits: formatCreditCount(landing.credits),
+                          })
+                        : t("billing.topups.creditsAvailable")
                 }
             />
         )
@@ -41,11 +45,11 @@ export const TopUpPaymentNotice = ({
                 showIcon
                 closable
                 onClose={onClose}
-                message="Payment received"
-                description="The credits have not appeared yet. Check again in a few minutes. If they do not appear, contact support."
+                message={t("billing.topups.paymentReceived")}
+                description={t("billing.topups.creditsDelayed")}
                 action={
                     <Button size="sm" variant="outline" onClick={landing.retry}>
-                        Check again
+                        {t("billing.topups.checkAgain")}
                     </Button>
                 }
             />
@@ -55,8 +59,8 @@ export const TopUpPaymentNotice = ({
         <Alert
             type="info"
             showIcon
-            message="Payment received"
-            description="Your credits will appear here shortly."
+            message={t("billing.topups.paymentReceived")}
+            description={t("billing.topups.creditsSoon")}
         />
     )
 }

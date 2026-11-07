@@ -1,6 +1,8 @@
 import {useState} from "react"
 
 import {personalAccountsAccessAtom, useVaultSecret} from "@agenta/entities/secret"
+import {richText} from "@agenta/i18n"
+import {useT} from "@agenta/i18n/settings"
 import {addAccountOwners, NamedSecretTable} from "@agenta/settings-ui"
 import type {LlmProvider} from "@agenta/shared/types"
 import {useAtomValue} from "jotai"
@@ -18,6 +20,7 @@ import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
  * so only the surfaces differ. `edit_secret` decides whether a new secret asks "Who can use it".
  */
 export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const t = useT()
     const {handleDeleteVaultSecret} = useVaultSecret()
     const [deleting, setDeleting] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -45,19 +48,22 @@ export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
             renderDeleteDialog={({selectedProvider, open, onClose}) => (
                 <ConfirmModal
                     open={open}
-                    title="Delete secret"
-                    description="This cannot be undone."
+                    title={t("settings.secretsTab.deleteTitle")}
+                    description={t("settings.secretsTab.cannotBeUndone")}
                     body={
                         <>
-                            Anything referencing{" "}
-                            <span className="font-mono">
-                                {(selectedProvider as {slug?: string} | null)?.slug ??
-                                    selectedProvider?.name}
-                            </span>{" "}
-                            stops resolving once it is gone.
+                            {richText(
+                                t("settings.secretsTab.deleteBody", {
+                                    slug:
+                                        (selectedProvider as {slug?: string} | null)?.slug ??
+                                        selectedProvider?.name ??
+                                        "",
+                                }),
+                                {code: (text) => <span className="font-mono">{text}</span>},
+                            )}
                         </>
                     }
-                    confirmLabel="Delete secret"
+                    confirmLabel={t("settings.secretsTab.deleteTitle")}
                     pending={deleting}
                     error={error}
                     onClose={() => {
@@ -72,7 +78,9 @@ export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                             await handleDeleteVaultSecret(selectedProvider as LlmProvider)
                             onClose()
                         } catch (cause) {
-                            setError((cause as Error)?.message || "Could not delete the secret")
+                            setError(
+                                (cause as Error)?.message || t("settings.secretsTab.deleteFailed"),
+                            )
                         } finally {
                             setDeleting(false)
                         }

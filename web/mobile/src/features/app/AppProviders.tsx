@@ -19,6 +19,7 @@ import {queryClient} from "@/lib/queryClient"
 import {AuthGate} from "./AuthGate"
 import {ContextSync} from "./ContextSync"
 import {registerExecutionHeaders} from "./executionHeaders"
+import {LanguageSync} from "./LanguageSync"
 import {PostAuthLoader} from "./PostAuthLoader"
 
 // Module scope, like the desktop _app: __env.js is beforeInteractive, so
@@ -45,6 +46,7 @@ export const AppProviders = ({children}: PropsWithChildren) => (
         <Provider store={getDefaultStore()}>
             <HydrateAtoms>
                 <ContextSync />
+                <LanguageSync />
                 <Analytics />
                 {/* The project's only live revalidation channel — without it every project list
                     here waits out its stale time and a remount. */}
