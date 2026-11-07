@@ -5,7 +5,7 @@ adapter interface plus `fetch_messages_after`, so the fake adapter maps a
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -114,9 +114,9 @@ class FakeAdapter:
         newer = [
             m for m in self.history.get(channel_id, []) if int(m["id"]) > int(after)
         ]
+        # Oldest first, as the real adapter returns a page.
         newer.sort(key=lambda m: int(m["id"]))
-        # Discord answers newest first.
-        return list(reversed(newer[: self.page_size]))
+        return newer[: self.page_size]
 
 
 class FakeRegistry:
@@ -141,7 +141,9 @@ class FakeChannelsService:
         self.enqueued: List[str] = []
         self.attempts: List[str] = []
         self.fail_enqueues = 0
-        self.snapshot_queries = 0
+        self.start_queries = 0
+        # Set to block every reload in query_active_connections.
+        self.reload_gate: Optional[asyncio.Event] = None
 
     def add(self, conn: ChannelConnection) -> ChannelConnection:
         self.connections[conn.id] = conn
@@ -153,6 +155,7 @@ class FakeChannelsService:
             return None
         row = ChannelInboxEvent(
             id=uuid4(),
+            created_at=datetime.now(timezone.utc),
             connection_id=conn.id,
             external_id=inbound.external_id,
             kind=inbound.kind,
@@ -168,6 +171,8 @@ class FakeChannelsService:
         return row
 
     async def query_active_connections(self, *, channel: str):
+        if self.reload_gate is not None:
+            await self.reload_gate.wait()
         return [(self.project_id, conn) for conn in self.connections.values()]
 
     async def fetch_connection(self, *, project_id, connection_id):
@@ -175,10 +180,12 @@ class FakeChannelsService:
         return self.connections.get(connection_id)
 
     async def record_and_enqueue_inbox_event(
-        self, *, project_id, connection_id, channel, inbound
+        self, *, project_id, connection_id, channel, inbound, enqueue_existing=True
     ):
         self.attempts.append(inbound.external_id)
-        self.store_row(self.connections[connection_id], inbound)
+        stored = self.store_row(self.connections[connection_id], inbound)
+        if stored is None and not enqueue_existing:
+            return
         if self.fail_enqueues > 0:
             self.fail_enqueues -= 1
             raise ChannelInboxEnqueueFailed(
@@ -187,13 +194,14 @@ class FakeChannelsService:
         self.enqueued.append(inbound.external_id)
 
     async def query_inbox_events(self, *, project_id, event=None, windowing=None):
-        self.snapshot_queries += 1
+        self.start_queries += 1
         return [
             row
             for row in self.rows.values()
             if row.connection_id == event.connection_id
             and row.kind == event.kind
             and row.origin == event.origin
+            and windowing.oldest <= row.created_at <= windowing.newest
         ]
 
 
@@ -204,6 +212,11 @@ class FakeLocks:
         self.owners: Dict[str, str] = {}
         self.renew_ok = True
         self.released: List[str] = []
+
+    def expire(self) -> None:
+        """The lease runs out, as when no renewal reached Redis in time."""
+
+        self.owners.clear()
 
     def install(self, monkeypatch) -> "FakeLocks":
         monkeypatch.setattr(locking, "acquire_lock", self.acquire)
@@ -235,11 +248,9 @@ class FakeLocks:
 def fast(monkeypatch, tick: float = 0.01) -> None:
     monkeypatch.setattr(discord_socket, "TICK_SECONDS", tick)
     monkeypatch.setattr(discord_socket, "RETRY_FIRST_SECONDS", tick)
-
-
-async def settle(rounds: int = 20) -> None:
-    for _ in range(rounds):
-        await asyncio.sleep(0)
+    monkeypatch.setattr(
+        discord_socket, "RECOVERY_CLOCK_MARGIN", timedelta(milliseconds=5)
+    )
 
 
 async def until(condition, timeout: float = 2.0) -> None:

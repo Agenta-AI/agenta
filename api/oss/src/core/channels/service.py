@@ -2236,12 +2236,15 @@ class ChannelsService:
         connection_id: UUID,
         channel: str,
         inbound: ChannelInboundEvent,
+        enqueue_existing: bool = True,
     ) -> None:
         """Store the parsed event and enqueue its dispatch. Shared by the HTTP
-        ingress routes and the Discord socket loop. The enqueue runs even when
-        the row already exists, so a retried delivery recovers from an earlier
-        enqueue failure. Raises ChannelInboxEnqueueFailed when the enqueue
-        fails; the row stays stored."""
+        ingress routes and the Discord socket loop. By default the enqueue runs
+        even when the row already exists, so a retried delivery recovers from an
+        earlier enqueue failure. `enqueue_existing=False` enqueues only a row
+        this call stored: Discord recovery reads history that overlaps what the
+        socket already delivered, and those rows were enqueued then. Raises
+        ChannelInboxEnqueueFailed when the enqueue fails; the row stays stored."""
 
         event = ChannelInboxEventCreate(
             connection_id=connection_id,
@@ -2255,11 +2258,13 @@ class ChannelsService:
                 addressed=inbound.addressed,
             ),
         )
-        await self.record_inbox_event(
+        stored = await self.record_inbox_event(
             project_id=project_id,
             event=event,
         )
         if self.inbox_dispatch_task is None:
+            return
+        if stored is None and not enqueue_existing:
             return
         try:
             await asyncio.wait_for(

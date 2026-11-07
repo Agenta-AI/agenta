@@ -11,10 +11,12 @@ step the HTTP ingress runs, and the inbox worker takes it from there.
 `discord.py` runs the socket only (connect, heartbeat, resume, reconnect).
 
 After a socket starts with a fresh IDENTIFY instead of a resume, Discord does
-not replay what it sent while the socket was down. The loop then reads channel
-history after a snapshot of the last stored message per channel and passes each
-message through the same step; the inbox unique constraint drops anything that
-already arrived.
+not replay what it sent while the socket was down. So on every READY, the first
+socket of a connection included, the loop reads each channel's history after the
+last message stored before that READY, and passes each message through the same
+step. The inbox unique constraint drops the row of a message the socket already
+delivered, and recovery enqueues only the rows it stored, so such a message is
+not dispatched twice.
 """
 
 import asyncio
@@ -47,8 +49,8 @@ LOCK_NAMESPACE = "channels"
 LOCK_KEY = "discord:sockets"
 # Short, so the sockets pause briefly when the holder dies.
 LOCK_TTL_SECONDS = 15
-# The holder renews the lock and reloads the connections on every tick, so
-# a setup change takes effect within a tick.
+# The holder renews the lock on every tick, in a task of its own, and reloads
+# the connections on every tick, so a setup change takes effect within a tick.
 TICK_SECONDS = 5
 
 # Both retries back off from RETRY_FIRST_SECONDS, doubling up to their cap.
@@ -60,6 +62,10 @@ SOCKET_RETRY_MAX_SECONDS = 300
 # from at most this many of the connection's newest rows.
 RECOVERY_WINDOW = timedelta(hours=24)
 RECOVERY_SCAN_LIMIT = 1000
+# Rows stored this close to READY are left out of the recovery start, in case
+# the database clock runs ahead of ours. A lower start only reads again
+# messages the unique constraint then drops.
+RECOVERY_CLOCK_MARGIN = timedelta(seconds=5)
 
 # GUILDS, GUILD_MESSAGES, DIRECT_MESSAGES and the privileged MESSAGE_CONTENT.
 _INTENTS = discord.Intents.none()
@@ -70,9 +76,9 @@ _INTENTS.message_content = True
 
 _ROUTED_EVENTS = ("MESSAGE_CREATE", "INTERACTION_CREATE")
 
-# channel id -> (highest stored message id, guild id). The guild id is put back
-# on each history message, which Discord sends without one.
-Snapshot = Dict[str, Tuple[str, str]]
+# channel id -> (highest message id stored before READY, guild id). The guild
+# id is put back on each history message, which Discord sends without one.
+RecoveryStart = Dict[str, Tuple[str, str]]
 
 
 class _GatewayClient(discord.Client):
@@ -92,13 +98,6 @@ class _GatewayClient(discord.Client):
     async def on_socket_raw_receive(self, raw: str) -> None:
         self._socket.receive(raw)
 
-    async def on_disconnect(self) -> None:
-        self._socket.disconnected()
-
-
-def _gateway_client(socket: "DiscordSocket") -> Any:
-    return _GatewayClient(socket)
-
 
 async def _wait(shutdown: asyncio.Event, seconds: float) -> bool:
     """Sleep, or return early with True when shutdown is set."""
@@ -110,7 +109,10 @@ async def _wait(shutdown: asyncio.Event, seconds: float) -> bool:
         return False
 
 
-def _bot_token(connection: ChannelConnection) -> str:
+def _connection_token(connection: ChannelConnection) -> str:
+    """The bot token, or "" when the connection has none. The adapter's own
+    helper raises instead; the reload needs to skip such a row."""
+
     return str((connection.data or {}).get("bot_token") or "")
 
 
@@ -125,50 +127,43 @@ class DiscordSocket:
         connection: ChannelConnection,
         adapter: Any,
         channels_service: "ChannelsService",
-        client_factory: Callable[["DiscordSocket"], Any] = _gateway_client,
+        client_factory: Callable[["DiscordSocket"], Any] = _GatewayClient,
     ) -> None:
         self.project_id = project_id
         self.connection = connection
-        self.token = _bot_token(connection)
+        self.token = _connection_token(connection)
         self.adapter = adapter
         self.channels_service = channels_service
         self.client_factory = client_factory
         self.client: Optional[Any] = None
-        # The snapshot for the next recovery, taken when the socket closes. It
-        # is kept until a recovery with it finishes, so a socket that fails
-        # again before it identifies reuses it.
-        self.snapshot: Optional[asyncio.Task] = None
-        self.recovery: Optional[asyncio.Task] = None
-        self.tasks: Set[asyncio.Task] = set()
         self.task: Optional[asyncio.Task] = None
+        # Received events and recovery passes (one per READY). Closing the
+        # socket leaves them to finish: they need no lock, and the next holder
+        # would not read their messages again.
+        self.tasks: Set[asyncio.Task] = set()
 
     def open(self) -> None:
         self.task = asyncio.create_task(self._run())
 
     async def close(self) -> None:
-        for task in [self.task, self.recovery, self.snapshot, *self.tasks]:
-            if task is not None and not task.done():
-                task.cancel()
+        """Close the socket. Received events keep their enqueue retry, and a
+        running recovery pass finishes."""
+
+        if self.task is not None:
+            self.task.cancel()
         if self.client is not None:
             try:
                 await self.client.close()
             except Exception:  # noqa: BLE001 - closing is best-effort
                 log.warning("[DISCORD] socket close failed", exc_info=True)
-        for task in [self.task, self.recovery, self.snapshot, *self.tasks]:
-            if task is not None:
-                try:
-                    await task
-                except BaseException:  # noqa: BLE001 - cancelled or already logged
-                    pass
+        if self.task is not None:
+            # A cancel of the caller still raises here.
+            await asyncio.gather(self.task, return_exceptions=True)
 
     async def _run(self) -> None:
         connection_id = str(self.connection.id)
         delay = RETRY_FIRST_SECONDS
         while True:
-            # Messages posted while no socket was open are recovered after
-            # the first IDENTIFY, as after any other gap.
-            if self.snapshot is None:
-                self.snapshot = asyncio.create_task(self._take_snapshot())
             self.client = self.client_factory(self)
             try:
                 await self.client.start(self.token)
@@ -208,34 +203,22 @@ class DiscordSocket:
 
         event = frame.get("t")
         if event == "READY":
-            # A fresh IDENTIFY: Discord replays nothing from the gap.
-            if self.snapshot is not None and (
-                self.recovery is None or self.recovery.done()
-            ):
-                self.recovery = asyncio.create_task(self._recover(self.snapshot))
-        elif event == "RESUMED":
-            # Discord replays the missed events itself.
-            if self.recovery is None or self.recovery.done():
-                self._drop_snapshot()
+            # A fresh IDENTIFY: Discord replays nothing from the gap. After a
+            # resume it sends RESUMED and replays the gap itself. A pass that
+            # still runs from an earlier READY keeps going; this one covers the
+            # new gap.
+            ready_at = datetime.now(timezone.utc)
+            self._track(self._recover(ready_at))
         elif event in _ROUTED_EVENTS:
             body = json.dumps({"t": event, "d": frame.get("d")}).encode("utf-8")
-            self._spawn(self.dispatch(body))
+            self._track(self.ingest(body))
 
-    def disconnected(self) -> None:
-        if self.snapshot is None:
-            self.snapshot = asyncio.create_task(self._take_snapshot())
-
-    def _drop_snapshot(self) -> None:
-        if self.snapshot is not None and not self.snapshot.done():
-            self.snapshot.cancel()
-        self.snapshot = None
-
-    def _spawn(self, coroutine) -> None:
+    def _track(self, coroutine) -> None:
         task = asyncio.create_task(coroutine)
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
-    async def dispatch(self, body: bytes) -> None:
+    async def ingest(self, body: bytes, *, recovered: bool = False) -> None:
         """One gateway event through the adapter and the shared step."""
 
         try:
@@ -252,12 +235,17 @@ class DiscordSocket:
         if inbound is None:
             return
         for event in inbound if isinstance(inbound, list) else [inbound]:
-            await self._store(event)
+            await self._record_and_enqueue(event, recovered=recovered)
 
-    async def _store(self, inbound) -> None:
+    async def _record_and_enqueue(self, inbound, *, recovered: bool) -> None:
         """Retry a failed enqueue with the same event until it lands. The
-        socket keeps reading meanwhile: each event runs in its own task."""
+        socket keeps reading meanwhile: each event runs in its own task.
 
+        A recovered message that is already stored was enqueued when the socket
+        delivered it, so recovery enqueues only a row it stores. Once its first
+        try stored the row, a retry enqueues it as the live path does."""
+
+        enqueue_existing = not recovered
         delay = RETRY_FIRST_SECONDS
         while True:
             try:
@@ -266,9 +254,11 @@ class DiscordSocket:
                     connection_id=self.connection.id,
                     channel=CHANNEL,
                     inbound=inbound,
+                    enqueue_existing=enqueue_existing,
                 )
                 return
             except ChannelInboxEnqueueFailed:
+                enqueue_existing = True
                 log.warning(
                     "[DISCORD] enqueue failed; retrying",
                     connection_id=str(self.connection.id),
@@ -288,9 +278,11 @@ class DiscordSocket:
 
     # --- recovery ------------------------------------------------------------ #
 
-    async def _take_snapshot(self) -> Snapshot:
-        """The highest stored message id per channel Discord delivered in,
-        from the connection's pushed messages of the recovery window."""
+    async def _recovery_start(self, ready_at: datetime) -> RecoveryStart:
+        """The highest message id per channel Discord delivered in, among the
+        connection's pushed messages stored in the recovery window before
+        READY. A live message the new socket stores is newer than READY, so it
+        cannot hide an earlier missed one."""
 
         rows = await self.channels_service.query_inbox_events(
             project_id=self.project_id,
@@ -300,37 +292,38 @@ class DiscordSocket:
                 origin=ChannelEventOrigin.PUSHED,
             ),
             windowing=Windowing(
-                oldest=datetime.now(timezone.utc) - RECOVERY_WINDOW,
+                oldest=ready_at - RECOVERY_WINDOW,
+                newest=ready_at - RECOVERY_CLOCK_MARGIN,
                 limit=RECOVERY_SCAN_LIMIT,
             ),
         )
-        snapshot: Snapshot = {}
+        start: RecoveryStart = {}
         for row in rows:
             locator = row.data.external_locator if row.data else {}
             channel_id = str(locator.get("source_channel_id") or "")
             if not channel_id or not str(row.external_id).isdigit():
                 continue
             # Snowflakes compare as integers, not as strings.
-            current = snapshot.get(channel_id)
+            current = start.get(channel_id)
             if current is None or int(row.external_id) > int(current[0]):
-                snapshot[channel_id] = (
+                start[channel_id] = (
                     str(row.external_id),
                     str(locator.get("guild_id") or ""),
                 )
-        return snapshot
+        return start
 
-    async def _recover(self, snapshot_task: asyncio.Task) -> None:
+    async def _recover(self, ready_at: datetime) -> None:
         connection_id = str(self.connection.id)
         try:
-            snapshot = await snapshot_task
+            start = await self._recovery_start(ready_at)
         except Exception:
             log.error(
-                "[DISCORD] recovery snapshot failed",
+                "[DISCORD] recovery start could not be read",
                 connection_id=connection_id,
                 exc_info=True,
             )
-            snapshot = {}
-        for channel_id, (after, guild_id) in snapshot.items():
+            return
+        for channel_id, (after, guild_id) in start.items():
             try:
                 await self._recover_channel(channel_id, after, guild_id)
             except asyncio.CancelledError:
@@ -342,27 +335,24 @@ class DiscordSocket:
                     channel_id=channel_id,
                     exc_info=True,
                 )
-        if self.snapshot is snapshot_task:
-            self.snapshot = None
 
     async def _recover_channel(
         self, channel_id: str, after: str, guild_id: str
     ) -> None:
         cursor = after
         while True:
+            # Oldest first, so the messages are stored in order.
             messages: List[Dict[str, Any]] = await self.adapter.fetch_messages_after(
                 connection=self.connection, channel_id=channel_id, after=cursor
             )
             if not messages:
                 return
-            messages = sorted(messages, key=lambda message: int(message["id"]))
             for message in messages:
                 data = dict(message)
                 if guild_id:
                     data["guild_id"] = guild_id
-                await self.dispatch(
-                    json.dumps({"t": "MESSAGE_CREATE", "d": data}).encode("utf-8")
-                )
+                body = json.dumps({"t": "MESSAGE_CREATE", "d": data}).encode("utf-8")
+                await self.ingest(body, recovered=True)
             cursor = str(messages[-1]["id"])
 
 
@@ -374,14 +364,11 @@ class DiscordSocketLoop:
         self,
         *,
         channels_service: "ChannelsService",
-        client_factory: Callable[[DiscordSocket], Any] = _gateway_client,
+        client_factory: Callable[[DiscordSocket], Any] = _GatewayClient,
     ) -> None:
         self.channels_service = channels_service
         self.client_factory = client_factory
         self.sockets: Dict[UUID, DiscordSocket] = {}
-        # connection id -> `updated_at` when its socket was opened. A token
-        # rotation edits the row, so an unchanged row needs no credential read.
-        self.versions: Dict[UUID, Optional[datetime]] = {}
 
     async def run(self, shutdown: asyncio.Event) -> None:
         while not shutdown.is_set():
@@ -406,13 +393,21 @@ class DiscordSocketLoop:
                 await _wait(shutdown, TICK_SECONDS)
 
     async def _hold(self, owner: str, shutdown: asyncio.Event) -> None:
-        while not shutdown.is_set():
-            try:
-                await self.reload()
-            except Exception:
-                log.error("[DISCORD] connection reload failed", exc_info=True)
-            if await _wait(shutdown, TICK_SECONDS):
-                return
+        """Renew and reload in two tasks, so a slow reload never delays the
+        renewal. Returns on shutdown or when the lock is lost, and the caller
+        closes the sockets."""
+
+        renewal = asyncio.create_task(self._renew(owner, shutdown))
+        reloads = asyncio.create_task(self._reload_until(shutdown))
+        try:
+            await asyncio.wait({renewal, reloads}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for task in (renewal, reloads):
+                task.cancel()
+            await asyncio.gather(renewal, reloads, return_exceptions=True)
+
+    async def _renew(self, owner: str, shutdown: asyncio.Event) -> None:
+        while not await _wait(shutdown, TICK_SECONDS):
             if not await locking.renew_lock(
                 namespace=LOCK_NAMESPACE,
                 key=LOCK_KEY,
@@ -421,6 +416,15 @@ class DiscordSocketLoop:
             ):
                 # Another replica may take the lock now; close before it opens.
                 log.warning("[DISCORD] socket lock lost; closing sockets")
+                return
+
+    async def _reload_until(self, shutdown: asyncio.Event) -> None:
+        while True:
+            try:
+                await self.reload()
+            except Exception:
+                log.error("[DISCORD] connection reload failed", exc_info=True)
+            if await _wait(shutdown, TICK_SECONDS):
                 return
 
     async def reload(self) -> None:
@@ -442,20 +446,19 @@ class DiscordSocketLoop:
                 await self._close(connection_id)
 
         for connection_id, (project_id, row) in wanted.items():
-            if (
-                connection_id in self.sockets
-                and self.versions.get(connection_id) == row.updated_at
-            ):
+            current = self.sockets.get(connection_id)
+            # A token rotation edits the row, so an unchanged row needs no
+            # credential read.
+            if current is not None and current.connection.updated_at == row.updated_at:
                 continue
             connection = await self.channels_service.fetch_connection(
                 project_id=project_id, connection_id=connection_id
             )
-            if connection is None or not _bot_token(connection):
+            if connection is None or not _connection_token(connection):
                 await self._close(connection_id)
                 continue
-            current = self.sockets.get(connection_id)
-            if current is not None and current.token == _bot_token(connection):
-                self.versions[connection_id] = row.updated_at
+            if current is not None and current.token == _connection_token(connection):
+                current.connection = connection
                 continue
             if current is not None:
                 await self._close(connection_id)
@@ -468,12 +471,10 @@ class DiscordSocketLoop:
             )
             socket.open()
             self.sockets[connection_id] = socket
-            self.versions[connection_id] = row.updated_at
             log.info("[DISCORD] socket opened", connection_id=str(connection_id))
 
     async def _close(self, connection_id: UUID) -> None:
         socket = self.sockets.pop(connection_id, None)
-        self.versions.pop(connection_id, None)
         if socket is not None:
             await socket.close()
             log.info("[DISCORD] socket closed", connection_id=str(connection_id))

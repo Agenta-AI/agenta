@@ -674,6 +674,8 @@ async def main_async() -> int:
         # Discord delivers only over its Gateway socket, so the process that
         # consumes channels-inbox also holds the Discord sockets, under one lock.
         if "channels-inbox" in queues:
+            # Set by the channels-inbox builder, which ran in the loop above.
+            assert _channels_inbox_service is not None
             sockets = DiscordSocketLoop(channels_service=_channels_inbox_service)
             tasks.append(sockets.run(shutdown_event))
 

@@ -97,7 +97,7 @@ OpenClaw, Hermes Agent and n8n all use a bring-your-own bot.
 
 ### D4. The socket loop runs inside `worker-queues` under one lock
 
-`worker-queues` starts the loop as a sibling asyncio task when `channels-inbox` is among its selected queues, next to `heartbeat.ticker` (`worker_queues.py:668`). The loop takes one lock with `acquire_lock(namespace="channels", key="discord:sockets", ttl=...)` and renews it with `renew_lock` while it runs. Only the holder opens sockets. Another replica waits for the lock. A holder that loses the lock closes all its sockets. `AGENTA_WORKER_STREAMS` and `AGENTA_WORKER_QUEUES` are not changed.
+`worker-queues` starts the loop as a sibling asyncio task when `channels-inbox` is among its selected queues, next to `heartbeat.ticker` (`worker_queues.py:668`). The loop takes one lock with `acquire_lock(namespace="channels", key="discord:sockets", ttl=...)` and renews it with `renew_lock` every 5 seconds, in a task of its own, so a slow connection reload never delays the renewal. Only the holder opens sockets. Another replica waits for the lock. A holder that loses the lock cancels the running reload and closes all its sockets. Events it already received keep their enqueue retry, because the retry needs no lock. `AGENTA_WORKER_STREAMS` and `AGENTA_WORKER_QUEUES` are not changed.
 
 | Option | Trade-off |
 | --- | --- |
@@ -150,11 +150,15 @@ Each button's `custom_id` is the choice token the outbox already builds, `<inter
 
 ### D9. Recovery after a failed resume reads inbox rows, not a stored cursor
 
-No cursor is stored. When a socket closes, and before a connection's first socket opens (after a restart or a lock takeover), the loop takes a snapshot: for each channel, the highest Discord message id among the connection's inbox rows of the last 24 hours with origin `PUSHED` and kind `message`, read through `ChannelInboxEventQuery` and `Windowing`, grouped by `source_channel_id` in `external_locator` and compared as integers. If the next socket starts with a fresh IDENTIFY instead of a resume, the loop reads Discord history after the snapshot id for each channel, through the adapter's `fetch_messages_after`, and passes each message through `parse_event` and `record_and_enqueue_inbox_event`. Those rows use origin `PUSHED`, because they are live messages that arrived late. The unique constraint drops anything the socket already delivered. The same snapshot is used for the whole recovery attempt, retries included, so a live message stored after reconnect cannot hide an earlier missed one.
+No cursor is stored. On every READY, which Discord sends after a fresh IDENTIFY and never after a successful resume, the loop starts one recovery pass. The first socket of a connection gets a READY too, so a restart or a lock takeover is covered. The pass reads, for each channel, the highest Discord message id among the connection's inbox rows of the last 24 hours with origin `PUSHED` and kind `message` that were stored before the READY time minus a 5 second clock margin. It reads them through `ChannelInboxEventQuery` and `Windowing` (`oldest`, `newest`, at most 1,000 rows), grouped by `source_channel_id` in `external_locator` and compared as integers. It then reads Discord history after that id for each channel, through the adapter's `fetch_messages_after`, and passes each message through `parse_event` and `record_and_enqueue_inbox_event`. Those rows use origin `PUSHED`, because they are live messages that arrived late.
+
+A live message on the new socket is stored after READY, so it never raises the start id past a missed message. The margin covers a database clock that runs ahead of the worker; a lower start id only reads again messages whose rows already exist. When the socket identifies fresh again during a pass, the new READY starts its own pass, and the first pass keeps going.
+
+Recovery passes `enqueue_existing=False`, so the service enqueues only a row that recovery stored. A message the socket already delivered was enqueued then, so it is not dispatched a second time. Once recovery stored a row and its enqueue failed, the retry enqueues as the live path does.
 
 | Option | Trade-off |
 | --- | --- |
-| **Snapshot from inbox rows at socket close** | One bounded query at reconnect time. Covers only channels active in the last 24 hours. |
+| **Start ids from inbox rows stored before READY** | One bounded query per READY. Covers only channels active in the last 24 hours. |
 | Store a cursor per channel on every message | Covers every channel, but adds a write on every message. |
 
 This is separate from the existing backfill, which records `PULLED` context and enqueues no turns.
@@ -222,10 +226,12 @@ The Message Content intent state is read at setup and is not stored. When neithe
 
 ```python
 async def record_and_enqueue_inbox_event(
-    self, *, project_id: UUID, connection_id: UUID, channel: str, inbound: ChannelInboundEvent
+    self, *, project_id: UUID, connection_id: UUID, channel: str, inbound: ChannelInboundEvent,
+    enqueue_existing: bool = True,
 ) -> None: ...
 # Stores the event (origin from `inbound.origin`, PUSHED by default) and enqueues
-# channels.inbox.dispatch. Enqueues even when the row already exists.
+# channels.inbox.dispatch. Enqueues even when the row already exists, unless
+# enqueue_existing is False (Discord recovery, D9).
 # Raises ChannelInboxEnqueueFailed when the enqueue fails or times out.
 
 async def query_active_connections(self, *, channel: str) -> List[Tuple[UUID, ChannelConnection]]: ...

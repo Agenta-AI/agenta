@@ -83,3 +83,30 @@ async def test_holder_that_stops_lets_the_other_replica_take_over(monkeypatch):
 
     stop_second.set()
     await second_task
+
+
+async def test_lease_expiry_during_a_blocked_reload_closes_the_sockets(monkeypatch):
+    fast(monkeypatch)
+    FakeClient.reset()
+    locks = FakeLocks().install(monkeypatch)
+    service = FakeChannelsService()
+    service.add(connection())
+    loop = _loop(service)
+    shutdown = asyncio.Event()
+    task = asyncio.create_task(loop.run(shutdown))
+    await until(lambda: FakeClient.instances)
+
+    # The next reload hangs on the database, and the lease runs out meanwhile.
+    service.reload_gate = asyncio.Event()
+    await asyncio.sleep(0.03)
+    locks.expire()
+
+    # Renewal does not wait for the reload: the socket closes while the
+    # reload is still blocked.
+    await until(lambda: FakeClient.instances[0].closed.is_set())
+    assert loop.sockets == {}
+    assert not service.reload_gate.is_set()
+
+    shutdown.set()
+    service.reload_gate.set()
+    await task

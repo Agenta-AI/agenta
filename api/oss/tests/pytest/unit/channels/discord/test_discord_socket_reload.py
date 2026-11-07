@@ -89,6 +89,8 @@ async def test_rename_keeps_the_socket():
 
     assert len(FakeClient.instances) == 1
     assert not FakeClient.instances[0].closed.is_set()
+    # The open socket parses with the edited row.
+    assert loop.sockets[conn.id].connection.name == "renamed"
     await loop.close_all()
 
 

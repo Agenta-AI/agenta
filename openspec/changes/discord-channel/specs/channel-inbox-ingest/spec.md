@@ -17,6 +17,10 @@ Define the one step that stores a parsed inbound event and enqueues its dispatch
 - **WHEN** the row already exists and `record_inbox_event` returns `None`
 - **THEN** the method SHALL still enqueue the dispatch, as `_record_and_enqueue` does today, so a retried delivery recovers from an earlier enqueue failure
 
+#### Scenario: Recovered event already stored
+- **WHEN** the Discord socket loop's recovery calls the method with `enqueue_existing=False` and the row already exists
+- **THEN** the method SHALL enqueue nothing, because the socket enqueued that row when it delivered it
+
 #### Scenario: No dispatch task wired
 - **WHEN** `inbox_dispatch_task` is not set
 - **THEN** the method SHALL store the row and enqueue nothing, as the ingress does today

@@ -36,8 +36,8 @@ Parallel work: M1 and the core half of M2 (group 2) can start at the same time, 
 
 ## 4. M4: recovery after a failed resume (ships with M2, after group 3)
 
-- [x] 4.1 Take the per-channel snapshot when a socket closes, and before a connection's first socket opens, from `PUSHED` message rows of the last 24 hours, grouped by `source_channel_id`, with snowflakes compared as integers.
-- [x] 4.2 After a fresh IDENTIFY, read `GET /channels/{source_channel_id}/messages?after=<snapshot id>` for each channel through a new `DiscordAdapter.fetch_messages_after`, page forward, and pass each message through the shared path with origin `PUSHED`. Reuse the snapshot across retries. Skip recovery after a successful resume.
+- [x] 4.1 On every READY (not RESUMED), the first socket of a connection included, read the highest message id per `source_channel_id` from `PUSHED` message rows of the last 24 hours stored before the READY time minus a 5 second margin, with snowflakes compared as integers.
+- [x] 4.2 Read `GET /channels/{source_channel_id}/messages?after=<id>` for each channel through a new `DiscordAdapter.fetch_messages_after`, page forward, and pass each message through the shared path with origin `PUSHED` and `enqueue_existing=False`. A second READY starts its own pass. Closing a socket lets received events and running passes finish.
 - [x] 4.3 Unit tests in `test_discord_recovery.py`: missed messages are stored and enqueued, a live message stored first does not hide an earlier missed one, duplicates are dropped, a resume skips recovery, quiet channels are skipped.
 
 ## 5. M3: setup screen in /m (PR 3, after 1.1 and 1.3 are merged)

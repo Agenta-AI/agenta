@@ -121,6 +121,24 @@ async def test_existing_row_still_enqueues():
     assert len(dispatch.calls) == 2
 
 
+async def test_existing_row_is_not_enqueued_when_enqueue_existing_is_off():
+    dispatch = _Dispatch()
+    service = _service(dispatch)
+    project_id, connection_id = uuid4(), uuid4()
+
+    for _ in range(2):
+        await service.record_and_enqueue_inbox_event(
+            project_id=project_id,
+            connection_id=connection_id,
+            channel="discord",
+            inbound=_inbound(),
+            enqueue_existing=False,
+        )
+
+    assert len(service.channels_dao.recorded) == 1
+    assert len(dispatch.calls) == 1
+
+
 async def test_failed_enqueue_raises_the_domain_exception_and_keeps_the_row():
     service = _service(_Dispatch(fail=True))
 

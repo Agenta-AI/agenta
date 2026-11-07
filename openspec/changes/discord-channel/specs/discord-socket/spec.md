@@ -22,7 +22,7 @@ Keep one Discord Gateway socket open per active Discord connection, inside the e
 - **THEN** the loop SHALL close its sockets and release its lock
 
 ### Requirement: One lock owns all Discord sockets
-The loop SHALL hold one Redis lock, namespace `channels` and key `discord:sockets`, through `acquire_lock`, `renew_lock` and `release_lock` in `oss/src/utils/locking.py`, before it opens any socket. Only the holder SHALL open sockets.
+The loop SHALL hold one Redis lock, namespace `channels` and key `discord:sockets`, through `acquire_lock`, `renew_lock` and `release_lock` in `oss/src/utils/locking.py`, before it opens any socket. Only the holder SHALL open sockets. The loop SHALL renew the lock in a task separate from the connection reload, so a slow reload never delays the renewal.
 
 #### Scenario: Two replicas
 - **WHEN** two `worker-queues` replicas start
@@ -30,7 +30,11 @@ The loop SHALL hold one Redis lock, namespace `channels` and key `discord:socket
 
 #### Scenario: Lock lost
 - **WHEN** the holder fails to renew the lock
-- **THEN** it SHALL close all its Discord sockets before another replica can open them
+- **THEN** it SHALL cancel the running reload and close all its Discord sockets before another replica can open them
+
+#### Scenario: Reload blocked when the lease runs out
+- **WHEN** a reload waits on the database while the lock expires
+- **THEN** the renewal SHALL fail on its own schedule and the holder SHALL close its sockets without waiting for the reload
 
 #### Scenario: Holder dies
 - **WHEN** the holder process stops without releasing the lock
@@ -85,27 +89,39 @@ The loop SHALL let `discord.py` handle heartbeat, resume and reconnect. When Dis
 - **THEN** the other connections' sockets SHALL stay open
 
 ### Requirement: Recovery after a failed resume
-When a socket closes, the loop SHALL take a snapshot of the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours. If the next socket starts with a fresh IDENTIFY, the loop SHALL read Discord history after each snapshot id, oldest first, and pass each message through `parse_event` and `record_and_enqueue_inbox_event`. A REST message object has no `guild_id`, so the snapshot SHALL keep each channel's `guild_id` from the row's locator, and the loop SHALL wrap each message as `{"t": "MESSAGE_CREATE", "d": {...message, "guild_id": <guild_id>}}` (no `guild_id` for a DM channel).
+On every READY, which Discord sends after a fresh IDENTIFY and never after a successful resume, the loop SHALL start one recovery pass. This includes the first socket of a connection, after a restart or a lock takeover. The pass SHALL read the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours that were stored before the READY time minus a 5 second clock margin. It SHALL then read Discord history after each of those ids with the adapter's `fetch_messages_after`, oldest first, and pass each message through `parse_event` and `record_and_enqueue_inbox_event` with `enqueue_existing=False`. A REST message object has no `guild_id`, so the pass SHALL keep each channel's `guild_id` from the row's locator, and the loop SHALL wrap each message as `{"t": "MESSAGE_CREATE", "d": {...message, "guild_id": <guild_id>}}` (no `guild_id` for a DM channel).
 
 #### Scenario: Messages missed during the gap
 - **WHEN** a socket loses its session, two messages are posted in channel C, and the new socket identifies fresh
-- **THEN** the loop SHALL read `GET /channels/C/messages?after=<snapshot id>` and SHALL store and enqueue both messages with origin `PUSHED`
+- **THEN** the loop SHALL read `GET /channels/C/messages?after=<last stored id>` and SHALL store and enqueue both messages with origin `PUSHED`
 
 #### Scenario: Opening mention is the only recent row in its channel
 - **WHEN** the only recent inbox row from channel C is a mention M whose locator has `channel_id` C, `thread_id` M and `source_channel_id` C, and a second mention is posted in C during the gap
-- **THEN** the loop SHALL group the snapshot by `source_channel_id` C, SHALL read the history of C, and SHALL store and enqueue the second mention
+- **THEN** the loop SHALL group the rows by `source_channel_id` C, SHALL read the history of C, and SHALL store and enqueue the second mention
+
+#### Scenario: Holder stops or the lock moves
+- **WHEN** messages are posted while no replica holds the sockets, and a replica then opens the connection's socket
+- **THEN** the loop SHALL recover after that socket's first READY, as after any other gap
 
 #### Scenario: Successful resume
 - **WHEN** the socket resumes successfully
 - **THEN** the loop SHALL NOT read history, because Discord replays the missed events
 
-#### Scenario: Snapshot taken before live events
+#### Scenario: Live message stored right after READY
 - **WHEN** a live message is stored on the new socket before recovery reads channel C
-- **THEN** recovery SHALL still use the snapshot taken at socket close, so the earlier missed message is not hidden
+- **THEN** recovery SHALL leave it out of the start id, because it was stored after READY, so an earlier missed message is not hidden
+
+#### Scenario: Second gap during a recovery
+- **WHEN** the socket identifies fresh again while a recovery pass still runs
+- **THEN** the loop SHALL start a second pass for the new READY, and the first pass SHALL keep going
 
 #### Scenario: Message delivered twice
 - **WHEN** recovery reads a message the socket already delivered
-- **THEN** the unique constraint SHALL drop it and no second turn SHALL start
+- **THEN** the unique constraint SHALL drop the row, and recovery SHALL NOT enqueue a dispatch for it
+
+#### Scenario: Socket closed during an enqueue retry
+- **WHEN** the lock is lost or the connection changes while a received event waits for an enqueue retry
+- **THEN** the loop SHALL close the socket and SHALL let the retry and any running recovery pass finish
 
 #### Scenario: Quiet channel
 - **WHEN** a channel has no stored message in the last 24 hours
