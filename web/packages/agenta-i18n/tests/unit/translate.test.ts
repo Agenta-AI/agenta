@@ -13,8 +13,16 @@ vi.mock("../../locales/zh-CN/settings.json", () => ({
     },
 }))
 
-import {formatNumber, richText} from "../../src/index"
-import {activateLanguage, getActiveLanguage} from "../../src/language"
+import {formatDate, formatNumber, richText} from "../../src/index"
+
+import {getDefaultStore} from "jotai"
+
+import {
+    activeLanguageAtom,
+    getActiveLanguage,
+    loadLanguage,
+    type Language,
+} from "../../src/language"
 import {defineNamespace} from "../../src/namespace"
 import {translate} from "../../src/translate"
 
@@ -27,6 +35,11 @@ const {t} = defineNamespace("settings", {
 })
 
 // Keys in these tests come from the test catalog above, not the typed English files.
+const activateLanguage = async (language: Language) => {
+    await loadLanguage(language)
+    getDefaultStore().set(activeLanguageAtom, language)
+}
+
 const key = (k: string) => k as Parameters<typeof t>[0]
 
 afterEach(async () => {
@@ -80,10 +93,21 @@ describe("t in Chinese", () => {
         expect(t(key("settings.members.count"), {count: 3})).toBe("3 位成员")
     })
 
-    it("formats numbers for the active language", async () => {
-        expect(formatNumber(1234.5)).toBe("1,234.5")
+    it("formats with the browser locale in English and the active language otherwise", async () => {
+        const date = new Date(Date.UTC(2026, 9, 12))
+        const options = {dateStyle: "long", timeZone: "UTC"} as const
+        expect(formatDate(date, options)).toBe(
+            new Intl.DateTimeFormat(undefined, options).format(date),
+        )
+        expect(formatNumber(1234.5)).toBe(new Intl.NumberFormat(undefined).format(1234.5))
         await activateLanguage("zh-CN")
-        expect(formatNumber(0.5, {style: "percent"})).toBe("50%")
+        expect(formatDate(date, options)).toBe("2026年10月12日")
+    })
+
+    it("reads the active language from the store", () => {
+        getDefaultStore().set(activeLanguageAtom, "zh-CN")
+        expect(getActiveLanguage()).toBe("zh-CN")
+        expect(t(key("settings.members.title"))).toBe("成员")
     })
 })
 

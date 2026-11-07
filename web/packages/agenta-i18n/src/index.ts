@@ -14,11 +14,17 @@ export {
 } from "./language"
 
 // `t` and `useT` come from each namespace's entry: `import {useT} from "@agenta/i18n/settings"`.
+// English keeps the browser locale, so dates and numbers read as they did before translation.
+const formatLocale = () => {
+    const language = getActiveLanguage()
+    return language === "en" ? undefined : language
+}
+
 export const formatDate = (date: Date | number, options?: Intl.DateTimeFormatOptions): string =>
-    new Intl.DateTimeFormat(getActiveLanguage(), options).format(date)
+    new Intl.DateTimeFormat(formatLocale(), options).format(date)
 
 export const formatNumber = (value: number, options?: Intl.NumberFormatOptions): string =>
-    new Intl.NumberFormat(getActiveLanguage(), options).format(value)
+    new Intl.NumberFormat(formatLocale(), options).format(value)
 
 /**
  * Renders `<name>text</name>` tags in translated text as elements, so a sentence with a link

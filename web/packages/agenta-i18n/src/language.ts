@@ -1,6 +1,6 @@
 import {useEffect} from "react"
 
-import {atom, useAtom, useAtomValue} from "jotai"
+import {atom, getDefaultStore, useAtom, useAtomValue} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 export const SUPPORTED_LANGUAGES = ["en", "zh-CN"] as const
@@ -62,10 +62,10 @@ export const languageAtom = atomWithStorage<Language>(
 /** The language whose catalogs are loaded and rendered. Stays English until a load finishes. */
 export const activeLanguageAtom = atom<Language>(DEFAULT_LANGUAGE)
 
-let activeLanguage: Language = DEFAULT_LANGUAGE
 const loadedCatalogs: Partial<Record<Language, Catalogs>> = {}
 
-export const getActiveLanguage = (): Language => activeLanguage
+/** The rendered language, read from the default store that the app's `Provider` uses. */
+export const getActiveLanguage = (): Language => getDefaultStore().get(activeLanguageAtom)
 export const getLoadedCatalogs = (language: Language): Catalogs | undefined =>
     loadedCatalogs[language]
 
@@ -90,12 +90,11 @@ const CATALOG_LOADERS: Record<Exclude<Language, "en">, () => Promise<Catalogs>> 
     },
 }
 
-/** Loads the language's catalogs (English is bundled) and makes it the one `t()` uses. */
-export const activateLanguage = async (language: Language): Promise<void> => {
+/** Loads the language's catalogs; English is bundled. */
+export const loadLanguage = async (language: Language): Promise<void> => {
     if (language !== "en" && !loadedCatalogs[language]) {
         loadedCatalogs[language] = await CATALOG_LOADERS[language]()
     }
-    activeLanguage = language
 }
 
 const reveal = () => document.documentElement.removeAttribute(LANGUAGE_PENDING_ATTRIBUTE)
@@ -110,7 +109,8 @@ export const useLanguageSync = () => {
 
     useEffect(() => {
         let cancelled = false
-        activateLanguage(language).then(
+        // Set only after the cancel check, so a superseded load never wins.
+        loadLanguage(language).then(
             () => !cancelled && setActive(language),
             () => !cancelled && reveal(),
         )
