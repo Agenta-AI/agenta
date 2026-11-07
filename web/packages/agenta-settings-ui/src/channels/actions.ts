@@ -144,9 +144,10 @@ export const toolSettingsOf = (agent: Row): ChannelToolSettings => {
     }
 }
 
-/** The platform id in a space locator: a Slack `channel`, a Telegram `chat_id`. */
+/** The platform id in a space locator: a Slack `channel`, a Telegram `chat_id`, a Discord
+ * `channel_id`. */
 export const locatorId = (locator: Row): string | null => {
-    const value = locator.channel ?? locator.chat_id
+    const value = locator.channel ?? locator.chat_id ?? locator.channel_id
     if (typeof value === "number" && Number.isFinite(value)) return String(value)
     return asString(value)
 }
@@ -154,8 +155,10 @@ export const locatorId = (locator: Row): string | null => {
 /** What a place with no stored name is called: its platform id, else a plain noun. */
 export const unnamedSpaceLabel = (kind: ChannelSpaceKind, externalId: string | null): string => {
     if (!externalId) return kind === "topic" ? "Unnamed channel" : "Unnamed group"
-    // Slack channel ids start with C (public), G (private) or D (a DM); Telegram's are numbers.
-    return /^\d|^-\d/.test(externalId) ? `Group ${externalId}` : `#${externalId}`
+    // Slack channel ids start with C (public), G (private) or D (a DM). Telegram group ids and
+    // Discord channel ids are numbers; only a Discord channel is a numbered topic.
+    if (!/^\d|^-\d/.test(externalId)) return `#${externalId}`
+    return kind === "topic" ? `Channel ${externalId}` : `Group ${externalId}`
 }
 
 /** Map a backend space row to the design's shape. A private space is always "Direct messages". */
