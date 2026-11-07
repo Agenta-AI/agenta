@@ -12,11 +12,11 @@ import {useRouter} from "next/router"
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {getMobileSettingsTabLabel} from "@/lib/integrationsCopy"
 import {
     getMobileSettingsTabDescription,
     getMobileSettingsTabDocs,
-    getMobileSettingsTabLabel,
-} from "@/lib/integrationsCopy"
+} from "@/lib/integrationsTabDetails"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {openFeatureGuideAtom} from "../education/featureGuideAtom"

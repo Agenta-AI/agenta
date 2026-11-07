@@ -6,7 +6,9 @@ import {activeLanguageAtom, DEFAULT_LANGUAGE, getActiveLanguage, languageAtom} f
 import {
     catalogVersionAtom,
     loadCatalog,
-    loadLanguage,
+    loadCatalogs,
+    registeredCount,
+    registeredSince,
     registerCatalog,
     type Catalog,
     type CatalogEntry,
@@ -48,11 +50,16 @@ type Translator<C extends CatalogEntry[]> = (
 ) => string
 
 /**
- * Resolves once the chosen language's text is loaded for every catalog imported so far. Await
- * it inside a lazy `import()` so a panel's text arrives with its code: `lazy(() =>
- * import("./Panel").then(async (m) => (await textReady(), {default: m.Panel})))`.
+ * Loads a lazy module, then waits for its own catalogs in the chosen language, so a panel's text
+ * arrives with its code. Never fails or hangs on a catalog: English shows after a failure or
+ * the timeout. `lazy(() => loadWithText(() => import("./Panel")).then((m) => ({default: m.Panel})))`
  */
-export const textReady = (): Promise<void> => loadLanguage(getDefaultStore().get(languageAtom))
+export const loadWithText = async <M>(load: () => Promise<M>): Promise<M> => {
+    const before = registeredCount()
+    const module = await load()
+    await loadCatalogs(registeredSince(before), getDefaultStore().get(languageAtom))
+    return module
+}
 
 /** A `t` outside React: reads the active language when called and does not re-render. */
 export const createT =

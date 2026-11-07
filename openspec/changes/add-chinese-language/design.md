@@ -38,11 +38,11 @@ Code outside React uses `const t = createT(...)` at module level. A file that ne
 
 ## Catalogs and loading
 
-Catalogs are small and follow the screens: one per settings area or mobile tab (`settings.members`, `settings.membersTab`, `channels.connect`, `billing.topups`, ...), plus `common` (Cancel, Save, ...), `navigation` (the settings tab labels the app shell shows) and `publish`. A module imports only the catalogs whose keys it uses.
+Catalogs are small and follow the screens: one per settings area or mobile tab (`settings.members`, `settings.membersTab`, `channels.connect`, `billing.topups`, ...), plus `common` (Cancel, Save, ...), `navigation` (the settings tab labels the app shell shows), `settingsTabs` (the tab descriptions and docs links, shown only on the settings page) and `publish`. A module imports only the catalogs whose keys it uses.
 
-`defineCatalog(namespace, en, loaders)` takes the English as a static import, so a catalog's English ships in the same chunk as the screen that uses it and renders on the first paint, with no extra request for English users. It registers the catalog and, when the chosen language is not English, starts `import()` of that language at once, together with the screen's code. `t` returns `""` while the chosen language is still loading, so English does not flash first. Each finished load bumps `catalogVersionAtom`, and `useT` re-renders.
+`defineCatalog(namespace, en, loaders)` takes the English as a static import, so a catalog's English ships in the same chunk as the screen that uses it and renders on the first paint, with no extra request for English users. It registers the catalog and, when the chosen language is not English, starts `import()` of that language at once, together with the screen's code. `t` returns `""` while the chosen language is still loading, so English does not flash first. A load that fails, or is still running after 3 seconds (`CATALOG_TIMEOUT_MS`), shows English instead, so labels never stay blank; a later load retries. Each finished load bumps `catalogVersionAtom`, and `useT` re-renders.
 
-A panel that opens on a click and carries a lot of text (the channels connect flow and manage panel) is a `React.lazy` import that awaits `textReady()`, so its code, its English and its text in the chosen language arrive together, behind a small spinner, and the pages that host it do not carry them up front.
+A panel that opens on a click and carries a lot of text (the channels connect flow and manage panel) is a `React.lazy` import through `loadWithText()`: it waits for the panel's own catalogs in the chosen language (with the same timeout, never failing on a catalog), so the code and its text arrive together behind a small spinner. A failed code load shows "That did not work" with "Try again", and reopening the panel loads it again.
 
 ## Lookup
 
@@ -70,7 +70,7 @@ A panel that opens on a click and carries a lot of text (the channels connect fl
 ## Risks
 
 - **Mixed language during the move.** The picker stays hidden until the main screens are done.
-- **For a Chinese or Japanese user, a screen opened later shows its labels a moment after its code.** Its catalog loads as soon as the screen's code runs, in parallel with the screen's own data; lazy panels wait for it with `textReady()`.
+- **For a Chinese or Japanese user, a screen opened later shows its labels a moment after its code.** Its catalog loads as soon as the screen's code runs, in parallel with the screen's own data; lazy panels wait for it with `loadWithText()`.
 - **Text stored through the API.** Strings that are sent to the API and stored (for example a default name) stay English, so a stored value does not depend on who created it.
 - **Dates.** dayjs `format` and `fromNow` calls still follow the dayjs locale (English). The areas move them to `formatDate` as they are translated.
 - **Merge conflicts.** Each area moves in its own PR, right after a release is cut.

@@ -1,5 +1,6 @@
 import {createT, type CatalogKey} from "@agenta/i18n"
 import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+import type settingsTabsCatalog from "@agenta/i18n/catalogs/settingsTabs"
 
 const t = createT(navigationCatalog)
 
@@ -54,8 +55,10 @@ export interface SettingsTabDocs {
     href: string
 }
 
+type SettingsTabTextKey = CatalogKey<typeof settingsTabsCatalog>
+
 interface SettingsTabDocsDefinition {
-    labelKey: CatalogKey<typeof navigationCatalog>
+    labelKey: SettingsTabTextKey
     href: string
 }
 
@@ -68,9 +71,9 @@ export interface SettingsTabDefinition {
      * One sentence explaining what the page is for. Required so a new tab cannot ship
      * without one — every settings page renders this under its title.
      */
-    descriptionKey: CatalogKey<typeof navigationCatalog>
+    descriptionKey: SettingsTabTextKey
     /** Overrides `descriptionKey` when the copy depends on entitlements. */
-    getDescription?: (access: SettingsAccess) => string
+    getDescriptionKey?: (access: SettingsAccess) => SettingsTabTextKey
     docs?: SettingsTabDocsDefinition
 }
 
@@ -81,59 +84,59 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "llms",
         scope: "connections",
-        descriptionKey: "navigation.settings.llmsDescription",
+        descriptionKey: "settingsTabs.llmsDescription",
         docs: {
-            labelKey: "navigation.settings.llmsDocs",
+            labelKey: "settingsTabs.llmsDocs",
             href: `${DOCS_BASE}/faq/integrations/llm-providers`,
         },
     },
     {
         key: "tools",
         scope: "connections",
-        descriptionKey: "navigation.settings.toolsDescription",
+        descriptionKey: "settingsTabs.toolsDescription",
         docs: {
-            labelKey: "navigation.settings.toolsDocs",
+            labelKey: "settingsTabs.toolsDocs",
             href: `${DOCS_BASE}/concepts/tools-and-integrations`,
         },
     },
     {
         key: "secrets",
         scope: "connections",
-        descriptionKey: "navigation.settings.secretsDescription",
+        descriptionKey: "settingsTabs.secretsDescription",
     },
     {
         key: "mcpEndpoints",
         scope: "connections",
-        descriptionKey: "navigation.settings.mcpEndpointsDescription",
+        descriptionKey: "settingsTabs.mcpEndpointsDescription",
     },
     {
         key: "channels",
         scope: "connections",
-        descriptionKey: "navigation.settings.channelsDescription",
+        descriptionKey: "settingsTabs.channelsDescription",
     },
     {
         key: "apiKeys",
         scope: "project",
-        descriptionKey: "navigation.settings.apiKeysDescription",
+        descriptionKey: "settingsTabs.apiKeysDescription",
         docs: {
-            labelKey: "navigation.settings.apiKeysDocs",
+            labelKey: "settingsTabs.apiKeysDocs",
             href: `${DOCS_BASE}/reference/api-guide/overview`,
         },
     },
     {
         key: "webhooks",
         scope: "project",
-        descriptionKey: "navigation.settings.webhooksDescription",
+        descriptionKey: "settingsTabs.webhooksDescription",
     },
     {
         key: "analytics",
         scope: "project",
-        descriptionKey: "navigation.settings.analyticsDescription",
+        descriptionKey: "settingsTabs.analyticsDescription",
     },
     {
         key: "credits",
         scope: "organization",
-        descriptionKey: "navigation.settings.creditsDescription",
+        descriptionKey: "settingsTabs.creditsDescription",
     },
     {
         key: "billing",
@@ -144,64 +147,62 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
                     ? "navigation.settings.billingPlan"
                     : "navigation.settings.billingUsage",
             ),
-        descriptionKey: "navigation.settings.billingDescription",
-        getDescription: ({billingEnabled}) =>
-            t(
-                billingEnabled
-                    ? "navigation.settings.billingPlanDescription"
-                    : "navigation.settings.billingDescription",
-            ),
+        descriptionKey: "settingsTabs.billingDescription",
+        getDescriptionKey: ({billingEnabled}) =>
+            billingEnabled
+                ? "settingsTabs.billingPlanDescription"
+                : "settingsTabs.billingDescription",
     },
     {
         key: "workspace",
         scope: "organization",
-        descriptionKey: "navigation.settings.workspaceDescription",
+        descriptionKey: "settingsTabs.workspaceDescription",
         docs: {
-            labelKey: "navigation.settings.workspaceDocs",
+            labelKey: "settingsTabs.workspaceDocs",
             href: `${DOCS_BASE}/administration/access-control/rbac`,
         },
     },
     {
         key: "organizationGeneral",
         scope: "organization",
-        descriptionKey: "navigation.settings.organizationGeneralDescription",
+        descriptionKey: "settingsTabs.organizationGeneralDescription",
         docs: {
-            labelKey: "navigation.settings.organizationGeneralDocs",
+            labelKey: "settingsTabs.organizationGeneralDocs",
             href: `${DOCS_BASE}/administration/access-control/organizations`,
         },
     },
     {
         key: "projects",
         scope: "organization",
-        descriptionKey: "navigation.settings.projectsDescription",
+        descriptionKey: "settingsTabs.projectsDescription",
         docs: {
-            labelKey: "navigation.settings.projectsDocs",
+            labelKey: "settingsTabs.projectsDocs",
             href: `${DOCS_BASE}/administration/access-control/organizations`,
         },
     },
     {
         key: "organization",
         scope: "organization",
-        descriptionKey: "navigation.settings.organizationDescription",
+        descriptionKey: "settingsTabs.organizationDescription",
         docs: {
-            labelKey: "navigation.settings.organizationDocs",
+            labelKey: "settingsTabs.organizationDocs",
             href: `${DOCS_BASE}/administration/access-control/sso`,
         },
     },
     {
         key: "auditLog",
         scope: "organization",
-        descriptionKey: "navigation.settings.auditLogDescription",
+        descriptionKey: "settingsTabs.auditLogDescription",
     },
     {
         key: "account",
         scope: "personal",
-        descriptionKey: "navigation.settings.accountDescription",
+        descriptionKey: "settingsTabs.accountDescription",
     },
     {
         key: "preferences",
         scope: "personal",
-        descriptionKey: "navigation.settings.preferencesDescription",
+        descriptionKey: "settingsTabs.preferencesDescription",
     },
 ]
 
@@ -246,17 +247,6 @@ export const getSettingsTabLabel = (key: SettingsTabKey, access: SettingsAccess)
     const tab = SETTINGS_TABS.find((item) => item.key === key)
     if (tab?.getLabel) return tab.getLabel(access)
     return t(SETTINGS_LABELS[key as Exclude<SettingsTabKey, "billing">])
-}
-
-export const getSettingsTabDescription = (key: SettingsTabKey, access: SettingsAccess): string => {
-    const tab = SETTINGS_TABS.find((item) => item.key === key)
-    if (!tab) return ""
-    return tab.getDescription ? tab.getDescription(access) : t(tab.descriptionKey)
-}
-
-export const getSettingsTabDocs = (key: SettingsTabKey): SettingsTabDocs | undefined => {
-    const docs = SETTINGS_TABS.find((item) => item.key === key)?.docs
-    return docs && {label: t(docs.labelKey), href: docs.href}
 }
 
 // `organizationGeneral` is intentionally absent: it lists every organization you belong

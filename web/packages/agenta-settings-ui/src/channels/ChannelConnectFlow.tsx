@@ -72,7 +72,8 @@ const tNow = createT(channelsConnectCatalog, commonCatalog)
 
 export interface ChannelConnectFlowProps {
     platform: ChannelPlatform
-    agentName: string
+    /** Unset when the agent has no name yet; the Slack app is then created as "your agent". */
+    agentName?: string
     /** Seeds the description of a new Slack app. */
     agentDescription?: string | null
     workspaceName?: string
@@ -301,7 +302,7 @@ const formatCountdown = (ms: number) => {
 
 export const ChannelConnectFlow = ({
     platform,
-    agentName,
+    agentName: agentNameProp,
     agentDescription,
     hostedHandle = "@agenta",
     actions = NOOP_ACTIONS,
@@ -313,6 +314,7 @@ export const ChannelConnectFlow = ({
     pollIntervalMs = 2500,
 }: ChannelConnectFlowProps) => {
     const t = useT(channelsConnectCatalog, commonCatalog)
+    const agentName = agentNameProp ?? t("channels.connect.yourAgent")
     const isSlack = platform === "slack"
     const isTelegram = platform === "telegram"
     // WhatsApp has no Agenta-hosted number: the customer always brings their own.
@@ -336,7 +338,8 @@ export const ChannelConnectFlow = ({
 
     // --- custom Slack app: how it presents itself --------------------------- //
     const [slackIdentity, setSlackIdentity] = useState(() =>
-        defaultSlackIdentity(agentName, agentDescription),
+        // Saved into the Slack app, so the fallback stays English.
+        defaultSlackIdentity(agentNameProp ?? "your agent", agentDescription),
     )
     // The handle follows the name until the user edits it by hand.
     const [handleEdited, setHandleEdited] = useState(false)

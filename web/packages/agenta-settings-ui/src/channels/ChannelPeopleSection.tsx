@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
 import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
 import channelsPeopleCatalog from "@agenta/i18n/catalogs/channels.people"
@@ -26,6 +26,14 @@ import type {
     ChannelPlatform,
     ChannelsActions,
 } from "./types"
+
+// For callbacks and effects: a language change must not refetch or reset what is shown.
+const tNow = createT(
+    channelsActionsCatalog,
+    channelsLabelsCatalog,
+    channelsPeopleCatalog,
+    commonCatalog,
+)
 
 /**
  * "Who can message it": Everyone, or Specific people. The list lives on the agent binding, so
@@ -112,9 +120,9 @@ export const ChannelPeopleSection = ({
             setPeople(await actions.readAudience(connectionId))
         } catch (e) {
             setPeople(null)
-            setError(errorMessage(e, t("channels.people.readFailed")))
+            setError(errorMessage(e, tNow("channels.people.readFailed")))
         }
-    }, [actions, connectionId, t])
+    }, [actions, connectionId])
 
     useEffect(() => {
         void load()

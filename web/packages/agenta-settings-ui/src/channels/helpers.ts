@@ -1,5 +1,4 @@
 import {formatDate, createT} from "@agenta/i18n"
-import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
 import channelsStatusCatalog from "@agenta/i18n/catalogs/channels.status"
 
@@ -14,7 +13,7 @@ import type {
     ChannelToolSettings,
 } from "./types"
 
-const t = createT(channelsActionsCatalog, channelsLabelsCatalog, channelsStatusCatalog)
+const t = createT(channelsLabelsCatalog, channelsStatusCatalog)
 
 /** A multi-line row built on Button: left-aligned, wrapping, sized by its content. */
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
@@ -398,7 +397,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     reload: async () => EMPTY_CONNECTIONS,
     loadSetup: async () => ({manifest: null, fields: [], hostedAvailable: true}),
     connectHostedTelegram: async () => {
-        throw new Error(t("channels.actions.hostedTelegramPreview"))
+        throw new Error(t("channels.labels.hostedTelegramPreview"))
     },
     countHostedTelegramBindings: async () => 0,
     hostedSlackInstallUrl: async () => null,

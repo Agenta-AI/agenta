@@ -74,7 +74,8 @@ export const ChannelsPage = ({
     const [retrying, setRetrying] = useState(false)
     const {open, panel} = useChannelPanel({
         agentId,
-        agentName,
+        // Raw: the panel keeps saved names English and translates only what it shows.
+        agentName: agentNameProp,
         agentDescription,
         workspaceName,
         connections,

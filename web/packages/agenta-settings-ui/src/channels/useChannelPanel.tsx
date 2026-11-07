@@ -1,6 +1,14 @@
-import {lazy, Suspense, useCallback, useRef, useState} from "react"
+import {
+    lazy,
+    Suspense,
+    useCallback,
+    useRef,
+    useState,
+    type ComponentType,
+    type LazyExoticComponent,
+} from "react"
 
-import {textReady, useT} from "@agenta/i18n"
+import {loadWithText, useT} from "@agenta/i18n"
 import channelsPanelCatalog from "@agenta/i18n/catalogs/channels.panel"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} from "@agenta/ui/ui"
 import {Broadcast, ChatCircleText, Code} from "@phosphor-icons/react"
@@ -16,6 +24,7 @@ import {
     platformLabel,
 } from "./helpers"
 import {platformLogo} from "./icons"
+import {PanelLoadBoundary} from "./PanelLoadBoundary"
 import type {
     ChannelConnection,
     ChannelConnections,
@@ -26,18 +35,27 @@ import type {
 } from "./types"
 import {ViewTransition} from "./ViewTransition"
 
-// Opened from a click: load each panel, and its text in the chosen language, only then.
-const ChannelConnectFlow = lazy(() =>
-    import("./ChannelConnectFlow").then(async (m) => {
-        await textReady()
-        return {default: m.ChannelConnectFlow}
-    }),
+/** A click-opened panel: its code and text load on first open; a failed load retries next time. */
+const lazyPanel = <P extends object>(load: () => Promise<ComponentType<P>>) => {
+    const make = (): LazyExoticComponent<ComponentType<P>> =>
+        lazy(() =>
+            loadWithText(load).then(
+                (component) => ({default: component}),
+                (error: unknown) => {
+                    current = make()
+                    throw error
+                },
+            ),
+        )
+    let current = make()
+    return () => current
+}
+
+const connectFlowPanel = lazyPanel(() =>
+    import("./ChannelConnectFlow").then((m) => m.ChannelConnectFlow),
 )
-const ChannelManagePanel = lazy(() =>
-    import("./ChannelManagePanel").then(async (m) => {
-        await textReady()
-        return {default: m.ChannelManagePanel}
-    }),
+const managePanel = lazyPanel(() =>
+    import("./ChannelManagePanel").then((m) => m.ChannelManagePanel),
 )
 
 const PanelLoading = () => (
@@ -351,12 +369,13 @@ export const useChannelPanel = ({
                         onAdd={() => push(connectRoute(route.platform))}
                     />
                 )
-            case "connect":
+            case "connect": {
+                const ChannelConnectFlow = connectFlowPanel()
                 return (
                     <ChannelConnectFlow
                         key={`${route.platform}-${route.mode}`}
                         platform={route.platform}
-                        agentName={agentName}
+                        agentName={agentNameOption}
                         agentDescription={agentDescription}
                         workspaceName={workspaceName}
                         hostedHandle={hostedHandle}
@@ -373,7 +392,9 @@ export const useChannelPanel = ({
                         onConnected={() => onConnected(route)}
                     />
                 )
+            }
             case "manage": {
+                const ChannelManagePanel = managePanel()
                 const connection = findConnection(connections, route.platform, route.connectionId)
                 if (!connection) return null
                 return (
@@ -539,7 +560,9 @@ export const useChannelPanel = ({
                   onClose: close,
                   children: (
                       <ViewTransition viewKey={routeKey(top, stack.length)} direction={direction}>
-                          <Suspense fallback={<PanelLoading />}>{renderView(top)}</Suspense>
+                          <PanelLoadBoundary>
+                              <Suspense fallback={<PanelLoading />}>{renderView(top)}</Suspense>
+                          </PanelLoadBoundary>
                       </ViewTransition>
                   ),
               })

@@ -5,7 +5,7 @@ import {getActiveLanguage} from "./language"
 export {
     createT,
     defineCatalog,
-    textReady,
+    loadWithText,
     useT,
     type CatalogKey,
     type TypedCatalog,

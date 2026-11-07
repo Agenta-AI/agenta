@@ -4,7 +4,6 @@ import {describe, expect, it} from "vitest"
 
 import {
     getSettingsSidebarTabs,
-    getSettingsTabDescription,
     getSettingsTabLabel,
     isSettingsTabVisible,
     resolveSettingsTab,
@@ -12,6 +11,7 @@ import {
     SETTINGS_TABS,
     type SettingsAccess,
 } from "../../src/navigation"
+import {getSettingsTabDescription} from "../../src/tabDetails"
 
 const t = createT(navigationCatalog)
 
