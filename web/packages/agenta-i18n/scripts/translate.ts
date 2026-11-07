@@ -1,12 +1,12 @@
 /**
- * Fills zh-CN catalogs with an LLM. Sends only keys that are missing or whose
- * English text changed since the last run (sha256 in locales/.meta/zh-CN.json),
- * adopts zh-CN values that have no recorded hash, and drops keys English no longer has.
+ * Fills translated catalogs with an LLM. Sends only keys that are missing or whose
+ * English text changed since the last run (sha256 in locales/.meta/<lang>.json),
+ * adopts values that have no recorded hash, and drops keys English no longer has.
  *
- * Usage: node scripts/translate.ts [--namespace <name>] [--dry-run]
+ * Usage: node scripts/translate.ts [--lang <lang>] [--namespace <name>] [--dry-run]
  * Env: ANTHROPIC_API_KEY (required unless --dry-run), AGENTA_I18N_MODEL (default claude-sonnet-5-5)
  */
-import {existsSync, mkdirSync, readFileSync, rmSync} from "node:fs"
+import {existsSync, mkdirSync, readFileSync} from "node:fs"
 import {dirname, join} from "node:path"
 import {pathToFileURL} from "node:url"
 
@@ -14,21 +14,24 @@ import {
     LOCALES_DIR,
     PACKAGE_DIR,
     SOURCE_LANG,
-    TARGET_LANG,
     catalogPath,
+    flagValue,
     listNamespaces,
     metaPath,
     readJson,
     samePlaceholders,
     sha256,
     targetKeys,
+    targetLanguages,
     writeJson,
 } from "./catalog.ts"
 import type {Catalog} from "./catalog.ts"
-import {parseNamespace} from "./check.ts"
 
 export const DEFAULT_MODEL = "claude-sonnet-5-5"
 const BATCH_SIZE = 40
+
+/** Translation memory: namespace, then key inside it, then sha256 of the English text. */
+export type Meta = Record<string, Catalog>
 
 export interface Item {
     key: string
@@ -40,22 +43,23 @@ export interface Usage {
     outputTokens: number
 }
 
-/** Translates a batch; returns zh-CN text by key. */
+/** Translates a batch; returns the translated text by key. */
 export type TranslateBatch = (items: Item[]) => Promise<{translations: Catalog; usage: Usage}>
 
 export interface Plan {
-    /** Keys (inside the namespace) to send to the model, with their English text. */
+    /** Every key the language needs, with the English text it translates. */
+    wanted: Map<string, string>
+    /** Keys to send to the model. */
     send: Item[]
-    /** Keys whose existing zh-CN value is kept and whose hash gets recorded. */
+    /** Keys whose existing value is kept and whose hash gets recorded. */
     adopt: string[]
-    /** zh-CN keys English no longer has. */
+    /** Keys English no longer has. */
     remove: string[]
 }
 
-/** `meta` holds hashes for this namespace's keys only, keyed by the key inside the namespace. */
-export function planNamespace(source: Catalog, target: Catalog, meta: Catalog): Plan {
-    const wanted = targetKeys(source, TARGET_LANG)
-    const plan: Plan = {send: [], adopt: [], remove: []}
+export function planNamespace(source: Catalog, target: Catalog, meta: Catalog, lang: string): Plan {
+    const wanted = targetKeys(source, lang)
+    const plan: Plan = {wanted, send: [], adopt: [], remove: []}
     for (const [key, en] of wanted) {
         if (target[key] === undefined) plan.send.push({key, en})
         else if (meta[key] === undefined) plan.adopt.push(key)
@@ -68,26 +72,39 @@ export function planNamespace(source: Catalog, target: Catalog, meta: Catalog): 
 /** Errors whose message is safe to print: it never holds response text or the key. */
 export class TranslateError extends Error {}
 
-export function glossaryPrompt(glossary: Record<string, string>): string {
-    return Object.entries(glossary)
-        .map(([term, zh]) => `${term} => ${zh}`)
-        .join("\n")
+const STYLE: Record<string, {name: string; rules: string[]}> = {
+    "zh-CN": {
+        name: "Simplified Chinese (zh-CN)",
+        rules: [
+            "Write Simplified Chinese for users in mainland China. Keep a short, plain UI tone.",
+            "Use full-width Chinese punctuation in sentences. Put a space between Chinese and Latin words or numbers.",
+        ],
+    },
+    "ja-JP": {
+        name: "Japanese (ja-JP)",
+        rules: [
+            "Write Japanese for users in Japan. Keep a short, plain UI tone. Use です/ます only where a full sentence is needed; labels and buttons stay short.",
+            "Write loanwords in katakana as the glossary does. Use full-width Japanese punctuation in sentences. Put a space between Japanese and Latin words or numbers.",
+        ],
+    },
 }
 
-export function systemPrompt(glossary: string): string {
+export function systemPrompt(lang: string, glossary: Record<string, string>): string {
+    const style = STYLE[lang]
+    if (!style) throw new TranslateError(`No style guide for ${lang}`)
     return [
-        "You translate the user interface of Agenta, a platform to build, evaluate and observe LLM agents, from English to Simplified Chinese (zh-CN).",
+        `You translate the user interface of Agenta, a platform to build, evaluate and observe LLM agents, from English to ${style.name}.`,
         "",
         "Style:",
-        "- Write Simplified Chinese for users in mainland China. Keep a short, plain UI tone. No trailing period on labels and buttons that have none in English.",
-        "- Use full-width Chinese punctuation in sentences. Put a space between Chinese and Latin words or numbers.",
+        ...style.rules.map((rule) => `- ${rule}`),
+        "- No trailing period on labels and buttons that have none in English.",
         "- Copy every {{placeholder}} exactly, including its name. Never translate, add or drop one.",
         "- Copy markup, tags, URLs, code and keyboard keys exactly.",
         "- Use the glossary terms below. Keep brand and product names in English.",
         "- The key name hints at where the text appears.",
         "",
-        "Glossary (English => Chinese):",
-        glossary,
+        "Glossary (English => translation):",
+        ...Object.entries(glossary).map(([term, text]) => `${term} => ${text}`),
         "",
         "Return one translation for every key you receive, with the same key.",
     ].join("\n")
@@ -100,8 +117,8 @@ const OUTPUT_SCHEMA = {
             type: "array",
             items: {
                 type: "object",
-                properties: {key: {type: "string"}, zh: {type: "string"}},
-                required: ["key", "zh"],
+                properties: {key: {type: "string"}, text: {type: "string"}},
+                required: ["key", "text"],
                 additionalProperties: false,
             },
         },
@@ -149,9 +166,9 @@ export function anthropicTranslator(options: {
         }
         const text = body.content?.find((block) => block.type === "text")?.text
         if (text === undefined) throw new TranslateError("Anthropic API answer has no text")
-        const parsed = JSON.parse(text) as {translations: {key: string; zh: string}[]}
+        const parsed = JSON.parse(text) as {translations: {key: string; text: string}[]}
         return {
-            translations: Object.fromEntries(parsed.translations.map((t) => [t.key, t.zh])),
+            translations: Object.fromEntries(parsed.translations.map((t) => [t.key, t.text])),
             usage: {
                 inputTokens: body.usage?.input_tokens ?? 0,
                 outputTokens: body.usage?.output_tokens ?? 0,
@@ -162,7 +179,7 @@ export function anthropicTranslator(options: {
 
 export interface NamespaceResult {
     catalog: Catalog
-    /** Hashes for this namespace's keys, keyed by the key inside the namespace. */
+    /** Hashes for this namespace's keys. */
     meta: Catalog
     translated: string[]
     rejected: string[]
@@ -171,14 +188,12 @@ export interface NamespaceResult {
 
 /** Applies a plan: translates in batches, rejects answers whose placeholders differ. */
 export async function translateNamespace(
-    source: Catalog,
+    plan: Plan,
     target: Catalog,
     meta: Catalog,
     translate: TranslateBatch,
     batchSize = BATCH_SIZE,
 ): Promise<NamespaceResult> {
-    const plan = planNamespace(source, target, meta)
-    const wanted = targetKeys(source, TARGET_LANG)
     const next: Catalog = {...target}
     const nextMeta: Catalog = {...meta}
     const result: NamespaceResult = {
@@ -188,117 +203,117 @@ export async function translateNamespace(
         rejected: [],
         usage: {inputTokens: 0, outputTokens: 0},
     }
-    for (const key of plan.adopt) nextMeta[key] = sha256(wanted.get(key) as string)
+    for (const key of plan.adopt) nextMeta[key] = sha256(plan.wanted.get(key) as string)
     for (let i = 0; i < plan.send.length; i += batchSize) {
         const batch = plan.send.slice(i, i + batchSize)
         const {translations, usage} = await translate(batch)
         result.usage.inputTokens += usage.inputTokens
         result.usage.outputTokens += usage.outputTokens
         for (const {key, en} of batch) {
-            const zh = translations[key]
-            if (typeof zh !== "string" || zh.trim() === "" || !samePlaceholders(en, zh)) {
+            const text = translations[key]
+            if (typeof text !== "string" || text.trim() === "" || !samePlaceholders(en, text)) {
                 result.rejected.push(key)
                 continue
             }
-            next[key] = zh
+            next[key] = text
             nextMeta[key] = sha256(en)
             result.translated.push(key)
         }
     }
     // Keep English key order; drop keys English no longer has.
-    for (const key of wanted.keys()) {
+    for (const key of plan.wanted.keys()) {
         if (next[key] !== undefined) result.catalog[key] = next[key]
         if (nextMeta[key] !== undefined) result.meta[key] = nextMeta[key]
     }
     return result
 }
 
-/** Splits the flat meta file into this namespace's entries, keyed inside the namespace. */
-export function namespaceMeta(meta: Catalog, namespace: string): Catalog {
-    const prefix = `${namespace}.`
+function sortedMeta(meta: Meta): Meta {
     return Object.fromEntries(
-        Object.entries(meta)
-            .filter(([key]) => key.startsWith(prefix))
-            .map(([key, hash]) => [key.slice(prefix.length), hash]),
+        Object.keys(meta)
+            .sort()
+            .map((ns) => [ns, meta[ns]]),
     )
 }
 
-export function mergeMeta(meta: Catalog, namespace: string, entries: Catalog): Catalog {
-    const prefix = `${namespace}.`
-    const merged = Object.fromEntries(
-        Object.entries(meta).filter(([key]) => !key.startsWith(prefix)),
-    )
-    for (const [key, hash] of Object.entries(entries)) merged[`${prefix}${key}`] = hash
-    return Object.fromEntries(
-        Object.entries(merged).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-    )
+async function translateLanguage(
+    lang: string,
+    namespaces: string[],
+    options: {dryRun: boolean; apiKey: string; model: string},
+): Promise<{usage: Usage; rejected: number}> {
+    const glossaryFile = join(PACKAGE_DIR, `glossary.${lang}.json`)
+    if (!existsSync(glossaryFile)) throw new TranslateError(`No glossary.${lang}.json`)
+    const glossary = JSON.parse(readFileSync(glossaryFile, "utf8")) as Record<string, string>
+    const translate = anthropicTranslator({
+        apiKey: options.apiKey,
+        model: options.model,
+        system: systemPrompt(lang, glossary),
+    })
+    const metaFile = metaPath(LOCALES_DIR, lang)
+    const meta = readJson(metaFile) as Meta
+    const total = {usage: {inputTokens: 0, outputTokens: 0}, rejected: 0}
+
+    for (const ns of namespaces) {
+        const source = readJson(catalogPath(LOCALES_DIR, SOURCE_LANG, ns)) as Catalog
+        const targetFile = catalogPath(LOCALES_DIR, lang, ns)
+        const target = readJson(targetFile) as Catalog
+        const plan = planNamespace(source, target, meta[ns] ?? {}, lang)
+        console.log(
+            `${lang}/${ns}: ${plan.send.length} to translate, ${plan.adopt.length} to adopt, ${plan.remove.length} to remove`,
+        )
+        if (options.dryRun) {
+            for (const item of plan.send) console.log(`  send   ${ns}.${item.key}: ${item.en}`)
+            for (const key of plan.adopt) console.log(`  adopt  ${ns}.${key}`)
+            for (const key of plan.remove) console.log(`  remove ${ns}.${key}`)
+            continue
+        }
+        const result = await translateNamespace(plan, target, meta[ns] ?? {}, translate)
+        total.usage.inputTokens += result.usage.inputTokens
+        total.usage.outputTokens += result.usage.outputTokens
+        total.rejected += result.rejected.length
+        for (const key of result.rejected) {
+            console.error(`  rejected ${lang}/${ns}.${key}: missing answer or placeholders differ`)
+        }
+        // Write after each namespace so a later failure keeps finished work.
+        mkdirSync(dirname(targetFile), {recursive: true})
+        writeJson(targetFile, result.catalog)
+        meta[ns] = result.meta
+        mkdirSync(dirname(metaFile), {recursive: true})
+        writeJson(metaFile, sortedMeta(meta))
+    }
+    return total
 }
 
 async function main(argv: string[]): Promise<number> {
     const dryRun = argv.includes("--dry-run")
-    const only = parseNamespace(argv)
+    const only = flagValue(argv, "--namespace")
+    const lang = flagValue(argv, "--lang")
     const sourceNamespaces = listNamespaces(LOCALES_DIR, SOURCE_LANG)
-    const namespaces = only
-        ? [only]
-        : [...new Set([...sourceNamespaces, ...listNamespaces(LOCALES_DIR, TARGET_LANG)])].sort()
     if (only && !sourceNamespaces.includes(only)) {
         console.error(`No English catalog for namespace "${only}".`)
         return 1
     }
-    const metaFile = metaPath(LOCALES_DIR, TARGET_LANG)
-    let meta = readJson(metaFile) as Catalog
     const model = process.env.AGENTA_I18N_MODEL || DEFAULT_MODEL
     const apiKey = process.env.ANTHROPIC_API_KEY ?? ""
     if (!dryRun && !apiKey) {
         console.error("Set ANTHROPIC_API_KEY, or run with --dry-run.")
         return 1
     }
-    const glossary = JSON.parse(
-        readFileSync(join(PACKAGE_DIR, "glossary.zh-CN.json"), "utf8"),
-    ) as Record<string, string>
-    const translate = anthropicTranslator({
-        apiKey,
-        model,
-        system: systemPrompt(glossaryPrompt(glossary)),
-    })
-    const total: Usage = {inputTokens: 0, outputTokens: 0}
     let rejected = 0
-
-    for (const ns of namespaces) {
-        const source = readJson(catalogPath(LOCALES_DIR, SOURCE_LANG, ns)) as Catalog
-        const targetFile = catalogPath(LOCALES_DIR, TARGET_LANG, ns)
-        const target = readJson(targetFile) as Catalog
-        const nsMeta = namespaceMeta(meta, ns)
-        const plan = planNamespace(source, target, nsMeta)
-        console.log(
-            `${ns}: ${plan.send.length} to translate, ${plan.adopt.length} to adopt, ${plan.remove.length} to remove`,
-        )
-        if (dryRun) {
-            for (const item of plan.send) console.log(`  send   ${ns}.${item.key}: ${item.en}`)
-            for (const key of plan.adopt) console.log(`  adopt  ${ns}.${key}`)
-            for (const key of plan.remove) console.log(`  remove ${ns}.${key}`)
-            continue
-        }
-        const result = await translateNamespace(source, target, nsMeta, translate)
-        total.inputTokens += result.usage.inputTokens
-        total.outputTokens += result.usage.outputTokens
-        rejected += result.rejected.length
-        for (const key of result.rejected) {
-            console.error(`  rejected ${ns}.${key}: missing answer or placeholders differ`)
-        }
-        if (!sourceNamespaces.includes(ns)) {
-            if (existsSync(targetFile)) rmSync(targetFile)
-        } else {
-            mkdirSync(dirname(targetFile), {recursive: true})
-            writeJson(targetFile, result.catalog)
-        }
-        meta = mergeMeta(meta, ns, result.meta)
+    const usage: Usage = {inputTokens: 0, outputTokens: 0}
+    for (const target of lang ? [lang] : targetLanguages(LOCALES_DIR)) {
+        const result = await translateLanguage(target, only ? [only] : sourceNamespaces, {
+            dryRun,
+            apiKey,
+            model,
+        })
+        rejected += result.rejected
+        usage.inputTokens += result.usage.inputTokens
+        usage.outputTokens += result.usage.outputTokens
     }
     if (dryRun) return 0
-    mkdirSync(dirname(metaFile), {recursive: true})
-    writeJson(metaFile, meta)
     console.log(
-        `Model ${model}: ${total.inputTokens} input tokens, ${total.outputTokens} output tokens.`,
+        `Model ${model}: ${usage.inputTokens} input tokens, ${usage.outputTokens} output tokens.`,
     )
     if (rejected > 0) {
         console.error(`${rejected} key(s) rejected. Run again to retry them.`)

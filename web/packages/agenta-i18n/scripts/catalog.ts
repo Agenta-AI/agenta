@@ -6,9 +6,27 @@ import {fileURLToPath} from "node:url"
 export type Catalog = Record<string, string>
 
 export const SOURCE_LANG = "en"
-export const TARGET_LANG = "zh-CN"
 export const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 export const LOCALES_DIR = join(PACKAGE_DIR, "locales")
+
+/** Every language folder in locales/ except English and dot folders. */
+export function targetLanguages(localesDir: string): string[] {
+    if (!existsSync(localesDir)) return []
+    return readdirSync(localesDir, {withFileTypes: true})
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+        .map((entry) => entry.name)
+        .filter((name) => name !== SOURCE_LANG)
+        .sort()
+}
+
+/** Value of `--name <value>`, or undefined when the flag is absent. */
+export function flagValue(argv: string[], name: string): string | undefined {
+    const index = argv.indexOf(name)
+    if (index === -1) return undefined
+    const value = argv[index + 1]
+    if (!value || value.startsWith("--")) throw new Error(`${name} needs a value`)
+    return value
+}
 
 const PLURAL_SUFFIX = /^(.+)_(zero|one|two|few|many|other)$/
 

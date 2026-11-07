@@ -3,12 +3,12 @@ import {describe, expect, it, vi} from "vitest"
 import {sha256} from "../../scripts/catalog"
 import {
     anthropicTranslator,
-    mergeMeta,
-    namespaceMeta,
     planNamespace,
+    systemPrompt,
     TranslateError,
     translateNamespace,
 } from "../../scripts/translate"
+import type {Catalog} from "../../scripts/catalog"
 import type {Item, TranslateBatch} from "../../scripts/translate"
 
 const usage = {inputTokens: 10, outputTokens: 5}
@@ -22,12 +22,25 @@ function stub(answers: Record<string, string>): TranslateBatch & {calls: Item[][
     return Object.assign(fn, {calls})
 }
 
+function run(
+    source: Catalog,
+    target: Catalog,
+    meta: Catalog,
+    translate: TranslateBatch,
+    size?: number,
+) {
+    const plan = planNamespace(source, target, meta, "zh-CN")
+    return translateNamespace(plan, target, meta, translate, size)
+}
+
 describe("planNamespace", () => {
     it("sends missing and changed keys, adopts unhashed ones, removes stale ones", () => {
         const source = {same: "Same", changed: "New text", fresh: "Fresh", adopted: "Adopted"}
         const target = {same: "相同", changed: "旧文本", adopted: "采用", gone: "删除"}
         const meta = {same: sha256("Same"), changed: sha256("Old text"), gone: sha256("Gone")}
-        expect(planNamespace(source, target, meta)).toEqual({
+        const {wanted, ...plan} = planNamespace(source, target, meta, "zh-CN")
+        expect([...wanted.keys()]).toEqual(Object.keys(source))
+        expect(plan).toEqual({
             send: [
                 {key: "changed", en: "New text"},
                 {key: "fresh", en: "Fresh"},
@@ -37,8 +50,13 @@ describe("planNamespace", () => {
         })
     })
 
-    it("plans only the zh-CN plural form", () => {
-        const plan = planNamespace({n_one: "One", n_other: "{{count}} items"}, {n_one: "一"}, {})
+    it("plans only the _other plural form", () => {
+        const plan = planNamespace(
+            {n_one: "One", n_other: "{{count}} items"},
+            {n_one: "一"},
+            {},
+            "ja-JP",
+        )
         expect(plan.send).toEqual([{key: "n_other", en: "{{count}} items"}])
         expect(plan.remove).toEqual(["n_one"])
     })
@@ -47,7 +65,7 @@ describe("planNamespace", () => {
 describe("translateNamespace", () => {
     it("writes valid answers with hashes and keeps English key order", async () => {
         const translate = stub({b: "乙 {{name}}", a: "甲"})
-        const result = await translateNamespace({a: "A", b: "B {{name}}"}, {}, {}, translate)
+        const result = await run({a: "A", b: "B {{name}}"}, {}, {}, translate)
         expect(Object.keys(result.catalog)).toEqual(["a", "b"])
         expect(result.catalog).toEqual({a: "甲", b: "乙 {{name}}"})
         expect(result.meta).toEqual({a: sha256("A"), b: sha256("B {{name}}")})
@@ -57,12 +75,7 @@ describe("translateNamespace", () => {
     it("rejects answers with wrong placeholders and keeps the old value and hash", async () => {
         const translate = stub({a: "你好 {{nom}}", b: ""})
         const meta = {a: sha256("Old {{name}}")}
-        const result = await translateNamespace(
-            {a: "Hi {{name}}", b: "B"},
-            {a: "旧 {{name}}"},
-            meta,
-            translate,
-        )
+        const result = await run({a: "Hi {{name}}", b: "B"}, {a: "旧 {{name}}"}, meta, translate)
         expect(result.rejected).toEqual(["a", "b"])
         expect(result.catalog).toEqual({a: "旧 {{name}}"})
         expect(result.meta).toEqual(meta)
@@ -70,14 +83,14 @@ describe("translateNamespace", () => {
 
     it("adopts existing values without calling the model", async () => {
         const translate = stub({})
-        const result = await translateNamespace({a: "A"}, {a: "甲"}, {}, translate)
+        const result = await run({a: "A"}, {a: "甲"}, {}, translate)
         expect(translate.calls).toEqual([])
         expect(result.catalog).toEqual({a: "甲"})
         expect(result.meta).toEqual({a: sha256("A")})
     })
 
     it("removes keys and hashes English no longer has", async () => {
-        const result = await translateNamespace(
+        const result = await run(
             {a: "A"},
             {a: "甲", gone: "去"},
             {a: sha256("A"), gone: sha256("Gone")},
@@ -89,7 +102,7 @@ describe("translateNamespace", () => {
 
     it("sends keys in batches", async () => {
         const translate = stub({a: "甲", b: "乙", c: "丙"})
-        await translateNamespace({a: "A", b: "B", c: "C"}, {}, {}, translate, 2)
+        await run({a: "A", b: "B", c: "C"}, {}, {}, translate, 2)
         expect(translate.calls.map((batch) => batch.map((item) => item.key))).toEqual([
             ["a", "b"],
             ["c"],
@@ -97,11 +110,12 @@ describe("translateNamespace", () => {
     })
 })
 
-describe("meta helpers", () => {
-    it("splits and merges one namespace", () => {
-        const meta = {"a.x": "1", "b.y": "2", "a.z": "3"}
-        expect(namespaceMeta(meta, "a")).toEqual({x: "1", z: "3"})
-        expect(mergeMeta(meta, "a", {x: "9"})).toEqual({"a.x": "9", "b.y": "2"})
+describe("systemPrompt", () => {
+    it("adds the language style and the glossary, and refuses an unknown language", () => {
+        const prompt = systemPrompt("ja-JP", {Agent: "エージェント"})
+        expect(prompt).toContain("Japanese (ja-JP)")
+        expect(prompt).toContain("Agent => エージェント")
+        expect(() => systemPrompt("xx", {})).toThrow(TranslateError)
     })
 })
 
@@ -111,7 +125,7 @@ describe("anthropicTranslator", () => {
             Response.json({
                 stop_reason: "end_turn",
                 content: [
-                    {type: "text", text: JSON.stringify({translations: [{key: "a", zh: "甲"}]})},
+                    {type: "text", text: JSON.stringify({translations: [{key: "a", text: "甲"}]})},
                 ],
                 usage: {input_tokens: 100, output_tokens: 20},
             }),

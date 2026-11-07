@@ -4,8 +4,17 @@ import {join} from "node:path"
 
 import {describe, expect, it} from "vitest"
 
-import {placeholders, targetKeys} from "../../scripts/catalog"
-import {checkLocales, checkNamespace, parseNamespace} from "../../scripts/check"
+import {flagValue, placeholders, targetKeys, targetLanguages} from "../../scripts/catalog"
+import {checkLocales, checkNamespace} from "../../scripts/check"
+
+function locales(files: Record<string, Record<string, unknown>>): string {
+    const dir = mkdtempSync(join(tmpdir(), "i18n-check-"))
+    for (const [path, content] of Object.entries(files)) {
+        mkdirSync(join(dir, path, ".."), {recursive: true})
+        writeFileSync(join(dir, path), JSON.stringify(content))
+    }
+    return dir
+}
 
 describe("placeholders", () => {
     it("returns sorted unique names and ignores spaces", () => {
@@ -15,15 +24,14 @@ describe("placeholders", () => {
 })
 
 describe("targetKeys", () => {
-    it("maps an English plural family to the zh-CN _other form", () => {
-        const keys = targetKeys(
-            {title: "Members", count_one: "One member", count_other: "{{count}} members"},
-            "zh-CN",
-        )
-        expect([...keys]).toEqual([
-            ["title", "Members"],
-            ["count_other", "{{count}} members"],
-        ])
+    it("maps an English plural family to the _other form for zh-CN and ja-JP", () => {
+        const source = {title: "Members", count_one: "One member", count_other: "{{count}} members"}
+        for (const lang of ["zh-CN", "ja-JP"]) {
+            expect([...targetKeys(source, lang)]).toEqual([
+                ["title", "Members"],
+                ["count_other", "{{count}} members"],
+            ])
+        }
     })
 })
 
@@ -31,71 +39,78 @@ describe("checkNamespace", () => {
     it("passes matching catalogs", () => {
         expect(
             checkNamespace(
-                "settings",
                 {title: "Hi {{name}}", n_one: "One", n_other: "{{count}} items"},
                 {title: "你好 {{name}}", n_other: "{{count}} 项"},
+                "zh-CN",
             ),
         ).toEqual([])
     })
 
-    it("lists missing and extra keys in both directions", () => {
-        expect(checkNamespace("settings", {a: "A", b: "B"}, {a: "甲", c: "丙"})).toEqual([
-            "settings: missing in zh-CN: b",
-            "settings: not in en: c",
+    it("lists missing and extra keys", () => {
+        expect(checkNamespace({a: "A", b: "B"}, {a: "甲", c: "丙"}, "zh-CN")).toEqual([
+            "missing in zh-CN: b",
+            "zh-CN has a key English does not need: c",
         ])
     })
 
     it("reports placeholder differences", () => {
-        expect(checkNamespace("s", {a: "Hi {{name}}"}, {a: "你好 {{nme}}"})).toEqual([
-            "s: placeholders differ in a: en has {{name}}, zh-CN has {{nme}}",
+        expect(checkNamespace({a: "Hi {{name}}"}, {a: "你好 {{nme}}"}, "zh-CN")).toEqual([
+            "placeholders differ in a: en has {{name}}, zh-CN has {{nme}}",
         ])
     })
 
-    it("checks plural families per language", () => {
+    it("compares a plural form with the English _other text only", () => {
+        // English _one may drop or add values; the translation follows _other.
         expect(
             checkNamespace(
-                "s",
+                {n_one: "{{name}} has one item", n_other: "{{count}} items"},
+                {n_other: "{{count}} 项"},
+                "zh-CN",
+            ),
+        ).toEqual([])
+    })
+
+    it("checks English plural families and unused target forms", () => {
+        expect(
+            checkNamespace(
                 {n_other: "{{count}} items"},
                 {n_one: "x", n_other: "{{count}} 项"},
+                "zh-CN",
             ),
-        ).toEqual(["s: en misses plural form n_one", "s: zh-CN has unused plural form n_one"])
-        expect(checkNamespace("s", {n_one: "One", n_other: "{{count}}"}, {n: "{{count}}"})).toEqual(
-            ["s: plural in only one language: n"],
-        )
+        ).toEqual(["en misses plural form n_one", "zh-CN has a key English does not need: n_one"])
     })
 
     it("rejects values that are not strings", () => {
-        expect(checkNamespace("s", {a: "A"}, {a: 1})).toContain("s: zh-CN value is not a string: a")
+        expect(checkNamespace({a: "A"}, {a: 1}, "ja-JP")).toEqual([
+            "ja-JP value is not a string: a",
+        ])
     })
 })
 
 describe("checkLocales", () => {
-    function locales(files: Record<string, Record<string, unknown>>): string {
-        const dir = mkdtempSync(join(tmpdir(), "i18n-check-"))
-        for (const [path, content] of Object.entries(files)) {
-            mkdirSync(join(dir, path, ".."), {recursive: true})
-            writeFileSync(join(dir, path), JSON.stringify(content))
-        }
-        return dir
-    }
-
-    it("checks every namespace, or only the one asked for", () => {
+    it("checks every language and namespace, or only the ones asked for", () => {
         const dir = locales({
             "en/a.json": {x: "X"},
             "zh-CN/a.json": {x: "叉"},
+            "ja-JP/a.json": {},
             "en/b.json": {y: "Y"},
-            "zh-CN/c.json": {z: "Z"},
+            "zh-CN/b.json": {y: "乙"},
+            "ja-JP/b.json": {y: "ワイ"},
+            ".meta/zh-CN.json": {},
         })
-        expect(checkLocales(dir)).toEqual(["b: missing in zh-CN: y", "c: not in en: z"])
-        expect(checkLocales(dir, "a")).toEqual([])
-        expect(checkLocales(dir, "nope")).toEqual(["nope: no catalog in either language"])
+        expect(targetLanguages(dir)).toEqual(["ja-JP", "zh-CN"])
+        expect(checkLocales(dir, targetLanguages(dir))).toEqual(["ja-JP/a: missing in ja-JP: x"])
+        expect(checkLocales(dir, ["zh-CN"], "a")).toEqual([])
+        expect(checkLocales(dir, ["zh-CN"], "nope")).toEqual([
+            "zh-CN/nope: no catalog in either language",
+        ])
     })
 })
 
-describe("parseNamespace", () => {
+describe("flagValue", () => {
     it("reads the flag value", () => {
-        expect(parseNamespace(["--namespace", "settings"])).toBe("settings")
-        expect(parseNamespace([])).toBeUndefined()
-        expect(() => parseNamespace(["--namespace"])).toThrow()
+        expect(flagValue(["--namespace", "settings"], "--namespace")).toBe("settings")
+        expect(flagValue([], "--lang")).toBeUndefined()
+        expect(() => flagValue(["--lang"], "--lang")).toThrow()
     })
 })

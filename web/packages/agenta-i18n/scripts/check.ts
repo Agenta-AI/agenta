@@ -1,137 +1,114 @@
 /**
- * Checks that the zh-CN catalogs match the English ones: same keys, same
- * placeholders, complete plural families.
+ * Checks that every translated catalog matches the English one: the keys each
+ * language needs (plural forms per Intl.PluralRules), no extra keys, and the
+ * same placeholders as the English text.
  *
- * Usage: node scripts/check.ts [--namespace <name>]
+ * Usage: node scripts/check.ts [--lang <lang>] [--namespace <name>]
  */
 import {pathToFileURL} from "node:url"
 
 import {
     LOCALES_DIR,
     SOURCE_LANG,
-    TARGET_LANG,
     catalogPath,
+    flagValue,
     listNamespaces,
     placeholders,
     pluralCategories,
     readJson,
     splitPlural,
+    targetKeys,
+    targetLanguages,
 } from "./catalog.ts"
+import type {Catalog} from "./catalog.ts"
 
-interface Family {
-    /** Plural categories present, or null for a plain key. */
-    categories: string[] | null
-    placeholders: string[]
+function fmt(names: string[]): string {
+    return names.map((name) => `{{${name}}}`).join(" ") || "none"
 }
 
-function families(catalog: Record<string, unknown>): {
-    families: Map<string, Family>
-    invalid: string[]
-} {
-    const result = new Map<string, Family>()
-    const invalid: string[] = []
-    for (const [key, value] of Object.entries(catalog)) {
-        if (typeof value !== "string") {
-            invalid.push(key)
-            continue
-        }
+/** English plural families must have every English plural form. */
+function sourceProblems(source: Record<string, unknown>): string[] {
+    const problems: string[] = []
+    const families = new Map<string, string[]>()
+    for (const [key, value] of Object.entries(source)) {
+        if (typeof value !== "string") problems.push(`${SOURCE_LANG} value is not a string: ${key}`)
         const [base, category] = splitPlural(key)
-        const family = result.get(base) ?? {
-            categories: category === null ? null : [],
-            placeholders: [],
-        }
-        if (category !== null) family.categories = [...(family.categories ?? []), category]
-        family.placeholders = [...new Set([...family.placeholders, ...placeholders(value)])].sort()
-        result.set(base, family)
+        if (category !== null) families.set(base, [...(families.get(base) ?? []), category])
     }
-    return {families: result, invalid}
-}
-
-function pluralProblems(base: string, family: Family, lang: string): string[] {
-    if (family.categories === null) return []
-    const required = pluralCategories(lang)
-    const missing = required.filter((c) => !family.categories?.includes(c))
-    const extra = family.categories.filter((c) => !required.includes(c))
-    return [
-        ...missing.map((c) => `${lang} misses plural form ${base}_${c}`),
-        ...extra.map((c) => `${lang} has unused plural form ${base}_${c}`),
-    ]
-}
-
-export function checkNamespace(
-    namespace: string,
-    source: Record<string, unknown>,
-    target: Record<string, unknown>,
-    sourceLang = SOURCE_LANG,
-    targetLang = TARGET_LANG,
-): string[] {
-    const problems: string[] = []
-    const src = families(source)
-    const tgt = families(target)
-    for (const key of src.invalid) problems.push(`${sourceLang} value is not a string: ${key}`)
-    for (const key of tgt.invalid) problems.push(`${targetLang} value is not a string: ${key}`)
-
-    for (const [base, family] of src.families) {
-        const other = tgt.families.get(base)
-        problems.push(...pluralProblems(base, family, sourceLang))
-        if (!other) {
-            problems.push(`missing in ${targetLang}: ${base}`)
-            continue
+    const required = pluralCategories(SOURCE_LANG)
+    for (const [base, categories] of families) {
+        for (const category of required.filter((c) => !categories.includes(c))) {
+            problems.push(`${SOURCE_LANG} misses plural form ${base}_${category}`)
         }
-        if ((family.categories === null) !== (other.categories === null)) {
-            problems.push(`plural in only one language: ${base}`)
-            continue
-        }
-        problems.push(...pluralProblems(base, other, targetLang))
-        if (family.placeholders.join() !== other.placeholders.join()) {
-            const fmt = (names: string[]) => names.map((n) => `{{${n}}}`).join(" ") || "none"
-            problems.push(
-                `placeholders differ in ${base}: ${sourceLang} has ${fmt(family.placeholders)}, ${targetLang} has ${fmt(other.placeholders)}`,
-            )
-        }
-    }
-    for (const base of tgt.families.keys()) {
-        if (!src.families.has(base)) problems.push(`not in ${sourceLang}: ${base}`)
-    }
-    return problems.map((problem) => `${namespace}: ${problem}`)
-}
-
-export function checkLocales(localesDir: string, namespace?: string): string[] {
-    const all = [
-        ...new Set([
-            ...listNamespaces(localesDir, SOURCE_LANG),
-            ...listNamespaces(localesDir, TARGET_LANG),
-        ]),
-    ].sort()
-    if (namespace && !all.includes(namespace))
-        return [`${namespace}: no catalog in either language`]
-    const problems: string[] = []
-    for (const ns of namespace ? [namespace] : all) {
-        problems.push(
-            ...checkNamespace(
-                ns,
-                readJson(catalogPath(localesDir, SOURCE_LANG, ns)),
-                readJson(catalogPath(localesDir, TARGET_LANG, ns)),
-            ),
-        )
     }
     return problems
 }
 
-export function parseNamespace(argv: string[]): string | undefined {
-    const index = argv.indexOf("--namespace")
-    if (index === -1) return undefined
-    const value = argv[index + 1]
-    if (!value || value.startsWith("--")) throw new Error("--namespace needs a value")
-    return value
+export function checkNamespace(
+    source: Record<string, unknown>,
+    target: Record<string, unknown>,
+    lang: string,
+): string[] {
+    const problems = sourceProblems(source)
+    const strings = Object.fromEntries(
+        Object.entries(source).filter(([, value]) => typeof value === "string"),
+    ) as Catalog
+    const wanted = targetKeys(strings, lang)
+    for (const [key, en] of wanted) {
+        const value = target[key]
+        if (value === undefined) {
+            problems.push(`missing in ${lang}: ${key}`)
+        } else if (typeof value !== "string") {
+            problems.push(`${lang} value is not a string: ${key}`)
+        } else if (placeholders(en).join() !== placeholders(value).join()) {
+            problems.push(
+                `placeholders differ in ${key}: ${SOURCE_LANG} has ${fmt(placeholders(en))}, ${lang} has ${fmt(placeholders(value))}`,
+            )
+        }
+    }
+    for (const key of Object.keys(target)) {
+        if (!wanted.has(key)) problems.push(`${lang} has a key English does not need: ${key}`)
+    }
+    return problems
+}
+
+export function checkLocales(localesDir: string, langs: string[], namespace?: string): string[] {
+    const problems: string[] = []
+    for (const lang of langs) {
+        const all = [
+            ...new Set([
+                ...listNamespaces(localesDir, SOURCE_LANG),
+                ...listNamespaces(localesDir, lang),
+            ]),
+        ].sort()
+        if (namespace && !all.includes(namespace)) {
+            problems.push(`${lang}/${namespace}: no catalog in either language`)
+            continue
+        }
+        for (const ns of namespace ? [namespace] : all) {
+            const found = checkNamespace(
+                readJson(catalogPath(localesDir, SOURCE_LANG, ns)),
+                readJson(catalogPath(localesDir, lang, ns)),
+                lang,
+            )
+            problems.push(...found.map((problem) => `${lang}/${ns}: ${problem}`))
+        }
+    }
+    return problems
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-    const problems = checkLocales(LOCALES_DIR, parseNamespace(process.argv.slice(2)))
+    const argv = process.argv.slice(2)
+    const lang = flagValue(argv, "--lang")
+    const problems = checkLocales(
+        LOCALES_DIR,
+        lang ? [lang] : targetLanguages(LOCALES_DIR),
+        flagValue(argv, "--namespace"),
+    )
     if (problems.length > 0) {
         console.error(`i18n check found ${problems.length} problem(s):`)
         for (const problem of problems) console.error(`  - ${problem}`)
-        console.error("Run `pnpm i18n:translate` to fill zh-CN, or fix the catalogs by hand.")
+        console.error("Run `pnpm i18n:translate` to fill the catalogs, or fix them by hand.")
         process.exit(1)
     }
     console.log("i18n check passed.")
