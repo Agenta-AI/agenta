@@ -235,10 +235,6 @@ describe("CSV export", () => {
         expect(csvCell("@SUM(A1)")).toBe("'@SUM(A1)")
         expect(csvCell("\tcmd")).toBe("'\tcmd")
         expect(csvCell(-2)).toBe("-2")
-        // A negative metric printed as text stays a number in the file.
-        expect(csvCell("-0.5")).toBe("-0.5")
-        expect(csvCell("-12%")).toBe("-12%")
-        expect(csvCell("-1+1")).toBe("'-1+1")
         expect(runExportFilename("preview::01a1/x y")).toBe("evaluation-run-preview-01a1-x-y.csv")
         expect(metricExportHeader("success", "Exact Match")).toBe("Exact Match • success")
     })

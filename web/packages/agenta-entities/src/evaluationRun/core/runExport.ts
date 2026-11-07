@@ -13,9 +13,6 @@ import {deriveEvaluationKind, EVALUATION_KIND_LABELS, type RunKindInput} from ".
 import type {RunListColumns, RunListReferenceColumn} from "./runListColumns"
 import {selectRunMetricStats, type RunStatsMap} from "./runStatsMap"
 
-/** A negative number as the metric cells print it: "-0.5", "-12%", "-1e-7". */
-const PLAIN_NUMBER = /^-\d+(\.\d+)?(e[+-]?\d+)?%?$/i
-
 /**
  * One CSV cell: quoted when it holds a comma, a quote or a line break; quotes doubled. Text that
  * starts with =, +, -, @, a tab or a carriage return gets a leading quote so a spreadsheet does not
@@ -31,11 +28,7 @@ export function csvCell(value: unknown): string {
                 ? String(value)
                 : JSON.stringify(value)
     // A text cell that starts like a formula would run in a spreadsheet: prefix it with a quote.
-    // A plain number such as "-0.5" or "-12%" stays as it is, so it still reads as a number.
-    const safe =
-        typeof value === "string" && /^[=+\-@\t\r]/.test(text) && !PLAIN_NUMBER.test(text)
-            ? `'${text}`
-            : text
+    const safe = typeof value === "string" && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
     return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
 }
 
@@ -92,6 +85,14 @@ export const metricExportValue = (
     stats: MetricStats | null | undefined,
 ): string => formatMetricValue(metricKey, stats)
 
+/**
+ * A metric cell of a runs list export. A negative number ("-0.5") is written as a number, so the
+ * formula guard of {@link csvCell} does not turn it into the text "'-0.5". Any other text stays
+ * text.
+ */
+const metricExportCell = (text: string): string | number =>
+    /^-\d+(\.\d+)?(e[+-]?\d+)?$/i.test(text) ? Number(text) : text
+
 /** The reference column headers, the old list's labels. */
 export const RUN_LIST_REFERENCE_LABELS: Record<RunListReferenceColumn, string> = {
     testset: "Test set",
@@ -141,7 +142,7 @@ export function runListExportRow(
     run: RunExportInput,
     plan: RunListColumns,
     {names, stats}: {names: RunListExportNames; stats: RunStatsMap | null},
-): string[] {
+): (string | number)[] {
     return [
         runExportStatus(run),
         runExportName(run),
@@ -154,13 +155,15 @@ export function runListExportRow(
                 const value = stats
                     ? selectRunMetricStats(stats, {metricKey: column.metricKey, stepKey})
                     : null
-                return metricExportValue(column.metricKey, value)
+                return metricExportCell(metricExportValue(column.metricKey, value))
             }),
         ),
         ...plan.invocation.map((column) =>
-            metricExportValue(
-                column.metricKey,
-                stats ? selectRunMetricStats(stats, {metricKey: column.metricKey}) : null,
+            metricExportCell(
+                metricExportValue(
+                    column.metricKey,
+                    stats ? selectRunMetricStats(stats, {metricKey: column.metricKey}) : null,
+                ),
             ),
         ),
         runExportCreatedAt(run),
