@@ -1,0 +1,88 @@
+import {createHash} from "node:crypto"
+import {existsSync, readdirSync, readFileSync, writeFileSync} from "node:fs"
+import {dirname, join, resolve} from "node:path"
+import {fileURLToPath} from "node:url"
+
+export type Catalog = Record<string, string>
+
+export const SOURCE_LANG = "en"
+export const TARGET_LANG = "zh-CN"
+export const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+export const LOCALES_DIR = join(PACKAGE_DIR, "locales")
+
+const PLURAL_SUFFIX = /^(.+)_(zero|one|two|few|many|other)$/
+
+export function listNamespaces(localesDir: string, lang: string): string[] {
+    const dir = join(localesDir, lang)
+    if (!existsSync(dir)) return []
+    return readdirSync(dir)
+        .filter((file) => file.endsWith(".json"))
+        .map((file) => file.slice(0, -".json".length))
+        .sort()
+}
+
+export function readJson(path: string): Record<string, unknown> {
+    if (!existsSync(path)) return {}
+    return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>
+}
+
+export function writeJson(path: string, value: Record<string, unknown>): void {
+    writeFileSync(path, `${JSON.stringify(value, null, 4)}\n`)
+}
+
+export function catalogPath(localesDir: string, lang: string, namespace: string): string {
+    return join(localesDir, lang, `${namespace}.json`)
+}
+
+export function metaPath(localesDir: string, lang: string): string {
+    return join(localesDir, ".meta", `${lang}.json`)
+}
+
+/** Sorted, unique `{{name}}` placeholder names in a string. */
+export function placeholders(text: string): string[] {
+    const names = new Set<string>()
+    for (const match of text.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)) names.add(match[1])
+    return [...names].sort()
+}
+
+export function samePlaceholders(a: string, b: string): boolean {
+    return placeholders(a).join("\u0000") === placeholders(b).join("\u0000")
+}
+
+export function sha256(text: string): string {
+    return createHash("sha256").update(text).digest("hex")
+}
+
+/** Splits "invite_other" into ["invite", "other"]; a non-plural key returns [key, null]. */
+export function splitPlural(key: string): [string, string | null] {
+    const match = PLURAL_SUFFIX.exec(key)
+    return match ? [match[1], match[2]] : [key, null]
+}
+
+export function pluralCategories(lang: string): string[] {
+    return new Intl.PluralRules(lang).resolvedOptions().pluralCategories as string[]
+}
+
+/**
+ * Maps every key the target catalog must have to the English text it translates.
+ * A plural family gets the target language's categories; each one translates the
+ * English form of the same category, or the English `_other` form.
+ */
+export function targetKeys(source: Catalog, targetLang: string): Map<string, string> {
+    const categories = pluralCategories(targetLang)
+    const result = new Map<string, string>()
+    for (const key of Object.keys(source)) {
+        const [base, category] = splitPlural(key)
+        if (category === null) {
+            result.set(key, source[key])
+            continue
+        }
+        for (const target of categories) {
+            const targetKey = `${base}_${target}`
+            if (result.has(targetKey)) continue
+            const text = source[targetKey] ?? source[`${base}_other`]
+            if (text !== undefined) result.set(targetKey, text)
+        }
+    }
+    return result
+}
