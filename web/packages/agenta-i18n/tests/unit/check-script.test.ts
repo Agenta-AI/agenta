@@ -30,7 +30,6 @@ describe("placeholders", () => {
             "<link>",
             "{{day}}",
         ])
-        expect(placeholders("a < b and <br />")).toEqual(["<br/>"])
     })
 })
 
@@ -79,6 +78,28 @@ describe("checkNamespace", () => {
         ).toHaveLength(1)
         expect(
             checkNamespace({a: "<link>Contact</link>"}, {a: "<link>联系</link>"}, "zh-CN"),
+        ).toEqual([])
+    })
+
+    it("rejects a tag with a space, which richText does not read as a tag", () => {
+        expect(
+            checkNamespace({a: "<link>Contact</link>"}, {a: "<link >联系</link>"}, "zh-CN"),
+        ).toEqual(["placeholders or tags differ in a: en has </link> <link>, zh-CN has </link>"])
+    })
+
+    it("rejects a closing tag that comes before its opening tag", () => {
+        expect(
+            checkNamespace({a: "<link>Contact</link>"}, {a: "</link>联系<link>"}, "zh-CN"),
+        ).toEqual(["a closing tag comes before its opening tag in a"])
+    })
+
+    it("accepts tag pairs in a different order than English", () => {
+        expect(
+            checkNamespace(
+                {a: "<link>Contact</link> on <date>Monday</date>"},
+                {a: "<date>周一</date>联系<link>我们</link>"},
+                "zh-CN",
+            ),
         ).toEqual([])
     })
 

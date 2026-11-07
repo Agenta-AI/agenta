@@ -87,6 +87,16 @@ describe("translateNamespace", () => {
         expect(result.catalog).toEqual({})
     })
 
+    it("rejects an answer with a reversed tag pair", async () => {
+        const result = await run(
+            {a: "<link>Contact</link>"},
+            {},
+            {},
+            stub({a: "</link>联系<link>"}),
+        )
+        expect(result.rejected).toEqual(["a"])
+    })
+
     it("ignores keys in the answer that were not asked for", async () => {
         const result = await run({a: "A"}, {}, {}, stub({a: "甲", extra: "多", "../x": "坏"}))
         expect(result.catalog).toEqual({a: "甲"})

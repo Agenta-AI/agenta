@@ -64,7 +64,9 @@ export function checkNamespace(
             problems.push(`${lang} value is not a string: ${key}`)
         } else if (!samePlaceholders(en, value)) {
             problems.push(
-                `placeholders or tags differ in ${key}: ${SOURCE_LANG} has ${fmt(placeholders(en))}, ${lang} has ${fmt(placeholders(value))}`,
+                placeholders(en).join() !== placeholders(value).join()
+                    ? `placeholders or tags differ in ${key}: ${SOURCE_LANG} has ${fmt(placeholders(en))}, ${lang} has ${fmt(placeholders(value))}`
+                    : `a closing tag comes before its opening tag in ${key}`,
             )
         }
     }

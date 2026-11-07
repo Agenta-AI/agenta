@@ -56,18 +56,34 @@ export function metaPath(localesDir: string, lang: string): string {
     return join(localesDir, ".meta", `${lang}.json`)
 }
 
+// Same tag pattern as richText() in src/index.ts.
+const TAG = /<\/?\w+>/g
+
 /** Sorted `{{name}}` placeholders (once each) and rich-text tags like `<link>` (every occurrence). */
 export function placeholders(text: string): string[] {
     const names = new Set<string>()
     for (const match of text.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)) names.add(`{{${match[1]}}}`)
-    const tags = (text.match(/<\/?[A-Za-z][\w-]*\s*\/?>/g) ?? []).map((tag) =>
-        tag.replace(/\s/g, ""),
-    )
-    return [...names, ...tags].sort()
+    return [...names, ...(text.match(TAG) ?? [])].sort()
 }
 
-export function samePlaceholders(a: string, b: string): boolean {
-    return placeholders(a).join("\u0000") === placeholders(b).join("\u0000")
+/** True when every closing tag follows an opening tag of the same name. */
+export function tagsInOrder(text: string): boolean {
+    const open = new Map<string, number>()
+    for (const tag of text.match(TAG) ?? []) {
+        const name = tag.replace(/[</>]/g, "")
+        const count = (open.get(name) ?? 0) + (tag.startsWith("</") ? -1 : 1)
+        if (count < 0) return false
+        open.set(name, count)
+    }
+    return [...open.values()].every((count) => count === 0)
+}
+
+/** Same placeholders and tags as the English text, with the tags in a valid order. */
+export function samePlaceholders(en: string, translated: string): boolean {
+    return (
+        placeholders(en).join("\u0000") === placeholders(translated).join("\u0000") &&
+        tagsInOrder(translated)
+    )
 }
 
 export function sha256(text: string): string {
