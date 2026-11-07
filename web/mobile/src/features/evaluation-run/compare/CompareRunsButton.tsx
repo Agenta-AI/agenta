@@ -6,8 +6,15 @@ import {
     type EvaluationRun,
 } from "@agenta/entities/evaluationRun"
 import {Button, Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
+import dynamic from "next/dynamic"
 
-import {CompareRunsList} from "./CompareRunsList"
+import {CompareRunsSkeleton} from "./states/CompareRunsSkeleton"
+
+// The picker, with its search, filters and run list, loads when it first opens.
+const CompareRunsPicker = dynamic(
+    () => import("./CompareRunsPicker").then((module) => module.CompareRunsPicker),
+    {ssr: false, loading: () => <CompareRunsSkeleton />},
+)
 
 /** The old app's reasons, shown on the disabled button. */
 const BLOCK_REASONS: Record<CompareBlockReason, string> = {
@@ -18,17 +25,20 @@ const BLOCK_REASONS: Record<CompareBlockReason, string> = {
 }
 
 /**
- * The Compare entry. A run that cannot be compared shows the button disabled, with the reason on
- * hover. Otherwise it opens the runs this one can be compared with.
+ * The Compare entry, "Compare (n)" while runs are compared. A run that cannot be compared shows
+ * the button disabled, with the reason on hover. Otherwise it opens the picker of runs this one
+ * can be compared with.
  */
 export const CompareRunsButton = ({
     projectId,
     run,
-    runHref,
+    selected,
+    onChange,
 }: {
     projectId: string
     run: EvaluationRun
-    runHref: (runId: string) => string
+    selected: readonly string[]
+    onChange: (ids: readonly string[]) => void
 }) => {
     const [open, setOpen] = useState(false)
     const reason = compareBlockReason(run)
@@ -54,11 +64,18 @@ export const CompareRunsButton = ({
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button size="sm">Compare</Button>
+                <Button size="sm" className="shrink-0">
+                    {selected.length ? `Compare (${selected.length})` : "Compare"}
+                </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[min(380px,calc(100vw-32px))] p-0">
+            <PopoverContent align="end" className="w-[min(420px,calc(100vw-32px))] p-0">
                 {open ? (
-                    <CompareRunsList projectId={projectId} base={run} runHref={runHref} />
+                    <CompareRunsPicker
+                        projectId={projectId}
+                        base={run}
+                        selected={selected}
+                        onChange={onChange}
+                    />
                 ) : null}
             </PopoverContent>
         </Popover>

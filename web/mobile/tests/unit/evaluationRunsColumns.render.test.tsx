@@ -264,8 +264,11 @@ const mount = async () => {
     await settle()
 }
 
+// The select-all checkbox has a header cell of its own, with no name.
 const headers = () =>
-    [...host.querySelectorAll("[role=columnheader]")].map((header) => header.textContent)
+    [...host.querySelectorAll("[role=columnheader]")]
+        .filter((header) => !header.querySelector("[role=checkbox]"))
+        .map((header) => header.textContent)
 const text = () => host.textContent ?? ""
 const callsTo = (path: string) => http.post.mock.calls.filter(([url]) => String(url).endsWith(path))
 

@@ -21,8 +21,9 @@ import {readRunReferences, runDisplayName} from "./runReferences"
 import {RUNS_LIST_KEY} from "./runsListKey"
 
 /**
- * The actions of a run row. Stop, resume and delete need `edit_evaluation_runs`: a reader
- * without it gets no such verb in the menu. Delete is allowed at any run status.
+ * The actions of a run row and of the selected runs. Stop, resume and delete need
+ * `edit_evaluation_runs`: a reader without it gets no such verb. Delete is allowed at any run
+ * status.
  */
 export const useRunRowActions = ({projectId, base}: {projectId: string; base: string}) => {
     const router = useRouter()
@@ -35,17 +36,22 @@ export const useRunRowActions = ({projectId, base}: {projectId: string; base: st
     const busyRef = useRef(new Set<string>())
     const [busy, setBusy] = useState<ReadonlySet<string>>(new Set())
 
-    const runExclusive = useCallback(async (runId: string, work: () => Promise<void>) => {
-        if (busyRef.current.has(runId)) return
-        busyRef.current.add(runId)
-        setBusy(new Set(busyRef.current))
-        try {
-            await work()
-        } finally {
-            busyRef.current.delete(runId)
+    // Work on several runs (a bulk delete) holds all of them: none can start another action.
+    const runExclusive = useCallback(
+        async (runIds: string | readonly string[], work: () => Promise<void>) => {
+            const ids = typeof runIds === "string" ? [runIds] : runIds
+            if (ids.some((id) => busyRef.current.has(id))) return
+            ids.forEach((id) => busyRef.current.add(id))
             setBusy(new Set(busyRef.current))
-        }
-    }, [])
+            try {
+                await work()
+            } finally {
+                ids.forEach((id) => busyRef.current.delete(id))
+                setBusy(new Set(busyRef.current))
+            }
+        },
+        [],
+    )
 
     const refreshList = useCallback(
         () => queryClient.invalidateQueries({queryKey: RUNS_LIST_KEY}),
@@ -96,37 +102,62 @@ export const useRunRowActions = ({projectId, base}: {projectId: string; base: st
         [router, base],
     )
 
-    const remove = useCallback(
-        (run: EvaluationRun) =>
+    /**
+     * Deletes the runs after one confirm that names them. `onDeleted` runs once they are gone (the
+     * list clears its selection). A failed delete keeps the confirm open with its retry.
+     */
+    const removeRuns = useCallback(
+        (runs: readonly EvaluationRun[], onDeleted?: () => void) => {
+            if (runs.length === 0) return
+            const runIds = runs.map((run) => run.id)
+            const many = runs.length > 1
             confirm({
                 title: "Are you sure you want to delete?",
                 message: (
                     <>
-                        <span className="block">A deleted evaluation cannot be restored.</span>
-                        <span className="mt-3 block">You are about to delete:</span>
-                        <span className="block font-medium text-foreground">
-                            {runDisplayName(run)}
+                        <span className="block">
+                            {many
+                                ? `The selected ${runs.length} evaluations will be permanently deleted.`
+                                : "A deleted evaluation cannot be restored."}
+                        </span>
+                        <span className="mt-3 block">
+                            {many
+                                ? "You are about to delete the following evaluations:"
+                                : "You are about to delete:"}
+                        </span>
+                        <span className={many ? "block max-h-40 overflow-y-auto" : "block"}>
+                            {runs.map((run) => (
+                                <span key={run.id} className="block font-medium text-foreground">
+                                    {many ? `• ${runDisplayName(run)}` : runDisplayName(run)}
+                                </span>
+                            ))}
                         </span>
                     </>
                 ),
                 okText: "Delete",
                 danger: true,
                 onOk: () =>
-                    runExclusive(run.id, async () => {
+                    runExclusive(runIds, async () => {
                         try {
-                            await deleteEvaluationRuns({projectId, runIds: [run.id]})
+                            await deleteEvaluationRuns({projectId, runIds})
                         } catch (error) {
-                            console.error("Could not delete the evaluation", error)
+                            console.error("Could not delete the evaluations", error)
                             // Thrown, so the confirm stays open with the message and its Delete retry.
                             throw new Error("Failed to delete evaluations")
                         }
-                        queryClient.removeQueries({queryKey: evaluationRunQueryKey(run.id)})
+                        runIds.forEach((runId) =>
+                            queryClient.removeQueries({queryKey: evaluationRunQueryKey(runId)}),
+                        )
                         message.success("Deleted successfully")
+                        onDeleted?.()
                         await refreshList()
                     }),
-            }),
+            })
+        },
         [confirm, projectId, queryClient, refreshList, runExclusive],
     )
+
+    const remove = useCallback((run: EvaluationRun) => removeRuns([run]), [removeRuns])
 
     return {
         canEdit,
@@ -137,6 +168,7 @@ export const useRunRowActions = ({projectId, base}: {projectId: string; base: st
         viewVariant,
         viewTestset,
         remove,
+        removeRuns,
         isBusy: (runId: string) => busy.has(runId),
         /** Render once, near the list: the delete confirm. */
         modal,

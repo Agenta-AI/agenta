@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import type {RunnablePort} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
@@ -18,6 +18,7 @@ interface StageResult {
     status?: string
     output?: unknown
     error?: {message?: string} | null
+    traceId?: string | null
 }
 
 const formatValue = (value: unknown) =>
@@ -35,10 +36,12 @@ const ScoreCard = ({
     rowId,
     rootEntityId,
     node,
+    renderTraceFooter,
 }: {
     rowId: string
     rootEntityId: string
     node: PlaygroundNode
+    renderTraceFooter?: (traceId: string) => ReactNode
 }) => {
     // An evaluator's result is kept per app revision: `sess:<app>:<evaluator>`.
     const scopedId = `${rootEntityId}:${node.entityId}`
@@ -69,7 +72,13 @@ const ScoreCard = ({
                 </p>
             )
         }
-        const fields = status === "success" ? fieldsOf(result?.output, ports) : []
+        // Before a run, the fields the evaluator will fill, each with a dash, as in /w.
+        const fields =
+            status === "success"
+                ? fieldsOf(result?.output, ports)
+                : ports
+                      .filter((port) => !port.isFallback && port.key)
+                      .map((port): [string, unknown] => [port.key, null])
         if (fields.length === 0) {
             return <p className="m-0 text-xs text-muted-foreground">—</p>
         }
@@ -83,7 +92,9 @@ const ScoreCard = ({
                                 {formatFieldLabel(key)}:
                             </dt>
                             <dd className="m-0 min-w-0 whitespace-pre-wrap break-words text-foreground">
-                                {verdict === null ? (
+                                {value === null && status !== "success" ? (
+                                    <span className="text-muted-foreground">—</span>
+                                ) : verdict === null ? (
                                     formatValue(value)
                                 ) : (
                                     <Badge variant={verdict ? "success" : "error"}>
@@ -107,6 +118,8 @@ const ScoreCard = ({
                 {name?.trim() || node.label || "Evaluator"}
             </h4>
             {body}
+            {/* The evaluator's own run: its status, numbers and trace, as the app's output has. */}
+            {result?.traceId && renderTraceFooter ? renderTraceFooter(result.traceId) : null}
         </section>
     )
 }
@@ -116,14 +129,28 @@ const ScoreCard = ({
  * while it runs, then its fields (a pass or fail field shows as true or false), its error, or the
  * reason it was skipped. Nothing shows when no evaluator follows the app.
  */
-export const EvaluatorScoreCards = ({rowId, entityId}: {rowId: string; entityId: string}) => {
+export const EvaluatorScoreCards = ({
+    rowId,
+    entityId,
+    renderTraceFooter,
+}: {
+    rowId: string
+    entityId: string
+    renderTraceFooter?: (traceId: string) => ReactNode
+}) => {
     const nodes = useAtomValue(playgroundController.selectors.nodes())
     const evaluators = nodes.filter((node) => node.depth > 0)
     if (evaluators.length === 0) return null
     return (
         <div className="flex flex-col gap-2">
             {evaluators.map((node) => (
-                <ScoreCard key={node.id} rowId={rowId} rootEntityId={entityId} node={node} />
+                <ScoreCard
+                    key={node.id}
+                    rowId={rowId}
+                    rootEntityId={entityId}
+                    node={node}
+                    renderTraceFooter={renderTraceFooter}
+                />
             ))}
         </div>
     )

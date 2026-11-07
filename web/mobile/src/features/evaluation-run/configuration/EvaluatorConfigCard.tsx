@@ -4,10 +4,13 @@ import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {Badge} from "@agenta/ui/ui"
 import {CaretDownIcon, CaretRightIcon} from "@phosphor-icons/react"
 
+import {cn} from "@/lib/utils"
+
 import {useRevisionParam} from "../../revisions/useRevisionParam"
 
 import {ConfigJsonDisclosure} from "./ConfigJsonDisclosure"
 import {ConfigRows} from "./ConfigRows"
+import {DiffersBadge} from "./DiffersBadge"
 import type {EvaluatorConfig} from "./useEvaluatorConfigs"
 
 const MISSING = "—"
@@ -32,9 +35,12 @@ const Field = ({label, children}: {label: string; children: ReactNode}) => (
 export const EvaluatorConfigCard = ({
     evaluator,
     defaultOpen,
+    differs = false,
 }: {
     evaluator: EvaluatorConfig
     defaultOpen: boolean
+    /** Compare mode: the base run lacks this evaluator or used another version. */
+    differs?: boolean
 }) => {
     const [open, setOpen] = useState(defaultOpen)
     const [, setRevisionId] = useRevisionParam()
@@ -54,7 +60,11 @@ export const EvaluatorConfigCard = ({
     return (
         <div
             data-testid="evaluator-card"
-            className="box-border flex min-w-0 flex-col gap-3 rounded-md border border-solid border-border p-3"
+            data-differs={differs ? "true" : undefined}
+            className={cn(
+                "box-border flex min-w-0 flex-col gap-3 rounded-md border border-solid border-border p-3",
+                differs && "bg-colorWarningBg/40",
+            )}
         >
             <div className="flex min-w-0 items-start gap-2">
                 <button
@@ -81,6 +91,7 @@ export const EvaluatorConfigCard = ({
                         ) : version === null ? null : (
                             <Badge variant="outlined">V{version}</Badge>
                         )}
+                        {differs ? <DiffersBadge /> : null}
                     </div>
                     {description && !open ? (
                         <p className="m-0 truncate text-sm text-muted-foreground">{description}</p>

@@ -24,7 +24,17 @@ const NO_SCHEMA_NOTE = "No playground schema — snapshot available as JSON"
  * when the variants page is on), and the prompt template the run used, read only, as a form, JSON
  * or YAML. A custom workflow without a schema shows its stored JSON.
  */
-export const ApplicationConfigSection = ({application}: {application: ApplicationConfig}) => {
+export const ApplicationConfigSection = ({
+    application,
+    idSuffix = "",
+    diff,
+}: {
+    application: ApplicationConfig
+    /** Compare mode: which fields differ from the base run's. */
+    diff?: {app: boolean; variant: boolean}
+    /** Keeps the section id unique when several runs show side by side. */
+    idSuffix?: string
+}) => {
     const links = useRunReferenceLinks()
     const {appName, variantName, version, customWithoutSchema} = application
 
@@ -34,7 +44,7 @@ export const ApplicationConfigSection = ({application}: {application: Applicatio
 
     if (application.appFailed && !appName) {
         return (
-            <ConfigSection id="config-application" title="Application">
+            <ConfigSection id={`config-application${idSuffix}`} title="Application">
                 <p className="m-0 text-sm text-muted-foreground">
                     Application metadata unavailable.
                 </p>
@@ -46,6 +56,7 @@ export const ApplicationConfigSection = ({application}: {application: Applicatio
         {
             key: "application",
             label: "Application",
+            differs: diff?.app,
             value: appName ? (
                 <RunReferenceChip icon={<SquaresFour size={14} />} label={appName} />
             ) : (
@@ -55,6 +66,7 @@ export const ApplicationConfigSection = ({application}: {application: Applicatio
         {
             key: "variant",
             label: "Variant",
+            differs: diff?.variant,
             value: variantName ? (
                 <RunReferenceChip
                     icon={<GitCommit size={14} />}
@@ -81,7 +93,11 @@ export const ApplicationConfigSection = ({application}: {application: Applicatio
     ]
 
     return (
-        <ConfigSection id="config-application" title="Application" subtitle={subtitle || null}>
+        <ConfigSection
+            id={`config-application${idSuffix}`}
+            title="Application"
+            subtitle={subtitle || null}
+        >
             <ConfigRows rows={rows} />
             {application.configFailed ? (
                 <p className="m-0 text-sm text-muted-foreground">

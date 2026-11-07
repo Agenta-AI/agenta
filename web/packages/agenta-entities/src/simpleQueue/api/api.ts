@@ -152,6 +152,42 @@ export async function fetchSimpleQueue({
 }
 
 // ============================================================================
+// EDIT
+// ============================================================================
+
+/** The queue fields a user can change after create. */
+export interface EditSimpleQueuePayload {
+    name: string
+    description: string
+}
+
+/**
+ * Save a queue's name and description.
+ *
+ * Endpoint: `PATCH /evaluations/queues/{queue_id}`. `/simple/queues` has no
+ * edit route; a simple queue is an evaluation queue with the same id, and it
+ * reads its name and description from that queue. The API leaves out the
+ * fields this body does not send, so the queue's data and flags stay as they
+ * are.
+ *
+ * @returns true when the server saved the queue.
+ */
+export async function editSimpleQueue(
+    projectId: string,
+    queueId: string,
+    {name, description}: EditSimpleQueuePayload,
+): Promise<boolean> {
+    if (!projectId || !queueId) return false
+
+    const response = await axios.patch(
+        `${getAgentaApiUrl()}/evaluations/queues/${queueId}`,
+        {queue: {id: queueId, name, description}},
+        {params: {project_id: projectId}},
+    )
+    return response.data?.count === 1
+}
+
+// ============================================================================
 // DELETE
 // ============================================================================
 

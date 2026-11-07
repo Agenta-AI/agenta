@@ -116,6 +116,7 @@ export {
     RUN_LIST_INVOCATION_COLUMNS,
     runListColumns,
     runMetricCellView,
+    visibleRunListColumns,
     type ColumnsRun,
     type RunListColumns,
     type RunListEvaluatorGroup,
@@ -130,7 +131,7 @@ export {
     humanizeMetricLabel,
     METRIC_PLACEHOLDER,
 } from "./metricFormat"
-export {metricCellText, scenarioMetricStats} from "./scenarioMetrics"
+export {metricCellText, scenarioMetricStats, stepMetricStats} from "./scenarioMetrics"
 export {columnGroupCheck, setColumnsVisible, type ColumnGroupCheck} from "./columnVisibility"
 export {buildRunEditBody, type RunEditBody, type RunEditInput, type RunStepOrigin} from "./runEdit"
 export {
@@ -158,18 +159,38 @@ export {
     runExportKind,
     runExportName,
     runExportStatus,
+    runListExportHeaders,
+    runListExportRow,
+    RUN_LIST_REFERENCE_LABELS,
     type RunExportInput,
+    type RunListExportNames,
 } from "./runExport"
 export {
     COMPARE_QUERY_KEY,
+    COMPARE_STATUS_FILTERS,
     compareBlockReason,
     compareCandidates,
+    compareDelta,
+    compareMetricKey,
     compareParamValue,
+    compareRunIds,
+    compareStatusCounts,
+    compareStatusGroup,
+    filterCompareRuns,
+    matchCompareGroupKey,
+    matchCompareRows,
     MAX_COMPARISON_RUNS,
+    mergeCompareBars,
     parseCompareParam,
     runComparisonStructure,
+    runConfigDiff,
     toggleCompareRun,
+    type CompareBarDatum,
     type CompareBlockReason,
+    type CompareDeltaTone,
     type CompareRunInput,
+    type CompareStatusFilter,
     type RunComparisonStructure,
+    type RunConfigDiff,
+    type RunConfigIdentity,
 } from "./runCompare"

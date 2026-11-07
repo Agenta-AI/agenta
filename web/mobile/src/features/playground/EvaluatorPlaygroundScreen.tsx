@@ -35,6 +35,11 @@ export const EvaluatorPlaygroundScreen = ({
     // A connected app means "Run on an app output", whatever was picked before.
     const [picked, setPicked] = useState<RunOnMode>("app")
     const runOn: RunOnMode = appRevisionId ? "app" : picked
+    // A link that brought back test cases with no app opens on "Run on a test case".
+    const {restoredWithoutApp} = selection
+    useEffect(() => {
+        if (restoredWithoutApp) setPicked("data")
+    }, [restoredWithoutApp])
 
     useEffect(() => {
         preloadEditorPlugins()

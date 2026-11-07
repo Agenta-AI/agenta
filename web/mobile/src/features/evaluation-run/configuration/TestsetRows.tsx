@@ -21,9 +21,12 @@ const MISSING = "—"
 export const TestsetRows = ({
     projectId,
     testset,
+    differs = false,
 }: {
     projectId: string
     testset: RunTestsetReference
+    /** Compare mode: the test set differs from the base run's. */
+    differs?: boolean
 }) => {
     const testsetQuery = useAtomValue(testsetQueryAtomFamily(testset.testsetId))
     const revisionId = testset.revisionId ?? ""
@@ -49,6 +52,7 @@ export const TestsetRows = ({
         {
             key: "name",
             label: "Test set",
+            differs,
             value: testsetQuery.data?.name ? (
                 <RunReferenceChip
                     icon={<Database size={14} />}
