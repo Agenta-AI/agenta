@@ -52,7 +52,7 @@ The loop SHALL read active Discord connections with `ChannelsService.query_activ
 - **THEN** the loop SHALL close its socket on the next reload
 
 ### Requirement: Events go through the adapter and the shared step
-For each Discord Gateway dispatch, the loop SHALL encode the event dict as JSON bytes, call `adapter.parse_event` with them, and pass each parsed event to `ChannelsService.record_and_enqueue_inbox_event`. The loop SHALL NOT run an agent turn and SHALL NOT dedupe events itself.
+For each Discord Gateway dispatch, the loop SHALL encode the dispatch as JSON bytes of `{"t": <event name>, "d": <event data>}`, call `adapter.parse_event` with them, and pass each parsed event to `ChannelsService.record_and_enqueue_inbox_event`. The loop SHALL NOT run an agent turn and SHALL NOT dedupe events itself.
 
 #### Scenario: Message arrives
 - **WHEN** the socket receives `MESSAGE_CREATE`

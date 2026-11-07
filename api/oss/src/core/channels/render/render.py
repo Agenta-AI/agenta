@@ -351,6 +351,8 @@ def _split_text(text: str, max_chars: int) -> List[str]:
             cut = max(window.rfind(" "), window.rfind("\t"))
         if cut <= 0:
             cut = budget
+        if not in_fence and rest[:cut].count(_FENCE) % 2 == 1:
+            cut = _whole_block_cut(rest, cut=cut, max_chars=max_chars - close_cost)
         piece, rest = rest[:cut], rest[cut:].lstrip("\n ")
         body = prefix + piece
         in_fence = body.count(_FENCE) % 2 == 1
@@ -358,3 +360,14 @@ def _split_text(text: str, max_chars: int) -> List[str]:
             body = body.rstrip("\n") + "\n" + _FENCE
         chunks.append(body)
     return chunks
+
+
+def _whole_block_cut(text: str, *, cut: int, max_chars: int) -> int:
+    """`cut` lands inside a code block. When the block fits in one chunk,
+    cut before it, or right after it when the chunk starts with it."""
+
+    start = text.rfind(_FENCE, 0, cut)
+    end = text.find(_FENCE, start + len(_FENCE))
+    if end == -1 or end + len(_FENCE) - start > max_chars:
+        return cut
+    return start if start > 0 else end + len(_FENCE)
