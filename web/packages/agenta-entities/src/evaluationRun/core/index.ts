@@ -130,7 +130,7 @@ export {
     humanizeMetricLabel,
     METRIC_PLACEHOLDER,
 } from "./metricFormat"
-export {metricCellText, scenarioMetricStats} from "./scenarioMetrics"
+export {metricCellText, scenarioMetricStats, stepMetricStats} from "./scenarioMetrics"
 export {columnGroupCheck, setColumnsVisible, type ColumnGroupCheck} from "./columnVisibility"
 export {buildRunEditBody, type RunEditBody, type RunEditInput, type RunStepOrigin} from "./runEdit"
 export {
