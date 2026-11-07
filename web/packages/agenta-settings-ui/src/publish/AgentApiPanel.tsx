@@ -1,5 +1,6 @@
 import {useId, useMemo, useState} from "react"
 
+import {t as translate, useT} from "@agenta/i18n/publish"
 import {createApiKey} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {CopyButton} from "@agenta/ui/components/presentational"
@@ -45,6 +46,7 @@ const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: s
  * default variant's latest revision.
  */
 export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiPanelProps) => {
+    const t = useT()
     const keyInputId = useId()
     const [lang, setLang] = useState<AgentSnippetLang>("python")
     const [stream, setStream] = useState(true)
@@ -60,15 +62,15 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
 
     const create = async () => {
         if (!workspaceId) {
-            message.error("Could not determine project/workspace. Please try refreshing.")
+            message.error(translate("publish.noWorkspaceError"))
             return
         }
         setCreating(true)
         try {
             setApiKeyValue(await createApiKey(workspaceId, projectId))
-            message.success("Successfully generated API Key")
+            message.success(translate("publish.apiKeyCreated"))
         } catch {
-            message.error("Unable to generate API Key")
+            message.error(translate("publish.apiKeyCreateFailed"))
         } finally {
             setCreating(false)
         }
@@ -77,7 +79,7 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
     return (
         <div className="flex min-w-0 flex-col gap-[18px]" data-testid="agent-api-panel">
             <div className="flex flex-col gap-1.5">
-                <FieldLabel>Endpoint</FieldLabel>
+                <FieldLabel>{t("publish.endpoint")}</FieldLabel>
                 <div className="flex min-w-0 items-center gap-2 rounded-lg border border-solid border-border bg-muted py-1 pl-2 pr-1">
                     <span className="shrink-0 rounded bg-background px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground">
                         POST
@@ -92,22 +94,22 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                     <CopyButton buttonText={null} text={endpoint} icon={true} />
                 </div>
                 <span className="text-[12.5px] text-muted-foreground">
-                    Authenticate with a project API key.
+                    {t("publish.authenticateHint")}
                 </span>
             </div>
 
             <div className="flex flex-col gap-1.5">
-                <FieldLabel htmlFor={keyInputId}>API key</FieldLabel>
+                <FieldLabel htmlFor={keyInputId}>{t("publish.apiKey")}</FieldLabel>
                 <div className="flex min-w-0 items-center gap-2">
                     <Input
                         id={keyInputId}
                         className="min-w-0 flex-1"
-                        placeholder="Enter existing API key"
+                        placeholder={t("publish.apiKeyPlaceholder")}
                         value={apiKeyValue}
                         onChange={(event) => setApiKeyValue(event.target.value)}
                     />
                     <LoadingButton variant="outline" loading={creating} onClick={create}>
-                        Create API key
+                        {t("publish.createApiKey")}
                     </LoadingButton>
                 </div>
             </div>
@@ -128,7 +130,7 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                             onCheckedChange={setStream}
                             data-testid="agent-api-stream"
                         />
-                        Streaming
+                        {t("publish.streaming")}
                     </label>
                 </div>
                 <CodeBlock
@@ -145,7 +147,7 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
                 rel="noreferrer"
                 className="inline-flex w-fit items-center gap-1 text-[13px] font-medium text-foreground underline-offset-2 hover:underline"
             >
-                Read the docs
+                {t("publish.readDocs")}
                 <ArrowSquareOut size={14} />
             </a>
         </div>

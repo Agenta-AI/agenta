@@ -1,3 +1,4 @@
+import {languageInitScript, languagePendingStyle} from "@agenta/i18n/language"
 import {Html, Head, Main, NextScript} from "next/document"
 import Script from "next/script"
 
@@ -36,6 +37,9 @@ export default function Document() {
                 {/* Before anything else: it may leave the page. */}
                 <script dangerouslySetInnerHTML={{__html: mobileGateScript}} />
                 <script dangerouslySetInnerHTML={{__html: themeInitScript}} />
+                {/* Pages are prerendered, so the language cookie is applied before paint. */}
+                <style dangerouslySetInnerHTML={{__html: languagePendingStyle}} />
+                <script dangerouslySetInnerHTML={{__html: languageInitScript}} />
             </Head>
             <body>
                 <Main />

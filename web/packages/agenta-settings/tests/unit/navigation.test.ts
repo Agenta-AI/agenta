@@ -1,3 +1,4 @@
+import {t} from "@agenta/i18n/navigation"
 import {describe, expect, it} from "vitest"
 
 import {
@@ -121,7 +122,7 @@ describe("settings sidebar scopes", () => {
             "organization",
             "personal",
         ])
-        expect(SETTINGS_SCOPES[0].title).toBe("Connections")
+        expect(t(SETTINGS_SCOPES[0].titleKey)).toBe("Connections")
 
         const tabs = getSettingsSidebarTabs(baseAccess)
         const keysForScope = (scope: (typeof SETTINGS_SCOPES)[number]["key"]) =>

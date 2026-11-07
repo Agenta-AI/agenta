@@ -10,6 +10,7 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n/settings"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
 import {formatDay} from "@agenta/shared/utils/dateTime"
@@ -70,12 +71,12 @@ interface SecretRow extends NamedSecretRow {
     key: string
 }
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(0,2fr)"},
-    {key: "content", label: "Value", width: "minmax(0,1fr)"},
-    {key: "format", label: "Format", width: "minmax(0,0.6fr)"},
-    {key: "created_at", label: "Created", width: "minmax(0,1fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
+    {key: "name", label: t("common.name"), width: "minmax(0,2fr)"},
+    {key: "content", label: t("settings.secrets.value"), width: "minmax(0,1fr)"},
+    {key: "format", label: t("settings.secrets.format"), width: "minmax(0,0.6fr)"},
+    {key: "created_at", label: t("common.created"), width: "minmax(0,1fr)"},
+    {key: "actions", label: t("common.actions"), srOnly: true, width: "32px"},
 ]
 const PHONE_KEYS = ["name", "actions"]
 
@@ -117,7 +118,11 @@ interface SecretsListProps {
 
 /** One owner's secrets as a table, with its own column header row. */
 const SecretsList = ({rows, loading, usedBy, empty, onOpen, onDelete}: SecretsListProps) => {
-    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const t = useT()
+    const {columns, shows} = usePhoneColumns(
+        useMemo(() => columnsFor(t), [t]),
+        PHONE_KEYS,
+    )
     return (
         <ListTable<SecretRow>
             className="ph-no-capture"
@@ -172,11 +177,11 @@ const SecretsList = ({rows, loading, usedBy, empty, onOpen, onDelete}: SecretsLi
                         </span>
                     ) : null}
                     <SettingsRowMenu
-                        label="Secret actions"
+                        label={t("settings.secrets.secretActions")}
                         items={[
                             {
                                 key: "edit",
-                                label: "Edit",
+                                label: t("common.edit"),
                                 icon: <PencilSimpleLine size={14} />,
                                 hidden: !onOpen,
                                 onClick: () => onOpen?.(record),
@@ -184,7 +189,7 @@ const SecretsList = ({rows, loading, usedBy, empty, onOpen, onDelete}: SecretsLi
                             {type: "divider"},
                             {
                                 key: "delete",
-                                label: "Delete",
+                                label: t("common.delete"),
                                 icon: <Trash size={14} />,
                                 danger: true,
                                 hidden: !onDelete,
@@ -221,6 +226,7 @@ export const NamedSecretTable = ({
     projectSwitch,
     projectCount,
 }: NamedSecretTableProps) => {
+    const t = useT()
     const {namedSecrets, loading} = useVaultSecret()
     const access = useAtomValue(personalAccountsAccessAtom)
     const personalSecrets = useAtomValue(personalNamedSecretsAtom)
@@ -259,15 +265,15 @@ export const NamedSecretTable = ({
     const create = renderConfigureDialog ? (
         <Button disabled={loading} onClick={openCreate}>
             <Plus size={14} />
-            Create secret
+            {t("settings.secrets.createSecret")}
         </Button>
     ) : null
 
     const emptyState = (
         <SettingsEmpty
             icon={getSettingsSidebarIcon("secrets")}
-            title="No secrets yet"
-            description="Store a named secret to reference credentials without exposing their values."
+            title={t("settings.secrets.emptyTitle")}
+            description={t("settings.secrets.emptyDescription")}
             action={create}
         />
     )
@@ -280,7 +286,7 @@ export const NamedSecretTable = ({
                     <div className="flex flex-col gap-8">
                         <section className="flex flex-col gap-3">
                             <SettingsGroupHeading
-                                label="Yours"
+                                label={t("settings.shared.yours")}
                                 count={yoursRows.length}
                                 collapsed={yoursCollapsed}
                                 onToggle={() => setYoursCollapsed((value) => !value)}
@@ -298,7 +304,7 @@ export const NamedSecretTable = ({
                         </section>
                         <section className="flex flex-col gap-3">
                             <SettingsGroupHeading
-                                label={projectSwitch ?? "Project"}
+                                label={projectSwitch ?? t("settings.secrets.project")}
                                 count={rows.length}
                             />
                             <SecretsList
@@ -308,8 +314,8 @@ export const NamedSecretTable = ({
                                     <SettingsEmpty
                                         plain
                                         icon={getSettingsSidebarIcon("secrets")}
-                                        title="No secrets yet"
-                                        description="Store a named secret to reference credentials without exposing their values."
+                                        title={t("settings.secrets.emptyTitle")}
+                                        description={t("settings.secrets.emptyDescription")}
                                     />
                                 }
                                 onOpen={openSecret}

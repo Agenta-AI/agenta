@@ -1,3 +1,6 @@
+import {formatDate} from "@agenta/i18n"
+import {t} from "@agenta/i18n/channels"
+
 import {channelSharingCopy} from "./sharingCopy"
 import type {
     ChannelConnection,
@@ -25,9 +28,11 @@ export const platformLabel = (platform: ChannelPlatform): string => PLATFORM_LAB
 
 /** How a connection's install is described: the shared Agenta one, or the customer's own. */
 export const installKindLabel = (connection: ChannelConnection): string => {
-    if (connection.kind === "hosted") return "Agenta-hosted"
-    if (connection.platform === "slack") return "Your own app"
-    return connection.platform === "whatsapp" ? "Your own number" : "Your own bot"
+    if (connection.kind === "hosted") return t("channels.labels.agentaHosted")
+    if (connection.platform === "slack") return t("channels.labels.yourOwnApp")
+    return connection.platform === "whatsapp"
+        ? t("channels.labels.yourOwnNumber")
+        : t("channels.labels.yourOwnBot")
 }
 
 /** The handle shown for a connection: the shared Agenta bot, or the customer's own. */
@@ -36,17 +41,22 @@ export const botHandle = (connection: ChannelConnection, hostedHandle = "@agenta
     if (connection.kind === "hosted") return hostedHandle
     // A Slack app installed before bot names were stored has only its app id to go by.
     if (connection.platform === "slack") {
-        return connection.appId ? `Slack app ${connection.appId}` : "your Slack app"
+        return connection.appId
+            ? t("channels.labels.slackAppId", {appId: connection.appId})
+            : t("channels.labels.yourSlackApp")
     }
-    return connection.platform === "whatsapp" ? "your number" : "your bot"
+    return connection.platform === "whatsapp"
+        ? t("channels.labels.yourNumberLower")
+        : t("channels.labels.yourBotLower")
 }
 
 /** How a connection was installed: the Agenta app or bot, or the customer's own. */
 export const connectionKindLabel = (connection: ChannelConnection): string => {
     const slack = connection.platform === "slack"
-    if (connection.kind === "hosted") return slack ? "Agenta app" : "Agenta bot"
-    if (connection.platform === "whatsapp") return "Your number"
-    return slack ? "Your app" : "Your bot"
+    if (connection.kind === "hosted")
+        return slack ? t("channels.labels.agentaApp") : t("channels.labels.agentaBot")
+    if (connection.platform === "whatsapp") return t("channels.labels.yourNumber")
+    return slack ? t("channels.labels.yourApp") : t("channels.labels.yourBot")
 }
 
 /** A date as "Sep 22, 2026", or null when missing or unparseable. */
@@ -54,7 +64,7 @@ export const formatConnectedOn = (iso: string | null | undefined): string | null
     if (!iso) return null
     const date = new Date(iso)
     if (Number.isNaN(date.getTime())) return null
-    return date.toLocaleDateString(undefined, {day: "numeric", month: "short", year: "numeric"})
+    return formatDate(date, {day: "numeric", month: "short", year: "numeric"})
 }
 
 /**
@@ -87,22 +97,29 @@ export const connectionRowText = (
           : connectionLabel(connection, hostedHandle)
     if (connection.status === "revoked") {
         const detail = slack
-            ? "App uninstalled · reconnect"
+            ? t("channels.status.appUninstalled")
             : connection.platform === "whatsapp"
-              ? "Access token rejected"
-              : "Bot token revoked"
+              ? t("channels.status.accessTokenRejected")
+              : t("channels.status.botTokenRevoked")
         return {title, detail}
     }
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = slack ? "channel" : "group"
-    const places = [
-        ...(dm ? ["DMs"] : []),
-        ...(nonDm ? [`${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`] : []),
-    ]
-    const where = places.length ? places.join(" and ") : "Answers nowhere"
+    const groupsText = nonDm
+        ? t(slack ? "channels.labels.channelCount" : "channels.labels.groupCount", {
+              count: nonDm,
+          })
+        : ""
+    const where =
+        dm && nonDm
+            ? t("channels.labels.dmsAndPlaces", {places: groupsText})
+            : dm
+              ? t("channels.labels.dms")
+              : nonDm
+                ? groupsText
+                : t("channels.labels.answersNowhere")
     const people = connection.audienceCount ?? 0
     const who = people
-        ? ` · Only ${people} ${slack ? (people === 1 ? "person" : "people") : people === 1 ? "account" : "accounts"}`
+        ? ` · ${t(slack ? "channels.labels.onlyPeople" : "channels.labels.onlyAccounts", {count: people})}`
         : ""
     return {title, detail: `${connectionKindLabel(connection)} · ${where}${who}`}
 }
@@ -131,12 +148,12 @@ export const disconnectSubject = (connection: ChannelConnection): string => {
         (connection.kind === "hosted"
             ? null
             : connection.platform === "slack" && connection.appId
-              ? `Slack app ${connection.appId}`
+              ? t("channels.labels.slackAppId", {appId: connection.appId})
               : null)
     const workspace = connection.platform === "slack" ? connection.workspaceName : null
-    if (own && workspace) return `${own} in ${workspace}`
+    if (own && workspace) return t("channels.labels.inWorkspace", {subject: own, workspace})
     if (own) return own
-    if (workspace) return `${platform} in ${workspace}`
+    if (workspace) return t("channels.labels.inWorkspace", {subject: platform, workspace})
     return platform
 }
 
@@ -176,7 +193,7 @@ export const connectionScope = (
 
 /** The display name of the agent a connection answers as, with a fallback. */
 export const answeringAgentName = (connection: ChannelConnection): string =>
-    connection.agent?.name?.trim() || "another agent"
+    connection.agent?.name?.trim() || t("channels.labels.anotherAgent")
 
 export interface ChannelRowSummary {
     /** One-line status/description under the platform name. */
@@ -201,10 +218,10 @@ export const summarizeConnection = (
         return {
             sub:
                 platform === "slack"
-                    ? "Chat with the agent in your team’s workspace"
+                    ? t("channels.status.slackIdle")
                     : platform === "whatsapp"
-                      ? "Answer messages to your WhatsApp Business number"
-                      : "Chat with the agent from your phone",
+                      ? t("channels.status.whatsappIdle")
+                      : t("channels.status.telegramIdle"),
             subClass: "text-colorTextTertiary",
             dotClass: "",
             connected: false,
@@ -217,10 +234,10 @@ export const summarizeConnection = (
         return {
             sub:
                 platform === "telegram"
-                    ? "Bot token revoked · update it"
+                    ? t("channels.status.botTokenRevokedUpdate")
                     : platform === "whatsapp"
-                      ? "Access token rejected · update it"
-                      : "App uninstalled · reconnect",
+                      ? t("channels.status.accessTokenRejectedUpdate")
+                      : t("channels.status.appUninstalled"),
             subClass: "text-colorError",
             dotClass: "bg-colorError",
             connected: true,
@@ -233,7 +250,7 @@ export const summarizeConnection = (
     // leads back into the connect flow rather than into a manage view with nothing in it.
     if (connection.status === "pending") {
         return {
-            sub: "Not linked yet · finish connecting",
+            sub: t("channels.status.pending"),
             subClass: "text-colorWarning",
             dotClass: "bg-colorWarning",
             connected: false,
@@ -244,7 +261,7 @@ export const summarizeConnection = (
 
     if (connectionScope(connection, agentId) === "unassigned") {
         return {
-            sub: "Not answering as any agent yet · connect here",
+            sub: t("channels.status.unassigned"),
             subClass: "text-colorWarning",
             dotClass: "bg-colorWarning",
             connected: true,
@@ -255,7 +272,7 @@ export const summarizeConnection = (
 
     if (connectionScope(connection, agentId) === "elsewhere") {
         return {
-            sub: `Connected to ${answeringAgentName(connection)}`,
+            sub: t("channels.status.connectedTo", {agent: answeringAgentName(connection)}),
             subClass: "text-colorTextSecondary",
             dotClass: "bg-colorTextQuaternary",
             connected: true,
@@ -279,7 +296,7 @@ export const summarizeConnection = (
     const removed = connection.chats.filter((chat) => chat.removed).length
     if (removed > 0) {
         return {
-            sub: `Bot removed from ${removed} channel${removed > 1 ? "s" : ""}`,
+            sub: t("channels.status.botRemoved", {count: removed}),
             subClass: "text-colorWarning",
             dotClass: "bg-colorWarning",
             connected: true,
@@ -289,16 +306,18 @@ export const summarizeConnection = (
     }
 
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = platform === "slack" ? "channel" : "group"
-    const groupsText = `${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`
+    const groupsText = t(
+        platform === "slack" ? "channels.labels.channelCount" : "channels.labels.groupCount",
+        {count: nonDm},
+    )
     const where =
         nonDm && dm
-            ? `${groupsText} + DMs`
+            ? t("channels.status.placesAndDms", {places: groupsText})
             : nonDm
               ? groupsText
               : dm
-                ? "Direct messages"
-                : "Answers nowhere"
+                ? t("channels.labels.directMessages")
+                : t("channels.labels.answersNowhere")
     return {
         sub: `${botHandle(connection)} · ${where}`,
         subClass: "text-colorTextTertiary",
@@ -375,7 +394,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     reload: async () => EMPTY_CONNECTIONS,
     loadSetup: async () => ({manifest: null, fields: [], hostedAvailable: true}),
     connectHostedTelegram: async () => {
-        throw new Error("The hosted Telegram bot is not available in this preview.")
+        throw new Error(t("channels.actions.hostedTelegramPreview"))
     },
     countHostedTelegramBindings: async () => 0,
     hostedSlackInstallUrl: async () => null,
@@ -409,7 +428,9 @@ export const fieldPatternError = (field: ChannelSetupField, value: string): stri
         // An unparseable pattern is the backend's to enforce; never block the form on it.
         return null
     }
-    return matches ? null : field.patternError || `${field.label} is not valid.`
+    return matches
+        ? null
+        : field.patternError || t("channels.labels.fieldInvalid", {label: field.label})
 }
 
 /**

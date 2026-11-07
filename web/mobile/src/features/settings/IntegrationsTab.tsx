@@ -1,6 +1,7 @@
-import {GatewayToolsSection} from "@agenta/settings-ui"
+import {useMemo} from "react"
 
-import {INTEGRATIONS_SECTION_COPY} from "@/lib/integrationsCopy"
+import {useT} from "@agenta/i18n/settings"
+import {GatewayToolsSection} from "@agenta/settings-ui"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
@@ -16,11 +17,23 @@ export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
         projectId,
     )
     const canEdit = useProjectPermission(projectId, "edit_tools")
+    const t = useT()
+    // The shared section's defaults still say "tool" for oss/ee.
+    const copy = useMemo(
+        () => ({
+            run: t("settings.integrations.run"),
+            searchPlaceholder: t("settings.integrations.searchPlaceholder"),
+            emptyTitle: t("settings.integrations.emptyTitle"),
+            emptyBody: t("settings.integrations.emptyBody"),
+            noMatch: (term: string) => t("settings.integrations.noMatch", {term}),
+        }),
+        [t],
+    )
     return (
         <>
             <GatewayToolsSection
                 confirm={confirm}
-                copy={INTEGRATIONS_SECTION_COPY}
+                copy={copy}
                 projectSwitch={projectSwitch}
                 projectName={projectName}
                 projectCount={projectCount}

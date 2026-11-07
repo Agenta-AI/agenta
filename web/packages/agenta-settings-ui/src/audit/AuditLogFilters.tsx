@@ -18,6 +18,7 @@ import {
     requestIdFilterAtom,
     requestTypeFilterAtom,
 } from "@agenta/entities/event"
+import {useT} from "@agenta/i18n/settings"
 import {Button, Combobox, SearchInput, type ComboboxOptionGroup} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
 
@@ -89,6 +90,7 @@ export interface AuditLogFiltersProps {
 }
 
 export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFiltersProps) => {
+    const t = useT()
     const [timestampRange, setTimestampRange] = useAtom(eventTimestampRangeFilterAtom)
     const [eventType, setEventType] = useAtom(eventTypeFilterAtom)
     const [eventId, setEventId] = useAtom(eventIdFilterAtom)
@@ -133,9 +135,9 @@ export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFilt
             {renderDateRange?.({value: timestampRange, onChange: setTimestampRange})}
             <Combobox
                 allowClear
-                aria-label="Event type"
-                placeholder="All events"
-                emptyText="No matching events"
+                aria-label={t("settings.audit.eventType")}
+                placeholder={t("settings.audit.allEvents")}
+                emptyText={t("settings.audit.noMatchingEvents")}
                 // The trigger shows the label alone; the raw type is for the list.
                 className="w-full sm:w-[240px] [&_[data-event-raw]]:hidden"
                 contentClassName="w-[min(320px,calc(100vw-32px))]"
@@ -144,15 +146,15 @@ export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFilt
                 options={EVENT_TYPE_OPTIONS}
             />
             <SearchInput
-                aria-label="Event ID"
+                aria-label={t("settings.audit.eventId")}
                 className="w-full sm:w-[260px]"
-                placeholder="Filter by event ID"
+                placeholder={t("settings.audit.filterByEventId")}
                 value={eventIdDraft}
                 onValueChange={setEventIdDraft}
             />
             {hasFilters ? (
                 <Button variant="ghost" onClick={clearFilters}>
-                    Clear
+                    {t("common.clear")}
                 </Button>
             ) : null}
         </div>

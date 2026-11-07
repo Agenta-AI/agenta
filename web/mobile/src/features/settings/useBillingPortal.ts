@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {t} from "@agenta/i18n/billing"
 import {openBillingPortal} from "@agenta/settings-ui"
 
 /** Opens Stripe's billing portal in this tab: a popup after an await is blocked on phones. */
@@ -14,7 +15,7 @@ export const useBillingPortal = (projectId: string) => {
             if (!url) throw new Error("No billing portal URL")
             window.location.assign(url)
         } catch {
-            setError("We couldn't open the billing portal. Try again.")
+            setError(t("billing.useBillingPortal.openFailed"))
         } finally {
             setOpening(false)
         }

@@ -1,5 +1,6 @@
 import {Fragment, useRef, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n/settings"
 import {
     Button,
     DropdownMenu,
@@ -40,13 +41,8 @@ const visibleItems = (items: SettingsRowMenuItem[]): SettingsRowMenuItem[] => {
 }
 
 /** A Settings row's kebab; renders nothing when every item is hidden. */
-export const SettingsRowMenu = ({
-    items,
-    label = "Row actions",
-}: {
-    items: SettingsRowMenuItem[]
-    label?: string
-}) => {
+export const SettingsRowMenu = ({items, label}: {items: SettingsRowMenuItem[]; label?: string}) => {
+    const t = useT()
     const shown = visibleItems(items)
     // Radix restores focus to the trigger on close, which would blur a field the verb just focused.
     const deferredRef = useRef<(() => void) | null>(null)
@@ -61,7 +57,7 @@ export const SettingsRowMenu = ({
                         type="button"
                         size="icon"
                         variant="ghost"
-                        aria-label={label}
+                        aria-label={label ?? t("settings.shared.rowActions")}
                         // The row already hovers to accent; an accent button on it would not show.
                         className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                     >

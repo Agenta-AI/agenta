@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n/settings"
 import {
     Button,
     Dialog,
@@ -25,6 +26,7 @@ export const InvitedLinkDialog = ({
     invited: InvitedLink | null
     onClose: () => void
 }) => {
+    const t = useT()
     const [copied, setCopied] = useState(false)
     const close = () => {
         setCopied(false)
@@ -35,18 +37,22 @@ export const InvitedLinkDialog = ({
         <Dialog open={Boolean(invited)} onOpenChange={(next) => (next ? undefined : close())}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Invited user link</DialogTitle>
+                    <DialogTitle>{t("settings.invitedLinkDialog.title")}</DialogTitle>
                     <DialogDescription>
-                        Share the link with the user that you have invited.
+                        {t("settings.invitedLinkDialog.description")}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex min-w-0 flex-col gap-3 text-sm">
                     <div className="flex flex-col gap-1">
-                        <span className="font-medium">Member name</span>
+                        <span className="font-medium">
+                            {t("settings.invitedLinkDialog.memberName")}
+                        </span>
                         <span className="break-all">{invited?.email}</span>
                     </div>
                     <div className="bg-muted flex flex-col gap-1 rounded-md px-3 py-2">
-                        <span className="font-medium">Invited link</span>
+                        <span className="font-medium">
+                            {t("settings.invitedLinkDialog.invitedLink")}
+                        </span>
                         {/* Selectable: the clipboard is refused on a plain HTTP deployment. */}
                         <span className="break-all select-all">{invited?.url}</span>
                     </div>
@@ -59,7 +65,7 @@ export const InvitedLinkDialog = ({
                         }}
                     >
                         {copied ? <Check size={14} /> : <Copy size={14} />}
-                        {copied ? "Copied" : "Copy"}
+                        {copied ? t("common.copied") : t("common.copy")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

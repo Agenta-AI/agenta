@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {organizationConnectionsAccessAtom} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n/settings"
 import {AIProvidersPage, useEntitlements, type AIProvidersOrganization} from "@agenta/settings-ui"
 import {isEE} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
@@ -55,6 +56,7 @@ const useProvidersOrganization = (
  * organization's group.
  */
 export const LlmProvidersTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const t = useT()
     const organization = useProvidersOrganization(workspaceId, projectId)
     const {projectSwitch} = useSettingsProjectGroup(workspaceId, projectId)
     return (
@@ -64,19 +66,19 @@ export const LlmProvidersTab = ({workspaceId, projectId}: SettingsTabProps) => {
             renderRemoveDialog={({connection, open, pending, error, onConfirm, onClose}) => (
                 <ConfirmModal
                     open={open}
-                    title="Are you sure you want to delete?"
+                    title={t("settings.llmProvidersTab.deleteTitle")}
                     description={
                         connection?.scope === "organization"
-                            ? "Agents that use this connection will need configuration, in every project that uses it."
-                            : "This action is not reversible. Agents and prompts using this connection stop working."
+                            ? t("settings.llmProvidersTab.deleteOrganizationDescription")
+                            : t("settings.llmProvidersTab.deleteProjectDescription")
                     }
                     body={
                         <div className="flex flex-col gap-1">
-                            <span>You are about to delete:</span>
+                            <span>{t("settings.llmProvidersTab.aboutToDelete")}</span>
                             <span className="font-medium">{connection?.name}</span>
                         </div>
                     }
-                    confirmLabel="Delete"
+                    confirmLabel={t("common.delete")}
                     pending={pending}
                     error={error}
                     onConfirm={onConfirm}

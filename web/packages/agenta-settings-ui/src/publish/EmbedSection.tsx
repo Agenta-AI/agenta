@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n/publish"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Info} from "@phosphor-icons/react"
 
@@ -27,6 +28,7 @@ export const EmbedSection = ({
     testId: string
     children: React.ReactNode
 }) => {
+    const t = useT()
     const [open, setOpen] = useState(defaultOpen)
     return (
         <section
@@ -51,7 +53,9 @@ export const EmbedSection = ({
                     <SimpleTooltip title={info}>
                         <button
                             type="button"
-                            aria-label={`About ${title.toLowerCase()}`}
+                            aria-label={t("publish.aboutSection", {
+                                title: title.toLowerCase(),
+                            })}
                             onClick={(event) => event.stopPropagation()}
                             className="inline-flex border-0 bg-transparent p-0 text-muted-foreground"
                         >

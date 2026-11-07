@@ -8,6 +8,8 @@ import {
     updateWebhookAtom,
     type WebhookEventType,
 } from "@agenta/entities/webhook"
+import {type TranslationKey} from "@agenta/i18n"
+import {useT} from "@agenta/i18n/settings"
 import {
     Button,
     Input,
@@ -28,8 +30,11 @@ import {useAtom, useSetAtom} from "jotai"
 import {Field} from "./Field"
 
 /** The events a subscription can carry today — the desktop drawer offers the same one. */
-const EVENT_OPTIONS: {label: string; value: WebhookEventType}[] = [
-    {label: "Configuration deployed", value: "environments.revisions.committed"},
+const EVENT_OPTIONS: {label: TranslationKey<"common" | "settings">; value: WebhookEventType}[] = [
+    {
+        label: "settings.webhookFormSheet.configurationDeployed",
+        value: "environments.revisions.committed",
+    },
 ]
 
 type AuthMode = "signature" | "authorization"
@@ -41,6 +46,7 @@ type AuthMode = "signature" | "authorization"
  * never rewrites one it did not create.
  */
 export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
+    const t = useT()
     const [open, setOpen] = useAtom(isWebhookDrawerOpenAtom)
     const [editing, setEditing] = useAtom(editingWebhookAtom)
     const createWebhook = useSetAtom(createWebhookAtom)
@@ -121,7 +127,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
             onSuccess()
             close()
         } catch (cause) {
-            setError((cause as Error)?.message || "Could not save the subscription")
+            setError((cause as Error)?.message || t("settings.webhookFormSheet.saveFailed"))
         } finally {
             setSaving(false)
         }
@@ -141,23 +147,27 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
         >
             <SheetContent side="responsive" className="gap-4 overflow-y-auto">
                 <SheetHeader>
-                    <SheetTitle>{isEdit ? "Edit subscription" : "Subscribe"}</SheetTitle>
+                    <SheetTitle>
+                        {isEdit
+                            ? t("settings.webhookFormSheet.editTitle")
+                            : t("settings.webhookFormSheet.subscribe")}
+                    </SheetTitle>
                     <SheetDescription>
-                        Agenta posts the event to your endpoint and retries on failure.
+                        {t("settings.webhookFormSheet.description")}
                     </SheetDescription>
                 </SheetHeader>
 
                 <div className="flex flex-col gap-3 px-4">
-                    <Field label="Name" hint="Optional — how the subscription is listed.">
+                    <Field label={t("common.name")} hint={t("settings.webhookFormSheet.nameHint")}>
                         <Input
                             autoFocus
                             value={name}
                             onChange={(event) => setName(event.target.value)}
-                            placeholder="Deploy notifier"
+                            placeholder={t("settings.webhookFormSheet.namePlaceholder")}
                         />
                     </Field>
 
-                    <Field label="Endpoint URL">
+                    <Field label={t("settings.webhookFormSheet.endpointUrl")}>
                         <Input
                             type="url"
                             value={url}
@@ -168,7 +178,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                         />
                     </Field>
 
-                    <Field label="Event">
+                    <Field label={t("settings.webhookFormSheet.event")}>
                         <Select
                             value={eventTypes[0]}
                             onValueChange={(next) => setEventTypes([next as WebhookEventType])}
@@ -179,26 +189,26 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                             <SelectContent>
                                 {EVENT_OPTIONS.map((option) => (
                                     <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
+                                        {t(option.label)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                         {eventTypes.length > 1 ? (
                             <p className="m-0 pt-1 text-xs text-muted-foreground">
-                                Also subscribed to {eventTypes.length - 1} event
-                                {eventTypes.length > 2 ? "s" : ""} this sheet cannot show. They are
-                                kept unless you pick a different event here.
+                                {t("settings.webhookFormSheet.alsoSubscribed", {
+                                    count: eventTypes.length - 1,
+                                })}
                             </p>
                         ) : null}
                     </Field>
 
                     <Field
-                        label="Authentication"
+                        label={t("settings.webhookFormSheet.authentication")}
                         hint={
                             authMode === "signature"
-                                ? "Agenta signs each request with a secret shown once after you subscribe."
-                                : "Sent as the Authorization header on every request."
+                                ? t("settings.webhookFormSheet.signatureHint")
+                                : t("settings.webhookFormSheet.authorizationHint")
                         }
                     >
                         <Select
@@ -209,16 +219,22 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="signature">Signed payload</SelectItem>
-                                <SelectItem value="authorization">Authorization header</SelectItem>
+                                <SelectItem value="signature">
+                                    {t("settings.webhookFormSheet.signedPayload")}
+                                </SelectItem>
+                                <SelectItem value="authorization">
+                                    {t("settings.webhookFormSheet.authorizationHeader")}
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </Field>
 
                     {authMode === "authorization" ? (
                         <Field
-                            label="Header value"
-                            hint={isEdit ? "Leave blank to keep the stored value." : undefined}
+                            label={t("settings.webhookFormSheet.headerValue")}
+                            hint={
+                                isEdit ? t("settings.webhookFormSheet.headerValueHint") : undefined
+                            }
                         >
                             <Input
                                 value={authValue}
@@ -236,10 +252,14 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
 
                 <SheetFooter className="sm:flex-row-reverse sm:justify-start">
                     <Button disabled={!canSubmit} onClick={submit}>
-                        {saving ? "Saving…" : isEdit ? "Save" : "Subscribe"}
+                        {saving
+                            ? t("settings.webhookFormSheet.saving")
+                            : isEdit
+                              ? t("common.save")
+                              : t("settings.webhookFormSheet.subscribe")}
                     </Button>
                     <Button variant="outline" onClick={close} disabled={saving}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                 </SheetFooter>
             </SheetContent>

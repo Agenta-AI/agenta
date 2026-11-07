@@ -6,6 +6,8 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {usePersonalMcpSignIn, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
+import {type TranslationKey} from "@agenta/i18n"
+import {t as translate, useT} from "@agenta/i18n/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
@@ -19,11 +21,11 @@ import {YoursEmpty} from "../shared/YoursEmpty"
 
 import {McpTokenSignInDialog} from "./McpTokenSignInDialog"
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(0,2fr)"},
-    {key: "url", label: "Server URL", width: "minmax(0,2fr)"},
-    {key: "status", label: "Status", width: "minmax(0,1.2fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+const COLUMNS: (ListTableColumn & {label: TranslationKey<"common" | "settings">})[] = [
+    {key: "name", label: "common.name", width: "minmax(0,2fr)"},
+    {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,2fr)"},
+    {key: "status", label: "common.status", width: "minmax(0,1.2fr)"},
+    {key: "actions", label: "common.actions", srOnly: true, width: "32px"},
 ]
 const PHONE_KEYS = ["name", "status", "actions"]
 
@@ -53,7 +55,12 @@ export const McpYoursTable = ({
 }: McpYoursTableProps) => {
     const {pendingId, error, signIn, signInWithToken, signOut} = usePersonalMcpSignIn()
     const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
-    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const t = useT()
+    const translatedColumns = useMemo(
+        () => COLUMNS.map((column) => ({...column, label: t(column.label)})),
+        [t],
+    )
+    const {columns, shows} = usePhoneColumns(translatedColumns, PHONE_KEYS)
     const rowKey = useCallback((record: MCPEndpoint) => record.id ?? record.slug ?? "", [])
 
     // An OAuth sign-in opens its popup inside the click; a token server asks for the token.
@@ -70,10 +77,11 @@ export const McpYoursTable = ({
             const run = () => signOut(endpoint)
             if (!confirm) return void run()
             confirm({
-                title: `Sign out of ${endpoint.name || endpoint.slug || "this server"}`,
-                message:
-                    "Agents that use each person's own sign-in to this server cannot use it for you until you sign in again.",
-                okText: "Sign out",
+                title: translate("settings.mcp.signOutOf", {
+                    name: endpoint.name || endpoint.slug || translate("settings.mcp.thisServer"),
+                }),
+                message: translate("settings.mcp.signOutMessage"),
+                okText: translate("common.signOut"),
                 danger: true,
                 onOk: run,
             })
@@ -89,7 +97,7 @@ export const McpYoursTable = ({
     return (
         <section className="flex flex-col gap-3">
             <SettingsGroupHeading
-                label="Yours"
+                label={t("settings.mcp.yours")}
                 count={servers.length}
                 collapsed={collapsed}
                 onToggle={onToggle}
@@ -142,7 +150,11 @@ export const McpYoursTable = ({
                                     >
                                         <StatusIndicator
                                             tone={signedIn ? "success" : "default"}
-                                            label={signedIn ? "Signed in as you" : "Not signed in"}
+                                            label={
+                                                signedIn
+                                                    ? t("settings.mcp.signedInAsYou")
+                                                    : t("settings.mcp.notSignedIn")
+                                            }
                                             className="min-w-0 text-[13px]"
                                         />
                                         {signedIn ? null : (
@@ -159,16 +171,16 @@ export const McpYoursTable = ({
                                                     startSignIn(record)
                                                 }}
                                             >
-                                                Sign in
+                                                {t("common.signIn")}
                                             </Button>
                                         )}
                                     </span>
                                     <SettingsRowMenu
-                                        label="Sign-in actions"
+                                        label={t("settings.mcp.signInActions")}
                                         items={[
                                             {
                                                 key: "sign-out",
-                                                label: "Sign out",
+                                                label: t("common.signOut"),
                                                 icon: <SignOut size={14} />,
                                                 danger: true,
                                                 // Only a sign-in the person has can be removed.
@@ -186,7 +198,7 @@ export const McpYoursTable = ({
             )}
             <McpTokenSignInDialog
                 open={Boolean(tokenFor)}
-                serverName={tokenFor?.name || tokenFor?.slug || "this server"}
+                serverName={tokenFor?.name || tokenFor?.slug || t("settings.mcp.thisServer")}
                 error={tokenError}
                 onSubmit={(token) =>
                     tokenFor ? signInWithToken(tokenFor, token) : Promise.resolve(false)
