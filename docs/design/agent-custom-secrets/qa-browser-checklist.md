@@ -12,7 +12,7 @@ Run these checks against the real application with one editable project and one 
 ## Requested attachment
 
 - Start a conversation that calls `request_secret` with a unique environment name.
-- Confirm the dock shows the requested name and reason. Open **Configure** and choose an existing secret.
+- Confirm the dock shows the requested name, reason, and variable. Paste a value and save, or open **More options** from the `⋯` menu and choose an existing secret.
 - Repeat with **Create new**. Confirm **Default environment variable** appears directly below **Value** and begins with the requested environment name.
 - Complete setup. Confirm the committed revision is adopted before the tool settles and the same conversation resumes automatically.
 - Refresh after settlement. Confirm no pending card returns and no duplicate binding is created.
