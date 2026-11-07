@@ -786,7 +786,12 @@ describe("createAgentServer", () => {
       });
 
       await acquireStarted;
-      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      // A user Stop no longer arrives as a heartbeat answer: the platform sends `POST /cancel` and
+      // the applier aborts this run's registered handle (#7760). Drive that handle directly; the
+      // heartbeat's `is_current_turn: false` means a displacement now, not a Stop.
+      const [live] = liveExecutions();
+      assert.ok(live, "the admitted run is registered for a direct Stop");
+      live.abort();
       const response = await responsePromise;
       const records = (await response.text())
         .trim()
@@ -917,7 +922,12 @@ describe("createAgentServer", () => {
       });
 
       await acquireStarted;
-      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      // A user Stop no longer arrives as a heartbeat answer: the platform sends `POST /cancel` and
+      // the applier aborts this run's registered handle (#7760). Drive that handle directly; the
+      // heartbeat's `is_current_turn: false` means a displacement now, not a Stop.
+      const [live] = liveExecutions();
+      assert.ok(live, "the admitted run is registered for a direct Stop");
+      live.abort();
       const response = await responsePromise;
       const records = (await response.text())
         .trim()
@@ -947,6 +957,97 @@ describe("createAgentServer", () => {
       );
       assert.equal(records.at(-1)?.result.ok, true);
       assert.equal(records.at(-1)?.result.stopReason, "cancelled");
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  // #7760: the heartbeat's `is_current_turn: false` is the platform taking the turn away — a
+  // steer, a kill, or the API's own watchdog — and NOT a user Stop. The runner used to write one
+  // into the transcript anyway. This is the other half of the pair above: the same abort, at the
+  // same point in a cold acquire, delivered the heartbeat way, must end as an error and never as
+  // a cancellation.
+  it("ends a heartbeat displacement during a cold acquire as an error, not a user Stop", async () => {
+    let markAcquireStarted!: () => void;
+    const acquireStarted = new Promise<void>((resolve) => {
+      markAcquireStarted = resolve;
+    });
+    const run: RunAgent = async (_request, _emit, signal) => {
+      markAcquireStarted();
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) return resolve();
+        signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      throw new AcquireAbortedError();
+    };
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-displaced-acquire" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-displaced-acquire",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start slowly" }],
+        }),
+      });
+
+      await acquireStarted;
+      // The beat that reports this turn is no longer current: the platform took it away.
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      const errors = ingested.filter((record) => record.record_type === "error");
+      assert.equal(errors.length, 1, "the transcript records the ending as an error");
+      assert.equal(errors[0].attributes.code, "execution_lost");
+      const endings = ingested.filter((record) => record.record_type === "done");
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.notEqual(
+        endings[0].attributes.stopReason,
+        "cancelled",
+        "nobody pressed Stop, so the ending must not say they did",
+      );
+      const result = records.at(-1)?.result;
+      assert.equal(result?.ok, false);
+      assert.notEqual(result?.stopReason, "cancelled");
     } finally {
       vi.useRealTimers();
       fetchSpy.mockRestore();
@@ -1015,7 +1116,11 @@ describe("createAgentServer", () => {
       });
 
       await runStarted;
-      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      // Same as above: a user Stop is a durable command delivered to the run, not a heartbeat
+      // answer (#7760).
+      const [live] = liveExecutions();
+      assert.ok(live, "the admitted run is registered for a direct Stop");
+      live.abort();
       const response = await responsePromise;
       const records = (await response.text())
         .trim()
@@ -1111,7 +1216,12 @@ describe("createAgentServer", () => {
       });
 
       await acquireStarted;
-      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      // A user Stop no longer arrives as a heartbeat answer: the platform sends `POST /cancel` and
+      // the applier aborts this run's registered handle (#7760). Drive that handle directly; the
+      // heartbeat's `is_current_turn: false` means a displacement now, not a Stop.
+      const [live] = liveExecutions();
+      assert.ok(live, "the admitted run is registered for a direct Stop");
+      live.abort();
       const response = await responsePromise;
       const records = (await response.text())
         .trim()
@@ -1214,7 +1324,11 @@ describe("createAgentServer", () => {
       });
 
       await runStarted;
-      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      // Same as above: a user Stop is a durable command delivered to the run, not a heartbeat
+      // answer (#7760).
+      const [live] = liveExecutions();
+      assert.ok(live, "the admitted run is registered for a direct Stop");
+      live.abort();
       const response = await responsePromise;
       const records = (await response.text())
         .trim()
