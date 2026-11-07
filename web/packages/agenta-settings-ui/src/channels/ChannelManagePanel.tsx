@@ -816,6 +816,15 @@ export const ChannelManagePanel = ({
                                     Add to a server
                                 </a>
                             </Button>
+                        ) : discordInviteError ? (
+                            <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => setDiscordInviteAttempt((n) => n + 1)}
+                                data-testid="channels-discord-invite-retry"
+                            >
+                                Try again
+                            </Button>
                         ) : null}
                         {isSlack && !pickerOpen ? (
                             <Button
@@ -826,15 +835,6 @@ export const ChannelManagePanel = ({
                             >
                                 <Plus weight="bold" data-icon="inline-start" />
                                 Add channel
-                            </Button>
-                        ) : discordInviteError ? (
-                            <Button
-                                variant="ghost"
-                                size="xs"
-                                onClick={() => setDiscordInviteAttempt((n) => n + 1)}
-                                data-testid="channels-discord-invite-retry"
-                            >
-                                Try again
                             </Button>
                         ) : null}
                     </div>
