@@ -56,11 +56,14 @@ export function metaPath(localesDir: string, lang: string): string {
     return join(localesDir, ".meta", `${lang}.json`)
 }
 
-/** Sorted, unique `{{name}}` placeholder names in a string. */
+/** Sorted `{{name}}` placeholders (once each) and rich-text tags like `<link>` (every occurrence). */
 export function placeholders(text: string): string[] {
     const names = new Set<string>()
-    for (const match of text.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)) names.add(match[1])
-    return [...names].sort()
+    for (const match of text.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)) names.add(`{{${match[1]}}}`)
+    const tags = (text.match(/<\/?[A-Za-z][\w-]*\s*\/?>/g) ?? []).map((tag) =>
+        tag.replace(/\s/g, ""),
+    )
+    return [...names, ...tags].sort()
 }
 
 export function samePlaceholders(a: string, b: string): boolean {

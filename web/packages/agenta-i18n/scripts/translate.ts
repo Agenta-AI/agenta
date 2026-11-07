@@ -181,12 +181,11 @@ export interface NamespaceResult {
     catalog: Catalog
     /** Hashes for this namespace's keys. */
     meta: Catalog
-    translated: string[]
     rejected: string[]
     usage: Usage
 }
 
-/** Applies a plan: translates in batches, rejects answers whose placeholders differ. */
+/** Applies a plan: translates in batches, rejects answers whose placeholders or tags differ. */
 export async function translateNamespace(
     plan: Plan,
     target: Catalog,
@@ -199,7 +198,6 @@ export async function translateNamespace(
     const result: NamespaceResult = {
         catalog: {},
         meta: {},
-        translated: [],
         rejected: [],
         usage: {inputTokens: 0, outputTokens: 0},
     }
@@ -217,7 +215,6 @@ export async function translateNamespace(
             }
             next[key] = text
             nextMeta[key] = sha256(en)
-            result.translated.push(key)
         }
     }
     // Keep English key order; drop keys English no longer has.
@@ -228,9 +225,11 @@ export async function translateNamespace(
     return result
 }
 
-function sortedMeta(meta: Meta): Meta {
+/** Keeps only namespaces English still has, sorted. */
+function cleanMeta(meta: Meta, namespaces: string[]): Meta {
     return Object.fromEntries(
         Object.keys(meta)
+            .filter((ns) => namespaces.includes(ns))
             .sort()
             .map((ns) => [ns, meta[ns]]),
     )
@@ -272,14 +271,16 @@ async function translateLanguage(
         total.usage.outputTokens += result.usage.outputTokens
         total.rejected += result.rejected.length
         for (const key of result.rejected) {
-            console.error(`  rejected ${lang}/${ns}.${key}: missing answer or placeholders differ`)
+            console.error(
+                `  rejected ${lang}/${ns}.${key}: missing answer, or placeholders or tags differ`,
+            )
         }
         // Write after each namespace so a later failure keeps finished work.
         mkdirSync(dirname(targetFile), {recursive: true})
         writeJson(targetFile, result.catalog)
         meta[ns] = result.meta
         mkdirSync(dirname(metaFile), {recursive: true})
-        writeJson(metaFile, sortedMeta(meta))
+        writeJson(metaFile, cleanMeta(meta, listNamespaces(LOCALES_DIR, SOURCE_LANG)))
     }
     return total
 }

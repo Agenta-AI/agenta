@@ -81,6 +81,18 @@ describe("translateNamespace", () => {
         expect(result.meta).toEqual(meta)
     })
 
+    it("rejects an answer that drops a rich-text tag", async () => {
+        const result = await run({a: "<link>Contact us</link>"}, {}, {}, stub({a: "联系我们"}))
+        expect(result.rejected).toEqual(["a"])
+        expect(result.catalog).toEqual({})
+    })
+
+    it("ignores keys in the answer that were not asked for", async () => {
+        const result = await run({a: "A"}, {}, {}, stub({a: "甲", extra: "多", "../x": "坏"}))
+        expect(result.catalog).toEqual({a: "甲"})
+        expect(result.meta).toEqual({a: sha256("A")})
+    })
+
     it("adopts existing values without calling the model", async () => {
         const translate = stub({})
         const result = await run({a: "A"}, {a: "甲"}, {}, translate)

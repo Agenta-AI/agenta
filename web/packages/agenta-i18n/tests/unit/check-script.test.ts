@@ -18,8 +18,19 @@ function locales(files: Record<string, Record<string, unknown>>): string {
 
 describe("placeholders", () => {
     it("returns sorted unique names and ignores spaces", () => {
-        expect(placeholders("{{b}} and {{ a }} and {{b}}")).toEqual(["a", "b"])
+        expect(placeholders("{{b}} and {{ a }} and {{b}}")).toEqual(["{{a}}", "{{b}}"])
         expect(placeholders("no values")).toEqual([])
+    })
+
+    it("collects every rich-text tag", () => {
+        expect(placeholders("<link>Contact us</link> on <date>{{day}}</date>")).toEqual([
+            "</date>",
+            "</link>",
+            "<date>",
+            "<link>",
+            "{{day}}",
+        ])
+        expect(placeholders("a < b and <br />")).toEqual(["<br/>"])
     })
 })
 
@@ -55,8 +66,20 @@ describe("checkNamespace", () => {
 
     it("reports placeholder differences", () => {
         expect(checkNamespace({a: "Hi {{name}}"}, {a: "你好 {{nme}}"}, "zh-CN")).toEqual([
-            "placeholders differ in a: en has {{name}}, zh-CN has {{nme}}",
+            "placeholders or tags differ in a: en has {{name}}, zh-CN has {{nme}}",
         ])
+    })
+
+    it("reports a dropped or renamed rich-text tag", () => {
+        expect(checkNamespace({a: "<link>Contact us</link>"}, {a: "联系我们"}, "zh-CN")).toEqual([
+            "placeholders or tags differ in a: en has </link> <link>, zh-CN has none",
+        ])
+        expect(
+            checkNamespace({a: "Run <code>x</code>"}, {a: "<cmd>x</cmd> を実行"}, "ja-JP"),
+        ).toHaveLength(1)
+        expect(
+            checkNamespace({a: "<link>Contact</link>"}, {a: "<link>联系</link>"}, "zh-CN"),
+        ).toEqual([])
     })
 
     it("compares a plural form with the English _other text only", () => {

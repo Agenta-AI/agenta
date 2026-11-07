@@ -1,7 +1,7 @@
 /**
  * Checks that every translated catalog matches the English one: the keys each
  * language needs (plural forms per Intl.PluralRules), no extra keys, and the
- * same placeholders as the English text. A key "<namespace>.<key>" must belong to
+ * same placeholders and rich-text tags as the English text. A key "<namespace>.<key>" must belong to
  * exactly one catalog file, so no namespace may start with another namespace and a dot.
  *
  * Usage: node scripts/check.ts [--lang <lang>] [--namespace <name>]
@@ -17,14 +17,15 @@ import {
     placeholders,
     pluralCategories,
     readJson,
+    samePlaceholders,
     splitPlural,
     targetKeys,
     targetLanguages,
 } from "./catalog.ts"
 import type {Catalog} from "./catalog.ts"
 
-function fmt(names: string[]): string {
-    return names.map((name) => `{{${name}}}`).join(" ") || "none"
+function fmt(tokens: string[]): string {
+    return tokens.join(" ") || "none"
 }
 
 /** English plural families must have every English plural form. */
@@ -61,9 +62,9 @@ export function checkNamespace(
             problems.push(`missing in ${lang}: ${key}`)
         } else if (typeof value !== "string") {
             problems.push(`${lang} value is not a string: ${key}`)
-        } else if (placeholders(en).join() !== placeholders(value).join()) {
+        } else if (!samePlaceholders(en, value)) {
             problems.push(
-                `placeholders differ in ${key}: ${SOURCE_LANG} has ${fmt(placeholders(en))}, ${lang} has ${fmt(placeholders(value))}`,
+                `placeholders or tags differ in ${key}: ${SOURCE_LANG} has ${fmt(placeholders(en))}, ${lang} has ${fmt(placeholders(value))}`,
             )
         }
     }
