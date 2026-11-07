@@ -1161,7 +1161,7 @@ export async function runTurn(
     // which answers the parked gate directly. The turn-start `cancelStaleInteractions` sweep
     // (server.ts) cancels only PENDING gates of OTHER turns and spares this gate two ways: an
     // interactions-plane answer already transitioned it to responded, and an in-band answer is
-    // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
+    // detected at sweep time (`inBandAnswerTokens`) and exempted via the sweep's `tokens` — the
     // row stays pending until this resolve lands it as resolved, never cancelled.
     // Seeded with the tokens the CALLER already claimed. `loadDurableDecisions` resolves a row
     // before adopting its decision, so those rows are terminal before this turn starts, and any

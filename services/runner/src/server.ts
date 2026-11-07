@@ -43,6 +43,7 @@ import type {
   StreamRecord,
 } from "./protocol.ts";
 import { currentUserTurn } from "./protocol.ts";
+import { extractInBandApprovalAnswers } from "./responder.ts";
 import {
   attachmentCountError,
   claimAttachments,
@@ -557,13 +558,21 @@ const dispatchRun: RunAgent = async (request, emit, signal, options) => {
 };
 
 /**
- * The stale-cancel exemptions for a parked approval set. A partial live resume owns both the
- * answered and carried gates, so any answer spares every parked token; zero answers spare none.
+ * The stale-cancel exemptions for a request. A partial live resume owns both the answered and
+ * carried gates, so any answer spares every parked token; zero answers spare none. With nothing
+ * parked (a gateway gate never parks, and the answer starts a cold turn) only the request can name
+ * the gates it answers, and the turn settles those rows from the same list at its end.
  */
 export function staleInteractionExemptTokens(
   request: AgentRunRequest,
   parked: ReadonlyMap<string, ParkedApproval>,
 ): string[] | undefined {
+  if (parked.size === 0) {
+    const tokens = extractInBandApprovalAnswers(request).map(
+      (answer) => answer.token,
+    );
+    return tokens.length > 0 ? tokens : undefined;
+  }
   const hasAnswer = [...parked.values()].some(
     (gate) =>
       approvalDecisionForToolCall(request, gate.toolCallId) !== undefined,
@@ -576,18 +585,18 @@ export function staleInteractionExemptTokens(
 /**
  * A live partial resume owns the whole parked set, including unanswered gates it carries into the
  * next pause. Once any parked gate is answered, the stale sweep must spare every parked token; a
- * zero-answer request owns none and receives no exemptions.
+ * zero-answer request owns none and receives no exemptions. A turn with no parked set, including
+ * one with no keep-alive pool, still spares the gates its request answers.
  */
 function inBandAnswerTokens(request: AgentRunRequest): string[] | undefined {
   const sessionId = request.sessionId?.trim();
   if (!sessionId) return undefined;
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
-  if (!provider) return undefined;
-  const parked =
-    keepalivePools[provider].awaitingApproval(sessionId)?.environment
-      .parkedApprovals;
-  if (!parked || parked.size === 0) return undefined;
-  return staleInteractionExemptTokens(request, parked);
+  const parked = provider
+    ? keepalivePools[provider].awaitingApproval(sessionId)?.environment
+        .parkedApprovals
+    : undefined;
+  return staleInteractionExemptTokens(request, parked ?? new Map());
 }
 
 /**
@@ -1084,8 +1093,8 @@ async function runAndStreamWithApiBaseResolved(
       liveEmit({ type: "turn", turnId });
 
       // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
-      // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
-      // the resume resolves that one). Best-effort, never blocks the turn.
+      // interactions (sparing this turn's own, plus a gate this turn answers in-band — the
+      // resume or the turn's end resolves that one). Best-effort, never blocks the turn.
       const answeredTokens = inBandAnswerTokens(request);
       void cancelStaleInteractions(
         sessionId,
