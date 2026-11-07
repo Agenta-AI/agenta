@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
-import type {RunHeader} from "@agenta/entities/evaluationRun"
+import {matchCompareRows, type RunHeader} from "@agenta/entities/evaluationRun"
 import {EMPTY_SCENARIO_FILTER, type RunColumnGroup} from "@agenta/entities/evaluationRun/etl"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -8,6 +8,11 @@ import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/l
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
+
+import {alignComparedRow} from "../compare/scenarios/alignComparedRow"
+import {CompareRowRun} from "../compare/scenarios/CompareRowRun"
+import {CompareScenarioMissing} from "../compare/scenarios/CompareScenarioMissing"
+import {useComparedScenarios} from "../compare/scenarios/useComparedScenarios"
 
 import {ScenarioAnnotateButton} from "./ScenarioAnnotateButton"
 import {ScenarioCard} from "./ScenarioCard"
@@ -27,7 +32,7 @@ import {ScenariosEmpty} from "./states/ScenariosEmpty"
 import {ScenariosLoadMoreError} from "./states/ScenariosLoadMoreError"
 import {ScenariosNoMatch} from "./states/ScenariosNoMatch"
 import {ScenariosRefreshError} from "./states/ScenariosRefreshError"
-import {useRunScenarios} from "./useRunScenarios"
+import {SCENARIOS_PAGE_SIZE, useRunScenarios} from "./useRunScenarios"
 import {useScenarioFilter} from "./useScenarioFilter"
 import {useScenarioGroupLabels} from "./useScenarioGroupLabels"
 
@@ -48,7 +53,25 @@ const TABLE_QUERY = "(min-width: 1024px)"
 /** The number, status and action columns, in px, with the 12px gap after each. */
 const LEAD_WIDTH = 40 + 12 + 120 + 12
 const ACTION_WIDTH = 110
+const RUN_WIDTH = 140
 const COLUMN_GAP = 12
+const NO_COMPARE: readonly string[] = []
+
+/**
+ * One row of the table: a scenario of the base run (slot 0), or, while runs are compared, the
+ * scenario of a compared run for the same test case. `row` is null when that run has none.
+ */
+interface ScenarioEntry {
+    key: string
+    slot: number
+    /** The run the row belongs to: the drawer opens on it. */
+    runId: string
+    runName: string
+    row: ScenarioRow | null
+    base: ScenarioRow
+    pending: boolean
+    failed: boolean
+}
 
 /** The header of a value column: an evaluator's metric names its evaluator too. */
 function cellLabel(cell: ScenarioTableCell, labels: Record<string, string>): string {
@@ -64,8 +87,18 @@ function cellLabel(cell: ScenarioTableCell, labels: Record<string, string>): str
  * tokens and errors of the app call. A filter narrows the rows and the column settings hide
  * columns, as in the old app. Opening a row sets `focusScenarioId` in the address. On a human run
  * each row also has Annotate, next to its status, which opens the annotate sheet on that scenario.
+ * While runs are compared, each scenario is followed by the scenario of every compared run for the
+ * same test case, as in the old app; the filter applies to the base run's rows.
  */
-export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}) => {
+export const ScenariosTab = ({
+    runId,
+    header,
+    compareIds = NO_COMPARE,
+}: {
+    runId: string
+    header: RunHeader
+    compareIds?: readonly string[]
+}) => {
     const router = useRouter()
     const isHumanRun = header.kind === "human"
     const [annotatingId, setAnnotatingId] = useState<string | null>(null)
@@ -86,6 +119,49 @@ export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}
         loadMore: scenarios.loadMore,
     })
 
+    const comparing = compareIds.length > 0
+    const compared = useComparedScenarios(
+        compareIds,
+        Math.max(1, Math.ceil(rows.length / SCENARIOS_PAGE_SIZE)),
+    )
+    const entries = useMemo<ScenarioEntry[]>(() => {
+        if (!comparing) {
+            return filter.rows.map((row) => ({
+                key: row.scenario.id,
+                slot: 0,
+                runId,
+                runName: header.name,
+                row,
+                base: row,
+                pending: false,
+                failed: false,
+            }))
+        }
+        return matchCompareRows(filter.rows, compared, {
+            testcaseOf: (row) => row.testcaseId,
+            indexOf: (row) => row.index,
+        }).map((entry) => {
+            const run = compared[entry.slot - 1]
+            const own = entry.row
+            return {
+                key: run ? `${run.runId}:${entry.base.scenario.id}` : entry.base.scenario.id,
+                slot: entry.slot,
+                runId: run?.runId ?? runId,
+                runName: run?.name ?? header.name,
+                row:
+                    run && own
+                        ? {
+                              ...alignComparedRow(own, columnGroups, run.columnGroups),
+                              index: entry.base.index,
+                          }
+                        : own,
+                base: entry.base,
+                pending: run?.isPending ?? false,
+                failed: run?.isError ?? false,
+            }
+        })
+    }, [comparing, filter.rows, compared, columnGroups, header.name, runId])
+
     const cells = useMemo(() => scenarioTableCells(columnGroups, hidden), [columnGroups, hidden])
     const columnOptions = useMemo(
         () => scenarioColumnOptions(columnGroups, labels),
@@ -94,6 +170,9 @@ export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}
     const columns = useMemo<ListTableColumn[]>(
         () => [
             {key: "index", label: "#", width: "40px"},
+            ...(comparing
+                ? [{key: "run", label: "Evaluation", width: `minmax(${RUN_WIDTH}px,1fr)`}]
+                : []),
             {key: "status", label: "Status", width: "minmax(120px,1fr)"},
             // Next to the status, so the row action shows without scrolling sideways.
             ...(isHumanRun ? [{key: "actions", label: "Actions", width: `${ACTION_WIDTH}px`}] : []),
@@ -103,34 +182,35 @@ export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}
                 width: `minmax(${COLUMN_MIN_WIDTH[cell.type]}px,${cell.type === "group" ? 2 : 1}fr)`,
             })),
         ],
-        [cells, labels, isHumanRun],
+        [cells, labels, isHumanRun, comparing],
     )
     const minWidth =
         LEAD_WIDTH +
+        (comparing ? RUN_WIDTH + COLUMN_GAP : 0) +
         (isHumanRun ? ACTION_WIDTH + COLUMN_GAP : 0) +
         cells.reduce((total, cell) => total + COLUMN_MIN_WIDTH[cell.type] + COLUMN_GAP, 0)
-    const groups = useMemo<ListTableGroup<ScenarioRow>[]>(
-        () => [{key: "scenarios", label: null, rows: filter.rows}],
-        [filter.rows],
+    const groups = useMemo<ListTableGroup<ScenarioEntry>[]>(
+        () => [{key: "scenarios", label: null, rows: entries}],
+        [entries],
     )
     const lookingForMatches =
         filter.active && filter.rows.length === 0 && filter.scanning && !scenarios.loadMoreError
 
     const openRow = useCallback(
-        (row: ScenarioRow) =>
+        (row: ScenarioRow, rowRunId: string) =>
             void router.replace(
                 {
                     pathname: router.pathname,
                     query: {
                         ...router.query,
                         focusScenarioId: row.scenario.id,
-                        focusRunId: runId,
+                        focusRunId: rowRunId,
                     },
                 },
                 undefined,
                 {shallow: true},
             ),
-        [router, runId],
+        [router],
     )
 
     const annotating = rows.find((row) => row.scenario.id === annotatingId) ?? null
@@ -165,8 +245,10 @@ export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}
                 density="compact"
                 loading={scenarios.isPending || lookingForMatches}
                 groups={groups}
-                rowKey={(row) => row.scenario.id}
-                onOpenRow={openRow}
+                rowKey={(entry) => entry.key}
+                // A compared run's row opens the drawer on that run's scenario; a missing one cannot.
+                canOpenRow={(entry) => entry.row !== null}
+                onOpenRow={(entry) => entry.row && openRow(entry.row, entry.runId)}
                 empty={
                     filter.active ? (
                         <ScenariosNoMatch onClear={() => setFilter(EMPTY_SCENARIO_FILTER)} />
@@ -174,31 +256,64 @@ export const ScenariosTab = ({runId, header}: {runId: string; header: RunHeader}
                         <ScenariosEmpty />
                     )
                 }
-                renderRow={(row) => (
-                    <ScenarioTableRow
-                        row={row}
-                        cells={cells}
-                        onRetry={scenarios.retryValues}
-                        action={
-                            isHumanRun ? (
-                                <ScenarioAnnotateButton
-                                    onClick={() => setAnnotatingId(row.scenario.id)}
-                                />
-                            ) : undefined
-                        }
-                    />
-                )}
-                renderCard={(row) => (
-                    <>
-                        <ScenarioCard
+                renderRow={(entry) => {
+                    const run = comparing ? (
+                        <CompareRowRun slot={entry.slot} name={entry.runName} />
+                    ) : undefined
+                    if (!entry.row) {
+                        return (
+                            <CompareScenarioMissing
+                                index={entry.base.index}
+                                run={run}
+                                pending={entry.pending}
+                                failed={entry.failed}
+                                emptyCells={columns.length - 3}
+                            />
+                        )
+                    }
+                    const {row} = entry
+                    return (
+                        <ScenarioTableRow
                             row={row}
-                            groups={columnGroups}
-                            labels={labels}
+                            cells={cells}
+                            run={run}
                             onRetry={scenarios.retryValues}
+                            action={
+                                !isHumanRun ? undefined : entry.slot === 0 ? (
+                                    <ScenarioAnnotateButton
+                                        onClick={() => setAnnotatingId(row.scenario.id)}
+                                    />
+                                ) : (
+                                    <span aria-hidden />
+                                )
+                            }
                         />
-                        {isHumanRun ? (
+                    )
+                }}
+                renderCard={(entry) => (
+                    <>
+                        {comparing ? (
+                            <CompareRowRun slot={entry.slot} name={entry.runName} />
+                        ) : null}
+                        {entry.row ? (
+                            <ScenarioCard
+                                row={entry.row}
+                                groups={columnGroups}
+                                labels={labels}
+                                onRetry={scenarios.retryValues}
+                            />
+                        ) : (
+                            <p className="m-0 text-xs text-muted-foreground">
+                                {entry.failed
+                                    ? "Could not load"
+                                    : entry.pending
+                                      ? "Loading…"
+                                      : "No matching scenario"}
+                            </p>
+                        )}
+                        {isHumanRun && entry.slot === 0 ? (
                             <ScenarioAnnotateButton
-                                onClick={() => setAnnotatingId(row.scenario.id)}
+                                onClick={() => setAnnotatingId(entry.base.scenario.id)}
                             />
                         ) : null}
                     </>

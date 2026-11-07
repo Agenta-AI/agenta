@@ -12,12 +12,19 @@ import type {EvaluatorConfig} from "./useEvaluatorConfigs"
 export const EvaluatorsConfigSection = ({
     evaluators,
     onAdd,
+    idSuffix = "",
+    diff,
 }: {
     evaluators: readonly EvaluatorConfig[]
     onAdd?: () => void
+    /** Keeps the section id unique when several runs show side by side. */
+    idSuffix?: string
+    /** Compare mode: the evaluators that differ from the base run's, and whether one is missing. */
+    diff?: {evaluators: Record<string, boolean>; missing: boolean}
 }) => (
     <ConfigSection
-        id="config-evaluators"
+        id={`config-evaluators${idSuffix}`}
+        differs={diff?.missing}
         title="Evaluators"
         subtitle={
             evaluators.length > 0
@@ -43,6 +50,7 @@ export const EvaluatorsConfigSection = ({
                             key={evaluator.key}
                             evaluator={evaluator}
                             defaultOpen={index === 0}
+                            differs={diff?.evaluators[evaluator.evaluatorId]}
                         />
                     ),
                 )}

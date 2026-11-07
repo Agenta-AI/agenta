@@ -38,6 +38,8 @@ export interface ScenarioCell {
 /** A scenario with its values already picked out of the hydrated entities. */
 export interface ScenarioRowData {
     scenario: EvaluationRunScenario
+    /** The test case the scenario ran on: what lines up the rows of compared runs. */
+    testcaseId: string | null
     /** Cells by group key, in the order of the group's columns. */
     cells: Record<string, ScenarioCell[]>
     /** True when the traces of this scenario did not load: its outputs and scores are unknown. */
@@ -227,6 +229,7 @@ export function buildScenarioRowData(
     )
     return {
         scenario: hydrated.scenario,
+        testcaseId: hydrated.testcase?.id ?? hydrated.scenario.testcase_id ?? null,
         cells,
         valuesFailed,
         invocation,

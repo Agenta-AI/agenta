@@ -104,9 +104,13 @@ describe("overview charts", () => {
     it("Fewer than three radar axes shows the insufficient metrics empty state, not a loader", () => {
         render(
             createElement(RunRadarCard, {
-                runId: RUN_ID,
-                runName: "Capitals check",
-                metrics: [invocationMetric("duration", {mean: 1, max: 2})],
+                runs: [
+                    {
+                        id: RUN_ID,
+                        name: "Capitals check",
+                        metrics: [invocationMetric("duration", {mean: 1, max: 2})],
+                    },
+                ],
                 pending: false,
             }),
         )
@@ -115,12 +119,16 @@ describe("overview charts", () => {
 
         render(
             createElement(RunRadarCard, {
-                runId: RUN_ID,
-                runName: "Capitals check",
-                metrics: [
-                    evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
-                    invocationMetric("duration", {mean: 1, max: 2}),
-                    invocationMetric("cost", {mean: 0.001, max: 0.002}),
+                runs: [
+                    {
+                        id: RUN_ID,
+                        name: "Capitals check",
+                        metrics: [
+                            evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
+                            invocationMetric("duration", {mean: 1, max: 2}),
+                            invocationMetric("cost", {mean: 0.001, max: 0.002}),
+                        ],
+                    },
                 ],
                 pending: false,
             }),
