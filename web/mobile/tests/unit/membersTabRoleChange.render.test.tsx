@@ -23,6 +23,11 @@ const member = (user: typeof SELF, role: string) =>
         roles: [{role_name: role, role_description: "", permissions: []}],
     }) as WorkspaceMember
 
+vi.mock("@agenta/auth", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/auth")>()),
+    getEmailSignInMode: () => "password",
+}))
+
 vi.mock("@agenta/entities/organization", () => ({
     assignWorkspaceRole: fixture.assign,
     fetchOfferedRoles: async () => [

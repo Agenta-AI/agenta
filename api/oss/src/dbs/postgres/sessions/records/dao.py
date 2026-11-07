@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import case, func, or_, select, tuple_, update
+from sqlalchemy import and_, case, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -244,6 +244,38 @@ class RecordsDAO(RecordsDAOInterface):
                     # makes one execution render one ending, because this is the read every
                     # transcript reconstruction goes through.
                     RecordDBE.quarantined_at.is_(None),
+                )
+                .order_by(*self._send_order())
+            )
+
+            dbes = (await session.execute(stmt)).scalars().all()
+            return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    async def get_failure_context(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+    ) -> List[SessionRecord]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id == session_id,
+                    RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
+                    or_(
+                        and_(
+                            RecordDBE.record_type == "message",
+                            RecordDBE.record_source == "user",
+                        ),
+                        and_(
+                            RecordDBE.record_type == "tool_call",
+                            RecordDBE.turn_id == turn_id,
+                        ),
+                    ),
                 )
                 .order_by(*self._send_order())
             )

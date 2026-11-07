@@ -9,6 +9,7 @@ cron path) against its bound workflow, dedups on ``event_id``, maps
 Self-contained so it can run inside its own TaskIQ worker process.
 """
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional, Union
 from uuid import UUID, uuid4
@@ -38,13 +39,18 @@ from oss.src.core.sessions.dtos import (
     SessionTriggerAttribution,
     SessionTriggerKind,
 )
+from oss.src.tasks.asyncio.sessions.failure_reporter import AgentFailureReporter
 from oss.src.core.sessions.streams.interfaces import TriggerSessionClaimsDAOInterface
 from oss.src.core.sharing.admission import TRIGGER_DISPATCH_BOUNDARY, RunAdmission
 from oss.src.core.sharing.dtos import SharedItemKind
 from oss.src.core.sharing.service import SharingService, get_sharing_service
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.core.workflows.types import WorkflowDetachedStartRejected
+from oss.src.core.workflows.types import (
+    WorkflowDetachedStartNeverSent,
+    WorkflowDetachedStartRejected,
+    WorkflowServiceUrlMissing,
+)
 from oss.src.utils.logging import get_module_logger
 
 from agenta.sdk.agents.requirements import (
@@ -86,6 +92,23 @@ def _agent_deleted_error() -> AgentError:
     )
 
 
+_FAILURE_CODE_SHAPE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+
+
+def _start_failure_code(error: Exception) -> str:
+    """A gateway 502 or 504 can follow an accepted start, so only a proven refusal is named.
+
+    The service writes `failure_code`, and it goes out with no detail flag, so anything not
+    shaped like a code is dropped.
+    """
+    if isinstance(error, WorkflowDetachedStartRejected):
+        code = error.failure_code or ""
+        return code if _FAILURE_CODE_SHAPE.fullmatch(code) else "start_rejected"
+    if isinstance(error, (WorkflowDetachedStartNeverSent, WorkflowServiceUrlMissing)):
+        return "start_never_sent"
+    return "start_unconfirmed"
+
+
 class TriggersDispatcher:
     """Resolves and runs one inbound provider event against its bound workflow."""
 
@@ -99,6 +122,7 @@ class TriggersDispatcher:
         dispatch_fn: Optional[Callable] = None,
         access_service: Optional[AccessService] = None,
         sharing_service: Optional[SharingService] = None,
+        failure_reporter: Optional[AgentFailureReporter] = None,
     ):
         self.triggers_dao = triggers_dao
         # Admits every fire (the principal and the resolved agent) before the claim.
@@ -110,6 +134,7 @@ class TriggersDispatcher:
         self._access_service = access_service
         # Every root builds the dispatcher after bootstrap_access().
         self.sharing_service = sharing_service or get_sharing_service()
+        self.failure_reporter = failure_reporter
 
     @property
     def access_service(self) -> AccessService:
@@ -528,6 +553,13 @@ class TriggersDispatcher:
                 await self._abandon_claimed_session(
                     project_id=project_id, session_id=session_id
                 )
+                if self.failure_reporter is not None:
+                    await self.failure_reporter.report_trigger_start(
+                        project_id=project_id,
+                        session_id=session_id,
+                        user_id=user_id,
+                        failure_code=_start_failure_code(e),
+                    )
                 raise
             await self._complete_delivery(
                 project_id=project_id,

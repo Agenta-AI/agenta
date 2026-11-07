@@ -37,6 +37,7 @@ from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.service import EventsService
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.tasks.asyncio.sessions.failure_reporter import AgentFailureReporter
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.streaming import (
     LIVE_FRAME_STREAM_NAME,
@@ -51,6 +52,7 @@ from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDA
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
 from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
 from oss.src.dbs.postgres.shared.engine import (
     PROFILE_WORKER,
@@ -149,6 +151,10 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
         interactions_service=SessionInteractionsService(
             interactions_dao=SessionInteractionsDAO(),
             watch_publisher=watch_publisher,
+        ),
+        failure_reporter=AgentFailureReporter(
+            records_dao=RecordsDAO(),
+            streams_dao=SessionStreamsDAO(engine=get_transactions_engine()),
         ),
         # Redelivery bound for records the Postgres write rejected.
         reclaim_min_idle_ms=env.agenta.sessions.records.reclaim_idle_ms,
