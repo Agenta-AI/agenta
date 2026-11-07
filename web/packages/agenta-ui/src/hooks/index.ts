@@ -21,3 +21,4 @@ export {
     type VisualViewportSample,
 } from "./useVisualViewport"
 export {useScrollFadeEdges} from "./useScrollFadeEdges"
+export {useHasOpened} from "./useHasOpened"

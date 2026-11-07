@@ -322,7 +322,10 @@ const ReplayScreen = ({
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 <TranscriptTurns
+                    // This screen stays mounted across sessions; the window must not.
+                    key={sessionId}
                     turns={visibleTurns}
+                    scrollerRef={autoScroll.ref}
                     sessionId={sessionId}
                     remoteRunning={running}
                     waitingOnUser={pendingCount > 0}

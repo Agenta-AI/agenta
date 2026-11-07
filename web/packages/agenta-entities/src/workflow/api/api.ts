@@ -1321,6 +1321,8 @@ export async function fetchWorkflowAgentFlags(
             // Archived workflows are classified too: the archived Agents tab needs them split the
             // same way, and their revisions are not themselves archived.
             include_archived: true,
+            // Only the flags are read, and `data` is most of each row.
+            include_data: false,
         },
         {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )

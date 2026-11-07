@@ -10,7 +10,6 @@
  * palette and render as white boxes in dark mode. The shared set reads `--ag-*` off <html>.
  */
 import {CustomSecretFormat} from "@agenta/entities/secret"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import {
     Button,
@@ -259,8 +258,8 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                         </div>
                     </div>
                 ) : jsonView === "json" ? (
-                    // The editor is a contenteditable rather than a form control, so the group
-                    // around it is what carries the name. Named BY the label rather than with
+                    // The label has no `htmlFor` in this format, so the group around the field
+                    // carries the name. Named BY the label rather than with
                     // a copy of its text: a copy is a second place for the wording to live,
                     // and a name that has drifted from the label on screen is the mismatch
                     // WCAG 2.5.3 is about (round 5). Before this the format announced nothing
@@ -270,16 +269,16 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                         role="group"
                         aria-labelledby={SECRET_VALUE_LABEL_ID}
                     >
-                        <SharedEditor
-                            initialValue={jsonText}
+                        <Textarea
+                            rows={8}
+                            className="font-mono"
+                            aria-labelledby={SECRET_VALUE_LABEL_ID}
+                            aria-invalid={Boolean(jsonError) || undefined}
+                            spellCheck={false}
+                            autoCorrect="off"
+                            autoCapitalize="none"
                             value={jsonText}
-                            handleChange={(v) => setJsonText(v)}
-                            editorType="border"
-                            editorProps={{
-                                codeOnly: true,
-                                language: "json",
-                                showToolbar: false,
-                            }}
+                            onChange={(e) => setJsonText(e.target.value)}
                         />
                         {jsonError && <span className="text-xs text-error">{jsonError}</span>}
                     </div>
