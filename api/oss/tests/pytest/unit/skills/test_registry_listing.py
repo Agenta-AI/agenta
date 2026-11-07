@@ -113,7 +113,8 @@ async def test_registry_builtin_block_holds_only_skill_entries():
     registry = await service.list_registry_skills(project_id=uuid4())
 
     slugs = {item.workflow_slug for item in registry.builtin}
-    # the two skill entries, and none of the tool / agent-config statics
+    # the skill entries (the browser skill only with AGENTA_BROWSER_ENABLED), and none of the
+    # tool / agent-config statics
     assert slugs == {
         "__ag__getting_started_with_agenta",
         "__ag__build_an_agent",

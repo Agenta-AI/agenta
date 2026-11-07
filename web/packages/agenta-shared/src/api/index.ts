@@ -6,6 +6,7 @@ export {
     getEnv,
     isBetaDeveloperModeEnabled,
     isBillingEnabled,
+    isBrowserEnabled,
     isEE,
     isEmailInvitationsEnabled,
     isMcpGatewayEnabled,

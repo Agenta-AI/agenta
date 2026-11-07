@@ -74,6 +74,8 @@ import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPol
 import {useWalletSummary} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {BrowserAskDock} from "./BrowserAskDock"
+import {BrowserPreviewSlot} from "./BrowserPreviewSlot"
 import {waitForBuildKit} from "./buildKitWait"
 import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
@@ -931,6 +933,7 @@ export const LiveConversation = ({
                     onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
                     onRewind={locked ? undefined : handleRewind}
                 />
+                <BrowserPreviewSlot sessionId={sessionId} working={showingTurnActivity} />
             </ContentRail>
         )
     }
@@ -976,6 +979,7 @@ export const LiveConversation = ({
                                 <ConnectionWarningStrip message={conversation.connectionWarning} />
                             </ContentRail>
                         ) : null}
+                        <BrowserAskDock sessionId={sessionId} />
                         {approvalsOpen ? (
                             <ApprovalDock
                                 approvals={pendingApprovals}

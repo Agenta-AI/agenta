@@ -1,4 +1,6 @@
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {browserLiveStatusQueryAtomFamily, browserPaneOpenAtomFamily} from "@agenta/entities/browser"
+import {BrowserPaneToggle} from "@agenta/entity-ui/browser"
 import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {
     SessionTabRail,
@@ -6,8 +8,9 @@ import {
     sessionMenuAccess,
     withSessionShortcutKeys,
 } from "@agenta/sessions-ui"
+import {isBrowserEnabled} from "@agenta/shared/api"
 import {userAtom} from "@agenta/shared/state"
-import {useAtomValue} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -65,6 +68,8 @@ export const SessionTabs = ({
         agentId ?? sessionId,
         sessionId,
     )
+    const browser = useAtomValue(browserLiveStatusQueryAtomFamily(sessionId)).data
+    const [browserOpen, setBrowserOpen] = useAtom(browserPaneOpenAtomFamily(sessionId))
     const query = useSessionHeader(projectId, sessionId)
     const me = useAtomValue(userAtom)
 
@@ -91,6 +96,13 @@ export const SessionTabs = ({
                     ) : null}
                 </>
             )}
+            {isBrowserEnabled() && (browser?.running || browserOpen) ? (
+                <BrowserPaneToggle
+                    open={browserOpen}
+                    onToggle={() => setBrowserOpen(!browserOpen)}
+                    needsYou={Boolean(browser?.waiting) && !browserOpen}
+                />
+            ) : null}
             <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} disabled={!sessionId} />
         </>
     )

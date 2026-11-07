@@ -16,7 +16,6 @@ composing the individual reads already exposed here:
      (records). No overlay/aggregate endpoint exists or is planned.
 """
 
-import re
 import time
 from functools import wraps
 from uuid import UUID, uuid4
@@ -87,6 +86,7 @@ from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.shared.utils import is_valid_session_id
 from oss.src.apis.fastapi.shared.runner_auth import (
     assert_runner_token,
     has_valid_runner_token,
@@ -271,7 +271,6 @@ _ATTACHMENT_MULTIPART_OVERHEAD_BYTES = 64 * 1024
 _MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 
 # matches the streams contract allowlist (dbs/redis/sessions/contract.py)
-_SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 
 
 def _session_capabilities() -> SessionCapabilities:
@@ -296,7 +295,7 @@ def _idempotency_key_too_long_response() -> JSONResponse:
 
 
 def _validate_session_id_http(session_id: str) -> None:
-    if not _SESSION_ID_RE.match(session_id):
+    if not is_valid_session_id(session_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="session_id contains invalid characters or is empty.",

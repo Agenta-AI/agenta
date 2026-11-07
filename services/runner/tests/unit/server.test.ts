@@ -18,12 +18,12 @@ import { join } from "node:path";
 
 import {
   createAgentServer,
-  normalizeKillProjectId,
   registerShutdownHandler,
   runWithKeepalive,
   type KeepaliveEngine,
   type RunAgent,
 } from "../../src/server.ts";
+import { normalizeProjectId } from "../../src/http-io.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
@@ -2430,24 +2430,24 @@ describe("createAgentServer", () => {
   });
 });
 
-describe("normalizeKillProjectId (blank projectId scope-agreement)", () => {
+describe("normalizeProjectId (blank projectId scope-agreement)", () => {
   it("normalizes undefined to undefined", () => {
-    assert.equal(normalizeKillProjectId(undefined), undefined);
+    assert.equal(normalizeProjectId(undefined), undefined);
   });
 
   it("normalizes a whitespace-only string to undefined", () => {
-    assert.equal(normalizeKillProjectId("   "), undefined);
-    assert.equal(normalizeKillProjectId(""), undefined);
-    assert.equal(normalizeKillProjectId("\t\n"), undefined);
+    assert.equal(normalizeProjectId("   "), undefined);
+    assert.equal(normalizeProjectId(""), undefined);
+    assert.equal(normalizeProjectId("\t\n"), undefined);
   });
 
   it("normalizes a non-string value to undefined", () => {
-    assert.equal(normalizeKillProjectId(123), undefined);
-    assert.equal(normalizeKillProjectId(null), undefined);
+    assert.equal(normalizeProjectId(123), undefined);
+    assert.equal(normalizeProjectId(null), undefined);
   });
 
   it("trims and keeps a real projectId", () => {
-    assert.equal(normalizeKillProjectId("  proj-1  "), "proj-1");
+    assert.equal(normalizeProjectId("  proj-1  "), "proj-1");
   });
 });
 

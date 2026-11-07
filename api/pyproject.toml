@@ -17,6 +17,7 @@ dependencies = [
     # that moved within a range turned the branch red (M16).
     "mcp==2.2.0",
     "uvicorn[standard]>=0.51,<0.52",
+    "websockets>=13,<17",
     "gunicorn>=26,<27",
     "httpx>=0.28,<0.29",
     "structlog>=26,<27",
