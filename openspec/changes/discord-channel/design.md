@@ -36,7 +36,7 @@ In a shared space a message starts a turn only when it is addressed: a mention o
 
 The outbox binds each approval button to the session interaction row. A button value becomes `<interaction UUID>:approve` or `<interaction UUID>:deny` (`api/oss/src/tasks/asyncio/channels/outbox.py:767-775`, labels at `api/oss/src/core/channels/render/render.py:235`). Telegram acknowledges a button press inside `parse_event` with `answer_callback_query` (`api/oss/src/core/channels/adapters/telegram/adapter.py:245-255`).
 
-A capability can declare `rendering.controls.indicator` as `"message"` or `"native"` (`api/oss/src/core/channels/dtos.py:185-192`). With `"native"`, the outbox posts no "Thinking…" message, calls `signal_activity` every 20 seconds, and sends one fixed working message after 30 seconds (`outbox.py:83-89`, `outbox.py:234-252`, `outbox.py:335-380`). The working message text is "Working on it, I'll reply here when I'm done." (`render.py:30`). With `"message"` and `controls.update` true, the outbox posts an indicator and edits progress into it every 2 seconds (`outbox.py:78`, `outbox.py:281-289`). Slack puts a reaction on the user's message through `set_message_status` (`api/oss/src/core/channels/adapters/slack/adapter.py:598-623`), which the outbox calls when a turn changes state (`outbox.py:895-912`). Text splitting lives in each adapter's mapping, for example `whatsapp/mapping.py:285` and `telegram/mapping.py:182`.
+A capability can declare `rendering.controls.indicator` as `"message"` or `"native"` (`api/oss/src/core/channels/dtos.py:185-192`). With `"native"`, the outbox posts no "Thinking…" message, calls `signal_activity` every 20 seconds, and sends one fixed working message after 30 seconds (`outbox.py:83-89`, `outbox.py:234-252`, `outbox.py:335-380`). The working message text is "Working on it, I'll reply here when I'm done." (`render.py:30`). With `"message"` and `controls.update` true, the outbox posts an indicator and edits progress into it every 2 seconds (`outbox.py:78`, `outbox.py:281-289`). Slack puts a reaction on the user's message through `set_message_status` (`api/oss/src/core/channels/adapters/slack/adapter.py:598-623`), which the outbox calls when a turn changes state (`outbox.py:895-912`). Core splits an answer at the declared `max_chars` before any adapter sees it (`_split_text` in `api/oss/src/core/channels/render/render.py`): at a paragraph, line or word boundary, and a fence cut in half is closed and reopened. Each adapter's mapping keeps only a fixed-width safety net for content that arrives oversize anyway, for example `whatsapp/mapping.py:285` and `telegram/mapping.py:182`. M1 changes the shared split to keep a code block whole when it fits in one message (it starts the next message before the block); this also applies to the other Markdown channels.
 
 ### Setup UI today
 
@@ -134,7 +134,8 @@ OpenClaw, Hermes Agent and n8n all use a bring-your-own bot.
 The locator follows the Slack precedent, where `channel` stays the posted channel and the thread goes in `thread_ts`, with a top-level message keyed by its own ts (`api/oss/src/core/channels/adapters/slack/adapter.py:387-395`):
 
 - `channel_id` is the text channel, which is the space. For a message inside a Discord thread, it is the thread's parent channel, read from the thread's channel object through a small cache per connection.
-- `thread_id` is the Discord thread id. For a mention in a server channel, it is the mention's message id, because Discord gives the thread started from that message the same id. It is `""` for a message that is not in a thread and opens none, and in a DM.
+- `thread_id` is the Discord thread id. For a top-level message in a server channel, it is the message's own id, because Discord gives the thread started from that message the same id. This holds for every top-level message, not only a mention, as Slack keys a top-level message by its own ts: the adapter does not have to decide what is addressed (sigils and commands are decided in core). It is `""` in a DM.
+- `thread_name` is set on a top-level server message only: its first line, at most 100 characters, with the bot's mention shown as its handle. `post_message` uses it to name the thread it starts. It is not an identity key.
 - `source_channel_id` is the channel Discord delivered the message in, never rewritten. It is not an identity key.
 - `message_id` is the Discord message id.
 
@@ -187,18 +188,18 @@ It starts from the Discord declaration in `docs/design/channels-research/v2/chan
 | `identity.scope`, `identity.stable` | `"global"`, `true` | metadata | Unchanged. |
 | `identity.keys` | D7 | routing | Discord field names. |
 | `setup.fields` | one field, `bot_token`, `secret: true`, `required: true` | credentials | The only thing the user pastes. |
-| `setup.instructions` | the steps of the setup flow | metadata | Wording is written and approved in M3. |
+| `setup.instructions` | empty in M1; the steps of the setup flow | metadata | Wording is written and approved in M3. |
 | `commands` | `["new", "sessions", "use"]` | config | Unchanged. |
 
 ### Connection data
 
 | Field | Where | Role | Owner | Changes |
 | --- | --- | --- | --- | --- |
-| `bot_token` | vault, under the connection's credential secret | credentials | user | on rotation |
+| `bot_token` | vault, under the connection's credential secret (new secret kind `ChannelSecretKind.DISCORD`) | credentials | user | on rotation |
 | `application_id` | `data.connection_locator`, and the source of `external_key` | routing (identity) | Discord, read by `verify_connection` | never |
 | `bot_user_id` | connection data | metadata, used to drop the bot's own messages and to read mentions | Discord | never |
 | `bot_username` | connection data, `data.bot_username` | metadata, the handle the connect UI shows (`web/packages/agenta-settings-ui/src/channels/actions.ts:226-231`) | Discord, from `bot.username` | when the user renames the bot |
-| `application_name` | connection data | metadata, the default connection name | Discord, from the application `name` | when the user renames the application |
+| `application_name` | connection data | metadata, the default connection name (`_fill_connection_name_and_slug` reads it after `team_name` and `verified_name`) | Discord, from the application `name` | when the user renames the application |
 
 The Message Content intent state is read at setup and is not stored. When neither flag is set, `verify_connection` raises `ChannelConnectionVerificationFailed` (`api/oss/src/core/channels/types.py:165`), as Telegram does for a rejected token (`telegram/adapter.py:139-144`). The exception's message text is user-facing copy and needs Mahmoud's approval in M3; this spec does not fix it. The socket learns it from Discord: close code `4014` means the intent was turned off.
 
@@ -208,8 +209,9 @@ The Message Content intent state is read at setup and is not stored. When neithe
 | --- | --- | --- | --- |
 | `guild_id` | from the event, `""` in a DM | same | routing |
 | `channel_id` | the text channel (the space); for a message inside a thread, the thread's parent channel (D7) | same rule, for the message that holds the button | routing (space key) |
-| `thread_id` | the Discord thread id; the message id for a mention in a server channel; `""` otherwise (D7) | same rule | routing (thread key) |
+| `thread_id` | the Discord thread id; the message's own id for a top-level message in a server channel; `""` in a DM (D7) | same rule | routing (thread key) |
 | `source_channel_id` | the channel Discord delivered the message in, never rewritten (D7) | the message's channel | routing (not an identity key) |
+| `thread_name` | top-level server message only: its first line, at most 100 characters (D7) | not set | protocol context, names the thread `post_message` starts |
 | `message_id` | the message id | the id of the message that holds the button | protocol context, used for the reaction, the thread start and recovery |
 
 `external_id` is the Discord message id for a message and `discord_interaction_id` for a click. `processed.message_ref` is the message id in both cases, so a click points at the message that holds the button.

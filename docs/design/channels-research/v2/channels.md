@@ -483,6 +483,42 @@ this is the same token-lifetime constraint applied to ephemeral specifically).
   *data shape bypassing a permission gate* that no field in `addressing` or
   `fill` names.
 
+**v1 declaration (built).** The source of truth is
+`api/oss/src/core/channels/adapters/discord/capabilities.py`; the design is the
+OpenSpec change `openspec/changes/discord-channel/`. It differs from the
+research declaration above in these places:
+
+| Path | Research | v1 | Why |
+| --- | --- | --- | --- |
+| `addressing.commands.native` | `true` | `false` | No registered slash commands in v1. `!new`, `!sessions` and `!use` work as text. |
+| `rendering.controls` | `update: true`, `ephemeral: true` | `update: false`, `ephemeral: false`, `indicator: "native"` | Discord rate limits edits. The turn shows the typing indicator and a reaction, and the answer comes as new messages. |
+| `rendering.files` | 8 MB both ways | `send` and `receive` unsupported | No files in v1. |
+| `identity.keys` | `guild`, `channel`, `thread` | connection `application_id`; space `guild_id`, `channel_id`; thread `guild_id`, `channel_id`, `thread_id` | Discord's own field names. `guild_id` is `""` in a DM. |
+| `setup.fields` | not declared | `bot_token` (secret, required) | The user brings their own bot. |
+
+How the locator is filled: `channel_id` is the text channel, which is the
+space, also for a message inside a thread (the adapter reads the thread's
+`parent_id` once and caches it, because `MESSAGE_CREATE` has no parent).
+`thread_id` is the thread; for a top-level server message it is the message's
+own id, because the thread started from that message gets the same id. The
+first reply starts that thread. `source_channel_id` is where Discord delivered
+the message, and is where the reaction goes.
+
+Values checked against `discord/discord-api-docs@da52492ced` for v1:
+
+| Fact | Value |
+| --- | --- |
+| Message Content application flags | `GATEWAY_MESSAGE_CONTENT` `1 << 18`, `GATEWAY_MESSAGE_CONTENT_LIMITED` `1 << 19`. Setup refuses a bot with neither. |
+| Read the application | `GET /applications/@me` returns `id`, `name`, `bot` and `flags`. |
+| Invite permissions | View Channels, Send Messages, Send Messages in Threads, Create Public Threads, Read Message History, Add Reactions, Attach Files, Embed Links: `309237763136`. |
+| Invite URL | `https://discord.com/oauth2/authorize?client_id=<application_id>&scope=bot&permissions=309237763136` |
+| Button acknowledgement | Callback type `6` (`DEFERRED_UPDATE_MESSAGE`) within 3 seconds, over HTTP even for clicks that arrive over the socket. |
+| Button `custom_id` | 1 to 100 characters. The approval token `<interaction UUID>:approve` is 44. |
+| Message length | 2000 characters. |
+| Typing | `POST /channels/{id}/typing`, expires after 10 seconds. |
+| Thread from a message | `POST /channels/{id}/messages/{id}/threads`; the thread id equals the message id. |
+| Privileged intent review | The docs say 100 servers; the research above cites a 10,000 user threshold from June 2026. A bring-your-own bot in one server is below both. |
+
 ### Teams
 
 **Containers** — `personal`, `groupChat`, `channel`. Reply chains are not
