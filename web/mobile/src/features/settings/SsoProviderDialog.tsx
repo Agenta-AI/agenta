@@ -96,7 +96,7 @@ export const SsoProviderDialog = ({
             .map((scope) => scope.trim())
             .filter(Boolean)
         const values: SsoProviderFormValues = {
-            // The API rejects an unchanged slug on edit, so only a changed one is sent.
+            // Only a changed slug is sent, because the slug is part of the callback URL.
             ...(!provider || provider.slug !== trimmedSlug ? {slug: trimmedSlug} : {}),
             // On edit an omitted field means "unchanged", so a cleared one is sent empty.
             ...(name.trim() || isEdit ? {name: name.trim()} : {}),
