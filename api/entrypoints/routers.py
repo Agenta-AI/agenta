@@ -1425,10 +1425,11 @@ _channels_inbox_worker = ChannelsInboxWorker(
     dispatcher=_channels_inbox_dispatcher,
 )
 
+channels_service.inbox_dispatch_task = _channels_inbox_worker.dispatch_inbox_event
+
 channels_ingress = ChannelsIngressRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
-    dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
     telegram_binding_service=_telegram_binding_service,
     records_service=records_service,
     attachments_service=session_attachments_service,

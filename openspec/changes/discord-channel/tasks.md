@@ -18,16 +18,16 @@ Parallel work: M1 and the core half of M2 (group 2) can start at the same time, 
 
 ## 2. M2 core: shared store-and-enqueue step (PR 2, can run in parallel with group 1)
 
-- [ ] 2.1 Add `ChannelInboxEnqueueFailed` to `api/oss/src/core/channels/types.py`.
-- [ ] 2.2 Add `ChannelsService.record_and_enqueue_inbox_event` with the body of `ChannelsIngressRouter._record_and_enqueue`, and the attribute `ChannelsService.inbox_dispatch_task`, set at wiring.
-- [ ] 2.3 Switch `_ingest` and `_ingest_hosted` in `ingress.py` to the service method, delete `_record_and_enqueue`, and map `ChannelInboxEnqueueFailed` to 503 in `handle_channel_adapter_exceptions`.
-- [ ] 2.4 Set `channels_service.inbox_dispatch_task = _channels_inbox_worker.dispatch_inbox_event` in `api/entrypoints/routers.py` after `_channels_inbox_worker` is built, next to `triggers_service.schedule_dispatch_task` (`routers.py:1144`).
-- [ ] 2.5 Add `ChannelsService.query_active_connections(channel)` returning `List[Tuple[UUID, ChannelConnection]]`, project_id first, and its DAO query (cross-project, active, verified, not archived), following `fetch_active_schedules_with_project`.
-- [ ] 2.6 Unit tests: `test_channels_ingress.py` and `test_whatsapp_ingress.py` still pass with the same status codes; new tests for the service method (new row, existing row still enqueues, timeout raises `ChannelInboxEnqueueFailed`, no task stores only) and for `query_active_connections`.
+- [x] 2.1 Add `ChannelInboxEnqueueFailed` to `api/oss/src/core/channels/types.py`.
+- [x] 2.2 Add `ChannelsService.record_and_enqueue_inbox_event` with the body of `ChannelsIngressRouter._record_and_enqueue`, and the attribute `ChannelsService.inbox_dispatch_task`, set at wiring.
+- [x] 2.3 Switch `_ingest` and `_ingest_hosted` in `ingress.py` to the service method, delete `_record_and_enqueue`, and map `ChannelInboxEnqueueFailed` to 503 in `handle_channel_adapter_exceptions`.
+- [x] 2.4 Set `channels_service.inbox_dispatch_task = _channels_inbox_worker.dispatch_inbox_event` in `api/entrypoints/routers.py` after `_channels_inbox_worker` is built, next to `triggers_service.schedule_dispatch_task` (`routers.py:1144`).
+- [x] 2.5 Add `ChannelsService.query_active_connections(channel)` returning `List[Tuple[UUID, ChannelConnection]]`, project_id first, and its DAO query (cross-project, active, verified, not archived), following `fetch_active_schedules_with_project`.
+- [x] 2.6 Unit tests: `test_channels_ingress.py` and `test_whatsapp_ingress.py` still pass with the same status codes; new tests for the service method (new row, existing row still enqueues, timeout raises `ChannelInboxEnqueueFailed`, no task stores only) and for `query_active_connections`.
 
 ## 3. M2 loop: socket loop in worker-queues (PR 2, after group 2)
 
-- [ ] 3.1 Add `discord.py==2.7.1` to `api/pyproject.toml` and update `api/uv.lock`.
+- [x] 3.1 Add `discord.py==2.7.1` to `api/pyproject.toml` and update `api/uv.lock`.
 - [ ] 3.2 Add the socket loop module `api/oss/src/tasks/asyncio/channels/discord_socket.py` with the lock (`channels`, `discord:sockets`), renew and release, the reload on a short interval, one `discord.py` client per connection, and close on lock loss.
 - [ ] 3.3 Feed each dispatch through `parse_event` and `record_and_enqueue_inbox_event`; retry `ChannelInboxEnqueueFailed` for the same event with backoff while the socket keeps reading.
 - [ ] 3.4 Handle close code `4014` with an error log and backoff.
