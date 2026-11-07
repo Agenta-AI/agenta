@@ -5,12 +5,27 @@
 import {act} from "react"
 
 import {bindTraceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
+import {configureTraceDrawerReferences, TraceReferences} from "@agenta/observability-ui/traceDrawer"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const fixture = vi.hoisted(() => ({developerMode: true, lookupFails: false}))
+const fixture = vi.hoisted(() => ({
+    developerMode: true,
+    lookupFails: false,
+    references: [] as Record<string, unknown>[],
+}))
+
+// The references a trace carries; the drawer reads them from the open trace.
+vi.mock("@agenta/observability/traceDrawer", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@agenta/observability/traceDrawer")>()
+    const {atom} = await import("jotai")
+    return {
+        ...actual,
+        linksAndReferencesAtom: atom(() => ({links: [], references: fixture.references})),
+    }
+})
 
 vi.mock("@agenta/shared/state", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/shared/state")>()
@@ -68,6 +83,7 @@ const link = () => host.querySelector("a")
 beforeEach(() => {
     fixture.developerMode = true
     fixture.lookupFails = false
+    fixture.references = []
     window.history.replaceState(null, "", "/m/w/ws-1/p/proj-1/observability")
     store = createStore()
     store.set(bindTraceDrawerProjectURLAtom, traceDrawerProjectURLSourceAtom)
@@ -100,6 +116,39 @@ describe("trace drawer references on /m", () => {
         expect(link()?.getAttribute("href")).toBe(
             "/w/ws-1/p/proj-1/variants?app=app-1&revisionId=rev-1",
         )
+    })
+
+    it("A playground run's trace links its app and its variant revision, as on /w", async () => {
+        configureTraceDrawerReferences({
+            ApplicationReferenceLabel: (props) => (
+                <TraceReferenceLabel kind="ApplicationReferenceLabel" {...props} />
+            ),
+            VariantReferenceLabel: (props) => (
+                <TraceReferenceLabel kind="VariantReferenceLabel" {...props} />
+            ),
+        })
+        // The references a playground run sends with its request.
+        fixture.references = [
+            {key: "application", id: "app-1"},
+            {key: "application_variant", id: "app-1-variant"},
+            {key: "application_revision", id: "rev-1", version: "3"},
+        ]
+
+        await render(<TraceReferences />)
+
+        const links = [...host.querySelectorAll("a")].map((anchor) => [
+            anchor.textContent,
+            anchor.getAttribute("href"),
+        ])
+        expect(links).toEqual([
+            ["Capital finder", "/w/ws-1/p/proj-1/apps/app-1/overview"],
+            [
+                expect.stringContaining("default"),
+                "/w/ws-1/p/proj-1/variants?app=app-1&revisionId=rev-1",
+            ],
+        ])
+        expect(host.textContent).toContain("Applications")
+        expect(host.textContent).toContain("Variants")
     })
 
     it("A test set shows its name and opens its latest revision", async () => {

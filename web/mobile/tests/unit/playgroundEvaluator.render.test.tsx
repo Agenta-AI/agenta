@@ -333,6 +333,43 @@ describe("The evaluator playground", () => {
         )
     })
 
+    it("Run one step runs the app alone, then the evaluator alone once the app has an output", async () => {
+        await click("Pick app")
+        await typeInto("country", "France")
+        await typeInto("correct_answer", "Paris")
+        const openSteps = async () => {
+            await act(async () => {
+                button("Run one step")!.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+            })
+            await settle()
+            return [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+        }
+
+        let steps = await openSteps()
+        expect(steps.map((item) => item.textContent)).toEqual([
+            "Run Support bot",
+            "Run Exact match",
+        ])
+        // The evaluator grades the app's output: none yet.
+        expect(steps[1].hasAttribute("data-disabled")).toBe(true)
+        await act(async () => steps[0].click())
+        await settle()
+        expect(calls.map((call) => call.url)).toEqual([
+            "http://localhost:3000/services/completion/v0/invoke?project_id=proj-1",
+        ])
+
+        steps = await openSteps()
+        expect(steps[1].hasAttribute("data-disabled")).toBe(false)
+        await act(async () => steps[1].click())
+        await settle()
+        expect(calls.map((call) => call.url)).toEqual([
+            "http://localhost:3000/services/completion/v0/invoke?project_id=proj-1",
+            "http://localhost:3000/services/auto_exact_match/v0/invoke?project_id=proj-1",
+        ])
+    })
+
     it("Disconnect app leaves the evaluator alone again", async () => {
         await click("Pick app")
 
