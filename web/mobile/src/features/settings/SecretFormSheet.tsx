@@ -249,6 +249,7 @@ export const SecretFormSheet = ({
                                 {t("settings.secretFormSheet.whoCanUseIt")}
                             </span>
                             <OwnerRadioGroup<Exclude<OwnerKind, "organization">>
+                                aria-label={t("settings.secretFormSheet.whoCanUseIt")}
                                 value={owner}
                                 onChange={setOwner}
                                 options={[
