@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { extractInBandApprovalAnswers } from "../../src/responder.ts";
+import { staleInteractionExemptTokens } from "../../src/server.ts";
 
 const TOKEN = "tok-gate-1";
 const TOOL_CALL_ID = "toolu_write_1";
@@ -123,5 +124,54 @@ describe("extractInBandApprovalAnswers", () => {
 
   it("returns nothing for an empty request", () => {
     assert.deepEqual(extractInBandApprovalAnswers({} as AgentRunRequest), []);
+  });
+});
+
+describe("staleInteractionExemptTokens with nothing parked", () => {
+  const NOTHING_PARKED = new Map();
+
+  it("spares the gate a cold denial answers, so the turn can settle it as denied", () => {
+    const request = resumeRequest();
+    (request.messages as any)[2].content[0].output = {
+      approved: false,
+      interactionToken: TOKEN,
+    };
+    assert.deepEqual(staleInteractionExemptTokens(request, NOTHING_PARKED), [
+      TOKEN,
+    ]);
+  });
+
+  it("spares the gate a cold approval answers", () => {
+    assert.deepEqual(
+      staleInteractionExemptTokens(resumeRequest(), NOTHING_PARKED),
+      [TOKEN],
+    );
+  });
+
+  it("spares every gate of a batch answered together, and only those", () => {
+    const request = resumeRequest();
+    (request.messages as any)[2].content.push({
+      type: "tool_result",
+      toolCallId: "toolu_delete_2",
+      toolName: "run_tool",
+      output: { approved: false, interactionToken: "tok-gate-2" },
+    });
+    assert.deepEqual(staleInteractionExemptTokens(request, NOTHING_PARKED), [
+      TOKEN,
+      "tok-gate-2",
+    ]);
+  });
+
+  it("spares nothing on a plain new turn, so an unanswered gate is still cancelled", () => {
+    const request = {
+      messages: [{ role: "user", content: "hello" }],
+    } as AgentRunRequest;
+    assert.equal(staleInteractionExemptTokens(request, NOTHING_PARKED), undefined);
+  });
+
+  it("spares nothing for an answer from a prior turn", () => {
+    const request = resumeRequest();
+    (request.messages as any).push({ role: "user", content: "now do something else" });
+    assert.equal(staleInteractionExemptTokens(request, NOTHING_PARKED), undefined);
   });
 });
