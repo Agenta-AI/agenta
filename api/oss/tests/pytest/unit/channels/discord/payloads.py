@@ -11,6 +11,7 @@ BOT_USERNAME = "supportbot"
 BOT_TOKEN = "fake-discord-bot-token-not-real"
 GUILD_ID = "1100000000000000001"
 CHANNEL_ID = "1100000000000000002"
+CHANNEL_NAME = "support"
 DM_CHANNEL_ID = "1100000000000000003"
 THREAD_ID = "1200000000000000009"
 MESSAGE_ID = "1200000000000000001"
@@ -29,7 +30,6 @@ def message(
     message_id: str = MESSAGE_ID,
     channel_id: str = CHANNEL_ID,
     guild_id: Optional[str] = GUILD_ID,
-    channel_type: Optional[int] = 0,
     author: Optional[Dict[str, Any]] = None,
     mentions_bot: bool = False,
     message_type: int = 0,
@@ -46,8 +46,6 @@ def message(
     if guild_id:
         data["guild_id"] = guild_id
         data["member"] = {"nick": None}
-    if channel_type is not None:
-        data["channel_type"] = channel_type
     return {"t": "MESSAGE_CREATE", "d": data}
 
 
@@ -56,13 +54,11 @@ def mention(text: str = "where is my order?", **kwargs) -> Dict[str, Any]:
 
 
 def dm(content: str = "Where is my order?", **kwargs) -> Dict[str, Any]:
-    return message(
-        content, channel_id=DM_CHANNEL_ID, guild_id=None, channel_type=1, **kwargs
-    )
+    return message(content, channel_id=DM_CHANNEL_ID, guild_id=None, **kwargs)
 
 
 def in_thread(content: str, **kwargs) -> Dict[str, Any]:
-    return message(content, channel_id=THREAD_ID, channel_type=11, **kwargs)
+    return message(content, channel_id=THREAD_ID, **kwargs)
 
 
 def click(

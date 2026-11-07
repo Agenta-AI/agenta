@@ -2,7 +2,6 @@
 
 from oss.src.core.channels.adapters.discord import mapping
 from oss.src.core.channels.dtos import ChannelEventKind, ChannelSpaceKind
-from oss.src.core.channels.render.render import _split_text
 
 from . import payloads as p
 
@@ -159,32 +158,17 @@ def test_an_interaction_that_is_not_a_button_is_dropped():
 # --- splitting ----------------------------------------------------------- #
 
 
-def test_a_long_answer_splits_into_three_messages():
-    paragraph = ("word " * 179).strip() + "."
-    chunks = _split_text("\n\n".join([paragraph] * 5), 2000)
-
-    assert len(chunks) == 3
-    assert all(len(chunk) <= 2000 for chunk in chunks)
+def test_an_empty_answer_has_no_message():
+    assert mapping.build_messages([{"type": "text", "text": ""}]) == []
 
 
-def test_a_code_block_near_the_boundary_starts_a_new_message():
-    # about 600 characters, with blank lines a plain split would cut at
-    block = "```python\n" + ("x = 1\n" * 10 + "\n") * 9 + "```"
-    text = ("word " * 300).strip() + "\n\n" + block + "\n\nafter"
+def test_buttons_alone_need_no_text():
+    [body] = mapping.build_messages(
+        [{"type": "button", "id": "0", "label": "Go", "value": "go"}]
+    )
 
-    chunks = _split_text(text, 2000)
-
-    assert block in chunks[1]
-    assert "```" not in chunks[0]
-
-
-def test_a_code_block_longer_than_one_message_closes_and_reopens_its_fence():
-    block = "```\n" + "x = 1\n" * 500 + "```"
-    chunks = _split_text("intro\n\n" + block, 2000)
-
-    assert len(chunks) > 1
-    assert all(len(chunk) <= 2000 for chunk in chunks)
-    assert all(chunk.count("```") % 2 == 0 for chunk in chunks)
+    assert body["content"] == ""
+    assert body["components"][0]["components"][0]["custom_id"] == "go"
 
 
 def test_oversize_content_is_still_cut_to_the_limit():

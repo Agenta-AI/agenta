@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple
 from urllib.parse import quote
 from uuid import UUID
 
@@ -25,6 +25,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionVerificationFailed,
     ChannelCredentialRevoked,
     ChannelDeliveryUncertain,
+    ChannelsError,
 )
 from oss.src.utils.logging import get_module_logger
 
@@ -32,15 +33,14 @@ log = get_module_logger(__name__)
 
 _DISCORD_API_BASE = "https://discord.com/api/v10"
 
-# Discord error codes the adapter acts on.
-_UNKNOWN_CHANNEL = 10003
 _THREAD_ALREADY_CREATED = 160004
 
 _DEFERRED_UPDATE_MESSAGE = 6
 _HISTORY_PAGE_MAX = 100
-# A thread's parent channel never changes, so entries never go stale; the cap
-# only bounds memory.
-_THREAD_PARENTS_MAX = 1024
+# A channel's type and parent never change, and a renamed channel only names a
+# space created later, so entries never need refreshing; the cap only bounds
+# memory.
+_CACHE_MAX = 1024
 
 _RECEIVED_EMOJI = quote("👀")
 _COMPLETED_EMOJI = quote("✅")
@@ -74,9 +74,10 @@ class DiscordAdapter(ChannelAdapterInterface):
 
     def __init__(self, *, http_client: Optional[httpx.AsyncClient] = None) -> None:
         self._client = http_client or httpx.AsyncClient(base_url=_DISCORD_API_BASE)
-        # (connection id, channel id) -> the parent channel of a thread, or
-        # None for a channel that is not a thread
-        self._thread_parents: Dict[Tuple[UUID, str], Optional[str]] = {}
+        # (connection id, channel id) -> the channel object
+        self._channels: Dict[Tuple[UUID, str], Dict[str, Any]] = {}
+        # (connection id, thread id) of threads known to exist
+        self._threads: Set[Tuple[UUID, str]] = set()
 
     # --- declaration --- #
 
@@ -142,7 +143,7 @@ class DiscordAdapter(ChannelAdapterInterface):
         if not application_id:
             return None
         url = mapping.invite_url(str(application_id))
-        return ChannelSetupDoc(format="url", content=url, link=url)
+        return ChannelSetupDoc(format="text", content=url, link=url)
 
     # --- ingress --- #
 
@@ -182,49 +183,45 @@ class DiscordAdapter(ChannelAdapterInterface):
             return None
 
         bot_user_id = _bot_user_id(connection)
+        # Also checked in parse_message; checked first here so the bot's own
+        # replies cost no channel read.
         if not mapping.is_person_message(data) or mapping.is_bot_authored(
             data, bot_user_id=bot_user_id
         ):
             return None
 
         guild_id = data.get("guild_id")
-        parent_id = None
-        channel_type = data.get("channel_type")
-        if guild_id and (
-            channel_type is None or mapping.is_thread_channel(channel_type)
-        ):
-            parent_id = await self._thread_parent(connection, str(data["channel_id"]))
+        parent_id = title = None
+        if guild_id:
+            # `MESSAGE_CREATE` names neither the channel nor a thread's parent.
+            channel = await self._channel(connection, str(data["channel_id"]))
+            if mapping.is_thread_channel(channel.get("type")) and channel.get(
+                "parent_id"
+            ):
+                parent_id = str(channel["parent_id"])
+                channel = await self._channel(connection, parent_id)
+            title = channel.get("name")
 
         return mapping.parse_message(
             data,
             guild_id=guild_id,
             parent_id=parent_id,
+            title=title,
             bot_user_id=bot_user_id,
             bot_username=_data(connection).get("bot_username"),
         )
 
-    async def _thread_parent(
+    async def _channel(
         self, connection: ChannelConnection, channel_id: str
-    ) -> Optional[str]:
-        """The parent text channel of a thread, None for any other channel.
-        `MESSAGE_CREATE` carries no parent, so it is read from the channel."""
-
+    ) -> Dict[str, Any]:
         key = (connection.id, channel_id)
-        if key in self._thread_parents:
-            return self._thread_parents[key]
-        channel = await self._request(
-            _bot_token(connection), "GET", f"/channels/{channel_id}"
-        )
-        parent_id = channel.get("parent_id")
-        parent = (
-            str(parent_id)
-            if parent_id and mapping.is_thread_channel(channel.get("type"))
-            else None
-        )
-        if len(self._thread_parents) >= _THREAD_PARENTS_MAX:
-            self._thread_parents.clear()
-        self._thread_parents[key] = parent
-        return parent
+        if key not in self._channels:
+            if len(self._channels) >= _CACHE_MAX:
+                self._channels.clear()
+            self._channels[key] = await self._request(
+                _bot_token(connection), "GET", f"/channels/{channel_id}"
+            )
+        return self._channels[key]
 
     async def _acknowledge(self, interaction: Dict[str, Any]) -> None:
         """Answer the click with a deferred update: nothing changes on the
@@ -256,11 +253,17 @@ class DiscordAdapter(ChannelAdapterInterface):
         idempotency_key: UUID,
     ) -> Dict[str, Any]:
         target = mapping.reply_channel_id(locator)
+        bodies = mapping.build_messages(content)
+        if not bodies:
+            return {}
+        if self._thread_missing(connection, locator):
+            await self._start_thread(connection, locator)
+        token = _bot_token(connection)
         receipt: Dict[str, Any] = {}
-        for body in mapping.build_messages(content):
+        for body in bodies:
             try:
-                message = await self._create_message(
-                    connection, locator=locator, target=target, body=body
+                message = await self._request(
+                    token, "POST", f"/channels/{target}/messages", json=body
                 )
             except Exception as exc:
                 if receipt:
@@ -270,37 +273,29 @@ class DiscordAdapter(ChannelAdapterInterface):
                         channel=self.channel, detail=str(exc)[:200]
                     ) from exc
                 raise
-            receipt = {"channel_id": target, "message_id": str(message["id"])}
+            receipt = {"source_channel_id": target, "message_id": str(message["id"])}
         return receipt
 
-    async def _create_message(
-        self,
-        connection: ChannelConnection,
-        *,
-        locator: Dict[str, Any],
-        target: str,
-        body: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Post into `target`. A reply to a server message goes into the
-        thread started from that message, which the first reply creates."""
+    def _thread_missing(
+        self, connection: ChannelConnection, locator: Dict[str, Any]
+    ) -> bool:
+        """True while the thread a reply goes into may not exist yet. The
+        locator alone cannot tell: a thread's stored locator keeps naming the
+        message it starts from."""
 
-        token = _bot_token(connection)
-        try:
-            return await self._request(
-                token, "POST", f"/channels/{target}/messages", json=body
-            )
-        except _DiscordApiError as e:
-            if e.code != _UNKNOWN_CHANNEL or not mapping.opens_thread(locator):
-                raise
-        await self._start_thread(token, locator)
-        return await self._request(
-            token, "POST", f"/channels/{target}/messages", json=body
+        return mapping.opens_thread(locator) and (
+            (connection.id, locator["thread_id"]) not in self._threads
         )
 
-    async def _start_thread(self, token: str, locator: Dict[str, Any]) -> None:
+    async def _start_thread(
+        self, connection: ChannelConnection, locator: Dict[str, Any]
+    ) -> None:
+        """Start the thread from the message the reply answers. Discord
+        refuses a second start, which also means the thread exists."""
+
         try:
             await self._request(
-                token,
+                _bot_token(connection),
                 "POST",
                 f"/channels/{locator['source_channel_id']}/messages/"
                 f"{locator['message_id']}/threads",
@@ -309,8 +304,15 @@ class DiscordAdapter(ChannelAdapterInterface):
                 },
             )
         except _DiscordApiError as e:
+            if e.status_code >= 500:
+                raise _ThreadNotStarted(detail=str(e)) from e
             if e.code != _THREAD_ALREADY_CREATED:
                 raise
+        except httpx.HTTPError as e:
+            raise _ThreadNotStarted(detail=type(e).__name__) from e
+        if len(self._threads) >= _CACHE_MAX:
+            self._threads.clear()
+        self._threads.add((connection.id, locator["thread_id"]))
 
     async def edit_message(
         self,
@@ -330,7 +332,7 @@ class DiscordAdapter(ChannelAdapterInterface):
         external_locator: Dict[str, Any],
         content: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
-        channel_id = external_locator.get("channel_id")
+        channel_id = external_locator.get("source_channel_id")
         message_id = external_locator.get("message_id")
         if not channel_id or not message_id:
             return
@@ -344,20 +346,18 @@ class DiscordAdapter(ChannelAdapterInterface):
     async def signal_activity(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]
     ) -> None:
-        """The typing indicator in the reply channel. Before the first reply
-        the thread does not exist yet, so it shows in the channel the
-        message was posted in."""
+        """The typing indicator in the reply channel. Until the first reply
+        starts the thread, it shows in the channel the message was posted
+        in."""
 
-        token = _bot_token(connection)
-        target = mapping.reply_channel_id(locator)
-        try:
-            await self._request(token, "POST", f"/channels/{target}/typing")
-        except _DiscordApiError as e:
-            if e.code != _UNKNOWN_CHANNEL or not mapping.opens_thread(locator):
-                raise
-            await self._request(
-                token, "POST", f"/channels/{locator['source_channel_id']}/typing"
-            )
+        target = (
+            locator["source_channel_id"]
+            if self._thread_missing(connection, locator)
+            else mapping.reply_channel_id(locator)
+        )
+        await self._request(
+            _bot_token(connection), "POST", f"/channels/{target}/typing"
+        )
 
     async def set_message_status(
         self,
@@ -411,7 +411,8 @@ class DiscordAdapter(ChannelAdapterInterface):
             },
         )
         events: List[ChannelInboundEvent] = []
-        for message in messages if isinstance(messages, list) else []:
+        # Discord answers newest first; the inbox keeps context in insert order.
+        for message in reversed(messages) if isinstance(messages, list) else []:
             event = mapping.parse_message(
                 message,
                 guild_id=locator.get("guild_id"),
@@ -467,3 +468,11 @@ class _DiscordApiError(Exception):
             f"Discord API error {self.code} ({status_code}): "
             f"{error.get('message') or 'unknown error'}"
         )
+
+
+class _ThreadNotStarted(ChannelsError):
+    """Starting the reply thread failed with no answer from Discord, or a 5xx.
+    No message was posted, so the outbox retries the delivery."""
+
+    def __init__(self, *, detail: str):
+        super().__init__(f"discord: the reply thread was not started ({detail})")
