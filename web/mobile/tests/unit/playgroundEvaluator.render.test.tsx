@@ -7,6 +7,7 @@
  */
 import {act} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {useTokenPathSuggestions} from "@agenta/ui/editor"
@@ -41,9 +42,15 @@ vi.mock("@agenta/shared/api", async (original) => {
 })
 vi.mock("@agenta/playground-ui/panels/evaluator", async (original) => ({
     ...(await original<object>()),
-    AppPicker: ({onSelect}: {onSelect: (app: {id: string; label: string}) => void}) => (
+    AppPicker: ({
+        onSelect,
+        selectedLabel,
+    }: {
+        onSelect: (app: {id: string; label: string}) => void
+        selectedLabel: string | null
+    }) => (
         <button type="button" onClick={() => onSelect({id: "app-rev-1", label: "Support bot"})}>
-            Pick app
+            {selectedLabel ? `App: ${selectedLabel}` : "Pick app"}
         </button>
     ),
 }))
@@ -117,6 +124,34 @@ const evaluatorRevision = {
     },
 }
 const committedEvaluatorRevision = {...evaluatorRevision, id: "eval-rev-2", version: 3}
+/** An LLM judge: stored flat, shown nested (`prompt.messages`, `prompt.llm_config`). */
+const judgeRevision = {
+    id: "judge-rev-1",
+    version: 1,
+    name: "default",
+    workflow_id: "judge-1",
+    workflow_variant_id: "judge-1-variant",
+    flags: {is_evaluator: true},
+    created_at: "2026-11-01T00:00:00Z",
+    data: {
+        uri: "agenta:builtin:auto_ai_critique:v0",
+        parameters: {
+            prompt_template: [{role: "system", content: "Grade the answer."}],
+            model: "gpt-4o-mini",
+            correct_answer_key: "correct_answer",
+        },
+        schemas: {
+            parameters: {
+                type: "object",
+                properties: {
+                    prompt_template: {type: "array"},
+                    model: {type: "string"},
+                    correct_answer_key: {type: "string", "x-ag-type": "hidden"},
+                },
+            },
+        },
+    },
+}
 const appRevision = {
     id: "app-rev-1",
     version: 3,
@@ -144,14 +179,18 @@ http.post.mockImplementation(async (url: string, body: unknown) => {
                 workflows: [
                     {id: "eval-1", name: "Exact match", flags: {is_evaluator: true}},
                     {id: "app-1", name: "Support bot", flags: {}},
+                    {id: "judge-1", name: "Answer correctness", flags: {is_evaluator: true}},
                 ],
             },
         }
     }
     if (url.endsWith("/workflows/revisions/query")) {
-        const revisions = [evaluatorRevision, committedEvaluatorRevision, appRevision].filter(
-            (revision) => sent.includes(revision.id),
-        )
+        const revisions = [
+            evaluatorRevision,
+            committedEvaluatorRevision,
+            appRevision,
+            judgeRevision,
+        ].filter((revision) => sent.includes(revision.id))
         return {data: {count: revisions.length, workflow_revisions: revisions}}
     }
     return {data: {}}
@@ -251,6 +290,11 @@ beforeEach(async () => {
 })
 afterEach(() => {
     act(() => root.unmount())
+    window.history.replaceState(null, "", "/playground")
+    // Leaving keeps the edits of saved revisions; the next test starts without them.
+    for (const id of ["eval-rev-1", "app-rev-1", "judge-rev-1"]) {
+        store.set(workflowMolecule.actions.discard, id)
+    }
     host.remove()
     vi.unstubAllGlobals()
 })
@@ -273,7 +317,9 @@ describe("The evaluator playground", () => {
         expect(host.querySelector('[data-testid="config-panel"]')?.textContent).toMatch(
             /^eval-rev-1/,
         )
-        expect(router.replace).not.toHaveBeenCalled()
+        for (const [address] of router.replace.mock.calls) {
+            expect(address.query.revisions).toBe("eval-rev-1")
+        }
     })
 
     it("The evaluator's prompt typeahead offers the app's inputs and outputs only when chained", async () => {
@@ -405,6 +451,107 @@ describe("The evaluator playground", () => {
         expect(calls).toHaveLength(1)
         const card = host.querySelector('[data-testid="evaluator-score-eval-rev-1"]')!
         expect(card.textContent).toContain("correct_answer")
+    })
+
+    /** A reload: the page goes with the store's edits, and opens again from `hash`. */
+    const reloadFrom = async (hash: string, revisions = "eval-rev-1") => {
+        act(() => root.unmount())
+        for (const id of ["eval-rev-1", "app-rev-1", "judge-rev-1"]) {
+            store.set(workflowMolecule.actions.discard, id)
+        }
+        router.query = {workspace_id: "ws-1", project_id: projectId, revisions}
+        window.history.replaceState(null, "", `/playground#${hash}`)
+        root = createRoot(host)
+        act(() =>
+            root.render(
+                <PlaygroundScreen mode="evaluator" workspaceId="ws-1" projectId={projectId} />,
+            ),
+        )
+        await settle()
+    }
+    /** The address the page wrote last, once the write delay has passed. */
+    const writtenAddress = async () => {
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 400))
+        })
+        return router.replace.mock.calls.at(-1)?.[0] as
+            | {query: Record<string, string>; hash?: string}
+            | undefined
+    }
+
+    it("A reload of the address brings back the connected app and the test case", async () => {
+        await click("Pick app")
+        await typeInto("country", "Peru")
+        const written = await writtenAddress()
+        expect(written?.query.revisions).toBe("eval-rev-1")
+        expect(written?.hash).toMatch(/^pgSnapshot=/)
+
+        await reloadFrom(written!.hash!)
+
+        expect(graph()).toEqual(["app-rev-1@0", "eval-rev-1@1"])
+        expect(host.textContent).toContain("App: Support bot v3")
+        expect(
+            host.querySelector<HTMLTextAreaElement>(
+                '[data-testid="input-variable-country"] textarea',
+            )?.value,
+        ).toBe("Peru")
+    })
+
+    it("A link with test cases and no app opens on Run on a test case", async () => {
+        await click("Run on:App output")
+        await click("Run directly on a test case")
+        await typeInto("outputs", "Lima")
+        const written = await writtenAddress()
+        expect(written?.hash).toMatch(/^pgSnapshot=/)
+
+        await reloadFrom(written!.hash!)
+
+        expect(graph()).toEqual(["eval-rev-1@0"])
+        expect(host.textContent).toContain("Run on:Test case")
+        expect(
+            host.querySelector<HTMLTextAreaElement>(
+                '[data-testid="input-variable-outputs"] textarea',
+            )?.value,
+        ).toBe("Lima")
+    })
+
+    it("A reload keeps an edited LLM judge's config in the same shape, as an edit of the same revision", async () => {
+        act(() => root.unmount())
+        router.query = {workspace_id: "ws-1", project_id: projectId, revisions: "judge-rev-1"}
+        root = createRoot(host)
+        act(() =>
+            root.render(
+                <PlaygroundScreen mode="evaluator" workspaceId="ws-1" projectId={projectId} />,
+            ),
+        )
+        await settle()
+        const configuration = () =>
+            store.get(workflowMolecule.selectors.configuration("judge-rev-1")) as {
+                prompt?: {messages?: {role: string; content: string}[]}
+            } | null
+        const edited = {
+            ...configuration(),
+            prompt: {
+                ...configuration()?.prompt,
+                messages: [{role: "system", content: "Grade the answer strictly."}],
+            },
+        }
+        act(() => store.set(workflowMolecule.actions.updateConfiguration, "judge-rev-1", edited))
+        await settle()
+        const before = configuration()
+        expect(before?.prompt?.messages).toEqual([
+            {role: "system", content: "Grade the answer strictly."},
+        ])
+        const written = await writtenAddress()
+        expect(written?.hash).toMatch(/^pgSnapshot=/)
+
+        await reloadFrom(written!.hash!, "judge-rev-1")
+
+        // The same revision, not a local copy, so Commit stays Commit.
+        expect(graph()).toEqual(["judge-rev-1@0"])
+        expect(store.get(workflowMolecule.selectors.isDirty("judge-rev-1"))).toBe(true)
+        // The config form reads the same nested shape as before the reload.
+        expect(configuration()).toEqual(before)
     })
 
     it("Leaving the page clears the chain", async () => {
