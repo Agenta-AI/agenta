@@ -154,9 +154,11 @@ No cursor is stored. On every READY, which Discord sends after a fresh IDENTIFY 
 
 A live message on the new socket is stored after READY, so it never raises the start id past a missed message. The margin covers a database clock that runs behind the worker, where a live row stored after READY could carry an earlier time. A lower start id reads again messages whose rows already exist. A channel whose only stored rows fall inside the margin is not recovered, which is a documented limit. When the socket identifies fresh again during a pass, the new READY starts its own pass, and the first pass keeps going.
 
-Recovery passes `enqueue_existing=False`, so the service enqueues only a row that recovery stored. A message the socket stored first was enqueued then, so recovery does not dispatch it again. When recovery stores a message first, the live path still enqueues the existing row again, and the dispatcher's claim on `(thread_id, event_id)` stops a second turn. Once recovery stored a row and its enqueue failed, the retry enqueues as the live path does.
+Recovery enqueues every message it passes through the shared step, as the live path and the HTTP ingress do, even when the row already exists. The dispatcher's claim on `(thread_id, event_id)` stops a second turn for a message both the socket and recovery delivered.
 
-A failed store is retried like a failed enqueue, with the same parsed event and backoff. On the live path each event retries in its own task while the socket keeps reading. A recovery pass waits for the store, so its cursor never moves past a message that is not stored. When a recovered message cannot be parsed, the pass stops that channel, and the next READY reads it again.
+One error rule covers the live path and recovery. A transient error is a network or timeout error, a Discord 5xx or 429, `ChannelInboxEnqueueFailed`, or a SQLAlchemy `OperationalError`, `InterfaceError` or `DBAPIError` with an invalidated connection. Every other error is permanent. On a transient error in parse, store or enqueue, the loop retries the same raw event with backoff, for up to 10 minutes. On the live path each event retries in its own task while the socket keeps reading; after 10 minutes, or on a permanent error, the event is logged and dropped. In recovery, a transient error retries that message before the pass moves on, so the cursor never passes an unstored message, and a transient error that lasts past 10 minutes stops that channel's pass. A permanent error skips only that message. A transient failure to read the recovery start or a history page is retried the same way.
+
+Known limits on order. A live message on the new socket can start a turn before recovery stores an earlier message that was missed in the same conversation. Two missed messages in one conversation are stored and enqueued oldest first, but inbox dispatches run in parallel, so the agent can answer the later one first. Both happen only after a failed resume, and a fix needs the shared inbox dispatcher to serialize dispatches per conversation, which is outside this change.
 
 | Option | Trade-off |
 | --- | --- |
@@ -228,12 +230,10 @@ The Message Content intent state is read at setup and is not stored. When neithe
 
 ```python
 async def record_and_enqueue_inbox_event(
-    self, *, project_id: UUID, connection_id: UUID, channel: str, inbound: ChannelInboundEvent,
-    enqueue_existing: bool = True,
+    self, *, project_id: UUID, connection_id: UUID, channel: str, inbound: ChannelInboundEvent
 ) -> None: ...
 # Stores the event (origin from `inbound.origin`, PUSHED by default) and enqueues
-# channels.inbox.dispatch. Enqueues even when the row already exists, unless
-# enqueue_existing is False (Discord recovery, D9).
+# channels.inbox.dispatch. Enqueues even when the row already exists.
 # Raises ChannelInboxEnqueueFailed when the enqueue fails or times out.
 
 async def query_active_connections(self, *, channel: str) -> List[Tuple[UUID, ChannelConnection]]: ...

@@ -70,8 +70,8 @@ For each Discord Gateway dispatch, the loop SHALL encode the dispatch as JSON by
 - **WHEN** `parse_event` returns `None`
 - **THEN** the loop SHALL store nothing
 
-### Requirement: Retry of a failed enqueue
-When `record_and_enqueue_inbox_event` raises `ChannelInboxEnqueueFailed`, or fails to store the row, the loop SHALL retry the same parsed event, with the same `external_id`, with backoff, and SHALL keep reading the socket while it retries.
+### Requirement: One error rule for transient and permanent errors
+The loop SHALL classify each error once. A transient error is a network or timeout error, a Discord 5xx or 429, `ChannelInboxEnqueueFailed`, or a SQLAlchemy `OperationalError`, `InterfaceError` or `DBAPIError` with an invalidated connection; every other error is permanent. On a transient error in parse, store or enqueue, the loop SHALL retry the same raw event with backoff for up to 10 minutes, and SHALL keep reading the socket while it retries. After 10 minutes, or on a permanent error, the loop SHALL log the event and drop it.
 
 #### Scenario: Queue outage
 - **WHEN** Redis is down for 20 seconds while a message arrives
@@ -80,6 +80,10 @@ When `record_and_enqueue_inbox_event` raises `ChannelInboxEnqueueFailed`, or fai
 #### Scenario: Database outage
 - **WHEN** the inbox insert fails while a message arrives
 - **THEN** the loop SHALL retry the same event until it is stored and enqueued
+
+#### Scenario: Permanent error
+- **WHEN** the insert of an event fails with an error a retry cannot heal
+- **THEN** the loop SHALL log the event and drop it after one try
 
 #### Scenario: Process crash during the outage
 - **WHEN** the process stops while it still retries an event
@@ -97,7 +101,7 @@ The loop SHALL let `discord.py` handle heartbeat, resume and reconnect. When Dis
 - **THEN** the other connections' sockets SHALL stay open
 
 ### Requirement: Recovery after a failed resume
-On every READY, which Discord sends after a fresh IDENTIFY and never after a successful resume, the loop SHALL start one recovery pass. This includes the first socket of a connection, after a restart or a lock takeover. The pass SHALL read the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours that were stored before the READY time minus a 5 second clock margin. It SHALL then read Discord history after each of those ids with the adapter's `fetch_messages_after`, oldest first, and pass each message through `parse_event` and `record_and_enqueue_inbox_event` with `enqueue_existing=False`. A REST message object has no `guild_id`, so the pass SHALL keep each channel's `guild_id` from the row's locator, and the loop SHALL wrap each message as `{"t": "MESSAGE_CREATE", "d": {...message, "guild_id": <guild_id>}}` (no `guild_id` for a DM channel).
+On every READY, which Discord sends after a fresh IDENTIFY and never after a successful resume, the loop SHALL start one recovery pass. This includes the first socket of a connection, after a restart or a lock takeover. The pass SHALL read the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours that were stored before the READY time minus a 5 second clock margin. It SHALL then read Discord history after each of those ids with the adapter's `fetch_messages_after`, oldest first, and pass each message through `parse_event` and `record_and_enqueue_inbox_event`. A REST message object has no `guild_id`, so the pass SHALL keep each channel's `guild_id` from the row's locator, and the loop SHALL wrap each message as `{"t": "MESSAGE_CREATE", "d": {...message, "guild_id": <guild_id>}}` (no `guild_id` for a DM channel).
 
 #### Scenario: Messages missed during the gap
 - **WHEN** a socket loses its session, two messages are posted in channel C, and the new socket identifies fresh
@@ -124,20 +128,24 @@ On every READY, which Discord sends after a fresh IDENTIFY and never after a suc
 - **THEN** the loop SHALL start a second pass for the new READY, and the first pass SHALL keep going
 
 #### Scenario: Message delivered twice
-- **WHEN** recovery reads a message the socket already stored
-- **THEN** the unique constraint SHALL drop the row, and recovery SHALL NOT enqueue a dispatch for it
+- **WHEN** the socket and recovery both deliver one message, in either order
+- **THEN** the unique constraint SHALL drop the second row, both SHALL enqueue the dispatch, and the dispatcher's claim on `(thread_id, event_id)` SHALL stop a second turn
 
-#### Scenario: Recovery stores a message first
-- **WHEN** recovery stores a message before the socket delivers it live
-- **THEN** the live path SHALL enqueue the existing row again, and the dispatcher's claim on `(thread_id, event_id)` SHALL stop a second turn
+#### Scenario: Error during recovery
+- **WHEN** a recovered message, the recovery start or a history page fails with a transient error
+- **THEN** recovery SHALL retry it with backoff before it moves on, so it never reads past an unstored message, and SHALL stop that channel when the error lasts past 10 minutes
 
-#### Scenario: Store fails during recovery
-- **WHEN** a recovered message cannot be stored, or cannot be parsed
-- **THEN** recovery SHALL NOT read past it in that channel: a failed store is retried with backoff, and a failed parse stops that channel's pass until the next READY
+#### Scenario: Permanent error during recovery
+- **WHEN** a recovered message fails with a permanent error
+- **THEN** recovery SHALL log it, skip only that message, and go on with the next message and the next channel
 
 #### Scenario: Socket closed during an enqueue retry
 - **WHEN** the lock is lost or the connection changes while a received event waits for an enqueue retry
 - **THEN** the loop SHALL close the socket and SHALL let the retry and any running recovery pass finish
+
+#### Scenario: Order after a gap
+- **WHEN** recovery replays missed messages while the new socket also delivers live ones in the same conversation
+- **THEN** the agent MAY answer them out of order, which is a documented limit: recovery runs only after a failed resume, and a fix needs per-conversation serialization in the shared inbox dispatcher
 
 #### Scenario: Quiet channel
 - **WHEN** a channel has no stored message in the last 24 hours

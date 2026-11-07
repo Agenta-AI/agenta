@@ -2,7 +2,15 @@
 step. A failed enqueue is retried with the same event while the socket keeps
 reading."""
 
+import asyncio
+
+import httpx
 import pytest
+from sqlalchemy.exc import DBAPIError, IntegrityError, InterfaceError, OperationalError
+
+from oss.src.core.channels.types import ChannelInboxEnqueueFailed
+
+from oss.src.tasks.asyncio.channels import discord_socket
 
 from oss.src.tasks.asyncio.channels.discord_socket import DiscordSocket
 
@@ -92,3 +100,78 @@ async def test_failed_store_retries_the_same_event_while_reading_continues(
 
     assert service.attempts.count("101") + service.attempts.count("102") == 4
     assert len(service.rows) == 2
+
+
+async def test_permanent_store_error_drops_the_event_after_one_try():
+    service = FakeChannelsService(FakeAdapter())
+    service.refuse = {"101"}
+    socket = _socket(service)
+
+    socket.receive(frame("MESSAGE_CREATE", message("101")))
+    socket.receive(frame("MESSAGE_CREATE", message("102")))
+    await until(lambda: not socket.tasks)
+
+    assert service.attempts.count("101") == 1
+    assert service.enqueued == ["102"]
+
+
+async def test_transient_parse_error_retries_the_live_event(monkeypatch):
+    fast(monkeypatch, tick=0.02)
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    parse = adapter.parse_event
+    failures = [2]
+
+    async def flaky_parse(*, body, connection=None, request=None):
+        if failures[0]:
+            failures[0] -= 1
+            raise httpx.ConnectError("Discord unreachable")
+        return await parse(body=body, connection=connection, request=request)
+
+    adapter.parse_event = flaky_parse
+    socket.receive(frame("MESSAGE_CREATE", message("101")))
+    await until(lambda: service.enqueued)
+
+    assert service.enqueued == ["101"]
+
+
+async def test_transient_error_past_the_limit_drops_the_live_event(monkeypatch):
+    fast(monkeypatch, tick=0.01)
+    monkeypatch.setattr(discord_socket, "RETRY_LIMIT_SECONDS", 0.05)
+    service = FakeChannelsService(FakeAdapter())
+    service.fail_stores = 1000
+    socket = _socket(service)
+
+    socket.receive(frame("MESSAGE_CREATE", message("101")))
+    await until(lambda: not socket.tasks)
+
+    assert service.enqueued == []
+    assert 1 < service.attempts.count("101") < 1000
+
+
+class _DiscordRefusal(Exception):
+    def __init__(self, status_code):
+        self.status_code = status_code
+
+
+@pytest.mark.parametrize(
+    "error, transient",
+    [
+        (ChannelInboxEnqueueFailed(channel="discord", external_id="1"), True),
+        (ConnectionError("reset"), True),
+        (asyncio.TimeoutError(), True),
+        (httpx.ConnectError("down"), True),
+        (OperationalError("insert", {}, Exception("gone")), True),
+        (InterfaceError("insert", {}, Exception("closed")), True),
+        (DBAPIError("insert", {}, Exception("x"), connection_invalidated=True), True),
+        (DBAPIError("insert", {}, Exception("x")), False),
+        (IntegrityError("insert", {}, Exception("fk")), False),
+        (_DiscordRefusal(503), True),
+        (_DiscordRefusal(429), True),
+        (_DiscordRefusal(403), False),
+        (ValueError("bad"), False),
+    ],
+)
+def test_one_rule_says_which_errors_are_transient(error, transient):
+    assert discord_socket._is_transient(error) is transient

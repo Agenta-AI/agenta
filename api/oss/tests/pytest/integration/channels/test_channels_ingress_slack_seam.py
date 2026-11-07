@@ -166,7 +166,6 @@ async def slack_seam(channels_scope):
         ChannelsIngressRouter(
             channels_service=service,
             adapter_registry=registry,
-            dispatch_task=None,
         ).router,
         prefix="/channels",
     )

@@ -143,6 +143,8 @@ class FakeChannelsService:
         self.fail_enqueues = 0
         # Inserts that fail before the row is stored, as in a database outage.
         self.fail_stores = 0
+        # External ids whose insert fails for good.
+        self.refuse: set = set()
         self.start_queries = 0
         # Set to block every reload in query_active_connections.
         self.reload_gate: Optional[asyncio.Event] = None
@@ -182,15 +184,15 @@ class FakeChannelsService:
         return self.connections.get(connection_id)
 
     async def record_and_enqueue_inbox_event(
-        self, *, project_id, connection_id, channel, inbound, enqueue_existing=True
+        self, *, project_id, connection_id, channel, inbound
     ):
         self.attempts.append(inbound.external_id)
         if self.fail_stores > 0:
             self.fail_stores -= 1
             raise ConnectionError("database down")
-        stored = self.store_row(self.connections[connection_id], inbound)
-        if stored is None and not enqueue_existing:
-            return
+        if inbound.external_id in self.refuse:
+            raise ValueError("a row no retry can store")
+        self.store_row(self.connections[connection_id], inbound)
         if self.fail_enqueues > 0:
             self.fail_enqueues -= 1
             raise ChannelInboxEnqueueFailed(

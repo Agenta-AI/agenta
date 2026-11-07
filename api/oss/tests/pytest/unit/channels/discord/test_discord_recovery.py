@@ -11,6 +11,7 @@ import pytest
 
 from oss.src.core.channels.adapters.discord.adapter import DiscordAdapter
 from oss.src.core.channels.dtos import ChannelEventOrigin
+from oss.src.tasks.asyncio.channels import discord_socket
 from oss.src.tasks.asyncio.channels.discord_socket import DiscordSocket
 
 from . import payloads as p
@@ -91,7 +92,7 @@ async def test_live_message_stored_right_after_ready_does_not_hide_a_missed_one(
     assert (socket.connection.id, "200") in service.rows
 
 
-async def test_message_delivered_twice_is_stored_and_enqueued_once():
+async def test_message_delivered_twice_is_stored_once():
     adapter = FakeAdapter()
     service = FakeChannelsService(adapter)
     socket = _socket(service)
@@ -114,10 +115,11 @@ async def test_message_delivered_twice_is_stored_and_enqueued_once():
     gate.set()
     await until(lambda: not socket.tasks)
 
-    # The socket and recovery both delivered 200. One row, one dispatch.
+    # The socket and recovery both delivered 200. One row; both enqueue, and
+    # the dispatcher's claim on (thread_id, event_id) stops a second turn.
     assert service.attempts.count("200") == 2
     assert len([key for key in service.rows if key[1] == "200"]) == 1
-    assert service.enqueued.count("200") == 1
+    assert service.enqueued.count("200") == 2
 
 
 async def test_recovery_storing_first_lets_the_live_path_enqueue_again():
@@ -152,27 +154,78 @@ async def test_failed_store_in_recovery_does_not_move_past_the_message():
     assert service.enqueued == ["100", "200", "300"]
 
 
-async def test_failed_parse_in_recovery_stops_the_channel_pass():
+async def test_transient_parse_error_in_recovery_retries_the_message():
     adapter = FakeAdapter()
     service = FakeChannelsService(adapter)
     socket = _socket(service)
     await _live(socket, message("100", channel_id="C"))
     parse = adapter.parse_event
+    failures = {"200": 2}
 
     async def flaky_parse(*, body, connection=None, request=None):
-        if b'"200"' in body:
-            raise ConnectionError("Discord down")
+        if b'"200"' in body and failures["200"]:
+            failures["200"] -= 1
+            raise httpx.ConnectError("Discord unreachable")
         return await parse(body=body, connection=connection, request=request)
 
     adapter.parse_event = flaky_parse
     adapter.history["C"] = [message("200", "C"), message("300", "C")]
     await _ready(socket)
 
-    # The pass stops at 200, so a later READY starts from 100 again.
-    assert "300" not in service.enqueued
-    adapter.parse_event = parse
-    await _ready(socket)
+    # 200 is retried before the pass reads 300, so no later message can
+    # move the start past it.
     assert service.enqueued == ["100", "200", "300"]
+
+
+async def test_permanent_error_in_recovery_skips_only_that_message():
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    await _live(socket, message("100", channel_id="C"), message("150", "D"))
+    service.refuse = {"200"}
+    adapter.history["C"] = [message("200", "C"), message("300", "C")]
+    adapter.history["D"] = [message("400", "D")]
+    await _ready(socket)
+
+    assert service.attempts.count("200") == 1
+    assert service.enqueued == ["100", "150", "300", "400"]
+
+
+async def test_transient_error_past_the_limit_stops_the_channel(monkeypatch):
+    monkeypatch.setattr(discord_socket, "RETRY_LIMIT_SECONDS", 0.05)
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    await _live(socket, message("100", channel_id="C"), message("150", "D"))
+    service.fail_stores = 1000
+    adapter.history["C"] = [message("200", "C"), message("300", "C")]
+    adapter.history["D"] = [message("400", "D")]
+    await _ready(socket)
+
+    # C stops at 200 rather than read past it; D is still tried.
+    assert "300" not in service.attempts
+    assert "400" in service.attempts
+
+
+async def test_transient_history_read_error_is_retried():
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    await _live(socket, message("100", channel_id="C"))
+    read = adapter.fetch_messages_after
+    failures = [1]
+
+    async def flaky_read(**kwargs):
+        if failures[0]:
+            failures[0] -= 1
+            raise httpx.ReadTimeout("slow")
+        return await read(**kwargs)
+
+    adapter.fetch_messages_after = flaky_read
+    adapter.history["C"] = [message("200", "C")]
+    await _ready(socket)
+
+    assert service.enqueued == ["100", "200"]
 
 
 async def test_recovered_message_retries_a_failed_enqueue():
@@ -185,7 +238,6 @@ async def test_recovered_message_retries_a_failed_enqueue():
     adapter.history["C"] = [message("200", "C")]
     await _ready(socket)
 
-    # The row was stored by the first try, so the retries still enqueue it.
     assert service.attempts.count("200") == 3
     assert service.enqueued == ["100", "200"]
 

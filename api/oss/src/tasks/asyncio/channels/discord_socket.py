@@ -15,10 +15,14 @@ not replay what it sent while the socket was down. So on every READY, the first
 socket of a connection included, the loop reads each channel's history after the
 last message stored before that READY, and passes each message through the same
 step. The inbox unique constraint drops the row of a message the socket already
-delivered, and recovery enqueues only the rows it stored. So a message the
-socket stored first is dispatched once. When recovery stores it first, the live
-path enqueues the existing row again, and the dispatcher's claim on
-`(thread_id, event_id)` stops a second turn.
+delivered. The step still enqueues that row again, as it does for an HTTP
+redelivery, and the dispatcher's claim on `(thread_id, event_id)` stops a second
+turn.
+
+One error rule covers both paths (`_is_transient`). A transient error (network,
+timeout, Discord 5xx or 429, a failed enqueue, a lost database connection) is
+retried with the same event and backoff, for up to `RETRY_LIMIT_SECONDS`. Any
+other error is permanent: the event is logged and dropped.
 """
 
 import asyncio
@@ -28,6 +32,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tupl
 from uuid import UUID
 
 import discord
+import httpx
+from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 
 import oss.src.utils.locking as locking
 from oss.src.core.channels.dtos import (
@@ -59,9 +65,11 @@ TICK_SECONDS = 5
 # the holder learns of the loss before the lease runs out.
 RENEW_TIMEOUT_SECONDS = 5
 
-# Both retries back off from RETRY_FIRST_SECONDS, doubling up to their cap.
+# Every retry backs off from RETRY_FIRST_SECONDS, doubling up to its cap. A
+# transient error that lasts longer than RETRY_LIMIT_SECONDS gives up.
 RETRY_FIRST_SECONDS = 1
-ENQUEUE_RETRY_MAX_SECONDS = 30
+RETRY_MAX_SECONDS = 30
+RETRY_LIMIT_SECONDS = 600
 SOCKET_RETRY_MAX_SECONDS = 300
 
 # Recovery reads history only for channels with a stored message this recent,
@@ -115,6 +123,52 @@ async def _wait(shutdown: asyncio.Event, seconds: float) -> bool:
         return True
     except asyncio.TimeoutError:
         return False
+
+
+def _is_transient(error: BaseException) -> bool:
+    """True for an error a retry of the same event can heal."""
+
+    if isinstance(
+        error,
+        (
+            ChannelInboxEnqueueFailed,
+            OSError,
+            asyncio.TimeoutError,
+            httpx.TransportError,
+            OperationalError,
+            InterfaceError,
+        ),
+    ):
+        return True
+    if isinstance(error, DBAPIError):
+        return bool(error.connection_invalidated)
+    # The Discord adapter's refusals carry the HTTP status.
+    status_code = getattr(error, "status_code", None)
+    return isinstance(status_code, int) and (status_code >= 500 or status_code == 429)
+
+
+async def _retrying(attempt: Callable[[], Any], *, what: str, **context) -> Any:
+    """Run `attempt` until it succeeds. A transient error is retried with
+    backoff for up to RETRY_LIMIT_SECONDS; a permanent error, or the transient
+    error that outlasts the limit, is raised."""
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + RETRY_LIMIT_SECONDS
+    delay = RETRY_FIRST_SECONDS
+    while True:
+        try:
+            return await attempt()
+        except Exception as error:
+            if not _is_transient(error) or loop.time() + delay > deadline:
+                raise
+            log.warning(
+                f"[DISCORD] {what} failed; retrying",
+                error_type=type(error).__name__,
+                retry_in=delay,
+                **context,
+            )
+        await asyncio.sleep(delay)
+        delay = min(delay * 2, RETRY_MAX_SECONDS)
 
 
 def _connection_token(connection: ChannelConnection) -> str:
@@ -224,69 +278,37 @@ class DiscordSocket:
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
-    async def ingest(self, body: bytes, *, recovered: bool = False) -> None:
-        """One gateway event through the adapter and the shared step."""
+    async def ingest(self, body: bytes) -> None:
+        """One live event through the adapter and the shared step. Runs in its
+        own task, so the socket keeps reading while it retries."""
 
         try:
-            inbound = await self.adapter.parse_event(
-                body=body, connection=self.connection
-            )
+            await self._ingest_retrying(body)
         except Exception:
-            if recovered:
-                # Stops this channel's pass before its cursor moves past the
-                # message; the next READY reads it again.
-                raise
             log.error(
-                "[DISCORD] event could not be parsed",
+                "[DISCORD] event dropped",
                 connection_id=str(self.connection.id),
                 exc_info=True,
             )
-            return
+
+    async def _ingest_retrying(self, body: bytes) -> None:
+        await _retrying(
+            lambda: self._ingest_once(body),
+            what="event",
+            connection_id=str(self.connection.id),
+        )
+
+    async def _ingest_once(self, body: bytes) -> None:
+        inbound = await self.adapter.parse_event(body=body, connection=self.connection)
         if inbound is None:
             return
         for event in inbound if isinstance(inbound, list) else [inbound]:
-            await self._record_and_enqueue(event, recovered=recovered)
-
-    async def _record_and_enqueue(self, inbound, *, recovered: bool) -> None:
-        """Retry a failed store or a failed enqueue with the same event until
-        both land. The socket keeps reading meanwhile: each live event runs in
-        its own task. A recovery pass waits here, so its cursor never moves
-        past a message that is not stored.
-
-        A recovered message that is already stored was enqueued when the socket
-        delivered it, so recovery enqueues only a row it stores. Once its first
-        try stored the row, a retry enqueues it as the live path does."""
-
-        enqueue_existing = not recovered
-        delay = RETRY_FIRST_SECONDS
-        while True:
-            try:
-                await self.channels_service.record_and_enqueue_inbox_event(
-                    project_id=self.project_id,
-                    connection_id=self.connection.id,
-                    channel=CHANNEL,
-                    inbound=inbound,
-                    enqueue_existing=enqueue_existing,
-                )
-                return
-            except ChannelInboxEnqueueFailed:
-                enqueue_existing = True
-                log.warning(
-                    "[DISCORD] enqueue failed; retrying",
-                    connection_id=str(self.connection.id),
-                    external_id=inbound.external_id,
-                    retry_in=delay,
-                )
-            except Exception:
-                log.error(
-                    "[DISCORD] event could not be stored; retrying",
-                    connection_id=str(self.connection.id),
-                    external_id=inbound.external_id,
-                    retry_in=delay,
-                    exc_info=True,
-                )
-            await asyncio.sleep(delay)
-            delay = min(delay * 2, ENQUEUE_RETRY_MAX_SECONDS)
+            await self.channels_service.record_and_enqueue_inbox_event(
+                project_id=self.project_id,
+                connection_id=self.connection.id,
+                channel=CHANNEL,
+                inbound=event,
+            )
 
     # --- recovery ------------------------------------------------------------ #
 
@@ -327,7 +349,11 @@ class DiscordSocket:
     async def _recover(self, ready_at: datetime) -> None:
         connection_id = str(self.connection.id)
         try:
-            start = await self._recovery_start(ready_at)
+            start = await _retrying(
+                lambda: self._recovery_start(ready_at),
+                what="recovery start read",
+                connection_id=connection_id,
+            )
         except Exception:
             log.error(
                 "[DISCORD] recovery start could not be read",
@@ -339,8 +365,10 @@ class DiscordSocket:
             try:
                 await self._recover_channel(channel_id, after, guild_id)
             except Exception:
-                log.warning(
-                    "[DISCORD] recovery skipped a channel",
+                # A transient error that outlasted the retry limit. The pass
+                # stops this channel rather than read past an unstored message.
+                log.error(
+                    "[DISCORD] recovery stopped a channel",
                     connection_id=connection_id,
                     channel_id=channel_id,
                     exc_info=True,
@@ -349,11 +377,17 @@ class DiscordSocket:
     async def _recover_channel(
         self, channel_id: str, after: str, guild_id: str
     ) -> None:
+        connection_id = str(self.connection.id)
         cursor = after
         while True:
             # Oldest first, so the messages are stored in order.
-            messages: List[Dict[str, Any]] = await self.adapter.fetch_messages_after(
-                connection=self.connection, channel_id=channel_id, after=cursor
+            messages: List[Dict[str, Any]] = await _retrying(
+                lambda: self.adapter.fetch_messages_after(
+                    connection=self.connection, channel_id=channel_id, after=cursor
+                ),
+                what="history read",
+                connection_id=connection_id,
+                channel_id=channel_id,
             )
             if not messages:
                 return
@@ -362,7 +396,21 @@ class DiscordSocket:
                 if guild_id:
                     data["guild_id"] = guild_id
                 body = json.dumps({"t": "MESSAGE_CREATE", "d": data}).encode("utf-8")
-                await self.ingest(body, recovered=True)
+                # A transient error is retried here, so the cursor never moves
+                # past a message that is not stored; one that outlasts the
+                # limit stops the channel. A permanent error skips the message.
+                try:
+                    await self._ingest_retrying(body)
+                except Exception as error:
+                    if _is_transient(error):
+                        raise
+                    log.error(
+                        "[DISCORD] recovered message dropped",
+                        connection_id=connection_id,
+                        channel_id=channel_id,
+                        message_id=str(message.get("id")),
+                        exc_info=True,
+                    )
             cursor = str(messages[-1]["id"])
 
 
