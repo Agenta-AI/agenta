@@ -248,6 +248,26 @@ export const DiscordCustomBot: Story = {
     },
 }
 
+/** Discord: the bot connects, but the invite link does not load. */
+export const DiscordInviteLinkFails: Story = {
+    render: () => (
+        <ConnectFlowHost
+            platform="discord"
+            options={{setup: {discord: DISCORD_SETUP}, discordInviteUrl: null}}
+        />
+    ),
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "Fill the token and connect. The bot connects, but the setup document has no " +
+                    'link, so the flow shows the error and a "Try again" button instead of ' +
+                    "skipping the step.",
+            },
+        },
+    },
+}
+
 /** Discord: the Message Content intent is off, so Agenta refuses the bot. */
 export const DiscordIntentOff: Story = {
     render: () => (
