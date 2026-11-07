@@ -260,3 +260,41 @@ def test_split_of_one_unbroken_word_still_respects_the_limit():
     from oss.src.core.channels.render.render import _split_text
 
     assert _split_text("a" * 25, 10) == ["a" * 10, "a" * 10, "a" * 5]
+
+
+def test_split_moves_a_code_block_that_fits_to_the_next_chunk():
+    from oss.src.core.channels.render.render import _split_text
+
+    # about 600 characters, with blank lines a plain split would cut at
+    block = "```python\n" + ("x = 1\n" * 10 + "\n") * 9 + "```"
+    text = ("word " * 300).strip() + "\n\n" + block + "\n\nafter"
+
+    chunks = _split_text(text, 2000)
+
+    assert block in chunks[1]
+    assert "```" not in chunks[0]
+
+
+def test_split_keeps_a_code_block_that_starts_the_chunk_whole():
+    from oss.src.core.channels.render.render import _split_text
+
+    # about 1,500 characters, then text with no spaces, so the plain split
+    # would cut at a blank line inside the block
+    block = "```\n" + ("x = 1\n" * 20 + "\n") * 12 + "```"
+    text = block + "\n" + "a" * 1000
+
+    chunks = _split_text(text, 2000)
+
+    assert chunks[0] == block
+    assert all(len(chunk) <= 2000 for chunk in chunks)
+
+
+def test_split_still_reopens_a_code_block_longer_than_one_chunk():
+    from oss.src.core.channels.render.render import _split_text
+
+    block = "```\n" + "x = 1\n" * 500 + "```"
+    chunks = _split_text("intro\n\n" + block, 2000)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 2000 for chunk in chunks)
+    assert all(chunk.count("```") % 2 == 0 for chunk in chunks)

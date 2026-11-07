@@ -171,5 +171,9 @@ async def test_an_approval_carries_the_choice_token_and_is_dismissed_once_answer
     )
 
     assert discord.edits == [
-        {"channel_id": p.MESSAGE_ID, "message_id": message["id"], "components": []}
+        {
+            "channel_id": p.MESSAGE_ID,
+            "message_id": message["id"],
+            "components": [],
+        }
     ]
