@@ -67,7 +67,8 @@ export function useComparedScenarios(
                         {projectId, runId: id, order: "ascending", schema: schema ?? NO_SCHEMA},
                         cursor,
                     )
-                    rows.push(...loaded.rows.map((row) => ({...row, index: rows.length + 1})))
+                    const start = rows.length
+                    rows.push(...loaded.rows.map((row, i) => ({...row, index: start + i + 1})))
                     cursor = loaded.nextCursor
                     if (!cursor) break
                 }

@@ -13,6 +13,9 @@ import {deriveEvaluationKind, EVALUATION_KIND_LABELS, type RunKindInput} from ".
 import type {RunListColumns, RunListReferenceColumn} from "./runListColumns"
 import {selectRunMetricStats, type RunStatsMap} from "./runStatsMap"
 
+/** A negative number as the metric cells print it: "-0.5", "-12%", "-1e-7". */
+const PLAIN_NUMBER = /^-\d+(\.\d+)?(e[+-]?\d+)?%?$/i
+
 /**
  * One CSV cell: quoted when it holds a comma, a quote or a line break; quotes doubled. Text that
  * starts with =, +, -, @, a tab or a carriage return gets a leading quote so a spreadsheet does not
@@ -28,7 +31,11 @@ export function csvCell(value: unknown): string {
                 ? String(value)
                 : JSON.stringify(value)
     // A text cell that starts like a formula would run in a spreadsheet: prefix it with a quote.
-    const safe = typeof value === "string" && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+    // A plain number such as "-0.5" or "-12%" stays as it is, so it still reads as a number.
+    const safe =
+        typeof value === "string" && /^[=+\-@\t\r]/.test(text) && !PLAIN_NUMBER.test(text)
+            ? `'${text}`
+            : text
     return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
 }
 

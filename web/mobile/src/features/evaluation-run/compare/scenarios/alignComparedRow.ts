@@ -13,10 +13,11 @@ export function alignComparedRow(
     groups: readonly RunColumnGroup[],
 ): ScenarioRow {
     const own = groups.map(({group}) => group)
+    const base = baseGroups.map(({group}) => group)
     const cells: ScenarioRow["cells"] = {}
     const errors: ScenarioRow["errors"] = {}
-    for (const {group} of baseGroups) {
-        const key = matchCompareGroupKey(group, own)
+    for (const group of base) {
+        const key = matchCompareGroupKey(group, own, base)
         if (!key) continue
         if (row.cells[key]) cells[group.key] = row.cells[key]
         if (row.errors[key]) errors[group.key] = row.errors[key]

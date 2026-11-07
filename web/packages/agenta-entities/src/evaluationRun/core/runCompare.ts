@@ -314,15 +314,19 @@ export function matchCompareRows<T>(
 
 /**
  * The key of the compared run's group that stands for the base run's group: the same key (the
- * same test set, app or evaluator), else the only group of the same kind (another app).
+ * same test set, app or evaluator), else the only group of the same kind (another app) when the
+ * base run also has only one group of that kind. Otherwise two base groups could show the values
+ * of one compared group.
  */
 export function matchCompareGroupKey(
     base: {kind: string; key: string},
     groups: readonly {kind: string; key: string}[],
+    baseGroups: readonly {kind: string; key: string}[],
 ): string | null {
     if (groups.some((group) => group.key === base.key)) return base.key
     const sameKind = groups.filter((group) => group.kind === base.kind)
-    return sameKind.length === 1 ? sameKind[0].key : null
+    const baseSameKind = baseGroups.filter((group) => group.kind === base.kind)
+    return sameKind.length === 1 && baseSameKind.length === 1 ? sameKind[0].key : null
 }
 
 /** What identifies a run's configuration, as the old app compares it. */
