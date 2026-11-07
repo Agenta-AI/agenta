@@ -85,7 +85,7 @@ The loop SHALL let `discord.py` handle heartbeat, resume and reconnect. When Dis
 - **THEN** the other connections' sockets SHALL stay open
 
 ### Requirement: Recovery after a failed resume
-When a socket closes, the loop SHALL take a snapshot of the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours. If the next socket starts with a fresh IDENTIFY, the loop SHALL read Discord history after each snapshot id and pass each message through `parse_event` and `record_and_enqueue_inbox_event`.
+When a socket closes, and before the loop opens a connection's first socket, the loop SHALL take a snapshot of the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours. If the next socket starts with a fresh IDENTIFY, the loop SHALL read Discord history after each snapshot id with the adapter's `fetch_messages_after` and pass each message through `parse_event` and `record_and_enqueue_inbox_event`.
 
 #### Scenario: Messages missed during the gap
 - **WHEN** a socket loses its session, two messages are posted in channel C, and the new socket identifies fresh
@@ -94,6 +94,10 @@ When a socket closes, the loop SHALL take a snapshot of the highest message id p
 #### Scenario: Opening mention is the only recent row in its channel
 - **WHEN** the only recent inbox row from channel C is a mention M whose locator has `channel_id` C, `thread_id` M and `source_channel_id` C, and a second mention is posted in C during the gap
 - **THEN** the loop SHALL group the snapshot by `source_channel_id` C, SHALL read the history of C, and SHALL store and enqueue the second mention
+
+#### Scenario: Holder stops or the lock moves
+- **WHEN** messages are posted while no replica holds the sockets, and a replica then opens the connection's socket
+- **THEN** the loop SHALL take the snapshot before it opens the socket and SHALL recover after the first IDENTIFY, as after any other gap
 
 #### Scenario: Successful resume
 - **WHEN** the socket resumes successfully

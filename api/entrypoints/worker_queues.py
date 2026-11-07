@@ -19,6 +19,9 @@ entrypoint does that setup itself (once, for the whole process) and drives one
 Receiver per selected broker as a sibling asyncio task. See
 docs/designs/workers-sprawl/specs.md for the full writeup.
 
+When channels-inbox is selected, the process also runs the Discord socket loop
+as a sibling task (oss/src/tasks/asyncio/channels/discord_socket.py).
+
 Replaces the removed single-broker queue entrypoints; this is now the sole
 queue-consumer entrypoint.
 """
@@ -124,6 +127,7 @@ from oss.src.core.channels.queue import ChannelSessionQueue
 from oss.src.core.channels.service import ChannelsService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
+from oss.src.tasks.asyncio.channels.discord_socket import DiscordSocketLoop
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
@@ -166,6 +170,9 @@ MAXLEN_QUEUES_CHANNELS_INBOX = 100_000
 
 _WORKER_ID = str(uuid4())
 _worker_heartbeat_task: "asyncio.Task | None" = None
+# The channels-inbox builder's service, with the dispatch task of the worker it
+# builds. The Discord socket loop stores and enqueues through it.
+_channels_inbox_service: "ChannelsService | None" = None
 
 
 def _selected_queues() -> List[str]:
@@ -425,8 +432,9 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         ),
     )
 
+    channels_service = _build_channels_service()
     dispatcher = InboxDispatcher(
-        channels_service=_build_channels_service(),
+        channels_service=channels_service,
         run_admission=run_admission,
         workflows_service=workflows_service,
         identity_service=ChannelIdentityService(
@@ -442,7 +450,10 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
             workflows_service=workflows_service
         ),
     )
-    ChannelsInboxWorker(broker=broker, dispatcher=dispatcher)
+    worker = ChannelsInboxWorker(broker=broker, dispatcher=dispatcher)
+    channels_service.inbox_dispatch_task = worker.dispatch_inbox_event
+    global _channels_inbox_service
+    _channels_inbox_service = channels_service
     return broker, 50  # max_async_tasks
 
 
@@ -659,6 +670,12 @@ async def main_async() -> int:
         for name in queues:
             broker, max_async_tasks = _BUILDERS[name]()
             tasks.append(_run_receiver(name, broker, max_async_tasks, shutdown_event))
+
+        # Discord delivers only over its Gateway socket, so the process that
+        # consumes channels-inbox also holds the Discord sockets, under one lock.
+        if "channels-inbox" in queues:
+            sockets = DiscordSocketLoop(channels_service=_channels_inbox_service)
+            tasks.append(sockets.run(shutdown_event))
 
         # taskiq owns the receive loop, so there is no per-turn place to report from
         # here as there is in the stream consumers. This sibling task reports on an

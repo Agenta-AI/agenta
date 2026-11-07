@@ -1,0 +1,250 @@
+"""Fakes for the Discord socket loop tests: the gateway client, the adapter,
+the channels service and the lock store. The loop is written against the
+adapter interface plus `fetch_messages_after`, so the fake adapter maps a
+`{"t", "d"}` body to an event the way the real one does for these fields."""
+
+import asyncio
+import json
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from uuid import UUID, uuid4
+
+import oss.src.utils.locking as locking
+from oss.src.core.channels.dtos import (
+    ChannelConnection,
+    ChannelConnectionFlags,
+    ChannelEventKind,
+    ChannelInboundEvent,
+    ChannelInboxEvent,
+    ChannelInboxEventData,
+    ChannelInboxEventProcessed,
+    ChannelSpaceKind,
+)
+from oss.src.core.channels.types import ChannelInboxEnqueueFailed, ChannelNotSupported
+from oss.src.tasks.asyncio.channels import discord_socket
+
+
+def frame(event: str, data: Optional[Dict[str, Any]] = None) -> str:
+    return json.dumps({"op": 0, "t": event, "s": 1, "d": data or {}})
+
+
+def message(message_id: str, channel_id: str = "C1", guild_id: str = "G1"):
+    data = {"id": message_id, "channel_id": channel_id, "content": "hi"}
+    if guild_id:
+        data["guild_id"] = guild_id
+    return data
+
+
+def connection(token: str = "token-1", updated_at=None) -> ChannelConnection:
+    return ChannelConnection(
+        id=uuid4(),
+        slug="discord-bot",
+        channel="discord",
+        external_key=uuid4(),
+        updated_at=updated_at or datetime(2026, 11, 7, tzinfo=timezone.utc),
+        flags=ChannelConnectionFlags(is_active=True, is_verified=True),
+        data={"bot_token": token},
+    )
+
+
+class FakeClient:
+    """Stands in for `discord.Client`: `start` blocks until `close`, or raises
+    the next queued failure."""
+
+    instances: List["FakeClient"] = []
+    failures: List[BaseException] = []
+
+    def __init__(self, socket) -> None:
+        self.socket = socket
+        self.tokens: List[str] = []
+        self.closed = asyncio.Event()
+        FakeClient.instances.append(self)
+
+    async def start(self, token: str) -> None:
+        self.tokens.append(token)
+        if FakeClient.failures:
+            raise FakeClient.failures.pop(0)
+        await self.closed.wait()
+
+    async def close(self) -> None:
+        self.closed.set()
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.instances = []
+        cls.failures = []
+
+
+class FakeAdapter:
+    channel = "discord"
+
+    def __init__(self) -> None:
+        # channel id -> the channel's messages, any order
+        self.history: Dict[str, List[Dict[str, Any]]] = {}
+        self.history_reads: List[tuple] = []
+        self.page_size = 100
+
+    async def parse_event(self, *, body: bytes, connection=None, request=None):
+        payload = json.loads(body)
+        data = payload.get("d") or {}
+        if payload.get("t") != "MESSAGE_CREATE" or connection is None:
+            return None
+        guild_id = str(data.get("guild_id") or "")
+        return ChannelInboundEvent(
+            external_id=str(data["id"]),
+            kind=ChannelEventKind.MESSAGE,
+            space_kind=ChannelSpaceKind.TOPIC if guild_id else ChannelSpaceKind.PRIVATE,
+            external_locator={
+                "guild_id": guild_id,
+                "channel_id": data["channel_id"],
+                "thread_id": "",
+                "source_channel_id": data["channel_id"],
+                "message_id": str(data["id"]),
+            },
+            processed=ChannelInboxEventProcessed(
+                content=[{"type": "text", "text": data.get("content", "")}],
+                sender={"id": "U1"},
+                message_ref=str(data["id"]),
+            ),
+            addressed=True,
+        )
+
+    async def fetch_messages_after(self, *, connection, channel_id: str, after: str):
+        self.history_reads.append((channel_id, after))
+        newer = [
+            m for m in self.history.get(channel_id, []) if int(m["id"]) > int(after)
+        ]
+        newer.sort(key=lambda m: int(m["id"]))
+        # Discord answers newest first.
+        return list(reversed(newer[: self.page_size]))
+
+
+class FakeRegistry:
+    def __init__(self, adapter: Optional[FakeAdapter]) -> None:
+        self.adapter = adapter
+
+    def get(self, channel: str):
+        if self.adapter is None:
+            raise ChannelNotSupported(channel=channel)
+        return self.adapter
+
+
+class FakeChannelsService:
+    def __init__(self, adapter: Optional[FakeAdapter] = None) -> None:
+        self.adapter_registry = FakeRegistry(adapter or FakeAdapter())
+        self.project_id = uuid4()
+        # connection id -> the connection, hydrated
+        self.connections: Dict[UUID, ChannelConnection] = {}
+        self.fetches: List[UUID] = []
+        # (connection id, external id) -> the stored row
+        self.rows: Dict[tuple, ChannelInboxEvent] = {}
+        self.enqueued: List[str] = []
+        self.attempts: List[str] = []
+        self.fail_enqueues = 0
+        self.snapshot_queries = 0
+
+    def add(self, conn: ChannelConnection) -> ChannelConnection:
+        self.connections[conn.id] = conn
+        return conn
+
+    def store_row(self, conn: ChannelConnection, inbound: ChannelInboundEvent):
+        key = (conn.id, inbound.external_id)
+        if key in self.rows:
+            return None
+        row = ChannelInboxEvent(
+            id=uuid4(),
+            connection_id=conn.id,
+            external_id=inbound.external_id,
+            kind=inbound.kind,
+            origin=inbound.origin,
+            data=ChannelInboxEventData(
+                external_locator=inbound.external_locator,
+                processed=inbound.processed,
+                space_kind=inbound.space_kind,
+                addressed=inbound.addressed,
+            ),
+        )
+        self.rows[key] = row
+        return row
+
+    async def query_active_connections(self, *, channel: str):
+        return [(self.project_id, conn) for conn in self.connections.values()]
+
+    async def fetch_connection(self, *, project_id, connection_id):
+        self.fetches.append(connection_id)
+        return self.connections.get(connection_id)
+
+    async def record_and_enqueue_inbox_event(
+        self, *, project_id, connection_id, channel, inbound
+    ):
+        self.attempts.append(inbound.external_id)
+        self.store_row(self.connections[connection_id], inbound)
+        if self.fail_enqueues > 0:
+            self.fail_enqueues -= 1
+            raise ChannelInboxEnqueueFailed(
+                channel=channel, external_id=inbound.external_id
+            )
+        self.enqueued.append(inbound.external_id)
+
+    async def query_inbox_events(self, *, project_id, event=None, windowing=None):
+        self.snapshot_queries += 1
+        return [
+            row
+            for row in self.rows.values()
+            if row.connection_id == event.connection_id
+            and row.kind == event.kind
+            and row.origin == event.origin
+        ]
+
+
+class FakeLocks:
+    """An in-memory lock store with the `locking` helpers' semantics."""
+
+    def __init__(self) -> None:
+        self.owners: Dict[str, str] = {}
+        self.renew_ok = True
+        self.released: List[str] = []
+
+    def install(self, monkeypatch) -> "FakeLocks":
+        monkeypatch.setattr(locking, "acquire_lock", self.acquire)
+        monkeypatch.setattr(locking, "renew_lock", self.renew)
+        monkeypatch.setattr(locking, "release_lock", self.release)
+        return self
+
+    async def acquire(self, namespace, key=None, ttl=None, **_):
+        name = f"{namespace}:{key}"
+        if name in self.owners:
+            return None
+        owner = uuid4().hex
+        self.owners[name] = owner
+        return owner
+
+    async def renew(self, namespace, key=None, ttl=None, owner=None, **_):
+        name = f"{namespace}:{key}"
+        return self.renew_ok and self.owners.get(name) == owner
+
+    async def release(self, namespace, key=None, owner=None, **_):
+        name = f"{namespace}:{key}"
+        if self.owners.get(name) == owner:
+            del self.owners[name]
+            self.released.append(owner)
+            return True
+        return False
+
+
+def fast(monkeypatch, tick: float = 0.01) -> None:
+    monkeypatch.setattr(discord_socket, "TICK_SECONDS", tick)
+    monkeypatch.setattr(discord_socket, "RETRY_FIRST_SECONDS", tick)
+
+
+async def settle(rounds: int = 20) -> None:
+    for _ in range(rounds):
+        await asyncio.sleep(0)
+
+
+async def until(condition, timeout: float = 2.0) -> None:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while not condition():
+        if asyncio.get_running_loop().time() > deadline:
+            raise AssertionError("condition not reached")
+        await asyncio.sleep(0.005)

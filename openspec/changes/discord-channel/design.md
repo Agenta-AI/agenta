@@ -148,7 +148,7 @@ Each button's `custom_id` is the choice token the outbox already builds, `<inter
 
 ### D9. Recovery after a failed resume reads inbox rows, not a stored cursor
 
-No cursor is stored. When a socket closes, the loop takes a snapshot: for each channel, the highest Discord message id among the connection's inbox rows of the last 24 hours with origin `PUSHED` and kind `message`, read through `ChannelInboxEventQuery` and `Windowing`, grouped by `source_channel_id` in `external_locator` and compared as integers. If the next socket starts with a fresh IDENTIFY instead of a resume, the loop reads Discord history after the snapshot id for each channel and passes each message through `parse_event` and `record_and_enqueue_inbox_event`. Those rows use origin `PUSHED`, because they are live messages that arrived late. The unique constraint drops anything the socket already delivered. The same snapshot is used for the whole recovery attempt, retries included, so a live message stored after reconnect cannot hide an earlier missed one.
+No cursor is stored. When a socket closes, and before a connection's first socket opens (after a restart or a lock takeover), the loop takes a snapshot: for each channel, the highest Discord message id among the connection's inbox rows of the last 24 hours with origin `PUSHED` and kind `message`, read through `ChannelInboxEventQuery` and `Windowing`, grouped by `source_channel_id` in `external_locator` and compared as integers. If the next socket starts with a fresh IDENTIFY instead of a resume, the loop reads Discord history after the snapshot id for each channel, through the adapter's `fetch_messages_after`, and passes each message through `parse_event` and `record_and_enqueue_inbox_event`. Those rows use origin `PUSHED`, because they are live messages that arrived late. The unique constraint drops anything the socket already delivered. The same snapshot is used for the whole recovery attempt, retries included, so a live message stored after reconnect cannot hide an earlier missed one.
 
 | Option | Trade-off |
 | --- | --- |
@@ -260,6 +260,7 @@ It lives in `api/oss/src/core/channels/types.py` with the other channels errors 
 | `signal_activity` | `POST /channels/{thread_id or channel_id}/typing`. |
 | `set_message_status` | Adds a reaction, in `source_channel_id`, to the user's message on `received` and changes it on `completed` or `failed`, as Slack does. |
 | `discover_spaces`, `fetch_history` | `discover_spaces` returns nothing. `fetch_history` reads `GET /channels/{channel_id}/messages`. |
+| `fetch_messages_after` (Discord only, for recovery) | One page of `GET /channels/{channel_id}/messages?after=<id>&limit=100`, as raw message objects. The socket loop pages forward and feeds each one to `parse_event`. |
 | `revoke_installation` | Returns `None`. The user removes the bot in Discord. |
 
 ## Risks / Trade-offs

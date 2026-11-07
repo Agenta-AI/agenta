@@ -28,17 +28,17 @@ Parallel work: M1 and the core half of M2 (group 2) can start at the same time, 
 ## 3. M2 loop: socket loop in worker-queues (PR 2, after group 2)
 
 - [x] 3.1 Add `discord.py==2.7.1` to `api/pyproject.toml` and update `api/uv.lock`.
-- [ ] 3.2 Add the socket loop module `api/oss/src/tasks/asyncio/channels/discord_socket.py` with the lock (`channels`, `discord:sockets`), renew and release, the reload on a short interval, one `discord.py` client per connection, and close on lock loss.
-- [ ] 3.3 Feed each dispatch through `parse_event` and `record_and_enqueue_inbox_event`; retry `ChannelInboxEnqueueFailed` for the same event with backoff while the socket keeps reading.
-- [ ] 3.4 Handle close code `4014` with an error log and backoff.
-- [ ] 3.5 Start the loop in `worker_queues.main_async` when `channels-inbox` is selected, keep the `ChannelsInboxWorker` reference, and set `inbox_dispatch_task` on the loop's `ChannelsService`. Stop the loop on shutdown.
-- [ ] 3.6 Unit tests under `api/oss/tests/pytest/unit/channels/discord/`: `test_discord_socket_lock.py` (one holder, lock loss closes sockets), `test_discord_socket_reload.py` (open, restart on token change, close on archive), `test_discord_socket_enqueue_retry.py` (same `external_id` retried, reading continues), and a `worker_queues` test that the loop starts only with `channels-inbox`.
+- [x] 3.2 Add the socket loop module `api/oss/src/tasks/asyncio/channels/discord_socket.py` with the lock (`channels`, `discord:sockets`), renew and release, the reload on a short interval, one `discord.py` client per connection, and close on lock loss.
+- [x] 3.3 Feed each dispatch through `parse_event` and `record_and_enqueue_inbox_event`; retry `ChannelInboxEnqueueFailed` for the same event with backoff while the socket keeps reading.
+- [x] 3.4 Handle close code `4014` with an error log and backoff.
+- [x] 3.5 Start the loop in `worker_queues.main_async` when `channels-inbox` is selected, keep the `ChannelsInboxWorker` reference, and set `inbox_dispatch_task` on the loop's `ChannelsService`. Stop the loop on shutdown.
+- [x] 3.6 Unit tests under `api/oss/tests/pytest/unit/channels/discord/`: `test_discord_socket_lock.py` (one holder, lock loss closes sockets), `test_discord_socket_reload.py` (open, restart on token change, close on archive), `test_discord_socket_enqueue_retry.py` (same `external_id` retried, reading continues), and a `worker_queues` test that the loop starts only with `channels-inbox`.
 
 ## 4. M4: recovery after a failed resume (ships with M2, after group 3)
 
-- [ ] 4.1 Take the per-channel snapshot when a socket closes, from `PUSHED` message rows of the last 24 hours, grouped by `source_channel_id`, with snowflakes compared as integers.
-- [ ] 4.2 After a fresh IDENTIFY, read `GET /channels/{source_channel_id}/messages?after=<snapshot id>` for each channel, page forward, and pass each message through the shared path with origin `PUSHED`. Reuse the snapshot across retries. Skip recovery after a successful resume.
-- [ ] 4.3 Unit tests in `test_discord_recovery.py`: missed messages are stored and enqueued, a live message stored first does not hide an earlier missed one, duplicates are dropped, a resume skips recovery, quiet channels are skipped.
+- [x] 4.1 Take the per-channel snapshot when a socket closes, and before a connection's first socket opens, from `PUSHED` message rows of the last 24 hours, grouped by `source_channel_id`, with snowflakes compared as integers.
+- [ ] 4.2 After a fresh IDENTIFY, read `GET /channels/{source_channel_id}/messages?after=<snapshot id>` for each channel through a new `DiscordAdapter.fetch_messages_after`, page forward, and pass each message through the shared path with origin `PUSHED`. Reuse the snapshot across retries. Skip recovery after a successful resume.
+- [x] 4.3 Unit tests in `test_discord_recovery.py`: missed messages are stored and enqueued, a live message stored first does not hide an earlier missed one, duplicates are dropped, a resume skips recovery, quiet channels are skipped.
 
 ## 5. M3: setup screen in /m (PR 3, after 1.1 and 1.3 are merged)
 
@@ -52,7 +52,7 @@ Parallel work: M1 and the core half of M2 (group 2) can start at the same time, 
 
 - [ ] 6.1 Add `docs/docs/guides/15-connect-discord.mdx`: create the application and bot, turn on the Message Content intent, paste the token, invite the bot, and how the agent answers in DMs, mentions and threads. Follow the `write-docs` skill.
 - [ ] 6.2 Update `docs/design/channels-research/v2/channels.md` Discord section with the v1 declaration and the verified values in design.md.
-- [ ] 6.3 Update `docs/docs/self-host/concepts/01-architecture.mdx` (worker-queues and Channel Messages) to say that `worker-queues` also holds the Discord sockets when `channels-inbox` is selected.
+- [x] 6.3 Update `docs/docs/self-host/concepts/01-architecture.mdx` (worker-queues and Channel Messages) to say that `worker-queues` also holds the Discord sockets when `channels-inbox` is selected.
 
 ## 7. Live QA (after M2, M3 and M4 are deployed together)
 
