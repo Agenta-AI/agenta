@@ -26,7 +26,8 @@ import {
     organizationRefusal,
     type OrganizationConnectionScope,
 } from "@agenta/entity-ui/secretProvider"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -68,7 +69,7 @@ const rowDescription = (
         .join(" · ")
 
 const EmptyNote = ({manage}: {manage: boolean}) => {
-    const t = useT()
+    const t = useT(settingsProvidersCatalog)
     return (
         <div className="flex flex-col gap-0.5">
             <span className="text-[14.5px] font-medium leading-5 text-foreground">
@@ -97,7 +98,7 @@ export interface OrganizationProvidersGroup {
 export const useOrganizationProvidersGroup = (
     scope: Omit<OrganizationConnectionScope, "readOnly" | "projects"> | null,
 ): OrganizationProvidersGroup => {
-    const t = useT()
+    const t = useT(settingsProvidersCatalog)
     const access = useAtomValue(organizationConnectionsAccessAtom)
     const query = useAtomValue(organizationSecretsQueryAtom)
     // A member's rows come from the project's vault read, so its state is theirs to show.

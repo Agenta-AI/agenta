@@ -1,5 +1,7 @@
-import type {TranslationKey} from "@agenta/i18n"
-import {t} from "@agenta/i18n/navigation"
+import {createT, type CatalogKey} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
+
+const t = createT(navigationCatalog)
 
 export const DEFAULT_SETTINGS_TAB = "workspace"
 
@@ -53,7 +55,7 @@ export interface SettingsTabDocs {
 }
 
 interface SettingsTabDocsDefinition {
-    labelKey: TranslationKey<"navigation">
+    labelKey: CatalogKey<typeof navigationCatalog>
     href: string
 }
 
@@ -66,7 +68,7 @@ export interface SettingsTabDefinition {
      * One sentence explaining what the page is for. Required so a new tab cannot ship
      * without one — every settings page renders this under its title.
      */
-    descriptionKey: TranslationKey<"navigation">
+    descriptionKey: CatalogKey<typeof navigationCatalog>
     /** Overrides `descriptionKey` when the copy depends on entitlements. */
     getDescription?: (access: SettingsAccess) => string
     docs?: SettingsTabDocsDefinition
@@ -203,7 +205,10 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     },
 ]
 
-export const SETTINGS_SCOPES: {key: SettingsScopeKey; titleKey: TranslationKey<"navigation">}[] = [
+export const SETTINGS_SCOPES: {
+    key: SettingsScopeKey
+    titleKey: CatalogKey<typeof navigationCatalog>
+}[] = [
     // What agents connect to, whoever owns it; the `?tab=` links are the same as before.
     {key: "connections", titleKey: "navigation.settings.scopeConnections"},
     {key: "project", titleKey: "navigation.settings.scopeProject"},
@@ -211,7 +216,10 @@ export const SETTINGS_SCOPES: {key: SettingsScopeKey; titleKey: TranslationKey<"
     {key: "personal", titleKey: "navigation.settings.scopePersonal"},
 ]
 
-const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, TranslationKey<"navigation">> = {
+const SETTINGS_LABELS: Record<
+    Exclude<SettingsTabKey, "billing">,
+    CatalogKey<typeof navigationCatalog>
+> = {
     apiKeys: "navigation.settings.apiKeys",
     secrets: "navigation.settings.secrets",
     // The tab key stays `llms` so existing `?tab=llms` links keep working.

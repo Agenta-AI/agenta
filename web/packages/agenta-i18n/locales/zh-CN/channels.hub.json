@@ -1,0 +1,10 @@
+{
+    "apiAlwaysOn": "已保存的版本始终可用",
+    "apiSaveFirst": "保存 Agent 后即可调用",
+    "botsConnected_other": "已连接 {{count}} 个机器人",
+    "embed": "嵌入",
+    "embedDescription": "网站上的对话窗口",
+    "numbersConnected_other": "已连接 {{count}} 个号码",
+    "thisAgent": "此 Agent",
+    "workspacesConnected_other": "已连接 {{count}} 个工作区"
+}

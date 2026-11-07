@@ -1,0 +1,15 @@
+{
+    "accessTokenRejected": "访问令牌被拒绝",
+    "accessTokenRejectedUpdate": "访问令牌被拒绝 · 请更新",
+    "appUninstalled": "应用已卸载 · 请重新连接",
+    "botRemoved_other": "机器人已被移出 {{count}} 个频道",
+    "botTokenRevoked": "机器人令牌已撤销",
+    "botTokenRevokedUpdate": "机器人令牌已撤销 · 请更新",
+    "connectedTo": "已连接到 {{agent}}",
+    "pending": "尚未关联 · 请完成连接",
+    "placesAndDms": "{{places}} + 私信",
+    "slackIdle": "在团队的工作区中与 Agent 聊天",
+    "telegramIdle": "在手机上与 Agent 聊天",
+    "unassigned": "尚未以任何 Agent 身份回复 · 连接到这里",
+    "whatsappIdle": "回复发送到你的 WhatsApp Business 号码的消息"
+}

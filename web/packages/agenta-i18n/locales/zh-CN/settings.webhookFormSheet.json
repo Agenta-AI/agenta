@@ -1,0 +1,20 @@
+{
+    "alsoSubscribed_other": "还订阅了 {{count}} 个此处无法显示的事件。除非你在此选择其他事件，否则它们会被保留。",
+    "authentication": "身份验证",
+    "authorizationHeader": "Authorization 请求头",
+    "authorizationHint": "在每个请求中作为 Authorization 请求头发送。",
+    "configurationDeployed": "配置已部署",
+    "description": "Agenta 会将事件发送到你的端点，失败时会重试。",
+    "editTitle": "编辑订阅",
+    "endpointUrl": "端点 URL",
+    "event": "事件",
+    "headerValue": "请求头值",
+    "headerValueHint": "留空则保留已保存的值。",
+    "nameHint": "可选，用于在列表中显示该订阅。",
+    "namePlaceholder": "部署通知",
+    "saveFailed": "无法保存订阅",
+    "saving": "正在保存…",
+    "signatureHint": "Agenta 会用密钥为每个请求签名，该密钥在订阅后只显示一次。",
+    "signedPayload": "签名负载",
+    "subscribe": "订阅"
+}

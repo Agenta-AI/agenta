@@ -4,8 +4,11 @@
  */
 
 import type {PersonalAccountsAccess} from "@agenta/entities/secret"
-import {t} from "@agenta/i18n/settings"
+import {createT} from "@agenta/i18n"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import type {OwnerKind} from "@agenta/shared/types"
+
+const t = createT(settingsSharedCatalog)
 
 /** Whose account a Settings page adds: the person's own, or the current project's. */
 type AccountOwner = Exclude<OwnerKind, "organization">

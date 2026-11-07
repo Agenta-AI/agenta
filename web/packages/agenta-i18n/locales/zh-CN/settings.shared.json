@@ -1,0 +1,11 @@
+{
+    "notUsedByAnyAgent": "未被任何 Agent 使用",
+    "reload": "重新加载",
+    "renameFailed": "无法重命名",
+    "rowActions": "行操作",
+    "usedBy": "使用者：{{names}}",
+    "yours": "我的",
+    "yoursEmptyBody": "当 Agent 使用每个人自己的账号时，你在这里添加的账号会用于你的所有项目。",
+    "yoursEmptyBodyCount": "当 Agent 使用每个人自己的账号时，你在这里添加的账号会用于你的全部 {{projectCount}} 个项目。",
+    "yoursEmptyTitle": "你还没有自己的账号"
+}

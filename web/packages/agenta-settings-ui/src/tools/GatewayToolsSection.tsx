@@ -22,8 +22,10 @@ import {
     ToolExecutionDrawer,
     useRefreshToolConnection,
 } from "@agenta/entity-ui/gatewayTool"
-import {type TranslationKey} from "@agenta/i18n"
-import {t as translate, useT} from "@agenta/i18n/settings"
+import {useT, createT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
+import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {connectionDisplayName} from "@agenta/shared/utils"
@@ -51,7 +53,13 @@ import {categoryLabel} from "./categoryLabel"
 import {useToolsIntegrations, type CatalogIntegrationItem} from "./hooks/useToolsIntegrations"
 import {IntegrationCatalog, IntegrationLogo} from "./IntegrationCatalog"
 
-const AUTH_SCHEME_LABELS: Record<string, TranslationKey<"common" | "settings"> | "OAuth"> = {
+const tNow = createT(commonCatalog, settingsSharedCatalog, settingsToolsCatalog)
+
+const AUTH_SCHEME_LABELS: Record<
+    string,
+    | CatalogKey<typeof commonCatalog | typeof settingsSharedCatalog | typeof settingsToolsCatalog>
+    | "OAuth"
+> = {
     oauth: "OAuth",
     api_key: "settings.tools.apiKey",
 }
@@ -81,15 +89,15 @@ const connectionStatus = (
     if (!isConnectionActive(connection))
         return {status: "attention", statusLabel: t("settings.tools.inactive")}
     if (!isConnectionValid(connection))
-        return {status: "attention", statusLabel: t("settings.tools.pending")}
-    return {status: "connected", statusLabel: t("settings.tools.connected")}
+        return {status: "attention", statusLabel: t("common.pending")}
+    return {status: "connected", statusLabel: t("common.connected")}
 }
 
 const authLabel = (connection: ToolConnection): string | undefined => {
     const scheme = connection.data?.auth_scheme
     if (typeof scheme !== "string") return undefined
     const label = AUTH_SCHEME_LABELS[scheme]
-    return label === undefined ? scheme : label === "OAuth" ? label : translate(label)
+    return label === undefined ? scheme : label === "OAuth" ? label : tNow(label)
 }
 
 /** A connection's catalog entry: from the first page when there, else its cached detail. */
@@ -147,7 +155,7 @@ const ConnectionDescription = ({
     /** The person's default for this app: "Gmail · OAuth · Default". */
     isDefault?: boolean
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsSharedCatalog, settingsToolsCatalog)
     const entry = useCatalogEntry(integrationKey, known)
     return (
         <>
@@ -199,7 +207,7 @@ export default function GatewayToolsSection({
     projectCount,
     canEdit = true,
 }: GatewayToolsSectionProps) {
-    const t = useT()
+    const t = useT(commonCatalog, settingsSharedCatalog, settingsToolsCatalog)
     const copy = useMemo<GatewayToolsSectionCopy>(
         () => ({...defaultCopy(t), ...copyOverrides}),
         [copyOverrides, t],
@@ -417,7 +425,7 @@ export default function GatewayToolsSection({
         const yoursItems = yours ? toItems(personalConnections ?? [], true) : []
         const projectGroup: SettingsCatalogGroup = {
             key: "connected",
-            label: projectSwitch ?? t("settings.tools.connected"),
+            label: projectSwitch ?? t("common.connected"),
             items: toItems(connections ?? [], false),
             // Under the project switch the group never folds and stays when empty, except in a search.
             ...(projectSwitch

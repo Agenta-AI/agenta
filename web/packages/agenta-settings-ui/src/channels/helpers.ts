@@ -1,5 +1,7 @@
-import {formatDate} from "@agenta/i18n"
-import {t} from "@agenta/i18n/channels"
+import {formatDate, createT} from "@agenta/i18n"
+import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
+import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
+import channelsStatusCatalog from "@agenta/i18n/catalogs/channels.status"
 
 import {channelSharingCopy} from "./sharingCopy"
 import type {
@@ -11,6 +13,8 @@ import type {
     ChannelsActions,
     ChannelToolSettings,
 } from "./types"
+
+const t = createT(channelsActionsCatalog, channelsLabelsCatalog, channelsStatusCatalog)
 
 /** A multi-line row built on Button: left-aligned, wrapping, sized by its content. */
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"

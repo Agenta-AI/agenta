@@ -1,6 +1,8 @@
-import {type TranslationKey} from "@agenta/i18n"
-import {t} from "@agenta/i18n/billing"
+import {createT, type CatalogKey} from "@agenta/i18n"
+import billingPlanLimitsCatalog from "@agenta/i18n/catalogs/billing.planLimits"
 import type {BillingUsage, BillingUsageMetric} from "@agenta/settings-ui"
+
+const t = createT(billingPlanLimitsCatalog)
 
 export type PlanLimitKey =
     | "concurrent_tasks"
@@ -40,7 +42,7 @@ const count = (n: number) => n.toLocaleString("en-US")
 /** Each limit tile, in the order the grid shows them; a key the API does not send is skipped. */
 const LIMITS: {
     key: PlanLimitKey
-    label: TranslationKey<"billing" | "common">
+    label: CatalogKey<typeof billingPlanLimitsCatalog>
     read: (m: NonNullable<ReturnType<typeof readMetric>>) => Omit<PlanLimit, "key" | "label">
 }[] = [
     {

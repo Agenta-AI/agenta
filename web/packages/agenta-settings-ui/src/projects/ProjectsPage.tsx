@@ -2,7 +2,9 @@ import {useCallback, useMemo, useState} from "react"
 
 import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
 import type {ProjectsResponse} from "@agenta/entities/project"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsProjectsCatalog from "@agenta/i18n/catalogs/settings.projects"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
@@ -43,7 +45,7 @@ interface ProjectRow extends ProjectsResponse {
 }
 
 const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
-    {key: "project_name", label: t("settings.projects.project"), width: "minmax(0,2fr)"},
+    {key: "project_name", label: t("common.project"), width: "minmax(0,2fr)"},
     {key: "status", label: t("common.status"), width: "minmax(0,1fr)"},
     {key: "user_role", label: t("common.yourRole"), width: "minmax(0,1fr)"},
     {key: "actions", label: t("common.actions"), srOnly: true, width: "32px"},
@@ -99,7 +101,7 @@ export const ProjectsPage = ({
     canDelete,
     onChanged,
 }: ProjectsPageProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsProjectsCatalog)
     const queryClient = useQueryClient()
 
     const [isCreateModalOpen, setCreateModalOpen] = useState(false)

@@ -1,5 +1,5 @@
-import type {TranslationKey} from "@agenta/i18n"
-import {t, type useT} from "@agenta/i18n/navigation"
+import {createT, type CatalogKey} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     getSettingsTabDescription,
     getSettingsTabDocs,
@@ -9,20 +9,23 @@ import {
     type SettingsTabKey,
 } from "@agenta/settings"
 
+const t = createT(navigationCatalog)
+
 /** This app says "Integrations" where the shared copy says "Tools", which oss/ee still use. */
-const TAB_LABELS: Partial<Record<SettingsTabKey, TranslationKey<"navigation">>> = {
+const TAB_LABELS: Partial<Record<SettingsTabKey, CatalogKey<typeof navigationCatalog>>> = {
     tools: "navigation.settings.integrationsLabel",
 }
 
-const TAB_DESCRIPTIONS: Partial<Record<SettingsTabKey, TranslationKey<"navigation">>> = {
+const TAB_DESCRIPTIONS: Partial<Record<SettingsTabKey, CatalogKey<typeof navigationCatalog>>> = {
     tools: "navigation.settings.integrationsDescription",
 }
 
-const TAB_DOCS_LABELS: Partial<Record<SettingsTabKey, TranslationKey<"navigation">>> = {
+const TAB_DOCS_LABELS: Partial<Record<SettingsTabKey, CatalogKey<typeof navigationCatalog>>> = {
     tools: "navigation.settings.integrationsDocs",
 }
 
-const relabel = (key: TranslationKey<"navigation"> | undefined) => (key ? t(key) : undefined)
+const relabel = (key: CatalogKey<typeof navigationCatalog> | undefined) =>
+    key ? t(key) : undefined
 
 export const getMobileSettingsTabLabel = (key: SettingsTabKey, access: SettingsAccess) =>
     relabel(TAB_LABELS[key]) ?? getSettingsTabLabel(key, access)
@@ -36,7 +39,7 @@ export const getMobileSettingsTabDocs = (key: SettingsTabKey): SettingsTabDocs |
     return docs && label ? {...docs, label} : docs
 }
 
-type Translate = ReturnType<typeof useT>
+type Translate = typeof t
 
 /** Relabels sidebar/rail entries in place, so both nav surfaces read the same as the page. */
 export const withMobileSettingsLabels = <T extends {key: SettingsTabKey; title: string}>(

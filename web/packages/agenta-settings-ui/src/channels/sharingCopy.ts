@@ -4,7 +4,10 @@
  * placeholder here, so for Slack each string is the deck's own. Placeholders are functions.
  */
 import {joinNames} from "@agenta/entity-ui/sharing"
-import {t} from "@agenta/i18n/channels"
+import {createT} from "@agenta/i18n"
+import channelsSharingCatalog from "@agenta/i18n/catalogs/channels.sharing"
+
+const t = createT(channelsSharingCatalog)
 
 export const channelSharingCopy = {
     // Settings > Channels, the agent step.

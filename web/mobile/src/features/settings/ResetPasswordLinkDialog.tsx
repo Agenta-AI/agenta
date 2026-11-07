@@ -1,7 +1,9 @@
 import {useEffect, useRef, useState} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsResetPasswordLinkDialogCatalog from "@agenta/i18n/catalogs/settings.resetPasswordLinkDialog"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {
     Button,
@@ -38,7 +40,7 @@ export const ResetPasswordLinkDialog = ({
     onRequest,
     onClose,
 }: ResetPasswordLinkDialogProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsResetPasswordLinkDialogCatalog)
     const [link, setLink] = useState<string | null>(null)
     const [emailed, setEmailed] = useState(false)
     const [error, setError] = useState<string | null>(null)

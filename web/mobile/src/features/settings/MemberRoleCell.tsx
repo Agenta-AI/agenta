@@ -1,5 +1,6 @@
 import type {WorkspaceMember} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Select,
     SelectContent,
@@ -40,7 +41,7 @@ export const MemberRoleCell = ({
     pending?: boolean
     onChange: (role: string) => void
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog)
     const role = memberRole(member)
     const joined = member.user.status === "member"
 

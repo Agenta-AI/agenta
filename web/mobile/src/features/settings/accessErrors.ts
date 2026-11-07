@@ -1,4 +1,7 @@
-import {t} from "@agenta/i18n/settings"
+import {createT} from "@agenta/i18n"
+import settingsAccessErrorsCatalog from "@agenta/i18n/catalogs/settings.accessErrors"
+
+const t = createT(settingsAccessErrorsCatalog)
 
 /** Plain-language message for a failed access action. The server text is never shown. */
 export const plainAccessError = (error: unknown, fallback: string): string => {

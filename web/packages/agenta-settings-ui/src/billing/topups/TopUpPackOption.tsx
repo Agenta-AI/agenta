@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
 import {RadioGroupItem} from "@agenta/ui/ui"
 
 import type {TopUpPack} from "./api"
@@ -6,7 +7,7 @@ import {formatCreditCount, formatPackPrice} from "./topUpRules"
 
 /** One pack in the picker: its credits and its price, the whole row selectable. */
 export const TopUpPackOption = ({pack, disabled}: {pack: TopUpPack; disabled?: boolean}) => {
-    const t = useT()
+    const t = useT(billingTopupsCatalog)
     const id = `topup-pack-${pack.code}`
     return (
         <label

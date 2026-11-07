@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
 import {Alert} from "@agenta/ui/ui"
 
 import {TopUpPaymentNotice} from "./TopUpPaymentNotice"
@@ -14,7 +15,7 @@ export const TopUpReturnNotice = ({
     topUpReturn: Exclude<TopUpReturn, null>
     onClose: () => void
 }) => {
-    const t = useT()
+    const t = useT(billingTopupsCatalog)
     if (topUpReturn.result === "cancelled")
         return (
             <Alert

@@ -17,8 +17,9 @@ import {
     type OrganizationConnectionScope,
     type ProviderOwnerChoice,
 } from "@agenta/entity-ui/secretProvider"
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
 
 import {
@@ -97,7 +98,10 @@ const subscriptionProviderOf = (connection: ProviderConnection): SubscriptionPro
 }
 
 /** What a credential-set kind's form asks for, read off its fields in `providerFields.ts`. */
-const FORM_FIELDS_BY_KIND: Record<string, TranslationKey<"common" | "settings">> = {
+const FORM_FIELDS_BY_KIND: Record<
+    string,
+    CatalogKey<typeof commonCatalog | typeof settingsProvidersCatalog>
+> = {
     bedrock: "settings.providers.bedrockFields",
     azure: "settings.providers.azureFields",
     vertex_ai: "settings.providers.vertexFields",
@@ -129,7 +133,10 @@ const SUBSCRIPTION_LOGO_KIND: Record<SubscriptionProvider, string> = {
     claude: "anthropic",
 }
 /** The cards' line for a sign-in not made yet. */
-const SUBSCRIPTION_HINT: Record<SubscriptionProvider, TranslationKey<"common" | "settings">> = {
+const SUBSCRIPTION_HINT: Record<
+    SubscriptionProvider,
+    CatalogKey<typeof commonCatalog | typeof settingsProvidersCatalog>
+> = {
     chatgpt: "settings.providers.chatgptHint",
     claude: "settings.providers.claudeHint",
 }
@@ -160,10 +167,10 @@ const subscriptionPlans = (
             brand: "neutral",
             action: {
                 label: chatgptConnected
-                    ? t("settings.providers.manage")
+                    ? t("common.manage")
                     : broken
                       ? t("settings.providers.signInAgain")
-                      : t("settings.providers.connect"),
+                      : t("common.connect"),
                 onClick: () => open("chatgpt"),
             },
         },
@@ -171,15 +178,11 @@ const subscriptionPlans = (
             key: "claude",
             logo: <ProviderLogo kind="anthropic" />,
             name: CLAUDE_NAME,
-            detail: claudeConnected
-                ? t("settings.providers.connected")
-                : t(SUBSCRIPTION_HINT.claude),
+            detail: claudeConnected ? t("common.connected") : t(SUBSCRIPTION_HINT.claude),
             state: claudeConnected ? "connected" : "available",
             brand: "clay",
             action: {
-                label: claudeConnected
-                    ? t("settings.providers.manage")
-                    : t("settings.providers.connect"),
+                label: claudeConnected ? t("common.manage") : t("common.connect"),
                 onClick: () => open("claude"),
             },
         },
@@ -207,7 +210,7 @@ export const ProvidersPanel = ({
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     subscriptionDocsUrl: string
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsProvidersCatalog)
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
     const drawerGroup =
         (drawerTarget && "groupKey" in drawerTarget
@@ -292,7 +295,7 @@ export const ProvidersPanel = ({
                 name: connection.name,
                 description: source.describe(connection),
                 status: "connected",
-                statusLabel: t("settings.providers.connected"),
+                statusLabel: t("common.connected"),
                 onOpen: (source.canOpen?.(connection) ?? true) ? () => open(connection) : undefined,
                 menu: source.manage ? (
                     <SettingsRowMenu

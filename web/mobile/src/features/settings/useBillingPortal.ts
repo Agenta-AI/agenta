@@ -1,7 +1,10 @@
 import {useState} from "react"
 
-import {t} from "@agenta/i18n/billing"
+import {createT} from "@agenta/i18n"
+import billingUseBillingPortalCatalog from "@agenta/i18n/catalogs/billing.useBillingPortal"
 import {openBillingPortal} from "@agenta/settings-ui"
+
+const t = createT(billingUseBillingPortalCatalog)
 
 /** Opens Stripe's billing portal in this tab: a popup after an await is blocked on phones. */
 export const useBillingPortal = (projectId: string) => {

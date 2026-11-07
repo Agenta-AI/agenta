@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
 
@@ -31,7 +32,7 @@ export const ChannelsPanelSheet = ({
     width,
     side = "responsive",
 }: ChannelsPanelSheetProps) => {
-    const t = useT()
+    const t = useT(commonCatalog)
     return (
         <Sheet
             open={open}

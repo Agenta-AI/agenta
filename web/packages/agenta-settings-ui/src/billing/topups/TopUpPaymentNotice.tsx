@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
 import {Alert, Button} from "@agenta/ui/ui"
 
 import {formatCreditCount} from "./topUpRules"
@@ -17,7 +18,7 @@ export const TopUpPaymentNotice = ({
     checkoutSessionId: string
     onClose: () => void
 }) => {
-    const t = useT()
+    const t = useT(billingTopupsCatalog)
     const landing = useTopUpLanding({projectId, checkoutSessionId})
 
     if (landing.state === "landed")

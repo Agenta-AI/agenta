@@ -1,0 +1,10 @@
+{
+    "addBot": "添加机器人",
+    "addNumber": "添加其他号码",
+    "addOwnBot": "添加你自己的机器人",
+    "addWorkspace": "添加其他工作区",
+    "bots": "机器人",
+    "connectedCount": "已连接 {{count}} 个",
+    "numbers": "号码",
+    "workspaces": "工作区"
+}

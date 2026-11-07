@@ -1,6 +1,7 @@
 import type {ReactNode} from "react"
 
-import {t} from "@agenta/i18n/navigation"
+import {createT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/navigation"
 import {
     Broadcast,
@@ -23,6 +24,8 @@ import {
 } from "@phosphor-icons/react"
 
 import {SETTINGS_SCOPES, type SettingsScopeKey, type SettingsTabKey} from "./navigation"
+
+const t = createT(navigationCatalog)
 
 /** The one tab→icon map. A new tab fails the exhaustive check here until it has an icon. */
 export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {

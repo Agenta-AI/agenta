@@ -36,8 +36,9 @@ import {
     McpConnectionDetail,
     McpPermissionDrawer,
 } from "@agenta/entity-ui/mcpEndpoint"
-import {type TranslationKey} from "@agenta/i18n"
-import {t as translate, useT} from "@agenta/i18n/settings"
+import {useT, createT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
@@ -67,6 +68,8 @@ import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 import {McpYoursTable, personalSignInServers} from "./McpYoursTable"
 
+const tNow = createT(commonCatalog, settingsMcpCatalog)
+
 /** Per viewer, like the other pages' groups: "Yours" folds away and stays folded. */
 const yoursCollapsedAtom = atomWithStorage("agenta:settings:mcps-yours-collapsed", false)
 
@@ -77,7 +80,10 @@ export interface McpServersSectionCopy {
     emptyBody: string
 }
 
-const DEFAULT_COPY: Record<keyof McpServersSectionCopy, TranslationKey<"common" | "settings">> = {
+const DEFAULT_COPY: Record<
+    keyof McpServersSectionCopy,
+    CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
+> = {
     connect: "settings.mcp.connect",
     emptyTitle: "settings.mcp.emptyTitle",
     emptyBody: "settings.mcp.emptyBody",
@@ -110,14 +116,18 @@ const STATUS_TONE: Record<McpConnectionStatus, "success" | "warning" | "error"> 
 const hasGrantToRevoke = (endpoint: MCPEndpoint) =>
     endpoint.auth_mode === "oauth" && Boolean(endpoint.secret_id)
 
-const COLUMNS: (ListTableColumn & {label: TranslationKey<"common" | "settings">})[] = [
+const COLUMNS: (ListTableColumn & {
+    label: CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
+})[] = [
     {key: "name", label: "common.name", width: "minmax(0,2fr)"},
     {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,2fr)"},
     {key: "auth", label: "settings.mcp.auth", width: "minmax(0,1fr)"},
     {key: "status", label: "common.status", width: "minmax(0,1.2fr)"},
 ]
 
-const ACTIONS_COLUMN: ListTableColumn & {label: TranslationKey<"common" | "settings">} = {
+const ACTIONS_COLUMN: ListTableColumn & {
+    label: CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
+} = {
     key: "actions",
     label: "common.actions",
     srOnly: true,
@@ -150,7 +160,7 @@ export default function McpServersSection({
     projectSwitch,
     projectCount,
 }: McpServersSectionProps) {
-    const t = useT()
+    const t = useT(commonCatalog, settingsMcpCatalog)
     const copy = useMemo<McpServersSectionCopy>(
         () => ({
             connect: t(DEFAULT_COPY.connect),
@@ -249,21 +259,21 @@ export default function McpServersSection({
     const handleDisconnect = useCallback(
         (endpoint: MCPEndpoint) => {
             if (!endpoint.id) return
-            const label = endpoint.name || endpoint.slug || translate("settings.mcp.thisServer")
+            const label = endpoint.name || endpoint.slug || tNow("settings.mcp.thisServer")
             const run = async () => {
                 try {
                     await disconnect(endpoint.id as string)
                 } catch (error) {
                     message.error(
-                        (error as Error)?.message || translate("settings.mcp.disconnectFailed"),
+                        (error as Error)?.message || tNow("settings.mcp.disconnectFailed"),
                     )
                 }
             }
             if (!confirm) return void run()
             confirm({
-                title: translate("settings.mcp.disconnectTitle", {name: label}),
-                message: translate("settings.mcp.disconnectMessage"),
-                okText: translate("common.disconnect"),
+                title: tNow("settings.mcp.disconnectTitle", {name: label}),
+                message: tNow("settings.mcp.disconnectMessage"),
+                okText: tNow("common.disconnect"),
                 danger: true,
                 onOk: run,
             })
@@ -280,22 +290,20 @@ export default function McpServersSection({
     const handleRemove = useCallback(
         (endpoint: MCPEndpoint) => {
             if (!endpoint.id) return
-            const label = endpoint.name || endpoint.slug || translate("settings.mcp.thisServer")
+            const label = endpoint.name || endpoint.slug || tNow("settings.mcp.thisServer")
             const run = async () => {
                 try {
                     await deleteEndpoint(endpoint.id as string)
                     setViewing(null)
                     setToolsKey(null)
                 } catch (error) {
-                    message.error(
-                        (error as Error)?.message || translate("settings.mcp.removeFailed"),
-                    )
+                    message.error((error as Error)?.message || tNow("settings.mcp.removeFailed"))
                 }
             }
             if (!confirm) return void run()
             confirm({
-                title: translate("settings.mcp.removeTitle"),
-                message: translate("settings.mcp.removeMessage", {name: label}),
+                title: tNow("settings.mcp.removeTitle"),
+                message: tNow("settings.mcp.removeMessage", {name: label}),
                 onOk: run,
             })
         },

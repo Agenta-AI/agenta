@@ -1,6 +1,7 @@
 import {useEffect, useId, useState} from "react"
 
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Button,
     Dialog,
@@ -40,7 +41,7 @@ export const NameDialog = ({
     onClose: () => void
     onSubmit: (name: string) => void
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog)
     const [value, setValue] = useState(initialValue)
     const inputId = useId()
 

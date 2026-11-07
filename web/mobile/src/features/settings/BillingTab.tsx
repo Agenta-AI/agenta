@@ -1,6 +1,8 @@
 import {useEffect, useState} from "react"
 
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingBillingTabCatalog from "@agenta/i18n/catalogs/billing.billingTab"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ANALYTICS_COLOR_CSS} from "@agenta/observability-ui/analytics"
 import {fetchBillingUsage, useBillingCatalog, useBillingSubscription} from "@agenta/settings-ui"
 import {isBillingEnabled} from "@agenta/shared/api"
@@ -29,7 +31,7 @@ import {useBillingPortal} from "./useBillingPortal"
 
 /** Plan & billing: the plan and what it grants, its limits, and where payments live. */
 export const BillingTab = ({projectId}: SettingsTabProps) => {
-    const t = useT()
+    const t = useT(billingBillingTabCatalog, commonCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
     const billingEnabled = isBillingEnabled()

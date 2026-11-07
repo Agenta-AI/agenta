@@ -1,0 +1,16 @@
+{
+    "accessTokenRejected": "Access token rejected",
+    "accessTokenRejectedUpdate": "Access token rejected · update it",
+    "appUninstalled": "App uninstalled · reconnect",
+    "botRemoved_one": "Bot removed from {{count}} channel",
+    "botRemoved_other": "Bot removed from {{count}} channels",
+    "botTokenRevoked": "Bot token revoked",
+    "botTokenRevokedUpdate": "Bot token revoked · update it",
+    "connectedTo": "Connected to {{agent}}",
+    "pending": "Not linked yet · finish connecting",
+    "placesAndDms": "{{places}} + DMs",
+    "slackIdle": "Chat with the agent in your team’s workspace",
+    "telegramIdle": "Chat with the agent from your phone",
+    "unassigned": "Not answering as any agent yet · connect here",
+    "whatsappIdle": "Answer messages to your WhatsApp Business number"
+}

@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef} from "react"
 
-import {useT} from "@agenta/i18n/navigation"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {getSettingsTabVariant, type SettingsTabKey} from "@agenta/settings"
 import {SettingsPageShell} from "@agenta/settings-ui"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
@@ -66,7 +68,7 @@ export const SettingsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, navigationCatalog)
     useBindProjectContext(projectId)
     const router = useRouter()
     usePreloadSettingsTabs()

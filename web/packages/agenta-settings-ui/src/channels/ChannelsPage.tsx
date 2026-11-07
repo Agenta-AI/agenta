@@ -1,6 +1,8 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n/channels"
+import {useT} from "@agenta/i18n"
+import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {
@@ -66,7 +68,7 @@ export const ChannelsPage = ({
     renderPanel,
     hostedHandle = "@agenta",
 }: ChannelsPageProps) => {
-    const t = useT()
+    const t = useT(channelsPageCatalog, commonCatalog)
     const agentName = agentNameProp ?? t("channels.page.yourAgent")
     const workspaceName = workspaceNameProp ?? t("channels.page.yourWorkspace")
     const [retrying, setRetrying] = useState(false)

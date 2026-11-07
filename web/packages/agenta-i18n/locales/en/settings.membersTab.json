@@ -1,0 +1,15 @@
+{
+    "invalidEmail": "Enter a valid email address",
+    "inviteDescription": "They join this organization once they accept.",
+    "inviteError": "Unable to send the invitation",
+    "inviteTitle": "Invite members",
+    "loadError": "Could not load this organization's members",
+    "removeConfirm": "Remove {{name}}?",
+    "removeDescription": "They lose access to this organization.",
+    "removeError": "Unable to remove the member",
+    "removeTitle": "Remove member",
+    "removing": "Removing…",
+    "roleError": "Unable to change the role",
+    "sendInvitation": "Send invitation",
+    "sending": "Sending…"
+}

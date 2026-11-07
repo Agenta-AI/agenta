@@ -1,0 +1,17 @@
+{
+    "appearance": "Appearance",
+    "betaDeveloperMode": "Use new beta developer mode",
+    "betaDeveloperModeDescription": "Developer Mode stays in the new app and shows the Developer section, instead of opening the classic app.",
+    "channelDebug": "Channel debug",
+    "channelDebugDescription": "Show channel spaces, threads and raw events in Channels settings.",
+    "channelProbe": "Agenta channel probe",
+    "channelProbeDescription": "Show the temporary in-browser channel probe.",
+    "debugging": "Debugging",
+    "debuggingDescription": "Tools for inspecting runs and channels.",
+    "developerMode": "Developer Mode",
+    "developerModeDescription": "Show Evaluation, Prompt Management, and Tracing in the navigation.",
+    "featureFlags": "Feature Flags",
+    "language": "Language",
+    "playgroundInspector": "Playground inspector",
+    "playgroundInspectorDescription": "Show controls for inspecting Playground sessions and turns."
+}

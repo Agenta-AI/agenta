@@ -1,8 +1,9 @@
 import {useMemo, type ReactNode} from "react"
 
 import type {OrganizationProvider} from "@agenta/entities/organization"
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -15,7 +16,9 @@ import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {SettingsToolbar} from "../shared/SettingsToolbar"
 import {usePhoneColumns} from "../shared/usePhoneColumns"
 
-const COLUMNS: (ListTableColumn & {label: TranslationKey<"common" | "settings">})[] = [
+const COLUMNS: (ListTableColumn & {
+    label: CatalogKey<typeof commonCatalog | typeof settingsAccessCatalog>
+})[] = [
     {key: "slug", label: "settings.access.provider", width: "minmax(0,1.2fr)"},
     {key: "callback_url", label: "settings.access.callbackUrl", width: "minmax(0,2.4fr)"},
     {key: "status", label: "common.status", width: "minmax(0,1fr)"},
@@ -68,7 +71,7 @@ export const SsoProvidersSection = ({
     renderInstructions,
     children,
 }: SsoProvidersSectionProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsAccessCatalog)
     const translatedColumns = useMemo(
         () => COLUMNS.map((column) => ({...column, label: t(column.label)})),
         [t],

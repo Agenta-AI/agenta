@@ -1,8 +1,9 @@
 import {useState} from "react"
 
 import {personalAccountsAccessAtom, useVaultSecret} from "@agenta/entities/secret"
-import {richText} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {richText, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsSecretsTabCatalog from "@agenta/i18n/catalogs/settings.secretsTab"
 import {addAccountOwners, NamedSecretTable} from "@agenta/settings-ui"
 import type {LlmProvider} from "@agenta/shared/types"
 import {useAtomValue} from "jotai"
@@ -20,7 +21,7 @@ import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
  * so only the surfaces differ. `edit_secret` decides whether a new secret asks "Who can use it".
  */
 export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
-    const t = useT()
+    const t = useT(settingsSecretsTabCatalog, commonCatalog)
     const {handleDeleteVaultSecret} = useVaultSecret()
     const [deleting, setDeleting] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -49,7 +50,7 @@ export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 <ConfirmModal
                     open={open}
                     title={t("settings.secretsTab.deleteTitle")}
-                    description={t("settings.secretsTab.cannotBeUndone")}
+                    description={t("common.thisCannotBeUndone")}
                     body={
                         <>
                             {richText(

@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import settingsStatesCatalog from "@agenta/i18n/catalogs/settings.states"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 // States for the Access & Security tab, which is driven by the organization query. It used to
@@ -27,7 +28,7 @@ const SkeletonSection = ({rows}: {rows: number}) => (
 
 /** The page's own shape while flags and entitlements load: sign-in, membership, admin. */
 export const OrganizationLoading = () => {
-    const t = useT()
+    const t = useT(settingsStatesCatalog)
     return (
         <div
             className="flex flex-col gap-8"
@@ -43,7 +44,7 @@ export const OrganizationLoading = () => {
 
 /** Settled, but the organization carries no flags — nothing to configure rather than an error. */
 export const OrganizationNoFlags = () => {
-    const t = useT()
+    const t = useT(settingsStatesCatalog)
     return (
         <p className="text-muted-foreground p-6 text-xs">{t("settings.states.noAccessSettings")}</p>
     )

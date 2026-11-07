@@ -1,0 +1,7 @@
+{
+    "emptyBody": "Connect an integration to let your agents call it.",
+    "emptyTitle": "No integrations connected yet",
+    "noMatch": "No integrations match “{{term}}”",
+    "run": "Run action",
+    "searchPlaceholder": "Search integrations"
+}

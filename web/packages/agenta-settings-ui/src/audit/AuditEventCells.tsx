@@ -14,7 +14,8 @@
 import type {Event} from "@agenta/entities/event"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {UserAuthorLabel, useIsCurrentUser, useUserDisplayName} from "@agenta/entities/shared/user"
-import {t, useT} from "@agenta/i18n/settings"
+import {useT, createT} from "@agenta/i18n"
+import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import {dayjs} from "@agenta/shared/utils"
 import {Copy, Eye} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -23,6 +24,8 @@ import {copyWithMessage} from "../shared/copyWithMessage"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 import {eventTypeLabel} from "./eventTypeLabels"
+
+const t = createT(settingsAuditCatalog)
 
 export const Dash = () => <span className="text-xs text-muted-foreground">—</span>
 
@@ -89,7 +92,7 @@ export interface ActorCellProps {
 
 /** Actor — the user who triggered the event, resolved to a name; a short id when unknown. */
 export const ActorCell = ({eventId, names, currentUserId}: ActorCellProps) => {
-    const t = useT()
+    const t = useT(settingsAuditCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     const actor = event ? readActor(event) : null
     const registeredName = useUserDisplayName(actor)
@@ -126,7 +129,7 @@ export const ActorCell = ({eventId, names, currentUserId}: ActorCellProps) => {
 
 /** Count — number of items the event touched (`attributes.count`). */
 export const CountCell = ({eventId}: {eventId: string}) => {
-    const t = useT()
+    const t = useT(settingsAuditCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
@@ -145,7 +148,7 @@ export const CountCell = ({eventId}: {eventId: string}) => {
 
 /** The row kebab: details, plus copying the ids the table no longer shows. */
 export const EventRowMenu = ({eventId, onView}: {eventId: string; onView: () => void}) => {
-    const t = useT()
+    const t = useT(settingsAuditCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     const requestId = event?.request_id ?? null
 

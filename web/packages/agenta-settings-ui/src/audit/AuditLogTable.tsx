@@ -8,7 +8,9 @@ import {
     eventTimestampRangeFilterAtom,
     type EventTableRow,
 } from "@agenta/entities/event"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import {dayjs} from "@agenta/shared/utils"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -90,7 +92,7 @@ export const AuditLogTable = ({
     names,
     currentUserId,
 }: AuditLogTableProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsAuditCatalog)
     const refreshEvents = useSetAtom(eventsPaginatedStore.actions.refresh)
     const clearEventsCache = useSetAtom(clearEventsCacheAtom)
     const timestampRange = useAtomValue(eventTimestampRangeFilterAtom)

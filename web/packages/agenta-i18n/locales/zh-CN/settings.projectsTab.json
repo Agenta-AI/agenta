@@ -1,0 +1,8 @@
+{
+    "deleteBody": "将永久删除 {{name}}，包括其中的所有 Agent、数据集和部署。",
+    "deleteTitle": "删除项目",
+    "deleting": "正在删除…",
+    "namePlaceholder": "项目名称",
+    "newDescription": "项目用于归集你的 Agent、数据集和部署。",
+    "newTitle": "新建项目"
+}

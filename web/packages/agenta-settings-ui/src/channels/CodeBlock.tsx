@@ -1,6 +1,7 @@
 import {useEffect, useState, type ReactNode} from "react"
 
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button} from "@agenta/ui/ui"
 import {Check, Copy} from "@phosphor-icons/react"
 
@@ -29,7 +30,7 @@ export const CodeBlock = ({
     onCopyError,
     "data-testid": testId,
 }: CodeBlockProps) => {
-    const t = useT()
+    const t = useT(commonCatalog)
     const [copied, setCopied] = useState(false)
 
     useEffect(() => {

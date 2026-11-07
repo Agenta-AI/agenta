@@ -1,7 +1,8 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/channels"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import channelsPageCatalog from "@agenta/i18n/catalogs/channels.page"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button} from "@agenta/ui/ui"
 import {GearSix, LinkBreak} from "@phosphor-icons/react"
 
@@ -56,7 +57,10 @@ export interface ChannelsSettingsPageProps {
     projectName?: string
 }
 
-const PLATFORM_DESCRIPTIONS: Record<ChannelPlatform, TranslationKey<"channels" | "common">> = {
+const PLATFORM_DESCRIPTIONS: Record<
+    ChannelPlatform,
+    CatalogKey<typeof channelsPageCatalog | typeof commonCatalog>
+> = {
     slack: "channels.page.slackDescription",
     telegram: "channels.page.telegramDescription",
     whatsapp: "channels.page.whatsappDescription",
@@ -100,7 +104,7 @@ export const ChannelsSettingsPage = ({
     confirm,
     projectName,
 }: ChannelsSettingsPageProps) => {
-    const t = useT()
+    const t = useT(channelsPageCatalog, commonCatalog)
     const [retrying, setRetrying] = useState(false)
     const current = agents.find((agent) => agent.id === agentId)
     const agentName = current?.name

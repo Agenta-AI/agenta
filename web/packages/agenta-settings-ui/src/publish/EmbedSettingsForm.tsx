@@ -1,7 +1,8 @@
 import {useId, useState} from "react"
 
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/publish"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {CopyButton, getInitials} from "@agenta/ui/components/presentational"
 import {Alert, Button, Input, LoadingButton, Segmented, Textarea} from "@agenta/ui/ui"
 import {useMutation, useQuery, useQueryClient, type QueryKey} from "@tanstack/react-query"
@@ -34,7 +35,10 @@ export const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; html
     </label>
 )
 
-const THEMES: {value: EmbedTheme; label: TranslationKey<"common" | "publish">}[] = [
+const THEMES: {
+    value: EmbedTheme
+    label: CatalogKey<typeof commonCatalog | typeof publishCatalog>
+}[] = [
     {value: "system", label: "common.system"},
     {value: "light", label: "common.light"},
     {value: "dark", label: "common.dark"},
@@ -54,7 +58,7 @@ export const EmbedSettingsForm = ({
     widgetUrl,
     onBack,
 }: AgentEmbedPanelProps & {embed: Embed; queryKey: QueryKey}) => {
-    const t = useT()
+    const t = useT(commonCatalog, publishCatalog)
     const queryClient = useQueryClient()
     const scope = {queryParams: {project_id: projectId}}
     const ids = {

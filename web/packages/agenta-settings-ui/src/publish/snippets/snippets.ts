@@ -1,9 +1,12 @@
-import {t} from "@agenta/i18n/publish"
+import {createT} from "@agenta/i18n"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 
 import agentCurlCode from "./curl"
 import agentPythonCode from "./python"
 import type {AgentInvokeSnippetInput} from "./request"
 import agentTypescriptCode from "./typescript"
+
+const t = createT(publishCatalog)
 
 export type AgentSnippetLang = "python" | "typescript" | "bash"
 

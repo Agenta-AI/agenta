@@ -1,6 +1,8 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
 import {
     Button,
     Dialog,
@@ -31,7 +33,7 @@ export const McpTokenSignInDialog = ({
     onClose,
     error,
 }: McpTokenSignInDialogProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsMcpCatalog)
     const [token, setToken] = useState("")
     const [saving, setSaving] = useState(false)
 

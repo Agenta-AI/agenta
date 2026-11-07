@@ -1,5 +1,5 @@
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import settingsPreferencesCatalog from "@agenta/i18n/catalogs/settings.preferences"
 import {isBetaDeveloperModeEnabled} from "@agenta/shared/api"
 import {clearClassicModeCookie, mobileEscapeHref} from "@agenta/shared/hooks"
 import {
@@ -27,14 +27,14 @@ export type PreferenceKey =
 /** `title` and `description` are translation keys, translated at render. */
 export interface PreferenceItem {
     key: PreferenceKey
-    title: TranslationKey<"common" | "settings">
-    description: TranslationKey<"common" | "settings">
+    title: CatalogKey<typeof settingsPreferencesCatalog>
+    description: CatalogKey<typeof settingsPreferencesCatalog>
 }
 
 export interface PreferenceSection {
     key: string
-    title: TranslationKey<"common" | "settings">
-    description?: TranslationKey<"common" | "settings">
+    title: CatalogKey<typeof settingsPreferencesCatalog>
+    description?: CatalogKey<typeof settingsPreferencesCatalog>
     items: PreferenceItem[]
 }
 
@@ -165,7 +165,7 @@ export interface PreferencesPageProps {
  * apps, so a choice made in `/m` holds on the desktop and the other way round.
  */
 export const PreferencesPage = ({theme, bindings = {}, hostItems = []}: PreferencesPageProps) => {
-    const t = useT()
+    const t = useT(settingsPreferencesCatalog)
     return (
         <div className="flex flex-col gap-8">
             <SettingsSection title={t("settings.preferences.appearance")} framed={false}>

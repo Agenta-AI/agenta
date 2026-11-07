@@ -1,7 +1,8 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import settingsChannelsTabCatalog from "@agenta/i18n/catalogs/settings.channelsTab"
 import {
     ChannelsPanelSheet,
     ChannelsSettingsPage,
@@ -22,7 +23,7 @@ import {useConfirmModal} from "./useConfirmModal"
  * time, so the channels actions are rebuilt whenever the user picks another.
  */
 export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
-    const t = useT()
+    const t = useT(settingsChannelsTabCatalog)
     const {confirm, modal: confirmModal} = useConfirmModal()
     const project = useCurrentProject(workspaceId, projectId)
     const me = useAtomValue(userAtom)

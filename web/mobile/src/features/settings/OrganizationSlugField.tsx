@@ -1,7 +1,8 @@
 import {useEffect, useState} from "react"
 
 import {organizationAccessApi} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import settingsOrganizationSlugFieldCatalog from "@agenta/i18n/catalogs/settings.organizationSlugField"
 import {Button, Input} from "@agenta/ui/ui"
 
 import {plainAccessError} from "./accessErrors"
@@ -21,7 +22,7 @@ export const OrganizationSlugField = ({
     canEdit: boolean
     onSaved?: () => void | Promise<void>
 }) => {
-    const t = useT()
+    const t = useT(settingsOrganizationSlugFieldCatalog)
     const [value, setValue] = useState("")
     const [savedSlug, setSavedSlug] = useState<string | null>(null)
     const [pending, setPending] = useState(false)

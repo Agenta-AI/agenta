@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/channels"
+import {useT} from "@agenta/i18n"
+import channelsListCatalog from "@agenta/i18n/catalogs/channels.list"
 import {Button} from "@agenta/ui/ui"
 import {CaretRight, Plus} from "@phosphor-icons/react"
 
@@ -22,7 +23,7 @@ export const ChannelConnectionList = ({
     onSelect,
     onAdd,
 }: ChannelConnectionListProps) => {
-    const t = useT()
+    const t = useT(channelsListCatalog)
     const isSlack = platform === "slack"
     const hostedHere = connections.some((c) => c.kind === "hosted")
     return (

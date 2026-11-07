@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/channels"
+import {useT} from "@agenta/i18n"
+import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
 
 import {AgentMark} from "./AgentMark"
 
@@ -23,7 +24,7 @@ export const ChannelsHubDiagram = ({
     agentId?: string
     targets: ChannelsHubDiagramTarget[]
 }) => {
-    const t = useT()
+    const t = useT(channelsHubCatalog)
     const H = Math.max(ROW, targets.length * ROW + (targets.length - 1) * GAP)
     const ys = targets.map((_, i) => ROW / 2 + i * (ROW + GAP))
     return (

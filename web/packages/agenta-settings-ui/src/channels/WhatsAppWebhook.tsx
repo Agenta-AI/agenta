@@ -1,7 +1,8 @@
 import {useEffect, useState} from "react"
 
-import {richText} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/channels"
+import {richText, useT} from "@agenta/i18n"
+import channelsWhatsappCatalog from "@agenta/i18n/catalogs/channels.whatsapp"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, Input} from "@agenta/ui/ui"
 import {Check, Copy} from "@phosphor-icons/react"
 
@@ -17,7 +18,7 @@ export const copyText = async (text: string): Promise<boolean> => {
 }
 
 const CopyField = ({label, value, testId}: {label: string; value: string; testId: string}) => {
-    const t = useT()
+    const t = useT(channelsWhatsappCatalog, commonCatalog)
     const [copied, setCopied] = useState(false)
     useEffect(() => {
         if (!copied) return
@@ -51,7 +52,7 @@ const CopyField = ({label, value, testId}: {label: string; value: string; testId
  * after connecting and the manage view keeps them findable.
  */
 export const WhatsAppWebhook = ({connection}: {connection: ChannelConnection}) => {
-    const t = useT()
+    const t = useT(channelsWhatsappCatalog, commonCatalog)
     return (
         <div className="flex flex-col gap-3" data-testid="channels-whatsapp-webhook">
             <p className="m-0 text-xs leading-relaxed text-colorTextSecondary">

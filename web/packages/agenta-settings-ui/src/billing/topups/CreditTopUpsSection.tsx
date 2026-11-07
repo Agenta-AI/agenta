@@ -1,6 +1,8 @@
 import {useEffect, useState, type ReactNode} from "react"
 
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, cn} from "@agenta/ui/ui"
 
 import {BuyCreditsDialog} from "./BuyCreditsDialog"
@@ -42,7 +44,7 @@ export const CreditTopUpsSection = ({
     framed = false,
     showLoadError = false,
 }: CreditTopUpsSectionProps) => {
-    const t = useT()
+    const t = useT(billingTopupsCatalog, commonCatalog)
     const offer = useTopUpOffer({projectId})
     const entry = topUpEntry(offer.data?.status)
     const [shownReturn, setShownReturn] = useState<TopUpReturn>(null)

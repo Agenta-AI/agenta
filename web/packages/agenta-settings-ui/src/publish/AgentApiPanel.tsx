@@ -1,6 +1,7 @@
 import {useId, useMemo, useState} from "react"
 
-import {t as translate, useT} from "@agenta/i18n/publish"
+import {useT, createT} from "@agenta/i18n"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {createApiKey} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {CopyButton} from "@agenta/ui/components/presentational"
@@ -11,6 +12,8 @@ import {CodeBlock} from "../channels/CodeBlock"
 
 import {AGENT_INVOKE_DOCS_URL, agentInvokeUrl} from "./snippets/request"
 import {buildAgentSnippets, type AgentSnippetLang} from "./snippets/snippets"
+
+const tNow = createT(publishCatalog)
 
 export interface AgentApiPanelProps {
     agentId: string
@@ -46,7 +49,7 @@ const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: s
  * default variant's latest revision.
  */
 export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiPanelProps) => {
-    const t = useT()
+    const t = useT(publishCatalog)
     const keyInputId = useId()
     const [lang, setLang] = useState<AgentSnippetLang>("python")
     const [stream, setStream] = useState(true)
@@ -62,15 +65,15 @@ export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiP
 
     const create = async () => {
         if (!workspaceId) {
-            message.error(translate("publish.noWorkspaceError"))
+            message.error(tNow("publish.noWorkspaceError"))
             return
         }
         setCreating(true)
         try {
             setApiKeyValue(await createApiKey(workspaceId, projectId))
-            message.success(translate("publish.apiKeyCreated"))
+            message.success(tNow("publish.apiKeyCreated"))
         } catch {
-            message.error(translate("publish.apiKeyCreateFailed"))
+            message.error(tNow("publish.apiKeyCreateFailed"))
         } finally {
             setCreating(false)
         }

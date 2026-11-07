@@ -8,8 +8,9 @@ import {
     updateWebhookAtom,
     type WebhookEventType,
 } from "@agenta/entities/webhook"
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsWebhookFormSheetCatalog from "@agenta/i18n/catalogs/settings.webhookFormSheet"
 import {
     Button,
     Input,
@@ -30,7 +31,10 @@ import {useAtom, useSetAtom} from "jotai"
 import {Field} from "./Field"
 
 /** The events a subscription can carry today — the desktop drawer offers the same one. */
-const EVENT_OPTIONS: {label: TranslationKey<"common" | "settings">; value: WebhookEventType}[] = [
+const EVENT_OPTIONS: {
+    label: CatalogKey<typeof commonCatalog | typeof settingsWebhookFormSheetCatalog>
+    value: WebhookEventType
+}[] = [
     {
         label: "settings.webhookFormSheet.configurationDeployed",
         value: "environments.revisions.committed",
@@ -46,7 +50,7 @@ type AuthMode = "signature" | "authorization"
  * never rewrites one it did not create.
  */
 export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsWebhookFormSheetCatalog)
     const [open, setOpen] = useAtom(isWebhookDrawerOpenAtom)
     const [editing, setEditing] = useAtom(editingWebhookAtom)
     const createWebhook = useSetAtom(createWebhookAtom)

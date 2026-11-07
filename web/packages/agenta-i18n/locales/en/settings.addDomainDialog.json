@@ -1,0 +1,9 @@
+{
+    "addError": "Could not add the domain",
+    "adding": "Adding…",
+    "description": "Add a domain, then publish its DNS TXT record to prove ownership.",
+    "domainHint": "For example, company.com",
+    "domainLabel": "Domain",
+    "enterDomain": "Enter a domain name",
+    "title": "Add domain"
+}

@@ -7,7 +7,9 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {OwnerRadioGroup} from "@agenta/entity-ui/secret"
-import {t as translate, useT} from "@agenta/i18n/settings"
+import {useT, createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsSecretFormSheetCatalog from "@agenta/i18n/catalogs/settings.secretFormSheet"
 import type {OwnerKind} from "@agenta/shared/types"
 import {slugifyName} from "@agenta/shared/utils"
 import {
@@ -28,21 +30,23 @@ import {
 
 import {Field} from "./Field"
 
+const tNow = createT(commonCatalog, settingsSecretFormSheetCatalog)
+
 /** Flat map of primitives — what the backend accepts for a `json` secret. */
 const parseJsonContent = (raw: string): {content?: CustomSecretContent; error?: string} => {
     let parsed: unknown
     try {
         parsed = JSON.parse(raw)
     } catch {
-        return {error: translate("settings.secretFormSheet.invalidJson")}
+        return {error: tNow("settings.secretFormSheet.invalidJson")}
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return {error: translate("settings.secretFormSheet.expectedObject")}
+        return {error: tNow("settings.secretFormSheet.expectedObject")}
     }
     const flat = Object.values(parsed as Record<string, unknown>).every(
         (value) => value === null || typeof value !== "object",
     )
-    if (!flat) return {error: translate("settings.secretFormSheet.nestedNotSupported")}
+    if (!flat) return {error: tNow("settings.secretFormSheet.nestedNotSupported")}
     return {content: parsed as CustomSecretContent}
 }
 
@@ -70,7 +74,7 @@ export const SecretFormSheet = ({
     /** The current project's name, for "Everyone in {project}". */
     projectName?: string
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsSecretFormSheetCatalog)
     const {handleModifyNamedSecret} = useVaultSecret()
 
     const [name, setName] = useState("")

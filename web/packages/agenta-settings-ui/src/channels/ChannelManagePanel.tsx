@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {t as translate, useT} from "@agenta/i18n/channels"
+import {useT, createT} from "@agenta/i18n"
+import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
+import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
+import channelsManageCatalog from "@agenta/i18n/catalogs/channels.manage"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
     Button,
@@ -54,6 +58,13 @@ import type {
 } from "./types"
 import {WhatsAppWebhook} from "./WhatsAppWebhook"
 
+const tNow = createT(
+    channelsActionsCatalog,
+    channelsLabelsCatalog,
+    channelsManageCatalog,
+    commonCatalog,
+)
+
 /**
  * The manage view for a connected channel: where it answers, who may message it, its
  * credentials, the Advanced channel tool settings, and disconnect. Every change saves through `ChannelsActions` at once; a rejected
@@ -92,7 +103,7 @@ const fallbackSecrets = (platform: ChannelPlatform): ChannelSetupField[] =>
         telegram: [
             {
                 name: "bot_token",
-                label: translate("channels.manage.botToken"),
+                label: tNow("channels.manage.botToken"),
                 secret: true,
                 required: true,
             },
@@ -100,13 +111,13 @@ const fallbackSecrets = (platform: ChannelPlatform): ChannelSetupField[] =>
         whatsapp: [
             {
                 name: "access_token",
-                label: translate("channels.manage.accessToken"),
+                label: tNow("channels.manage.accessToken"),
                 secret: true,
                 required: true,
             },
             {
                 name: "app_secret",
-                label: translate("channels.manage.appSecret"),
+                label: tNow("channels.manage.appSecret"),
                 secret: true,
                 required: true,
             },
@@ -114,13 +125,13 @@ const fallbackSecrets = (platform: ChannelPlatform): ChannelSetupField[] =>
         slack: [
             {
                 name: "bot_token",
-                label: translate("channels.manage.botUserOAuthToken"),
+                label: tNow("channels.manage.botUserOAuthToken"),
                 secret: true,
                 required: true,
             },
             {
                 name: "signing_secret",
-                label: translate("channels.manage.signingSecret"),
+                label: tNow("channels.manage.signingSecret"),
                 secret: true,
                 required: true,
             },
@@ -152,7 +163,12 @@ export const ChannelManagePanel = ({
     onReconnect,
     onTurnOn,
 }: ChannelManagePanelProps) => {
-    const t = useT()
+    const t = useT(
+        channelsActionsCatalog,
+        channelsLabelsCatalog,
+        channelsManageCatalog,
+        commonCatalog,
+    )
     const isSlack = connection.platform === "slack"
     const isTelegram = connection.platform === "telegram"
     const isWhatsApp = connection.platform === "whatsapp"
@@ -732,7 +748,7 @@ export const ChannelManagePanel = ({
                                 ? t("channels.manage.notAnswering")
                                 : off
                                   ? channelSharingCopy.off
-                                  : t("channels.manage.live")}
+                                  : t("common.live")}
                         </span>
                         {` · ${connectionKindLabel(connection)}`}
                         {isSlack && connection.handle ? ` · ${connection.handle}` : ""}

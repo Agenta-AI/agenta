@@ -1,6 +1,8 @@
 import {useCallback, useState} from "react"
 
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsApiKeysTabCatalog from "@agenta/i18n/catalogs/settings.apiKeysTab"
 import {useApiKeys} from "@agenta/settings"
 import {ApiKeysPage} from "@agenta/settings-ui"
 import {
@@ -28,7 +30,7 @@ import {useMobileSettingsAccess} from "./settingsTabs"
  * credential and the buttons should not appear for a member who cannot mint one.
  */
 export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsApiKeysTabCatalog)
     const canView = useMobileSettingsAccess().canViewApiKeys
     const canEdit = useProjectPermission(projectId, "edit_api_keys")
     const [pendingDelete, setPendingDelete] = useState<{resolve: (ok: boolean) => void} | null>(

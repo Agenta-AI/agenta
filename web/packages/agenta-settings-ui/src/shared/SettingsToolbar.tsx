@@ -1,6 +1,7 @@
 import type {ReactNode} from "react"
 
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowClockwise} from "@phosphor-icons/react"
 
@@ -22,7 +23,7 @@ export const SettingsToolbar = ({
     reloadLabel: reloadLabelProp,
     actions,
 }: SettingsToolbarProps) => {
-    const t = useT()
+    const t = useT(settingsSharedCatalog)
     const reloadLabel = reloadLabelProp ?? t("settings.shared.reload")
     const right =
         onReload || actions ? (

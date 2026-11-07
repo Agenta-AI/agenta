@@ -1,4 +1,6 @@
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsProjectsTabCatalog from "@agenta/i18n/catalogs/settings.projectsTab"
 import {ProjectsPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -28,7 +30,7 @@ import {useSettingsOrg} from "./useSettingsOrg"
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
 export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsProjectsTabCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
     const {projects: query} = useSettingsOrg(workspaceId)
@@ -83,7 +85,7 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                                 {t("settings.projectsTab.deleteTitle")}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                                {t("settings.projectsTab.cannotBeUndone")}
+                                {t("common.thisCannotBeUndone")}
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <p className="m-0 text-sm">

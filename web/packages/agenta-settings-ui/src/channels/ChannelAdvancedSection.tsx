@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {useT} from "@agenta/i18n/channels"
+import {useT} from "@agenta/i18n"
+import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
+import channelsAdvancedCatalog from "@agenta/i18n/catalogs/channels.advanced"
+import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Alert, Button, Checkbox, RadioGroup, RadioGroupItem, Spinner, Switch} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
@@ -58,7 +62,12 @@ const AnswersInRow = ({
     isSlack: boolean
     answersIn: ChannelAnswersInProps
 }) => {
-    const t = useT()
+    const t = useT(
+        channelsActionsCatalog,
+        channelsAdvancedCatalog,
+        channelsLabelsCatalog,
+        commonCatalog,
+    )
     const {behavior, channels, onSave, busy = false} = answersIn
     const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
@@ -231,7 +240,12 @@ export const ChannelAdvancedSection = ({
     actions,
     answersIn,
 }: ChannelAdvancedSectionProps) => {
-    const t = useT()
+    const t = useT(
+        channelsActionsCatalog,
+        channelsAdvancedCatalog,
+        channelsLabelsCatalog,
+        commonCatalog,
+    )
     const isSlack = platform === "slack"
     const [open, setOpen] = useState(false)
     const [settings, setSettings] = useState<ChannelToolSettings | null>(null)

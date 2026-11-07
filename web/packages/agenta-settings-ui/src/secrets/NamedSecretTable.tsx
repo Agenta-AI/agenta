@@ -10,7 +10,10 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsSecretsCatalog from "@agenta/i18n/catalogs/settings.secrets"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
 import {formatDay} from "@agenta/shared/utils/dateTime"
@@ -118,7 +121,7 @@ interface SecretsListProps {
 
 /** One owner's secrets as a table, with its own column header row. */
 const SecretsList = ({rows, loading, usedBy, empty, onOpen, onDelete}: SecretsListProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsSecretsCatalog, settingsSharedCatalog)
     const {columns, shows} = usePhoneColumns(
         useMemo(() => columnsFor(t), [t]),
         PHONE_KEYS,
@@ -226,7 +229,7 @@ export const NamedSecretTable = ({
     projectSwitch,
     projectCount,
 }: NamedSecretTableProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsSecretsCatalog, settingsSharedCatalog)
     const {namedSecrets, loading} = useVaultSecret()
     const access = useAtomValue(personalAccountsAccessAtom)
     const personalSecrets = useAtomValue(personalNamedSecretsAtom)
@@ -304,7 +307,7 @@ export const NamedSecretTable = ({
                         </section>
                         <section className="flex flex-col gap-3">
                             <SettingsGroupHeading
-                                label={projectSwitch ?? t("settings.secrets.project")}
+                                label={projectSwitch ?? t("common.project")}
                                 count={rows.length}
                             />
                             <SecretsList

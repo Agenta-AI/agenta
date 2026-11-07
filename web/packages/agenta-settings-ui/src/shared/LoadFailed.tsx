@@ -1,12 +1,13 @@
 import type {ReactNode} from "react"
 
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 
 /** A group footer for a failed read, with Try again. */
 export const LoadFailed = ({message, onRetry}: {message: ReactNode; onRetry: () => void}) => {
-    const t = useT()
+    const t = useT(commonCatalog)
     return (
         <div className="flex items-center gap-3 text-sm text-colorTextSecondary">
             <span className="flex items-center gap-1.5">

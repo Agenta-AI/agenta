@@ -1,4 +1,6 @@
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingPlanOptionCardCatalog from "@agenta/i18n/catalogs/billing.planOptionCard"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import type {BillingPlanOption} from "@agenta/settings-ui"
 import {Button, cn} from "@agenta/ui/ui"
 import {Check, Coins} from "@phosphor-icons/react"
@@ -28,7 +30,7 @@ export const PlanOptionCard = ({
     busy: boolean
     onSelect: () => void
 }) => {
-    const t = useT()
+    const t = useT(billingPlanOptionCardCatalog, commonCatalog)
     const recommended = plan.recommended === true
     const amount = plan.price?.base?.amount
     const credits = creditsLine(plan)
@@ -68,7 +70,7 @@ export const PlanOptionCard = ({
             onClick={onSelect}
         >
             {pending
-                ? t("billing.planOptionCard.working")
+                ? t("common.working")
                 : isFree
                   ? t("billing.planOptionCard.moveTo", {plan: plan.title})
                   : t("billing.planOptionCard.upgradeTo", {plan: plan.title})}

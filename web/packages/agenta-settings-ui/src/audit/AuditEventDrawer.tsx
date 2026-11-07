@@ -9,7 +9,8 @@
 import type {ReactNode} from "react"
 
 import {eventByIdAtomFamily} from "@agenta/entities/event"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import {dayjs} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {
@@ -104,7 +105,7 @@ export const AuditEventDrawer = ({
     names,
     currentUserId,
 }: AuditEventDrawerProps) => {
-    const t = useT()
+    const t = useT(settingsAuditCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId ?? ""))
 
     // Actor/count live in `attributes`; the top-level request fields are left unset by the backend.

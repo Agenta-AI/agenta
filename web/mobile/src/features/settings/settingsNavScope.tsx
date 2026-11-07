@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
-import {useT} from "@agenta/i18n/navigation"
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {
     SidebarScope,
     SidebarSection,
@@ -61,7 +62,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
     const useSections = (): SidebarSection[] => {
         const access = useMobileSettingsAccess()
         const bottomItems = useMobileBottomNavItems(projectURL, {includeSettingsLink: false})
-        const t = useT()
+        const t = useT(navigationCatalog)
 
         return useMemo(
             () => [

@@ -1,0 +1,6 @@
+{
+    "agents": "Agent",
+    "channelsLive_other": "{{count}} 个渠道运行中",
+    "noAgents": "此项目还没有 Agent。先创建一个，再在这里连接。",
+    "noChannels": "暂无渠道"
+}

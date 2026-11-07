@@ -5,7 +5,9 @@ import {
     deleteWebhookAtom,
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsWebhooksTabCatalog from "@agenta/i18n/catalogs/settings.webhooksTab"
 import {WebhooksPage} from "@agenta/settings-ui"
 import {
     Button,
@@ -27,7 +29,7 @@ import {WebhookFormSheet} from "./WebhookFormSheet"
  * drawer and modals do.
  */
 export const WebhooksTab = () => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsWebhooksTabCatalog)
     const deleteWebhook = useSetAtom(deleteWebhookAtom)
     const [webhookToDelete, setWebhookToDelete] = useAtom(webhookToDeleteAtom)
     const [createdSecret, setCreatedSecret] = useAtom(createdWebhookSecretAtom)
@@ -48,7 +50,7 @@ export const WebhooksTab = () => {
                 <ConfirmModal
                     open={Boolean(webhookToDelete)}
                     title={t("settings.webhooksTab.deleteTitle")}
-                    description={t("settings.webhooksTab.cannotBeUndone")}
+                    description={t("common.thisCannotBeUndone")}
                     body={t("settings.webhooksTab.deleteBody", {
                         url: webhookToDelete?.data?.url ?? "",
                     })}
