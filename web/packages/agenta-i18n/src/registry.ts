@@ -15,10 +15,8 @@ export interface CatalogEntry {
 const registered: CatalogEntry[] = []
 const loaded = new Map<string, Catalog>()
 const pending = new Map<string, Promise<void>>()
-/** Catalogs still loading and still inside the timeout; they render "" rather than English. */
-const waiting = new Set<string>()
 
-/** After this long a catalog that is still loading shows English, so labels never stay blank. */
+/** The one wait for a catalog: after it a load counts as failed and its English shows. */
 export const CATALOG_TIMEOUT_MS = 3000
 
 /** Bumped when a catalog loads, fails or times out, so `useT` re-renders with the new text. */
@@ -38,42 +36,38 @@ export const registeredSince = (count: number) => registered.slice(count)
 export const getLoadedCatalog = (language: Language, namespace: string): Catalog | undefined =>
     loaded.get(`${language}:${namespace}`)
 
-export const isCatalogLoading = (language: Language, namespace: string): boolean =>
-    waiting.has(`${language}:${namespace}`)
-
-/** Rejects if the catalog cannot load; the catalog then shows English, and a later call retries. */
+/**
+ * Rejects if the catalog cannot load within `CATALOG_TIMEOUT_MS`; it then shows English, and a
+ * later call retries. A load that finishes after the timeout is still used.
+ */
 export const loadCatalog = (entry: CatalogEntry, language: Language): Promise<void> => {
     if (language === "en") return Promise.resolve()
     const id = `${language}:${entry.namespace}`
     if (loaded.has(id)) return Promise.resolve()
     let promise = pending.get(id)
     if (!promise) {
-        waiting.add(id)
-        const timer = setTimeout(() => waiting.delete(id) && bump(), CATALOG_TIMEOUT_MS)
-        promise = entry.load[language]()
-            .then((module) => {
-                loaded.set(id, module.default)
-            })
-            .finally(() => {
-                clearTimeout(timer)
-                waiting.delete(id)
-                pending.delete(id)
-                bump()
-            })
+        const load = entry.load[language]().then((module) => {
+            loaded.set(id, module.default)
+            bump()
+        })
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const timeout = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error("catalog timed out")), CATALOG_TIMEOUT_MS)
+        })
+        promise = Promise.race([load, timeout]).finally(() => {
+            clearTimeout(timer)
+            pending.delete(id)
+            bump()
+        })
         pending.set(id, promise)
     }
     return promise
 }
 
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-
-/** Loads the language for the given catalogs; never rejects and never waits past the timeout. */
+/** Loads the language for the given catalogs; never rejects. */
 export const loadCatalogs = async (entries: readonly CatalogEntry[], language: Language) => {
-    if (language === "en" || entries.length === 0) return
-    await Promise.race([
-        Promise.allSettled(entries.map((entry) => loadCatalog(entry, language))),
-        delay(CATALOG_TIMEOUT_MS),
-    ])
+    if (language === "en") return
+    await Promise.allSettled(entries.map((entry) => loadCatalog(entry, language)))
 }
 
 /** Loads the language for every catalog the page has imported so far. */

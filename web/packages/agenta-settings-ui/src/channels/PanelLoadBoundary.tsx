@@ -14,8 +14,11 @@ const PanelLoadFailed = ({onRetry}: {onRetry: () => void}) => {
     )
 }
 
-/** Catches a panel whose code failed to load; "Try again" and reopening load it again. */
-export class PanelLoadBoundary extends Component<{children: ReactNode}, {failed: boolean}> {
+/**
+ * Catches a panel whose code failed to load; "Try again" and reopening load it again. Children
+ * are a render callback, so a retry renders the fresh lazy component, not the failed one.
+ */
+export class PanelLoadBoundary extends Component<{children: () => ReactNode}, {failed: boolean}> {
     state = {failed: false}
 
     static getDerivedStateFromError() {
@@ -23,7 +26,7 @@ export class PanelLoadBoundary extends Component<{children: ReactNode}, {failed:
     }
 
     render() {
-        if (!this.state.failed) return this.props.children
+        if (!this.state.failed) return this.props.children()
         return <PanelLoadFailed onRetry={() => this.setState({failed: false})} />
     }
 }

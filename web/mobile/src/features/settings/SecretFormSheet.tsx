@@ -122,8 +122,9 @@ export const SecretFormSheet = ({
     const submit = async () => {
         const isJson = format === CustomSecretFormat.Json
         const parsed = isJson ? parseJsonContent(value) : null
-        if (parsed?.error) {
-            setError(parsed.error)
+        // Valid only with parsed content; the message's text never decides it.
+        if (parsed && parsed.content === undefined) {
+            setError(parsed.error ?? tNow("settings.secretFormSheet.invalidJson"))
             return
         }
         setError(null)
@@ -138,7 +139,7 @@ export const SecretFormSheet = ({
                 // The slug is immutable, so it is sent on create only.
                 slug: isEditing ? undefined : slug.trim(),
                 format,
-                content: isJson ? (parsed?.content ?? {}) : value,
+                content: parsed ? parsed.content : value,
                 ownerKind,
             } as NamedSecretRow)
             onClose()
@@ -248,6 +249,7 @@ export const SecretFormSheet = ({
                                 {t("settings.secretFormSheet.whoCanUseIt")}
                             </span>
                             <OwnerRadioGroup<Exclude<OwnerKind, "organization">>
+                                aria-label={t("settings.secretFormSheet.whoCanUseIt")}
                                 value={owner}
                                 onChange={setOwner}
                                 options={[
