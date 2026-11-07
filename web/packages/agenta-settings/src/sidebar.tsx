@@ -1,5 +1,6 @@
 import type {ReactNode} from "react"
 
+import {t} from "@agenta/i18n/navigation"
 import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/navigation"
 import {
     Broadcast,
@@ -105,7 +106,7 @@ export const buildSettingsSidebarSections = (
         })
     })
 
-    return SETTINGS_SCOPES.map(({key, title}, index) => ({
+    return SETTINGS_SCOPES.map(({key, titleKey}, index) => ({
         key: `settings-${key}`,
         items: itemsByScope[key],
         // Groups are separated by whitespace, not a rule.
@@ -119,7 +120,7 @@ export const buildSettingsSidebarSections = (
                         index === 0 ? "pt-1" : "pt-4",
                     ].join(" ")}
                 >
-                    {title}
+                    {t(titleKey)}
                 </div>
             ),
     }))

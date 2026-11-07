@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {type TranslationKey} from "@agenta/i18n"
+import {useT} from "@agenta/i18n/settings"
 import {Button, cn} from "@agenta/ui/ui"
 import {ArrowRight, ArrowSquareOut, Key} from "@phosphor-icons/react"
 
@@ -19,9 +21,12 @@ export interface SubscriptionPlan {
     unavailable?: string
 }
 
-const STATE_LABEL: Record<Exclude<PlanState, "available">, string> = {
-    connected: "Connected",
-    attention: "Needs sign-in",
+const STATE_LABEL: Record<
+    Exclude<PlanState, "available">,
+    TranslationKey<"common" | "settings">
+> = {
+    connected: "settings.providers.connected",
+    attention: "settings.providers.needsSignIn",
 }
 
 const BRAND = {
@@ -38,6 +43,7 @@ const BRAND = {
 } as const
 
 const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
+    const t = useT()
     const brand = BRAND[plan.brand]
     const ready = plan.state === "connected"
     const unavailable = !!plan.unavailable
@@ -66,8 +72,8 @@ const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
                         </span>
                         {plan.state === "available" ? null : (
                             <span
-                                aria-label={STATE_LABEL[plan.state]}
-                                title={STATE_LABEL[plan.state]}
+                                aria-label={t(STATE_LABEL[plan.state])}
+                                title={t(STATE_LABEL[plan.state])}
                                 className={cn(
                                     "size-1.5 shrink-0 rounded-full",
                                     ready ? "bg-colorSuccess" : "bg-colorWarning",
@@ -101,27 +107,30 @@ const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
 }
 
 /** AI providers' lead: run agents on a plan the team already pays for, ahead of API keys. */
-export const SubscriptionsBanner = ({plans}: {plans: SubscriptionPlan[]}) => (
-    // Anthropic's brand clay, not a theme color, so it is set once here.
-    <section className="rounded-2xl border border-solid border-border bg-background [--brand-clay-ink:#1a0f0b] [--brand-clay:#d97757]">
-        <div className="grid grid-cols-1 items-center gap-2 p-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
-            <div className="flex min-w-0 flex-col justify-center gap-2 px-2.5 py-1.5">
-                <span className="flex w-fit items-center gap-1.5 rounded-full border border-solid border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[11.5px] font-medium text-colorPrimaryText">
-                    <Key size={12} />
-                    No API key needed
-                </span>
-                <div className="flex flex-col gap-0.5">
-                    <h2 className="m-0 text-[16px] font-semibold leading-6 tracking-[-0.01em] text-foreground">
-                        Bring your own plan
-                    </h2>
-                    <p className="m-0 text-[12.5px] leading-[18px] text-muted-foreground">
-                        Agents run on your ChatGPT or Claude subscription.
-                    </p>
+export const SubscriptionsBanner = ({plans}: {plans: SubscriptionPlan[]}) => {
+    const t = useT()
+    return (
+        // Anthropic's brand clay, not a theme color, so it is set once here.
+        <section className="rounded-2xl border border-solid border-border bg-background [--brand-clay-ink:#1a0f0b] [--brand-clay:#d97757]">
+            <div className="grid grid-cols-1 items-center gap-2 p-2 md:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]">
+                <div className="flex min-w-0 flex-col justify-center gap-2 px-2.5 py-1.5">
+                    <span className="flex w-fit items-center gap-1.5 rounded-full border border-solid border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[11.5px] font-medium text-colorPrimaryText">
+                        <Key size={12} />
+                        {t("settings.providers.noApiKeyNeeded")}
+                    </span>
+                    <div className="flex flex-col gap-0.5">
+                        <h2 className="m-0 text-[16px] font-semibold leading-6 tracking-[-0.01em] text-foreground">
+                            {t("settings.providers.bringYourOwnPlan")}
+                        </h2>
+                        <p className="m-0 text-[12.5px] leading-[18px] text-muted-foreground">
+                            {t("settings.providers.bannerBody")}
+                        </p>
+                    </div>
                 </div>
+                {plans.map((plan) => (
+                    <PlanCell key={plan.key} plan={plan} />
+                ))}
             </div>
-            {plans.map((plan) => (
-                <PlanCell key={plan.key} plan={plan} />
-            ))}
-        </div>
-    </section>
-)
+        </section>
+    )
+}

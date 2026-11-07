@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react"
 
 import {organizationAccessApi} from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n/settings"
 import {Button, Input} from "@agenta/ui/ui"
 
 import {plainAccessError} from "./accessErrors"
@@ -20,6 +21,7 @@ export const OrganizationSlugField = ({
     canEdit: boolean
     onSaved?: () => void | Promise<void>
 }) => {
+    const t = useT()
     const [value, setValue] = useState("")
     const [savedSlug, setSavedSlug] = useState<string | null>(null)
     const [pending, setPending] = useState(false)
@@ -38,7 +40,7 @@ export const OrganizationSlugField = ({
     const save = async () => {
         const next = value.trim()
         if (!next || next.length > 64 || !SLUG_PATTERN.test(next)) {
-            setError("Use 1–64 lowercase letters (a-z) and hyphens (-)")
+            setError(t("settings.organizationSlugField.invalid"))
             return
         }
         setPending(true)
@@ -53,8 +55,8 @@ export const OrganizationSlugField = ({
                 (cause as {statusCode?: number; response?: {status?: number}} | null)
                     ?.statusCode === 409 ||
                     (cause as {response?: {status?: number}} | null)?.response?.status === 409
-                    ? "That slug is already taken. Choose another."
-                    : plainAccessError(cause, "Could not save the organization slug"),
+                    ? t("settings.organizationSlugField.taken")
+                    : plainAccessError(cause, t("settings.organizationSlugField.saveFailed")),
             )
         } finally {
             setPending(false)
@@ -64,10 +66,12 @@ export const OrganizationSlugField = ({
     if (current) {
         return (
             <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-foreground">Organization slug</span>
+                <span className="text-sm font-medium text-foreground">
+                    {t("settings.organizationSlugField.label")}
+                </span>
                 <span className="font-mono text-sm text-foreground">{current}</span>
                 <span className="text-xs text-muted-foreground">
-                    This slug is used in SSO callback URLs and cannot be changed.
+                    {t("settings.organizationSlugField.lockedHint")}
                 </span>
             </div>
         )
@@ -76,8 +80,12 @@ export const OrganizationSlugField = ({
     if (!canEdit) {
         return (
             <div className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-foreground">Organization slug</span>
-                <span className="text-xs text-muted-foreground">No slug is set.</span>
+                <span className="text-sm font-medium text-foreground">
+                    {t("settings.organizationSlugField.label")}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                    {t("settings.organizationSlugField.noSlug")}
+                </span>
             </div>
         )
     }
@@ -85,8 +93,8 @@ export const OrganizationSlugField = ({
     return (
         <div className="flex flex-col gap-2">
             <Field
-                label="Organization slug"
-                hint="Set it once. It is used in SSO callback URLs and cannot be changed later."
+                label={t("settings.organizationSlugField.label")}
+                hint={t("settings.organizationSlugField.hint")}
             >
                 <Input
                     value={value}
@@ -97,7 +105,7 @@ export const OrganizationSlugField = ({
                 />
             </Field>
             <p className="m-0 text-xs text-muted-foreground">
-                Set the slug before adding an SSO provider. The callback URL needs it.
+                {t("settings.organizationSlugField.setBeforeSso")}
             </p>
             {error ? (
                 <p role="alert" className="text-destructive m-0 text-xs">
@@ -106,7 +114,9 @@ export const OrganizationSlugField = ({
             ) : null}
             <div>
                 <Button disabled={pending || !value.trim()} onClick={() => void save()}>
-                    {pending ? "Saving…" : "Save slug"}
+                    {pending
+                        ? t("settings.organizationSlugField.saving")
+                        : t("settings.organizationSlugField.save")}
                 </Button>
             </div>
         </div>

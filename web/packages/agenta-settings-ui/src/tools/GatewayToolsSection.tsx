@@ -22,6 +22,8 @@ import {
     ToolExecutionDrawer,
     useRefreshToolConnection,
 } from "@agenta/entity-ui/gatewayTool"
+import {type TranslationKey} from "@agenta/i18n"
+import {t as translate, useT} from "@agenta/i18n/settings"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {connectionDisplayName} from "@agenta/shared/utils"
@@ -49,9 +51,9 @@ import {categoryLabel} from "./categoryLabel"
 import {useToolsIntegrations, type CatalogIntegrationItem} from "./hooks/useToolsIntegrations"
 import {IntegrationCatalog, IntegrationLogo} from "./IntegrationCatalog"
 
-const AUTH_SCHEME_LABELS: Record<string, string> = {
+const AUTH_SCHEME_LABELS: Record<string, TranslationKey<"common" | "settings"> | "OAuth"> = {
     oauth: "OAuth",
-    api_key: "API Key",
+    api_key: "settings.tools.apiKey",
 }
 
 /** Nouns for the page; a host that calls them something else passes its own. */
@@ -63,26 +65,31 @@ export interface GatewayToolsSectionCopy {
     noMatch: (term: string) => string
 }
 
-const DEFAULT_COPY: GatewayToolsSectionCopy = {
-    run: "Run tool",
-    searchPlaceholder: "Search tools",
-    emptyTitle: "No tools connected yet",
-    emptyBody: "Connect a tool to let your agents call it.",
-    noMatch: (term) => `No tools match “${term}”`,
-}
+const defaultCopy = (t: ReturnType<typeof useT>): GatewayToolsSectionCopy => ({
+    run: t("settings.tools.runTool"),
+    searchPlaceholder: t("settings.tools.searchTools"),
+    emptyTitle: t("settings.tools.emptyTitle"),
+    emptyBody: t("settings.tools.emptyBody"),
+    noMatch: (term) => t("settings.tools.noMatch", {term}),
+})
 
 /** The same reading as ConnectionStatusBadge. */
 const connectionStatus = (
     connection: ToolConnection,
+    t: ReturnType<typeof useT>,
 ): Pick<SettingsCatalogItem, "status" | "statusLabel"> => {
-    if (!isConnectionActive(connection)) return {status: "attention", statusLabel: "Inactive"}
-    if (!isConnectionValid(connection)) return {status: "attention", statusLabel: "Pending"}
-    return {status: "connected", statusLabel: "Connected"}
+    if (!isConnectionActive(connection))
+        return {status: "attention", statusLabel: t("settings.tools.inactive")}
+    if (!isConnectionValid(connection))
+        return {status: "attention", statusLabel: t("settings.tools.pending")}
+    return {status: "connected", statusLabel: t("settings.tools.connected")}
 }
 
 const authLabel = (connection: ToolConnection): string | undefined => {
     const scheme = connection.data?.auth_scheme
-    return typeof scheme === "string" ? (AUTH_SCHEME_LABELS[scheme] ?? scheme) : undefined
+    if (typeof scheme !== "string") return undefined
+    const label = AUTH_SCHEME_LABELS[scheme]
+    return label === undefined ? scheme : label === "OAuth" ? label : translate(label)
 }
 
 /** A connection's catalog entry: from the first page when there, else its cached detail. */
@@ -140,10 +147,11 @@ const ConnectionDescription = ({
     /** The person's default for this app: "Gmail · OAuth · Default". */
     isDefault?: boolean
 }) => {
+    const t = useT()
     const entry = useCatalogEntry(integrationKey, known)
     return (
         <>
-            {[entry?.name ?? integrationKey, auth, isDefault ? "Default" : null]
+            {[entry?.name ?? integrationKey, auth, isDefault ? t("settings.tools.default") : null]
                 .filter(Boolean)
                 .join(" · ")}
         </>
@@ -191,9 +199,10 @@ export default function GatewayToolsSection({
     projectCount,
     canEdit = true,
 }: GatewayToolsSectionProps) {
+    const t = useT()
     const copy = useMemo<GatewayToolsSectionCopy>(
-        () => ({...DEFAULT_COPY, ...copyOverrides}),
-        [copyOverrides],
+        () => ({...defaultCopy(t), ...copyOverrides}),
+        [copyOverrides, t],
     )
     const {connections, isLoading, refetch} = useToolConnectionsQuery()
     const access = useAtomValue(personalAccountsAccessAtom)
@@ -253,53 +262,54 @@ export default function GatewayToolsSection({
     const confirmDelete = useCallback(
         (connection: ToolConnection) => {
             confirm?.({
-                title: "Delete Connection",
-                message:
-                    "Are you sure you want to delete this connection? This action is irreversible.",
+                title: t("settings.tools.deleteConnectionTitle"),
+                message: t("settings.tools.deleteConnectionMessage"),
                 onOk: async () => {
                     if (!connection.id) return
                     try {
                         await handleDelete(connection.id)
-                        message.success("Connection deleted")
+                        message.success(t("settings.tools.connectionDeleted"))
                     } catch {
-                        message.error("Failed to delete connection")
+                        message.error(t("settings.tools.deleteConnectionFailed"))
                     }
                 },
             })
         },
-        [confirm, handleDelete],
+        [confirm, handleDelete, t],
     )
 
     const confirmRevoke = useCallback(
         (connection: ToolConnection) => {
             confirm?.({
-                title: "Revoke Connection",
-                message:
-                    "This will mark the connection as invalid. You can refresh it later to reactivate.",
+                title: t("settings.tools.revokeConnectionTitle"),
+                message: t("settings.tools.revokeConnectionMessage"),
                 onOk: async () => {
                     if (!connection.id) return
                     try {
                         await handleRevoke(connection.id)
-                        message.success("Connection revoked")
+                        message.success(t("settings.tools.connectionRevoked"))
                     } catch {
-                        message.error("Failed to revoke connection")
+                        message.error(t("settings.tools.revokeConnectionFailed"))
                     }
                 },
             })
         },
-        [confirm, handleRevoke],
+        [confirm, handleRevoke, t],
     )
 
     // A person's default is what an agent that uses each person's own account picks for them.
-    const makeDefault = useCallback(async (connection: ToolConnection) => {
-        if (!connection.id) return
-        try {
-            await makeDefaultToolConnection(connection.id)
-            invalidateToolConnections()
-        } catch {
-            message.error("Could not make it your default. Try again.")
-        }
-    }, [])
+    const makeDefault = useCallback(
+        async (connection: ToolConnection) => {
+            if (!connection.id) return
+            try {
+                await makeDefaultToolConnection(connection.id)
+                invalidateToolConnections()
+            } catch {
+                message.error(t("settings.tools.makeDefaultFailed"))
+            }
+        },
+        [t],
+    )
 
     const term = searchTerm.trim().toLowerCase()
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
@@ -345,7 +355,7 @@ export default function GatewayToolsSection({
                                 isDefault={isDefault}
                             />
                         ),
-                        ...connectionStatus(connection),
+                        ...connectionStatus(connection, t),
                         onOpen: readOnly
                             ? undefined
                             : pending
@@ -370,20 +380,20 @@ export default function GatewayToolsSection({
                                             isDefault ||
                                             !isConnectionActive(connection) ||
                                             !isConnectionValid(connection),
-                                        label: "Make default",
+                                        label: t("settings.tools.makeDefault"),
                                         icon: <Star size={14} />,
                                         onClick: () => void makeDefault(connection),
                                     },
                                     {
                                         key: "refresh",
                                         hidden: readOnly,
-                                        label: "Refresh",
+                                        label: t("common.refresh"),
                                         icon: <ArrowClockwise size={14} />,
                                         onClick: () => onRefresh(connection),
                                     },
                                     {
                                         key: "revoke",
-                                        label: "Revoke",
+                                        label: t("common.revoke"),
                                         icon: <XCircle size={14} />,
                                         hidden: !confirm,
                                         onClick: () => confirmRevoke(connection),
@@ -391,7 +401,7 @@ export default function GatewayToolsSection({
                                     {type: "divider"},
                                     {
                                         key: "delete",
-                                        label: "Delete",
+                                        label: t("common.delete"),
                                         icon: <Trash size={14} />,
                                         danger: true,
                                         hidden: !confirm,
@@ -407,7 +417,7 @@ export default function GatewayToolsSection({
         const yoursItems = yours ? toItems(personalConnections ?? [], true) : []
         const projectGroup: SettingsCatalogGroup = {
             key: "connected",
-            label: projectSwitch ?? "Connected",
+            label: projectSwitch ?? t("settings.tools.connected"),
             items: toItems(connections ?? [], false),
             // Under the project switch the group never folds and stays when empty, except in a search.
             ...(projectSwitch
@@ -422,14 +432,14 @@ export default function GatewayToolsSection({
         return [
             {
                 key: "yours",
-                label: "Yours",
+                label: t("settings.shared.yours"),
                 items: yoursItems,
                 collapsed: !term && yoursCollapsed,
                 onToggle: term ? undefined : () => setYoursCollapsed((value) => !value),
                 // Empty, "Yours" says what it is for; a search with no match says nothing here.
                 footer: personalError ? (
                     <LoadFailed
-                        message="Couldn't load your connections."
+                        message={t("settings.tools.loadConnectionsFailed")}
                         onRetry={() => void refetchPersonal()}
                     />
                 ) : !term && yoursItems.length === 0 ? (
@@ -461,6 +471,7 @@ export default function GatewayToolsSection({
         onRefresh,
         confirmRevoke,
         confirmDelete,
+        t,
     ])
 
     return (
@@ -471,7 +482,9 @@ export default function GatewayToolsSection({
                         value: searchTerm,
                         onChange: search.onChange,
                         placeholder: categoryName
-                            ? `Search ${categoryLabel(categoryName)}`
+                            ? t("settings.tools.searchCategory", {
+                                  category: categoryLabel(categoryName),
+                              })
                             : copy.searchPlaceholder,
                     }}
                     toolbar={
@@ -505,7 +518,7 @@ export default function GatewayToolsSection({
                                 title={copy.noMatch(searchTerm.trim())}
                                 action={
                                     <Button variant="outline" onClick={() => search.onChange("")}>
-                                        Clear search
+                                        {t("common.clearSearch")}
                                     </Button>
                                 }
                             />

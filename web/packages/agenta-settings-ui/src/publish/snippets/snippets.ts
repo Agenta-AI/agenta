@@ -1,3 +1,5 @@
+import {t} from "@agenta/i18n/publish"
+
 import agentCurlCode from "./curl"
 import agentPythonCode from "./python"
 import type {AgentInvokeSnippetInput} from "./request"
@@ -16,6 +18,14 @@ export const buildAgentSnippets = (
     lang: AgentSnippetLang,
     input: Omit<AgentInvokeSnippetInput, "stream">,
 ) => [
-    {key: "stream", title: "Streaming response", code: BUILDERS[lang]({...input, stream: true})},
-    {key: "json", title: "JSON response", code: BUILDERS[lang]({...input, stream: false})},
+    {
+        key: "stream",
+        title: t("publish.streamingResponse"),
+        code: BUILDERS[lang]({...input, stream: true}),
+    },
+    {
+        key: "json",
+        title: t("publish.jsonResponse"),
+        code: BUILDERS[lang]({...input, stream: false}),
+    },
 ]

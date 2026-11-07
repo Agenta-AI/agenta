@@ -1,6 +1,7 @@
 import {useEffect, useRef, type ReactNode} from "react"
 
 import {useToolCatalogCategories} from "@agenta/entities/gatewayTool"
+import {useT} from "@agenta/i18n/settings"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/ui"
 
@@ -32,6 +33,7 @@ export const CategoryChips = ({
     selected: string | null
     onSelect: (category: string | null) => void
 }) => {
+    const t = useT()
     const {categories, error} = useToolCatalogCategories()
     const rowRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(rowRef, {axis: "x", enabled: categories.length > 0})
@@ -62,12 +64,12 @@ export const CategoryChips = ({
         <div
             ref={rowRef}
             role="toolbar"
-            aria-label="Categories"
+            aria-label={t("settings.tools.categories")}
             // Flush with the content edge; the row clips, so chips draw their focus ring inside.
             className="ag-scroll-fade-x flex gap-1.5 overflow-x-auto pt-2 [scrollbar-width:none]"
         >
             <Chip on={selected === null} onClick={() => onSelect(null)}>
-                All
+                {t("common.all")}
             </Chip>
             {categories.map((category) => (
                 <Chip

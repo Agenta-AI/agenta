@@ -8,6 +8,8 @@
 
 import type {ReactNode} from "react"
 
+import {richText} from "@agenta/i18n"
+import {useT} from "@agenta/i18n/billing"
 import {dayjs} from "@agenta/shared/utils"
 import {Button, Spinner} from "@agenta/ui/ui"
 
@@ -57,6 +59,7 @@ const PlanSummary = ({
     subscription?: BillingSubscription | null
     planTitle?: string | null
 }) => {
+    const t = useT()
     const name = planTitle || planName(subscription?.plan)
     if (!name) return <span className="text-colorTextTertiary">—</span>
 
@@ -64,8 +67,8 @@ const PlanSummary = ({
     const trialText =
         subscription?.free_trial && end
             ? end.isAfter(dayjs())
-                ? `trial ends in ${end.fromNow(true)}`
-                : `trial ended ${end.fromNow(true)} ago`
+                ? t("billing.trialEndsIn", {duration: end.fromNow(true)})
+                : t("billing.trialEndedAgo", {duration: end.fromNow(true)})
             : ""
 
     return (
@@ -123,6 +126,7 @@ export const BillingPage = ({
     onViewMembers,
     children,
 }: BillingPageProps) => {
+    const t = useT()
     if (loading) {
         return (
             <div className="flex w-full items-center justify-center py-24">
@@ -136,7 +140,9 @@ export const BillingPage = ({
     )
     const users = usage?.users
 
-    const upgradeButton = onUpgrade ? <Button onClick={onUpgrade}>Upgrade plan</Button> : null
+    const upgradeButton = onUpgrade ? (
+        <Button onClick={onUpgrade}>{t("billing.upgradePlan")}</Button>
+    ) : null
 
     const renewsAt = periodEnd(subscription)
     // A subscription is worth showing even where nothing can be changed about it, so a host
@@ -147,7 +153,7 @@ export const BillingPage = ({
     return (
         <div className="flex flex-col gap-8">
             {showPlanCard ? (
-                <SettingsSection title="Current plan">
+                <SettingsSection title={t("billing.currentPlan")}>
                     <CardBody>
                         <span className="text-base font-semibold capitalize text-colorText">
                             <PlanSummary subscription={subscription} planTitle={planTitle} />
@@ -155,21 +161,33 @@ export const BillingPage = ({
                         {/* Only with a real boundary: plans that never renew leave `period_end` unset. */}
                         {!isOnFreePlan && renewsAt ? (
                             <span className="text-colorTextSecondary">
-                                {subscription?.free_trial
-                                    ? "Trial period will end on "
-                                    : "Auto renews on "}
-                                <span className="font-medium text-colorText">
-                                    {renewsAt.format("MMM D, YYYY")}
-                                </span>
+                                {richText(
+                                    t(
+                                        subscription?.free_trial
+                                            ? "billing.trialEndsOn"
+                                            : "billing.autoRenewsOn",
+                                        {date: renewsAt.format("MMM D, YYYY")},
+                                    ),
+                                    {
+                                        date: (text) => (
+                                            <span className="font-medium text-colorText">
+                                                {text}
+                                            </span>
+                                        ),
+                                    },
+                                )}
                             </span>
                         ) : null}
 
                         {isCustomPlan ? (
                             <span className="text-colorTextSecondary">
-                                For queries regarding your plan,{" "}
-                                <a href={CONTACT_URL} target="_blank" rel="noreferrer">
-                                    click here to contact us
-                                </a>
+                                {richText(t("billing.contactForPlan"), {
+                                    link: (text) => (
+                                        <a href={CONTACT_URL} target="_blank" rel="noreferrer">
+                                            {text}
+                                        </a>
+                                    ),
+                                })}
                             </span>
                         ) : !isOnFreePlan ? (
                             upgradeButton || onCancelSubscription ? (
@@ -177,7 +195,7 @@ export const BillingPage = ({
                                     {upgradeButton}
                                     {onCancelSubscription ? (
                                         <Button variant="link" onClick={onCancelSubscription}>
-                                            Cancel subscription
+                                            {t("billing.cancelSubscription")}
                                         </Button>
                                     ) : null}
                                 </div>
@@ -189,7 +207,7 @@ export const BillingPage = ({
                 </SettingsSection>
             ) : null}
 
-            <SettingsSection title="Limits">
+            <SettingsSection title={t("billing.limits")}>
                 <CardBody>
                     <div className={METRIC_GRID}>
                         {limits.map(([key, metric]) =>
@@ -211,13 +229,13 @@ export const BillingPage = ({
                 </CardBody>
             </SettingsSection>
 
-            <SettingsSection title="Members">
+            <SettingsSection title={t("billing.members")}>
                 <CardBody>
                     <div className={METRIC_GRID}>
                         {/* Free seats only mean something against a paid tier. */}
                         {billingEnabled ? (
                             <UsageProgressBar
-                                label="Free"
+                                label={t("billing.free")}
                                 used={users?.value ?? 0}
                                 limit={users?.free ?? 0}
                                 strict={users?.strict}
@@ -227,7 +245,7 @@ export const BillingPage = ({
                         ) : null}
 
                         <UsageProgressBar
-                            label="Total"
+                            label={t("billing.total")}
                             used={users?.value ?? 0}
                             limit={users?.limit as number}
                             strict={users?.strict}
@@ -237,24 +255,26 @@ export const BillingPage = ({
                     </div>
                     {onViewMembers ? (
                         <Button variant="outline" onClick={onViewMembers}>
-                            View members
+                            {t("billing.viewMembers")}
                         </Button>
                     ) : null}
                 </CardBody>
             </SettingsSection>
 
             {billingEnabled && onOpenBillingPortal ? (
-                <SettingsSection title="Billing">
+                <SettingsSection title={t("billing.billing")}>
                     <SettingsRow
-                        title="Payment method, invoices and address"
-                        description="Managed in the Stripe billing portal."
+                        title={t("billing.paymentDetails")}
+                        description={t("billing.paymentDetailsDescription")}
                         control={
                             <Button
                                 variant="outline"
                                 onClick={onOpenBillingPortal}
                                 disabled={openingBillingPortal}
                             >
-                                {openingBillingPortal ? "Opening…" : "Open billing portal"}
+                                {openingBillingPortal
+                                    ? t("billing.opening")
+                                    : t("billing.openPortal")}
                             </Button>
                         }
                     />

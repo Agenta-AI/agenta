@@ -1,5 +1,6 @@
 import {useEffect, useId, useState} from "react"
 
+import {useT} from "@agenta/i18n/common"
 import {
     Button,
     Dialog,
@@ -20,7 +21,7 @@ export const NameDialog = ({
     submitLabel,
     pending,
     initialValue = "",
-    placeholder = "Name",
+    placeholder,
     label,
     error,
     onClose,
@@ -39,6 +40,7 @@ export const NameDialog = ({
     onClose: () => void
     onSubmit: (name: string) => void
 }) => {
+    const t = useT()
     const [value, setValue] = useState(initialValue)
     const inputId = useId()
 
@@ -61,7 +63,7 @@ export const NameDialog = ({
                         value={value}
                         aria-invalid={error ? true : undefined}
                         onChange={(event) => setValue(event.target.value)}
-                        placeholder={placeholder}
+                        placeholder={placeholder ?? t("common.name")}
                     />
                     {error ? (
                         <p role="alert" className="text-destructive m-0 text-xs">
@@ -71,7 +73,7 @@ export const NameDialog = ({
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <Button
                         disabled={pending || !value.trim()}

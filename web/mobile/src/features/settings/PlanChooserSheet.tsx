@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n/billing"
 import {
     checkoutBillingSubscription,
     switchBillingPlan,
@@ -44,6 +45,7 @@ export const PlanChooserSheet = ({
     onCancelSubscription,
     onChanged,
 }: Props) => {
+    const t = useT()
     const [pendingPlan, setPendingPlan] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
 
@@ -73,7 +75,7 @@ export const PlanChooserSheet = ({
             onChanged()
             onOpenChange(false)
         } catch {
-            setError("We couldn't change your plan. Try again, or contact support if it persists.")
+            setError(t("billing.planChooserSheet.changeFailed"))
         } finally {
             setPendingPlan(null)
         }
@@ -86,9 +88,9 @@ export const PlanChooserSheet = ({
             {/* On a desktop the cards keep their buttons in view and scroll their lists instead. */}
             <DialogContent className="max-w-[1040px] lg:overflow-hidden">
                 <DialogHeader className="pr-6">
-                    <DialogTitle>Plans</DialogTitle>
+                    <DialogTitle>{t("billing.planChooserSheet.title")}</DialogTitle>
                     <DialogDescription>
-                        Every plan runs on credits. Pick how many you get each month.
+                        {t("billing.planChooserSheet.description")}
                     </DialogDescription>
                 </DialogHeader>
                 {error ? <p className="text-destructive m-0 text-sm">{error}</p> : null}
@@ -112,7 +114,9 @@ export const PlanChooserSheet = ({
                 </div>
                 {included.length ? (
                     <div className="bg-muted flex shrink-0 flex-col gap-2 rounded-xl px-4 py-3.5">
-                        <span className="text-[13px] font-medium">Included on every plan</span>
+                        <span className="text-[13px] font-medium">
+                            {t("billing.planChooserSheet.includedOnEveryPlan")}
+                        </span>
                         <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
                             {included.map((feature) => (
                                 <li

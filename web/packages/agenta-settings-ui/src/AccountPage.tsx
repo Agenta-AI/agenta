@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {richText} from "@agenta/i18n"
+import {useT} from "@agenta/i18n/settings"
 import {Button, Input} from "@agenta/ui/ui"
 import {Trash} from "@phosphor-icons/react"
 
@@ -53,12 +55,17 @@ const Field = ({
     />
 )
 
-const DangerCallout = ({children}: {children: React.ReactNode}) => (
-    <div className="flex flex-col gap-1 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg px-4 py-3">
-        <span className="font-medium text-colorError">This action cannot be undone.</span>
-        <p className="m-0 text-colorText">{children}</p>
-    </div>
-)
+const DangerCallout = ({children}: {children: React.ReactNode}) => {
+    const t = useT()
+    return (
+        <div className="flex flex-col gap-1 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg px-4 py-3">
+            <span className="font-medium text-colorError">
+                {t("settings.account.cannotBeUndone")}
+            </span>
+            <p className="m-0 text-colorText">{children}</p>
+        </div>
+    )
+}
 
 /**
  * The Account tab: read-only identity, then account deletion behind a typed-email gate.
@@ -73,6 +80,7 @@ export const AccountPage = ({
     deleting = false,
     renderConfirm,
 }: AccountPageProps) => {
+    const t = useT()
     const [open, setOpen] = useState(false)
     const [typed, setTyped] = useState("")
 
@@ -90,25 +98,25 @@ export const AccountPage = ({
 
     return (
         <div className="flex flex-col gap-8">
-            <SettingsSection title="Profile">
+            <SettingsSection title={t("settings.account.profile")}>
                 <Field
-                    label="Username"
+                    label={t("settings.account.username")}
                     value={username ?? ""}
-                    hint="How you appear in member lists and audit entries."
+                    hint={t("settings.account.usernameHint")}
                 />
                 <Field
                     mono
-                    label="Email"
+                    label={t("settings.account.email")}
                     value={address}
-                    hint="Used for sign-in and for organization invitations."
+                    hint={t("settings.account.emailHint")}
                 />
             </SettingsSection>
 
             {deletion ? (
-                <SettingsSection title="Danger zone" danger>
+                <SettingsSection title={t("settings.account.dangerZone")} danger>
                     <SettingsRow
-                        title="Delete account"
-                        description="Deletes your account, every organization you own, and all of their workspaces, projects, applications, and data. You will be signed out immediately."
+                        title={t("settings.account.deleteAccount")}
+                        description={t("settings.account.deleteAccountDescription")}
                         control={
                             <Button
                                 variant="destructive"
@@ -116,7 +124,7 @@ export const AccountPage = ({
                                 onClick={() => setOpen(true)}
                             >
                                 <Trash size={14} />
-                                Delete account
+                                {t("settings.account.deleteAccount")}
                             </Button>
                         }
                     />
@@ -131,23 +139,25 @@ export const AccountPage = ({
                       confirmed,
                       body: (
                           <div className="flex flex-col gap-3">
-                              <DangerCallout>
-                                  Permanently deletes your account and every organization you own,
-                                  including all workspaces, projects, applications, and data.
-                              </DangerCallout>
+                              <DangerCallout>{t("settings.account.deleteCallout")}</DangerCallout>
                               <div className="flex flex-col gap-2">
                                   <div className="flex flex-wrap items-center gap-2 text-colorText">
-                                      <span>Type</span>
-                                      <code className="rounded border border-solid border-colorErrorBorder bg-colorErrorBg px-1 text-colorError">
-                                          {address}
-                                      </code>
-                                      <span>to confirm:</span>
+                                      {richText(
+                                          t("settings.account.typeToConfirm", {email: address}),
+                                          {
+                                              code: (text) => (
+                                                  <code className="rounded border border-solid border-colorErrorBorder bg-colorErrorBg px-1 text-colorError">
+                                                      {text}
+                                                  </code>
+                                              ),
+                                          },
+                                      )}
                                   </div>
                                   <Input
                                       autoFocus
                                       value={typed}
                                       onChange={(event) => setTyped(event.target.value)}
-                                      placeholder="Your email"
+                                      placeholder={t("settings.account.yourEmail")}
                                       autoComplete="off"
                                       spellCheck={false}
                                   />

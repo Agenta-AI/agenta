@@ -36,6 +36,8 @@ import {
     McpConnectionDetail,
     McpPermissionDrawer,
 } from "@agenta/entity-ui/mcpEndpoint"
+import {type TranslationKey} from "@agenta/i18n"
+import {t as translate, useT} from "@agenta/i18n/settings"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
@@ -75,11 +77,10 @@ export interface McpServersSectionCopy {
     emptyBody: string
 }
 
-const DEFAULT_COPY: McpServersSectionCopy = {
-    connect: "Connect MCP",
-    emptyTitle: "No MCP servers connected",
-    emptyBody:
-        "Connect a server by URL. You'll sign in or add a key once; agents in this project can then add it and choose what it may run.",
+const DEFAULT_COPY: Record<keyof McpServersSectionCopy, TranslationKey<"common" | "settings">> = {
+    connect: "settings.mcp.connect",
+    emptyTitle: "settings.mcp.emptyTitle",
+    emptyBody: "settings.mcp.emptyBody",
 }
 
 /**
@@ -109,16 +110,16 @@ const STATUS_TONE: Record<McpConnectionStatus, "success" | "warning" | "error"> 
 const hasGrantToRevoke = (endpoint: MCPEndpoint) =>
     endpoint.auth_mode === "oauth" && Boolean(endpoint.secret_id)
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(0,2fr)"},
-    {key: "url", label: "Server URL", width: "minmax(0,2fr)"},
-    {key: "auth", label: "Auth", width: "minmax(0,1fr)"},
-    {key: "status", label: "Status", width: "minmax(0,1.2fr)"},
+const COLUMNS: (ListTableColumn & {label: TranslationKey<"common" | "settings">})[] = [
+    {key: "name", label: "common.name", width: "minmax(0,2fr)"},
+    {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,2fr)"},
+    {key: "auth", label: "settings.mcp.auth", width: "minmax(0,1fr)"},
+    {key: "status", label: "common.status", width: "minmax(0,1.2fr)"},
 ]
 
-const ACTIONS_COLUMN: ListTableColumn = {
+const ACTIONS_COLUMN: ListTableColumn & {label: TranslationKey<"common" | "settings">} = {
     key: "actions",
-    label: "Actions",
+    label: "common.actions",
     srOnly: true,
     width: "32px",
 }
@@ -149,9 +150,15 @@ export default function McpServersSection({
     projectSwitch,
     projectCount,
 }: McpServersSectionProps) {
+    const t = useT()
     const copy = useMemo<McpServersSectionCopy>(
-        () => ({...DEFAULT_COPY, ...copyOverrides}),
-        [copyOverrides],
+        () => ({
+            connect: t(DEFAULT_COPY.connect),
+            emptyTitle: t(DEFAULT_COPY.emptyTitle),
+            emptyBody: t(DEFAULT_COPY.emptyBody),
+            ...copyOverrides,
+        }),
+        [t, copyOverrides],
     )
 
     const {data: endpoints, isPending} = useAtomValue(mcpEndpointsQueryAtom)
@@ -242,21 +249,21 @@ export default function McpServersSection({
     const handleDisconnect = useCallback(
         (endpoint: MCPEndpoint) => {
             if (!endpoint.id) return
-            const label = endpoint.name || endpoint.slug || "this server"
+            const label = endpoint.name || endpoint.slug || translate("settings.mcp.thisServer")
             const run = async () => {
                 try {
                     await disconnect(endpoint.id as string)
                 } catch (error) {
                     message.error(
-                        (error as Error)?.message || "Failed to disconnect the MCP server.",
+                        (error as Error)?.message || translate("settings.mcp.disconnectFailed"),
                     )
                 }
             }
             if (!confirm) return void run()
             confirm({
-                title: `Disconnect ${label}`,
-                message: "Agents using this server lose its tools",
-                okText: "Disconnect",
+                title: translate("settings.mcp.disconnectTitle", {name: label}),
+                message: translate("settings.mcp.disconnectMessage"),
+                okText: translate("common.disconnect"),
                 danger: true,
                 onOk: run,
             })
@@ -273,20 +280,22 @@ export default function McpServersSection({
     const handleRemove = useCallback(
         (endpoint: MCPEndpoint) => {
             if (!endpoint.id) return
-            const label = endpoint.name || endpoint.slug || "this server"
+            const label = endpoint.name || endpoint.slug || translate("settings.mcp.thisServer")
             const run = async () => {
                 try {
                     await deleteEndpoint(endpoint.id as string)
                     setViewing(null)
                     setToolsKey(null)
                 } catch (error) {
-                    message.error((error as Error)?.message || "Failed to remove the MCP server.")
+                    message.error(
+                        (error as Error)?.message || translate("settings.mcp.removeFailed"),
+                    )
                 }
             }
             if (!confirm) return void run()
             confirm({
-                title: "Remove server",
-                message: `${label} is removed from this project. Agents configured to use it stop working, and reconnecting later creates a new connection.`,
+                title: translate("settings.mcp.removeTitle"),
+                message: translate("settings.mcp.removeMessage", {name: label}),
                 onOk: run,
             })
         },
@@ -294,8 +303,12 @@ export default function McpServersSection({
     )
 
     const allColumns = useMemo(
-        () => (readOnly ? COLUMNS : [...COLUMNS, ACTIONS_COLUMN]),
-        [readOnly],
+        () =>
+            (readOnly ? COLUMNS : [...COLUMNS, ACTIONS_COLUMN]).map((column) => ({
+                ...column,
+                label: t(column.label),
+            })),
+        [readOnly, t],
     )
     const {columns, shows} = usePhoneColumns(allColumns, PHONE_KEYS)
     const empty = !isPending && rows.length === 0
@@ -348,7 +361,7 @@ export default function McpServersSection({
                             <InlineName
                                 value={record.name || record.slug || ""}
                                 editing={!readOnly && renamingKey === rowKey(record)}
-                                ariaLabel="Connection name"
+                                ariaLabel={t("settings.mcp.connectionName")}
                                 testId="mcp-connection-name"
                                 onStart={
                                     readOnly ? undefined : () => setRenamingKey(rowKey(record))
@@ -391,15 +404,15 @@ export default function McpServersSection({
                         {!shows("auth") ? null : record.auth_mode === "oauth" ? (
                             <span className="truncate">OAuth</span>
                         ) : record.auth_mode === "none" ? (
-                            <span className="truncate">None</span>
+                            <span className="truncate">{t("common.none")}</span>
                         ) : secretName ? (
                             // Never the credential itself, only what it is filed under.
                             <span className="flex min-w-0 items-center gap-1">
-                                <span>API key ·</span>
+                                <span>{t("settings.mcp.apiKeyPrefix")}</span>
                                 <span className="truncate font-mono text-xs">{secretName}</span>
                             </span>
                         ) : (
-                            <span className="truncate">API key</span>
+                            <span className="truncate">{t("settings.mcp.apiKey")}</span>
                         )}
                         <span
                             data-testid="mcp-connection-status"
@@ -425,24 +438,24 @@ export default function McpServersSection({
                         </span>
                         {readOnly ? null : (
                             <SettingsRowMenu
-                                label="Server actions"
+                                label={t("settings.mcp.serverActions")}
                                 items={[
                                     {
                                         key: "reconnect",
-                                        label: "Reconnect",
+                                        label: t("common.reconnect"),
                                         icon: <ArrowsClockwise size={14} />,
                                         onClick: () => openReconnect(record),
                                     },
                                     {
                                         key: "view-tools",
-                                        label: "View tools",
+                                        label: t("settings.mcp.viewTools"),
                                         icon: <Wrench size={14} />,
                                         hidden: !canListTools,
                                         onClick: () => setToolsKey(rowKey(record)),
                                     },
                                     {
                                         key: "rename",
-                                        label: "Rename",
+                                        label: t("common.rename"),
                                         icon: <PencilSimpleLine size={14} />,
                                         deferred: true,
                                         onClick: () => setRenamingKey(rowKey(record)),
@@ -450,7 +463,7 @@ export default function McpServersSection({
                                     {type: "divider"},
                                     {
                                         key: "disconnect",
-                                        label: "Disconnect",
+                                        label: t("common.disconnect"),
                                         icon: <LinkBreak size={14} />,
                                         danger: true,
                                         // Only an OAuth grant can be revoked; anything else is a 400.
@@ -459,7 +472,7 @@ export default function McpServersSection({
                                     },
                                     {
                                         key: "remove",
-                                        label: "Remove",
+                                        label: t("common.remove"),
                                         icon: <Trash size={14} />,
                                         danger: true,
                                         onClick: () => handleRemove(record),
@@ -488,7 +501,7 @@ export default function McpServersSection({
                     />
                     <section className="flex flex-col gap-3">
                         <SettingsGroupHeading
-                            label={projectSwitch ?? "Project"}
+                            label={projectSwitch ?? t("common.project")}
                             count={rows.length}
                         />
                         {projectTable}

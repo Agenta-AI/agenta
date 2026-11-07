@@ -1,12 +1,14 @@
 import {useState} from "react"
 
 import type {OrganizationDomain} from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n/settings"
 import {Button} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {Check, Copy} from "@phosphor-icons/react"
 
 /** The DNS TXT record that the backend verifies for an unverified domain. */
 export const DomainDnsInstructions = ({domain}: {domain: OrganizationDomain}) => {
+    const t = useT()
     const [copied, setCopied] = useState(false)
     if (!domain.token) return null
 
@@ -15,13 +17,15 @@ export const DomainDnsInstructions = ({domain}: {domain: OrganizationDomain}) =>
 
     return (
         <div className="flex flex-col gap-2 rounded-md border border-solid border-border bg-muted px-3 py-2 text-xs">
-            <p className="m-0 text-muted-foreground">
-                Add this DNS record at your domain provider, then press Verify.
-            </p>
+            <p className="m-0 text-muted-foreground">{t("settings.domainDnsInstructions.hint")}</p>
             <div className="flex flex-col gap-1 font-mono">
-                <span className="break-all">Name: {name}</span>
-                <span>Type: TXT</span>
-                <span className="break-all">Value: {value}</span>
+                <span className="break-all">
+                    {t("settings.domainDnsInstructions.name", {name})}
+                </span>
+                <span>{t("settings.domainDnsInstructions.type")}</span>
+                <span className="break-all">
+                    {t("settings.domainDnsInstructions.value", {value})}
+                </span>
             </div>
             <div>
                 <Button
@@ -31,7 +35,7 @@ export const DomainDnsInstructions = ({domain}: {domain: OrganizationDomain}) =>
                     onClick={async () => setCopied(await copyToClipboard(value))}
                 >
                     {copied ? <Check size={14} /> : <Copy size={14} />}
-                    {copied ? "Copied" : "Copy value"}
+                    {copied ? t("common.copied") : t("settings.domainDnsInstructions.copyValue")}
                 </Button>
             </div>
         </div>

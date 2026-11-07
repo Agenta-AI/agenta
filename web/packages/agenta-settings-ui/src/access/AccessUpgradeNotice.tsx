@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {type TranslationKey} from "@agenta/i18n"
+import {useT} from "@agenta/i18n/settings"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 
 import {UpgradeNotice} from "./UpgradeNotice"
@@ -7,26 +9,33 @@ import {UpgradeNotice} from "./UpgradeNotice"
 /** The three separately-sold halves of Access & Security. */
 export type AccessFeature = "access" | "domains" | "sso"
 
-const FEATURES: Record<AccessFeature, {name: string; blurb: string}> = {
+const FEATURES: Record<
+    AccessFeature,
+    {name: TranslationKey<"common" | "settings">; blurb: TranslationKey<"common" | "settings">}
+> = {
     access: {
-        name: "Access Controls",
-        blurb: "sign-in and join rules",
+        name: "settings.access.accessControls",
+        blurb: "settings.access.accessControlsBlurb",
     },
     domains: {
-        name: "Verified Domains",
-        blurb: "verified domains",
+        name: "settings.access.verifiedDomains",
+        blurb: "settings.access.verifiedDomainsBlurb",
     },
     sso: {
-        name: "SSO Providers",
-        blurb: "single sign-on",
+        name: "settings.access.ssoProviders",
+        blurb: "settings.access.ssoBlurb",
     },
 }
 
 const ORDER: AccessFeature[] = ["access", "domains", "sso"]
 
 /** "a", "a and b", "a, b and c" — the last separator is "and", not a comma. */
-const list = (parts: string[]) =>
-    parts.length <= 1 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`
+const list = (t: ReturnType<typeof useT>, parts: string[]) =>
+    parts.length <= 1
+        ? (parts[0] ?? "")
+        : parts.length === 2
+          ? t("settings.access.listTwo", {first: parts[0], second: parts[1]})
+          : t("settings.access.listThree", {first: parts[0], second: parts[1], third: parts[2]})
 
 export interface AccessUpgradeNoticeProps {
     /** Which features the plan does not include. Renders nothing when empty. */
@@ -42,6 +51,7 @@ export interface AccessUpgradeNoticeProps {
  * includes none of this has one thing to say, so it says it once and names what is missing.
  */
 export const AccessUpgradeNotice = ({locked, action}: AccessUpgradeNoticeProps) => {
+    const t = useT()
     if (locked.length === 0) return null
 
     const present = ORDER.filter((feature) => locked.includes(feature))
@@ -52,10 +62,21 @@ export const AccessUpgradeNotice = ({locked, action}: AccessUpgradeNoticeProps) 
             icon={getSettingsSidebarIcon("organization")}
             title={
                 isEverything
-                    ? "Access & Security is not available on your plan"
-                    : `${list(present.map((feature) => FEATURES[feature].name))} ${present.length > 1 ? "are" : "is"} not available on your plan`
+                    ? t("settings.access.allNotAvailable")
+                    : t("settings.access.featuresNotAvailable", {
+                          count: present.length,
+                          features: list(
+                              t,
+                              present.map((feature) => t(FEATURES[feature].name)),
+                          ),
+                      })
             }
-            description={`Set up ${list(present.map((feature) => FEATURES[feature].blurb))} for this organization.`}
+            description={t("settings.access.setUpFeatures", {
+                features: list(
+                    t,
+                    present.map((feature) => t(FEATURES[feature].blurb)),
+                ),
+            })}
             action={action}
         />
     )

@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n/channels"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {
@@ -54,9 +55,9 @@ export interface ChannelsPageProps {
 
 export const ChannelsPage = ({
     agentId,
-    agentName = "your agent",
+    agentName: agentNameProp,
     agentDescription,
-    workspaceName = "your workspace",
+    workspaceName: workspaceNameProp,
     connections = EMPTY_CONNECTIONS,
     loading = false,
     loadError = null,
@@ -65,6 +66,9 @@ export const ChannelsPage = ({
     renderPanel,
     hostedHandle = "@agenta",
 }: ChannelsPageProps) => {
+    const t = useT()
+    const agentName = agentNameProp ?? t("channels.page.yourAgent")
+    const workspaceName = workspaceNameProp ?? t("channels.page.yourWorkspace")
     const [retrying, setRetrying] = useState(false)
     const {open, panel} = useChannelPanel({
         agentId,
@@ -87,10 +91,12 @@ export const ChannelsPage = ({
             <section className="overflow-hidden rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer">
                 <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-4">
                     <div className="flex min-w-0 items-center gap-2">
-                        <h3 className="m-0 text-base font-semibold text-colorText">Channels</h3>
+                        <h3 className="m-0 text-base font-semibold text-colorText">
+                            {t("channels.page.title")}
+                        </h3>
                         {anyIssue ? (
                             <span className="rounded bg-colorErrorBg px-1.5 py-0.5 text-xs text-colorError">
-                                Needs attention
+                                {t("common.needsAttention")}
                             </span>
                         ) : null}
                     </div>
@@ -115,14 +121,14 @@ export const ChannelsPage = ({
                                     }}
                                     className="ml-2 cursor-pointer border-0 bg-transparent text-colorPrimary underline"
                                 >
-                                    {retrying ? "Retrying…" : "Try again"}
+                                    {retrying ? t("common.retrying") : t("common.tryAgain")}
                                 </button>
                             ) : null}
                         </div>
                     ) : null}
                     {nothingConnected && !loading && !loadError ? (
                         <p className="m-0 mb-1 text-xs leading-normal text-colorTextSecondary">
-                            Talk to {agentName} from the chat tools your team already uses.
+                            {t("channels.page.intro", {agent: agentName})}
                         </p>
                     ) : null}
                     {CHANNEL_PLATFORMS.map((platform) => {
@@ -158,7 +164,11 @@ export const ChannelsPage = ({
                                         ) : null}
                                     </span>
                                     <span className={`truncate text-xs ${summary.subClass}`}>
-                                        {loading ? "Loading…" : loadError ? "Unavailable" : sub}
+                                        {loading
+                                            ? t("channels.page.loading")
+                                            : loadError
+                                              ? t("common.unavailable")
+                                              : sub}
                                     </span>
                                 </span>
                                 {loading || loadError ? null : summary.action === "manage" ? (
@@ -169,8 +179,8 @@ export const ChannelsPage = ({
                                 ) : (
                                     <span className="inline-flex h-6 items-center whitespace-nowrap rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2.5 text-xs text-colorText">
                                         {summary.action === "connect-here"
-                                            ? "Connect here"
-                                            : "Connect"}
+                                            ? t("channels.page.connectHere")
+                                            : t("common.connect")}
                                     </span>
                                 )}
                             </button>
