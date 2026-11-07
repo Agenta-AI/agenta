@@ -33,6 +33,8 @@ log = get_module_logger(__name__)
 
 _DISCORD_API_BASE = "https://discord.com/api/v10"
 
+_UNKNOWN_CHANNEL = 10003
+_UNKNOWN_MESSAGE = 10008
 _THREAD_ALREADY_CREATED = 160004
 
 _DEFERRED_UPDATE_MESSAGE = 6
@@ -291,7 +293,9 @@ class DiscordAdapter(ChannelAdapterInterface):
         self, connection: ChannelConnection, locator: Dict[str, Any]
     ) -> None:
         """Start the thread from the message the reply answers. Discord
-        refuses a second start, which also means the thread exists."""
+        refuses a second start, which means the thread exists. It answers
+        Unknown Message once the starter message is deleted, which leaves the
+        thread in place; if the thread is gone too, the post is refused."""
 
         try:
             await self._request(
@@ -306,13 +310,16 @@ class DiscordAdapter(ChannelAdapterInterface):
         except _DiscordApiError as e:
             if e.status_code >= 500:
                 raise _ThreadNotStarted(detail=str(e)) from e
-            if e.code != _THREAD_ALREADY_CREATED:
+            if e.code not in (_THREAD_ALREADY_CREATED, _UNKNOWN_MESSAGE):
                 raise
         except httpx.HTTPError as e:
             raise _ThreadNotStarted(detail=type(e).__name__) from e
+        self._remember_thread(connection, locator["thread_id"])
+
+    def _remember_thread(self, connection: ChannelConnection, thread_id: str) -> None:
         if len(self._threads) >= _CACHE_MAX:
             self._threads.clear()
-        self._threads.add((connection.id, locator["thread_id"]))
+        self._threads.add((connection.id, thread_id))
 
     async def edit_message(
         self,
@@ -350,14 +357,21 @@ class DiscordAdapter(ChannelAdapterInterface):
         starts the thread, it shows in the channel the message was posted
         in."""
 
-        target = (
-            locator["source_channel_id"]
-            if self._thread_missing(connection, locator)
-            else mapping.reply_channel_id(locator)
-        )
-        await self._request(
-            _bot_token(connection), "POST", f"/channels/{target}/typing"
-        )
+        token = _bot_token(connection)
+        target = mapping.reply_channel_id(locator)
+        try:
+            await self._request(token, "POST", f"/channels/{target}/typing")
+        except _DiscordApiError as e:
+            if e.code != _UNKNOWN_CHANNEL or not self._thread_missing(
+                connection, locator
+            ):
+                raise
+            await self._request(
+                token, "POST", f"/channels/{locator['source_channel_id']}/typing"
+            )
+            return
+        if mapping.opens_thread(locator):
+            self._remember_thread(connection, target)
 
     async def set_message_status(
         self,
