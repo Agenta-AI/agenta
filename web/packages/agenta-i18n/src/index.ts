@@ -24,8 +24,11 @@ export {
 // Usage: `const t = useT(membersCatalog, commonCatalog)` in a component, with each catalog
 // imported from `@agenta/i18n/catalogs/<namespace>`. Outside React, `createT(...)` at module
 // level; a file that needs both names the module one `tNow`.
-// English keeps the browser locale, so dates and numbers read as they did before translation.
-const formatLocale = () => {
+/**
+ * The locale for `toLocale*String` and `Intl`: undefined in English, so English output stays the
+ * browser locale exactly as before translation; the chosen language otherwise.
+ */
+export const formatLocale = (): string | undefined => {
     const language = getActiveLanguage()
     return language === "en" ? undefined : language
 }

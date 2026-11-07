@@ -156,6 +156,8 @@ export interface PreferencesPageProps {
     /** Rows without a binding are not rendered; a section left empty is dropped. */
     bindings?: PreferenceBindings
     hostItems?: readonly HostPreferenceItem[]
+    /** Only a host that loads the translations (/m) shows the language choice. */
+    showLanguage?: boolean
 }
 
 /**
@@ -164,7 +166,12 @@ export interface PreferencesPageProps {
  * Theme is a per-viewer choice both apps show the same way; the switches share storage across
  * apps, so a choice made in `/m` holds on the desktop and the other way round.
  */
-export const PreferencesPage = ({theme, bindings = {}, hostItems = []}: PreferencesPageProps) => {
+export const PreferencesPage = ({
+    theme,
+    bindings = {},
+    hostItems = [],
+    showLanguage = false,
+}: PreferencesPageProps) => {
     const t = useT(settingsPreferencesCatalog)
     return (
         <div className="flex flex-col gap-8">
@@ -172,7 +179,7 @@ export const PreferencesPage = ({theme, bindings = {}, hostItems = []}: Preferen
                 <ThemePicker {...theme} />
             </SettingsSection>
 
-            <LanguagePicker />
+            {showLanguage ? <LanguagePicker /> : null}
 
             {PREFERENCE_SECTIONS.map((section) => {
                 const rows = [

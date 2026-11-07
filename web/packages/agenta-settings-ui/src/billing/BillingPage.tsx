@@ -8,7 +8,7 @@
 
 import type {ReactNode} from "react"
 
-import {richText, useT} from "@agenta/i18n"
+import {formatLocale, richText, useT} from "@agenta/i18n"
 import billingPageCatalog from "@agenta/i18n/catalogs/billing.page"
 import {dayjs} from "@agenta/shared/utils"
 import {Button, Spinner} from "@agenta/ui/ui"
@@ -166,7 +166,19 @@ export const BillingPage = ({
                                         subscription?.free_trial
                                             ? "billing.page.trialEndsOn"
                                             : "billing.page.autoRenewsOn",
-                                        {date: renewsAt.format("MMM D, YYYY")},
+                                        {
+                                            // English keeps dayjs exactly; other languages use Intl.
+                                            date: formatLocale()
+                                                ? renewsAt
+                                                      .toDate()
+                                                      .toLocaleDateString(formatLocale(), {
+                                                          year: "numeric",
+                                                          month: "short",
+                                                          day: "numeric",
+                                                          timeZone: "UTC",
+                                                      })
+                                                : renewsAt.format("MMM D, YYYY"),
+                                        },
                                     ),
                                     {
                                         date: (text) => (

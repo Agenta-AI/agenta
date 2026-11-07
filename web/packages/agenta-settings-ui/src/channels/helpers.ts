@@ -448,3 +448,10 @@ export const isLiveForAgent = (
     const scope = connectionScope(connection, agentId)
     return scope === "here" || scope === "unknown"
 }
+
+/** Ids typed as a list: split on ASCII, full-width and Japanese/Chinese list commas. */
+export const splitIdList = (text: string): string[] =>
+    text
+        .split(/[,，、]/)
+        .map((value) => value.trim())
+        .filter(Boolean)

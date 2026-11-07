@@ -75,6 +75,7 @@ export const PreferencesTab = () => {
     return (
         <PreferencesPage
             theme={theme}
+            showLanguage
             bindings={{
                 ...bindings,
                 "classic-mode": {...bindings["classic-mode"], onChange: onClassicModeChange},
