@@ -1,14 +1,6 @@
-import {
-    lazy,
-    Suspense,
-    useCallback,
-    useRef,
-    useState,
-    type ComponentType,
-    type LazyExoticComponent,
-} from "react"
+import {Suspense, useCallback, useRef, useState} from "react"
 
-import {loadWithText, useT} from "@agenta/i18n"
+import {useT} from "@agenta/i18n"
 import channelsPanelCatalog from "@agenta/i18n/catalogs/channels.panel"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} from "@agenta/ui/ui"
 import {Broadcast, ChatCircleText, Code} from "@phosphor-icons/react"
@@ -24,6 +16,7 @@ import {
     platformLabel,
 } from "./helpers"
 import {platformLogo} from "./icons"
+import {lazyPanel} from "./lazyPanel"
 import {PanelLoadBoundary} from "./PanelLoadBoundary"
 import type {
     ChannelConnection,
@@ -34,22 +27,6 @@ import type {
     ChannelsPanelAgent,
 } from "./types"
 import {ViewTransition} from "./ViewTransition"
-
-/** A click-opened panel: its code and text load on first open; a failed load retries next time. */
-const lazyPanel = <P extends object>(load: () => Promise<ComponentType<P>>) => {
-    const make = (): LazyExoticComponent<ComponentType<P>> =>
-        lazy(() =>
-            loadWithText(load).then(
-                (component) => ({default: component}),
-                (error: unknown) => {
-                    current = make()
-                    throw error
-                },
-            ),
-        )
-    let current = make()
-    return () => current
-}
 
 const connectFlowPanel = lazyPanel(() =>
     import("./ChannelConnectFlow").then((m) => m.ChannelConnectFlow),
@@ -561,7 +538,9 @@ export const useChannelPanel = ({
                   children: (
                       <ViewTransition viewKey={routeKey(top, stack.length)} direction={direction}>
                           <PanelLoadBoundary>
-                              <Suspense fallback={<PanelLoading />}>{renderView(top)}</Suspense>
+                              {() => (
+                                  <Suspense fallback={<PanelLoading />}>{renderView(top)}</Suspense>
+                              )}
                           </PanelLoadBoundary>
                       </ViewTransition>
                   ),

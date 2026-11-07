@@ -1,8 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
-import {useT} from "@agenta/i18n"
-import settingsChannelsTabCatalog from "@agenta/i18n/catalogs/settings.channelsTab"
 import {
     ChannelsPanelSheet,
     ChannelsSettingsPage,
@@ -23,7 +21,6 @@ import {useConfirmModal} from "./useConfirmModal"
  * time, so the channels actions are rebuilt whenever the user picks another.
  */
 export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
-    const t = useT(settingsChannelsTabCatalog)
     const {confirm, modal: confirmModal} = useConfirmModal()
     const project = useCurrentProject(workspaceId, projectId)
     const me = useAtomValue(userAtom)
@@ -38,10 +35,11 @@ export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 )
                 .map((agent) => ({
                     id: agent.id,
-                    name: agent.name || agent.slug || t("settings.channelsTab.agentFallback"),
+                    // English: the panel saves this name into the Slack app it creates.
+                    name: agent.name || agent.slug || "Agent",
                     description: agent.description?.trim() || null,
                 })),
-        [agentsQuery.data, me?.id, t],
+        [agentsQuery.data, me?.id],
     )
     const resolveAgentName = useCallback(
         (id: string) => agents.find((agent) => agent.id === id)?.name ?? null,

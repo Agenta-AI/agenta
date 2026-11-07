@@ -150,10 +150,10 @@ export const ChannelPeopleSection = ({
             } catch (e) {
                 if (seq !== searchSeq.current) return
                 setFound([])
-                setSearchError(errorMessage(e, t("channels.actions.searchPeopleFailed")))
+                setSearchError(errorMessage(e, tNow("channels.actions.searchPeopleFailed")))
             }
         },
-        [actions, connectionId, listedKey, t],
+        [actions, connectionId, listedKey],
     )
 
     // Search as the owner types (Slack), and once on open for "wrote to the bot".

@@ -874,9 +874,6 @@
         "viewDetails": "d1bf045bb524dae5b02c471c230958bcd1bf232d7a49367b1cdf977855a06b41",
         "you": "d1eb47c7757662c8610c7f80bda382d39eee60bf5652a6749657dafd820d9421"
     },
-    "settings.channelsTab": {
-        "agentFallback": "11b39c93777e8f1f3983bdba7c72b22fe68cfea20c677e9de53e17cb7dbfb19f"
-    },
     "settings.domainDnsInstructions": {
         "copyValue": "c019c0f81132cb82d5030849f613e73e6b06c68583fe2a93be363d1dc2133a1d",
         "hint": "bcf5eb15af9c91343afd2e4a90a7b153f5e0c99d6a686c45685f34701f8fb3bc",

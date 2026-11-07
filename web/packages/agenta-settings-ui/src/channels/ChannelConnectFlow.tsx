@@ -612,7 +612,7 @@ export const ChannelConnectFlow = ({
     const fieldsValid = fields.every(
         (field) =>
             (!field.required || values[field.name]?.trim()) &&
-            !fieldPatternError(field, values[field.name] ?? ""),
+            fieldPatternError(field, values[field.name] ?? "") === null,
     )
 
     const submitCustom = async () => {

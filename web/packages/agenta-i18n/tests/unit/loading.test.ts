@@ -30,7 +30,7 @@ describe("a catalog that cannot load", () => {
         expect(t("settings.broken.title")).toBe("Broken")
     })
 
-    it("shows English after the timeout when a load hangs", async () => {
+    it("gives up on a hanging load at the timeout, showing English throughout", async () => {
         vi.useFakeTimers()
         const stuck = defineCatalog(
             "settings.stuck",
@@ -42,10 +42,16 @@ describe("a catalog that cannot load", () => {
         )
         const t = createT(stuck)
         store.set(activeLanguageAtom, "zh-CN")
-        const loading = loadLanguage("zh-CN")
-        expect(t("settings.stuck.title")).toBe("")
-        await vi.advanceTimersByTimeAsync(CATALOG_TIMEOUT_MS)
+        let settled = false
+        const loading = loadLanguage("zh-CN").then(() => {
+            settled = true
+        })
+        expect(t("settings.stuck.title")).toBe("Stuck")
+        await vi.advanceTimersByTimeAsync(CATALOG_TIMEOUT_MS - 1)
+        expect(settled).toBe(false)
+        await vi.advanceTimersByTimeAsync(1)
         await loading
+        expect(settled).toBe(true)
         expect(t("settings.stuck.title")).toBe("Stuck")
     })
 })

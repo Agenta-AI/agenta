@@ -112,7 +112,8 @@ export const EmbedSettingsForm = ({
         const appearance = appearanceError(draft.appearance)
         setDomainsError(domains)
         setFormError(appearance)
-        if (!domains && !appearance) save.mutate(draft)
+        // Explicit: a message's text must never decide whether the draft is valid.
+        if (domains === null && appearance === null) save.mutate(draft)
     }
     const accent = ACCENT.test(draft.appearance.accent.trim()) ? draft.appearance.accent.trim() : ""
     const avatarUrl = /^https?:\/\//.test(draft.appearance.avatarUrl.trim())

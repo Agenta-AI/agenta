@@ -160,7 +160,7 @@ describe("more catalogs and languages", () => {
 })
 
 describe("a language still loading", () => {
-    it("shows nothing, not English, while the chosen language is still loading", async () => {
+    it("shows English, never an empty string, while the chosen language is still loading", async () => {
         let finish: () => void = () => undefined
         const slow = defineCatalog(
             "settings.slow",
@@ -176,7 +176,7 @@ describe("a language still loading", () => {
         const tSlow = createT(slow)
         getDefaultStore().set(activeLanguageAtom, "zh-CN")
         const loading = loadLanguage("zh-CN")
-        expect(tSlow("settings.slow.title")).toBe("")
+        expect(tSlow("settings.slow.title")).toBe("Slow")
         finish()
         await loading
         expect(tSlow("settings.slow.title")).toBe("慢")

@@ -1,5 +1,5 @@
 import type {Language} from "./language"
-import {getLoadedCatalog, isCatalogLoading, type Catalog, type CatalogEntry} from "./registry"
+import {getLoadedCatalog, type Catalog, type CatalogEntry} from "./registry"
 
 export type TranslationValues = Record<string, string | number>
 
@@ -39,7 +39,7 @@ const interpolate = (text: string, values?: TranslationValues) =>
 
 /**
  * Looks up `key` in the catalog whose namespace starts it: the language's text, then English,
- * then the key itself; "" while the chosen language is still loading. `_version` only marks which catalog load a bound `t` was made after.
+ * then the key itself. Never "": callers may treat a message as present, so it must always be. `_version` only marks which catalog load a bound `t` was made after.
  */
 export const translate = (
     language: Language,
@@ -52,8 +52,6 @@ export const translate = (
     if (!entry) return key
     const rest = key.slice(entry.namespace.length + 1)
     const count = values?.count
-    // Nothing while the chosen language is on its way, so English does not flash first.
-    if (language !== "en" && isCatalogLoading(language, entry.namespace)) return ""
     const text =
         (language === "en"
             ? undefined
