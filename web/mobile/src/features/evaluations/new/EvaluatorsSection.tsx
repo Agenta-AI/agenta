@@ -2,11 +2,14 @@ import {useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import {formatDay} from "../../archived-apps/archivedAppsView"
 import {EvaluatorKeyTags} from "../../evaluators/EvaluatorKeyTags"
@@ -24,6 +27,15 @@ import {PickCell} from "./PickCell"
 import {SectionHint} from "./SectionHint"
 import {StepSearch} from "./StepSearch"
 import {flattenTree, toggleKey, type TreeRow} from "./treeRows"
+
+// The create flow is its own chunk: it downloads only when a user creates an evaluator here.
+const CreateEvaluatorFlow = dynamic(
+    () =>
+        import("../../evaluators/create/CreateEvaluatorFlow").then(
+            (module) => module.CreateEvaluatorFlow,
+        ),
+    {ssr: false},
+)
 
 const col = (key: string, label: string, width: string): ListTableColumn => ({key, label, width})
 
@@ -62,8 +74,10 @@ const toDraftEvaluator = (row: EvaluatorRevisionRow): DraftEvaluator => ({
 
 /**
  * Pick the evaluators that score the run: a table of the project's automatic evaluators (auto
- * run) or human evaluators (human run), each with its older versions under it, and a link to
- * create a new evaluator. The link opens the Evaluators page in a new tab, so the draft stays.
+ * run) or human evaluators (human run), each with its older versions under it, and a way to
+ * create a new evaluator. In beta developer mode it is created here and picked (human: the form;
+ * automatic: the editable drawer, where the host allows it); else a link opens the Evaluators page
+ * in a new tab, so the draft stays.
  */
 export const EvaluatorsSection = ({
     kind,
@@ -72,6 +86,7 @@ export const EvaluatorsSection = ({
     disabled,
     evaluatorsHref,
     onPick,
+    allowAutomaticCreate = false,
 }: {
     kind: NewEvaluationKind
     projectId: string
@@ -80,6 +95,8 @@ export const EvaluatorsSection = ({
     /** The Evaluators page. Null while the evaluators view is off: no link then. */
     evaluatorsHref: string | null
     onPick: (evaluator: DraftEvaluator) => void
+    /** The automatic create drawer uses the playground state: a host inside a playground says no. */
+    allowAutomaticCreate?: boolean
 }) => {
     const narrow = !useMediaQuery(WIDE_QUERY)
     const category = kind === "human" ? "human" : "automatic"
@@ -104,14 +121,44 @@ export const EvaluatorsSection = ({
     const groups = useMemo(() => [{key: "all", label: null, rows: tree}], [tree])
     const selectedIds = useMemo(() => new Set(selected.map((item) => item.revisionId)), [selected])
     const createHref = evaluatorsHref ? `${evaluatorsHref}?tab=${category}` : null
+    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const [creating, setCreating] = useState(false)
+    const onCreate = beta && (human || allowAutomaticCreate) ? () => setCreating(true) : undefined
+    const createFlow = creating ? (
+        <CreateEvaluatorFlow
+            kind={category}
+            onClose={() => setCreating(false)}
+            onCreated={(created) =>
+                onPick({
+                    revisionId: created.revisionId,
+                    evaluatorId: created.workflowId,
+                    name: created.name,
+                    version: created.version,
+                })
+            }
+        />
+    ) : null
 
+    // Every branch keeps the flow second in a fragment: when the first evaluator is saved, the
+    // empty state turns into the table, and the flow must not mount again at the template picker.
     if (entries.isError) {
         return (
-            <LoadError title="Could not load evaluators" onRetry={() => void entries.refetch()} />
+            <>
+                <LoadError
+                    title="Could not load evaluators"
+                    onRetry={() => void entries.refetch()}
+                />
+                {createFlow}
+            </>
         )
     }
     if (!entries.isPending && entries.entries.length === 0 && !search) {
-        return <EvaluatorsEmpty evaluatorsHref={createHref} />
+        return (
+            <>
+                <EvaluatorsEmpty evaluatorsHref={createHref} onCreate={onCreate} />
+                {createFlow}
+            </>
+        )
     }
 
     const pick = (row: EvaluatorRevisionRow) => {
@@ -183,35 +230,43 @@ export const EvaluatorsSection = ({
     }
 
     return (
-        <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <StepSearch
-                    value={search}
-                    label="Search evaluators"
-                    disabled={disabled}
-                    onChange={setSearch}
-                />
-                {createHref ? (
-                    <Button asChild variant="outline" size="sm">
-                        <a href={createHref} target="_blank" rel="noopener noreferrer">
+        <>
+            <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <StepSearch
+                        value={search}
+                        label="Search evaluators"
+                        disabled={disabled}
+                        onChange={setSearch}
+                    />
+                    {onCreate ? (
+                        <Button variant="outline" size="sm" onClick={onCreate}>
                             <PlusIcon size={14} />
                             Create new evaluator
-                        </a>
-                    </Button>
-                ) : null}
+                        </Button>
+                    ) : createHref ? (
+                        <Button asChild variant="outline" size="sm">
+                            <a href={createHref} target="_blank" rel="noopener noreferrer">
+                                <PlusIcon size={14} />
+                                Create new evaluator
+                            </a>
+                        </Button>
+                    ) : null}
+                </div>
+                <div role="group" aria-label="Evaluators">
+                    <ListTable
+                        columns={columns}
+                        minWidth={narrow ? 300 : human ? 760 : 1060}
+                        loading={entries.isPending}
+                        groups={groups}
+                        rowKey={({row}) => row.id}
+                        onOpenRow={disabled ? undefined : ({row}) => pick(row)}
+                        empty={<SectionHint>No evaluators match your search</SectionHint>}
+                        renderRow={renderRow}
+                    />
+                </div>
             </div>
-            <div role="group" aria-label="Evaluators">
-                <ListTable
-                    columns={columns}
-                    minWidth={narrow ? 300 : human ? 760 : 1060}
-                    loading={entries.isPending}
-                    groups={groups}
-                    rowKey={({row}) => row.id}
-                    onOpenRow={disabled ? undefined : ({row}) => pick(row)}
-                    empty={<SectionHint>No evaluators match your search</SectionHint>}
-                    renderRow={renderRow}
-                />
-            </div>
-        </div>
+            {createFlow}
+        </>
     )
 }

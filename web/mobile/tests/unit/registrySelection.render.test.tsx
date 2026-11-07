@@ -7,7 +7,12 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const {http, all} = vi.hoisted(() => ({
     http: {post: vi.fn()},
-    all: {rows: [] as AppRevisionRow[]},
+    all: {
+        rows: [] as AppRevisionRow[],
+        hasMore: false,
+        isError: false,
+        loadMore: (() => undefined) as () => unknown,
+    },
 }))
 
 // Only the HTTP layer is fake: the real archive calls from the entities package run.
@@ -20,9 +25,11 @@ vi.mock("@/features/variants/useAppRevisions", async (original) => ({
     ...(await original<object>()),
     useAppRevisions: () => ({
         rows: all.rows,
-        hasMore: false,
+        hasMore: all.hasMore,
         isPending: false,
-        isError: false,
+        isError: all.isError,
+        isLoadingMore: false,
+        loadMore: all.loadMore,
         refetch: vi.fn(),
     }),
 }))
@@ -123,6 +130,9 @@ describe("deleting a Registry selection", () => {
     beforeEach(() => {
         http.post.mockReset().mockResolvedValue({data: {count: 1}})
         all.rows = REVISIONS
+        all.hasMore = false
+        all.isError = false
+        all.loadMore = vi.fn()
     })
     afterEach(() => {
         act(() => root.unmount())
@@ -157,5 +167,24 @@ describe("deleting a Registry selection", () => {
         expect(document.body.textContent).toContain("Cannot delete every revision of an app")
         expect(button("Delete")).toBeUndefined()
         expect(http.post).not.toHaveBeenCalled()
+    })
+
+    it("waits for every page of revisions before it allows a delete", () => {
+        // Page one holds both variants; a later page may hold the app's last other revision.
+        all.hasMore = true
+        const rows = toRegistryRows(REVISIONS, "variants", new Set())
+        mount(toDeletion(rows, new Set([variantRowKey("verbose"), variantRowKey("default")])))
+        expect(all.loadMore).toHaveBeenCalled()
+        expect(button("Delete")?.disabled).toBe(true)
+        expect(document.body.textContent).not.toContain("Cannot delete every revision")
+    })
+
+    it("does not claim every revision is selected when the check failed", () => {
+        all.rows = []
+        all.isError = true
+        mount(toDeletion(toRegistryRows(REVISIONS, "variants", new Set()), new Set(["c2"])))
+        expect(document.body.textContent).toContain("Couldn't check this app's revisions")
+        expect(document.body.textContent).not.toContain("Cannot delete every revision")
+        expect(button("Delete")?.disabled).toBe(true)
     })
 })

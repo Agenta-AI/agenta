@@ -36,6 +36,8 @@ export interface EvaluatorCatalogTemplate {
     archived?: boolean | null
     recommended?: boolean | null
     categories?: string[] | null
+    /** Catalog flags. `is_recommended` puts a template in the create picker. */
+    flags?: {is_recommended?: boolean | null} | null
     data?: {
         uri?: string
         schemas?: {

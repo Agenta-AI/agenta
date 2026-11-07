@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useId, useState} from "react"
 
 import {
     Button,
@@ -8,6 +8,7 @@ import {
     DialogHeader,
     DialogTitle,
     Input,
+    Label,
     Textarea,
 } from "@agenta/ui/ui"
 
@@ -40,6 +41,8 @@ export const EditTestsetDetailsDialog = ({
     }, [open, name, description])
 
     const canSave = draftName.trim().length > 0 && !pending
+    const nameId = useId()
+    const descriptionId = useId()
 
     return (
         <Dialog open={open} onOpenChange={(next) => (next || pending ? undefined : onClose())}>
@@ -48,20 +51,26 @@ export const EditTestsetDetailsDialog = ({
                     <DialogTitle>Edit test set details</DialogTitle>
                 </DialogHeader>
                 <div className="flex flex-col gap-3">
-                    <Input
-                        autoFocus
-                        aria-label="Test set name"
-                        placeholder="Test set name"
-                        value={draftName}
-                        onChange={(event) => setDraftName(event.target.value)}
-                    />
-                    <Textarea
-                        aria-label="Test set description"
-                        placeholder="Test set description (optional)"
-                        rows={3}
-                        value={draftDescription}
-                        onChange={(event) => setDraftDescription(event.target.value)}
-                    />
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={nameId}>Name</Label>
+                        <Input
+                            id={nameId}
+                            autoFocus
+                            placeholder="Test set name"
+                            value={draftName}
+                            onChange={(event) => setDraftName(event.target.value)}
+                        />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={descriptionId}>Description</Label>
+                        <Textarea
+                            id={descriptionId}
+                            placeholder="Test set description (optional)"
+                            rows={3}
+                            value={draftDescription}
+                            onChange={(event) => setDraftDescription(event.target.value)}
+                        />
+                    </div>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={pending}>

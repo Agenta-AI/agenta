@@ -3,6 +3,7 @@ import type {ReactNode} from "react"
 import {deriveToolViewModelFromResult} from "@agenta/shared/utils"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 
+import {NoOutputPlaceholder} from "../chat/NoOutputPlaceholder"
 import ToolCallView from "../shared/ToolCallView"
 
 import {RepeatNav, type RepeatNavProps} from "./RepeatNav"
@@ -21,7 +22,7 @@ export interface RunResultProps {
 }
 
 /**
- * What one run produced: a hint before the first run, a spinner while it runs, then the output
+ * What one run produced: "No output yet" before the first run, a spinner while it runs, then the output
  * (text, JSON or a tool call) or the error, with the trace footer under it.
  */
 export const RunResult = ({
@@ -32,13 +33,7 @@ export const RunResult = ({
     renderTraceFooter,
 }: RunResultProps) => {
     if (!result) {
-        return isRunning ? (
-            <RunningIndicator />
-        ) : (
-            <p className="m-0 px-1 py-2 text-sm text-muted-foreground">
-                Click run (Ctrl+Enter / ⌘+Enter) to generate output
-            </p>
-        )
+        return isRunning ? <RunningIndicator /> : <NoOutputPlaceholder />
     }
 
     const footer = traceId && renderTraceFooter ? renderTraceFooter(traceId) : null
@@ -79,7 +74,7 @@ const Output = ({
                         readOnly
                         disabled
                         editorProps={{codeOnly: isJSON}}
-                        className="w-full !border-none !p-0 [&_.agenta-rich-text-editor]:!min-h-0"
+                        className="w-full !border-none !p-0 [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-input]:!min-h-0"
                         editorClassName="min-h-4 [&_p:first-child]:!mt-0"
                         handleChange={() => undefined}
                     />

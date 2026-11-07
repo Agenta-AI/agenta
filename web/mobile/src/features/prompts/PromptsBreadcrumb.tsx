@@ -19,6 +19,7 @@ import {
     FolderOpenIcon,
     FolderPlusIcon,
     FolderDashedIcon,
+    FlowArrowIcon,
     HouseIcon,
     PencilSimpleIcon,
     TrashIcon,
@@ -66,6 +67,7 @@ export const PromptsBreadcrumb = ({
     onOpenFolder,
     openDialog,
     newPrompt,
+    onSetupWorkflow,
 }: {
     chain: Folder[]
     siblingsOf: (parentId: string | null) => Folder[]
@@ -74,6 +76,8 @@ export const PromptsBreadcrumb = ({
     openDialog: (dialog: PromptsDialog) => void
     /** New prompt in the caret menu; null without developer mode. */
     newPrompt: NewPromptAction | null
+    /** Set up workflow in the caret menu; null without developer mode. */
+    onSetupWorkflow: (() => void) | null
 }) => {
     const copy = promptsCopy.menu
     const atRoot = chain.length === 0
@@ -185,15 +189,24 @@ export const PromptsBreadcrumb = ({
                                                 />
                                             ) : null}
                                             {canEditFolders ? (
+                                                <DropdownMenuItem
+                                                    onSelect={() => openDialog({kind: "newFolder"})}
+                                                >
+                                                    <FolderPlusIcon size={16} />
+                                                    {promptsCopy.newFolder}
+                                                </DropdownMenuItem>
+                                            ) : null}
+                                            {onSetupWorkflow ? (
                                                 <>
-                                                    <DropdownMenuItem
-                                                        onSelect={() =>
-                                                            openDialog({kind: "newFolder"})
-                                                        }
-                                                    >
-                                                        <FolderPlusIcon size={16} />
-                                                        {promptsCopy.newFolder}
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onSelect={onSetupWorkflow}>
+                                                        <FlowArrowIcon size={16} />
+                                                        {promptsCopy.setupWorkflow}
                                                     </DropdownMenuItem>
+                                                </>
+                                            ) : null}
+                                            {canEditFolders ? (
+                                                <>
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem
                                                         className="text-destructive focus:text-destructive"

@@ -1,4 +1,10 @@
-import {format3Sig, type EvaluationRunScenario} from "@agenta/entities/evaluationRun"
+import {
+    format3Sig,
+    INVOCATION_METRICS,
+    scenarioMetricStats,
+    type EvaluationRunScenario,
+    type MetricStats,
+} from "@agenta/entities/evaluationRun"
 import {
     computeColumnGroup,
     findInTrace,
@@ -6,6 +12,7 @@ import {
     resolveMappings,
     type ColumnGroup,
     type HydratedScenarioRow,
+    type ResolvedColumn,
     type RunColumnGroup,
     type RunMapping,
     type RunStep,
@@ -43,6 +50,10 @@ export interface ScenarioRowData {
     errors: Record<string, string>
     /** The error messages of failed steps that no shown group stands for. */
     otherErrors: string[]
+    /** Every mapped column with its value: what the scenario filter checks. */
+    columns: ResolvedColumn[]
+    /** The stats of each invocation metric (cost, duration, tokens, errors), by metric key. */
+    metrics: Record<string, MetricStats | null>
 }
 
 /** What the run produced for one scenario: where its trace is and how the step ended. */
@@ -143,7 +154,8 @@ export function buildScenarioRowData(
 
     const mappings = schema.mappings.filter((mapping) => !isQueryMapping(mapping))
     // `resolveMappings` returns one column per mapping, in the mappings' order.
-    resolveMappings(hydrated, {steps: schema.steps, mappings}).forEach((column, position) => {
+    const columns = resolveMappings(hydrated, {steps: schema.steps, mappings})
+    columns.forEach((column, position) => {
         if (!isListedColumn(mappings[position])) return
         const list = (cells[column.group.key] ??= [])
         list.push({
@@ -177,7 +189,22 @@ export function buildScenarioRowData(
         if (!shown.has(key)) otherErrors.push(message)
         else errors[key] = errors[key] ? `${errors[key]}; ${message}` : message
     }
-    return {scenario: hydrated.scenario, cells, valuesFailed, invocation, errors, otherErrors}
+    const metrics = Object.fromEntries(
+        INVOCATION_METRICS.map(({metricKey}) => [
+            metricKey,
+            scenarioMetricStats(hydrated.metrics, schema.steps, metricKey),
+        ]),
+    )
+    return {
+        scenario: hydrated.scenario,
+        cells,
+        valuesFailed,
+        invocation,
+        errors,
+        otherErrors,
+        columns,
+        metrics,
+    }
 }
 
 const FAILED_STATUSES: ReadonlySet<string> = new Set(["failure", "failed", "error", "errors"])
