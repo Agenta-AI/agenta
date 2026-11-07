@@ -42,6 +42,8 @@ Catalogs are small and follow the screens: one per settings area or mobile tab (
 
 `defineCatalog(namespace, en, loaders)` takes the English as a static import, so a catalog's English ships in the same chunk as the screen that uses it and renders on the first paint, with no extra request for English users. It registers the catalog and, when the chosen language is not English, starts `import()` of that language at once, together with the screen's code. `t` returns `""` while the chosen language is still loading, so English does not flash first. Each finished load bumps `catalogVersionAtom`, and `useT` re-renders.
 
+A panel that opens on a click and carries a lot of text (the channels connect flow and manage panel) is a `React.lazy` import that awaits `textReady()`, so its code, its English and its text in the chosen language arrive together, behind a small spinner, and the pages that host it do not carry them up front.
+
 ## Lookup
 
 `translate(language, key, values, catalogs)`: find the catalog whose namespace starts the key, then look in that catalog's loaded language, then its English, then return the key itself. With a numeric `values.count`, try `<key>_<category>` (category from `Intl.PluralRules` for that language), then `<key>_other`, then `<key>`. Then replace `{{name}}` with `values[name]`; an unknown placeholder stays as written.
@@ -68,7 +70,7 @@ Catalogs are small and follow the screens: one per settings area or mobile tab (
 ## Risks
 
 - **Mixed language during the move.** The picker stays hidden until the main screens are done.
-- **For a Chinese or Japanese user, a screen opened later shows its labels a moment after its code.** Its catalog loads as soon as the screen's code runs, in parallel with the screen's own data.
+- **For a Chinese or Japanese user, a screen opened later shows its labels a moment after its code.** Its catalog loads as soon as the screen's code runs, in parallel with the screen's own data; lazy panels wait for it with `textReady()`.
 - **Text stored through the API.** Strings that are sent to the API and stored (for example a default name) stay English, so a stored value does not depend on who created it.
 - **Dates.** dayjs `format` and `fromNow` calls still follow the dayjs locale (English). The areas move them to `formatDate` as they are translated.
 - **Merge conflicts.** Each area moves in its own PR, right after a release is cut.
