@@ -221,12 +221,53 @@ async def test_the_first_reply_starts_the_thread_from_the_mention(adapter, disco
     }
 
 
-async def test_a_reply_from_another_process_finds_the_existing_thread(adapter, discord):
-    await _post(adapter, _mention_locator(), "one")
-    await _post(adapter, _mention_locator(), "two")
+def _other_process(discord):
+    return DiscordAdapter(
+        http_client=httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=discord.app), base_url=BASE_URL
+        )
+    )
 
+
+async def test_a_reply_from_another_process_finds_the_existing_thread(adapter, discord):
+    connection = _connection()
+    await _post(adapter, _mention_locator(), "one", connection=connection)
+    await _post(
+        _other_process(discord), _mention_locator(), "two", connection=connection
+    )
+
+    # the second start is answered "already created", and the post goes on
+    assert discord.thread_start_attempts == [p.MESSAGE_ID, p.MESSAGE_ID]
     assert len(discord.threads_started) == 1
     assert discord.texts_in(p.MESSAGE_ID) == ["one", "two"]
+
+
+async def test_a_reply_after_the_starter_message_was_deleted(adapter, discord):
+    connection = _connection()
+    await _post(adapter, _mention_locator(), "one", connection=connection)
+    discord.deleted_messages.add(p.MESSAGE_ID)
+
+    await _post(
+        _other_process(discord), _mention_locator(), "two", connection=connection
+    )
+
+    assert discord.texts_in(p.MESSAGE_ID) == ["one", "two"]
+
+
+async def test_typing_from_another_process_shows_in_the_existing_thread(
+    adapter, discord
+):
+    connection = _connection()
+    await _post(adapter, _mention_locator(), connection=connection)
+
+    other = _other_process(discord)
+    for _ in range(2):
+        await other.signal_activity(connection=connection, locator=_mention_locator())
+    await _post(other, _mention_locator(), "two", connection=connection)
+
+    assert discord.typing == [p.MESSAGE_ID, p.MESSAGE_ID]
+    # the typing call proved the thread exists, so the post starts nothing
+    assert discord.thread_start_attempts == [p.MESSAGE_ID]
 
 
 async def test_a_dm_reply_goes_to_the_dm(adapter, discord):
@@ -270,7 +311,7 @@ async def test_a_later_reply_in_the_same_process_starts_no_thread(adapter, disco
     await _post(adapter, _mention_locator(), "one", connection=connection)
     await _post(adapter, _mention_locator(), "two", connection=connection)
 
-    assert len(discord.threads_started) == 1
+    assert discord.thread_start_attempts == [p.MESSAGE_ID]
     assert discord.texts_in(p.MESSAGE_ID) == ["one", "two"]
 
 

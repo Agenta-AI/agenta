@@ -56,6 +56,9 @@ class FakeDiscord:
         self.sent: List[Dict[str, Any]] = []
         self.edits: List[Dict[str, Any]] = []
         self.threads_started: List[Dict[str, Any]] = []
+        # the message id of every thread start call, refused ones included
+        self.thread_start_attempts: List[str] = []
+        self.deleted_messages: set = set()
         self.typing: List[str] = []
         self.reactions: List[Dict[str, str]] = []
         self.callbacks: List[Dict[str, Any]] = []
@@ -187,6 +190,9 @@ class FakeDiscord:
         message_id = request.path_params["message_id"]
         if channel_id not in self.channels:
             return self._unknown_channel()
+        self.thread_start_attempts.append(message_id)
+        if message_id in self.deleted_messages:
+            return self._error(10008, "Unknown Message", 404)
         if self.thread_start_failures:
             status = self.thread_start_failures.pop(0)
             return self._error(0, f"{status}: fake failure", status)
