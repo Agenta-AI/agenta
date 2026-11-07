@@ -94,3 +94,6 @@ jobs:
 
       - name: Run ESLint check
         run: cd web && pnpm run lint
+
+      - name: Check the translation catalogs
+        run: cd web && pnpm --filter @agenta/i18n run i18n:check
