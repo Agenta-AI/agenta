@@ -2,6 +2,102 @@
   "schema_version": 1,
   "templates": [
     {
+      "key": "meeting-prep-brief",
+      "source": {
+        "kind": "internal",
+        "key": "meeting-prep-brief"
+      },
+      "version": "1.5.8",
+      "latest": "1.5.8",
+      "versions": [
+        "1.5.8"
+      ],
+      "digest": "sha256:078cb5d83c67021de5198ddee831aa33f95b4973fe71ab1658fe888475516197",
+      "name": "Meeting Preparation Brief",
+      "summary": "Prepare sourced meeting context, talking points and discovery questions.",
+      "description": "Researches attendees and companies and delivers concise context, talking points, and discovery questions before meetings.",
+      "category": "Productivity",
+      "tags": [
+        "meetings",
+        "research",
+        "sales"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "sam-methnani",
+        "name": "Sam Methnani",
+        "bio": "Creator of Meeting Preparation Brief.",
+        "links": [
+          {
+            "kind": "github",
+            "url": "https://github.com/sam-methnani"
+          }
+        ]
+      },
+      "initials": "MP",
+      "color": "#113955",
+      "instructions_summary": "Research companies and attendees, connect relevant context, and produce a concise meeting brief with sources.",
+      "trigger": "On demand",
+      "trigger_description": "Prepare briefs on request; optionally configure daily or pre-meeting automation during setup.",
+      "seed_message": "Help me set up my meeting preparation assistant.",
+      "builder_message": "Help me set up my meeting preparation assistant.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "",
+      "connections": [
+        {
+          "key": "slack-delivery",
+          "role": "Deliver an approved brief to a selected Slack channel or DM.",
+          "required": false,
+          "primary": {
+            "slug": "slack",
+            "scope": "Offer only when external delivery is wanted. Connect the recipient's account, resolve destination, confirm draft and recipient, then test. This does not publish an interactive agent."
+          },
+          "alternatives": []
+        },
+        {
+          "key": "web-research",
+          "role": "Search the web and retrieve source pages for attendee and company research.",
+          "required": false,
+          "primary": {
+            "slug": "exa",
+            "scope": "Ask whether to add Exa before connecting or attaching it, including an existing account. Explain live-research benefits and provider usage limits. Proceed only on explicit opt-in; otherwise use supplied-material mode. Never auto-add on import."
+          },
+          "alternatives": []
+        },
+        {
+          "key": "meeting-calendar",
+          "role": "Read selected upcoming meetings and attendee details.",
+          "required": false,
+          "primary": {
+            "slug": "googlecalendar",
+            "scope": "Offer Google Calendar during first-use setup; connect only if chosen. Otherwise accept pasted meeting details."
+          },
+          "alternatives": []
+        },
+        {
+          "key": "relationship-crm",
+          "role": "Find relevant company and relationship context in HubSpot.",
+          "required": false,
+          "primary": {
+            "slug": "hubspot",
+            "scope": "Offer HubSpot during first-use setup; connect only if chosen. Otherwise use supplied notes."
+          },
+          "alternatives": []
+        },
+        {
+          "key": "prior-email",
+          "role": "Find relevant prior conversations with meeting participants.",
+          "required": false,
+          "primary": {
+            "slug": "gmail",
+            "scope": "Offer Gmail during first-use setup; connect only if chosen and scope searches to meeting participants."
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
       "key": "pr-reviewer",
       "source": {
         "kind": "internal",
@@ -3181,6 +3277,21 @@
         "weekly-report",
         "job-hunt-research",
         "seo-content-agent"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "id": "sam-methnani",
+      "name": "Sam Methnani",
+      "bio": "Creator of Meeting Preparation Brief.",
+      "links": [
+        {
+          "kind": "github",
+          "url": "https://github.com/sam-methnani"
+        }
+      ],
+      "template_keys": [
+        "meeting-prep-brief"
       ]
     }
   ]

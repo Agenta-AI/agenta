@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "meeting-prep-brief",
+  "version": "1.5.8",
+  "description": "Researches attendees and companies and prepares meeting context, talking points, and discovery questions.",
+  "keywords": ["meetings", "research", "sales", "meeting-prep"],
+  "extensions": {"ai.agenta": {"manifest": "./ai.agenta/agents.json"}}
+}
