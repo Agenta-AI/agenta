@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import billingPlanOptionCardCatalog from "@agenta/i18n/catalogs/billing.planOptionCard"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import type {BillingPlanOption} from "@agenta/settings-ui"
 import {Button, cn} from "@agenta/ui/ui"
 import {Check, Coins} from "@phosphor-icons/react"
@@ -27,6 +30,7 @@ export const PlanOptionCard = ({
     busy: boolean
     onSelect: () => void
 }) => {
+    const t = useT(billingPlanOptionCardCatalog, commonCatalog)
     const recommended = plan.recommended === true
     const amount = plan.price?.base?.amount
     const credits = creditsLine(plan)
@@ -43,7 +47,7 @@ export const PlanOptionCard = ({
                 muted,
             )}
         >
-            Current plan
+            {t("billing.planOptionCard.currentPlan")}
         </span>
     ) : plan.type === "custom" || amount == null ? (
         <Button
@@ -52,7 +56,7 @@ export const PlanOptionCard = ({
             disabled={busy}
             onClick={() => window.open(CONTACT_URL, "_blank")}
         >
-            Talk to us
+            {t("billing.planOptionCard.talkToUs")}
         </Button>
     ) : (
         <Button
@@ -65,7 +69,11 @@ export const PlanOptionCard = ({
             disabled={busy || pending || isCurrentPlanCustom}
             onClick={onSelect}
         >
-            {pending ? "Working…" : isFree ? `Move to ${plan.title}` : `Upgrade to ${plan.title}`}
+            {pending
+                ? t("common.working")
+                : isFree
+                  ? t("billing.planOptionCard.moveTo", {plan: plan.title})
+                  : t("billing.planOptionCard.upgradeTo", {plan: plan.title})}
         </Button>
     )
 
@@ -90,25 +98,25 @@ export const PlanOptionCard = ({
                                 : "bg-foreground text-background",
                         )}
                     >
-                        Current
+                        {t("billing.planOptionCard.current")}
                     </span>
                 ) : recommended ? (
                     <span className="bg-hero-action text-hero-action-foreground rounded-full px-2 text-[11px] font-medium leading-5">
-                        Recommended
+                        {t("billing.planOptionCard.recommended")}
                     </span>
                 ) : null}
             </div>
             <div className="mt-3 flex items-baseline gap-1.5 whitespace-nowrap">
                 <span className="text-[28px] font-semibold leading-[34px] tracking-[-0.02em]">
-                    {amount == null ? "Custom" : `$${amount}`}
+                    {amount == null ? t("billing.planOptionCard.custom") : `$${amount}`}
                 </span>
                 {amount == null ? null : (
                     <span className={cn("text-[13px]", muted)}>
                         {amount === 0
-                            ? "free forever"
+                            ? t("billing.planOptionCard.freeForever")
                             : plan.price?.base?.starting_at
-                              ? "from / month"
-                              : "/ month"}
+                              ? t("billing.planOptionCard.fromPerMonth")
+                              : t("billing.planOptionCard.perMonth")}
                     </span>
                 )}
             </div>
@@ -124,7 +132,7 @@ export const PlanOptionCard = ({
                 </span>
             ) : null}
             <span className={cn("mb-2 mt-3.5 min-h-4 text-xs", muted)}>
-                {lead ?? (plan.description || "What you get:")}
+                {lead ?? (plan.description || t("billing.planOptionCard.whatYouGet"))}
             </span>
             <ul className="m-0 mb-4 flex min-h-0 flex-1 list-none flex-col gap-2 p-0 lg:overflow-y-auto">
                 {items.map((feature) => (

@@ -9,6 +9,8 @@
 import type {ReactNode} from "react"
 
 import {eventByIdAtomFamily} from "@agenta/entities/event"
+import {useT} from "@agenta/i18n"
+import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import {dayjs} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {
@@ -103,6 +105,7 @@ export const AuditEventDrawer = ({
     names,
     currentUserId,
 }: AuditEventDrawerProps) => {
+    const t = useT(settingsAuditCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId ?? ""))
 
     // Actor/count live in `attributes`; the top-level request fields are left unset by the backend.
@@ -117,7 +120,9 @@ export const AuditEventDrawer = ({
             <SheetContent className="w-full sm:max-w-[560px]">
                 <SheetHeader>
                     <SheetTitle className="truncate">
-                        {event ? eventTypeLabel(event.event_type) : "Event details"}
+                        {event
+                            ? eventTypeLabel(event.event_type)
+                            : t("settings.audit.eventDetails")}
                     </SheetTitle>
                     {event && at ? (
                         <SheetDescription title={at.format("YYYY-MM-DD HH:mm:ss.SSS")}>
@@ -130,9 +135,9 @@ export const AuditEventDrawer = ({
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
                     {event ? (
                         <div className="flex flex-col gap-6">
-                            <Section title="Summary">
+                            <Section title={t("settings.audit.summary")}>
                                 <List>
-                                    <Row label="Actor">
+                                    <Row label={t("settings.audit.actor")}>
                                         {actor ? (
                                             <>
                                                 <ActorCell
@@ -140,20 +145,23 @@ export const AuditEventDrawer = ({
                                                     names={names}
                                                     currentUserId={currentUserId}
                                                 />
-                                                <Copy text={actor} label="Copy user ID" />
+                                                <Copy
+                                                    text={actor}
+                                                    label={t("settings.audit.copyUserId")}
+                                                />
                                             </>
                                         ) : (
                                             <span className="text-muted-foreground">—</span>
                                         )}
                                     </Row>
-                                    <Row label="Count">
+                                    <Row label={t("settings.audit.count")}>
                                         <span className="tabular-nums">{count ?? "—"}</span>
                                     </Row>
                                 </List>
                             </Section>
 
                             {references.length ? (
-                                <Section title="Affected">
+                                <Section title={t("settings.audit.affected")}>
                                     <List>
                                         {references.map((reference, index) => (
                                             <Row
@@ -172,7 +180,9 @@ export const AuditEventDrawer = ({
                                                 {reference.id ? (
                                                     <Copy
                                                         text={reference.id}
-                                                        label={`Copy ${reference.entity} ID`}
+                                                        label={t("settings.audit.copyEntityId", {
+                                                            entity: reference.entity,
+                                                        })}
                                                     />
                                                 ) : null}
                                             </Row>
@@ -181,29 +191,35 @@ export const AuditEventDrawer = ({
                                 </Section>
                             ) : null}
 
-                            <Section title="Identifiers">
+                            <Section title={t("settings.audit.identifiers")}>
                                 <List>
-                                    <Row label="Request ID">
+                                    <Row label={t("settings.audit.requestId")}>
                                         <Mono>{event.request_id ?? "—"}</Mono>
                                         {event.request_id ? (
-                                            <Copy text={event.request_id} label="Copy request ID" />
+                                            <Copy
+                                                text={event.request_id}
+                                                label={t("settings.audit.copyRequestId")}
+                                            />
                                         ) : null}
                                     </Row>
-                                    <Row label="Event ID">
+                                    <Row label={t("settings.audit.eventId")}>
                                         <Mono>{event.event_id ?? "—"}</Mono>
                                         {event.event_id ? (
-                                            <Copy text={event.event_id} label="Copy event ID" />
+                                            <Copy
+                                                text={event.event_id}
+                                                label={t("settings.audit.copyEventId")}
+                                            />
                                         ) : null}
                                     </Row>
                                 </List>
                             </Section>
 
                             <Section
-                                title="Attributes"
+                                title={t("settings.audit.attributes")}
                                 action={
                                     <CopyButton
                                         text={json}
-                                        buttonText="Copy JSON"
+                                        buttonText={t("settings.audit.copyJson")}
                                         variant="ghost"
                                     />
                                 }
@@ -214,7 +230,10 @@ export const AuditEventDrawer = ({
                             </Section>
                         </div>
                     ) : (
-                        <EmptyState image="simple" description="No event selected" />
+                        <EmptyState
+                            image="simple"
+                            description={t("settings.audit.noEventSelected")}
+                        />
                     )}
                 </div>
             </SheetContent>

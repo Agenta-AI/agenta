@@ -1,0 +1,13 @@
+{
+    "apiAlwaysOn": "Always on for saved versions",
+    "apiSaveFirst": "Save the agent to call it",
+    "botsConnected_one": "{{count}} bot connected",
+    "botsConnected_other": "{{count}} bots connected",
+    "embed": "Embed",
+    "embedDescription": "A chat on your website",
+    "numbersConnected_one": "{{count}} number connected",
+    "numbersConnected_other": "{{count}} numbers connected",
+    "thisAgent": "This agent",
+    "workspacesConnected_one": "{{count}} workspace connected",
+    "workspacesConnected_other": "{{count}} workspaces connected"
+}

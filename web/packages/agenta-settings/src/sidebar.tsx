@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {createT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/navigation"
 import {
     Broadcast,
@@ -22,6 +24,8 @@ import {
 } from "@phosphor-icons/react"
 
 import {SETTINGS_SCOPES, type SettingsScopeKey, type SettingsTabKey} from "./navigation"
+
+const t = createT(navigationCatalog)
 
 /** The one tab→icon map. A new tab fails the exhaustive check here until it has an icon. */
 export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
@@ -105,7 +109,7 @@ export const buildSettingsSidebarSections = (
         })
     })
 
-    return SETTINGS_SCOPES.map(({key, title}, index) => ({
+    return SETTINGS_SCOPES.map(({key, titleKey}, index) => ({
         key: `settings-${key}`,
         items: itemsByScope[key],
         // Groups are separated by whitespace, not a rule.
@@ -119,7 +123,7 @@ export const buildSettingsSidebarSections = (
                         index === 0 ? "pt-1" : "pt-4",
                     ].join(" ")}
                 >
-                    {title}
+                    {t(titleKey)}
                 </div>
             ),
     }))

@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {
     SidebarScope,
     SidebarSection,
@@ -60,6 +62,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
     const useSections = (): SidebarSection[] => {
         const access = useMobileSettingsAccess()
         const bottomItems = useMobileBottomNavItems(projectURL, {includeSettingsLink: false})
+        const t = useT(navigationCatalog)
 
         return useMemo(
             () => [
@@ -68,6 +71,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                         getSettingsSidebarTabs(access).filter((tab) =>
                             AVAILABLE_SETTINGS_TABS.includes(tab.key),
                         ),
+                        t,
                     ),
                     // A real href per tab: the drawer closes on link clicks, and the controlled
                     // selection intercepts the navigation before it happens.
@@ -80,7 +84,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
                     mode: "vertical",
                 },
             ],
-            [access, bottomItems],
+            [access, bottomItems, t],
         )
     }
 

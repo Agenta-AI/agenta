@@ -1,5 +1,8 @@
 import {useCallback, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+
 import {ConfirmModal} from "./ConfirmModal"
 
 interface ConfirmRequest {
@@ -18,6 +21,7 @@ interface ConfirmRequest {
  * Returns the modal to render; a section given no `confirm` hides its destructive actions.
  */
 export const useConfirmModal = () => {
+    const t = useT(commonCatalog)
     const [request, setRequest] = useState<ConfirmRequest | null>(null)
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -37,7 +41,7 @@ export const useConfirmModal = () => {
             open={Boolean(request)}
             title={request?.title ?? ""}
             body={request?.message}
-            confirmLabel={request?.okText ?? "Confirm"}
+            confirmLabel={request?.okText ?? t("common.confirm")}
             destructive={request?.danger}
             pending={pending}
             error={error}
@@ -49,7 +53,7 @@ export const useConfirmModal = () => {
                     await request.onOk()
                     close()
                 } catch (cause) {
-                    setError((cause as Error)?.message || "That did not work")
+                    setError((cause as Error)?.message || t("common.thatDidNotWork"))
                 } finally {
                     setPending(false)
                 }

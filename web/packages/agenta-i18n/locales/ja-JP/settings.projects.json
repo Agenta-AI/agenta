@@ -1,0 +1,22 @@
+{
+    "copyId": "プロジェクト ID をコピー",
+    "copyIdFailed": "プロジェクト ID をコピーできませんでした",
+    "createFailed": "プロジェクトを作成できません",
+    "created": "プロジェクトを作成しました",
+    "current": "現在",
+    "default": "デフォルト",
+    "defaultUpdated": "デフォルトのプロジェクトを更新しました",
+    "deleteFailed": "プロジェクトを削除できません",
+    "deleteProject": "プロジェクトを削除",
+    "deleted": "プロジェクトを削除しました",
+    "emptyDescription": "プロジェクトを作成して、エージェント、データセット、デプロイを整理します。",
+    "emptyTitle": "このワークスペースにはまだプロジェクトがありません",
+    "idCopied": "プロジェクト ID をコピーしました",
+    "newProject": "新しいプロジェクト",
+    "projectActions": "プロジェクトの操作",
+    "projectName": "プロジェクト名",
+    "renameFailed": "プロジェクトの名前を変更できません",
+    "setAsDefault": "デフォルトに設定",
+    "setDefaultFailed": "デフォルトに設定できません",
+    "switchTo": "このプロジェクトに切り替え"
+}

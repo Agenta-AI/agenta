@@ -15,6 +15,9 @@ import {
     type OrganizationProjectChoice,
     type ProviderOwnerChoice,
 } from "@agenta/entity-ui/secretProvider"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -60,6 +63,7 @@ export interface AIProvidersPageProps {
 
 /** The project's own connections: one row per connection, every provider stays connectable. */
 const useProjectProvidersSource = (): ProvidersSource => {
+    const t = useT(settingsProvidersCatalog, commonCatalog)
     const {loading, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
@@ -91,10 +95,10 @@ const useProjectProvidersSource = (): ProvidersSource => {
                 mutate()
             },
             removeFailed: (_failure: unknown, connection: ProviderConnection) =>
-                `Agenta could not remove ${connection.name}. Try again.`,
+                t("settings.providers.removeFailed", {name: connection.name}),
             onSaved: mutate,
         }
-    }, [connections, loading, capabilities, deleteSecret, mutate])
+    }, [connections, loading, capabilities, deleteSecret, mutate, t])
 }
 
 /**
@@ -108,6 +112,7 @@ export const AIProvidersPage = ({
     organization,
     projectSwitch,
 }: AIProvidersPageProps) => {
+    const t = useT(settingsProvidersCatalog, commonCatalog)
     const project = useProjectProvidersSource()
     const scope = useMemo(
         () =>
@@ -124,10 +129,14 @@ export const AIProvidersPage = ({
 
     const groups = useMemo<ProvidersGroup[]>(
         () => [
-            {key: "project", label: projectSwitch ?? "Connected", source: project},
+            {
+                key: "project",
+                label: projectSwitch ?? t("common.connected"),
+                source: project,
+            },
             ...(organizationGroup ? [organizationGroup] : []),
         ],
-        [projectSwitch, project, organizationGroup],
+        [projectSwitch, project, organizationGroup, t],
     )
 
     const ownerChoiceFor = useCallback(

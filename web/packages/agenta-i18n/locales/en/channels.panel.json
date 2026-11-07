@@ -1,0 +1,15 @@
+{
+    "addSlackWorkspace": "Add a Slack workspace",
+    "addTelegramBot": "Add a Telegram bot",
+    "addWhatsAppNumber": "Add a WhatsApp number",
+    "agent": "Agent",
+    "agentLive": "{{name}} · {{count}} live",
+    "chooseAgent": "Choose the agent that answers",
+    "connectChannel": "Connect a channel",
+    "connectPlatform": "Connect {{platform}}",
+    "embed": "Embed",
+    "noIdYet": "This connection has no id yet.",
+    "publish": "Publish",
+    "yourAgent": "your agent",
+    "yourWorkspace": "your workspace"
+}

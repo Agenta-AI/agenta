@@ -1,5 +1,8 @@
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAddDomainDialogCatalog from "@agenta/i18n/catalogs/settings.addDomainDialog"
 import {
     Button,
     Dialog,
@@ -24,6 +27,7 @@ export const AddDomainDialog = ({
     onClose: () => void
     onSubmit: (domain: string) => Promise<void>
 }) => {
+    const t = useT(commonCatalog, settingsAddDomainDialogCatalog)
     const [domain, setDomain] = useState("")
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -38,7 +42,7 @@ export const AddDomainDialog = ({
     const submit = async () => {
         const value = domain.trim()
         if (!value) {
-            setError("Enter a domain name")
+            setError(t("settings.addDomainDialog.enterDomain"))
             return
         }
         setPending(true)
@@ -47,7 +51,7 @@ export const AddDomainDialog = ({
             await onSubmit(value)
             onClose()
         } catch (cause) {
-            setError(plainAccessError(cause, "Could not add the domain"))
+            setError(plainAccessError(cause, t("settings.addDomainDialog.addError")))
         } finally {
             setPending(false)
         }
@@ -62,12 +66,15 @@ export const AddDomainDialog = ({
         >
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Add domain</DialogTitle>
+                    <DialogTitle>{t("settings.addDomainDialog.title")}</DialogTitle>
                     <DialogDescription>
-                        Add a domain, then publish its DNS TXT record to prove ownership.
+                        {t("settings.addDomainDialog.description")}
                     </DialogDescription>
                 </DialogHeader>
-                <Field label="Domain" hint="For example, company.com">
+                <Field
+                    label={t("settings.addDomainDialog.domainLabel")}
+                    hint={t("settings.addDomainDialog.domainHint")}
+                >
                     <Input
                         autoFocus
                         value={domain}
@@ -83,10 +90,12 @@ export const AddDomainDialog = ({
                 ) : null}
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <Button disabled={pending || !domain.trim()} onClick={() => void submit()}>
-                        {pending ? "Adding…" : "Add domain"}
+                        {pending
+                            ? t("settings.addDomainDialog.adding")
+                            : t("settings.addDomainDialog.title")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

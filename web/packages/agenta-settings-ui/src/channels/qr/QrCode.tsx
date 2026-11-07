@@ -1,5 +1,8 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+
 import {encodeQr, type QrEcc} from "./encode"
 
 /** Quiet zone around the symbol, in modules. The spec asks for at least 4. */
@@ -24,6 +27,7 @@ export interface QrCodeProps {
  * The background stays transparent.
  */
 export const QrCode = ({value, size = 180, className, label, ecc = "M"}: QrCodeProps) => {
+    const t = useT(commonCatalog)
     const {side, path} = useMemo(() => {
         const matrix = encodeQr(value, ecc)
         const parts: string[] = []
@@ -45,7 +49,7 @@ export const QrCode = ({value, size = 180, className, label, ecc = "M"}: QrCodeP
             viewBox={`0 0 ${side} ${side}`}
             shapeRendering="crispEdges"
             role="img"
-            aria-label={label ?? "QR code"}
+            aria-label={label ?? t("common.qrCode")}
         >
             <path d={path} fill="currentColor" />
         </svg>

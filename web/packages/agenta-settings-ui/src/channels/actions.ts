@@ -1,3 +1,7 @@
+import {createT} from "@agenta/i18n"
+import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
+import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
+
 import {platformLabel} from "./helpers"
 import type {
     ChannelAudiencePerson,
@@ -19,6 +23,8 @@ import type {
     ChannelToolSettings,
     HostedTelegramLink,
 } from "./types"
+
+const t = createT(channelsActionsCatalog, channelsLabelsCatalog)
 
 /**
  * Builds the real `ChannelsActions` for one agent page on top of the generated channels
@@ -149,7 +155,10 @@ export const locatorId = (locator: Row): string | null => {
     return asString(value)
 }
 
-/** What a place with no stored name is called: its platform id, else a plain noun. */
+/**
+ * What a place with no stored name is called: its platform id, else a plain noun.
+ * English on purpose: `addSpace` stores it as the space name.
+ */
 export const unnamedSpaceLabel = (kind: ChannelSpaceKind, externalId: string | null): string => {
     if (!externalId) return kind === "topic" ? "Unnamed channel" : "Unnamed group"
     // Slack channel ids start with C (public), G (private) or D (a DM); Telegram's are numbers.
@@ -165,7 +174,8 @@ export const mapSpaceRow = (row: Row): ChannelSpace | null => {
     const externalId = locatorId(asRecord(asRecord(row.data).external_locator))
     const externalKey = asString(row.external_key)
     const keyed = externalKey ? {externalKey} : {}
-    if (kind === "private") return {id, kind, name: "Direct messages", externalId, ...keyed}
+    if (kind === "private")
+        return {id, kind, name: t("channels.labels.directMessages"), externalId, ...keyed}
     // A place first seen through a message is stored without a name; the panel swaps in the
     // name discovery reports, and until then the platform id tells two such places apart.
     return name
@@ -337,7 +347,7 @@ export const pointConnectionAt = async ({
     const flags = asRecord(answering.flags)
     if (referencedAppId(answering) === appId && flags.is_active !== false) return
     const agentId = asString(answering.id)
-    if (!agentId) throw new Error("The connection's agent has no id.")
+    if (!agentId) throw new Error(t("channels.actions.agentHasNoId"))
     // A restore can bring the binding back off (someone else's private agent): connecting
     // turns it on. The edit writes the whole flags, so `is_default` stays as stored.
     await client.editChannelAgent(
@@ -502,14 +512,14 @@ export const buildAgentChannelsActions = ({
     const channelAgentId = async (connectionId: string): Promise<string> => {
         const answering = answeringAgentRow(await agentsOf(connectionId))
         const id = answering ? asString(answering.id) : null
-        if (!id) throw new Error("This connection answers as no agent yet.")
+        if (!id) throw new Error(t("channels.actions.noAgentYet"))
         return id
     }
 
     const listSpaces = async (connectionId: string): Promise<ChannelSpace[]> => {
         const res = await client
             .queryChannelSpaces({space: {connection_id: connectionId}}, scope())
-            .catch(rethrow("Could not load where this connection answers."))
+            .catch(rethrow(t("channels.actions.loadSpacesFailed")))
         return asArray(asRecord(res).spaces)
             .map(mapSpaceRow)
             .filter((space): space is ChannelSpace => space !== null)
@@ -518,7 +528,7 @@ export const buildAgentChannelsActions = ({
     const discoverSpaces = async (connectionId: string): Promise<ChannelSpaceCandidate[]> => {
         const res = await client
             .discoverChannelSpaces({connection_id: connectionId}, scope())
-            .catch(rethrow("Could not list the channels this app can see."))
+            .catch(rethrow(t("channels.actions.discoverSpacesFailed")))
         return asArray(asRecord(res).candidates).map((row) => ({
             kind: asSpaceKind(row.kind),
             externalLocator: asRecord(row.external_locator),
@@ -549,14 +559,14 @@ export const buildAgentChannelsActions = ({
                 },
                 scope(),
             )
-            .catch(rethrow("Could not add this channel."))
+            .catch(rethrow(t("channels.actions.addSpaceFailed")))
     }
 
     /** This agent's grants: the rules that say where it answers. */
     const agentGrants = async (agentId: string): Promise<Row[]> => {
         const res = await client
             .queryChannelGrants({grant: {agent_id: agentId}}, scope())
-            .catch(rethrow("Could not read where this agent may answer."))
+            .catch(rethrow(t("channels.actions.readBehaviorFailed")))
         return asArray(asRecord(res).grants).filter((grant) => !grant.deleted_at)
     }
 
@@ -618,12 +628,12 @@ export const buildAgentChannelsActions = ({
                     },
                     scope(),
                 )
-                .catch(rethrow("Could not save this setting."))
+                .catch(rethrow(t("channels.actions.saveSettingFailed")))
         }
         for (const grantId of obsolete) {
             await client
                 .deleteChannelGrant({grant_id: grantId}, scope())
-                .catch(rethrow("Could not save this setting."))
+                .catch(rethrow(t("channels.actions.saveSettingFailed")))
         }
     }
 
@@ -644,7 +654,7 @@ export const buildAgentChannelsActions = ({
                 },
                 scope(),
             )
-            .catch(rethrow("Could not save who can message it."))
+            .catch(rethrow(t("channels.actions.saveAudienceFailed")))
     }
 
     const queryPeople = async (connectionId: string, text: string, ids?: string[]) => {
@@ -653,7 +663,7 @@ export const buildAgentChannelsActions = ({
                 {connection_id: connectionId, people: {text, ...(ids?.length ? {ids} : {})}},
                 scope(),
             )
-            .catch(rethrow("Could not search people."))
+            .catch(rethrow(t("channels.actions.searchPeopleFailed")))
         return {
             people: asArray(asRecord(res).people).map(mapPersonRow),
             directory: mapDirectory(asRecord(res).directory),
@@ -663,7 +673,7 @@ export const buildAgentChannelsActions = ({
     const refreshPeople = async (connectionId: string) => {
         const res = await client
             .refreshChannelPeople({connection_id: connectionId}, scope())
-            .catch(rethrow("Could not refresh the people list."))
+            .catch(rethrow(t("channels.actions.refreshPeopleFailed")))
         return mapDirectory(asRecord(res).directory)
     }
 
@@ -676,14 +686,16 @@ export const buildAgentChannelsActions = ({
                 {connection_id: connectionId, connection: {id: connectionId, credentials}},
                 scope(),
             )
-            .catch(rethrow("The platform rejected the new credentials."))
+            .catch(rethrow(t("channels.actions.credentialsRejected")))
     }
 
     const answeringAgent = async (connectionId: string): Promise<Row> => {
         const answering = answeringAgentRow(
-            await agentsOf(connectionId).catch(rethrow("Could not read this bot's settings.")),
+            await agentsOf(connectionId).catch(
+                rethrow(t("channels.actions.readBotSettingsFailed")),
+            ),
         )
-        if (!answering) throw new Error("This connection answers as no agent yet.")
+        if (!answering) throw new Error(t("channels.actions.noAgentYet"))
         return answering
     }
 
@@ -713,7 +725,7 @@ export const buildAgentChannelsActions = ({
                 },
                 scope(),
             )
-            .catch(rethrow("Could not save this setting."))
+            .catch(rethrow(t("channels.actions.saveSettingFailed")))
     }
 
     /** Slack lists the channels the app can see and says which ones the bot is in. A Telegram
@@ -751,7 +763,7 @@ export const buildAgentChannelsActions = ({
     const reload = async (): Promise<ChannelConnections> => {
         const res = await client
             .queryChannelConnections({}, scope())
-            .catch(rethrow("Could not load the channel connections."))
+            .catch(rethrow(t("channels.actions.loadConnectionsFailed")))
         const rows = asArray(asRecord(res).connections)
             .map(mapConnectionRow)
             .filter((row): row is ChannelConnection => row !== null)
@@ -760,7 +772,7 @@ export const buildAgentChannelsActions = ({
                 if (!connection.connectionId) return
                 const answering = answeringAgentRow(
                     await agentsOf(connection.connectionId).catch(
-                        rethrow("Could not determine which agent answers on this connection."),
+                        rethrow(t("channels.actions.resolveAgentFailed")),
                     ),
                 )
                 const id = answering ? referencedAppId(answering) : null
@@ -793,7 +805,7 @@ export const buildAgentChannelsActions = ({
                     connection.status === "connected"
                 ) {
                     const bound = await countHostedTelegramBindings(connection.connectionId).catch(
-                        rethrow("Could not check whether Telegram is linked. Try again."),
+                        rethrow(t("channels.actions.checkTelegramLinkedFailed")),
                     )
                     if (bound === 0) connection.status = "pending"
                 }
@@ -808,7 +820,7 @@ export const buildAgentChannelsActions = ({
     ): Promise<ChannelSetupInfo> => {
         const res = await client
             .fetchChannelSetup({channel: channelKey(platform, false), ...identity}, scope())
-            .catch(rethrow(`Could not load the ${platform} setup.`))
+            .catch(rethrow(t("channels.actions.loadSetupFailed", {platform})))
         const setup = asRecord(asRecord(res).setup)
         return {
             manifest: asString(asRecord(setup.document).content),
@@ -828,11 +840,11 @@ export const buildAgentChannelsActions = ({
     const connectHostedTelegram = async (): Promise<HostedTelegramLink> => {
         const res = await client
             .createTelegramHostedBindLink({references: references()}, scope())
-            .catch(rethrow("The hosted Telegram bot is not available on this deployment."))
+            .catch(rethrow(t("channels.actions.hostedTelegramUnavailable")))
         const body = asRecord(res)
         const url = asString(body.url)
         const connectionId = asString(body.connection_id)
-        if (!url || !connectionId) throw new Error("The bind link response is incomplete.")
+        if (!url || !connectionId) throw new Error(t("channels.actions.bindLinkIncomplete"))
         const expires = Number(body.expires_in_seconds)
         return {url, connectionId, expiresInSeconds: Number.isFinite(expires) ? expires : 1800}
     }
@@ -855,25 +867,29 @@ export const buildAgentChannelsActions = ({
                 {connection: {channel: channelKey(platform, false), data, credentials}},
                 scope(),
             )
-            .catch(rethrow(`${platformLabel(platform)} rejected the credentials.`))
+            .catch(
+                rethrow(
+                    t("channels.actions.platformRejectedCredentials", {
+                        platform: platformLabel(platform),
+                    }),
+                ),
+            )
         const row = asRecord(asRecord(res).connection)
         const connectionId = asString(row.id)
-        if (!connectionId) throw new Error("The connection was created without an id.")
-        await pointHere(connectionId).catch(
-            rethrow("The connection was created, but could not be pointed at this agent."),
-        )
+        if (!connectionId) throw new Error(t("channels.actions.createdWithoutId"))
+        await pointHere(connectionId).catch(rethrow(t("channels.actions.pointHereFailed")))
         return mapConnectionRow(row)
     }
 
     const connectHere = async (platform: ChannelPlatform, connectionId: string) =>
-        pointHere(connectionId).catch(rethrow("Could not connect this agent."))
+        pointHere(connectionId).catch(rethrow(t("channels.actions.connectHereFailed")))
 
     /** Turn the answering binding back on. The edit carries its references, so the server
      *  checks the agent under a lock and refuses a private agent of someone else. */
     const turnOn = async (platform: ChannelPlatform, connectionId: string) => {
         const answering = await answeringAgent(connectionId)
         const agentId = asString(answering.id)
-        if (!agentId) throw new Error("This connection answers as no agent yet.")
+        if (!agentId) throw new Error(t("channels.actions.noAgentYet"))
         await client
             .editChannelAgent(
                 {
@@ -887,13 +903,19 @@ export const buildAgentChannelsActions = ({
                 },
                 scope(),
             )
-            .catch(rethrow(`Could not turn ${platformLabel(platform)} on.`))
+            .catch(
+                rethrow(
+                    t("channels.actions.turnOnFailed", {
+                        platform: platformLabel(platform),
+                    }),
+                ),
+            )
     }
 
     const disconnect = async (_platform: ChannelPlatform, connectionId: string) => {
         await client
             .archiveChannelConnection({connection_id: connectionId}, scope())
-            .catch(rethrow("Could not disconnect."))
+            .catch(rethrow(t("channels.actions.disconnectFailed")))
     }
 
     return {

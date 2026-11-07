@@ -1,0 +1,21 @@
+{
+    "channelActions": "チャネルの操作",
+    "connectHere": "ここで接続",
+    "connectPlatform": "{{platform}} を接続",
+    "disconnectMessage": "{{name}} は {{platform}} で応答しなくなります。後でもう一度接続できます。",
+    "disconnectTitle": "チャネルの接続を解除",
+    "finishLinking": "連携を完了",
+    "intro": "チームが普段使っているチャットツールから {{agent}} と会話できます。",
+    "loading": "読み込み中…",
+    "messagingPlatforms": "メッセージングプラットフォーム",
+    "noAgent": "エージェントなし",
+    "noAgentYet": "エージェントはまだありません",
+    "notLinkedYet": "未連携",
+    "slackDescription": "Slack でエージェントにメンションまたは DM を送信",
+    "telegramDescription": "ホスト型ボットまたは独自のボットでエージェントとチャット",
+    "title": "チャネル",
+    "unknownAgent": "不明なエージェント",
+    "whatsappDescription": "顧客が WhatsApp でエージェントにメッセージを送れるようにします",
+    "yourAgent": "あなたのエージェント",
+    "yourWorkspace": "あなたのワークスペース"
+}

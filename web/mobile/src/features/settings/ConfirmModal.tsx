@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -44,53 +46,56 @@ export const ConfirmModal = ({
     solid?: boolean
     onConfirm: () => void
     onClose: () => void
-}) => (
-    <AlertDialog
-        open={open}
-        onOpenChange={(next) => {
-            if (!next && !pending) onClose()
-        }}
-    >
-        <AlertDialogContent
-            onEscapeKeyDown={(event) => {
-                if (pending) event.preventDefault()
+}) => {
+    const t = useT(commonCatalog)
+    return (
+        <AlertDialog
+            open={open}
+            onOpenChange={(next) => {
+                if (!next && !pending) onClose()
             }}
         >
-            <AlertDialogHeader>
-                <AlertDialogTitle>{title}</AlertDialogTitle>
-                {/* Radix warns when a modal has no description, and the body is the description
+            <AlertDialogContent
+                onEscapeKeyDown={(event) => {
+                    if (pending) event.preventDefault()
+                }}
+            >
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{title}</AlertDialogTitle>
+                    {/* Radix warns when a modal has no description, and the body is the description
                     here whenever there is no separate line. */}
-                <AlertDialogDescription>{description ?? body ?? ""}</AlertDialogDescription>
-            </AlertDialogHeader>
-            {description && body ? <div className="text-sm">{body}</div> : null}
-            {error ? <p className="m-0 text-sm text-destructive">{error}</p> : null}
-            <AlertDialogFooter>
-                <AlertDialogCancel asChild>
-                    <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
-                    </Button>
-                </AlertDialogCancel>
-                {/* preventDefault keeps the alert open: it closes itself on success, and stays
+                    <AlertDialogDescription>{description ?? body ?? ""}</AlertDialogDescription>
+                </AlertDialogHeader>
+                {description && body ? <div className="text-sm">{body}</div> : null}
+                {error ? <p className="m-0 text-sm text-destructive">{error}</p> : null}
+                <AlertDialogFooter>
+                    <AlertDialogCancel asChild>
+                        <Button variant="outline" onClick={onClose} disabled={pending}>
+                            {t("common.cancel")}
+                        </Button>
+                    </AlertDialogCancel>
+                    {/* preventDefault keeps the alert open: it closes itself on success, and stays
                     for the error otherwise. */}
-                <AlertDialogAction asChild>
-                    <Button
-                        variant={destructive ? "destructive" : "default"}
-                        className={
-                            // White text in both themes, as the /w danger buttons have.
-                            destructive && solid
-                                ? "bg-destructive text-white hover:bg-destructive/90"
-                                : undefined
-                        }
-                        disabled={pending}
-                        onClick={(event) => {
-                            event.preventDefault()
-                            onConfirm()
-                        }}
-                    >
-                        {pending ? "Working…" : confirmLabel}
-                    </Button>
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
-)
+                    <AlertDialogAction asChild>
+                        <Button
+                            variant={destructive ? "destructive" : "default"}
+                            className={
+                                // White text in both themes, as the /w danger buttons have.
+                                destructive && solid
+                                    ? "bg-destructive text-white hover:bg-destructive/90"
+                                    : undefined
+                            }
+                            disabled={pending}
+                            onClick={(event) => {
+                                event.preventDefault()
+                                onConfirm()
+                            }}
+                        >
+                            {pending ? t("common.working") : confirmLabel}
+                        </Button>
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )
+}

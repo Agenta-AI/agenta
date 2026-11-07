@@ -1,0 +1,11 @@
+{
+    "copyError": "无法复制，请选中上方的密钥手动复制",
+    "copyKey": "复制密钥",
+    "createError": "无法创建密钥",
+    "deleteBody": "使用此密钥签名的请求将立即失效。",
+    "deleteError": "无法删除密钥",
+    "deleteTitle": "删除 API 密钥",
+    "revealDescription": "仅显示一次。关闭后将无法再次获取。",
+    "revealTitle": "保存你的 API 密钥",
+    "workspacePending": "工作区仍在加载，请稍后重试。"
+}

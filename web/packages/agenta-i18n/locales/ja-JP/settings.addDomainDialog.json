@@ -1,0 +1,9 @@
+{
+    "addError": "ドメインを追加できませんでした",
+    "adding": "追加しています…",
+    "description": "ドメインを追加し、その DNS TXT レコードを公開して所有権を証明します。",
+    "domainHint": "例: company.com",
+    "domainLabel": "ドメイン",
+    "enterDomain": "ドメイン名を入力してください",
+    "title": "ドメインを追加"
+}

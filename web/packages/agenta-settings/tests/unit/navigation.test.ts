@@ -1,8 +1,9 @@
+import {createT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {describe, expect, it} from "vitest"
 
 import {
     getSettingsSidebarTabs,
-    getSettingsTabDescription,
     getSettingsTabLabel,
     isSettingsTabVisible,
     resolveSettingsTab,
@@ -10,6 +11,9 @@ import {
     SETTINGS_TABS,
     type SettingsAccess,
 } from "../../src/navigation"
+import {getSettingsTabDescription} from "../../src/tabDetails"
+
+const t = createT(navigationCatalog)
 
 const baseAccess: SettingsAccess = {
     billingEnabled: true,
@@ -121,7 +125,7 @@ describe("settings sidebar scopes", () => {
             "organization",
             "personal",
         ])
-        expect(SETTINGS_SCOPES[0].title).toBe("Connections")
+        expect(t(SETTINGS_SCOPES[0].titleKey)).toBe("Connections")
 
         const tabs = getSettingsSidebarTabs(baseAccess)
         const keysForScope = (scope: (typeof SETTINGS_SCOPES)[number]["key"]) =>

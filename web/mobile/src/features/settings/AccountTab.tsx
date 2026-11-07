@@ -1,6 +1,9 @@
 import {useState} from "react"
 
 import {deleteAccount, useProfile} from "@agenta/entities/profile"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAccountTabCatalog from "@agenta/i18n/catalogs/settings.accountTab"
 import {AccountPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -22,6 +25,7 @@ import {useLogout} from "../auth/useLogout"
  * alert dialog — the same typed-email gate the desktop uses.
  */
 export const AccountTab = () => {
+    const t = useT(commonCatalog, settingsAccountTabCatalog)
     const {user} = useProfile()
     const logout = useLogout()
     const [error, setError] = useState<string | null>(null)
@@ -32,7 +36,7 @@ export const AccountTab = () => {
         // no longer exists.
         onSuccess: () => logout(),
         onError: (cause: unknown) =>
-            setError((cause as Error)?.message || "Unable to delete account"),
+            setError((cause as Error)?.message || t("settings.accountTab.deleteError")),
     })
 
     return (
@@ -53,8 +57,12 @@ export const AccountTab = () => {
                 >
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Delete account</AlertDialogTitle>
-                            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                            <AlertDialogTitle>
+                                {t("settings.accountTab.deleteAccount")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t("common.thisCannotBeUndone")}
+                            </AlertDialogDescription>
                         </AlertDialogHeader>
                         <div className="m-0 text-sm">{body}</div>
                         {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
@@ -65,7 +73,7 @@ export const AccountTab = () => {
                                     onClick={onClose}
                                     disabled={deleteMutation.isPending}
                                 >
-                                    Cancel
+                                    {t("common.cancel")}
                                 </Button>
                             </AlertDialogCancel>
                             {/* Stays open for the error; success signs out, which unmounts it. */}
@@ -78,7 +86,9 @@ export const AccountTab = () => {
                                         onConfirm()
                                     }}
                                 >
-                                    {deleteMutation.isPending ? "Deleting…" : "Delete account"}
+                                    {deleteMutation.isPending
+                                        ? t("settings.accountTab.deleting")
+                                        : t("settings.accountTab.deleteAccount")}
                                 </Button>
                             </AlertDialogAction>
                         </AlertDialogFooter>

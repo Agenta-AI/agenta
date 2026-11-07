@@ -1,0 +1,6 @@
+{
+    "callbackUrl": "コールバック URL",
+    "copyField": "{{label}} をコピー",
+    "verifyToken": "検証トークン",
+    "webhookHint": "Meta アプリで WhatsApp > Configuration を開き、この 2 つの値を貼り付けてから、<code>messages</code> フィールドをサブスクライブしてください。"
+}

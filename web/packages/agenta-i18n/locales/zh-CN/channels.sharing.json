@@ -1,0 +1,6 @@
+{
+    "audienceNote": "对于共享的 Agent，{{project}} 中的所有人都可以在 Agenta 中查看它的 {{platform}} 会话，包括私信。对于私有 Agent，新会话仅其所有者可见。",
+    "off": "已关闭",
+    "offIn": "已关闭 · 在 {{places}} 中",
+    "turnOn": "开启"
+}

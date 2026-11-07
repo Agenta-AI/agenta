@@ -1,0 +1,6 @@
+{
+    "aboutToDelete": "你即将删除：",
+    "deleteOrganizationDescription": "使用此连接的 Agent 需要在所有使用它的项目中重新配置。",
+    "deleteProjectDescription": "此操作无法撤销。使用此连接的 Agent 和提示词将停止工作。",
+    "deleteTitle": "确定要删除吗？"
+}

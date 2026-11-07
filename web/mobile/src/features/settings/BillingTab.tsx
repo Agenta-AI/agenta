@@ -1,5 +1,8 @@
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import billingBillingTabCatalog from "@agenta/i18n/catalogs/billing.billingTab"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ANALYTICS_COLOR_CSS} from "@agenta/observability-ui/analytics"
 import {fetchBillingUsage, useBillingCatalog, useBillingSubscription} from "@agenta/settings-ui"
 import {isBillingEnabled} from "@agenta/shared/api"
@@ -28,6 +31,7 @@ import {useBillingPortal} from "./useBillingPortal"
 
 /** Plan & billing: the plan and what it grants, its limits, and where payments live. */
 export const BillingTab = ({projectId}: SettingsTabProps) => {
+    const t = useT(billingBillingTabCatalog, commonCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
     const billingEnabled = isBillingEnabled()
@@ -71,7 +75,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     if (usage.isError && subscription.isError)
         return (
             <BillingLoadError
-                message="We couldn't load your plan and its limits."
+                message={t("billing.billingTab.loadPlanAndLimitsError")}
                 onRetry={() => {
                     void usage.refetch()
                     void subscription.refetch()
@@ -98,13 +102,13 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
             <div className="flex flex-col gap-2.5">
                 {subscription.isError ? (
                     <BillingLoadError
-                        message="We couldn't load your plan."
+                        message={t("billing.billingTab.loadPlanError")}
                         onRetry={() => void subscription.refetch()}
                     />
                 ) : null}
                 {usage.isError ? (
                     <BillingLoadError
-                        message="We couldn't load your plan limits."
+                        message={t("billing.billingTab.loadLimitsError")}
                         onRetry={() => void usage.refetch()}
                     />
                 ) : null}
@@ -142,9 +146,9 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                     <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
                         {daily ? (
                             <PlanStatTile
-                                label="Daily free credits"
+                                label={t("billing.billingTab.dailyCredits")}
                                 value={formatCredits(daily.amount_musd)}
-                                note="Resets at midnight UTC"
+                                note={t("billing.billingTab.dailyCreditsNote")}
                             />
                         ) : null}
                         {limits.map((limit) => (
@@ -161,7 +165,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                                             className="h-auto px-0"
                                             onClick={viewMembers}
                                         >
-                                            View
+                                            {t("common.view")}
                                         </Button>
                                     ) : null
                                 }

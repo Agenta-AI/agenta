@@ -1,0 +1,10 @@
+{
+    "apiAlwaysOn": "保存済みのバージョンでは常にオン",
+    "apiSaveFirst": "呼び出すにはエージェントを保存してください",
+    "botsConnected_other": "{{count}} 件のボットが接続済み",
+    "embed": "埋め込み",
+    "embedDescription": "Web サイト上のチャット",
+    "numbersConnected_other": "{{count}} 件の番号が接続済み",
+    "thisAgent": "このエージェント",
+    "workspacesConnected_other": "{{count}} 件のワークスペースが接続済み"
+}

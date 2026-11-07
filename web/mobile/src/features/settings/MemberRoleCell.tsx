@@ -1,4 +1,6 @@
 import type {WorkspaceMember} from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Select,
     SelectContent,
@@ -39,6 +41,7 @@ export const MemberRoleCell = ({
     pending?: boolean
     onChange: (role: string) => void
 }) => {
+    const t = useT(commonCatalog)
     const role = memberRole(member)
     const joined = member.user.status === "member"
 
@@ -52,7 +55,7 @@ export const MemberRoleCell = ({
     const offered = offeredRoles.includes(role)
     return (
         <Select value={offered ? role : undefined} onValueChange={onChange}>
-            <SelectTrigger size="sm" className="w-full" aria-label="Role">
+            <SelectTrigger size="sm" className="w-full" aria-label={t("common.role")}>
                 <SelectValue placeholder={memberRoleLabel(role)} />
             </SelectTrigger>
             <SelectContent>

@@ -1,6 +1,9 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {Org} from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsOrganizationsCatalog from "@agenta/i18n/catalogs/settings.organizations"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -20,11 +23,11 @@ interface OrgRow extends Org {
     key: string
 }
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Organization", width: "minmax(0,2fr)"},
-    {key: "status", label: "Status", width: "minmax(0,1fr)"},
-    {key: "owner_id", label: "Your role", width: "minmax(0,1fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
+    {key: "name", label: t("settings.organizations.organization"), width: "minmax(0,2fr)"},
+    {key: "status", label: t("common.status"), width: "minmax(0,1fr)"},
+    {key: "owner_id", label: t("common.yourRole"), width: "minmax(0,1fr)"},
+    {key: "actions", label: t("common.actions"), srOnly: true, width: "32px"},
 ]
 const PHONE_KEYS = ["name", "status", "actions"]
 
@@ -65,20 +68,24 @@ export const OrganizationsPage = ({
     onDelete,
     children,
 }: OrganizationsPageProps) => {
+    const t = useT(commonCatalog, settingsOrganizationsCatalog)
     const rows = useMemo<OrgRow[]>(
         () => organizations.map((org) => ({...org, key: org.id})),
         [organizations],
     )
 
     const [renamingId, setRenamingId] = useState<string | null>(null)
-    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const {columns, shows} = usePhoneColumns(
+        useMemo(() => columnsFor(t), [t]),
+        PHONE_KEYS,
+    )
     const isOwner = (org: Org) => Boolean(currentUserId) && org.owner_id === currentUserId
 
     const createButton = (variant?: "outline") =>
         onCreate ? (
             <Button variant={variant} onClick={onCreate} disabled={loading}>
                 <Plus size={14} />
-                New organization
+                {t("settings.organizations.newOrganization")}
             </Button>
         ) : null
 
@@ -104,8 +111,8 @@ export const OrganizationsPage = ({
                 empty={
                     <SettingsEmpty
                         icon={getSettingsSidebarIcon("organizationGeneral")}
-                        title="No organizations yet"
-                        description="An organization groups your workspaces, projects and the people who work in them."
+                        title={t("settings.organizations.emptyTitle")}
+                        description={t("settings.organizations.emptyDescription")}
                         action={createButton("outline")}
                     />
                 }
@@ -118,7 +125,7 @@ export const OrganizationsPage = ({
                                 <InlineName
                                     value={name}
                                     editing={renamingId === record.id}
-                                    ariaLabel="Organization name"
+                                    ariaLabel={t("settings.organizations.organizationName")}
                                     onDone={() => setRenamingId(null)}
                                     onSave={(next) => onRename?.(record, next) ?? Promise.resolve()}
                                 />
@@ -127,7 +134,7 @@ export const OrganizationsPage = ({
                                 {record.id === selectedOrgId ? (
                                     <StatusIndicator
                                         tone="success"
-                                        label="Current"
+                                        label={t("settings.organizations.current")}
                                         className="text-[13px]"
                                     />
                                 ) : (
@@ -136,22 +143,24 @@ export const OrganizationsPage = ({
                             </span>
                             {shows("owner_id") ? (
                                 <span className="truncate">
-                                    {isOwner(record) ? "Owner" : "Member"}
+                                    {isOwner(record)
+                                        ? t("settings.organizations.owner")
+                                        : t("settings.organizations.member")}
                                 </span>
                             ) : null}
                             <SettingsRowMenu
-                                label="Organization actions"
+                                label={t("settings.organizations.organizationActions")}
                                 items={[
                                     {
                                         key: "switch",
-                                        label: "Switch to this organization",
+                                        label: t("settings.organizations.switchTo"),
                                         icon: <ArrowsLeftRight size={14} />,
                                         hidden: record.id === selectedOrgId || !onSwitch,
                                         onClick: () => onSwitch?.(record),
                                     },
                                     {
                                         key: "rename",
-                                        label: "Rename",
+                                        label: t("common.rename"),
                                         icon: <PencilSimpleLine size={14} />,
                                         hidden: !isOwner(record) || !onRename,
                                         deferred: true,
@@ -159,7 +168,7 @@ export const OrganizationsPage = ({
                                     },
                                     {
                                         key: "transfer",
-                                        label: "Transfer ownership",
+                                        label: t("settings.organizations.transferOwnership"),
                                         icon: <ArrowsLeftRight size={14} />,
                                         // The member list is scoped to the current organization.
                                         hidden:
@@ -170,19 +179,19 @@ export const OrganizationsPage = ({
                                     },
                                     {
                                         key: "copy-id",
-                                        label: "Copy organization ID",
+                                        label: t("settings.organizations.copyId"),
                                         icon: <Copy size={14} />,
                                         onClick: () =>
                                             void copyWithMessage(
                                                 record.id,
-                                                "Organization ID copied",
-                                                "Couldn't copy the ID",
+                                                t("settings.organizations.idCopied"),
+                                                t("settings.organizations.copyIdFailed"),
                                             ),
                                     },
                                     {type: "divider"},
                                     {
                                         key: "leave",
-                                        label: "Leave organization",
+                                        label: t("settings.organizations.leave"),
                                         icon: <SignOut size={14} />,
                                         danger: true,
                                         hidden: isOwner(record) || !onLeave,
@@ -190,7 +199,7 @@ export const OrganizationsPage = ({
                                     },
                                     {
                                         key: "delete",
-                                        label: "Delete organization",
+                                        label: t("settings.organizations.delete"),
                                         icon: <Trash size={14} />,
                                         danger: true,
                                         hidden: !isOwner(record) || !onDelete,

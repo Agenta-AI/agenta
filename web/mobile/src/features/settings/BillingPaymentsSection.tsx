@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import billingBillingPaymentsSectionCatalog from "@agenta/i18n/catalogs/billing.billingPaymentsSection"
 import {Button} from "@agenta/ui/ui"
 import {ArrowSquareOut, Receipt} from "@phosphor-icons/react"
 
@@ -10,27 +12,34 @@ export const BillingPaymentsSection = ({
     onOpenPortal: () => void
     opening: boolean
     error: string | null
-}) => (
-    <section className="flex flex-col gap-3">
-        <h3 className="m-0 text-sm font-medium">Payment history</h3>
-        <div className="border-border/50 flex flex-wrap items-center gap-3 border-0 border-t border-solid py-3">
-            <span className="bg-accent flex size-7 shrink-0 items-center justify-center rounded-md">
-                <Receipt size={14} />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-                <span className="font-medium">Invoices and receipts</span>
-                <span className="text-muted-foreground text-[13px]">
-                    Every subscription and credit pack payment, with its PDF invoice.
+}) => {
+    const t = useT(billingBillingPaymentsSectionCatalog)
+    return (
+        <section className="flex flex-col gap-3">
+            <h3 className="m-0 text-sm font-medium">{t("billing.billingPaymentsSection.title")}</h3>
+            <div className="border-border/50 flex flex-wrap items-center gap-3 border-0 border-t border-solid py-3">
+                <span className="bg-accent flex size-7 shrink-0 items-center justify-center rounded-md">
+                    <Receipt size={14} />
                 </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="font-medium">
+                        {t("billing.billingPaymentsSection.invoices")}
+                    </span>
+                    <span className="text-muted-foreground text-[13px]">
+                        {t("billing.billingPaymentsSection.invoicesHint")}
+                    </span>
+                </span>
+                <Button size="sm" variant="outline" onClick={onOpenPortal} disabled={opening}>
+                    {opening
+                        ? t("billing.billingPaymentsSection.opening")
+                        : t("billing.billingPaymentsSection.viewPortal")}
+                    <ArrowSquareOut data-icon="inline-end" />
+                </Button>
+            </div>
+            {error ? <span className="text-destructive text-[13px]">{error}</span> : null}
+            <span className="text-muted-foreground text-[13px]">
+                {t("billing.billingPaymentsSection.portalHint")}
             </span>
-            <Button size="sm" variant="outline" onClick={onOpenPortal} disabled={opening}>
-                {opening ? "Opening…" : "View in billing portal"}
-                <ArrowSquareOut data-icon="inline-end" />
-            </Button>
-        </div>
-        {error ? <span className="text-destructive text-[13px]">{error}</span> : null}
-        <span className="text-muted-foreground text-[13px]">
-            Payment method, tax IDs and billing address are managed in the billing portal too.
-        </span>
-    </section>
-)
+        </section>
+    )
+}

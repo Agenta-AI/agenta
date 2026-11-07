@@ -1,0 +1,23 @@
+{
+    "addProvider": "Add provider",
+    "addProviderSetSlug": "Add provider (set slug first)",
+    "deleteDomain": "Delete domain",
+    "deleteDomainBody": "Removes {{name}} from this organization.",
+    "deleteDomainError": "Could not delete the domain",
+    "deleteProvider": "Delete provider",
+    "deleteProviderBody": "Removes {{name}} and its stored secret.",
+    "deleteProviderError": "Could not delete the provider",
+    "deleteProviderTitle": "Delete SSO provider",
+    "enableProviderError": "Could not enable the provider",
+    "loadError": "Could not load this organization's settings",
+    "providerAddedNotice": "Provider added. Enable it to verify and activate it.",
+    "providerConnectError": "We could not connect to the provider. Check the issuer URL and client details, then try again.",
+    "providerSavedNotice": "Provider saved. Editing settings clears validation, so enable it again.",
+    "refreshTokenError": "Could not refresh the token",
+    "saveFlagError": "Couldn't save that setting — try again",
+    "setSlugFirst": "Set an organization slug first",
+    "setSlugHint": "Set an organization slug before adding a provider. The callback URL cannot be formed without it.",
+    "thisDomain": "this domain",
+    "thisProvider": "this provider",
+    "verifyDomainError": "Could not verify the domain"
+}

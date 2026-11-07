@@ -1,0 +1,15 @@
+{
+    "addSlackWorkspace": "添加 Slack 工作区",
+    "addTelegramBot": "添加 Telegram 机器人",
+    "addWhatsAppNumber": "添加 WhatsApp 号码",
+    "agent": "Agent",
+    "agentLive": "{{name}} · {{count}} 个在线",
+    "chooseAgent": "选择负责回复的 Agent",
+    "connectChannel": "连接渠道",
+    "connectPlatform": "连接 {{platform}}",
+    "embed": "嵌入",
+    "noIdYet": "此连接还没有 ID。",
+    "publish": "发布",
+    "yourAgent": "你的 Agent",
+    "yourWorkspace": "你的工作区"
+}

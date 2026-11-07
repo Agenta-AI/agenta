@@ -7,6 +7,9 @@ import {
     type OrganizationFlags,
     type OrganizationProvider,
 } from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAccessSecurityTabCatalog from "@agenta/i18n/catalogs/settings.accessSecurityTab"
 import {
     AccessControlsSection,
     type AccessFeature,
@@ -35,6 +38,7 @@ import {useSettingsOrg} from "./useSettingsOrg"
 
 /** Settings > Access & Security: sign-in policy, verified domains and SSO, each gated by plan. */
 export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const t = useT(commonCatalog, settingsAccessSecurityTabCatalog)
     const access = useMobileSettingsAccess()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(workspaceId)
     const domains = useQuery({
@@ -81,7 +85,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await org.refetch()
             setLastSavedFlag(flag)
         } catch (error) {
-            setFlagError(plainAccessError(error, "Couldn't save that setting — try again"))
+            setFlagError(plainAccessError(error, t("settings.accessSecurityTab.saveFlagError")))
         } finally {
             setSavingFlag(null)
         }
@@ -94,7 +98,9 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await organizationAccessApi.verifyOrganizationDomain(projectId, domain.id)
             await domains.refetch()
         } catch (error) {
-            setDomainError(plainAccessError(error, "Could not verify the domain"))
+            setDomainError(
+                plainAccessError(error, t("settings.accessSecurityTab.verifyDomainError")),
+            )
         } finally {
             setDomainBusy(null)
         }
@@ -107,7 +113,9 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await organizationAccessApi.refreshOrganizationDomainToken(projectId, domain.id)
             await domains.refetch()
         } catch (error) {
-            setDomainError(plainAccessError(error, "Could not refresh the token"))
+            setDomainError(
+                plainAccessError(error, t("settings.accessSecurityTab.refreshTokenError")),
+            )
         } finally {
             setDomainBusy(null)
         }
@@ -122,7 +130,9 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await domains.refetch()
             setDeletingDomain(null)
         } catch (error) {
-            setDomainError(plainAccessError(error, "Could not delete the domain"))
+            setDomainError(
+                plainAccessError(error, t("settings.accessSecurityTab.deleteDomainError")),
+            )
         } finally {
             setDomainBusy(null)
         }
@@ -137,16 +147,14 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                 providerDialog.provider.id,
                 values,
             )
-            setProviderNotice(
-                "Provider saved. Editing settings clears validation, so enable it again.",
-            )
+            setProviderNotice(t("settings.accessSecurityTab.providerSavedNotice"))
         } else {
             if (!values.slug) return
             await organizationAccessApi.createOrganizationProvider(projectId, {
                 ...values,
                 slug: values.slug,
             })
-            setProviderNotice("Provider added. Enable it to verify and activate it.")
+            setProviderNotice(t("settings.accessSecurityTab.providerAddedNotice"))
         }
         await providers.refetch()
     }
@@ -166,14 +174,14 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                     provider.id,
                 )
                 if (!tested?.flags?.is_valid) {
-                    setProviderError(
-                        "We could not connect to the provider. Check the issuer URL and client details, then try again.",
-                    )
+                    setProviderError(t("settings.accessSecurityTab.providerConnectError"))
                 }
             }
             await providers.refetch()
         } catch (error) {
-            setProviderError(plainAccessError(error, "Could not enable the provider"))
+            setProviderError(
+                plainAccessError(error, t("settings.accessSecurityTab.enableProviderError")),
+            )
         } finally {
             setProviderBusy(null)
         }
@@ -188,7 +196,9 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
             await providers.refetch()
             setDeletingProvider(null)
         } catch (error) {
-            setProviderError(plainAccessError(error, "Could not delete the provider"))
+            setProviderError(
+                plainAccessError(error, t("settings.accessSecurityTab.deleteProviderError")),
+            )
         } finally {
             setProviderBusy(null)
         }
@@ -197,7 +207,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
     // Entitlements gate every section; rendering before they land flashes the locked state.
     if (loading || entitlements.isLoading) return <OrganizationLoading />
     if (failed)
-        return <LoadError title="Could not load this organization's settings" onRetry={retry} />
+        return <LoadError title={t("settings.accessSecurityTab.loadError")} onRetry={retry} />
     const flags = org.data?.flags as OrganizationFlags | undefined
     if (!flags) return <OrganizationNoFlags />
 
@@ -290,7 +300,11 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                                   }
                                 : undefined
                         }
-                        addLabel={orgSlug ? "Add provider" : "Add provider (set slug first)"}
+                        addLabel={
+                            orgSlug
+                                ? t("settings.accessSecurityTab.addProvider")
+                                : t("settings.accessSecurityTab.addProviderSetSlug")
+                        }
                         onEdit={
                             canEdit
                                 ? (provider) => {
@@ -325,14 +339,16 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
                             <div className="mt-2 flex flex-col gap-2">
                                 {canEdit ? (
                                     <div>
-                                        <Button disabled title="Set an organization slug first">
-                                            Add provider
+                                        <Button
+                                            disabled
+                                            title={t("settings.accessSecurityTab.setSlugFirst")}
+                                        >
+                                            {t("settings.accessSecurityTab.addProvider")}
                                         </Button>
                                     </div>
                                 ) : null}
                                 <p className="m-0 text-xs text-muted-foreground">
-                                    Set an organization slug before adding a provider. The callback
-                                    URL cannot be formed without it.
+                                    {t("settings.accessSecurityTab.setSlugHint")}
                                 </p>
                             </div>
                         ) : null}
@@ -353,10 +369,12 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
 
             <ConfirmModal
                 open={Boolean(deletingDomain)}
-                title="Delete domain"
-                description="This cannot be undone."
-                body={`Removes ${deletingDomain?.slug ?? "this domain"} from this organization.`}
-                confirmLabel="Delete domain"
+                title={t("settings.accessSecurityTab.deleteDomain")}
+                description={t("common.thisCannotBeUndone")}
+                body={t("settings.accessSecurityTab.deleteDomainBody", {
+                    name: deletingDomain?.slug ?? t("settings.accessSecurityTab.thisDomain"),
+                })}
+                confirmLabel={t("settings.accessSecurityTab.deleteDomain")}
                 pending={domainBusy === "delete"}
                 error={deletingDomain ? domainError : null}
                 onClose={() => {
@@ -375,10 +393,12 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
 
             <ConfirmModal
                 open={Boolean(deletingProvider)}
-                title="Delete SSO provider"
-                description="This cannot be undone."
-                body={`Removes ${deletingProvider?.slug ?? "this provider"} and its stored secret.`}
-                confirmLabel="Delete provider"
+                title={t("settings.accessSecurityTab.deleteProviderTitle")}
+                description={t("common.thisCannotBeUndone")}
+                body={t("settings.accessSecurityTab.deleteProviderBody", {
+                    name: deletingProvider?.slug ?? t("settings.accessSecurityTab.thisProvider"),
+                })}
+                confirmLabel={t("settings.accessSecurityTab.deleteProvider")}
                 pending={providerBusy === "delete"}
                 error={deletingProvider ? providerError : null}
                 onClose={() => {

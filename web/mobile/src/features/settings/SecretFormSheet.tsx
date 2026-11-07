@@ -7,6 +7,9 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {OwnerRadioGroup} from "@agenta/entity-ui/secret"
+import {useT, createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsSecretFormSheetCatalog from "@agenta/i18n/catalogs/settings.secretFormSheet"
 import type {OwnerKind} from "@agenta/shared/types"
 import {slugifyName} from "@agenta/shared/utils"
 import {
@@ -27,21 +30,23 @@ import {
 
 import {Field} from "./Field"
 
+const tNow = createT(commonCatalog, settingsSecretFormSheetCatalog)
+
 /** Flat map of primitives — what the backend accepts for a `json` secret. */
 const parseJsonContent = (raw: string): {content?: CustomSecretContent; error?: string} => {
     let parsed: unknown
     try {
         parsed = JSON.parse(raw)
     } catch {
-        return {error: "Not valid JSON."}
+        return {error: tNow("settings.secretFormSheet.invalidJson")}
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return {error: 'Expected a JSON object, e.g. {"key": "value"}.'}
+        return {error: tNow("settings.secretFormSheet.expectedObject")}
     }
     const flat = Object.values(parsed as Record<string, unknown>).every(
         (value) => value === null || typeof value !== "object",
     )
-    if (!flat) return {error: "Nested objects and arrays are not supported."}
+    if (!flat) return {error: tNow("settings.secretFormSheet.nestedNotSupported")}
     return {content: parsed as CustomSecretContent}
 }
 
@@ -69,6 +74,7 @@ export const SecretFormSheet = ({
     /** The current project's name, for "Everyone in {project}". */
     projectName?: string
 }) => {
+    const t = useT(commonCatalog, settingsSecretFormSheetCatalog)
     const {handleModifyNamedSecret} = useVaultSecret()
 
     const [name, setName] = useState("")
@@ -116,8 +122,9 @@ export const SecretFormSheet = ({
     const submit = async () => {
         const isJson = format === CustomSecretFormat.Json
         const parsed = isJson ? parseJsonContent(value) : null
-        if (parsed?.error) {
-            setError(parsed.error)
+        // Valid only with parsed content; the message's text never decides it.
+        if (parsed && parsed.content === undefined) {
+            setError(parsed.error ?? tNow("settings.secretFormSheet.invalidJson"))
             return
         }
         setError(null)
@@ -132,12 +139,12 @@ export const SecretFormSheet = ({
                 // The slug is immutable, so it is sent on create only.
                 slug: isEditing ? undefined : slug.trim(),
                 format,
-                content: isJson ? (parsed?.content ?? {}) : value,
+                content: parsed ? parsed.content : value,
                 ownerKind,
             } as NamedSecretRow)
             onClose()
         } catch (cause) {
-            setError((cause as Error)?.message || "Could not save the secret")
+            setError((cause as Error)?.message || t("settings.secretFormSheet.saveFailed"))
         } finally {
             setSaving(false)
         }
@@ -154,25 +161,29 @@ export const SecretFormSheet = ({
         >
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{isEditing ? "Edit secret" : "Create secret"}</DialogTitle>
+                    <DialogTitle>
+                        {isEditing
+                            ? t("settings.secretFormSheet.editTitle")
+                            : t("settings.secretFormSheet.createSecret")}
+                    </DialogTitle>
                     <DialogDescription>
-                        Agents reference a secret by its slug, never by its value.
+                        {t("settings.secretFormSheet.description")}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex flex-col gap-3">
-                    <Field label="Name">
+                    <Field label={t("common.name")}>
                         <Input
                             autoFocus
                             value={name}
                             onChange={(event) => changeName(event.target.value)}
-                            placeholder="Stripe production key"
+                            placeholder={t("settings.secretFormSheet.namePlaceholder")}
                         />
                     </Field>
 
                     <Field
-                        label="Slug"
-                        hint="How the secret is referenced. Cannot be changed later."
+                        label={t("settings.secretFormSheet.slug")}
+                        hint={t("settings.secretFormSheet.slugHint")}
                     >
                         <Input
                             value={slug}
@@ -186,7 +197,7 @@ export const SecretFormSheet = ({
                         />
                     </Field>
 
-                    <Field label="Format">
+                    <Field label={t("settings.secretFormSheet.format")}>
                         <Select
                             value={format}
                             onValueChange={(next) => {
@@ -201,17 +212,19 @@ export const SecretFormSheet = ({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value={CustomSecretFormat.Text}>Text</SelectItem>
+                                <SelectItem value={CustomSecretFormat.Text}>
+                                    {t("settings.secretFormSheet.text")}
+                                </SelectItem>
                                 <SelectItem value={CustomSecretFormat.Json}>JSON</SelectItem>
                             </SelectContent>
                         </Select>
                     </Field>
 
                     <Field
-                        label="Value"
+                        label={t("settings.secretFormSheet.value")}
                         hint={
                             format === CustomSecretFormat.Json
-                                ? "A flat JSON object — no nesting or arrays."
+                                ? t("settings.secretFormSheet.jsonHint")
                                 : undefined
                         }
                     >
@@ -233,21 +246,26 @@ export const SecretFormSheet = ({
                         // Not a <Field>: its <label> would wrap the radios' own labels.
                         <div className="flex flex-col gap-1.5">
                             <span className="text-sm font-medium text-foreground">
-                                Who can use it
+                                {t("settings.secretFormSheet.whoCanUseIt")}
                             </span>
                             <OwnerRadioGroup<Exclude<OwnerKind, "organization">>
+                                aria-label={t("settings.secretFormSheet.whoCanUseIt")}
                                 value={owner}
                                 onChange={setOwner}
                                 options={[
                                     {
                                         value: "user",
-                                        label: "Only me",
-                                        note: "You pick it when an agent asks for your own value.",
+                                        label: t("settings.secretFormSheet.onlyMe"),
+                                        note: t("settings.secretFormSheet.onlyMeNote"),
                                     },
                                     {
                                         value: "project",
-                                        label: `Everyone in ${projectName ?? "this project"}`,
-                                        note: "Builders can attach it to agents in this project.",
+                                        label: t("settings.secretFormSheet.everyoneIn", {
+                                            project:
+                                                projectName ??
+                                                t("settings.secretFormSheet.thisProject"),
+                                        }),
+                                        note: t("settings.secretFormSheet.everyoneNote"),
                                     },
                                 ]}
                             />
@@ -259,10 +277,14 @@ export const SecretFormSheet = ({
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={saving}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <Button disabled={!canSubmit} onClick={submit}>
-                        {saving ? "Saving…" : isEditing ? "Save" : "Create secret"}
+                        {saving
+                            ? t("settings.secretFormSheet.saving")
+                            : isEditing
+                              ? t("common.save")
+                              : t("settings.secretFormSheet.createSecret")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -6,6 +6,9 @@ import {
     useToolCatalogIntegrations,
     type ToolCatalogCategory,
 } from "@agenta/entities/gatewayTool"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
 import {ScrollSentinel} from "@agenta/ui/components"
 import {Button} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
@@ -36,13 +39,14 @@ export const IntegrationLogo = ({src, name}: {src?: string | null; name: string}
 const toRow = (
     integration: CatalogIntegrationItem,
     onConnect: (integration: CatalogIntegrationItem) => void,
+    t: ReturnType<typeof useT>,
 ): SettingsCatalogItem => ({
     key: integration.key,
     logo: <IntegrationLogo src={integration.logo} name={integration.name} />,
     name: integration.name,
     description: integration.description ?? undefined,
     status: "available",
-    statusLabel: `Connect ${integration.name}`,
+    statusLabel: t("settings.tools.connectIntegration", {name: integration.name}),
     onOpen: () => onConnect(integration),
 })
 
@@ -107,6 +111,7 @@ const CategoryPreview = ({
     onConnect,
     onShowAll,
 }: CatalogProps & {category: ToolCatalogCategory; onShowAll: () => void}) => {
+    const t = useT(commonCatalog, settingsToolsCatalog)
     const {ref, near} = useNearScreen()
     const {query, integrations, total} = useCategoryIntegrations(category.id, "", near)
 
@@ -118,7 +123,7 @@ const CategoryPreview = ({
             sectionRef={ref}
             group={{
                 label: categoryLabel(category.name),
-                items: integrations.slice(0, PREVIEW).map((item) => toRow(item, onConnect)),
+                items: integrations.slice(0, PREVIEW).map((item) => toRow(item, onConnect, t)),
                 count: total ?? null,
                 pendingRows: loaded ? 0 : PREVIEW,
                 action:
@@ -128,7 +133,7 @@ const CategoryPreview = ({
                             className="text-muted-foreground"
                             onClick={onShowAll}
                         >
-                            Show all {total}
+                            {t("settings.tools.showAll", {total: total ?? 0})}
                         </Button>
                     ) : null,
             }}
@@ -149,6 +154,7 @@ const CategoryList = ({
     onClearSearch: () => void
     noMatch: (term: string) => string
 }) => {
+    const t = useT(commonCatalog, settingsToolsCatalog)
     const ref = useRef<HTMLElement>(null)
     const root = useScrollRoot(ref)
     const serverSearched = term.length >= 3
@@ -166,7 +172,7 @@ const CategoryList = ({
                     text?.toLowerCase().includes(term),
                 ),
         )
-        .map((integration) => toRow(integration, onConnect))
+        .map((integration) => toRow(integration, onConnect, t))
     const fetching = query.isPending || query.isFetchingNextPage
 
     if (!fetching && items.length === 0 && !query.hasNextPage) {
@@ -174,11 +180,11 @@ const CategoryList = ({
             <SettingsEmpty
                 plain
                 icon={<MagnifyingGlass size={18} />}
-                title={term ? noMatch(term) : "No integrations in this category"}
+                title={term ? noMatch(term) : t("settings.tools.noIntegrationsInCategory")}
                 action={
                     term ? (
                         <Button variant="outline" onClick={onClearSearch}>
-                            Clear search
+                            {t("common.clearSearch")}
                         </Button>
                     ) : undefined
                 }
@@ -190,7 +196,7 @@ const CategoryList = ({
         <SettingsCatalogSection
             sectionRef={ref}
             group={{
-                label: term ? "Results" : categoryLabel(category.name),
+                label: term ? t("settings.tools.results") : categoryLabel(category.name),
                 items,
                 // A local narrowing shows fewer rows than the server total.
                 count: serverSearched || !term ? (total ?? null) : null,
@@ -225,6 +231,7 @@ const FlatCatalog = ({
     onClearSearch: () => void
     noMatch: (term: string) => string
 }) => {
+    const t = useT(commonCatalog, settingsToolsCatalog)
     const ref = useRef<HTMLElement>(null)
     const root = useScrollRoot(ref)
     const available = useToolCatalogIntegrations()
@@ -239,7 +246,7 @@ const FlatCatalog = ({
                     text?.toLowerCase().includes(term),
                 ),
         )
-        .map((integration) => toRow(integration, onConnect))
+        .map((integration) => toRow(integration, onConnect, t))
     const fetching = available.isLoading || available.isFetchingNextPage
 
     if (!fetching && items.length === 0 && !available.hasNextPage) {
@@ -250,7 +257,7 @@ const FlatCatalog = ({
                 title={noMatch(term)}
                 action={
                     <Button variant="outline" onClick={onClearSearch}>
-                        Clear search
+                        {t("common.clearSearch")}
                     </Button>
                 }
             />
@@ -292,17 +299,28 @@ export const IntegrationCatalog = (
         noMatch: (term: string) => string
     },
 ) => {
+    const t = useT(commonCatalog, settingsToolsCatalog)
     const {categories, isLoading, error} = useToolCatalogCategories()
     const selected = categories.find((category) => category.id === props.category)
 
     if (selected) return <CategoryList {...props} category={selected} />
     if (props.term || error || (!isLoading && categories.length === 0)) {
-        return <FlatCatalog {...props} label={props.term ? "Results" : "Available"} />
+        return (
+            <FlatCatalog
+                {...props}
+                label={props.term ? t("settings.tools.results") : t("settings.tools.available")}
+            />
+        )
     }
     if (isLoading)
         return (
             <SettingsCatalogSection
-                group={{label: "Available", items: [], count: null, pendingRows: PREVIEW}}
+                group={{
+                    label: t("settings.tools.available"),
+                    items: [],
+                    count: null,
+                    pendingRows: PREVIEW,
+                }}
             />
         )
 

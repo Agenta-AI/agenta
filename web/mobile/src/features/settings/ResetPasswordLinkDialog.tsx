@@ -1,6 +1,9 @@
 import {useEffect, useRef, useState} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsResetPasswordLinkDialogCatalog from "@agenta/i18n/catalogs/settings.resetPasswordLinkDialog"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {
     Button,
@@ -37,6 +40,7 @@ export const ResetPasswordLinkDialog = ({
     onRequest,
     onClose,
 }: ResetPasswordLinkDialogProps) => {
+    const t = useT(commonCatalog, settingsResetPasswordLinkDialogCatalog)
     const [link, setLink] = useState<string | null>(null)
     const [emailed, setEmailed] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -75,29 +79,34 @@ export const ResetPasswordLinkDialog = ({
             })
     }
 
-    const name = target?.user.username || target?.user.email || "the member"
+    const name =
+        target?.user.username ||
+        target?.user.email ||
+        t("settings.resetPasswordLinkDialog.theMember")
 
     return (
         <Dialog open={Boolean(target)} onOpenChange={(next) => (next ? undefined : onClose())}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Reset password link</DialogTitle>
+                    <DialogTitle>{t("settings.resetPasswordLinkDialog.title")}</DialogTitle>
                     <DialogDescription>
                         {emailed
-                            ? `We emailed the reset link to ${name}.`
+                            ? t("settings.resetPasswordLinkDialog.emailed", {name})
                             : link
-                              ? `Share this one-time link with ${name}. It cannot be retrieved again after you close this.`
-                              : `Generate a one-time link that lets ${name} set a new password.`}
+                              ? t("settings.resetPasswordLinkDialog.share", {name})
+                              : t("settings.resetPasswordLinkDialog.generateDescription", {name})}
                     </DialogDescription>
                 </DialogHeader>
                 {loading ? (
                     <p className="m-0 text-sm text-muted-foreground" aria-live="polite">
-                        Generating a one-time link…
+                        {t("settings.resetPasswordLinkDialog.generating")}
                     </p>
                 ) : null}
                 {link ? (
                     <div className="flex min-w-0 flex-col gap-1 rounded-md bg-muted px-3 py-2">
-                        <span className="font-medium">Reset link</span>
+                        <span className="font-medium">
+                            {t("settings.resetPasswordLinkDialog.resetLink")}
+                        </span>
                         {/* Selectable: the clipboard can be refused outside a secure context. */}
                         <span className="break-all select-all">{link}</span>
                     </div>
@@ -109,11 +118,11 @@ export const ResetPasswordLinkDialog = ({
                 ) : null}
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>
-                        {link || emailed ? "Close" : "Cancel"}
+                        {link || emailed ? t("common.close") : t("common.cancel")}
                     </Button>
                     {!link && !emailed ? (
                         <Button onClick={generate} disabled={loading}>
-                            Generate link
+                            {t("settings.resetPasswordLinkDialog.generateLink")}
                         </Button>
                     ) : null}
                     {link ? (
@@ -123,7 +132,7 @@ export const ResetPasswordLinkDialog = ({
                             }}
                         >
                             {copied ? <Check size={14} /> : <Copy size={14} />}
-                            {copied ? "Copied" : "Copy"}
+                            {copied ? t("common.copied") : t("common.copy")}
                         </Button>
                     ) : null}
                 </DialogFooter>
