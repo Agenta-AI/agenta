@@ -3,7 +3,6 @@ import {Fragment, createElement, type ReactNode} from "react"
 import {getActiveLanguage} from "./language"
 
 export {createT, defineCatalog, useT, type CatalogKey, type TypedCatalog} from "./catalog"
-export {loadLanguage} from "./registry"
 export type {TranslationValues} from "./translate"
 export {
     HTML_LANG,

@@ -1,10 +1,6 @@
-import {loadLanguage} from "@agenta/i18n"
-import {beforeAll, describe, expect, it} from "vitest"
+import {describe, expect, it} from "vitest"
 
 import {plainAccessError} from "../../src/features/settings/accessErrors"
-
-// The English catalogs load with import(); read them before the first call.
-beforeAll(() => loadLanguage("en"))
 
 describe("plainAccessError", () => {
     it("never returns the server text", () => {

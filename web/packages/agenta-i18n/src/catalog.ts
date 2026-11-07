@@ -2,13 +2,7 @@ import {useMemo, useState} from "react"
 
 import {getDefaultStore, useAtomValue} from "jotai"
 
-import {
-    activeLanguageAtom,
-    DEFAULT_LANGUAGE,
-    getActiveLanguage,
-    languageAtom,
-    type Language,
-} from "./language"
+import {activeLanguageAtom, DEFAULT_LANGUAGE, getActiveLanguage, languageAtom} from "./language"
 import {
     catalogVersionAtom,
     loadCatalog,
@@ -30,21 +24,18 @@ export interface TypedCatalog<K extends string> extends CatalogEntry {
 
 export type CatalogKey<C> = C extends TypedCatalog<infer K> ? K : never
 
-type Loaders = Record<Language, () => Promise<{default: Catalog}>>
-type EnglishOf<L extends Loaders> = Awaited<ReturnType<L["en"]>>["default"]
-
 /**
- * Declares one small catalog. Every language, English included, loads with
- * `import()` when the catalog's module is first evaluated, so a page's JavaScript carries only
- * keys. `t` returns "" until the English arrives (pages render after auth, so this is unseen).
+ * Declares one small catalog. Its English is a static import, so it ships in the same chunk as
+ * the screen that uses it and renders on the first paint. The other languages load with
+ * `import()` when the screen's code loads, and only for the language the user chose.
  */
-export const defineCatalog = <NS extends string, L extends Loaders>(
+export const defineCatalog = <NS extends string, EN extends Catalog>(
     namespace: NS,
-    load: L,
-): TypedCatalog<`${NS}.${BaseKey<keyof EnglishOf<L> & string>}`> => {
-    const entry: CatalogEntry = {namespace, load}
+    en: EN,
+    load: CatalogEntry["load"],
+): TypedCatalog<`${NS}.${BaseKey<keyof EN & string>}`> => {
+    const entry: CatalogEntry = {namespace, en, load}
     registerCatalog(entry)
-    void loadCatalog(entry, DEFAULT_LANGUAGE).catch(() => undefined)
     const language = getDefaultStore().get(languageAtom)
     if (language !== DEFAULT_LANGUAGE) void loadCatalog(entry, language).catch(() => undefined)
     return entry

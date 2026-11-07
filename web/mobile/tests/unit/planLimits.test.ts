@@ -1,13 +1,9 @@
 // Plan & billing blocks that show only once the API sends their field.
-import {loadLanguage} from "@agenta/i18n"
 import type {BillingPlanOption, BillingUsage} from "@agenta/settings-ui"
-import {beforeAll, describe, expect, it} from "vitest"
+import {describe, expect, it} from "vitest"
 
 import {creditsLine, sharedFeatures, splitLead} from "@/features/settings/planCatalog"
 import {planLimits} from "@/features/settings/planLimits"
-
-// The English catalogs load with import(); read them before the first call.
-beforeAll(() => loadLanguage("en"))
 
 const metric = (value: number, limit: number | null) => ({
     value,

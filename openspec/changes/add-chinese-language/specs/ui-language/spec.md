@@ -63,12 +63,12 @@ The system SHALL support `en`, `zh-CN` and `ja-JP`, with `en` as the default. Th
 
 ### Requirement: A page loads only the text of its screens
 
-Catalogs SHALL be split per screen. A catalog's English and its translation in the chosen language SHALL load with a dynamic import when a module that uses the catalog is loaded. A translation in a language the user did not choose SHALL NOT load. The runtime SHALL add no new runtime dependency.
+Catalogs SHALL be split per screen. A catalog's English SHALL ship with the screen that uses it. Its translation in the chosen language SHALL load with a dynamic import when a module that uses the catalog is loaded. A translation in a language the user did not choose SHALL NOT load. The runtime SHALL add no new runtime dependency.
 
 #### Scenario: English user
 
 - **WHEN** a user with no language cookie loads any page
-- **THEN** no `zh-CN` or `ja-JP` catalog is requested, and only the English catalogs of the screens on that page load
+- **THEN** no `zh-CN` or `ja-JP` catalog is requested, and the English renders on the first paint
 
 ### Requirement: Translations stay in step with English
 

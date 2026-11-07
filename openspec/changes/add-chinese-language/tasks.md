@@ -1,7 +1,7 @@
 ## 1. M1 Foundation
 
 - [x] 1.1 Create `@agenta/i18n`: `t`, `useT`, placeholders, plurals, `richText`, `formatDate`, `formatNumber`, typed keys
-- [x] 1.2 Language atom stored in the `agenta-language` cookie; every catalog loads with `import()` per screen; `detectBrowserLanguage` written but not called
+- [x] 1.2 Language atom stored in the `agenta-language` cookie; English bundled per screen, other languages loaded with `import()` per catalog; `detectBrowserLanguage` written but not called
 - [x] 1.3 Unit tests in `tests/unit/`
 - [x] 1.4 Per-user flag `languagePickerEnabledAtom`; language picker in the shared Preferences page
 - [x] 1.5 `web/mobile`: `<html lang>` and a hidden page before paint from the cookie; `LanguageSync` in `AppProviders`

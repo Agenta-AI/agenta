@@ -5,10 +5,11 @@ import type {Language} from "./language"
 export type Catalog = Record<string, string>
 export type CatalogLoader = () => Promise<{default: Catalog}>
 
-/** One small catalog: its namespace and a loader per language. Nothing is bundled up front. */
+/** One small catalog: its namespace, its English (bundled with the screen), other loaders. */
 export interface CatalogEntry {
     namespace: string
-    load: Record<Language, CatalogLoader>
+    en: Catalog
+    load: Record<Exclude<Language, "en">, CatalogLoader>
 }
 
 const registered = new Set<CatalogEntry>()
@@ -30,6 +31,7 @@ export const isCatalogLoading = (language: Language, namespace: string): boolean
 }
 
 export const loadCatalog = (entry: CatalogEntry, language: Language): Promise<void> => {
+    if (language === "en") return Promise.resolve()
     const id = `${language}:${entry.namespace}`
     if (loaded.has(id)) return Promise.resolve()
     let promise = pending.get(id)

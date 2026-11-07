@@ -1,5 +1,5 @@
 import {getDefaultStore} from "jotai"
-import {afterEach, beforeAll, describe, expect, it} from "vitest"
+import {afterEach, describe, expect, it} from "vitest"
 
 import {createT, defineCatalog} from "../../src/catalog"
 import {formatDate, formatNumber, richText} from "../../src/index"
@@ -7,32 +7,36 @@ import {activeLanguageAtom, getActiveLanguage, type Language} from "../../src/la
 import {catalogVersionAtom, loadLanguage} from "../../src/registry"
 import {translate} from "../../src/translate"
 
-const membersCatalog = defineCatalog("settings.members", {
-    en: async () => ({
-        default: {
-            title: "Members",
-            invite: "Invite {{email}} to {{workspace}}",
-            count_one: "{{count}} member",
-            count_other: "{{count}} members",
-            onlyEnglish: "Only in English",
-        },
-    }),
-    "zh-CN": async () => ({
-        default: {
-            title: "成员",
-            invite: "邀请 {{email}} 加入 {{workspace}}",
-            count_other: "{{count}} 位成员",
-        },
-    }),
-    "ja-JP": async () => ({
-        default: {title: "メンバー", count_other: "{{count}} 人のメンバー"},
-    }),
-})
-const commonCatalog = defineCatalog("common", {
-    en: async () => ({default: {cancel: "Cancel"}}),
-    "zh-CN": async () => ({default: {cancel: "取消"}}),
-    "ja-JP": async () => ({default: {cancel: "キャンセル"}}),
-})
+const membersCatalog = defineCatalog(
+    "settings.members",
+    {
+        title: "Members",
+        invite: "Invite {{email}} to {{workspace}}",
+        count_one: "{{count}} member",
+        count_other: "{{count}} members",
+        onlyEnglish: "Only in English",
+    },
+    {
+        "zh-CN": async () => ({
+            default: {
+                title: "成员",
+                invite: "邀请 {{email}} 加入 {{workspace}}",
+                count_other: "{{count}} 位成员",
+            },
+        }),
+        "ja-JP": async () => ({
+            default: {title: "メンバー", count_other: "{{count}} 人のメンバー"},
+        }),
+    },
+)
+const commonCatalog = defineCatalog(
+    "common",
+    {cancel: "Cancel"},
+    {
+        "zh-CN": async () => ({default: {cancel: "取消"}}),
+        "ja-JP": async () => ({default: {cancel: "キャンセル"}}),
+    },
+)
 const t = createT(membersCatalog, commonCatalog)
 
 const activateLanguage = async (language: Language) => {
@@ -41,10 +45,6 @@ const activateLanguage = async (language: Language) => {
 }
 
 const key = (k: string) => k as Parameters<typeof t>[0]
-
-beforeAll(async () => {
-    await loadLanguage("en")
-})
 
 afterEach(async () => {
     await activateLanguage("en")
@@ -77,18 +77,6 @@ describe("t in English", () => {
 })
 
 describe("t in Chinese", () => {
-    it("shows nothing until the English loads, then English until the language loads", async () => {
-        const fresh = defineCatalog("settings.fresh", {
-            en: async () => ({default: {title: "Fresh"}}),
-            "zh-CN": async () => ({default: {title: "新"}}),
-            "ja-JP": async () => ({default: {title: "新しい"}}),
-        })
-        const tFresh = createT(fresh)
-        expect(tFresh("settings.fresh.title")).toBe("")
-        await loadLanguage("en")
-        expect(tFresh("settings.fresh.title")).toBe("Fresh")
-    })
-
     it("stays English until the catalog is loaded", () => {
         expect(translate("zh-CN", "settings.members.title", undefined, [membersCatalog])).toBe(
             "Members",
@@ -150,13 +138,15 @@ describe("more catalogs and languages", () => {
         await activateLanguage("ja-JP")
         const before = getDefaultStore().get(catalogVersionAtom)
         getDefaultStore().set(activeLanguageAtom, "ja-JP")
-        const late = defineCatalog("settings.late", {
-            en: async () => ({default: {hello: "Hello"}}),
-            "zh-CN": async () => ({default: {hello: "你好"}}),
-            "ja-JP": async () => ({default: {hello: "こんにちは"}}),
-        })
+        const late = defineCatalog(
+            "settings.late",
+            {hello: "Hello"},
+            {
+                "zh-CN": async () => ({default: {hello: "你好"}}),
+                "ja-JP": async () => ({default: {hello: "こんにちは"}}),
+            },
+        )
         const tLate = createT(late)
-        await loadLanguage("en")
         await loadLanguage("ja-JP")
         expect(getDefaultStore().get(catalogVersionAtom)).toBeGreaterThan(before)
         expect(tLate("settings.late.hello")).toBe("こんにちは")
@@ -172,16 +162,18 @@ describe("more catalogs and languages", () => {
 describe("a language still loading", () => {
     it("shows nothing, not English, while the chosen language is still loading", async () => {
         let finish: () => void = () => undefined
-        const slow = defineCatalog("settings.slow", {
-            en: async () => ({default: {title: "Slow"}}),
-            "zh-CN": () =>
-                new Promise((resolve) => {
-                    finish = () => resolve({default: {title: "慢"}})
-                }),
-            "ja-JP": async () => ({default: {title: "遅い"}}),
-        })
+        const slow = defineCatalog(
+            "settings.slow",
+            {title: "Slow"},
+            {
+                "zh-CN": () =>
+                    new Promise((resolve) => {
+                        finish = () => resolve({default: {title: "慢"}})
+                    }),
+                "ja-JP": async () => ({default: {title: "遅い"}}),
+            },
+        )
         const tSlow = createT(slow)
-        await loadLanguage("en")
         getDefaultStore().set(activeLanguageAtom, "zh-CN")
         const loading = loadLanguage("zh-CN")
         expect(tSlow("settings.slow.title")).toBe("")

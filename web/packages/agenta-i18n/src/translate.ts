@@ -39,7 +39,7 @@ const interpolate = (text: string, values?: TranslationValues) =>
 
 /**
  * Looks up `key` in the catalog whose namespace starts it: the language's text, then English,
- * then the key itself; "" while the English is still loading. `_version` only marks which catalog load a bound `t` was made after.
+ * then the key itself; "" while the chosen language is still loading. `_version` only marks which catalog load a bound `t` was made after.
  */
 export const translate = (
     language: Language,
@@ -52,14 +52,13 @@ export const translate = (
     if (!entry) return key
     const rest = key.slice(entry.namespace.length + 1)
     const count = values?.count
-    const english = getLoadedCatalog("en", entry.namespace)
-    // Nothing until the text arrives, so neither the key nor English flashes on screen.
-    if (!english || (language !== "en" && isCatalogLoading(language, entry.namespace))) return ""
+    // Nothing while the chosen language is on its way, so English does not flash first.
+    if (language !== "en" && isCatalogLoading(language, entry.namespace)) return ""
     const text =
         (language === "en"
             ? undefined
             : lookup(getLoadedCatalog(language, entry.namespace), language, rest, count)) ??
-        lookup(english, "en", rest, count) ??
+        lookup(entry.en, "en", rest, count) ??
         key
     return interpolate(text, values)
 }
