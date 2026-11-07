@@ -185,16 +185,40 @@ describe("column groups of compared runs", () => {
         {kind: "evaluator", key: "evaluator:starts-uppercase"},
     ]
 
+    const baseGroups = [
+        {kind: "testset", key: "testset:capitals"},
+        {kind: "application", key: "application:geo-bot"},
+        {kind: "evaluator", key: "evaluator:answer-correctness"},
+    ]
+
     it("uses the same group, else the only group of the same kind", () => {
-        expect(matchCompareGroupKey({kind: "testset", key: "testset:capitals"}, groups)).toBe(
-            "testset:capitals",
-        )
         expect(
-            matchCompareGroupKey({kind: "application", key: "application:geo-bot"}, groups),
+            matchCompareGroupKey({kind: "testset", key: "testset:capitals"}, groups, baseGroups),
+        ).toBe("testset:capitals")
+        expect(
+            matchCompareGroupKey(
+                {kind: "application", key: "application:geo-bot"},
+                groups,
+                baseGroups,
+            ),
         ).toBe("application:geo-bot-2")
         expect(
-            matchCompareGroupKey({kind: "evaluator", key: "evaluator:answer-correctness"}, groups),
+            matchCompareGroupKey(
+                {kind: "evaluator", key: "evaluator:answer-correctness"},
+                groups,
+                baseGroups,
+            ),
         ).toBeNull()
+    })
+
+    it("does not give one compared group to two base groups of the same kind", () => {
+        const base = [
+            {kind: "evaluator", key: "evaluator:a"},
+            {kind: "evaluator", key: "evaluator:b"},
+        ]
+        const compared = [{kind: "evaluator", key: "evaluator:a"}]
+        expect(matchCompareGroupKey(base[0], compared, base)).toBe("evaluator:a")
+        expect(matchCompareGroupKey(base[1], compared, base)).toBeNull()
     })
 })
 

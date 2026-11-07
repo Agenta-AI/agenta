@@ -624,6 +624,47 @@ describe("compared scenarios", () => {
     })
 })
 
+describe("compared scenarios without test cases", () => {
+    it("Matches rows by position when the scenarios have no test case", async () => {
+        const base = addRun("Capitals: default", {
+            scenarios: [
+                {id: "s1", testcase: "", success: true},
+                {id: "s2", testcase: "", success: true},
+                {id: "s3", testcase: "", success: true},
+            ],
+        })
+        const verbose = addRun("Capitals: verbose", {
+            scenarios: [
+                {id: "s1", testcase: "", success: false},
+                {id: "s2", testcase: "", success: true},
+                {id: "s3", testcase: "", success: false},
+            ],
+        })
+        await open(base, {compare: verbose, view: "scenarios"})
+        await until(() => {
+            const text = host.textContent ?? ""
+            return text.includes("Capitals: verbose") && !text.includes("Loading…")
+        }, "compared scenarios shown")
+        await until(
+            () => (host.textContent?.match(/true|false/g) ?? []).length >= 6,
+            "compared values shown",
+        )
+
+        const rows = [...host.querySelectorAll<HTMLElement>("span")]
+            .filter(
+                (span) =>
+                    span.children.length === 0 &&
+                    /^Capitals: (default|verbose)$/.test(span.textContent ?? ""),
+            )
+            .filter((span) => span.parentElement?.parentElement?.textContent?.match(/^\d/))
+            .map((span) => span.parentElement?.parentElement?.textContent ?? "")
+        const verboseValues = rows
+            .filter((text) => text.includes("Capitals: verbose"))
+            .map((text) => text.match(/true|false/)?.[0] ?? "none")
+        expect(verboseValues).toEqual(["false", "true", "false"])
+    })
+})
+
 describe("compared scenario drawer", () => {
     it("A compared run's row opens the drawer on that run's scenario, and Next stays in that run", async () => {
         const base = addRun("Capitals: default", {

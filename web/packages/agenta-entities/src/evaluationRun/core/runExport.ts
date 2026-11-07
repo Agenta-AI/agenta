@@ -85,6 +85,13 @@ export const metricExportValue = (
     stats: MetricStats | null | undefined,
 ): string => formatMetricValue(metricKey, stats)
 
+/** A negative numeric metric as a number, so the formula guard keeps it a number in the file. */
+const metricExportCell = (text: string, stats: MetricStats | null | undefined): string | number =>
+    [stats?.mean, stats?.median, stats?.sum].some((value) => typeof value === "number") &&
+    /^-\d+(\.\d+)?(e[+-]?\d+)?$/i.test(text)
+        ? Number(text)
+        : text
+
 /** The reference column headers, the old list's labels. */
 export const RUN_LIST_REFERENCE_LABELS: Record<RunListReferenceColumn, string> = {
     testset: "Test set",
@@ -134,7 +141,7 @@ export function runListExportRow(
     run: RunExportInput,
     plan: RunListColumns,
     {names, stats}: {names: RunListExportNames; stats: RunStatsMap | null},
-): string[] {
+): (string | number)[] {
     return [
         runExportStatus(run),
         runExportName(run),
@@ -147,15 +154,13 @@ export function runListExportRow(
                 const value = stats
                     ? selectRunMetricStats(stats, {metricKey: column.metricKey, stepKey})
                     : null
-                return metricExportValue(column.metricKey, value)
+                return metricExportCell(metricExportValue(column.metricKey, value), value)
             }),
         ),
-        ...plan.invocation.map((column) =>
-            metricExportValue(
-                column.metricKey,
-                stats ? selectRunMetricStats(stats, {metricKey: column.metricKey}) : null,
-            ),
-        ),
+        ...plan.invocation.map((column) => {
+            const value = stats ? selectRunMetricStats(stats, {metricKey: column.metricKey}) : null
+            return metricExportCell(metricExportValue(column.metricKey, value), value)
+        }),
         runExportCreatedAt(run),
         names.createdBy ?? "",
     ]

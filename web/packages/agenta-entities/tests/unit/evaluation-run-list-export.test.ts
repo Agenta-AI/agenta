@@ -114,6 +114,27 @@ describe("runs list export", () => {
         const run = {...autoDefault.run, name: "=HYPERLINK(1)"}
         const line = runListExportRow(run, plan, {names, stats: null})
         expect(buildCsv(["Name"], [[line[1]]])).toBe("Name\n'=HYPERLINK(1)")
+        const numberLike = runListExportRow({...autoDefault.run, name: "-001"}, plan, {
+            names,
+            stats: null,
+        })
+        expect(buildCsv(["Name"], [[numberLike[1]]])).toBe("Name\n'-001")
+    })
+
+    it("writes a negative metric as a number, not as guarded text", () => {
+        // The same metrics with every token count negative.
+        const metrics = JSON.parse(JSON.stringify(autoDefault.metrics), (key, value) =>
+            typeof value === "number" && ["mean", "sum", "min", "max"].includes(key)
+                ? -Math.abs(value)
+                : value,
+        )
+        const stats = buildRunStatsMap(autoDefault.run, metrics)
+        const line = runListExportRow(autoDefault.run, plan, {names, stats})
+        const headers = runListExportHeaders(plan, NAMES)
+        const cell = line[headers.indexOf("Invocation • Tokens")]
+        expect(typeof cell).toBe("number")
+        expect(cell).toBeLessThan(0)
+        expect(buildCsv(["Tokens"], [[cell]])).toBe(`Tokens\n${cell}`)
     })
 })
 
