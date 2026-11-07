@@ -127,6 +127,12 @@ const config = [
                 : {}),
         },
     },
+    {
+        files: ["tests/**/*.{js,jsx,ts,tsx}"],
+        rules: {
+            "@typescript-eslint/no-empty-function": "off",
+        },
+    },
     ...(includePrettierRule ? [eslintPluginPrettier] : []),
     {
         ignores: [".next/**", "node_modules/**", "next-env.d.ts"],
