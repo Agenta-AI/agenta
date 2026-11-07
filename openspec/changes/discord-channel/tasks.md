@@ -42,15 +42,15 @@ Parallel work: M1 and the core half of M2 (group 2) can start at the same time, 
 
 ## 5. M3: setup screen in /m (PR 3, after 1.1 and 1.3 are merged)
 
-- [ ] 5.1 Add `"discord"` to `ChannelPlatform` (`web/packages/agenta-settings-ui/src/channels/types.ts`) and `CHANNEL_PLATFORMS` (`helpers.ts`), the platform logo in `icons.tsx`, and the mapping in `actions.ts`.
-- [ ] 5.2 Add the Discord branch of `ChannelConnectFlow.tsx`, modeled on the custom Telegram flow: create the bot and turn on the Message Content intent, paste the token, then show the invite link from the setup document.
-- [ ] 5.3 Add the Discord rows to `summarizeConnection` in `helpers.ts`, reusing the Telegram states, and update the platforms label in `web/mobile/src/features/agents/AgentChannelsCard.tsx` and `useAgentChannels.ts`.
+- [x] 5.1 Add `"discord"` to `ChannelPlatform` (`web/packages/agenta-settings-ui/src/channels/types.ts`) and `CHANNEL_PLATFORMS` (`helpers.ts`), the platform logo in `icons.tsx`, and the mapping in `actions.ts`.
+- [x] 5.2 Add the Discord branch of `ChannelConnectFlow.tsx`, modeled on the custom Telegram flow: create the bot and turn on the Message Content intent, paste the token, then show the invite link from the setup document.
+- [x] 5.3 Add the Discord rows to `summarizeConnection` in `helpers.ts`, reusing the Telegram states, and update the platforms label in `web/mobile/src/features/agents/AgentChannelsCard.tsx` and `useAgentChannels.ts`.
 - [ ] 5.4 Get Mahmoud's approval for every new user-facing string (setup steps, errors, row subtitles, the platforms label) before merge.
-- [ ] 5.5 Package unit tests and stories for the Discord connect flow, following `ChannelConnectFlow.stories.tsx`; run `pnpm lint-fix` in `web`.
+- [x] 5.5 Package unit tests and stories for the Discord connect flow, following `ChannelConnectFlow.stories.tsx`; run `pnpm lint-fix` in `web`.
 
 ## 6. Docs (keep-docs-in-sync, can start with M1)
 
-- [ ] 6.1 Add `docs/docs/guides/15-connect-discord.mdx`: create the application and bot, turn on the Message Content intent, paste the token, invite the bot, and how the agent answers in DMs, mentions and threads. Follow the `write-docs` skill.
+- [x] 6.1 Add `docs/docs/guides/15-connect-discord.mdx`: create the application and bot, turn on the Message Content intent, paste the token, invite the bot, and how the agent answers in DMs, mentions and threads. Follow the `write-docs` skill.
 - [ ] 6.2 Update `docs/design/channels-research/v2/channels.md` Discord section with the v1 declaration and the verified values in design.md.
 - [ ] 6.3 Update `docs/docs/self-host/concepts/01-architecture.mdx` (worker-queues and Channel Messages) to say that `worker-queues` also holds the Discord sockets when `channels-inbox` is selected.
 
