@@ -85,7 +85,7 @@ The loop SHALL let `discord.py` handle heartbeat, resume and reconnect. When Dis
 - **THEN** the other connections' sockets SHALL stay open
 
 ### Requirement: Recovery after a failed resume
-When a socket closes, the loop SHALL take a snapshot of the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours. If the next socket starts with a fresh IDENTIFY, the loop SHALL read Discord history after each snapshot id and pass each message through `parse_event` and `record_and_enqueue_inbox_event`.
+When a socket closes, the loop SHALL take a snapshot of the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours. If the next socket starts with a fresh IDENTIFY, the loop SHALL read Discord history after each snapshot id, oldest first, and pass each message through `parse_event` and `record_and_enqueue_inbox_event`. A REST message object has no `guild_id`, so the snapshot SHALL keep each channel's `guild_id` from the row's locator, and the loop SHALL wrap each message as `{"t": "MESSAGE_CREATE", "d": {...message, "guild_id": <guild_id>}}` (no `guild_id` for a DM channel).
 
 #### Scenario: Messages missed during the gap
 - **WHEN** a socket loses its session, two messages are posted in channel C, and the new socket identifies fresh
