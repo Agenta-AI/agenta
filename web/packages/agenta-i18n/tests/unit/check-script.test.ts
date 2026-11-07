@@ -5,7 +5,7 @@ import {join} from "node:path"
 import {describe, expect, it} from "vitest"
 
 import {flagValue, placeholders, targetKeys, targetLanguages} from "../../scripts/catalog"
-import {checkLocales, checkNamespace} from "../../scripts/check"
+import {checkLocales, checkNamespace, namespaceProblems} from "../../scripts/check"
 
 function locales(files: Record<string, Record<string, unknown>>): string {
     const dir = mkdtempSync(join(tmpdir(), "i18n-check-"))
@@ -104,6 +104,15 @@ describe("checkLocales", () => {
         expect(checkLocales(dir, ["zh-CN"], "nope")).toEqual([
             "zh-CN/nope: no catalog in either language",
         ])
+    })
+})
+
+describe("namespaceProblems", () => {
+    it("rejects a namespace that starts with another namespace and a dot", () => {
+        expect(namespaceProblems(["billing", "billing.page", "billingx", "common"])).toEqual([
+            "namespace billing.page starts with namespace billing; rename one of them",
+        ])
+        expect(namespaceProblems(["billing.page", "billing.topups"])).toEqual([])
     })
 })
 

@@ -1,7 +1,8 @@
 /**
  * Checks that every translated catalog matches the English one: the keys each
  * language needs (plural forms per Intl.PluralRules), no extra keys, and the
- * same placeholders as the English text.
+ * same placeholders as the English text. A key "<namespace>.<key>" must belong to
+ * exactly one catalog file, so no namespace may start with another namespace and a dot.
  *
  * Usage: node scripts/check.ts [--lang <lang>] [--namespace <name>]
  */
@@ -72,8 +73,18 @@ export function checkNamespace(
     return problems
 }
 
+export function namespaceProblems(namespaces: string[]): string[] {
+    return namespaces.flatMap((outer) =>
+        namespaces
+            .filter((inner) => inner.startsWith(`${outer}.`))
+            .map(
+                (inner) => `namespace ${inner} starts with namespace ${outer}; rename one of them`,
+            ),
+    )
+}
+
 export function checkLocales(localesDir: string, langs: string[], namespace?: string): string[] {
-    const problems: string[] = []
+    const problems = namespaceProblems(listNamespaces(localesDir, SOURCE_LANG))
     for (const lang of langs) {
         const all = [
             ...new Set([
