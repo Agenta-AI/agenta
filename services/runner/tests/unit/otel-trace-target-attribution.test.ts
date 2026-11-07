@@ -319,6 +319,208 @@ describe("otel traceTargets — per-run target attribution across a shared trace
     ).toEqual(["Secret fallback-credential", "Secret run-credential"]);
   });
 
+  it("exports an unbound span sharing a trace using the credential accepted for the project", async () => {
+    const traceId = "a".repeat(32);
+    const traceparent = `00-${traceId}-${"1".repeat(16)}-01`;
+    const endpoint = "https://cloud.agenta.ai/api/otlp/v1/traces";
+    const runCredential = "Secret accepted-project-credential";
+
+    vi.stubEnv("AGENTA_CREDENTIALS", "");
+
+    const run = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => runCredential,
+      traceparent,
+    });
+
+    run.start({ prompt: "start run" });
+
+    // An unbound span started directly on the active trace without runId context
+    const { trace, ROOT_CONTEXT } = await import("@opentelemetry/api");
+    const tracer = trace.getTracer("agenta-sandbox-agent-otel");
+    const parentCtx = trace.setSpanContext(ROOT_CONTEXT, {
+      traceId,
+      spanId: "2".repeat(16),
+      traceFlags: 1,
+      isRemote: true,
+    });
+    const unboundSpan = tracer.startSpan(
+      "unbound-operation",
+      undefined,
+      parentCtx,
+    );
+    unboundSpan.setAttribute("custom.unbound", true);
+    unboundSpan.end();
+
+    run.finish();
+    await run.flush();
+
+    const exports = fakeExports.filter((item) => item.url === endpoint);
+    expect(exports.length).toBeGreaterThan(0);
+    expect(
+      exports.every((item) => item.authorization === runCredential),
+    ).toBe(true);
+
+    const exportedSpans = exports.flatMap((item) => item.spans);
+    expect(
+      exportedSpans.some((span) => span.name === "unbound-operation"),
+    ).toBe(true);
+  });
+
+  it("exports unbound spans under emitSpans: false using the accepted project credential", async () => {
+    const traceId = "b".repeat(32);
+    const traceparent = `00-${traceId}-${"3".repeat(16)}-01`;
+    const endpoint = "https://cloud.agenta.ai/api/otlp/v1/traces";
+    const runCredential = "Secret accepted-project-credential";
+
+    vi.stubEnv("AGENTA_CREDENTIALS", "");
+
+    const run = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: false,
+      endpoint,
+      authorization: () => runCredential,
+      traceparent,
+    });
+
+    run.start({ prompt: "start spanless run" });
+
+    const { trace, ROOT_CONTEXT } = await import("@opentelemetry/api");
+    const tracer = trace.getTracer("agenta-sandbox-agent-otel");
+    const parentCtx = trace.setSpanContext(ROOT_CONTEXT, {
+      traceId,
+      spanId: "4".repeat(16),
+      traceFlags: 1,
+      isRemote: true,
+    });
+    const harnessSpan = tracer.startSpan("harness-step", undefined, parentCtx);
+    harnessSpan.end();
+
+    run.finish();
+    await run.flush();
+
+    const exports = fakeExports.filter((item) => item.url === endpoint);
+    expect(exports.length).toBeGreaterThan(0);
+    expect(
+      exports.every((item) => item.authorization === runCredential),
+    ).toBe(true);
+
+    const exportedSpans = exports.flatMap((item) => item.spans);
+    expect(
+      exportedSpans.some((span) => span.name === "harness-step"),
+    ).toBe(true);
+  });
+
+  it("does not attribute a released run's span to another active run on the same trace", async () => {
+    const traceId = "c".repeat(32);
+    const sharedTraceparent = `00-${traceId}-${"7".repeat(16)}-01`;
+    const targetA = "http://collector-released.example/v1/traces";
+    const targetB = "http://collector-active.example/v1/traces";
+
+    const runA = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint: targetA,
+      authorization: "ApiKey run-a-key",
+      traceparent: sharedTraceparent,
+    });
+
+    const runB = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint: targetB,
+      authorization: "ApiKey run-b-key",
+      traceparent: sharedTraceparent,
+    });
+
+    // Run A starts, but flushes before finish() ends its span, releasing run A's target
+    runA.start({ prompt: "prompt A" });
+    await runA.flush();
+
+    // Run A's agentSpan ends AFTER its target is released
+    runA.finish();
+
+    // Run B starts and flushes on the same trace
+    runB.start({ prompt: "prompt B" });
+    runB.finish();
+    await runB.flush();
+
+    // Spans exported to target B must NEVER contain run A's span
+    const atB = fakeExports.filter((item) => item.url === targetB);
+    const textOf = (spans: { attributes?: Record<string, unknown> }[]) =>
+      JSON.stringify(spans.map((s) => s.attributes));
+    expect(textOf(atB.flatMap((item) => item.spans))).not.toContain(
+      '\\"prompt\\":\\"prompt A\\"',
+    );
+
+    // Run A's released span fell back to defaultTarget with the env fallback credential
+    const atFallback = fakeExports.filter(
+      (item) => item.url === "https://cloud.agenta.ai/api/otlp/v1/traces",
+    );
+    expect(textOf(atFallback.flatMap((item) => item.spans))).toContain(
+      '\\"prompt\\":\\"prompt A\\"',
+    );
+    expect(
+      atFallback.every(
+        (item) => item.authorization === "Secret fallback-credential",
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps target resolution safe when an authorization provider throws", async () => {
+    const traceId = "d".repeat(32);
+    const sharedTraceparent = `00-${traceId}-${"8".repeat(16)}-01`;
+    const endpoint = "http://collector-throwing.example/v1/traces";
+
+    const runA = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => {
+        throw new Error("provider exploded");
+      },
+      traceparent: sharedTraceparent,
+    });
+
+    const runB = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku",
+      emitSpans: true,
+      endpoint,
+      authorization: () => "Secret valid-key",
+      traceparent: sharedTraceparent,
+    });
+
+    runA.start({ prompt: "run A" });
+    runB.start({ prompt: "run B" });
+
+    // An untagged unbound span sharing the trace
+    const { trace, ROOT_CONTEXT } = await import("@opentelemetry/api");
+    const tracer = trace.getTracer("agenta-sandbox-agent-otel");
+    const parentCtx = trace.setSpanContext(ROOT_CONTEXT, {
+      traceId,
+      spanId: "9".repeat(16),
+      traceFlags: 1,
+      isRemote: true,
+    });
+    const unboundSpan = tracer.startSpan("unbound-op", undefined, parentCtx);
+    unboundSpan.end();
+
+    runA.finish();
+    runB.finish();
+
+    // Flushing must not throw synchronously despite runA's throwing authorization provider
+    await expect(runB.flush()).resolves.toBeUndefined();
+    await expect(runA.flush()).resolves.toBeUndefined();
+  });
+
   it("retires a replaced exporter only after its active export finishes", async () => {
     const endpoint = "http://collector-cache-rotation.example/v1/traces";
     let authorization = "Secret first";
