@@ -3,8 +3,9 @@
     "compilerOptions": {
         "baseUrl": ".",
         "tsBuildInfoFile": ".tsbuildinfo",
-        "moduleResolution": "bundler"
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true
     },
-    "include": ["src/**/*.ts", "src/**/*.tsx", "locales/**/*.json"],
+    "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts", "locales/**/*.json"],
     "exclude": ["node_modules", "dist"]
 }

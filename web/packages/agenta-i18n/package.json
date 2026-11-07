@@ -9,13 +9,15 @@
     "scripts": {
         "build": "pnpm run types:check",
         "types:check": "tsc --noEmit",
-        "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
-        "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
+        "lint": "eslint --config ../eslint.config.mjs src/ scripts/ --max-warnings 0",
+        "lint:fix": "eslint --config ../eslint.config.mjs src/ scripts/ --max-warnings 0 --fix",
         "test": "pnpm run test:unit",
         "test:unit": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
-        "check": "pnpm run types:check && pnpm run lint"
+        "check": "pnpm run types:check && pnpm run lint",
+        "i18n:check": "node scripts/check.ts",
+        "i18n:translate": "node scripts/translate.ts"
     },
     "exports": {
         ".": "./src/index.ts",
