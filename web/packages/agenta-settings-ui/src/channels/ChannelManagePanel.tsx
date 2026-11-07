@@ -100,9 +100,12 @@ const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
     ],
 }
 
-/** Where a revoked bot's owner gets a new token. Slack and WhatsApp have their own copy. */
-const NEW_TOKEN_SOURCE: Partial<Record<ChannelPlatform, string>> = {
+/** Where a revoked bot's owner gets a new token. Slack and WhatsApp have their own revoked
+ * copy, so they have none here. */
+const NEW_TOKEN_SOURCE: Record<ChannelPlatform, string | null> = {
+    slack: null,
     telegram: "@BotFather",
+    whatsapp: null,
     discord: "the Discord Developer Portal",
 }
 
@@ -204,7 +207,8 @@ export const ChannelManagePanel = ({
     // Bumped by "Try again" to read the link again.
     const [discordInviteAttempt, setDiscordInviteAttempt] = useState(0)
     useEffect(() => {
-        if (!isDiscord || !connectionId || elsewhere) return
+        // A revoked bot cannot join a server, so it gets no invite link.
+        if (!isDiscord || !connectionId || elsewhere || revoked) return
         let cancelled = false
         const fallback = "Could not load the invite link."
         setDiscordInviteError(null)
@@ -221,7 +225,7 @@ export const ChannelManagePanel = ({
         return () => {
             cancelled = true
         }
-    }, [isDiscord, connectionId, elsewhere, actions, discordInviteAttempt])
+    }, [isDiscord, connectionId, elsewhere, revoked, actions, discordInviteAttempt])
 
     // --- the picker behind "Add channel" --------------------------------------- //
     const [pickerOpen, setPickerOpen] = useState(false)

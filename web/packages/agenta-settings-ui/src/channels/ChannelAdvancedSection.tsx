@@ -338,7 +338,7 @@ export const ChannelAdvancedSection = ({
                                     <span className="text-[13px] font-medium text-colorText">
                                         Channels it can search and read
                                     </span>
-                                    {platform !== "telegram" ? null : (
+                                    {platform === "telegram" ? (
                                         <span
                                             className={HELP}
                                             data-testid="channels-advanced-telegram-help"
@@ -346,7 +346,7 @@ export const ChannelAdvancedSection = ({
                                             Telegram does not let bots read chat history, so the bot
                                             can read only messages it received.
                                         </span>
-                                    )}
+                                    ) : null}
                                 </span>
                                 <RadioGroup
                                     value={choice}

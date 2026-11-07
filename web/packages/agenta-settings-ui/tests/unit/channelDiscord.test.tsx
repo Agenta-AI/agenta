@@ -367,5 +367,6 @@ describe("Discord manage panel", () => {
             "QA cannot answer there until you paste a new token from the Discord Developer Portal.",
         )
         expect(container.textContent).not.toContain("BotFather")
+        expect(byTestId("channels-discord-invite-link")).toBeNull()
     })
 })
