@@ -24,6 +24,30 @@ const PLATFORM_LABELS: Record<ChannelPlatform, string> = {
 
 export const platformLabel = (platform: ChannelPlatform): string => PLATFORM_LABELS[platform]
 
+/** The row subtitle of a platform with no connection. */
+const NOT_CONNECTED_SUBS: Record<ChannelPlatform, string> = {
+    slack: "Chat with the agent in your team’s workspace",
+    telegram: "Chat with the agent from your phone",
+    whatsapp: "Answer messages to your WhatsApp Business number",
+    discord: "Chat with the agent in your Discord server",
+}
+
+/** The row subtitle of a revoked connection: what the platform did, and what to do. */
+const REVOKED_SUBS: Record<ChannelPlatform, string> = {
+    slack: "App uninstalled · reconnect",
+    telegram: "Bot token revoked · update it",
+    whatsapp: "Access token rejected · update it",
+    discord: "Bot token revoked · update it",
+}
+
+/** The title of the connect flow when the agent already has a connection on the platform. */
+export const ADD_ANOTHER_TITLES: Record<ChannelPlatform, string> = {
+    slack: "Add a Slack workspace",
+    telegram: "Add a Telegram bot",
+    whatsapp: "Add a WhatsApp number",
+    discord: "Add a Discord bot",
+}
+
 /** Whether the platform's shared places are channels (Slack, Discord) rather than groups. */
 export const hasChannels = (platform: ChannelPlatform): boolean =>
     platform === "slack" || platform === "discord"
@@ -204,14 +228,7 @@ export const summarizeConnection = (
 ): ChannelRowSummary => {
     if (!connection) {
         return {
-            sub:
-                platform === "slack"
-                    ? "Chat with the agent in your team’s workspace"
-                    : platform === "whatsapp"
-                      ? "Answer messages to your WhatsApp Business number"
-                      : platform === "discord"
-                        ? "Chat with the agent in your Discord server"
-                        : "Chat with the agent from your phone",
+            sub: NOT_CONNECTED_SUBS[platform],
             subClass: "text-colorTextTertiary",
             dotClass: "",
             connected: false,
@@ -222,12 +239,7 @@ export const summarizeConnection = (
 
     if (connection.status === "revoked") {
         return {
-            sub:
-                platform === "telegram" || platform === "discord"
-                    ? "Bot token revoked · update it"
-                    : platform === "whatsapp"
-                      ? "Access token rejected · update it"
-                      : "App uninstalled · reconnect",
+            sub: REVOKED_SUBS[platform],
             subClass: "text-colorError",
             dotClass: "bg-colorError",
             connected: true,

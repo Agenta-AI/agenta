@@ -320,8 +320,10 @@ export const ChannelConnectFlow = ({
     )
     // A new WhatsApp connection, held on screen until its webhook values are copied into Meta.
     const [whatsAppConnection, setWhatsAppConnection] = useState<ChannelConnection | null>(null)
-    // The invite link of a new Discord bot, held on screen until the user adds it to a server.
+    // A new Discord bot, held on screen until the user adds it to a server with its invite link.
+    const [discordConnectionId, setDiscordConnectionId] = useState<string | null>(null)
     const [discordInviteUrl, setDiscordInviteUrl] = useState<string | null>(null)
+    const [discordInviteError, setDiscordInviteError] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     // --- custom app/bot: the declared setup ---------------------------------- //
@@ -617,6 +619,21 @@ export const ChannelConnectFlow = ({
             !fieldPatternError(field, values[field.name] ?? ""),
     )
 
+    // The bot answers in a server only after it is invited, so a failed read offers a retry
+    // instead of skipping the step. A retry reads the link again; it never connects again.
+    const loadDiscordInvite = async (connectionId: string) => {
+        setDiscordInviteError(null)
+        const fallback = "Could not load the invite link."
+        try {
+            const url = await actions.discordInviteUrl(connectionId)
+            if (!alive.current) return
+            if (url) setDiscordInviteUrl(url)
+            else setDiscordInviteError(fallback)
+        } catch (e) {
+            if (alive.current) setDiscordInviteError(errorMessage(e, fallback))
+        }
+    }
+
     const submitCustom = async () => {
         setSaving(true)
         setError(null)
@@ -626,12 +643,8 @@ export const ChannelConnectFlow = ({
             if (isWhatsApp && created?.webhookUrl && created.webhookVerifyToken) {
                 setWhatsAppConnection(created)
             } else if (isDiscord && created?.connectionId) {
-                // Without the link the manage view still offers it, so a failed read only
-                // skips this step.
-                const url = await actions.discordInviteUrl(created.connectionId).catch(() => null)
-                if (!alive.current) return
-                if (url) setDiscordInviteUrl(url)
-                else await onConnected()
+                setDiscordConnectionId(created.connectionId)
+                await loadDiscordInvite(created.connectionId)
             } else await onConnected()
         } catch (e) {
             if (!alive.current) return
@@ -938,7 +951,7 @@ export const ChannelConnectFlow = ({
             )
     } else if (isDiscord) {
         note = "Your bot answers only as this agent. Other bots stay connected."
-        cta = discordInviteUrl ? (
+        cta = discordConnectionId ? (
             <Button onClick={() => void onConnected()} data-testid="channels-discord-done">
                 Done
             </Button>
@@ -1310,7 +1323,7 @@ export const ChannelConnectFlow = ({
                 ) : null}
 
                 {/* DISCORD · your own bot */}
-                {isDiscord && !discordInviteUrl ? (
+                {isDiscord && !discordConnectionId ? (
                     <div className="flex flex-col">
                         <StepRow
                             index={1}
@@ -1367,7 +1380,7 @@ export const ChannelConnectFlow = ({
                     </div>
                 ) : null}
 
-                {isDiscord && discordInviteUrl ? (
+                {isDiscord && discordConnectionId ? (
                     <div className="flex flex-col gap-4" data-testid="channels-discord-invite">
                         <div className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground">
                             <Check size={14} weight="bold" className="text-colorSuccess" />
@@ -1377,18 +1390,41 @@ export const ChannelConnectFlow = ({
                             <span className="text-[13px] text-muted-foreground">
                                 Open the link, pick your server, then authorize.
                             </span>
+                            {discordInviteError ? (
+                                <Alert
+                                    type="error"
+                                    showIcon
+                                    message={discordInviteError}
+                                    data-testid="channels-discord-invite-error"
+                                />
+                            ) : null}
                             <div>
-                                <Button variant="outline" size="sm" asChild>
-                                    <a
-                                        href={discordInviteUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        data-testid="channels-discord-invite-link"
+                                {discordInviteUrl ? (
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a
+                                            href={discordInviteUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            data-testid="channels-discord-invite-link"
+                                        >
+                                            <ArrowSquareOut data-icon="inline-start" />
+                                            Add to a server
+                                        </a>
+                                    </Button>
+                                ) : discordInviteError ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            discordConnectionId &&
+                                            void loadDiscordInvite(discordConnectionId)
+                                        }
                                     >
-                                        <ArrowSquareOut data-icon="inline-start" />
-                                        Add to a server
-                                    </a>
-                                </Button>
+                                        Try again
+                                    </Button>
+                                ) : (
+                                    <Spinner size="small" />
+                                )}
                             </div>
                         </div>
                     </div>

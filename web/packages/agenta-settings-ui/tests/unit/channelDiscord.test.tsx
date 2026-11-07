@@ -5,8 +5,16 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/ui/ui", () => ({
-    Alert: ({message, description}: {message: string; description?: React.ReactNode}) => (
-        <div role="alert">
+    Alert: ({
+        message,
+        description,
+        ...props
+    }: {
+        message: string
+        description?: React.ReactNode
+        "data-testid"?: string
+    }) => (
+        <div role="alert" data-testid={props["data-testid"]}>
             {message}
             {description}
         </div>
@@ -39,6 +47,7 @@ import {
     buildAgentChannelsActions,
     connectionsForAgent,
     groupKindsOf,
+    mapSpaceRow,
     type ChannelsClientLike,
 } from "../../src/channels/actions"
 import {ChannelConnectFlow} from "../../src/channels/ChannelConnectFlow"
@@ -154,14 +163,32 @@ describe("Discord connect flow", () => {
         expect(onConnected).toHaveBeenCalledTimes(1)
     })
 
-    it("finishes at once when the invite link does not load", async () => {
-        const {onConnected} = await renderFlow({
-            discordInviteUrl: vi.fn().mockRejectedValue(new Error("down")),
-        })
+    it("offers a retry when the invite link does not load, without connecting again", async () => {
+        const discordInviteUrl = vi
+            .fn()
+            .mockRejectedValueOnce(new Error("Could not load the invite link."))
+            .mockResolvedValueOnce(INVITE_URL)
+        const {onConnected, connectCustom} = await renderFlow({discordInviteUrl})
         await type("channels-field-bot_token", "bot-token")
         await click("Connect bot")
-        expect(onConnected).toHaveBeenCalledTimes(1)
-        expect(byTestId("channels-discord-invite")).toBeNull()
+
+        expect(container.textContent).toContain("Could not load the invite link.")
+        expect(byTestId("channels-discord-invite-link")).toBeNull()
+        expect(onConnected).not.toHaveBeenCalled()
+
+        await click("Try again")
+        expect(connectCustom).toHaveBeenCalledTimes(1)
+        expect(discordInviteUrl).toHaveBeenCalledTimes(2)
+        expect(container.textContent).not.toContain("Could not load the invite link.")
+        expect(byTestId("channels-discord-invite-link")?.getAttribute("href")).toBe(INVITE_URL)
+    })
+
+    it("treats a setup document with no link as a failed load", async () => {
+        const {onConnected} = await renderFlow({discordInviteUrl: vi.fn().mockResolvedValue(null)})
+        await type("channels-field-bot_token", "bot-token")
+        await click("Connect bot")
+        expect(container.textContent).toContain("Could not load the invite link.")
+        expect(onConnected).not.toHaveBeenCalled()
     })
 
     it("shows why Discord refused and keeps the token", async () => {
@@ -231,6 +258,21 @@ describe("Discord actions", () => {
             {connection_id: "dc-1"},
             {queryParams: {project_id: "project-1"}},
         )
+    })
+
+    it("tells two Discord channels apart, by stored name or by channel id", () => {
+        const row = (id: string, channelId: string, name?: string) =>
+            mapSpaceRow({
+                id,
+                kind: "topic",
+                ...(name ? {name} : {}),
+                data: {external_locator: {guild_id: "900", channel_id: channelId, thread_id: ""}},
+            })
+        const named = [row("s1", "111", "support"), row("s2", "222", "sales")]
+        expect(named.map((space) => space?.name)).toEqual(["support", "sales"])
+        expect(named.map((space) => space?.externalId)).toEqual(["111", "222"])
+        const unnamed = [row("s3", "111"), row("s4", "222")]
+        expect(unnamed.map((space) => space?.name)).toEqual(["Channel 111", "Channel 222"])
     })
 
     it("answers in channels with the group switch, and lists Discord last", () => {
@@ -303,6 +345,19 @@ describe("Discord manage panel", () => {
             "Add @SupportAgent to a server and mention it in a channel. The channel appears here.",
         )
         expect(container.textContent).not.toContain("Telegram")
+    })
+
+    it("shows an error and a retry when the invite link does not load", async () => {
+        const discordInviteUrl = vi
+            .fn()
+            .mockRejectedValueOnce(new Error("Could not load the invite link."))
+            .mockResolvedValueOnce(INVITE_URL)
+        await renderPanel(CONNECTED, {discordInviteUrl})
+        expect(container.textContent).toContain("Could not load the invite link.")
+        await act(async () => (byTestId("channels-discord-invite-retry") as HTMLElement).click())
+        expect(discordInviteUrl).toHaveBeenCalledTimes(2)
+        expect(container.textContent).not.toContain("Could not load the invite link.")
+        expect(byTestId("channels-discord-invite-link")?.getAttribute("href")).toBe(INVITE_URL)
     })
 
     it("points a revoked bot at the Discord Developer Portal", async () => {

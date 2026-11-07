@@ -100,6 +100,12 @@ const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
     ],
 }
 
+/** Where a revoked bot's owner gets a new token. Slack and WhatsApp have their own copy. */
+const NEW_TOKEN_SOURCE: Partial<Record<ChannelPlatform, string>> = {
+    telegram: "@BotFather",
+    discord: "the Discord Developer Portal",
+}
+
 /** A discovered place's stable identity: its kind and platform address. */
 const candidateKey = (candidate: ChannelSpaceCandidate): string =>
     `${candidate.kind}:${JSON.stringify(candidate.externalLocator)}`
@@ -129,7 +135,6 @@ export const ChannelManagePanel = ({
     const isTelegram = connection.platform === "telegram"
     const isWhatsApp = connection.platform === "whatsapp"
     const isDiscord = connection.platform === "discord"
-    // Slack and Discord answer in channels; Telegram in groups.
     const channels = hasChannels(connection.platform)
     const name = platformLabel(connection.platform)
     const connectionId = connection.connectionId
@@ -185,22 +190,38 @@ export const ChannelManagePanel = ({
         }
     }, [actions, connectionId, name])
 
+    // What the empty place list says: how a place first appears. WhatsApp has no list.
+    const emptyPlaces: Record<ChannelPlatform, string | null> = {
+        slack: `Invite ${inviteHandle} to a channel to add it here.`,
+        telegram: `Add ${handle} to a group and mention it once. The group appears here.`,
+        discord: `Add ${handle} to a server and mention it in a channel. The channel appears here.`,
+        whatsapp: null,
+    }
+
     // --- the Discord invite link, from the connection's setup document ---------- //
     const [discordInviteUrl, setDiscordInviteUrl] = useState<string | null>(null)
+    const [discordInviteError, setDiscordInviteError] = useState<string | null>(null)
+    // Bumped by "Try again" to read the link again.
+    const [discordInviteAttempt, setDiscordInviteAttempt] = useState(0)
     useEffect(() => {
         if (!isDiscord || !connectionId || elsewhere) return
         let cancelled = false
+        const fallback = "Could not load the invite link."
+        setDiscordInviteError(null)
         actions
             .discordInviteUrl(connectionId)
             .then((url) => {
-                if (!cancelled) setDiscordInviteUrl(url)
+                if (cancelled) return
+                setDiscordInviteUrl(url)
+                if (!url) setDiscordInviteError(fallback)
             })
-            // Without the link the panel only loses the shortcut; nothing to show.
-            .catch(() => undefined)
+            .catch((e) => {
+                if (!cancelled) setDiscordInviteError(errorMessage(e, fallback))
+            })
         return () => {
             cancelled = true
         }
-    }, [isDiscord, connectionId, elsewhere, actions])
+    }, [isDiscord, connectionId, elsewhere, actions, discordInviteAttempt])
 
     // --- the picker behind "Add channel" --------------------------------------- //
     const [pickerOpen, setPickerOpen] = useState(false)
@@ -725,7 +746,7 @@ export const ChannelManagePanel = ({
                             {isWhatsApp
                                 ? `${agentName} cannot answer there until you paste a new access token.`
                                 : revokedOffersToken
-                                  ? `${agentName} cannot answer there until you paste a new token from ${isDiscord ? "the Discord Developer Portal" : "@BotFather"}.`
+                                  ? `${agentName} cannot answer there until you paste a new token from ${NEW_TOKEN_SOURCE[connection.platform]}.`
                                   : `${agentName} cannot answer there until the app is installed again.`}
                         </span>
                         {revokedOffersToken ? (
@@ -802,8 +823,25 @@ export const ChannelManagePanel = ({
                                 <Plus weight="bold" data-icon="inline-start" />
                                 Add channel
                             </Button>
+                        ) : discordInviteError ? (
+                            <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => setDiscordInviteAttempt((n) => n + 1)}
+                                data-testid="channels-discord-invite-retry"
+                            >
+                                Try again
+                            </Button>
                         ) : null}
                     </div>
+                    {discordInviteError ? (
+                        <Alert
+                            type="error"
+                            showIcon
+                            message={discordInviteError}
+                            data-testid="channels-discord-invite-error"
+                        />
+                    ) : null}
                     {spacesError ? <Alert type="error" showIcon message={spacesError} /> : null}
                     {places === null ? (
                         <div
@@ -959,11 +997,7 @@ export const ChannelManagePanel = ({
 
                     {isWhatsApp || places?.length !== 0 ? null : (
                         <span className="py-3 text-[13px] text-muted-foreground">
-                            {isSlack
-                                ? `Invite ${inviteHandle} to a channel to add it here.`
-                                : isDiscord
-                                  ? `Add ${handle} to a server and mention it in a channel. The channel appears here.`
-                                  : `Add ${handle} to a group and mention it once. The group appears here.`}
+                            {emptyPlaces[connection.platform]}
                         </span>
                     )}
                 </div>
