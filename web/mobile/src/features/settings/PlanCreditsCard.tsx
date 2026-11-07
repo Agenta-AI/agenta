@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingPlanCreditsCardCatalog from "@agenta/i18n/catalogs/billing.planCreditsCard"
 import {analyticsColor} from "@agenta/observability-ui/analytics"
 
 import {AnimatedNumber} from "@/components/AnimatedNumber"
@@ -14,7 +15,7 @@ export const PlanCreditsCard = ({
     monthly: WalletCredit | null
     balanceMusd: number
 }) => {
-    const t = useT()
+    const t = useT(billingPlanCreditsCardCatalog)
     const color = analyticsColor(monthly ? "series4" : "series1")
     const left = monthly ? (monthly.remaining_musd / monthly.amount_musd) * 100 : null
     return (

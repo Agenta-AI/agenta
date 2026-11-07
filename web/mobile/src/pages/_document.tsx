@@ -1,4 +1,4 @@
-import {languageInitScript, languagePendingStyle} from "@agenta/i18n/language"
+import {languageInitScript, languagePendingStyle} from "@agenta/i18n/document"
 import {Html, Head, Main, NextScript, type DocumentProps} from "next/document"
 import Script from "next/script"
 

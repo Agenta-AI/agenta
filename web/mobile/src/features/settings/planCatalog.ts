@@ -1,5 +1,8 @@
-import {t} from "@agenta/i18n/billing"
+import {createT} from "@agenta/i18n"
+import billingPlanCatalogCatalog from "@agenta/i18n/catalogs/billing.planCatalog"
 import type {BillingPlanOption} from "@agenta/settings-ui"
+
+const t = createT(billingPlanCatalogCatalog)
 
 /** The catalog is passed through unvalidated, so each optional field is checked before use. */
 const monthlyCredits = (plan: BillingPlanOption): number | null =>

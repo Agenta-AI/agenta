@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingBillingPaymentsSectionCatalog from "@agenta/i18n/catalogs/billing.billingPaymentsSection"
 import {Button} from "@agenta/ui/ui"
 import {ArrowSquareOut, Receipt} from "@phosphor-icons/react"
 
@@ -12,7 +13,7 @@ export const BillingPaymentsSection = ({
     opening: boolean
     error: string | null
 }) => {
-    const t = useT()
+    const t = useT(billingBillingPaymentsSectionCatalog)
     return (
         <section className="flex flex-col gap-3">
             <h3 className="m-0 text-sm font-medium">{t("billing.billingPaymentsSection.title")}</h3>

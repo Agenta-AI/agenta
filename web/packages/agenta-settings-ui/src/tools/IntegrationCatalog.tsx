@@ -6,7 +6,9 @@ import {
     useToolCatalogIntegrations,
     type ToolCatalogCategory,
 } from "@agenta/entities/gatewayTool"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
 import {ScrollSentinel} from "@agenta/ui/components"
 import {Button} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
@@ -109,7 +111,7 @@ const CategoryPreview = ({
     onConnect,
     onShowAll,
 }: CatalogProps & {category: ToolCatalogCategory; onShowAll: () => void}) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsToolsCatalog)
     const {ref, near} = useNearScreen()
     const {query, integrations, total} = useCategoryIntegrations(category.id, "", near)
 
@@ -152,7 +154,7 @@ const CategoryList = ({
     onClearSearch: () => void
     noMatch: (term: string) => string
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsToolsCatalog)
     const ref = useRef<HTMLElement>(null)
     const root = useScrollRoot(ref)
     const serverSearched = term.length >= 3
@@ -229,7 +231,7 @@ const FlatCatalog = ({
     onClearSearch: () => void
     noMatch: (term: string) => string
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsToolsCatalog)
     const ref = useRef<HTMLElement>(null)
     const root = useScrollRoot(ref)
     const available = useToolCatalogIntegrations()
@@ -297,7 +299,7 @@ export const IntegrationCatalog = (
         noMatch: (term: string) => string
     },
 ) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsToolsCatalog)
     const {categories, isLoading, error} = useToolCatalogCategories()
     const selected = categories.find((category) => category.id === props.category)
 

@@ -8,7 +8,9 @@ import {
     isWebhookDrawerOpenAtom,
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsWebhooksCatalog from "@agenta/i18n/catalogs/settings.webhooks"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
@@ -86,7 +88,7 @@ export const WebhooksPage = ({
     renderDeleteDialog,
     renderSecretReveal,
 }: WebhooksPageProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsWebhooksCatalog)
     const [{data: webhooks, isPending: isLoading}] = useAtom(webhooksAtom)
     const setIsDrawerOpen = useSetAtom(isWebhookDrawerOpenAtom)
     const setEditingWebhook = useSetAtom(editingWebhookAtom)
@@ -236,7 +238,7 @@ export const WebhooksPage = ({
                                 tone={isWebhookActive(record) ? "success" : "default"}
                                 label={
                                     isWebhookActive(record)
-                                        ? t("settings.webhooks.active")
+                                        ? t("common.active")
                                         : t("settings.webhooks.pausedStatus")
                                 }
                                 className="min-w-0 text-[13px]"
@@ -246,7 +248,7 @@ export const WebhooksPage = ({
                                 items={[
                                     {
                                         key: "active",
-                                        label: t("settings.webhooks.active"),
+                                        label: t("common.active"),
                                         checked: isWebhookActive(record),
                                         disabled: togglingId === record.id,
                                         onClick: () => void handleToggle(record),

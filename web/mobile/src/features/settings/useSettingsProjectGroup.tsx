@@ -1,6 +1,7 @@
 import {useMemo, type ReactNode} from "react"
 
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ProjectSwitch, type SwitcherEntry} from "@agenta/navigation-ui"
 import {useRouter} from "next/router"
 
@@ -21,7 +22,7 @@ export const useSettingsProjectGroup = (
     workspaceId: string,
     projectId: string,
 ): SettingsProjectGroup => {
-    const t = useT()
+    const t = useT(commonCatalog)
     const router = useRouter()
     const {currentGroup, currentProject} = useOrganizationProjects(workspaceId, projectId)
 

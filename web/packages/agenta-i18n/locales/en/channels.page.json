@@ -1,0 +1,21 @@
+{
+    "channelActions": "Channel actions",
+    "connectHere": "Connect here",
+    "connectPlatform": "Connect {{platform}}",
+    "disconnectMessage": "{{name}} stops answering on {{platform}}. You can connect it again later.",
+    "disconnectTitle": "Disconnect channel",
+    "finishLinking": "Finish linking",
+    "intro": "Talk to {{agent}} from the chat tools your team already uses.",
+    "loading": "Loading…",
+    "messagingPlatforms": "Messaging platforms",
+    "noAgent": "No agent",
+    "noAgentYet": "No agent yet",
+    "notLinkedYet": "Not linked yet",
+    "slackDescription": "Mention or DM an agent in Slack",
+    "telegramDescription": "Chat with an agent through a hosted bot or your own",
+    "title": "Channels",
+    "unknownAgent": "Unknown agent",
+    "whatsappDescription": "Let customers message an agent on WhatsApp",
+    "yourAgent": "your agent",
+    "yourWorkspace": "your workspace"
+}

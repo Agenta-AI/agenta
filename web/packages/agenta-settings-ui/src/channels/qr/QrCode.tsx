@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 
 import {encodeQr, type QrEcc} from "./encode"
 
@@ -26,7 +27,7 @@ export interface QrCodeProps {
  * The background stays transparent.
  */
 export const QrCode = ({value, size = 180, className, label, ecc = "M"}: QrCodeProps) => {
-    const t = useT()
+    const t = useT(commonCatalog)
     const {side, path} = useMemo(() => {
         const matrix = encodeQr(value, ecc)
         const parts: string[] = []

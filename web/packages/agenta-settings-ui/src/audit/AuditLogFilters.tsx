@@ -18,7 +18,9 @@ import {
     requestIdFilterAtom,
     requestTypeFilterAtom,
 } from "@agenta/entities/event"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import {Button, Combobox, SearchInput, type ComboboxOptionGroup} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
 
@@ -90,7 +92,7 @@ export interface AuditLogFiltersProps {
 }
 
 export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFiltersProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsAuditCatalog)
     const [timestampRange, setTimestampRange] = useAtom(eventTimestampRangeFilterAtom)
     const [eventType, setEventType] = useAtom(eventTypeFilterAtom)
     const [eventId, setEventId] = useAtom(eventIdFilterAtom)

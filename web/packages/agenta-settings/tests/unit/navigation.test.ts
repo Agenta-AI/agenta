@@ -1,4 +1,5 @@
-import {t} from "@agenta/i18n/navigation"
+import {createT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {describe, expect, it} from "vitest"
 
 import {
@@ -11,6 +12,8 @@ import {
     SETTINGS_TABS,
     type SettingsAccess,
 } from "../../src/navigation"
+
+const t = createT(navigationCatalog)
 
 const baseAccess: SettingsAccess = {
     billingEnabled: true,

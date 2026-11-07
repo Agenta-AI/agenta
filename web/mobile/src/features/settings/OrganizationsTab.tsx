@@ -10,7 +10,9 @@ import {
     type WorkspaceMember,
 } from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsOrganizationsTabCatalog from "@agenta/i18n/catalogs/settings.organizationsTab"
 import {OrganizationsPage} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
 import {
@@ -47,7 +49,7 @@ const errorText = (error: unknown, fallback: string): string => {
 
 /** Mobile binding: create, rename in place, transfer ownership and delete for organizations. */
 export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsOrganizationsTabCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
     const {user} = useProfile()
@@ -175,7 +177,7 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
             <ConfirmModal
                 open={Boolean(deleting)}
                 title={t("settings.organizationsTab.deleteTitle")}
-                description={t("settings.organizationsTab.cannotBeUndone")}
+                description={t("common.thisCannotBeUndone")}
                 body={t("settings.organizationsTab.deleteBody", {
                     name: deleting?.name ?? t("settings.organizationsTab.thisOrganization"),
                 })}
@@ -217,7 +219,7 @@ const TransferDialog = ({
     onClose: () => void
     onTransfer: (userId: string) => void
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsOrganizationsTabCatalog)
     const [userId, setUserId] = useState("")
     // Each opening starts with no member chosen.
     useEffect(() => setUserId(""), [org])

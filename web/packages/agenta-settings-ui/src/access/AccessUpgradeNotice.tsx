@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 
 import {UpgradeNotice} from "./UpgradeNotice"
@@ -11,7 +11,10 @@ export type AccessFeature = "access" | "domains" | "sso"
 
 const FEATURES: Record<
     AccessFeature,
-    {name: TranslationKey<"common" | "settings">; blurb: TranslationKey<"common" | "settings">}
+    {
+        name: CatalogKey<typeof settingsAccessCatalog>
+        blurb: CatalogKey<typeof settingsAccessCatalog>
+    }
 > = {
     access: {
         name: "settings.access.accessControls",
@@ -51,7 +54,7 @@ export interface AccessUpgradeNoticeProps {
  * includes none of this has one thing to say, so it says it once and names what is missing.
  */
 export const AccessUpgradeNotice = ({locked, action}: AccessUpgradeNoticeProps) => {
-    const t = useT()
+    const t = useT(settingsAccessCatalog)
     if (locked.length === 0) return null
 
     const present = ORDER.filter((feature) => locked.includes(feature))

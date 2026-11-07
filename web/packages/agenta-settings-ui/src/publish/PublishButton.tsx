@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/publish"
+import {useT} from "@agenta/i18n"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {Button} from "@agenta/ui/ui"
 import {Broadcast} from "@phosphor-icons/react"
 
@@ -10,7 +11,7 @@ export interface PublishButtonProps {
 
 /** The agent header's Publish button; it opens the Publish panel. */
 export const PublishButton = ({onClick, disabled, className}: PublishButtonProps) => {
-    const t = useT()
+    const t = useT(publishCatalog)
     return (
         <Button
             size="sm"

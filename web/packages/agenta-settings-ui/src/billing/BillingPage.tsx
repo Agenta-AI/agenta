@@ -8,8 +8,8 @@
 
 import type {ReactNode} from "react"
 
-import {richText} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/billing"
+import {richText, useT} from "@agenta/i18n"
+import billingPageCatalog from "@agenta/i18n/catalogs/billing.page"
 import {dayjs} from "@agenta/shared/utils"
 import {Button, Spinner} from "@agenta/ui/ui"
 
@@ -59,7 +59,7 @@ const PlanSummary = ({
     subscription?: BillingSubscription | null
     planTitle?: string | null
 }) => {
-    const t = useT()
+    const t = useT(billingPageCatalog)
     const name = planTitle || planName(subscription?.plan)
     if (!name) return <span className="text-colorTextTertiary">—</span>
 
@@ -67,8 +67,8 @@ const PlanSummary = ({
     const trialText =
         subscription?.free_trial && end
             ? end.isAfter(dayjs())
-                ? t("billing.trialEndsIn", {duration: end.fromNow(true)})
-                : t("billing.trialEndedAgo", {duration: end.fromNow(true)})
+                ? t("billing.page.trialEndsIn", {duration: end.fromNow(true)})
+                : t("billing.page.trialEndedAgo", {duration: end.fromNow(true)})
             : ""
 
     return (
@@ -126,7 +126,7 @@ export const BillingPage = ({
     onViewMembers,
     children,
 }: BillingPageProps) => {
-    const t = useT()
+    const t = useT(billingPageCatalog)
     if (loading) {
         return (
             <div className="flex w-full items-center justify-center py-24">
@@ -141,7 +141,7 @@ export const BillingPage = ({
     const users = usage?.users
 
     const upgradeButton = onUpgrade ? (
-        <Button onClick={onUpgrade}>{t("billing.upgradePlan")}</Button>
+        <Button onClick={onUpgrade}>{t("billing.page.upgradePlan")}</Button>
     ) : null
 
     const renewsAt = periodEnd(subscription)
@@ -153,7 +153,7 @@ export const BillingPage = ({
     return (
         <div className="flex flex-col gap-8">
             {showPlanCard ? (
-                <SettingsSection title={t("billing.currentPlan")}>
+                <SettingsSection title={t("billing.page.currentPlan")}>
                     <CardBody>
                         <span className="text-base font-semibold capitalize text-colorText">
                             <PlanSummary subscription={subscription} planTitle={planTitle} />
@@ -164,8 +164,8 @@ export const BillingPage = ({
                                 {richText(
                                     t(
                                         subscription?.free_trial
-                                            ? "billing.trialEndsOn"
-                                            : "billing.autoRenewsOn",
+                                            ? "billing.page.trialEndsOn"
+                                            : "billing.page.autoRenewsOn",
                                         {date: renewsAt.format("MMM D, YYYY")},
                                     ),
                                     {
@@ -181,7 +181,7 @@ export const BillingPage = ({
 
                         {isCustomPlan ? (
                             <span className="text-colorTextSecondary">
-                                {richText(t("billing.contactForPlan"), {
+                                {richText(t("billing.page.contactForPlan"), {
                                     link: (text) => (
                                         <a href={CONTACT_URL} target="_blank" rel="noreferrer">
                                             {text}
@@ -195,7 +195,7 @@ export const BillingPage = ({
                                     {upgradeButton}
                                     {onCancelSubscription ? (
                                         <Button variant="link" onClick={onCancelSubscription}>
-                                            {t("billing.cancelSubscription")}
+                                            {t("billing.page.cancelSubscription")}
                                         </Button>
                                     ) : null}
                                 </div>
@@ -207,7 +207,7 @@ export const BillingPage = ({
                 </SettingsSection>
             ) : null}
 
-            <SettingsSection title={t("billing.limits")}>
+            <SettingsSection title={t("billing.page.limits")}>
                 <CardBody>
                     <div className={METRIC_GRID}>
                         {limits.map(([key, metric]) =>
@@ -229,13 +229,13 @@ export const BillingPage = ({
                 </CardBody>
             </SettingsSection>
 
-            <SettingsSection title={t("billing.members")}>
+            <SettingsSection title={t("billing.page.members")}>
                 <CardBody>
                     <div className={METRIC_GRID}>
                         {/* Free seats only mean something against a paid tier. */}
                         {billingEnabled ? (
                             <UsageProgressBar
-                                label={t("billing.free")}
+                                label={t("billing.page.free")}
                                 used={users?.value ?? 0}
                                 limit={users?.free ?? 0}
                                 strict={users?.strict}
@@ -245,7 +245,7 @@ export const BillingPage = ({
                         ) : null}
 
                         <UsageProgressBar
-                            label={t("billing.total")}
+                            label={t("billing.page.total")}
                             used={users?.value ?? 0}
                             limit={users?.limit as number}
                             strict={users?.strict}
@@ -255,17 +255,17 @@ export const BillingPage = ({
                     </div>
                     {onViewMembers ? (
                         <Button variant="outline" onClick={onViewMembers}>
-                            {t("billing.viewMembers")}
+                            {t("billing.page.viewMembers")}
                         </Button>
                     ) : null}
                 </CardBody>
             </SettingsSection>
 
             {billingEnabled && onOpenBillingPortal ? (
-                <SettingsSection title={t("billing.billing")}>
+                <SettingsSection title={t("billing.page.billing")}>
                     <SettingsRow
-                        title={t("billing.paymentDetails")}
-                        description={t("billing.paymentDetailsDescription")}
+                        title={t("billing.page.paymentDetails")}
+                        description={t("billing.page.paymentDetailsDescription")}
                         control={
                             <Button
                                 variant="outline"
@@ -273,8 +273,8 @@ export const BillingPage = ({
                                 disabled={openingBillingPortal}
                             >
                                 {openingBillingPortal
-                                    ? t("billing.opening")
-                                    : t("billing.openPortal")}
+                                    ? t("billing.page.opening")
+                                    : t("billing.page.openPortal")}
                             </Button>
                         }
                     />

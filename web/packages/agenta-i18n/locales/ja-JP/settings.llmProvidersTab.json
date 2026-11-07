@@ -1,0 +1,6 @@
+{
+    "aboutToDelete": "次の項目を削除しようとしています：",
+    "deleteOrganizationDescription": "この接続を使用するエージェントは、この接続を使用するすべてのプロジェクトで再設定が必要になります。",
+    "deleteProjectDescription": "この操作は元に戻せません。この接続を使用するエージェントとプロンプトは動作しなくなります。",
+    "deleteTitle": "本当に削除しますか？"
+}

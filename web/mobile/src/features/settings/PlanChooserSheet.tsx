@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingPlanChooserSheetCatalog from "@agenta/i18n/catalogs/billing.planChooserSheet"
 import {
     checkoutBillingSubscription,
     switchBillingPlan,
@@ -45,7 +46,7 @@ export const PlanChooserSheet = ({
     onCancelSubscription,
     onChanged,
 }: Props) => {
-    const t = useT()
+    const t = useT(billingPlanChooserSheetCatalog)
     const [pendingPlan, setPendingPlan] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
 

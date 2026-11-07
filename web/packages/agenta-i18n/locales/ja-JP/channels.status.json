@@ -1,0 +1,15 @@
+{
+    "accessTokenRejected": "アクセストークンが拒否されました",
+    "accessTokenRejectedUpdate": "アクセストークンが拒否されました · 更新してください",
+    "appUninstalled": "アプリがアンインストールされました · 再接続してください",
+    "botRemoved_other": "ボットが {{count}} 件のチャンネルから削除されました",
+    "botTokenRevoked": "ボットトークンが取り消されました",
+    "botTokenRevokedUpdate": "ボットトークンが取り消されました · 更新してください",
+    "connectedTo": "{{agent}} に接続済み",
+    "pending": "未連携 · 接続を完了してください",
+    "placesAndDms": "{{places}} + DM",
+    "slackIdle": "チームのワークスペースでエージェントとチャット",
+    "telegramIdle": "スマートフォンからエージェントとチャット",
+    "unassigned": "まだどのエージェントとしても応答していません · ここで接続",
+    "whatsappIdle": "WhatsApp Business の番号に届いたメッセージに応答"
+}

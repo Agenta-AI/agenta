@@ -1,0 +1,21 @@
+{
+    "alsoSubscribed_one": "Also subscribed to {{count}} event this sheet cannot show. They are kept unless you pick a different event here.",
+    "alsoSubscribed_other": "Also subscribed to {{count}} events this sheet cannot show. They are kept unless you pick a different event here.",
+    "authentication": "Authentication",
+    "authorizationHeader": "Authorization header",
+    "authorizationHint": "Sent as the Authorization header on every request.",
+    "configurationDeployed": "Configuration deployed",
+    "description": "Agenta posts the event to your endpoint and retries on failure.",
+    "editTitle": "Edit subscription",
+    "endpointUrl": "Endpoint URL",
+    "event": "Event",
+    "headerValue": "Header value",
+    "headerValueHint": "Leave blank to keep the stored value.",
+    "nameHint": "Optional — how the subscription is listed.",
+    "namePlaceholder": "Deploy notifier",
+    "saveFailed": "Could not save the subscription",
+    "saving": "Saving…",
+    "signatureHint": "Agenta signs each request with a secret shown once after you subscribe.",
+    "signedPayload": "Signed payload",
+    "subscribe": "Subscribe"
+}

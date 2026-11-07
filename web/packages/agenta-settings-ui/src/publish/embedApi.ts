@@ -1,4 +1,6 @@
-import {t} from "@agenta/i18n/publish"
+import {createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 
 import {
     answeringAgentRow,
@@ -13,6 +15,8 @@ import {
     type Row,
     type Scope,
 } from "../channels/actions"
+
+const t = createT(commonCatalog, publishCatalog)
 
 // The widget's name is the connection's name, so session titles and the widget header agree.
 

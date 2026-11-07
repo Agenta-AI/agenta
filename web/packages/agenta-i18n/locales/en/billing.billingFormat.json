@@ -1,0 +1,5 @@
+{
+    "free": "Free",
+    "fromPerMonth": "From ${{amount}} / month",
+    "perMonth": "${{amount}} / month"
+}

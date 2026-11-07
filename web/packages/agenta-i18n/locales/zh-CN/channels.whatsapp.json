@@ -1,0 +1,6 @@
+{
+    "callbackUrl": "回调 URL",
+    "copyField": "复制{{label}}",
+    "verifyToken": "验证令牌",
+    "webhookHint": "在你的 Meta 应用中，打开 WhatsApp > Configuration，粘贴这两个值，然后订阅 <code>messages</code> 字段。"
+}

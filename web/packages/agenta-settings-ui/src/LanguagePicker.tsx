@@ -1,5 +1,5 @@
-import {languageAtom, SUPPORTED_LANGUAGES, type Language} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {languageAtom, SUPPORTED_LANGUAGES, type Language, useT} from "@agenta/i18n"
+import settingsPreferencesCatalog from "@agenta/i18n/catalogs/settings.preferences"
 import {languagePickerEnabledAtom} from "@agenta/shared/state"
 import {Label, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
@@ -10,11 +10,12 @@ import {SettingsSection} from "./shared/SettingsSection"
 const LANGUAGE_NAMES: Record<Language, string> = {
     en: "English",
     "zh-CN": "中文 (Beta)",
+    "ja-JP": "日本語 (Beta)",
 }
 
 /** Shown while the flag is on, and to anyone who already chose a language other than English. */
 export const LanguagePicker = () => {
-    const t = useT()
+    const t = useT(settingsPreferencesCatalog)
     const enabled = useAtomValue(languagePickerEnabledAtom)
     const [language, setLanguage] = useAtom(languageAtom)
     if (!enabled && language === "en") return null

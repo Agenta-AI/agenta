@@ -1,6 +1,7 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n/publish"
+import {useT} from "@agenta/i18n"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Info} from "@phosphor-icons/react"
 
@@ -28,7 +29,7 @@ export const EmbedSection = ({
     testId: string
     children: React.ReactNode
 }) => {
-    const t = useT()
+    const t = useT(publishCatalog)
     const [open, setOpen] = useState(defaultOpen)
     return (
         <section

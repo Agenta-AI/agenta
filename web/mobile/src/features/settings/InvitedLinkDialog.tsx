@@ -1,6 +1,8 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsInvitedLinkDialogCatalog from "@agenta/i18n/catalogs/settings.invitedLinkDialog"
 import {
     Button,
     Dialog,
@@ -26,7 +28,7 @@ export const InvitedLinkDialog = ({
     invited: InvitedLink | null
     onClose: () => void
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsInvitedLinkDialogCatalog)
     const [copied, setCopied] = useState(false)
     const close = () => {
         setCopied(false)

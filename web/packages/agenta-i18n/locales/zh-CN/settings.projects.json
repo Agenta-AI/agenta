@@ -1,0 +1,22 @@
+{
+    "copyId": "复制项目 ID",
+    "copyIdFailed": "无法复制项目 ID",
+    "createFailed": "无法创建项目",
+    "created": "项目已创建",
+    "current": "当前",
+    "default": "默认",
+    "defaultUpdated": "默认项目已更新",
+    "deleteFailed": "无法删除项目",
+    "deleteProject": "删除项目",
+    "deleted": "项目已删除",
+    "emptyDescription": "创建项目来组织你的 Agent、数据集和部署。",
+    "emptyTitle": "此工作区还没有项目",
+    "idCopied": "已复制项目 ID",
+    "newProject": "新建项目",
+    "projectActions": "项目操作",
+    "projectName": "项目名称",
+    "renameFailed": "无法重命名项目",
+    "setAsDefault": "设为默认",
+    "setDefaultFailed": "无法设为默认",
+    "switchTo": "切换到此项目"
+}

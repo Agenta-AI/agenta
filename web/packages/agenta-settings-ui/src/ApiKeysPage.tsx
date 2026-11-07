@@ -1,6 +1,8 @@
 import {useMemo} from "react"
 
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsApiKeysCatalog from "@agenta/i18n/catalogs/settings.apiKeys"
 import {getSettingsSidebarIcon, type ApiKeyRow} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -35,7 +37,7 @@ const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
 const PHONE_KEYS = ["prefix", "expiration_date", "actions"]
 
 const ExpiresCell = ({value}: {value?: string | null}) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsApiKeysCatalog)
     const date = value ? new Date(value) : null
     if (!date) return <span className="text-muted-foreground">{t("settings.apiKeys.never")}</span>
     return date < new Date() ? (
@@ -60,7 +62,7 @@ export const ApiKeysPage = ({
     onCreate,
     onDelete,
 }: ApiKeysPageProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsApiKeysCatalog)
     const {columns, shows} = usePhoneColumns(
         useMemo(() => columnsFor(t), [t]),
         PHONE_KEYS,

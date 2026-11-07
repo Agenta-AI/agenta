@@ -2,9 +2,11 @@ import {Fragment, createElement, type ReactNode} from "react"
 
 import {getActiveLanguage} from "./language"
 
-export type {Namespace, TranslationKey} from "./catalogs"
+export {createT, defineCatalog, useT, type CatalogKey, type TypedCatalog} from "./catalog"
+export {loadLanguage} from "./registry"
 export type {TranslationValues} from "./translate"
 export {
+    HTML_LANG,
     SUPPORTED_LANGUAGES,
     DEFAULT_LANGUAGE,
     activeLanguageAtom,
@@ -13,7 +15,9 @@ export {
     type Language,
 } from "./language"
 
-// `t` and `useT` come from each namespace's entry: `import {useT} from "@agenta/i18n/settings"`.
+// Usage: `const t = useT(membersCatalog, commonCatalog)` in a component, with each catalog
+// imported from `@agenta/i18n/catalogs/<namespace>`. Outside React, `createT(...)` at module
+// level; a file that needs both names the module one `tNow`.
 // English keeps the browser locale, so dates and numbers read as they did before translation.
 const formatLocale = () => {
     const language = getActiveLanguage()

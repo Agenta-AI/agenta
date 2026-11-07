@@ -1,6 +1,8 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n/channels"
+import {useT} from "@agenta/i18n"
+import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, CaretUp, ChatCircleText, Code, Plus} from "@phosphor-icons/react"
 
@@ -55,7 +57,7 @@ export const ChannelsHubView = ({
     showEmbed = false,
     onOpenEmbed,
 }: ChannelsHubViewProps) => {
-    const t = useT()
+    const t = useT(channelsHubCatalog, commonCatalog)
     const [expanded, setExpanded] = useState<Partial<Record<ChannelPlatform, boolean>>>({})
     const [retrying, setRetrying] = useState(false)
     const unavailable = loading || !!loadError

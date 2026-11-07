@@ -1,5 +1,8 @@
-import {t} from "@agenta/i18n/billing"
+import {createT} from "@agenta/i18n"
+import billingBillingFormatCatalog from "@agenta/i18n/catalogs/billing.billingFormat"
 import type {BillingPlanOption, BillingSubscription} from "@agenta/settings-ui"
+
+const t = createT(billingBillingFormatCatalog)
 
 export const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 

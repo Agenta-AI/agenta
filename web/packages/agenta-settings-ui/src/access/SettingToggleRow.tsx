@@ -1,6 +1,8 @@
 import type {ReactNode} from "react"
 
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
 import {
     Spinner,
     Switch,
@@ -36,7 +38,7 @@ export const SettingToggleRow = ({
     loading,
     showSuccess,
 }: SettingToggleRowProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsAccessCatalog)
     return (
         <div
             className={`flex items-center justify-between gap-6 px-[18px] py-4 ${disabled ? "opacity-60" : ""}`}

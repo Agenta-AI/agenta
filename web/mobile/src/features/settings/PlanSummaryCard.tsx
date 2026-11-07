@@ -1,4 +1,5 @@
-import {t as translate, useT} from "@agenta/i18n/billing"
+import {useT, createT} from "@agenta/i18n"
+import billingPlanSummaryCardCatalog from "@agenta/i18n/catalogs/billing.planSummaryCard"
 import type {BillingPlanOption, BillingSubscription} from "@agenta/settings-ui"
 import {Button} from "@agenta/ui/ui"
 import {Coins} from "@phosphor-icons/react"
@@ -8,17 +9,19 @@ import {formatCredits, formatDate} from "../wallet/walletFormat"
 import {CONTACT_URL, periodEnd, planName, planPrice} from "./billingFormat"
 import {creditsLine} from "./planCatalog"
 
+const tNow = createT(billingPlanSummaryCardCatalog)
+
 /** The trial's state, else when the plan renews; nothing for a plan that never renews. */
 const renewal = (subscription: BillingSubscription | null | undefined, isOnFreePlan: boolean) => {
     const end = periodEnd(subscription)
     if (!end || isOnFreePlan) return null
     if (subscription?.free_trial)
         return end > new Date()
-            ? translate("billing.planSummaryCard.trialEnds", {date: formatDate(end.toISOString())})
-            : translate("billing.planSummaryCard.trialEnded", {
+            ? tNow("billing.planSummaryCard.trialEnds", {date: formatDate(end.toISOString())})
+            : tNow("billing.planSummaryCard.trialEnded", {
                   date: formatDate(end.toISOString()),
               })
-    return translate("billing.planSummaryCard.renews", {date: formatDate(end.toISOString())})
+    return tNow("billing.planSummaryCard.renews", {date: formatDate(end.toISOString())})
 }
 
 /** The plan the organization is on, what it costs and grants, and the ways to change it. */
@@ -41,7 +44,7 @@ export const PlanSummaryCard = ({
     onChangePlan?: () => void
     onCancel?: () => void
 }) => {
-    const t = useT()
+    const t = useT(billingPlanSummaryCardCatalog)
     const name = plan?.title ?? planName(subscription?.plan) ?? "—"
     const renews = renewal(subscription, isOnFreePlan)
 

@@ -1,6 +1,7 @@
 import {useCallback, useRef, useState} from "react"
 
-import {useT} from "@agenta/i18n/channels"
+import {useT} from "@agenta/i18n"
+import channelsManageCatalog from "@agenta/i18n/catalogs/channels.manage"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {Broadcast, ChatCircleText, Code} from "@phosphor-icons/react"
 
@@ -157,7 +158,7 @@ export const useChannelPanel = ({
     onAgentChange,
     projectName,
 }: UseChannelPanelOptions) => {
-    const t = useT()
+    const t = useT(channelsManageCatalog)
     const agentName = agentNameOption ?? t("channels.manage.yourAgent")
     const workspaceName = workspaceNameOption ?? t("channels.manage.yourWorkspace")
     const [stack, setStack] = useState<ChannelsRoute[]>([])

@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
-import {useT} from "@agenta/i18n/navigation"
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {getSettingsSidebarTabs, SETTINGS_SCOPES, type SettingsTabKey} from "@agenta/settings"
 
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
@@ -21,7 +22,7 @@ export const SettingsTabRail = ({
     onSelect: (tab: SettingsTabKey) => void
 }) => {
     const access = useMobileSettingsAccess()
-    const t = useT()
+    const t = useT(navigationCatalog)
 
     const groups = useMemo(() => {
         const tabs = withMobileSettingsLabels(

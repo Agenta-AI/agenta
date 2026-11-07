@@ -1,8 +1,9 @@
 import {useMemo, type ReactNode} from "react"
 
 import type {OrganizationDomain} from "@agenta/entities/organization"
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -18,7 +19,9 @@ import {usePhoneColumns} from "../shared/usePhoneColumns"
 /** An unverified domain's token stops being usable 48 hours after it was issued. */
 const TOKEN_LIFETIME_MS = 48 * 60 * 60 * 1000
 
-const COLUMNS: (ListTableColumn & {label: TranslationKey<"common" | "settings">})[] = [
+const COLUMNS: (ListTableColumn & {
+    label: CatalogKey<typeof commonCatalog | typeof settingsAccessCatalog>
+})[] = [
     {key: "slug", label: "settings.access.domain", width: "minmax(0,2fr)"},
     {key: "expires_at", label: "settings.access.expiration", width: "minmax(0,1.4fr)"},
     {key: "is_verified", label: "common.status", width: "minmax(0,1fr)"},
@@ -28,7 +31,7 @@ const COLUMNS: (ListTableColumn & {label: TranslationKey<"common" | "settings">}
 const PHONE_KEYS = ["slug", "is_verified", "verify", "actions"]
 
 const ExpirationCell = ({domain}: {domain: OrganizationDomain}) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsAccessCatalog)
     if (domain.flags?.is_verified) return <span className="text-muted-foreground">-</span>
     // An unparseable `created_at` is NaN, which reads as neither expired nor live: say so.
     const createdAt = new Date(domain.created_at).getTime()
@@ -72,7 +75,7 @@ export const DomainsSection = ({
     deleting,
     renderInstructions,
 }: DomainsSectionProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsAccessCatalog)
     const translatedColumns = useMemo(
         () => COLUMNS.map((column) => ({...column, label: t(column.label)})),
         [t],

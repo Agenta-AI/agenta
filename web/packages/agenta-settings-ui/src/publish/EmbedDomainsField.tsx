@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/publish"
+import {useT} from "@agenta/i18n"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {Switch, Textarea} from "@agenta/ui/ui"
 
 export interface EmbedDomains {
@@ -19,7 +20,7 @@ export const EmbedDomainsField = ({
     error: string | null
     onChange: (patch: Partial<EmbedDomains>) => void
 }) => {
-    const t = useT()
+    const t = useT(publishCatalog)
     return (
         <div className="flex flex-col gap-1.5">
             <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">

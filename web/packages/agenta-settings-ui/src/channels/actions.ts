@@ -1,4 +1,6 @@
-import {t} from "@agenta/i18n/channels"
+import {createT} from "@agenta/i18n"
+import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
+import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
 
 import {platformLabel} from "./helpers"
 import type {
@@ -21,6 +23,8 @@ import type {
     ChannelToolSettings,
     HostedTelegramLink,
 } from "./types"
+
+const t = createT(channelsActionsCatalog, channelsLabelsCatalog)
 
 /**
  * Builds the real `ChannelsActions` for one agent page on top of the generated channels

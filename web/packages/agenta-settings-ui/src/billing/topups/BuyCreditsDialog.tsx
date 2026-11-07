@@ -1,7 +1,8 @@
 import {useEffect, useState} from "react"
 
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/billing"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
     Button,
@@ -21,7 +22,7 @@ import {topUpCheckoutError, topUpReturnUrls, type TopUpCheckoutError} from "./to
 
 const ERROR_TEXT: Record<
     Exclude<TopUpCheckoutError, "paid_plan_required">,
-    TranslationKey<"billing" | "common">
+    CatalogKey<typeof billingTopupsCatalog | typeof commonCatalog>
 > = {
     unavailable: "billing.topups.errorUnavailable",
     forbidden: "billing.topups.errorForbidden",
@@ -48,7 +49,7 @@ export const BuyCreditsDialog = ({
     packs,
     onUpgrade,
 }: BuyCreditsDialogProps) => {
-    const t = useT()
+    const t = useT(billingTopupsCatalog, commonCatalog)
     const [selected, setSelected] = useState<string | null>(null)
     const [opening, setOpening] = useState(false)
     const [error, setError] = useState<TopUpCheckoutError | null>(null)

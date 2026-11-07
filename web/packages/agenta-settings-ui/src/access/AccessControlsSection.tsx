@@ -1,5 +1,6 @@
 import type {OrganizationFlags} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
 
 import {SettingsSection} from "../shared/SettingsSection"
 
@@ -34,7 +35,7 @@ export const AccessControlsSection = ({
     hasVerifiedDomain = false,
     error,
 }: AccessControlsSectionProps) => {
-    const t = useT()
+    const t = useT(settingsAccessCatalog)
     // Turning off the last sign-in method would lock everyone out, so owner bypass is pinned on.
     const allAuthMethodsDisabled = !flags.allow_email && !flags.allow_social && !flags.allow_sso
 

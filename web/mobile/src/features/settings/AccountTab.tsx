@@ -1,7 +1,9 @@
 import {useState} from "react"
 
 import {deleteAccount, useProfile} from "@agenta/entities/profile"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAccountTabCatalog from "@agenta/i18n/catalogs/settings.accountTab"
 import {AccountPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -23,7 +25,7 @@ import {useLogout} from "../auth/useLogout"
  * alert dialog — the same typed-email gate the desktop uses.
  */
 export const AccountTab = () => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsAccountTabCatalog)
     const {user} = useProfile()
     const logout = useLogout()
     const [error, setError] = useState<string | null>(null)

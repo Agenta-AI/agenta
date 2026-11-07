@@ -1,14 +1,16 @@
 import {useState} from "react"
 
 import type {OrganizationDomain} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsDomainDnsInstructionsCatalog from "@agenta/i18n/catalogs/settings.domainDnsInstructions"
 import {Button} from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {Check, Copy} from "@phosphor-icons/react"
 
 /** The DNS TXT record that the backend verifies for an unverified domain. */
 export const DomainDnsInstructions = ({domain}: {domain: OrganizationDomain}) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsDomainDnsInstructionsCatalog)
     const [copied, setCopied] = useState(false)
     if (!domain.token) return null
 

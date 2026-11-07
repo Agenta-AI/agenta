@@ -1,6 +1,8 @@
 import {useState} from "react"
 
-import {useT} from "@agenta/i18n/billing"
+import {useT} from "@agenta/i18n"
+import billingCancelSubscriptionSheetCatalog from "@agenta/i18n/catalogs/billing.cancelSubscriptionSheet"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     cancelBillingSubscription,
     CancelSubscriptionReasons,
@@ -28,7 +30,7 @@ interface Props {
 
 /** Ends auto-renewal, after asking why. */
 export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChanged}: Props) => {
-    const t = useT()
+    const t = useT(billingCancelSubscriptionSheetCatalog, commonCatalog)
     const [reason, setReason] = useState("")
     const [otherReason, setOtherReason] = useState("")
     const [cancelling, setCancelling] = useState(false)

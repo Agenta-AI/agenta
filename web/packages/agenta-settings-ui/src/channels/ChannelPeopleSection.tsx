@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {useT} from "@agenta/i18n/channels"
+import {useT} from "@agenta/i18n"
+import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
+import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
+import channelsPeopleCatalog from "@agenta/i18n/catalogs/channels.people"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
     Button,
@@ -77,7 +81,12 @@ export const ChannelPeopleSection = ({
     handle,
     workspaceName,
 }: ChannelPeopleSectionProps) => {
-    const t = useT()
+    const t = useT(
+        channelsActionsCatalog,
+        channelsLabelsCatalog,
+        channelsPeopleCatalog,
+        commonCatalog,
+    )
     const isSlack = platform === "slack"
     const workspace = workspaceName || t("channels.people.theWorkspace")
 
@@ -243,8 +252,7 @@ export const ChannelPeopleSection = ({
     const otherMatch = found !== null && !wrote.length && (inWorkspace.length || byEmail.length) > 0
 
     const whoLine = (() => {
-        if (people === null)
-            return error ? t("channels.people.unavailable") : t("channels.labels.loading")
+        if (people === null) return error ? t("common.unavailable") : t("channels.labels.loading")
         if (!restricted)
             return isSlack
                 ? t("channels.people.anySlackMember")

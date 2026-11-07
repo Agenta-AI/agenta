@@ -1,7 +1,9 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMembersCatalog from "@agenta/i18n/catalogs/settings.members"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {StatusIndicator, Tag} from "@agenta/ui/components/presentational"
@@ -28,7 +30,7 @@ const memberColumn = (t: ReturnType<typeof useT>): ListTableColumn => ({
 })
 const roleColumn = (t: ReturnType<typeof useT>): ListTableColumn => ({
     key: "roles",
-    label: t("settings.members.role"),
+    label: t("common.role"),
     width: "minmax(0,1fr)",
 })
 const tailColumns = (t: ReturnType<typeof useT>): ListTableColumn[] => [
@@ -89,7 +91,7 @@ export const MembersPage = ({
     onResetPassword,
     children,
 }: MembersPageProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsMembersCatalog)
     const [renamingSelf, setRenamingSelf] = useState(false)
     const rows = useMemo<MemberRow[]>(
         () => members.map((member) => ({...member, key: member.user.id})),
@@ -181,15 +183,9 @@ export const MembersPage = ({
                                     label={t("settings.members.expired")}
                                 />
                             ) : status === "pending" ? (
-                                <StatusIndicator
-                                    tone="warning"
-                                    label={t("settings.members.pending")}
-                                />
+                                <StatusIndicator tone="warning" label={t("common.pending")} />
                             ) : (
-                                <StatusIndicator
-                                    tone="success"
-                                    label={t("settings.members.active")}
-                                />
+                                <StatusIndicator tone="success" label={t("common.active")} />
                             )}
                             {shows("created_at") ? (
                                 <span className="truncate text-muted-foreground">
@@ -236,7 +232,7 @@ export const MembersPage = ({
                                     },
                                     {
                                         key: "remove",
-                                        label: t("settings.members.remove"),
+                                        label: t("common.remove"),
                                         icon: <Trash size={14} />,
                                         danger: true,
                                         hidden:

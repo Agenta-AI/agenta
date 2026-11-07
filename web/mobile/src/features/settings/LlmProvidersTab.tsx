@@ -1,7 +1,9 @@
 import {useMemo} from "react"
 
 import {organizationConnectionsAccessAtom} from "@agenta/entities/secret"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsLlmProvidersTabCatalog from "@agenta/i18n/catalogs/settings.llmProvidersTab"
 import {AIProvidersPage, useEntitlements, type AIProvidersOrganization} from "@agenta/settings-ui"
 import {isEE} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
@@ -56,7 +58,7 @@ const useProvidersOrganization = (
  * organization's group.
  */
 export const LlmProvidersTab = ({workspaceId, projectId}: SettingsTabProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsLlmProvidersTabCatalog)
     const organization = useProvidersOrganization(workspaceId, projectId)
     const {projectSwitch} = useSettingsProjectGroup(workspaceId, projectId)
     return (

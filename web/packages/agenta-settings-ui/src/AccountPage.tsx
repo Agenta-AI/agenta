@@ -1,7 +1,7 @@
 import {useState} from "react"
 
-import {richText} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {richText, useT} from "@agenta/i18n"
+import settingsAccountCatalog from "@agenta/i18n/catalogs/settings.account"
 import {Button, Input} from "@agenta/ui/ui"
 import {Trash} from "@phosphor-icons/react"
 
@@ -56,7 +56,7 @@ const Field = ({
 )
 
 const DangerCallout = ({children}: {children: React.ReactNode}) => {
-    const t = useT()
+    const t = useT(settingsAccountCatalog)
     return (
         <div className="flex flex-col gap-1 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg px-4 py-3">
             <span className="font-medium text-colorError">
@@ -80,7 +80,7 @@ export const AccountPage = ({
     deleting = false,
     renderConfirm,
 }: AccountPageProps) => {
-    const t = useT()
+    const t = useT(settingsAccountCatalog)
     const [open, setOpen] = useState(false)
     const [typed, setTyped] = useState("")
 

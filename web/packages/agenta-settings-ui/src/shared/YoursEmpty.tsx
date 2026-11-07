@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {User} from "@phosphor-icons/react"
 
 import {yoursEmptyBody} from "./accountOwners"
@@ -6,7 +7,7 @@ import {SettingsEmpty} from "./SettingsEmpty"
 
 /** "Yours" with nothing in it: the page's own plain empty state. */
 export const YoursEmpty = ({projectCount}: {projectCount?: number}) => {
-    const t = useT()
+    const t = useT(settingsSharedCatalog)
     return (
         <SettingsEmpty
             plain

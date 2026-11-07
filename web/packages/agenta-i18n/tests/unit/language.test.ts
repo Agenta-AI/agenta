@@ -1,9 +1,9 @@
 import {describe, expect, it, vi} from "vitest"
 
+import {languageInitScript} from "../../src/document"
 import {
     LANGUAGE_PENDING_ATTRIBUTE,
     detectBrowserLanguage,
-    languageInitScript,
     readLanguageCookie,
 } from "../../src/language"
 
@@ -29,6 +29,8 @@ describe("detectBrowserLanguage", () => {
 
     it("keeps English for Traditional Chinese and other languages", () => {
         expect(detectBrowserLanguage(["zh-TW"])).toBe("en")
+        expect(detectBrowserLanguage(["ja-JP"])).toBe("ja-JP")
+        expect(detectBrowserLanguage(["ja"])).toBe("ja-JP")
         expect(detectBrowserLanguage(["fr-FR", "de"])).toBe("en")
         expect(detectBrowserLanguage(["en-US", "zh-CN"])).toBe("en")
         expect(detectBrowserLanguage([])).toBe("en")
@@ -57,6 +59,10 @@ describe("languageInitScript", () => {
         expect(attributes.has(LANGUAGE_PENDING_ATTRIBUTE)).toBe(true)
         timers.forEach((fn) => fn())
         expect(attributes.has(LANGUAGE_PENDING_ATTRIBUTE)).toBe(false)
+    })
+
+    it("sets lang to ja for Japanese", () => {
+        expect(run("agenta-language=ja-JP").html.lang).toBe("ja")
     })
 
     it("does nothing for English, unknown values or no cookie", () => {

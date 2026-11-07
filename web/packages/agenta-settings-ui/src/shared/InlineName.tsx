@@ -1,8 +1,11 @@
 import {useEffect, useRef, useState} from "react"
 
-import {t} from "@agenta/i18n/settings"
+import {createT} from "@agenta/i18n"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import {message} from "@agenta/ui/app-message"
 import {Input, cn} from "@agenta/ui/ui"
+
+const t = createT(settingsSharedCatalog)
 
 /** A row name that becomes an input while renaming: Enter or blur saves, Escape cancels. */
 export const InlineName = ({

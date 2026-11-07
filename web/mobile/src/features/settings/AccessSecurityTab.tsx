@@ -7,7 +7,9 @@ import {
     type OrganizationFlags,
     type OrganizationProvider,
 } from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAccessSecurityTabCatalog from "@agenta/i18n/catalogs/settings.accessSecurityTab"
 import {
     AccessControlsSection,
     type AccessFeature,
@@ -36,7 +38,7 @@ import {useSettingsOrg} from "./useSettingsOrg"
 
 /** Settings > Access & Security: sign-in policy, verified domains and SSO, each gated by plan. */
 export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsAccessSecurityTabCatalog)
     const access = useMobileSettingsAccess()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(workspaceId)
     const domains = useQuery({

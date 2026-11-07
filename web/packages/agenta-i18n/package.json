@@ -19,13 +19,9 @@
     },
     "exports": {
         ".": "./src/index.ts",
-        "./billing": "./src/billing.ts",
-        "./channels": "./src/channels.ts",
-        "./common": "./src/common.ts",
-        "./language": "./src/language.ts",
-        "./navigation": "./src/navigation.ts",
-        "./publish": "./src/publish.ts",
-        "./settings": "./src/settings.ts"
+        "./catalogs/*": "./src/catalogs/*.ts",
+        "./document": "./src/document.ts",
+        "./language": "./src/language.ts"
     },
     "peerDependencies": {
         "jotai": ">=2.9.0",

@@ -1,6 +1,8 @@
 import {useEffect, useState} from "react"
 
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAddDomainDialogCatalog from "@agenta/i18n/catalogs/settings.addDomainDialog"
 import {
     Button,
     Dialog,
@@ -25,7 +27,7 @@ export const AddDomainDialog = ({
     onClose: () => void
     onSubmit: (domain: string) => Promise<void>
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsAddDomainDialogCatalog)
     const [domain, setDomain] = useState("")
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)

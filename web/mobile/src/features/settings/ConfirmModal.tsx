@@ -1,6 +1,7 @@
 import type {ReactNode} from "react"
 
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -46,7 +47,7 @@ export const ConfirmModal = ({
     onConfirm: () => void
     onClose: () => void
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog)
     return (
         <AlertDialog
             open={open}

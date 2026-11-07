@@ -1,7 +1,8 @@
 import type {ReactNode} from "react"
 
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {Button, cn} from "@agenta/ui/ui"
 import {ArrowRight, ArrowSquareOut, Key} from "@phosphor-icons/react"
 
@@ -23,9 +24,9 @@ export interface SubscriptionPlan {
 
 const STATE_LABEL: Record<
     Exclude<PlanState, "available">,
-    TranslationKey<"common" | "settings">
+    CatalogKey<typeof settingsProvidersCatalog | typeof commonCatalog>
 > = {
-    connected: "settings.providers.connected",
+    connected: "common.connected",
     attention: "settings.providers.needsSignIn",
 }
 
@@ -43,7 +44,7 @@ const BRAND = {
 } as const
 
 const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
-    const t = useT()
+    const t = useT(settingsProvidersCatalog, commonCatalog)
     const brand = BRAND[plan.brand]
     const ready = plan.state === "connected"
     const unavailable = !!plan.unavailable
@@ -108,7 +109,7 @@ const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
 
 /** AI providers' lead: run agents on a plan the team already pays for, ahead of API keys. */
 export const SubscriptionsBanner = ({plans}: {plans: SubscriptionPlan[]}) => {
-    const t = useT()
+    const t = useT(settingsProvidersCatalog, commonCatalog)
     return (
         // Anthropic's brand clay, not a theme color, so it is set once here.
         <section className="rounded-2xl border border-solid border-border bg-background [--brand-clay-ink:#1a0f0b] [--brand-clay:#d97757]">

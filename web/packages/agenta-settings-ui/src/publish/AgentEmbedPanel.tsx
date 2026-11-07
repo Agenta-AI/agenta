@@ -1,4 +1,6 @@
-import {useT} from "@agenta/i18n/publish"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import publishCatalog from "@agenta/i18n/catalogs/publish"
 import {Alert, Button, EmptyState, LoadingButton, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretRight, ChatCircleText} from "@phosphor-icons/react"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
@@ -21,7 +23,7 @@ export interface AgentEmbedPanelProps extends EmbedViewProps {
 /** Publish > Embed: the agent's embeds and "Create embed", or one embed's settings. */
 export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
     const {client, projectId, agentId, agentName, connectionId, onOpen} = props
-    const t = useT()
+    const t = useT(commonCatalog, publishCatalog)
     const queryClient = useQueryClient()
     const scope = {queryParams: {project_id: projectId}}
     const queryKey = ["channels", "embeds", projectId, agentId]

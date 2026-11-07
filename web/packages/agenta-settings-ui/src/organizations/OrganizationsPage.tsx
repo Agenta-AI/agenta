@@ -1,7 +1,9 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {Org} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsOrganizationsCatalog from "@agenta/i18n/catalogs/settings.organizations"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -66,7 +68,7 @@ export const OrganizationsPage = ({
     onDelete,
     children,
 }: OrganizationsPageProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsOrganizationsCatalog)
     const rows = useMemo<OrgRow[]>(
         () => organizations.map((org) => ({...org, key: org.id})),
         [organizations],

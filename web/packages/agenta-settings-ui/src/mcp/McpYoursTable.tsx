@@ -6,8 +6,9 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {usePersonalMcpSignIn, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
-import {type TranslationKey} from "@agenta/i18n"
-import {t as translate, useT} from "@agenta/i18n/settings"
+import {useT, createT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
@@ -21,7 +22,11 @@ import {YoursEmpty} from "../shared/YoursEmpty"
 
 import {McpTokenSignInDialog} from "./McpTokenSignInDialog"
 
-const COLUMNS: (ListTableColumn & {label: TranslationKey<"common" | "settings">})[] = [
+const tNow = createT(commonCatalog, settingsMcpCatalog)
+
+const COLUMNS: (ListTableColumn & {
+    label: CatalogKey<typeof commonCatalog | typeof settingsMcpCatalog>
+})[] = [
     {key: "name", label: "common.name", width: "minmax(0,2fr)"},
     {key: "url", label: "settings.mcp.serverUrl", width: "minmax(0,2fr)"},
     {key: "status", label: "common.status", width: "minmax(0,1.2fr)"},
@@ -55,7 +60,7 @@ export const McpYoursTable = ({
 }: McpYoursTableProps) => {
     const {pendingId, error, signIn, signInWithToken, signOut} = usePersonalMcpSignIn()
     const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
-    const t = useT()
+    const t = useT(commonCatalog, settingsMcpCatalog)
     const translatedColumns = useMemo(
         () => COLUMNS.map((column) => ({...column, label: t(column.label)})),
         [t],
@@ -77,11 +82,11 @@ export const McpYoursTable = ({
             const run = () => signOut(endpoint)
             if (!confirm) return void run()
             confirm({
-                title: translate("settings.mcp.signOutOf", {
-                    name: endpoint.name || endpoint.slug || translate("settings.mcp.thisServer"),
+                title: tNow("settings.mcp.signOutOf", {
+                    name: endpoint.name || endpoint.slug || tNow("settings.mcp.thisServer"),
                 }),
-                message: translate("settings.mcp.signOutMessage"),
-                okText: translate("common.signOut"),
+                message: tNow("settings.mcp.signOutMessage"),
+                okText: tNow("common.signOut"),
                 danger: true,
                 onOk: run,
             })

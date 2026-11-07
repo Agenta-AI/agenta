@@ -10,7 +10,9 @@ import {
     removeFromWorkspace,
 } from "@agenta/entities/organization"
 import {requestPasswordReset, updateUsername, useProfile} from "@agenta/entities/profile"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMembersTabCatalog from "@agenta/i18n/catalogs/settings.membersTab"
 import {MembersPage} from "@agenta/settings-ui"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -51,7 +53,7 @@ import {useSettingsOrg} from "./useSettingsOrg"
 
 /** Mobile binding for Members: invite and remove as dialogs, your own name renamed in place. */
 export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsTabProps) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsMembersTabCatalog)
     const {user: signedInUser} = useProfile()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(routeWorkspaceId)
     const members = org.data?.default_workspace?.members ?? []

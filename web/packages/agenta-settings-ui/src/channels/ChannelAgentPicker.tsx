@@ -1,4 +1,5 @@
-import {useT} from "@agenta/i18n/channels"
+import {useT} from "@agenta/i18n"
+import channelsAgentPickerCatalog from "@agenta/i18n/catalogs/channels.agentPicker"
 import {Alert, Button} from "@agenta/ui/ui"
 import {CaretRight, Users} from "@phosphor-icons/react"
 
@@ -25,7 +26,7 @@ export const ChannelAgentPicker = ({
     platform,
     projectName,
 }: ChannelAgentPickerProps) => {
-    const t = useT()
+    const t = useT(channelsAgentPickerCatalog)
     const label = platform ? platformLabel(platform) : null
 
     return (

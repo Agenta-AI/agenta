@@ -1,9 +1,10 @@
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 /** A tab's body while its code loads: list rows in the page's own rhythm. */
 export const SettingsTabSkeleton = () => {
-    const t = useT()
+    const t = useT(commonCatalog)
     return (
         <div className="flex flex-col" role="status" aria-label={t("common.loading")}>
             {Array.from({length: 6}, (_, index) => (

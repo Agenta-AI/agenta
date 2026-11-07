@@ -5,22 +5,22 @@
  * cancellation is the host's call.
  */
 
-import {type TranslationKey} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/billing"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import billingPageCatalog from "@agenta/i18n/catalogs/billing.page"
 import {Input, Label, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 
 /** The free-text reason. The host gates confirmation on the note being filled in. */
 export const CANCEL_REASON_OTHER = "something-else"
 
-export const CANCEL_REASONS: {value: string; label: TranslationKey<"billing" | "common">}[] = [
-    {value: "dont-want-auto-renewal", label: "billing.reasonNoAutoRenewal"},
-    {value: "done-with-project", label: "billing.reasonDoneWithProject"},
-    {value: "switching-to-another-service", label: "billing.reasonSwitching"},
-    {value: "technical-issues", label: "billing.reasonTechnicalIssues"},
-    {value: "missing-features", label: "billing.reasonMissingFeatures"},
-    {value: "too-expensive", label: "billing.reasonTooExpensive"},
-    {value: "not-used-enough", label: "billing.reasonNotUsedEnough"},
-    {value: CANCEL_REASON_OTHER, label: "billing.reasonSomethingElse"},
+export const CANCEL_REASONS: {value: string; label: CatalogKey<typeof billingPageCatalog>}[] = [
+    {value: "dont-want-auto-renewal", label: "billing.page.reasonNoAutoRenewal"},
+    {value: "done-with-project", label: "billing.page.reasonDoneWithProject"},
+    {value: "switching-to-another-service", label: "billing.page.reasonSwitching"},
+    {value: "technical-issues", label: "billing.page.reasonTechnicalIssues"},
+    {value: "missing-features", label: "billing.page.reasonMissingFeatures"},
+    {value: "too-expensive", label: "billing.page.reasonTooExpensive"},
+    {value: "not-used-enough", label: "billing.page.reasonNotUsedEnough"},
+    {value: CANCEL_REASON_OTHER, label: "billing.page.reasonSomethingElse"},
 ]
 
 export interface CancelSubscriptionReasonsProps {
@@ -36,10 +36,10 @@ export const CancelSubscriptionReasons = ({
     otherReason,
     onOtherReasonChange,
 }: CancelSubscriptionReasonsProps) => {
-    const t = useT()
+    const t = useT(billingPageCatalog)
     return (
         <section className="mt-5 flex flex-col gap-2">
-            <span className="font-medium text-colorText">{t("billing.selectReason")}</span>
+            <span className="font-medium text-colorText">{t("billing.page.selectReason")}</span>
 
             <RadioGroup value={value} onValueChange={onChange} className="flex flex-col gap-2">
                 {CANCEL_REASONS.map((reason) => (
@@ -52,7 +52,7 @@ export const CancelSubscriptionReasons = ({
 
             {value === CANCEL_REASON_OTHER ? (
                 <Input
-                    placeholder={t("billing.typeHere")}
+                    placeholder={t("billing.page.typeHere")}
                     value={otherReason}
                     onChange={(event) => onOtherReasonChange(event.target.value)}
                 />

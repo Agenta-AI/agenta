@@ -1,7 +1,9 @@
 import {useEffect, useRef, type ReactNode} from "react"
 
 import {useToolCatalogCategories} from "@agenta/entities/gatewayTool"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsToolsCatalog from "@agenta/i18n/catalogs/settings.tools"
 import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/ui"
 
@@ -33,7 +35,7 @@ export const CategoryChips = ({
     selected: string | null
     onSelect: (category: string | null) => void
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsToolsCatalog)
     const {categories, error} = useToolCatalogCategories()
     const rowRef = useRef<HTMLDivElement>(null)
     useScrollFadeEdges(rowRef, {axis: "x", enabled: categories.length > 0})

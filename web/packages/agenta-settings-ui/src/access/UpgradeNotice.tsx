@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
-import {richText} from "@agenta/i18n"
-import {useT} from "@agenta/i18n/settings"
+import {richText, useT} from "@agenta/i18n"
+import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
 
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 
@@ -16,7 +16,7 @@ export interface UpgradeNoticeProps {
 
 /** Stands in for a section the current plan does not include, framed like every empty page. */
 export const UpgradeNotice = ({icon, title, description, action}: UpgradeNoticeProps) => {
-    const t = useT()
+    const t = useT(settingsAccessCatalog)
     return (
         <SettingsEmpty
             icon={icon}

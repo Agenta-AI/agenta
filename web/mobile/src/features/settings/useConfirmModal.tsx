@@ -1,6 +1,7 @@
 import {useCallback, useState, type ReactNode} from "react"
 
-import {useT} from "@agenta/i18n/common"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 
 import {ConfirmModal} from "./ConfirmModal"
 
@@ -20,7 +21,7 @@ interface ConfirmRequest {
  * Returns the modal to render; a section given no `confirm` hides its destructive actions.
  */
 export const useConfirmModal = () => {
-    const t = useT()
+    const t = useT(commonCatalog)
     const [request, setRequest] = useState<ConfirmRequest | null>(null)
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)

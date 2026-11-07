@@ -1,7 +1,9 @@
 import {useEffect, useState} from "react"
 
 import type {OrganizationProvider} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n/settings"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsSsoProviderDialogCatalog from "@agenta/i18n/catalogs/settings.ssoProviderDialog"
 import {
     Button,
     Dialog,
@@ -46,7 +48,7 @@ export const SsoProviderDialog = ({
     onClose: () => void
     onSubmit: (values: SsoProviderFormValues) => Promise<void>
 }) => {
-    const t = useT()
+    const t = useT(commonCatalog, settingsSsoProviderDialogCatalog)
     const isEdit = Boolean(provider)
     const [slug, setSlug] = useState("")
     const [name, setName] = useState("")

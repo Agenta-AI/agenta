@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {richText} from "@agenta/i18n"
-import {t as tNow, useT} from "@agenta/i18n/channels"
+import {richText, useT, createT} from "@agenta/i18n"
+import channelsConnectCatalog from "@agenta/i18n/catalogs/channels.connect"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
     Button,
@@ -57,6 +58,8 @@ import type {
 } from "./types"
 import {ViewTransition} from "./ViewTransition"
 import {WhatsAppWebhook, copyText} from "./WhatsAppWebhook"
+
+const tNow = createT(channelsConnectCatalog, commonCatalog)
 
 /**
  * The connect flow for one platform, shared by the desktop drawer and the /m sheet.
@@ -141,7 +144,7 @@ const StepRow = ({
     body?: React.ReactNode
     children?: React.ReactNode
 }) => {
-    const t = useT()
+    const t = useT(channelsConnectCatalog, commonCatalog)
     const last = index === total
     return (
         <div className="flex gap-3">
@@ -192,7 +195,7 @@ const MethodCards = <T extends string>({
     onChange: (value: T) => void
     testId?: string
 }) => {
-    const t = useT()
+    const t = useT(channelsConnectCatalog, commonCatalog)
     return (
         <RadioGroup
             value={value}
@@ -309,7 +312,7 @@ export const ChannelConnectFlow = ({
     onConnected,
     pollIntervalMs = 2500,
 }: ChannelConnectFlowProps) => {
-    const t = useT()
+    const t = useT(channelsConnectCatalog, commonCatalog)
     const isSlack = platform === "slack"
     const isTelegram = platform === "telegram"
     // WhatsApp has no Agenta-hosted number: the customer always brings their own.
@@ -1443,7 +1446,7 @@ const SetupFieldInput = ({
     placeholder?: string
     hideLabel?: boolean
 }) => {
-    const t = useT()
+    const t = useT(channelsConnectCatalog, commonCatalog)
     const patternError = fieldPatternError(field, value)
     return (
         <label className="flex flex-col gap-1.5" aria-label={hideLabel ? field.label : undefined}>
