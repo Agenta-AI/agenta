@@ -1,17 +1,40 @@
 import asyncio
+import base64
 import smtplib
 import ssl
+from dataclasses import dataclass
 from email.message import EmailMessage
+from email.utils import formataddr, parseaddr
+from typing import Sequence
 
 import httpx
 
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import (
+    Attachment,
+    ContentId,
+    Disposition,
+    FileContent,
+    FileName,
+    FileType,
+    Mail,
+)
 
 from oss.src.utils.env import env
 from oss.src.utils.lazy import _load_sendgrid
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+RENDERED_EMAIL_TIMEOUT_SECONDS = 15
+
+
+@dataclass(frozen=True)
+class InlineImage:
+    """A PNG embedded in the message and referenced from the HTML as `cid:<cid>`."""
+
+    cid: str
+    filename: str
+    content: bytes
 
 
 # Shared invitation/notification email template. Inlined (rather than a file)
@@ -224,6 +247,115 @@ def _send_sendgrid_email_sync(
 
     sendgrid.send(message)
     return True
+
+
+def _send_rendered_smtp_sync(message: EmailMessage) -> None:
+    username = env.smtp.username
+    password = env.smtp.password
+    if bool(username) != bool(password):
+        raise RuntimeError(
+            "SMTP_USERNAME and SMTP_PASSWORD must be configured together"
+        )
+
+    context = ssl.create_default_context()
+    timeout = env.smtp.timeout or RENDERED_EMAIL_TIMEOUT_SECONDS
+
+    if env.smtp.use_ssl:
+        with smtplib.SMTP_SSL(
+            env.smtp.host,
+            env.smtp.port,
+            context=context,
+            timeout=timeout,
+        ) as smtp:
+            if username and password:
+                smtp.login(username, password)
+            smtp.send_message(message)
+    else:
+        with smtplib.SMTP(env.smtp.host, env.smtp.port, timeout=timeout) as smtp:
+            if env.smtp.use_tls:
+                smtp.starttls(context=context)
+            if username and password:
+                smtp.login(username, password)
+            smtp.send_message(message)
+
+
+def _send_rendered_sendgrid_sync(mail: Mail) -> None:
+    sendgrid = _load_sendgrid()
+    if sendgrid is None:
+        raise RuntimeError("The SendGrid client could not be built")
+
+    sendgrid.client.mail.send.post(
+        request_body=mail.get(),
+        timeout=RENDERED_EMAIL_TIMEOUT_SECONDS,
+    )
+
+
+def _with_display_name(sender: str, name: str | None) -> str:
+    current_name, address = parseaddr(sender)
+    if not name or current_name or not address:
+        return sender
+    return formataddr((name, address))
+
+
+async def send_rendered_email(
+    to_email: str,
+    subject: str,
+    html: str,
+    text: str,
+    *,
+    inline_images: Sequence[InlineImage] = (),
+    from_name: str | None = None,
+) -> None:
+    """Send a rendered email with a plain-text part and an HTML part.
+
+    Raises when no provider is set up, when the SendGrid client cannot be built, and
+    when the provider fails. It does not log: a provider error can hold the address.
+    """
+
+    sender = _with_display_name(_get_sender_email(), from_name)
+
+    if env.smtp.enabled:
+        message = EmailMessage()
+        message["From"] = sender
+        message["To"] = to_email
+        message["Subject"] = subject
+        message.set_content(text)
+        message.add_alternative(html, subtype="html")
+        html_part = message.get_payload()[-1]
+        for image in inline_images:
+            html_part.add_related(
+                image.content,
+                maintype="image",
+                subtype="png",
+                cid=f"<{image.cid}>",
+                disposition="inline",
+                filename=image.filename,
+            )
+        await asyncio.to_thread(_send_rendered_smtp_sync, message)
+        return
+
+    if env.sendgrid.enabled:
+        mail = Mail(
+            from_email=sender,
+            to_emails=to_email,
+            subject=subject,
+            plain_text_content=text,
+            html_content=html,
+        )
+        for image in inline_images:
+            mail.add_attachment(
+                Attachment(
+                    FileContent(base64.b64encode(image.content).decode()),
+                    FileName(image.filename),
+                    FileType("image/png"),
+                    Disposition("inline"),
+                    ContentId(image.cid),
+                )
+            )
+        await asyncio.to_thread(_send_rendered_sendgrid_sync, mail)
+        return
+
+    raise RuntimeError("No email provider is set up")
 
 
 async def add_contact(

@@ -188,6 +188,10 @@ from oss.src.dbs.postgres.triggers.dao import TriggersDAO
 from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.service import TriggersService
+from oss.src.core.triggers.failure_notifications import render_automation_failing
+from oss.src.core.triggers.outcomes import OutcomesService
+from oss.src.core.notifications.service import NotificationsService
+from oss.src.dbs.postgres.notifications.dao import NotificationsDAO
 from oss.src.apis.fastapi.triggers.router import TriggersRouter
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
@@ -1081,12 +1085,28 @@ interactions_service = SessionInteractionsService(
     records_service=records_service,
 )
 
+notifications_service = NotificationsService(
+    notifications_dao=NotificationsDAO(engine=_transactions_engine),
+    memberships_service=get_memberships_service(),
+    template=render_automation_failing,
+)
+
+outcomes_service = OutcomesService(
+    triggers_dao=triggers_dao,
+    session_executions_dao=session_executions_dao,
+    records_dao=records_dao,
+    notifications_service=notifications_service,
+    memberships_service=get_memberships_service(),
+    access_service=get_access_service(),
+)
+
 triggers_service = TriggersService(
     adapter_registry=triggers_adapter_registry,
     catalog_service=catalog_service,
     triggers_dao=triggers_dao,
     connections_service=connections_service,
     workflows_service=workflows_service,
+    notifications_service=notifications_service,
 )
 
 
@@ -1311,6 +1331,8 @@ tools = ToolsRouter(
 
 triggers = TriggersRouter(
     triggers_service=triggers_service,
+    outcomes_service=outcomes_service,
+    notifications_service=notifications_service,
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 

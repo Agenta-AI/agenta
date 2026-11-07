@@ -1,0 +1,39 @@
+---
+title: "Get an email when an automation starts failing"
+slug: automation-failure-emails
+date: 2026-11-05
+tags: [v0.129.0]
+description: "Agenta now emails you once when a schedule or event automation starts failing, and the automations screen shows how each run really ended."
+---
+
+<Summary>
+
+Agenta now emails you once when an automation starts failing. You get no more emails about it until it is fixed.
+
+- The automations screen shows how each run ended: **Succeeded**, **Failed**, **Cancelled** or **Waiting for a person**. Runs started in the last 24 hours no longer stay at **Running** after they end.
+- A run that fails before the agent starts, for example when no sandbox can be created, now reads as failed.
+- Self-hosted deployments can turn the emails off with `AGENTA_NOTIFICATIONS_EMAIL_ENABLED`.
+
+</Summary>
+
+{/* truncate */}
+
+## Failure emails
+
+An automation can stop working with no sign outside the automations screen. Agenta now sends one email when a run of an automation fails, when the automation is paused because its agent or access is gone, or when a run is skipped because the agent's model needs setup.
+
+The email names the automation and the project, says when it started failing, what happened and what to do, and links to the automation. It goes to the person who created the automation. If that person can no longer view automations in the project, it goes to the project's owners and admins, then to the organization owner.
+
+While the automation keeps failing, Agenta sends nothing more. The email is closed by the next run that completes or waits for an approval, and by an edit that leaves the automation on, a start, or a delete. The next failure after that sends one new email.
+
+A run that a person cancels sends no email. A run that waits for a person sends no email.
+
+## Run results on the automations screen
+
+A started run used to stay at **Running** for good, also when it failed. Each run now shows how it ended, and you can filter the run history by **Cancelled** and **Waiting for a person**.
+
+## Self-hosting
+
+The emails are on by default and need [SMTP or SendGrid](/self-host/configuration#smtp). To turn them off, set `AGENTA_NOTIFICATIONS_EMAIL_ENABLED=false`. See the [configuration reference](/self-host/configuration#agenta-notifications).
+
+The cron container calls a new admin route every minute, so update it with the API. The new route depends on the cron host `http://api:8000`, which does not resolve on the Helm chart, so Helm installs do not show run results or send these emails yet.

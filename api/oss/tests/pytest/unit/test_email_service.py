@@ -261,3 +261,121 @@ def test_get_sender_email_raises_when_unset(monkeypatch):
         ),
     ):
         emailing._get_sender_email()
+
+
+async def test_send_rendered_email_smtp_sends_both_parts_with_a_timeout(monkeypatch):
+    _disable_sendgrid(monkeypatch)
+    _enable_smtp(monkeypatch)
+    monkeypatch.setattr(env.smtp, "timeout", None)
+    FakeSmtp.instances = []
+    monkeypatch.setattr(emailing.smtplib, "SMTP", FakeSmtp)
+
+    await emailing.send_rendered_email(
+        "person@example.com", "Subject", "<p>Body</p>", "Body"
+    )
+
+    [smtp] = FakeSmtp.instances
+    assert smtp.kwargs["timeout"] == 15
+    message = smtp.send_message.call_args.args[0]
+    assert message["From"] == "smtp@example.com"
+    assert message["To"] == "person@example.com"
+    assert message["Subject"] == "Subject"
+    assert message.get_body(("plain",)).get_content().strip() == "Body"
+    assert message.get_body(("html",)).get_content().strip() == "<p>Body</p>"
+
+
+async def test_send_rendered_email_smtp_uses_the_configured_timeout(monkeypatch):
+    _disable_sendgrid(monkeypatch)
+    _enable_smtp(monkeypatch)
+    monkeypatch.setattr(env.smtp, "timeout", 7)
+    FakeSmtp.instances = []
+    monkeypatch.setattr(emailing.smtplib, "SMTP", FakeSmtp)
+
+    await emailing.send_rendered_email("a@example.com", "S", "<p>B</p>", "B")
+
+    assert FakeSmtp.instances[0].kwargs["timeout"] == 7
+
+
+async def test_send_rendered_email_sendgrid_sends_both_parts_with_a_timeout(
+    monkeypatch,
+):
+    _disable_smtp(monkeypatch)
+    monkeypatch.setattr(env.sendgrid, "api_key", "key")
+    monkeypatch.setattr(env.sendgrid, "from_email", "sendgrid@example.com")
+    client = Mock()
+    monkeypatch.setattr(emailing, "_load_sendgrid", lambda: client)
+
+    await emailing.send_rendered_email(
+        "person@example.com", "Subject", "<p>Body</p>", "Body"
+    )
+
+    kwargs = client.client.mail.send.post.call_args.kwargs
+    assert kwargs["timeout"] == 15
+    assert [
+        (part["type"], part["value"]) for part in kwargs["request_body"]["content"]
+    ] == [("text/plain", "Body"), ("text/html", "<p>Body</p>")]
+
+
+async def test_send_rendered_email_raises_when_the_sendgrid_client_fails(monkeypatch):
+    _disable_smtp(monkeypatch)
+    monkeypatch.setattr(env.sendgrid, "api_key", "key")
+    monkeypatch.setattr(env.sendgrid, "from_email", "sendgrid@example.com")
+    monkeypatch.setattr(emailing, "_load_sendgrid", lambda: None)
+
+    with pytest.raises(RuntimeError):
+        await emailing.send_rendered_email("a@example.com", "S", "<p>B</p>", "B")
+
+
+async def test_send_rendered_email_raises_with_no_provider(monkeypatch):
+    _disable_smtp(monkeypatch)
+    _disable_sendgrid(monkeypatch)
+
+    with pytest.raises(ValueError):
+        await emailing.send_rendered_email("a@example.com", "S", "<p>B</p>", "B")
+
+
+async def test_send_rendered_email_raises_the_provider_error_and_logs_nothing(
+    monkeypatch,
+):
+    _disable_sendgrid(monkeypatch)
+    _enable_smtp(monkeypatch)
+    exception = Mock()
+    monkeypatch.setattr(emailing.log, "exception", exception)
+
+    def fail(*_, **__):
+        raise OSError("550 person@example.com")
+
+    monkeypatch.setattr(emailing.smtplib, "SMTP", fail)
+
+    with pytest.raises(OSError):
+        await emailing.send_rendered_email("person@example.com", "S", "<p>B</p>", "B")
+
+    exception.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rendered_email_embeds_inline_images_over_smtp(monkeypatch):
+    sent = []
+    monkeypatch.setattr(emailing.env.smtp, "host", "smtp.example.com")
+    monkeypatch.setattr(emailing.env.smtp, "port", 587)
+    monkeypatch.setattr(emailing.env.smtp, "from_email", "account@example.com")
+    monkeypatch.setattr(emailing, "_send_rendered_smtp_sync", sent.append)
+
+    await emailing.send_rendered_email(
+        "person@example.com",
+        "Subject",
+        '<img src="cid:logo">',
+        "Body",
+        inline_images=(
+            emailing.InlineImage(cid="logo", filename="logo.png", content=b"png"),
+        ),
+        from_name="Agenta",
+    )
+
+    message = sent[0]
+    assert message["From"] == "Agenta <account@example.com>"
+    image = next(
+        part for part in message.walk() if part.get_content_type() == "image/png"
+    )
+    assert image["Content-ID"] == "<logo>"
+    assert image.get_content_disposition() == "inline"

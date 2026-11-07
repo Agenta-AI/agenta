@@ -12,4 +12,6 @@ export interface TriggerDeliveryData {
     error?: (string | null) | undefined;
     error_details?: (AgentaApi.AgentError | null) | undefined;
     is_test?: (boolean | null) | undefined;
+    outcome?: (AgentaApi.TriggerDeliveryOutcome | null) | undefined;
+    reason_code?: (string | null) | undefined;
 }

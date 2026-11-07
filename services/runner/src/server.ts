@@ -1147,7 +1147,7 @@ async function runAndStreamWithApiBaseResolved(
         persist(
           {
             type: "done",
-            ...(stopReason === "cancelled" ? { stopReason } : {}),
+            ...(stopReason === "cancelled" || stopReason === "error" ? { stopReason } : {}),
           },
           "agent",
         );
@@ -1223,7 +1223,7 @@ async function runAndStreamWithApiBaseResolved(
             endedByShutdown ? "execution_lost" : undefined,
           );
         }
-        persistTerminal(userStopped ? "cancelled" : undefined);
+        persistTerminal(userStopped ? "cancelled" : "error");
       }
       // The live envelope must agree with the transcript. A cooperative Stop that aborted acquire
       // before `runTurn` produced `ok: false` with the aborted-acquire sentence, and
@@ -1320,7 +1320,7 @@ async function runAndStreamWithApiBaseResolved(
       // Keyed on the same verdict, never on the bare Stop label: the transcript's ending has to
       // agree with the live envelope above, and a real failure must not be written down as a
       // cancellation just because a Stop arrived beside it.
-      persistTerminal(stoppedBeforeTerminal ? "cancelled" : undefined);
+      persistTerminal(stoppedBeforeTerminal ? "cancelled" : "error");
     }
     if (flushPersist) await flushPersist().catch(() => {});
     result = stoppedBeforeTerminal

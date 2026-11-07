@@ -489,8 +489,8 @@ class TriggersDispatcher:
             return
 
         if self._dispatch_fn is not None:
-            # Detached completion means the runner accepted ownership. The API has no durable
-            # callback for the run's later terminal outcome, so this delivery remains 202.
+            # Detached completion means the runner accepted ownership, so this delivery stays
+            # 202. The settle pass writes the run's ending to `data.outcome`.
             try:
                 run_id = await self._dispatch_fn(
                     project_id=project_id,

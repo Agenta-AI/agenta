@@ -9,7 +9,7 @@ the worker, so unknown-trigger handling is no longer the dispatcher's concern.
 from types import SimpleNamespace
 from uuid import uuid4
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -959,3 +959,69 @@ async def test_another_rejected_start_still_fails_and_retries():
         )
 
     assert dao.update_delivery.await_args.kwargs["status"].code == "500"
+
+
+def _worker_dispatch_fn():
+    """The `dispatch_fn` the triggers worker really builds."""
+    from entrypoints import worker_queues
+
+    with (
+        patch.object(worker_queues, "TrimOnAckRedisStreamBroker"),
+        patch.object(worker_queues, "TriggersWorker"),
+        patch.object(worker_queues, "TriggersDispatcher") as built,
+    ):
+        worker_queues._build_triggers_broker()
+    return built.call_args.kwargs["dispatch_fn"]
+
+
+@pytest.mark.parametrize(
+    ("rejection_kwargs", "status_code", "status_message"),
+    [
+        ({}, "500", "failed"),
+        (
+            {
+                "failure_code": "agent_needs_setup",
+                "failure_details": {"requirements": []},
+            },
+            "422",
+            "skipped",
+        ),
+    ],
+)
+async def test_an_error_first_frame_is_a_failed_start_on_the_worker_path(
+    monkeypatch, rejection_kwargs, status_code, status_message
+):
+    from oss.src.core.workflows.service import WorkflowsService
+    from oss.src.core.workflows.types import WorkflowDetachedStartRejected
+    from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
+
+    register_sharing_service_for_tests(monkeypatch)
+
+    async def invoke(self, *, strict_start=False, **_):
+        if strict_start:
+            raise WorkflowDetachedStartRejected("first frame", **rejection_kwargs)
+        return SimpleNamespace(run_id="accepted")
+
+    dao = _make_dao()
+    dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=MagicMock(),
+        dispatch_fn=_worker_dispatch_fn(),
+    )
+    schedule = _make_schedule(references={"workflow": Reference(slug="wf-1")})
+
+    with patch.object(WorkflowsService, "invoke_workflow_detached", invoke):
+        try:
+            await dispatcher.dispatch_schedule(
+                project_id=uuid4(),
+                schedule=schedule,
+                event_id="sched-1:2026-07-13T00:00:00",
+                event=_SCHEDULE_EVENT,
+            )
+        except WorkflowDetachedStartRejected:
+            assert status_code == "500"
+
+    status = dao.update_delivery.await_args.kwargs["status"]
+    assert (status.code, status.message) == (status_code, status_message)

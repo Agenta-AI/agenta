@@ -1,4 +1,4 @@
-"""NUL stripping of record bodies at the producer boundary (`_strip_nul`).
+"""NUL stripping of record bodies at the producer boundary (`strip_nul`).
 
 Postgres stores neither `text` nor `jsonb` containing U+0000, so one NUL anywhere in a record
 body fails the INSERT with `UntranslatableCharacterError` (SQLSTATE 22P05). Record bodies carry
@@ -22,7 +22,7 @@ from oss.src.core.sessions.records.dtos import SessionRecordEvent
 from oss.src.core.sessions.records.streaming import (
     _NUL_ESCAPE,
     MAX_ATTRIBUTES_BYTES,
-    _strip_nul,
+    strip_nul,
     _TRUNCATION_MARKER,
     publish_record,
 )
@@ -36,7 +36,7 @@ def test_orjson_escapes_nul_as_the_scanned_escape():
 
 
 def test_strips_nul_from_string_values():
-    assert _strip_nul({"text": "a\x00b"}) == {"text": "ab"}
+    assert strip_nul({"text": "a\x00b"}) == {"text": "ab"}
 
 
 def test_strips_nul_from_nested_containers():
@@ -45,7 +45,7 @@ def test_strips_nul_from_nested_containers():
         "output": ["clean", "no\x00pe"],
         "meta": {"inner": "x\x00y"},
     }
-    assert _strip_nul(body) == {
+    assert strip_nul(body) == {
         "type": "tool_result",
         "output": ["clean", "nope"],
         "meta": {"inner": "xy"},
@@ -54,34 +54,34 @@ def test_strips_nul_from_nested_containers():
 
 def test_strips_nul_from_dict_keys():
     # A key is as fatal as a value: the whole `jsonb` document is rejected either way.
-    assert _strip_nul({"k\x00ey": "value"}) == {"key": "value"}
+    assert strip_nul({"k\x00ey": "value"}) == {"key": "value"}
 
 
 def test_clean_key_survives_a_collision_with_a_stripped_key():
     """When stripping makes a poisoned key collide with a clean one, the clean entry must win
     regardless of insertion order: `"ty\x00pe"` silently replacing `"type"` would corrupt the
     discriminator that record reconstruction depends on."""
-    assert _strip_nul({"type": "tool_result", "ty\x00pe": "other"}) == {
+    assert strip_nul({"type": "tool_result", "ty\x00pe": "other"}) == {
         "type": "tool_result"
     }
-    assert _strip_nul({"ty\x00pe": "other", "type": "tool_result"}) == {
+    assert strip_nul({"ty\x00pe": "other", "type": "tool_result"}) == {
         "type": "tool_result"
     }
 
 
 def test_first_stripped_key_wins_when_no_clean_key_exists():
     # Two poisoned keys colliding with each other: keep the first, deterministically.
-    assert _strip_nul({"k\x00ey": "first", "ke\x00y": "second"}) == {"key": "first"}
+    assert strip_nul({"k\x00ey": "first", "ke\x00y": "second"}) == {"key": "first"}
 
 
 def test_leaves_non_string_leaves_alone():
     body = {"type": "usage", "total": 17, "cost": 1.5, "ok": True, "none": None}
-    assert _strip_nul(body) == body
+    assert strip_nul(body) == body
 
 
 def test_clean_body_is_unchanged():
     body = {"type": "message", "text": "hello"}
-    assert _strip_nul(body) == body
+    assert strip_nul(body) == body
 
 
 async def _published_attributes(attributes):

@@ -318,6 +318,8 @@ export const triggerDeliveryDataSchema = z
         error: z.string().nullish(),
         // Set on capture-and-skip deliveries from an is_test subscription.
         is_test: z.boolean().nullish(),
+        // How the run ended. The settle pass writes it on `202` deliveries.
+        outcome: z.string().nullish(),
     })
     .passthrough()
 export type TriggerDeliveryData = z.infer<typeof triggerDeliveryDataSchema>
