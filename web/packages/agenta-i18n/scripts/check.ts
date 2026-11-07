@@ -66,7 +66,7 @@ export function checkNamespace(
             problems.push(
                 placeholders(en).join() !== placeholders(value).join()
                     ? `placeholders or tags differ in ${key}: ${SOURCE_LANG} has ${fmt(placeholders(en))}, ${lang} has ${fmt(placeholders(value))}`
-                    : `a closing tag comes before its opening tag in ${key}`,
+                    : `tags are out of order, nested or crossed in ${key}`,
             )
         }
     }

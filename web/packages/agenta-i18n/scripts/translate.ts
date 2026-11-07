@@ -198,7 +198,7 @@ export interface NamespaceResult {
     usage: Usage
 }
 
-/** Applies a plan: translates in batches, rejects answers whose placeholders or tags differ. */
+/** Applies a plan: translates in batches, rejects answers whose placeholders or tags differ or are out of order. */
 export async function translateNamespace(
     plan: Plan,
     target: Catalog,
@@ -285,7 +285,7 @@ async function translateLanguage(
         total.rejected += result.rejected.length
         for (const key of result.rejected) {
             console.error(
-                `  rejected ${lang}/${ns}.${key}: missing answer, or placeholders or tags differ`,
+                `  rejected ${lang}/${ns}.${key}: missing answer, placeholders or tags differ, or tags are out of order, nested or crossed`,
             )
         }
         // Write after each namespace so a later failure keeps finished work.

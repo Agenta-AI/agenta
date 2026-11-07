@@ -90,7 +90,7 @@ describe("checkNamespace", () => {
     it("rejects a closing tag that comes before its opening tag", () => {
         expect(
             checkNamespace({a: "<link>Contact</link>"}, {a: "</link>联系<link>"}, "zh-CN"),
-        ).toEqual(["a closing tag comes before its opening tag in a"])
+        ).toEqual(["tags are out of order, nested or crossed in a"])
     })
 
     it("rejects crossed and nested tags, which richText does not read", () => {
@@ -100,7 +100,7 @@ describe("checkNamespace", () => {
             "<link>联系<date>周一</date></link>",
         ]) {
             expect(checkNamespace(en, {a: value}, "zh-CN")).toEqual([
-                "a closing tag comes before its opening tag in a",
+                "tags are out of order, nested or crossed in a",
             ])
         }
     })
