@@ -3,6 +3,7 @@ closes them, and the lock is released on shutdown."""
 
 import asyncio
 
+from oss.src.tasks.asyncio.channels import discord_socket
 from oss.src.tasks.asyncio.channels.discord_socket import DiscordSocketLoop
 
 from .socket_fakes import FakeChannelsService, FakeClient, FakeLocks, connection
@@ -109,4 +110,26 @@ async def test_lease_expiry_during_a_blocked_reload_closes_the_sockets(monkeypat
 
     shutdown.set()
     service.reload_gate.set()
+    await task
+
+
+async def test_hung_renewal_counts_as_a_lost_lock(monkeypatch):
+    fast(monkeypatch)
+    monkeypatch.setattr(discord_socket, "RENEW_TIMEOUT_SECONDS", 0.02)
+    FakeClient.reset()
+    locks = FakeLocks().install(monkeypatch)
+    service = FakeChannelsService()
+    service.add(connection())
+    loop = _loop(service)
+    shutdown = asyncio.Event()
+    task = asyncio.create_task(loop.run(shutdown))
+    await until(lambda: FakeClient.instances)
+
+    # Redis stops answering: the renewal call never returns.
+    locks.renew_gate = asyncio.Event()
+    await until(lambda: FakeClient.instances[0].closed.is_set())
+    assert not locks.renew_gate.is_set()
+
+    shutdown.set()
+    locks.renew_gate.set()
     await task

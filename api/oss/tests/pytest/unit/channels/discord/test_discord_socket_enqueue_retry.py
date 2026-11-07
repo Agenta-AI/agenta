@@ -75,3 +75,20 @@ async def test_failed_enqueue_retries_the_same_event_while_reading_continues(
     assert service.enqueued.count("101") == 1
     # One stored row per message, however many attempts.
     assert len(service.rows) == 2
+
+
+async def test_failed_store_retries_the_same_event_while_reading_continues(
+    monkeypatch,
+):
+    fast(monkeypatch, tick=0.02)
+    service = FakeChannelsService(FakeAdapter())
+    service.fail_stores = 2
+    socket = _socket(service)
+
+    socket.receive(frame("MESSAGE_CREATE", message("101")))
+    await until(lambda: service.attempts)
+    socket.receive(frame("MESSAGE_CREATE", message("102")))
+    await until(lambda: set(service.enqueued) == {"101", "102"})
+
+    assert service.attempts.count("101") + service.attempts.count("102") == 4
+    assert len(service.rows) == 2

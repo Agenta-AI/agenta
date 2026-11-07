@@ -15,8 +15,10 @@ not replay what it sent while the socket was down. So on every READY, the first
 socket of a connection included, the loop reads each channel's history after the
 last message stored before that READY, and passes each message through the same
 step. The inbox unique constraint drops the row of a message the socket already
-delivered, and recovery enqueues only the rows it stored, so such a message is
-not dispatched twice.
+delivered, and recovery enqueues only the rows it stored. So a message the
+socket stored first is dispatched once. When recovery stores it first, the live
+path enqueues the existing row again, and the dispatcher's claim on
+`(thread_id, event_id)` stops a second turn.
 """
 
 import asyncio
@@ -53,6 +55,10 @@ LOCK_TTL_SECONDS = 15
 # the connections on every tick, so a setup change takes effect within a tick.
 TICK_SECONDS = 5
 
+# A renewal that takes longer counts as a lost lock. With a renewal every tick,
+# the holder learns of the loss before the lease runs out.
+RENEW_TIMEOUT_SECONDS = 5
+
 # Both retries back off from RETRY_FIRST_SECONDS, doubling up to their cap.
 RETRY_FIRST_SECONDS = 1
 ENQUEUE_RETRY_MAX_SECONDS = 30
@@ -63,8 +69,10 @@ SOCKET_RETRY_MAX_SECONDS = 300
 RECOVERY_WINDOW = timedelta(hours=24)
 RECOVERY_SCAN_LIMIT = 1000
 # Rows stored this close to READY are left out of the recovery start, in case
-# the database clock runs ahead of ours. A lower start only reads again
-# messages the unique constraint then drops.
+# the database clock runs behind ours: a live row stored after READY could then
+# carry an earlier time. A lower start reads again messages the unique
+# constraint drops. A channel whose only rows fall inside the margin is not
+# recovered, which is a documented limit.
 RECOVERY_CLOCK_MARGIN = timedelta(seconds=5)
 
 # GUILDS, GUILD_MESSAGES, DIRECT_MESSAGES and the privileged MESSAGE_CONTENT.
@@ -175,8 +183,6 @@ class DiscordSocket:
                 )
             except discord.LoginFailure:
                 log.error("[DISCORD] bot token rejected", connection_id=connection_id)
-            except asyncio.CancelledError:
-                raise
             except Exception:
                 log.warning(
                     "[DISCORD] socket failed",
@@ -226,6 +232,10 @@ class DiscordSocket:
                 body=body, connection=self.connection
             )
         except Exception:
+            if recovered:
+                # Stops this channel's pass before its cursor moves past the
+                # message; the next READY reads it again.
+                raise
             log.error(
                 "[DISCORD] event could not be parsed",
                 connection_id=str(self.connection.id),
@@ -238,8 +248,10 @@ class DiscordSocket:
             await self._record_and_enqueue(event, recovered=recovered)
 
     async def _record_and_enqueue(self, inbound, *, recovered: bool) -> None:
-        """Retry a failed enqueue with the same event until it lands. The
-        socket keeps reading meanwhile: each event runs in its own task.
+        """Retry a failed store or a failed enqueue with the same event until
+        both land. The socket keeps reading meanwhile: each live event runs in
+        its own task. A recovery pass waits here, so its cursor never moves
+        past a message that is not stored.
 
         A recovered message that is already stored was enqueued when the socket
         delivered it, so recovery enqueues only a row it stores. Once its first
@@ -267,12 +279,12 @@ class DiscordSocket:
                 )
             except Exception:
                 log.error(
-                    "[DISCORD] event could not be stored",
+                    "[DISCORD] event could not be stored; retrying",
                     connection_id=str(self.connection.id),
                     external_id=inbound.external_id,
+                    retry_in=delay,
                     exc_info=True,
                 )
-                return
             await asyncio.sleep(delay)
             delay = min(delay * 2, ENQUEUE_RETRY_MAX_SECONDS)
 
@@ -326,8 +338,6 @@ class DiscordSocket:
         for channel_id, (after, guild_id) in start.items():
             try:
                 await self._recover_channel(channel_id, after, guild_id)
-            except asyncio.CancelledError:
-                raise
             except Exception:
                 log.warning(
                     "[DISCORD] recovery skipped a channel",
@@ -408,13 +418,21 @@ class DiscordSocketLoop:
 
     async def _renew(self, owner: str, shutdown: asyncio.Event) -> None:
         while not await _wait(shutdown, TICK_SECONDS):
-            if not await locking.renew_lock(
-                namespace=LOCK_NAMESPACE,
-                key=LOCK_KEY,
-                ttl=LOCK_TTL_SECONDS,
-                owner=owner,
-            ):
-                # Another replica may take the lock now; close before it opens.
+            try:
+                renewed = await asyncio.wait_for(
+                    locking.renew_lock(
+                        namespace=LOCK_NAMESPACE,
+                        key=LOCK_KEY,
+                        ttl=LOCK_TTL_SECONDS,
+                        owner=owner,
+                    ),
+                    timeout=RENEW_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                renewed = False
+            if not renewed:
+                # Another replica may take the lock once the lease runs out;
+                # close before it can open.
                 log.warning("[DISCORD] socket lock lost; closing sockets")
                 return
 

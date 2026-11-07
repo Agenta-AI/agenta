@@ -141,6 +141,8 @@ class FakeChannelsService:
         self.enqueued: List[str] = []
         self.attempts: List[str] = []
         self.fail_enqueues = 0
+        # Inserts that fail before the row is stored, as in a database outage.
+        self.fail_stores = 0
         self.start_queries = 0
         # Set to block every reload in query_active_connections.
         self.reload_gate: Optional[asyncio.Event] = None
@@ -183,6 +185,9 @@ class FakeChannelsService:
         self, *, project_id, connection_id, channel, inbound, enqueue_existing=True
     ):
         self.attempts.append(inbound.external_id)
+        if self.fail_stores > 0:
+            self.fail_stores -= 1
+            raise ConnectionError("database down")
         stored = self.store_row(self.connections[connection_id], inbound)
         if stored is None and not enqueue_existing:
             return
@@ -212,6 +217,8 @@ class FakeLocks:
         self.owners: Dict[str, str] = {}
         self.renew_ok = True
         self.released: List[str] = []
+        # Set to make every renewal hang, as on a Redis that stopped answering.
+        self.renew_gate: Optional[asyncio.Event] = None
 
     def expire(self) -> None:
         """The lease runs out, as when no renewal reached Redis in time."""
@@ -233,6 +240,8 @@ class FakeLocks:
         return owner
 
     async def renew(self, namespace, key=None, ttl=None, owner=None, **_):
+        if self.renew_gate is not None:
+            await self.renew_gate.wait()
         name = f"{namespace}:{key}"
         return self.renew_ok and self.owners.get(name) == owner
 

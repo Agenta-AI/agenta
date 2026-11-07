@@ -22,7 +22,7 @@ Keep one Discord Gateway socket open per active Discord connection, inside the e
 - **THEN** the loop SHALL close its sockets and release its lock
 
 ### Requirement: One lock owns all Discord sockets
-The loop SHALL hold one Redis lock, namespace `channels` and key `discord:sockets`, through `acquire_lock`, `renew_lock` and `release_lock` in `oss/src/utils/locking.py`, before it opens any socket. Only the holder SHALL open sockets. The loop SHALL renew the lock in a task separate from the connection reload, so a slow reload never delays the renewal.
+The loop SHALL hold one Redis lock, namespace `channels` and key `discord:sockets`, through `acquire_lock`, `renew_lock` and `release_lock` in `oss/src/utils/locking.py`, before it opens any socket. Only the holder SHALL open sockets. The loop SHALL renew the lock in a task separate from the connection reload, so a slow reload never delays the renewal. Each renewal call SHALL time out well before the lease expires, and a timeout SHALL count as a lost lock.
 
 #### Scenario: Two replicas
 - **WHEN** two `worker-queues` replicas start
@@ -35,6 +35,10 @@ The loop SHALL hold one Redis lock, namespace `channels` and key `discord:socket
 #### Scenario: Reload blocked when the lease runs out
 - **WHEN** a reload waits on the database while the lock expires
 - **THEN** the renewal SHALL fail on its own schedule and the holder SHALL close its sockets without waiting for the reload
+
+#### Scenario: Renewal call hangs
+- **WHEN** Redis stops answering and a renewal call does not return
+- **THEN** the call SHALL time out before the lease expires, and the holder SHALL close its sockets
 
 #### Scenario: Holder dies
 - **WHEN** the holder process stops without releasing the lock
@@ -67,15 +71,19 @@ For each Discord Gateway dispatch, the loop SHALL encode the dispatch as JSON by
 - **THEN** the loop SHALL store nothing
 
 ### Requirement: Retry of a failed enqueue
-When `record_and_enqueue_inbox_event` raises `ChannelInboxEnqueueFailed`, the loop SHALL retry the same parsed event, with the same `external_id`, with backoff, and SHALL keep reading the socket while it retries.
+When `record_and_enqueue_inbox_event` raises `ChannelInboxEnqueueFailed`, or fails to store the row, the loop SHALL retry the same parsed event, with the same `external_id`, with backoff, and SHALL keep reading the socket while it retries.
 
 #### Scenario: Queue outage
 - **WHEN** Redis is down for 20 seconds while a message arrives
 - **THEN** the loop SHALL retry that event until the enqueue succeeds, and the message SHALL start one turn
 
+#### Scenario: Database outage
+- **WHEN** the inbox insert fails while a message arrives
+- **THEN** the loop SHALL retry the same event until it is stored and enqueued
+
 #### Scenario: Process crash during the outage
 - **WHEN** the process stops while it still retries an event
-- **THEN** the stored row MAY have no turn, which is a documented limit shared with the webhook path
+- **THEN** the message MAY have no row or no turn, which is a documented limit shared with the webhook path
 
 ### Requirement: Socket errors
 The loop SHALL let `discord.py` handle heartbeat, resume and reconnect. When Discord closes a socket with code `4014`, the loop SHALL log an error that names the connection and SHALL retry with backoff.
@@ -116,8 +124,16 @@ On every READY, which Discord sends after a fresh IDENTIFY and never after a suc
 - **THEN** the loop SHALL start a second pass for the new READY, and the first pass SHALL keep going
 
 #### Scenario: Message delivered twice
-- **WHEN** recovery reads a message the socket already delivered
+- **WHEN** recovery reads a message the socket already stored
 - **THEN** the unique constraint SHALL drop the row, and recovery SHALL NOT enqueue a dispatch for it
+
+#### Scenario: Recovery stores a message first
+- **WHEN** recovery stores a message before the socket delivers it live
+- **THEN** the live path SHALL enqueue the existing row again, and the dispatcher's claim on `(thread_id, event_id)` SHALL stop a second turn
+
+#### Scenario: Store fails during recovery
+- **WHEN** a recovered message cannot be stored, or cannot be parsed
+- **THEN** recovery SHALL NOT read past it in that channel: a failed store is retried with backoff, and a failed parse stops that channel's pass until the next READY
 
 #### Scenario: Socket closed during an enqueue retry
 - **WHEN** the lock is lost or the connection changes while a received event waits for an enqueue retry
@@ -125,4 +141,4 @@ On every READY, which Discord sends after a fresh IDENTIFY and never after a suc
 
 #### Scenario: Quiet channel
 - **WHEN** a channel has no stored message in the last 24 hours
-- **THEN** recovery SHALL skip it, which is a documented limit
+- **THEN** recovery SHALL skip it, which is a documented limit. A channel whose only stored rows fall inside the 5 second clock margin is also not recovered.

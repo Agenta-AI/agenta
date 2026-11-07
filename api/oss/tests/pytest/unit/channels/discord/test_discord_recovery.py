@@ -120,6 +120,61 @@ async def test_message_delivered_twice_is_stored_and_enqueued_once():
     assert service.enqueued.count("200") == 1
 
 
+async def test_recovery_storing_first_lets_the_live_path_enqueue_again():
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    await _live(socket, message("100", channel_id="C"))
+
+    # Recovery stores 200 before the socket delivers it live.
+    adapter.history["C"] = [message("200", "C")]
+    await _ready(socket)
+    await _live(socket, message("200", channel_id="C"))
+
+    # One row. The live path enqueues the existing row again; the
+    # dispatcher's claim on (thread_id, event_id) stops a second turn.
+    assert len([key for key in service.rows if key[1] == "200"]) == 1
+    assert service.enqueued.count("200") == 2
+
+
+async def test_failed_store_in_recovery_does_not_move_past_the_message():
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    await _live(socket, message("100", channel_id="C"))
+
+    service.fail_stores = 2
+    adapter.history["C"] = [message("200", "C"), message("300", "C")]
+    await _ready(socket)
+
+    # 200 is retried until it is stored, before 300 is read.
+    assert service.attempts == ["100", "200", "200", "200", "300"]
+    assert service.enqueued == ["100", "200", "300"]
+
+
+async def test_failed_parse_in_recovery_stops_the_channel_pass():
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    await _live(socket, message("100", channel_id="C"))
+    parse = adapter.parse_event
+
+    async def flaky_parse(*, body, connection=None, request=None):
+        if b'"200"' in body:
+            raise ConnectionError("Discord down")
+        return await parse(body=body, connection=connection, request=request)
+
+    adapter.parse_event = flaky_parse
+    adapter.history["C"] = [message("200", "C"), message("300", "C")]
+    await _ready(socket)
+
+    # The pass stops at 200, so a later READY starts from 100 again.
+    assert "300" not in service.enqueued
+    adapter.parse_event = parse
+    await _ready(socket)
+    assert service.enqueued == ["100", "200", "300"]
+
+
 async def test_recovered_message_retries_a_failed_enqueue():
     adapter = FakeAdapter()
     service = FakeChannelsService(adapter)
