@@ -1,7 +1,7 @@
 import {useMemo, type ReactNode} from "react"
 
 import type {OrganizationDomain} from "@agenta/entities/organization"
-import {useT, type CatalogKey} from "@agenta/i18n"
+import {formatLocale, useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsAccessCatalog from "@agenta/i18n/catalogs/settings.access"
 import {getSettingsSidebarIcon} from "@agenta/settings"
@@ -42,8 +42,10 @@ const ExpirationCell = ({domain}: {domain: OrganizationDomain}) => {
     return (
         <span className={expired ? "truncate text-destructive" : "truncate text-muted-foreground"}>
             {expired
-                ? t("settings.access.expiredDate", {date: expiresAt.toLocaleString()})
-                : expiresAt.toLocaleString()}
+                ? t("settings.access.expiredDate", {
+                      date: expiresAt.toLocaleString(formatLocale()),
+                  })
+                : expiresAt.toLocaleString(formatLocale())}
         </span>
     )
 }

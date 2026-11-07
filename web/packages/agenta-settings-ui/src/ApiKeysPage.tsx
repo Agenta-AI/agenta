@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {useT} from "@agenta/i18n"
+import {formatLocale, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsApiKeysCatalog from "@agenta/i18n/catalogs/settings.apiKeys"
 import {getSettingsSidebarIcon, type ApiKeyRow} from "@agenta/settings"
@@ -25,7 +25,8 @@ export interface ApiKeysPageProps {
     onDelete: (prefix: string) => void
 }
 
-const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : "—")
+const formatDate = (value?: string | null) =>
+    value ? new Date(value).toLocaleDateString(formatLocale()) : "—"
 
 const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
     {key: "prefix", label: t("settings.apiKeys.apiKey"), width: "minmax(0,2fr)"},
@@ -43,7 +44,7 @@ const ExpiresCell = ({value}: {value?: string | null}) => {
     return date < new Date() ? (
         <StatusIndicator tone="error" label={t("settings.apiKeys.expired")} />
     ) : (
-        <span>{date.toLocaleDateString()}</span>
+        <span>{date.toLocaleDateString(formatLocale())}</span>
     )
 }
 
@@ -109,7 +110,7 @@ export const ApiKeysPage = ({
                         {shows("last_used_at") ? (
                             <span className="truncate text-muted-foreground">
                                 {record.last_used_at
-                                    ? new Date(record.last_used_at).toLocaleString()
+                                    ? new Date(record.last_used_at).toLocaleString(formatLocale())
                                     : t("settings.apiKeys.neverUsed")}
                             </span>
                         ) : null}

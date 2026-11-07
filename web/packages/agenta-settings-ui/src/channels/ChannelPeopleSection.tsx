@@ -18,7 +18,7 @@ import {
 } from "@agenta/ui/ui"
 import {UsersThree, X} from "@phosphor-icons/react"
 
-import {errorMessage} from "./helpers"
+import {errorMessage, splitIdList} from "./helpers"
 import type {
     ChannelAudiencePerson,
     ChannelPeopleDirectory,
@@ -210,10 +210,7 @@ export const ChannelPeopleSection = ({
     }
 
     const addTelegramIds = async () => {
-        const ids = draft
-            .split(",")
-            .map((value) => value.trim())
-            .filter(Boolean)
+        const ids = splitIdList(draft)
         if (!ids.length) return
         // The check compares the numeric id: a @username would be saved and never match.
         if (ids.some((id) => !/^\d+$/.test(id))) {

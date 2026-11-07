@@ -1,3 +1,4 @@
+import {formatLocale} from "@agenta/i18n"
 import type {AnalyticsColor} from "@agenta/observability-ui/analytics"
 
 const MUSD_PER_USD = 1_000_000
@@ -55,7 +56,7 @@ export const creditKind = (kind: string): CreditKind => {
 }
 
 export const formatDate = (iso: string): string =>
-    new Date(iso).toLocaleDateString(undefined, {
+    new Date(iso).toLocaleDateString(formatLocale(), {
         year: "numeric",
         month: "short",
         day: "numeric",
