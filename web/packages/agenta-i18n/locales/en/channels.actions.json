@@ -8,7 +8,6 @@
     "credentialsRejected": "The platform rejected the new credentials.",
     "disconnectFailed": "Could not disconnect.",
     "discoverSpacesFailed": "Could not list the channels this app can see.",
-    "hostedTelegramPreview": "The hosted Telegram bot is not available in this preview.",
     "hostedTelegramUnavailable": "The hosted Telegram bot is not available on this deployment.",
     "loadConnectionsFailed": "Could not load the channel connections.",
     "loadSetupFailed": "Could not load the {{platform}} setup.",

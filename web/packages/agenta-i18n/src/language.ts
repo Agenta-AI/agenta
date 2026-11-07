@@ -81,10 +81,8 @@ export const useLanguageSync = () => {
     useEffect(() => {
         let cancelled = false
         // Set only after the cancel check, so a superseded load never wins.
-        loadLanguage(language).then(
-            () => !cancelled && setActive(language),
-            () => !cancelled && reveal(),
-        )
+        // Never rejects: a catalog that fails or times out shows English.
+        void loadLanguage(language).then(() => !cancelled && setActive(language))
         return () => {
             cancelled = true
         }

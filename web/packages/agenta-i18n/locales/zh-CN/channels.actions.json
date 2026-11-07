@@ -8,7 +8,6 @@
     "credentialsRejected": "平台拒绝了新的凭据。",
     "disconnectFailed": "无法断开连接。",
     "discoverSpacesFailed": "无法列出此应用可见的频道。",
-    "hostedTelegramPreview": "此预览中不提供托管的 Telegram 机器人。",
     "hostedTelegramUnavailable": "此部署不提供托管的 Telegram 机器人。",
     "loadConnectionsFailed": "无法加载渠道连接。",
     "loadSetupFailed": "无法加载 {{platform}} 设置。",

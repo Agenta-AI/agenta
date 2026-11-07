@@ -10,6 +10,7 @@
     "dmsAndPlaces": "私信和{{places}}",
     "fieldInvalid": "{{label}} 无效。",
     "groupCount_other": "{{count}} 个群组",
+    "hostedTelegramPreview": "此预览中不提供托管的 Telegram 机器人。",
     "inWorkspace": "{{workspace}} 中的 {{subject}}",
     "loading": "加载中…",
     "looking": "查找中…",

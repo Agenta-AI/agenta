@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {useT} from "@agenta/i18n"
+import {createT, useT} from "@agenta/i18n"
 import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
 import channelsAdvancedCatalog from "@agenta/i18n/catalogs/channels.advanced"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
@@ -17,6 +17,14 @@ import type {
     ChannelToolSettings,
     ChannelsActions,
 } from "./types"
+
+// For callbacks and effects: a language change must not refetch or reset what is shown.
+const tNow = createT(
+    channelsActionsCatalog,
+    channelsAdvancedCatalog,
+    channelsLabelsCatalog,
+    commonCatalog,
+)
 
 /**
  * What the agent's channel tools may do through this bot: post outside the conversation that
@@ -268,9 +276,9 @@ export const ChannelAdvancedSection = ({
             show(await actions.readToolSettings(connectionId))
         } catch (e) {
             setSettings(null)
-            setError(errorMessage(e, t("channels.actions.readBotSettingsFailed")))
+            setError(errorMessage(e, tNow("channels.actions.readBotSettingsFailed")))
         }
-    }, [actions, connectionId, t])
+    }, [actions, connectionId])
 
     useEffect(() => {
         if (!open) return
@@ -281,9 +289,9 @@ export const ChannelAdvancedSection = ({
             .then(setChannels)
             .catch((e) => {
                 setChannels([])
-                setChannelsError(errorMessage(e, t("channels.advanced.listChannelsFailed")))
+                setChannelsError(errorMessage(e, tNow("channels.advanced.listChannelsFailed")))
             })
-    }, [open, load, actions, platform, connectionId, t])
+    }, [open, load, actions, platform, connectionId])
 
     const save = async (next: ChannelToolSettings) => {
         setSaving(true)

@@ -212,7 +212,9 @@ export const ChannelManagePanel = ({
             listed = await actions.listSpaces(connectionId)
         } catch (e) {
             setSpaces([])
-            setSpacesError(errorMessage(e, t("channels.manage.loadSpacesFailed", {platform: name})))
+            setSpacesError(
+                errorMessage(e, tNow("channels.manage.loadSpacesFailed", {platform: name})),
+            )
             return
         }
         setSpaces(listed)
@@ -224,7 +226,7 @@ export const ChannelManagePanel = ({
         } catch {
             /* keep the stand-in names */
         }
-    }, [actions, connectionId, name, t])
+    }, [actions, connectionId, name])
 
     // --- the picker behind "Add channel" --------------------------------------- //
     const [pickerOpen, setPickerOpen] = useState(false)
@@ -306,9 +308,9 @@ export const ChannelManagePanel = ({
             setBehavior(await actions.readBehavior(connection.platform, connectionId))
         } catch (e) {
             setBehavior(null)
-            setBehaviorError(errorMessage(e, t("channels.actions.readBehaviorFailed")))
+            setBehaviorError(errorMessage(e, tNow("channels.actions.readBehaviorFailed")))
         }
-    }, [actions, connectionId, connection.platform, t])
+    }, [actions, connectionId, connection.platform])
 
     const toggleBehavior = async (key: "dm" | "group", value: boolean) => {
         if (!connectionId || !behavior || behaviorSaving !== null) return

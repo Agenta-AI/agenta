@@ -8,7 +8,6 @@
     "credentialsRejected": "プラットフォームが新しい認証情報を拒否しました。",
     "disconnectFailed": "接続を解除できませんでした。",
     "discoverSpacesFailed": "このアプリから見えるチャンネルを一覧表示できませんでした。",
-    "hostedTelegramPreview": "このプレビューではホスト型の Telegram ボットを利用できません。",
     "hostedTelegramUnavailable": "このデプロイではホスト型の Telegram ボットを利用できません。",
     "loadConnectionsFailed": "チャネルの接続を読み込めませんでした。",
     "loadSetupFailed": "{{platform}} のセットアップを読み込めませんでした。",
