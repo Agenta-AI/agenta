@@ -66,16 +66,21 @@ export function placeholders(text: string): string[] {
     return [...names, ...(text.match(TAG) ?? [])].sort()
 }
 
-/** True when every closing tag follows an opening tag of the same name. */
+/** True when each tag closes before the next one opens, as richText() needs. */
 export function tagsInOrder(text: string): boolean {
-    const open = new Map<string, number>()
+    // richText() reads one tag at a time: no nesting, no crossing.
+    let open: string | null = null
     for (const tag of text.match(TAG) ?? []) {
         const name = tag.replace(/[</>]/g, "")
-        const count = (open.get(name) ?? 0) + (tag.startsWith("</") ? -1 : 1)
-        if (count < 0) return false
-        open.set(name, count)
+        if (tag.startsWith("</")) {
+            if (open !== name) return false
+            open = null
+        } else {
+            if (open !== null) return false
+            open = name
+        }
     }
-    return [...open.values()].every((count) => count === 0)
+    return open === null
 }
 
 /** Same placeholders and tags as the English text, with the tags in a valid order. */

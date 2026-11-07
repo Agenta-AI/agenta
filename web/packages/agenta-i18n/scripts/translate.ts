@@ -166,9 +166,22 @@ export function anthropicTranslator(options: {
         }
         const text = body.content?.find((block) => block.type === "text")?.text
         if (text === undefined) throw new TranslateError("Anthropic API answer has no text")
-        const parsed = JSON.parse(text) as {translations: {key: string; text: string}[]}
+        let parsed: unknown
+        try {
+            parsed = JSON.parse(text)
+        } catch {
+            throw new TranslateError("Anthropic API answer is not JSON")
+        }
+        const list = (parsed as {translations?: unknown})?.translations
+        if (!Array.isArray(list))
+            throw new TranslateError("Anthropic API answer has no translations")
+        // Entries without string fields are dropped; their keys count as rejected.
+        const entries = list.filter(
+            (t): t is {key: string; text: string} =>
+                typeof t?.key === "string" && typeof t?.text === "string",
+        )
         return {
-            translations: Object.fromEntries(parsed.translations.map((t) => [t.key, t.text])),
+            translations: Object.fromEntries(entries.map((t) => [t.key, t.text])),
             usage: {
                 inputTokens: body.usage?.input_tokens ?? 0,
                 outputTokens: body.usage?.output_tokens ?? 0,

@@ -171,6 +171,26 @@ describe("anthropicTranslator", () => {
         expect(body.output_config.format.type).toBe("json_schema")
     })
 
+    it("drops answer entries that are not strings and fails on a broken answer", async () => {
+        const translator = (text: string) =>
+            anthropicTranslator({
+                apiKey: "test",
+                model: "m",
+                system: "sys",
+                fetchFn: (async () =>
+                    Response.json({
+                        stop_reason: "end_turn",
+                        content: [{type: "text", text}],
+                    })) as typeof fetch,
+            })
+        const mixed = JSON.stringify({
+            translations: [{key: "a", text: "甲"}, {key: "b", text: 2}, null, {key: 3, text: "x"}],
+        })
+        expect((await translator(mixed)([{key: "a", en: "A"}])).translations).toEqual({a: "甲"})
+        await expect(translator("not json")([{key: "a", en: "A"}])).rejects.toThrow("not JSON")
+        await expect(translator("{}")([{key: "a", en: "A"}])).rejects.toThrow("no translations")
+    })
+
     it("fails with the status only, never the response text", async () => {
         const translator = (response: Response) =>
             anthropicTranslator({

@@ -93,6 +93,18 @@ describe("checkNamespace", () => {
         ).toEqual(["a closing tag comes before its opening tag in a"])
     })
 
+    it("rejects crossed and nested tags, which richText does not read", () => {
+        const en = {a: "<link>Contact</link> on <date>Monday</date>"}
+        for (const value of [
+            "<link>联系<date>周一</link></date>",
+            "<link>联系<date>周一</date></link>",
+        ]) {
+            expect(checkNamespace(en, {a: value}, "zh-CN")).toEqual([
+                "a closing tag comes before its opening tag in a",
+            ])
+        }
+    })
+
     it("accepts tag pairs in a different order than English", () => {
         expect(
             checkNamespace(
