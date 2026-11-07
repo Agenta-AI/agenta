@@ -3,7 +3,7 @@ import {useCallback, useEffect, useState} from "react"
 import {Alert, Button, Checkbox, RadioGroup, RadioGroupItem, Spinner, Switch} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
-import {errorMessage} from "./helpers"
+import {errorMessage, hasChannels} from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelPlatform,
@@ -51,14 +51,16 @@ const HELP = "text-xs leading-normal text-colorTextSecondary"
  * channel the bot joins later stays off until it is checked.
  */
 const AnswersInRow = ({
-    isSlack,
+    platform,
     answersIn,
 }: {
-    isSlack: boolean
+    platform: ChannelPlatform
     answersIn: ChannelAnswersInProps
 }) => {
     const {behavior, channels, onSave, busy = false} = answersIn
-    const noun = isSlack ? "channel" : "group"
+    const isSlack = platform === "slack"
+    const inChannels = hasChannels(platform)
+    const noun = inChannels ? "channel" : "group"
     const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
     const [draft, setDraft] = useState<string[]>(stored ?? [])
@@ -99,7 +101,7 @@ const AnswersInRow = ({
         setDraft(stored ?? [])
     }
 
-    const title = isSlack ? "Channels it answers in" : "Groups it answers in"
+    const title = inChannels ? "Channels it answers in" : "Groups it answers in"
 
     return (
         <div
@@ -109,8 +111,9 @@ const AnswersInRow = ({
             <span className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-medium text-colorText">{title}</span>
                 <span className={HELP}>
-                    Where it answers when mentioned. {isSlack ? "Direct messages" : "Private chats"}{" "}
-                    follow the switch above.{isSlack ? " Channels include group DMs." : ""}
+                    Where it answers when mentioned.{" "}
+                    {inChannels ? "Direct messages" : "Private chats"} follow the switch above.
+                    {isSlack ? " Channels include group DMs." : ""}
                 </span>
             </span>
             {error ? <Alert type="error" showIcon message={error} /> : null}
@@ -120,8 +123,8 @@ const AnswersInRow = ({
                 </div>
             ) : !behavior.group ? (
                 <span className={HELP}>
-                    {isSlack ? "Channels" : "Group chats"} are switched off above, so it answers in
-                    none.
+                    {inChannels ? "Channels" : "Group chats"} are switched off above, so it answers
+                    in none.
                 </span>
             ) : (
                 <>
@@ -210,7 +213,6 @@ export const ChannelAdvancedSection = ({
     actions,
     answersIn,
 }: ChannelAdvancedSectionProps) => {
-    const isSlack = platform === "slack"
     const [open, setOpen] = useState(false)
     const [settings, setSettings] = useState<ChannelToolSettings | null>(null)
     const [choice, setChoice] = useState<Choice>("all")
@@ -282,7 +284,7 @@ export const ChannelAdvancedSection = ({
     const toggleChannel = (key: string, checked: boolean) =>
         setDraft((keys) => (checked ? [...keys, key] : keys.filter((k) => k !== key)))
 
-    const noun = isSlack ? "channel" : "group"
+    const noun = hasChannels(platform) ? "channel" : "group"
 
     return (
         <div className="flex flex-col gap-2" data-testid="channels-advanced">
@@ -336,7 +338,7 @@ export const ChannelAdvancedSection = ({
                                     <span className="text-[13px] font-medium text-colorText">
                                         Channels it can search and read
                                     </span>
-                                    {isSlack ? null : (
+                                    {platform !== "telegram" ? null : (
                                         <span
                                             className={HELP}
                                             data-testid="channels-advanced-telegram-help"
@@ -436,7 +438,7 @@ export const ChannelAdvancedSection = ({
                                 ) : null}
                             </div>
                             {answersIn ? (
-                                <AnswersInRow isSlack={isSlack} answersIn={answersIn} />
+                                <AnswersInRow platform={platform} answersIn={answersIn} />
                             ) : null}
                         </div>
                     )}

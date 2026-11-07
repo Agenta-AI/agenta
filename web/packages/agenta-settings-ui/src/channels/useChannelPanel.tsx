@@ -445,7 +445,9 @@ export const useChannelPanel = ({
                       ? "Add a Slack workspace"
                       : route.platform === "whatsapp"
                         ? "Add a WhatsApp number"
-                        : "Add a Telegram bot"
+                        : route.platform === "discord"
+                          ? "Add a Discord bot"
+                          : "Add a Telegram bot"
                 return {title, icon: platformLogo(route.platform, 18)}
             }
             default:

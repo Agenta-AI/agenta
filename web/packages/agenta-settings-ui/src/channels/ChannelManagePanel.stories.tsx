@@ -57,8 +57,8 @@ type Story = StoryObj
 
 const asConnections = (connection: ChannelConnection): ChannelConnections =>
     connection.platform === "slack"
-        ? {slack: connection, telegram: null, whatsapp: null}
-        : {slack: null, telegram: connection, whatsapp: null}
+        ? {slack: connection, telegram: null, whatsapp: null, discord: null}
+        : {slack: null, telegram: connection, whatsapp: null, discord: null}
 
 const setup = {slack: SLACK_SETUP, telegram: TELEGRAM_SETUP}
 

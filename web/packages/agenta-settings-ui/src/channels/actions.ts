@@ -1,4 +1,4 @@
-import {platformLabel} from "./helpers"
+import {hasChannels, platformLabel} from "./helpers"
 import type {
     ChannelAudiencePerson,
     ChannelBehaviorState,
@@ -51,6 +51,7 @@ export interface ChannelsClientLike {
     archiveChannelConnection(body: object, scope?: Scope): Promise<unknown>
     editChannelConnection(body: object, scope?: Scope): Promise<unknown>
     fetchChannelSetup(body: object, scope?: Scope): Promise<unknown>
+    fetchChannelConnectionSetup(body: object, scope?: Scope): Promise<unknown>
     createTelegramHostedBindLink(body: object, scope?: Scope): Promise<unknown>
     listTelegramHostedBindings(body: object, scope?: Scope): Promise<unknown>
     queryChannelSpaces(body: object, scope?: Scope): Promise<unknown>
@@ -90,8 +91,9 @@ export const channelKey = (platform: ChannelPlatform, hosted: boolean): string =
     platform === "telegram" ? (hosted ? "telegram_hosted" : "telegram") : platform
 
 const platformOf = (channel: string): ChannelPlatform | null =>
-    (["telegram", "slack", "whatsapp"] as const).find((platform) => channel.startsWith(platform)) ??
-    null
+    (["telegram", "slack", "whatsapp", "discord"] as const).find((platform) =>
+        channel.startsWith(platform),
+    ) ?? null
 
 /** The first reference id in a channel agent's `data.references` (the app it answers as). */
 export const referencedAppId = (agent: Row): string | null => {
@@ -192,12 +194,13 @@ export const nameSpacesFrom = (
 /** The card's chat type for a space kind: only "is it a DM" changes the row's copy. */
 export const chatTypeOf = (kind: ChannelSpaceKind, platform: ChannelPlatform): ChannelChatType => {
     if (kind === "private") return "dm"
-    return platform === "slack" ? "channel" : "group"
+    return hasChannels(platform) ? "channel" : "group"
 }
 
-/** The space kinds the "group" switch covers. A Slack channel is a topic-bearing space. */
+/** The space kinds the "group" switch covers. A Slack or Discord channel is a topic-bearing
+ * space. */
 export const groupKindsOf = (platform: ChannelPlatform): ChannelSpaceKind[] =>
-    platform === "slack" ? ["group", "topic"] : ["group"]
+    hasChannels(platform) ? ["group", "topic"] : ["group"]
 
 /** The active default channel agent of a connection, or its first active agent. */
 export const answeringAgentRow = (agents: Row[]): Row | null => {
@@ -270,11 +273,12 @@ export const connectionsForAgent = (
         const here = c.agent === undefined || c.agent?.id === appId ? 4 : 0
         return here + (c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0)
     }
-    const out: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
+    const out: ChannelConnections = {slack: null, telegram: null, whatsapp: null, discord: null}
     const mine: Record<ChannelPlatform, ChannelConnection[]> = {
         slack: [],
         telegram: [],
         whatsapp: [],
+        discord: [],
     }
     for (const connection of rows) {
         const current = out[connection.platform]
@@ -293,6 +297,7 @@ export const connectionsForAgent = (
         slack: lead("slack"),
         telegram: lead("telegram"),
         whatsapp: lead("whatsapp"),
+        discord: lead("discord"),
     }
     out.allConnections = rows
     return out
@@ -865,6 +870,14 @@ export const buildAgentChannelsActions = ({
         return mapConnectionRow(row)
     }
 
+    /** The invite link is the Discord setup document, built from the recorded application id. */
+    const discordInviteUrl = async (connectionId: string): Promise<string | null> => {
+        const res = await client
+            .fetchChannelConnectionSetup({connection_id: connectionId}, scope())
+            .catch(rethrow("Could not load the invite link."))
+        return asString(asRecord(asRecord(asRecord(res).setup).document).link)
+    }
+
     const connectHere = async (platform: ChannelPlatform, connectionId: string) =>
         pointHere(connectionId).catch(rethrow("Could not connect this agent."))
 
@@ -908,6 +921,7 @@ export const buildAgentChannelsActions = ({
             if (setup && !setup.hostedAvailable) return null
             return hostedSlackInstallUrl(id)
         },
+        discordInviteUrl,
         connectCustom,
         connectHere,
         disconnect,

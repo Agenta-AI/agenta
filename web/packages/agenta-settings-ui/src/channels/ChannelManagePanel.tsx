@@ -35,6 +35,7 @@ import {
     disconnectSubject,
     errorMessage,
     formatConnectedOn,
+    hasChannels,
     platformLabel,
     slackInviteHandle,
 } from "./helpers"
@@ -88,6 +89,7 @@ export interface ChannelManagePanelProps {
 /** The secret fields a token update asks for when the backend declares none. */
 const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
     telegram: [{name: "bot_token", label: "Bot token", secret: true, required: true}],
+    discord: [{name: "bot_token", label: "Bot token", secret: true, required: true}],
     whatsapp: [
         {name: "access_token", label: "Access token", secret: true, required: true},
         {name: "app_secret", label: "App secret", secret: true, required: true},
@@ -102,9 +104,9 @@ const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
 const candidateKey = (candidate: ChannelSpaceCandidate): string =>
     `${candidate.kind}:${JSON.stringify(candidate.externalLocator)}`
 
-const spaceIcon = (kind: ChannelSpaceKind, isSlack: boolean) => {
+const spaceIcon = (kind: ChannelSpaceKind, channels: boolean) => {
     if (kind === "private") return <ChatCircle size={15} />
-    return isSlack ? <Hash size={15} /> : <UsersThree size={15} />
+    return channels ? <Hash size={15} /> : <UsersThree size={15} />
 }
 
 const SECTION_TITLE = "pb-1 text-[13px] font-semibold text-foreground"
@@ -126,6 +128,9 @@ export const ChannelManagePanel = ({
     const isSlack = connection.platform === "slack"
     const isTelegram = connection.platform === "telegram"
     const isWhatsApp = connection.platform === "whatsapp"
+    const isDiscord = connection.platform === "discord"
+    // Slack and Discord answer in channels; Telegram in groups.
+    const channels = hasChannels(connection.platform)
     const name = platformLabel(connection.platform)
     const connectionId = connection.connectionId
     const handle = botHandle(connection, hostedHandle)
@@ -179,6 +184,23 @@ export const ChannelManagePanel = ({
             /* keep the stand-in names */
         }
     }, [actions, connectionId, name])
+
+    // --- the Discord invite link, from the connection's setup document ---------- //
+    const [discordInviteUrl, setDiscordInviteUrl] = useState<string | null>(null)
+    useEffect(() => {
+        if (!isDiscord || !connectionId || elsewhere) return
+        let cancelled = false
+        actions
+            .discordInviteUrl(connectionId)
+            .then((url) => {
+                if (!cancelled) setDiscordInviteUrl(url)
+            })
+            // Without the link the panel only loses the shortcut; nothing to show.
+            .catch(() => undefined)
+        return () => {
+            cancelled = true
+        }
+    }, [isDiscord, connectionId, elsewhere, actions])
 
     // --- the picker behind "Add channel" --------------------------------------- //
     const [pickerOpen, setPickerOpen] = useState(false)
@@ -395,8 +417,8 @@ export const ChannelManagePanel = ({
         },
         {
             key: "group",
-            title: isSlack ? "Channels" : "Group chats",
-            help: isSlack
+            title: channels ? "Channels" : "Group chats",
+            help: channels
                 ? `Replies in a thread when someone mentions ${handle}.`
                 : "Groups the bot is added to, when it’s mentioned.",
         },
@@ -696,14 +718,14 @@ export const ChannelManagePanel = ({
                             {isWhatsApp
                                 ? "Meta rejected the access token"
                                 : revokedOffersToken
-                                  ? "Telegram revoked the bot token"
+                                  ? `${name} revoked the bot token`
                                   : `${name} uninstalled the app`}
                         </span>
                         <span className="text-[13px] text-muted-foreground">
                             {isWhatsApp
                                 ? `${agentName} cannot answer there until you paste a new access token.`
                                 : revokedOffersToken
-                                  ? `${agentName} cannot answer there until you paste a new token from @BotFather.`
+                                  ? `${agentName} cannot answer there until you paste a new token from ${isDiscord ? "the Discord Developer Portal" : "@BotFather"}.`
                                   : `${agentName} cannot answer there until the app is installed again.`}
                         </span>
                         {revokedOffersToken ? (
@@ -755,8 +777,21 @@ export const ChannelManagePanel = ({
                 <div className="flex flex-col pt-5">
                     <div className="flex items-center justify-between pb-1">
                         <span className="text-[13px] font-semibold text-foreground">
-                            {isSlack ? "Channels it’s in" : isWhatsApp ? "Chats" : "Groups"}
+                            {channels ? "Channels it’s in" : isWhatsApp ? "Chats" : "Groups"}
                         </span>
+                        {discordInviteUrl ? (
+                            <Button variant="ghost" size="xs" asChild>
+                                <a
+                                    href={discordInviteUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    data-testid="channels-discord-invite-link"
+                                >
+                                    <Plus weight="bold" data-icon="inline-start" />
+                                    Add to a server
+                                </a>
+                            </Button>
+                        ) : null}
                         {isSlack && !pickerOpen ? (
                             <Button
                                 variant="ghost"
@@ -784,7 +819,7 @@ export const ChannelManagePanel = ({
                                 data-testid="channels-space"
                             >
                                 <span className="flex flex-none text-muted-foreground">
-                                    {spaceIcon(space.kind, isSlack)}
+                                    {spaceIcon(space.kind, channels)}
                                 </span>
                                 <span
                                     className={`flex-1 truncate text-sm ${
@@ -878,7 +913,7 @@ export const ChannelManagePanel = ({
                                                         aria-label={candidate.displayName}
                                                     />
                                                     <span className="flex flex-none text-muted-foreground">
-                                                        {spaceIcon(candidate.kind, isSlack)}
+                                                        {spaceIcon(candidate.kind, channels)}
                                                     </span>
                                                     <span className="flex-1 truncate text-[13px] text-foreground">
                                                         {candidate.displayName}
@@ -926,7 +961,9 @@ export const ChannelManagePanel = ({
                         <span className="py-3 text-[13px] text-muted-foreground">
                             {isSlack
                                 ? `Invite ${inviteHandle} to a channel to add it here.`
-                                : `Add ${handle} to a group and mention it once. The group appears here.`}
+                                : isDiscord
+                                  ? `Add ${handle} to a server and mention it in a channel. The channel appears here.`
+                                  : `Add ${handle} to a group and mention it once. The group appears here.`}
                         </span>
                     )}
                 </div>

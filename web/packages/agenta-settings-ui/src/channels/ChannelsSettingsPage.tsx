@@ -58,6 +58,7 @@ const PLATFORM_DESCRIPTIONS: Record<ChannelPlatform, string> = {
     slack: "Mention or DM an agent in Slack",
     telegram: "Chat with an agent through a hosted bot or your own",
     whatsapp: "Let customers message an agent on WhatsApp",
+    discord: "Chat with an agent in your Discord server",
 }
 
 /** A connection's trailing mark: live, waiting on a first chat, or broken. */

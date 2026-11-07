@@ -13,15 +13,20 @@ import type {
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
 
 /** Every platform, in the order the Channels card lists them. */
-export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp"]
+export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp", "discord"]
 
 const PLATFORM_LABELS: Record<ChannelPlatform, string> = {
     slack: "Slack",
     telegram: "Telegram",
     whatsapp: "WhatsApp",
+    discord: "Discord",
 }
 
 export const platformLabel = (platform: ChannelPlatform): string => PLATFORM_LABELS[platform]
+
+/** Whether the platform's shared places are channels (Slack, Discord) rather than groups. */
+export const hasChannels = (platform: ChannelPlatform): boolean =>
+    platform === "slack" || platform === "discord"
 
 /** How a connection's install is described: the shared Agenta one, or the customer's own. */
 export const installKindLabel = (connection: ChannelConnection): string => {
@@ -94,7 +99,7 @@ export const connectionRowText = (
         return {title, detail}
     }
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = slack ? "channel" : "group"
+    const noun = hasChannels(connection.platform) ? "channel" : "group"
     const places = [
         ...(dm ? ["DMs"] : []),
         ...(nonDm ? [`${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`] : []),
@@ -204,7 +209,9 @@ export const summarizeConnection = (
                     ? "Chat with the agent in your team’s workspace"
                     : platform === "whatsapp"
                       ? "Answer messages to your WhatsApp Business number"
-                      : "Chat with the agent from your phone",
+                      : platform === "discord"
+                        ? "Chat with the agent in your Discord server"
+                        : "Chat with the agent from your phone",
             subClass: "text-colorTextTertiary",
             dotClass: "",
             connected: false,
@@ -216,7 +223,7 @@ export const summarizeConnection = (
     if (connection.status === "revoked") {
         return {
             sub:
-                platform === "telegram"
+                platform === "telegram" || platform === "discord"
                     ? "Bot token revoked · update it"
                     : platform === "whatsapp"
                       ? "Access token rejected · update it"
@@ -289,7 +296,7 @@ export const summarizeConnection = (
     }
 
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = platform === "slack" ? "channel" : "group"
+    const noun = hasChannels(platform) ? "channel" : "group"
     const groupsText = `${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`
     const where =
         nonDm && dm
@@ -333,7 +340,12 @@ export const DEFAULT_TOOL_SETTINGS: ChannelToolSettings = {
 }
 
 /** Nothing connected on any platform. */
-export const EMPTY_CONNECTIONS: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
+export const EMPTY_CONNECTIONS: ChannelConnections = {
+    slack: null,
+    telegram: null,
+    whatsapp: null,
+    discord: null,
+}
 
 export const DIRECT_MESSAGES_CHAT = {name: "Direct messages", type: "dm" as const}
 
@@ -379,6 +391,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     },
     countHostedTelegramBindings: async () => 0,
     hostedSlackInstallUrl: async () => null,
+    discordInviteUrl: async () => null,
     connectCustom: async () => null,
     connectHere: async () => {},
     disconnect: async () => {},
