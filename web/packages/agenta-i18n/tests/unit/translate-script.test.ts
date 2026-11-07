@@ -6,6 +6,7 @@ import {
     mergeMeta,
     namespaceMeta,
     planNamespace,
+    TranslateError,
     translateNamespace,
 } from "../../scripts/translate"
 import type {Item, TranslateBatch} from "../../scripts/translate"
@@ -128,26 +129,33 @@ describe("anthropicTranslator", () => {
         })
         const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit]
         expect(url).toBe("https://api.anthropic.com/v1/messages")
+        expect((init.headers as Record<string, string>)["anthropic-version"]).toBe("2023-06-01")
         const body = JSON.parse(init.body as string)
         expect(body.model).toBe("m")
         expect(body.output_config.format.type).toBe("json_schema")
     })
 
-    it("fails on an API error or a cut-off answer", async () => {
-        const failing = anthropicTranslator({
-            apiKey: "test",
-            model: "m",
-            system: "sys",
-            fetchFn: (async () =>
-                Response.json({error: {message: "bad"}}, {status: 400})) as typeof fetch,
-        })
-        await expect(failing([{key: "a", en: "A"}])).rejects.toThrow("Anthropic API 400: bad")
-        const cut = anthropicTranslator({
-            apiKey: "test",
-            model: "m",
-            system: "sys",
-            fetchFn: (async () => Response.json({stop_reason: "max_tokens"})) as typeof fetch,
-        })
-        await expect(cut([{key: "a", en: "A"}])).rejects.toThrow("max_tokens")
+    it("fails with the status only, never the response text", async () => {
+        const translator = (response: Response) =>
+            anthropicTranslator({
+                apiKey: "secret-key",
+                model: "m",
+                system: "sys",
+                fetchFn: (async () => response) as typeof fetch,
+            })
+        const failing = translator(
+            new Response("<html>bad gateway secret-key</html>", {status: 502}),
+        )
+        const error = await failing([{key: "a", en: "A"}]).catch((e: Error) => e)
+        expect(error).toBeInstanceOf(TranslateError)
+        expect((error as Error).message).toBe("Anthropic API returned HTTP 502")
+        await expect(
+            translator(Response.json({stop_reason: "max_tokens"}))([{key: "a", en: "A"}]),
+        ).rejects.toThrow("did not finish")
+        await expect(
+            translator(Response.json({stop_reason: "end_turn", content: []}))([
+                {key: "a", en: "A"},
+            ]),
+        ).rejects.toThrow("no text")
     })
 })

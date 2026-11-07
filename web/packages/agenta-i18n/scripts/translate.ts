@@ -4,8 +4,7 @@
  * adopts zh-CN values that have no recorded hash, and drops keys English no longer has.
  *
  * Usage: node scripts/translate.ts [--namespace <name>] [--dry-run]
- * Env: ANTHROPIC_API_KEY (required unless --dry-run), AGENTA_I18N_MODEL (default claude-sonnet-5-5),
- * ANTHROPIC_BASE_URL (optional)
+ * Env: ANTHROPIC_API_KEY (required unless --dry-run), AGENTA_I18N_MODEL (default claude-sonnet-5-5)
  */
 import {existsSync, mkdirSync, readFileSync, rmSync} from "node:fs"
 import {dirname, join} from "node:path"
@@ -66,9 +65,12 @@ export function planNamespace(source: Catalog, target: Catalog, meta: Catalog): 
     return plan
 }
 
-export function glossaryPrompt(glossary: Record<string, {zh: string; note: string}>): string {
+/** Errors whose message is safe to print: it never holds response text or the key. */
+export class TranslateError extends Error {}
+
+export function glossaryPrompt(glossary: Record<string, string>): string {
     return Object.entries(glossary)
-        .map(([term, {zh}]) => `${term} => ${zh}`)
+        .map(([term, zh]) => `${term} => ${zh}`)
         .join("\n")
 }
 
@@ -112,18 +114,16 @@ export function anthropicTranslator(options: {
     apiKey: string
     model: string
     system: string
-    baseUrl?: string
     fetchFn?: typeof fetch
 }): TranslateBatch {
     const fetchFn = options.fetchFn ?? fetch
-    const baseUrl = options.baseUrl ?? "https://api.anthropic.com"
     return async (items) => {
-        const response = await fetchFn(`${baseUrl}/v1/messages`, {
+        const response = await fetchFn("https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: {
                 "content-type": "application/json",
                 "x-api-key": options.apiKey,
-                "anthropic-version": "2026-10-21",
+                "anthropic-version": "2023-06-01",
             },
             body: JSON.stringify({
                 model: options.model,
@@ -136,21 +136,19 @@ export function anthropicTranslator(options: {
                 messages: [{role: "user", content: JSON.stringify(items, null, 1)}],
             }),
         })
+        if (!response.ok) {
+            throw new TranslateError(`Anthropic API returned HTTP ${response.status}`)
+        }
         const body = (await response.json()) as {
             stop_reason?: string
             content?: {type: string; text?: string}[]
             usage?: {input_tokens: number; output_tokens: number}
-            error?: {message: string}
-        }
-        if (!response.ok) {
-            throw new Error(
-                `Anthropic API ${response.status}: ${body.error?.message ?? "no message"}`,
-            )
         }
         if (body.stop_reason !== "end_turn") {
-            throw new Error(`Anthropic API stopped with ${body.stop_reason}`)
+            throw new TranslateError("Anthropic API did not finish the answer")
         }
-        const text = body.content?.find((block) => block.type === "text")?.text ?? "{}"
+        const text = body.content?.find((block) => block.type === "text")?.text
+        if (text === undefined) throw new TranslateError("Anthropic API answer has no text")
         const parsed = JSON.parse(text) as {translations: {key: string; zh: string}[]}
         return {
             translations: Object.fromEntries(parsed.translations.map((t) => [t.key, t.zh])),
@@ -257,12 +255,11 @@ async function main(argv: string[]): Promise<number> {
     }
     const glossary = JSON.parse(
         readFileSync(join(PACKAGE_DIR, "glossary.zh-CN.json"), "utf8"),
-    ) as Record<string, {zh: string; note: string}>
+    ) as Record<string, string>
     const translate = anthropicTranslator({
         apiKey,
         model,
         system: systemPrompt(glossaryPrompt(glossary)),
-        baseUrl: process.env.ANTHROPIC_BASE_URL || undefined,
     })
     const total: Usage = {inputTokens: 0, outputTokens: 0}
     let rejected = 0
@@ -314,7 +311,8 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     main(process.argv.slice(2)).then(
         (code) => process.exit(code),
         (error: unknown) => {
-            console.error(error instanceof Error ? error.message : error)
+            const reason = error instanceof TranslateError ? `: ${error.message}` : ""
+            console.error(`Translation stopped${reason}. Files written so far are kept.`)
             process.exit(1)
         },
     )

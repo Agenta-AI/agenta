@@ -1,176 +1,95 @@
 {
-    "Agenta": {"zh": "Agenta", "note": "Brand name. Keep in English."},
-    "Agent": {
-        "zh": "智能体",
-        "note": "Fixed choice. Langfuse PR uses 智能体; Dify keeps \"Agent\" in English. 智能体 is the common mainland term."
-    },
-    "Session": {
-        "zh": "会话",
-        "note": "Dify and Langfuse PR both use 会话."
-    },
-    "Chat": {
-        "zh": "对话",
-        "note": "Dify uses 对话 for the chat surface; Langfuse PR uses 聊天. 对话 reads as a product feature, 聊天 as casual talk."
-    },
-    "Message": {"zh": "消息", "note": "Langfuse PR and Dify use 消息."},
-    "Trace": {
-        "zh": "追踪",
-        "note": "Langfuse PR uses 追踪 most, 链路 for the Traces page; Dify keeps \"Trace\" or uses 追踪. Pick 追踪 for one term everywhere."
-    },
-    "Span": {
-        "zh": "Span",
-        "note": "Dify keeps \"Span\"; Langfuse PR mixes 跨度 and Span. OpenTelemetry users in China say Span."
-    },
-    "Observability": {"zh": "可观测性", "note": "Langfuse PR uses 可观测性."},
-    "Evaluation": {
-        "zh": "评估",
-        "note": "Langfuse PR uses 评估; Dify uses 评测. 评估 matches 评估器 for evaluator."
-    },
-    "Evaluator": {"zh": "评估器", "note": "Langfuse PR uses 评估器. Dify has no evaluator."},
-    "Testset": {
-        "zh": "测试集",
-        "note": "Neither source has it (Langfuse uses 数据集 for dataset). 测试集 is the standard ML term."
-    },
-    "Testcase": {
-        "zh": "测试用例",
-        "note": "Neither source has it. 测试用例 is the standard software term."
-    },
-    "Playground": {
-        "zh": "调试台",
-        "note": "Langfuse PR uses 调试台. Dify has no playground page (it uses 调试与预览)."
-    },
-    "Prompt": {"zh": "提示词", "note": "Dify and Langfuse PR both use 提示词."},
-    "Instructions": {"zh": "指令", "note": "Dify uses 指令 for agent instructions."},
-    "Context": {"zh": "上下文", "note": "Dify uses 上下文."},
-    "Memory": {"zh": "记忆", "note": "Dify uses 记忆 for chat memory."},
-    "Workflow": {"zh": "工作流", "note": "Dify uses 工作流."},
-    "Variant": {
-        "zh": "变体",
-        "note": "Neither source has it. 变体 is the usual term for an A/B variant."
-    },
-    "Revision": {"zh": "修订版本", "note": "Dify uses 修订版本."},
-    "Version": {"zh": "版本", "note": "Dify and Langfuse PR both use 版本."},
-    "Commit": {
-        "zh": "提交",
-        "note": "Langfuse PR and Dify use 提交 (提交说明 for commit message)."
-    },
-    "Draft": {"zh": "草稿", "note": "Dify uses 草稿."},
-    "Publish": {"zh": "发布", "note": "Dify uses 发布."},
-    "Deploy": {
-        "zh": "部署",
-        "note": "Dify and Langfuse PR both use 部署. Use 部署 for Deployment too."
-    },
-    "Environment": {"zh": "环境", "note": "Dify and Langfuse PR both use 环境."},
-    "Annotation": {
-        "zh": "标注",
-        "note": "Dify and Langfuse PR both use 标注 (标注队列 for annotation queue)."
-    },
-    "Queue": {"zh": "队列", "note": "Langfuse PR uses 队列."},
-    "Score": {"zh": "评分", "note": "Langfuse PR uses 评分; Dify uses 分数 or 得分."},
-    "Metric": {"zh": "指标", "note": "Langfuse PR uses 指标."},
-    "Feedback": {"zh": "反馈", "note": "Dify and Langfuse PR both use 反馈."},
-    "Latency": {"zh": "延迟", "note": "Langfuse PR uses 延迟."},
-    "Cost": {"zh": "费用", "note": "Langfuse PR uses 费用 most, 成本 sometimes. Pick 费用."},
-    "Token": {
-        "zh": "Token",
-        "note": "Langfuse PR mixes Token and 令牌; Dify keeps Token. Keep \"Token\" for LLM tokens; 令牌 reads as an access token."
-    },
-    "Skill": {
-        "zh": "技能",
-        "note": "Langfuse PR uses 技能 (智能体技能); Dify keeps \"Skill\". 技能 fits the localized 智能体."
-    },
-    "Tool": {"zh": "工具", "note": "Dify and Langfuse PR both use 工具."},
-    "Tool call": {"zh": "工具调用", "note": "Dify and Langfuse PR both use 工具调用."},
-    "Approve": {
-        "zh": "批准",
-        "note": "Langfuse PR uses 批准 for tool-call approval; Dify uses 审批 for workflow sign-off. Agenta approval is the tool-call case."
-    },
-    "Deny": {"zh": "拒绝", "note": "Pairs with 批准. Neither source has the exact word."},
-    "Automation": {"zh": "自动化", "note": "Langfuse PR uses 自动化."},
-    "Trigger": {"zh": "触发器", "note": "Dify and Langfuse PR use 触发器."},
-    "Schedule": {"zh": "定时任务", "note": "Dify uses 定时任务 and 定时触发."},
-    "Channel": {
-        "zh": "渠道",
-        "note": "Dify uses 渠道 for messaging channels; Langfuse PR mixes 频道 and 渠道. 频道 suits a Slack channel, 渠道 a connected channel type."
-    },
-    "Integration": {"zh": "集成", "note": "Dify and Langfuse PR both use 集成."},
-    "Connection": {"zh": "连接", "note": "Dify and Langfuse PR both use 连接."},
-    "Run": {"zh": "运行", "note": "Dify and Langfuse PR both use 运行."},
-    "Runner": {"zh": "运行器", "note": "Neither source has it. 运行器 follows 运行."},
-    "Sandbox": {
-        "zh": "沙箱",
-        "note": "Dify mixes Sandbox, 沙箱 and 沙盒; Langfuse PR uses 沙盒. Pick 沙箱, the common cloud term."
-    },
-    "Harness": {
-        "zh": "Harness",
-        "note": "Neither source has it. Keep English until a native speaker picks a term (for example 运行框架)."
-    },
-    "Mount": {
-        "zh": "挂载",
-        "note": "Neither source has it. 挂载 is the standard file-system term."
-    },
-    "Model": {"zh": "模型", "note": "Dify and Langfuse PR both use 模型."},
-    "Provider": {
-        "zh": "提供商",
-        "note": "Langfuse PR and most Dify strings use 提供商; Dify also has 供应商."
-    },
-    "Endpoint": {"zh": "端点", "note": "Dify and Langfuse PR use 端点."},
-    "Gateway": {"zh": "网关", "note": "Neither source has it. 网关 is the standard term."},
-    "Project": {"zh": "项目", "note": "Fixed choice. Dify and Langfuse PR both use 项目."},
-    "Workspace": {
-        "zh": "工作空间",
-        "note": "Fixed choice. Dify mixes 工作区 and 工作空间."
-    },
-    "Organization": {"zh": "组织", "note": "Dify and Langfuse PR both use 组织."},
-    "Member": {"zh": "成员", "note": "Fixed choice. Dify and Langfuse PR both use 成员."},
-    "Role": {"zh": "角色", "note": "Dify uses 角色."},
-    "Owner": {"zh": "所有者", "note": "Dify and Langfuse PR use 所有者."},
-    "Admin": {"zh": "管理员", "note": "Dify and Langfuse PR both use 管理员."},
-    "Viewer": {"zh": "查看者", "note": "Langfuse PR uses 查看者."},
-    "Editor": {"zh": "编辑者", "note": "Neither source has the role. 编辑者 pairs with 查看者."},
-    "Invite": {"zh": "邀请", "note": "Standard term."},
-    "API key": {"zh": "API 密钥", "note": "Fixed choice. Dify and Langfuse PR both use API 密钥."},
-    "Secret": {
-        "zh": "密钥",
-        "note": "Fixed choice. Dify and Langfuse PR use 密钥 for secret keys. Same word as in API 密钥."
-    },
-    "Webhook": {"zh": "Webhook", "note": "Fixed choice. Dify and Langfuse PR keep Webhook."},
-    "Credits": {
-        "zh": "额度",
-        "note": "Dify uses 额度 (消息额度). Langfuse PR has 额度 for provider credits."
-    },
-    "Billing": {
-        "zh": "账单",
-        "note": "Dify uses 账单; Langfuse PR mixes 计费 and 账单. Pick 账单."
-    },
-    "Plan": {"zh": "套餐", "note": "Dify and Langfuse PR both use 套餐 for a pricing plan."},
-    "Subscription": {"zh": "订阅", "note": "Dify and Langfuse PR both use 订阅."},
-    "Usage": {"zh": "用量", "note": "Dify and Langfuse PR both use 用量."},
-    "Settings": {"zh": "设置", "note": "Dify and Langfuse PR both use 设置."},
-    "Preferences": {"zh": "偏好设置", "note": "Dify uses 偏好设置."},
-    "Home": {
-        "zh": "首页",
-        "note": "Langfuse PR uses 首页; Dify mixes 首页 and 主页. Pick 首页."
-    },
-    "Template": {"zh": "模板", "note": "Dify and Langfuse PR both use 模板."},
-    "Configuration": {"zh": "配置", "note": "Dify and Langfuse PR both use 配置."},
-    "Parameter": {"zh": "参数", "note": "Dify and Langfuse PR both use 参数."},
-    "Variable": {"zh": "变量", "note": "Dify and Langfuse PR both use 变量."},
-    "Input": {"zh": "输入", "note": "Dify and Langfuse PR both use 输入."},
-    "Output": {"zh": "输出", "note": "Dify and Langfuse PR both use 输出."},
-    "Query": {"zh": "查询", "note": "Dify and Langfuse PR both use 查询."},
-    "Filter": {
-        "zh": "筛选",
-        "note": "Dify and Langfuse PR both use 筛选 (筛选条件 for the filter itself)."
-    },
-    "Tag": {"zh": "标签", "note": "Dify and Langfuse PR both use 标签."},
-    "Archive": {"zh": "归档", "note": "Dify and Langfuse PR both use 归档."},
-    "File": {"zh": "文件", "note": "Dify uses 文件."},
-    "Folder": {"zh": "文件夹", "note": "Langfuse PR uses 文件夹."},
-    "Attachment": {"zh": "附件", "note": "Langfuse PR uses 附件."},
-    "Upload": {"zh": "上传", "note": "Dify uses 上传."},
-    "Logs": {"zh": "日志", "note": "Dify and Langfuse PR both use 日志."},
-    "Dashboard": {"zh": "仪表盘", "note": "Langfuse PR uses 仪表盘."},
-    "Composio": {"zh": "Composio", "note": "Product name. Keep in English."},
-    "MCP": {"zh": "MCP", "note": "Protocol name. Keep in English."}
+    "Agenta": "Agenta",
+    "Agent": "Agent",
+    "Session": "会话",
+    "Chat": "对话",
+    "Message": "消息",
+    "Trace": "追踪",
+    "Span": "Span",
+    "Observability": "可观测性",
+    "Evaluation": "评测",
+    "Evaluator": "评测器",
+    "Testset": "测试集",
+    "Testcase": "测试用例",
+    "Playground": "调试台",
+    "Prompt": "提示词",
+    "Instructions": "指令",
+    "Context": "上下文",
+    "Memory": "记忆",
+    "Workflow": "工作流",
+    "Variant": "变体",
+    "Revision": "修订版本",
+    "Version": "版本",
+    "Commit": "提交",
+    "Draft": "草稿",
+    "Publish": "发布",
+    "Deploy": "部署",
+    "Environment": "环境",
+    "Annotation": "标注",
+    "Queue": "队列",
+    "Score": "分数",
+    "Metric": "指标",
+    "Feedback": "反馈",
+    "Latency": "延迟",
+    "Cost": "费用",
+    "Token": "Token",
+    "Skill": "Skill",
+    "Tool": "工具",
+    "Tool call": "工具调用",
+    "Approve": "审批",
+    "Deny": "拒绝",
+    "Automation": "自动化",
+    "Trigger": "触发器",
+    "Schedule": "定时任务",
+    "Channel": "渠道",
+    "Integration": "集成",
+    "Connection": "连接",
+    "Run": "运行",
+    "Runner": "运行器",
+    "Sandbox": "沙箱",
+    "Harness": "运行框架",
+    "Mount": "挂载",
+    "Model": "模型",
+    "Provider": "供应商",
+    "Endpoint": "端点",
+    "Gateway": "Gateway",
+    "Project": "项目",
+    "Workspace": "工作区",
+    "Organization": "组织",
+    "Member": "成员",
+    "Role": "角色",
+    "Owner": "所有者",
+    "Admin": "管理员",
+    "Viewer": "查看者",
+    "Editor": "编辑者",
+    "Invite": "邀请",
+    "API key": "API 密钥",
+    "Secret": "密钥",
+    "Webhook": "Webhook",
+    "Credits": "额度",
+    "Billing": "账单",
+    "Plan": "套餐",
+    "Subscription": "订阅",
+    "Usage": "用量",
+    "Settings": "设置",
+    "Preferences": "偏好设置",
+    "Home": "首页",
+    "Template": "模板",
+    "Configuration": "配置",
+    "Parameter": "参数",
+    "Variable": "变量",
+    "Input": "输入",
+    "Output": "输出",
+    "Query": "查询",
+    "Filter": "筛选",
+    "Tag": "标签",
+    "Archive": "归档",
+    "File": "文件",
+    "Folder": "文件夹",
+    "Attachment": "附件",
+    "Upload": "上传",
+    "Logs": "日志",
+    "Dashboard": "仪表盘",
+    "Composio": "Composio",
+    "MCP": "MCP"
 }
