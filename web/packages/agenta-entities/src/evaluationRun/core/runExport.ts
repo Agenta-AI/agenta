@@ -7,9 +7,11 @@
  * @packageDocumentation
  */
 
-import {formatMetricValue} from "./metricFormat"
+import {formatMetricValue, METRIC_PLACEHOLDER} from "./metricFormat"
 import type {MetricStats} from "./metricStats"
 import {deriveEvaluationKind, EVALUATION_KIND_LABELS, type RunKindInput} from "./runKind"
+import type {RunListColumns, RunListReferenceColumn} from "./runListColumns"
+import {selectRunMetricStats, type RunStatsMap} from "./runStatsMap"
 
 /**
  * One CSV cell: quoted when it holds a comma, a quote or a line break; quotes doubled. Text that
@@ -82,3 +84,79 @@ export const metricExportValue = (
     metricKey: string,
     stats: MetricStats | null | undefined,
 ): string => formatMetricValue(metricKey, stats)
+
+/** The reference column headers, the old list's labels. */
+export const RUN_LIST_REFERENCE_LABELS: Record<RunListReferenceColumn, string> = {
+    testset: "Test set",
+    query: "Query",
+    application: "Application",
+}
+
+/**
+ * The header line of a runs list export, for the columns on screen: Status, Name, Kind (All tab),
+ * the reference columns, "<evaluator> • <metric>" per evaluator metric, "Invocation • <metric>"
+ * per invocation metric, Created on and Created by. `evaluatorNames` maps an evaluator group id
+ * to its name; a group without one uses its id.
+ */
+export function runListExportHeaders(
+    plan: RunListColumns,
+    evaluatorNames: Readonly<Record<string, string>>,
+): string[] {
+    return [
+        "Status",
+        "Name",
+        ...(plan.showKind ? ["Kind"] : []),
+        ...plan.references.map((reference) => RUN_LIST_REFERENCE_LABELS[reference]),
+        ...plan.evaluators.flatMap((group) =>
+            group.columns.map((column) =>
+                metricExportHeader(column.label, evaluatorNames[group.id] ?? group.id),
+            ),
+        ),
+        ...plan.invocation.map((column) => metricExportHeader(column.label, "Invocation")),
+        "Created on",
+        "Created by",
+    ]
+}
+
+/** The names a run's export line shows, resolved by the caller. Null writes an empty cell. */
+export interface RunListExportNames {
+    testset: string | null
+    application: string | null
+    query: string | null
+    createdBy: string | null
+}
+
+/**
+ * One run's export line, in the order of {@link runListExportHeaders}. A metric cell is the text
+ * the list cell prints; a run without the column's evaluator writes "—", as the old export does.
+ */
+export function runListExportRow(
+    run: RunExportInput,
+    plan: RunListColumns,
+    {names, stats}: {names: RunListExportNames; stats: RunStatsMap | null},
+): string[] {
+    return [
+        runExportStatus(run),
+        runExportName(run),
+        ...(plan.showKind ? [runExportKind(run)] : []),
+        ...plan.references.map((reference) => names[reference] ?? ""),
+        ...plan.evaluators.flatMap((group) =>
+            group.columns.map((column) => {
+                const stepKey = column.stepKeysByRunId[run.id]
+                if (!stepKey) return METRIC_PLACEHOLDER
+                const value = stats
+                    ? selectRunMetricStats(stats, {metricKey: column.metricKey, stepKey})
+                    : null
+                return metricExportValue(column.metricKey, value)
+            }),
+        ),
+        ...plan.invocation.map((column) =>
+            metricExportValue(
+                column.metricKey,
+                stats ? selectRunMetricStats(stats, {metricKey: column.metricKey}) : null,
+            ),
+        ),
+        runExportCreatedAt(run),
+        names.createdBy ?? "",
+    ]
+}

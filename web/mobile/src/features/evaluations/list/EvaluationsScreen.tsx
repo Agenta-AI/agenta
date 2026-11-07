@@ -1,9 +1,9 @@
-import {useCallback, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {message} from "@agenta/ui/app-message"
 import {LoadError} from "@agenta/ui/components/presentational"
-import {ListTableToolbar} from "@agenta/ui/list-table"
+import {ListTableColumnsMenu, ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {Spinner} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
@@ -14,6 +14,7 @@ import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMember
 
 import {AppOverviewLink} from "../../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../../context/useBindProjectContext"
+import {useProjectPermission} from "../../context/useProjectPermission"
 import {useDeveloperPageFrame} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
@@ -22,9 +23,11 @@ import {useRevisionParam} from "../../revisions/useRevisionParam"
 
 import {CreateEvaluationMenu, type CreatableKind} from "./CreateEvaluationMenu"
 import {EvaluationKindTabs} from "./EvaluationKindTabs"
-import {EvaluationRunsTable} from "./EvaluationRunsTable"
+import {RunsTable} from "./EvaluationRunsTable"
 import {RunFilterChips} from "./RunFilterChips"
 import {RunFiltersPanel} from "./RunFiltersPanel"
+import {runDisplayName} from "./runReferences"
+import {RunsExportButton} from "./RunsExportButton"
 import {EvaluationsEmpty} from "./states/EvaluationsEmpty"
 import {EvaluationsKeepLooking} from "./states/EvaluationsKeepLooking"
 import {EvaluationsNoMatch} from "./states/EvaluationsNoMatch"
@@ -36,6 +39,7 @@ import {
 import {useEvaluationRunsList} from "./useEvaluationRunsList"
 import {useRunFilterOptions} from "./useRunFilterOptions"
 import {useRunRowActions} from "./useRunRowActions"
+import {useRunsTableLayout} from "./useRunsTableLayout"
 
 // The drawer and its config pane cost nothing until a reader opens a variant.
 const RevisionDrawerHost = dynamic(
@@ -79,6 +83,25 @@ export const EvaluationsScreen = ({
     const searchField = useDebouncedAtomSearch(filters.setSearch, 300, search)
     const filtered = search.trim() !== "" || countRunFilters(panel) > 0
     const canCreate = Boolean(onCreate) && actions.canEdit
+    const layout = useRunsTableLayout({
+        runs: list.runs,
+        kind,
+        scope: appId ? "app" : "project",
+        columnsKey: "evaluations",
+    })
+    // Export needs the API key permissions, as in the old list.
+    const canViewKeys = useProjectPermission(projectId, "view_api_keys")
+    const canEditKeys = useProjectPermission(projectId, "edit_api_keys")
+    const canExport = canViewKeys && canEditKeys
+    const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+    // Only the runs on screen count: a run that left the list (another tab, a filter, a delete)
+    // is neither deleted nor exported.
+    const selectedRuns = useMemo(
+        () => list.runs.filter((run) => selected.has(run.id)),
+        [list.runs, selected],
+    )
+    const selectedKeys = useMemo(() => new Set(selectedRuns.map((run) => run.id)), [selectedRuns])
+    const bulkBusy = selectedRuns.some((run) => actions.isBusy(run.id))
 
     const loadMore = useCallback(async () => {
         const result = await list.fetchNextPage()
@@ -151,9 +174,26 @@ export const EvaluationsScreen = ({
                                             onChange={filters.setPanel}
                                         />
                                     </div>
-                                    {createMenu ? (
-                                        <div className="ml-auto">{createMenu}</div>
-                                    ) : null}
+                                    <div className="ml-auto flex items-center gap-2">
+                                        <ListTableColumnsMenu
+                                            columns={layout.allColumns}
+                                            hiddenKeys={layout.hiddenKeys}
+                                            onChange={layout.setColumnVisible}
+                                        />
+                                        {canExport ? (
+                                            <RunsExportButton
+                                                projectId={projectId}
+                                                runs={
+                                                    selectedRuns.length > 0
+                                                        ? selectedRuns
+                                                        : list.runs
+                                                }
+                                                plan={layout.plan}
+                                                evaluatorNames={layout.evaluatorNames}
+                                            />
+                                        ) : null}
+                                        {createMenu}
+                                    </div>
                                 </>
                             }
                         />
@@ -166,12 +206,39 @@ export const EvaluationsScreen = ({
                             />
                         ) : (
                             <>
-                                <EvaluationRunsTable
+                                <RunsTable
                                     runs={list.runs}
-                                    kind={kind}
+                                    layout={layout}
                                     isLoading={list.isPending}
-                                    scope={appId ? "app" : "project"}
                                     actions={actions}
+                                    selection={
+                                        // No checkboxes over an empty list: its header row stays hidden.
+                                        list.runs.length > 0 && (actions.canEdit || canExport)
+                                            ? {
+                                                  selectedKeys,
+                                                  onChange: setSelected,
+                                                  rowLabel: (run) =>
+                                                      `Select ${runDisplayName(run)}`,
+                                                  bulkActions: () =>
+                                                      actions.canEdit ? (
+                                                          <Button
+                                                              type="button"
+                                                              size="sm"
+                                                              variant="destructive"
+                                                              disabled={bulkBusy}
+                                                              onClick={() =>
+                                                                  actions.removeRuns(
+                                                                      selectedRuns,
+                                                                      () => setSelected(new Set()),
+                                                                  )
+                                                              }
+                                                          >
+                                                              Delete
+                                                          </Button>
+                                                      ) : null,
+                                              }
+                                            : undefined
+                                    }
                                     empty={
                                         list.hasNextPage ? (
                                             <EvaluationsKeepLooking />

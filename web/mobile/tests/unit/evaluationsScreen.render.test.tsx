@@ -204,7 +204,8 @@ describe("evaluation runs table", () => {
         http.post.mockResolvedValue(page([makeRun("a")]))
         await mount()
         const headers = [...host.querySelectorAll("[role=columnheader]")].map((h) => h.textContent)
-        expect(headers).toEqual(["Status", "Name", "Actions"])
+        // The first header is the select-all checkbox.
+        expect(headers).toEqual(["", "Status", "Name", "Actions"])
         expect(text()).not.toContain("Alex Kim")
         expect(host.querySelector("[aria-label='Run actions']")).not.toBeNull()
     })
