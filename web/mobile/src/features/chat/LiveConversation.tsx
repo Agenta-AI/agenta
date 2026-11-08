@@ -1054,18 +1054,22 @@ export const LiveConversation = ({
                         the same place the desktop banner sits. */}
                         <ContentRail>
                             <ConnectModelStrip gateActive={modelBlocked} />
-                            {readOnly ? null : (
-                                <CreditAlertStrip
-                                    projectId={projectId}
-                                    entityId={entityId}
-                                    hidden={modelBlocked || setupBlocked}
-                                    onSwitchModel={() => modelPickerRef.current?.()}
-                                />
-                            )}
                             {modelBlocked ? null : (
                                 <ModelSetupBanner revisionId={entityId} onSetUp={openModelSetup} />
                             )}
                         </ContentRail>
+                        {readOnly ? null : (
+                            <div className="bg-background shrink-0 px-3">
+                                <ContentRail>
+                                    <CreditAlertStrip
+                                        projectId={projectId}
+                                        entityId={entityId}
+                                        hidden={modelBlocked || setupBlocked}
+                                        onSwitchModel={() => modelPickerRef.current?.()}
+                                    />
+                                </ContentRail>
+                            </div>
+                        )}
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
                             <PendingTaskError

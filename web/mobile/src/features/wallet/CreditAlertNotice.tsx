@@ -1,5 +1,8 @@
 import {Button} from "@agenta/ui/ui"
-import {AlertTriangle, Clock, X, XCircle, type LucideIcon} from "lucide-react"
+import {Coins} from "@phosphor-icons/react"
+import {X} from "lucide-react"
+
+import {cn} from "@/lib/utils"
 
 import type {CreditAlert} from "./creditAlert"
 import type {ModelFunding} from "./modelFunding"
@@ -11,8 +14,13 @@ export type CreditAlertAction = "switch-model" | "add-key" | "buy"
 /** Whether this user can buy credits: `null` while the permission check is still running. */
 export type CanBuy = boolean | null
 
+interface NoticeCopy {
+    title: string
+    detail: string
+}
+
 interface NoticeRow {
-    text: (alert: ShownAlert, canBuy: CanBuy) => string
+    copy: (alert: ShownAlert, canBuy: CanBuy) => NoticeCopy
     main: CreditAlertAction | null
     secondary: CreditAlertAction | null
 }
@@ -23,73 +31,65 @@ const ACTION_LABELS: Record<CreditAlertAction, string> = {
     buy: "Buy credits",
 }
 
-const lowLeft = (alert: ShownAlert) =>
-    alert.kind === "low" ? `${formatCredits(alert.remainingMusd)} credits left` : ""
+const lowCopy = (detail: string) => (alert: ShownAlert) => ({
+    title: "Running low on credits",
+    detail: `${alert.kind === "low" ? formatCredits(alert.remainingMusd) : "0"} credits left${detail}`,
+})
 
-const outOfCredits = (_: ShownAlert, canBuy: CanBuy) =>
-    canBuy === false
-        ? "Out of credits. Ask an admin to add credits."
-        : "Out of credits. New tasks will not start until you add credits."
+const emptyCopy = (_: ShownAlert, canBuy: CanBuy) => ({
+    title: "Out of credits",
+    detail:
+        canBuy === false
+            ? "Ask an admin to add credits."
+            : "New tasks will not start until you add credits.",
+})
 
-const onDaily = (alert: ShownAlert) => {
-    if (alert.kind !== "daily") return ""
-    if (alert.todayMusd === null) return "Today's free credits arrive with your next task."
-    const left = `Running on today's free credits (${formatCredits(alert.todayMusd)} left).`
-    return alert.refills ? `${left} They reset at 00:00 UTC.` : left
+const dailyCopy = (alert: ShownAlert) => {
+    if (alert.kind !== "daily" || alert.todayMusd === null)
+        return {
+            title: "Free credits on the way",
+            detail: "Today's free credits arrive with your next task.",
+        }
+    const left = `${formatCredits(alert.todayMusd)} left today.`
+    return {
+        title: "Running on today's free credits",
+        detail: alert.refills ? `${left} They reset at 00:00 UTC.` : left,
+    }
 }
 
 const ROWS: Record<ShownAlert["kind"], Record<ModelFunding, NoticeRow>> = {
     low: {
         "credits-with-own-key": {
-            text: (a) => `${lowLeft(a)}. Switch to your own model key to save credits.`,
+            copy: lowCopy(". Switch to your own model key to save credits."),
             main: "switch-model",
             secondary: "buy",
         },
         "credits-no-own-key": {
-            text: (a) => `${lowLeft(a)}. Add your own model key to save credits.`,
+            copy: lowCopy(". Add your own model key to save credits."),
             main: "add-key",
             secondary: "buy",
         },
-        "own-key": {
-            text: (a) => `${lowLeft(a)} for agent runtime and tools.`,
-            main: "buy",
-            secondary: null,
-        },
+        "own-key": {copy: lowCopy(" for agent runtime and tools."), main: "buy", secondary: null},
     },
     empty: {
-        "credits-with-own-key": {text: outOfCredits, main: "buy", secondary: "switch-model"},
-        "credits-no-own-key": {text: outOfCredits, main: "buy", secondary: "add-key"},
-        "own-key": {text: outOfCredits, main: "buy", secondary: null},
+        "credits-with-own-key": {copy: emptyCopy, main: "buy", secondary: "switch-model"},
+        "credits-no-own-key": {copy: emptyCopy, main: "buy", secondary: "add-key"},
+        "own-key": {copy: emptyCopy, main: "buy", secondary: null},
     },
     daily: {
-        "credits-with-own-key": {text: onDaily, main: null, secondary: "switch-model"},
-        "credits-no-own-key": {text: onDaily, main: null, secondary: "add-key"},
-        "own-key": {text: onDaily, main: null, secondary: null},
+        "credits-with-own-key": {copy: dailyCopy, main: null, secondary: "switch-model"},
+        "credits-no-own-key": {copy: dailyCopy, main: null, secondary: "add-key"},
+        "own-key": {copy: dailyCopy, main: null, secondary: null},
     },
 }
 
-const TONES: Record<
-    ShownAlert["kind"],
-    {className: string; Icon: LucideIcon; dismissible: boolean}
-> = {
-    low: {
-        className: "border-colorWarning/30 bg-colorWarningBg text-colorWarningText",
-        Icon: AlertTriangle,
-        dismissible: true,
-    },
-    empty: {
-        className: "border-colorErrorBorder bg-colorErrorBg text-colorErrorText",
-        Icon: XCircle,
-        dismissible: false,
-    },
-    daily: {
-        className: "border-border bg-muted text-muted-foreground",
-        Icon: Clock,
-        dismissible: true,
-    },
+const TONES: Record<ShownAlert["kind"], {tile: string; dismissible: boolean}> = {
+    low: {tile: "bg-colorWarningBg text-colorWarningText", dismissible: true},
+    empty: {tile: "bg-colorErrorBg text-colorErrorText", dismissible: false},
+    daily: {tile: "bg-muted text-muted-foreground", dismissible: true},
 }
 
-/** The strip's content for one alert; `CreditAlertStrip` supplies the data and the actions. */
+/** The credit card's content for one alert; `CreditAlertStrip` supplies the data and the actions. */
 export const CreditAlertNotice = ({
     alert,
     funding,
@@ -106,6 +106,7 @@ export const CreditAlertNotice = ({
 }) => {
     const row = ROWS[alert.kind][funding ?? "own-key"]
     const tone = TONES[alert.kind]
+    const {title, detail} = row.copy(alert, canBuy)
     const available = (action: CreditAlertAction | null) =>
         action === "buy" && canBuy !== true ? null : action
     const main = available(row.main)
@@ -113,29 +114,51 @@ export const CreditAlertNotice = ({
 
     return (
         <div
-            className={`mb-2 flex items-center justify-between gap-3 rounded-lg border border-solid px-3 py-2 ${tone.className}`}
+            className={cn(
+                "border-border bg-background relative mb-2 flex items-center gap-3 rounded-[14px] border border-solid py-3 pl-3.5",
+                tone.dismissible ? "pr-9" : "pr-3.5",
+            )}
         >
-            <span className="flex min-w-0 items-center gap-2 text-xs">
-                <tone.Icon className="size-3.5 shrink-0" />
-                <span className="min-w-0">{row.text(alert, canBuy)}</span>
+            <span
+                className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-[10px]",
+                    tone.tile,
+                )}
+            >
+                <Coins size={18} />
             </span>
-            <span className="flex shrink-0 items-center gap-1.5">
-                {secondary ? (
-                    <Button size="sm" variant="outline" onClick={() => onAction(secondary)}>
-                        {ACTION_LABELS[secondary]}
-                    </Button>
-                ) : null}
-                {main ? (
-                    <Button size="sm" onClick={() => onAction(main)}>
-                        {ACTION_LABELS[main]}
-                    </Button>
-                ) : null}
-                {tone.dismissible ? (
-                    <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={onDismiss}>
-                        <X className="size-3.5" />
-                    </Button>
-                ) : null}
+            <span className="flex min-w-0 flex-1 flex-col gap-px">
+                <span className="text-foreground text-[13px] leading-[18px] font-medium">
+                    {title}
+                </span>
+                <span className="text-muted-foreground text-xs leading-[17px] tabular-nums">
+                    {detail}
+                </span>
             </span>
+            {main || secondary ? (
+                <span className="flex shrink-0 items-center gap-1.5">
+                    {secondary ? (
+                        <Button size="sm" variant="outline" onClick={() => onAction(secondary)}>
+                            {ACTION_LABELS[secondary]}
+                        </Button>
+                    ) : null}
+                    {main ? (
+                        <Button size="sm" onClick={() => onAction(main)}>
+                            {ACTION_LABELS[main]}
+                        </Button>
+                    ) : null}
+                </span>
+            ) : null}
+            {tone.dismissible ? (
+                <button
+                    type="button"
+                    aria-label="Dismiss"
+                    onClick={onDismiss}
+                    className="text-muted-foreground hover:text-foreground absolute top-2 right-2 flex size-[18px] cursor-pointer items-center justify-center border-none bg-transparent p-0"
+                >
+                    <X className="size-3.5" />
+                </button>
+            ) : null}
         </div>
     )
 }
