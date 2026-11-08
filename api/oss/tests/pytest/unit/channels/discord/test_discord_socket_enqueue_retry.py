@@ -2,11 +2,10 @@
 step. A failed enqueue is retried with the same event while the socket keeps
 reading."""
 
-import asyncio
-
 import httpx
 import pytest
 from sqlalchemy.exc import DBAPIError, IntegrityError, InterfaceError, OperationalError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
 from oss.src.core.channels.types import ChannelInboxEnqueueFailed
 
@@ -150,6 +149,15 @@ async def test_transient_error_past_the_limit_drops_the_live_event(monkeypatch):
     assert 1 < service.attempts.count("101") < 1000
 
 
+class _PgError(Exception):
+    """What the asyncpg dialect puts in `DBAPIError.orig`: an error with the
+    Postgres SQLSTATE."""
+
+    def __init__(self, sqlstate):
+        super().__init__(sqlstate)
+        self.sqlstate = sqlstate
+
+
 class _DiscordRefusal(Exception):
     def __init__(self, status_code):
         self.status_code = status_code
@@ -160,13 +168,18 @@ class _DiscordRefusal(Exception):
     [
         (ChannelInboxEnqueueFailed(channel="discord", external_id="1"), True),
         (ConnectionError("reset"), True),
-        (asyncio.TimeoutError(), True),
+        (TimeoutError(), True),
         (httpx.ConnectError("down"), True),
         (OperationalError("insert", {}, Exception("gone")), True),
         (InterfaceError("insert", {}, Exception("closed")), True),
         (DBAPIError("insert", {}, Exception("x"), connection_invalidated=True), True),
         (DBAPIError("insert", {}, Exception("x")), False),
         (IntegrityError("insert", {}, Exception("fk")), False),
+        (PoolTimeoutError("no connection free in the pool"), True),
+        (DBAPIError("insert", {}, _PgError("57P01")), True),
+        (DBAPIError("insert", {}, _PgError("08006")), True),
+        (DBAPIError("insert", {}, _PgError("25006")), True),
+        (DBAPIError("insert", {}, _PgError("23505")), False),
         (_DiscordRefusal(503), True),
         (_DiscordRefusal(429), True),
         (_DiscordRefusal(403), False),
@@ -175,3 +188,23 @@ class _DiscordRefusal(Exception):
 )
 def test_one_rule_says_which_errors_are_transient(error, transient):
     assert discord_socket._is_transient(error) is transient
+
+
+async def test_pool_checkout_timeout_retries_the_live_event(monkeypatch):
+    fast(monkeypatch, tick=0.02)
+    service = FakeChannelsService(FakeAdapter())
+    socket = _socket(service)
+    record = service.record_and_enqueue_inbox_event
+    failures = [2]
+
+    async def busy_pool(**kwargs):
+        if failures[0]:
+            failures[0] -= 1
+            raise PoolTimeoutError("QueuePool limit reached")
+        return await record(**kwargs)
+
+    service.record_and_enqueue_inbox_event = busy_pool
+    socket.receive(frame("MESSAGE_CREATE", message("101")))
+    await until(lambda: service.enqueued)
+
+    assert service.enqueued == ["101"]

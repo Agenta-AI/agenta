@@ -154,6 +154,61 @@ async def test_failed_store_in_recovery_does_not_move_past_the_message():
     assert service.enqueued == ["100", "200", "300"]
 
 
+async def test_recovery_skips_a_message_the_live_path_already_routed():
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    await _live(socket, message("100", channel_id="DM", guild_id=""))
+    gate = asyncio.Event()
+    read = adapter.fetch_messages_after
+
+    async def slow_read(**kwargs):
+        await gate.wait()
+        return await read(**kwargs)
+
+    adapter.fetch_messages_after = slow_read
+    socket.receive(frame("READY", {"session_id": "s"}))
+    # While recovery waits on history, the live socket receives `!new`, and
+    # the dispatcher routes it (and runs the command).
+    socket.receive(frame("MESSAGE_CREATE", message("200", "DM", guild_id="")))
+    await until(lambda: "200" in service.enqueued)
+    service.route(socket.connection, "200")
+    adapter.history["DM"] = [message("200", "DM", guild_id="")]
+    gate.set()
+    await until(lambda: not socket.tasks)
+
+    # Recovery sees the same message and does not enqueue it again.
+    assert service.enqueued.count("200") == 1
+
+
+async def test_recovery_enqueues_a_stored_row_that_was_never_routed():
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    await _live(socket, message("100", channel_id="C"))
+    # 200 was stored, but its enqueue was lost, so no dispatch routed it.
+    inbound = await adapter.parse_event(
+        body=frame("MESSAGE_CREATE", message("200", "C")).encode(),
+        connection=socket.connection,
+    )
+    adapter.history["C"] = [message("200", "C")]
+    gate = asyncio.Event()
+    read = adapter.fetch_messages_after
+
+    async def slow_read(**kwargs):
+        await gate.wait()
+        return await read(**kwargs)
+
+    adapter.fetch_messages_after = slow_read
+    await asyncio.sleep(0.01)
+    socket.receive(frame("READY", {"session_id": "s"}))
+    service.store_row(socket.connection, inbound)
+    gate.set()
+    await until(lambda: not socket.tasks)
+
+    assert service.enqueued == ["100", "200"]
+
+
 async def test_transient_parse_error_in_recovery_retries_the_message():
     adapter = FakeAdapter()
     service = FakeChannelsService(adapter)

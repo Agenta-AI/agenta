@@ -201,6 +201,9 @@ class FakeChannelsService:
         self.enqueued.append(inbound.external_id)
 
     async def query_inbox_events(self, *, project_id, event=None, windowing=None):
+        if event.external_id is not None:
+            row = self.rows.get((event.connection_id, event.external_id))
+            return [row] if row is not None else []
         self.start_queries += 1
         return [
             row
@@ -210,6 +213,12 @@ class FakeChannelsService:
             and row.origin == event.origin
             and windowing.oldest <= row.created_at <= windowing.newest
         ]
+
+    def route(self, conn: ChannelConnection, external_id: str) -> None:
+        """What the dispatcher's routing does: attach the row to its space."""
+
+        key = (conn.id, external_id)
+        self.rows[key] = self.rows[key].model_copy(update={"space_id": uuid4()})
 
 
 class FakeLocks:

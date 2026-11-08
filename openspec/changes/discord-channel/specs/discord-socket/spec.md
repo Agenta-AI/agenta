@@ -71,7 +71,11 @@ For each Discord Gateway dispatch, the loop SHALL encode the dispatch as JSON by
 - **THEN** the loop SHALL store nothing
 
 ### Requirement: One error rule for transient and permanent errors
-The loop SHALL classify each error once. A transient error is a network or timeout error, a Discord 5xx or 429, `ChannelInboxEnqueueFailed`, or a SQLAlchemy `OperationalError`, `InterfaceError` or `DBAPIError` with an invalidated connection; every other error is permanent. On a transient error in parse, store or enqueue, the loop SHALL retry the same raw event with backoff for up to 10 minutes, and SHALL keep reading the socket while it retries. After 10 minutes, or on a permanent error, the loop SHALL log the event and drop it.
+The loop SHALL classify each error once, as transient or permanent. On a transient error in parse, store or enqueue, the loop SHALL retry the same raw event with backoff for up to 10 minutes, and SHALL keep reading the socket while it retries. After 10 minutes, or on a permanent error, the loop SHALL log the event and drop it.
+
+#### Scenario: Transient errors
+- **WHEN** an error is a network or timeout error, a Discord 5xx or 429, `ChannelInboxEnqueueFailed`, a SQLAlchemy `OperationalError`, `InterfaceError` or pool checkout `TimeoutError`, or a `DBAPIError` with an invalidated connection or a Postgres SQLSTATE in classes 08, 53 or 57, or 40001, 40P01 or 25006
+- **THEN** the loop SHALL treat it as transient, and every other error as permanent
 
 #### Scenario: Queue outage
 - **WHEN** Redis is down for 20 seconds while a message arrives
@@ -79,7 +83,7 @@ The loop SHALL classify each error once. A transient error is a network or timeo
 
 #### Scenario: Database outage
 - **WHEN** the inbox insert fails while a message arrives
-- **THEN** the loop SHALL retry the same event until it is stored and enqueued
+- **THEN** the loop SHALL retry the same event with backoff for up to 10 minutes until it is stored and enqueued, and SHALL log and drop it after that
 
 #### Scenario: Permanent error
 - **WHEN** the insert of an event fails with an error a retry cannot heal
@@ -101,7 +105,15 @@ The loop SHALL let `discord.py` handle heartbeat, resume and reconnect. When Dis
 - **THEN** the other connections' sockets SHALL stay open
 
 ### Requirement: Recovery after a failed resume
-On every READY, which Discord sends after a fresh IDENTIFY and never after a successful resume, the loop SHALL start one recovery pass. This includes the first socket of a connection, after a restart or a lock takeover. The pass SHALL read the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours that were stored before the READY time minus a 5 second clock margin. It SHALL then read Discord history after each of those ids with the adapter's `fetch_messages_after`, oldest first, and pass each message through `parse_event` and `record_and_enqueue_inbox_event`. A REST message object has no `guild_id`, so the pass SHALL keep each channel's `guild_id` from the row's locator, and the loop SHALL wrap each message as `{"t": "MESSAGE_CREATE", "d": {...message, "guild_id": <guild_id>}}` (no `guild_id` for a DM channel).
+On every READY, which Discord sends after a fresh IDENTIFY and never after a successful resume, the loop SHALL start one recovery pass, the first socket of a connection included. The pass SHALL read Discord history after the last stored message of each channel with the adapter's `fetch_messages_after`, oldest first, and pass each message through `parse_event` and `record_and_enqueue_inbox_event`.
+
+#### Scenario: Recovery start
+- **WHEN** a READY arrives
+- **THEN** the pass SHALL start each channel after the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours stored before the READY time minus a 5 second clock margin, compared as integers
+
+#### Scenario: History message shape
+- **WHEN** the pass reads a REST message object, which has no `guild_id`
+- **THEN** the loop SHALL wrap it as `{"t": "MESSAGE_CREATE", "d": {...message, "guild_id": <guild_id>}}` with the channel's `guild_id` from the row's locator, and with no `guild_id` for a DM channel
 
 #### Scenario: Messages missed during the gap
 - **WHEN** a socket loses its session, two messages are posted in channel C, and the new socket identifies fresh
@@ -129,7 +141,15 @@ On every READY, which Discord sends after a fresh IDENTIFY and never after a suc
 
 #### Scenario: Message delivered twice
 - **WHEN** the socket and recovery both deliver one message, in either order
-- **THEN** the unique constraint SHALL drop the second row, both SHALL enqueue the dispatch, and the dispatcher's claim on `(thread_id, event_id)` SHALL stop a second turn
+- **THEN** the unique constraint SHALL drop the second row, and the dispatcher's claim on `(thread_id, event_id)` SHALL stop a second turn if both dispatches run
+
+#### Scenario: Command already routed
+- **WHEN** the live socket delivers `!new` and the dispatcher routes it, and recovery then reads the same message
+- **THEN** recovery SHALL see that the row is attached to a space and SHALL NOT enqueue it, so the command does not run twice
+
+#### Scenario: Row stored but never routed
+- **WHEN** recovery reads a message whose row exists but has no space, for example after a lost enqueue
+- **THEN** recovery SHALL pass it through the shared step, which enqueues it
 
 #### Scenario: Error during recovery
 - **WHEN** a recovered message, the recovery start or a history page fails with a transient error

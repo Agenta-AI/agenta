@@ -15,9 +15,10 @@ not replay what it sent while the socket was down. So on every READY, the first
 socket of a connection included, the loop reads each channel's history after the
 last message stored before that READY, and passes each message through the same
 step. The inbox unique constraint drops the row of a message the socket already
-delivered. The step still enqueues that row again, as it does for an HTTP
-redelivery, and the dispatcher's claim on `(thread_id, event_id)` stops a second
-turn.
+delivered. Recovery skips a message whose row the dispatcher already routed, so a
+command the live path ran does not run again; it enqueues a stored row that was
+never routed, and the dispatcher's claim on `(thread_id, event_id)` stops a
+second turn if both dispatches race.
 
 One error rule covers both paths (`_is_transient`). A transient error (network,
 timeout, Discord 5xx or 429, a failed enqueue, a lost database connection) is
@@ -34,6 +35,7 @@ from uuid import UUID
 import discord
 import httpx
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
 import oss.src.utils.locking as locking
 from oss.src.core.channels.dtos import (
@@ -125,6 +127,15 @@ async def _wait(shutdown: asyncio.Event, seconds: float) -> bool:
         return False
 
 
+# Postgres SQLSTATEs a retry can outlast: connection exceptions (08),
+# insufficient resources (53), operator intervention such as a shutdown or a
+# failover (57), a serialization failure or deadlock, and a write that reached
+# a primary demoted to read-only during a failover. asyncpg raises these as a
+# plain `DBAPIError`, often with the connection still open.
+_TRANSIENT_SQLSTATE_CLASSES = ("08", "53", "57")
+_TRANSIENT_SQLSTATES = ("40001", "40P01", "25006")
+
+
 def _is_transient(error: BaseException) -> bool:
     """True for an error a retry of the same event can heal."""
 
@@ -132,16 +143,23 @@ def _is_transient(error: BaseException) -> bool:
         error,
         (
             ChannelInboxEnqueueFailed,
+            # TimeoutError and ConnectionError are OSError subclasses.
             OSError,
-            asyncio.TimeoutError,
             httpx.TransportError,
             OperationalError,
             InterfaceError,
+            # No connection free in the pool before the checkout timeout.
+            PoolTimeoutError,
         ),
     ):
         return True
     if isinstance(error, DBAPIError):
-        return bool(error.connection_invalidated)
+        sqlstate = str(getattr(error.orig, "sqlstate", None) or "")
+        return (
+            bool(error.connection_invalidated)
+            or sqlstate[:2] in _TRANSIENT_SQLSTATE_CLASSES
+            or sqlstate in _TRANSIENT_SQLSTATES
+        )
     # The Discord adapter's refusals carry the HTTP status.
     status_code = getattr(error, "status_code", None)
     return isinstance(status_code, int) and (status_code >= 500 or status_code == 429)
@@ -291,18 +309,20 @@ class DiscordSocket:
                 exc_info=True,
             )
 
-    async def _ingest_retrying(self, body: bytes) -> None:
+    async def _ingest_retrying(self, body: bytes, *, recovered: bool = False) -> None:
         await _retrying(
-            lambda: self._ingest_once(body),
+            lambda: self._ingest_once(body, recovered=recovered),
             what="event",
             connection_id=str(self.connection.id),
         )
 
-    async def _ingest_once(self, body: bytes) -> None:
+    async def _ingest_once(self, body: bytes, *, recovered: bool = False) -> None:
         inbound = await self.adapter.parse_event(body=body, connection=self.connection)
         if inbound is None:
             return
         for event in inbound if isinstance(inbound, list) else [inbound]:
+            if recovered and await self._dispatched(event.external_id):
+                continue
             await self.channels_service.record_and_enqueue_inbox_event(
                 project_id=self.project_id,
                 connection_id=self.connection.id,
@@ -311,6 +331,21 @@ class DiscordSocket:
             )
 
     # --- recovery ------------------------------------------------------------ #
+
+    async def _dispatched(self, external_id: str) -> bool:
+        """True when the message's row exists and the dispatcher already routed
+        it (routing attaches the row to its space). Recovery skips such a row,
+        because a command returns before the turn claim and would run twice. A
+        row that was stored but never routed, for example after a lost enqueue,
+        is enqueued again."""
+
+        rows = await self.channels_service.query_inbox_events(
+            project_id=self.project_id,
+            event=ChannelInboxEventQuery(
+                connection_id=self.connection.id, external_id=external_id
+            ),
+        )
+        return bool(rows) and rows[0].space_id is not None
 
     async def _recovery_start(self, ready_at: datetime) -> RecoveryStart:
         """The highest message id per channel Discord delivered in, among the
@@ -365,8 +400,10 @@ class DiscordSocket:
             try:
                 await self._recover_channel(channel_id, after, guild_id)
             except Exception:
-                # A transient error that outlasted the retry limit. The pass
-                # stops this channel rather than read past an unstored message.
+                # A history read that failed (permanent, or transient past the
+                # retry limit), or a message whose transient error outlasted the
+                # limit. The pass stops this channel rather than read past a
+                # message that is not stored.
                 log.error(
                     "[DISCORD] recovery stopped a channel",
                     connection_id=connection_id,
@@ -400,7 +437,7 @@ class DiscordSocket:
                 # past a message that is not stored; one that outlasts the
                 # limit stops the channel. A permanent error skips the message.
                 try:
-                    await self._ingest_retrying(body)
+                    await self._ingest_retrying(body, recovered=True)
                 except Exception as error:
                     if _is_transient(error):
                         raise
