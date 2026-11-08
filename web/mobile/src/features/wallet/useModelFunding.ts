@@ -15,7 +15,8 @@ export const useModelFunding = (entityId: string): ModelFunding | null => {
 
     return useMemo(
         () =>
-            candidateState.status === "ready"
+            // An unloaded config has no connection yet, which would read as credit-funded.
+            candidateState.status === "ready" && config
                 ? modelFunding(readModelConnection(config), candidateState.candidates)
                 : null,
         [candidateState, config],

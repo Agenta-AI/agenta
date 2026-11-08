@@ -459,6 +459,8 @@ export const LiveConversation = ({
     useEffect(() => {
         if (conversation.sharedSettledAt) {
             void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
+            // A turn from another device can settle between polls without `inputBusy` flipping.
+            void queryClient.invalidateQueries({queryKey: ["wallet", "summary", projectId]})
         }
     }, [conversation.sharedSettledAt, projectId, queryClient])
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
