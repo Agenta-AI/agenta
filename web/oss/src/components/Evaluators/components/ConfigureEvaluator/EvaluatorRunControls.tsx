@@ -59,6 +59,7 @@ const EvaluatorRunControls = () => {
                     onSelect={handleAppSelect}
                     size="small"
                     placeholder={selectedAppLabel ?? "Select app"}
+                    placement="bottomRight"
                     popupFooter={popupFooter}
                 />
             )}

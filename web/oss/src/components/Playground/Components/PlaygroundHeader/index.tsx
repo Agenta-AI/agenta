@@ -724,7 +724,10 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 onPointerEnter={handleActivateEvaluatorPicker}
                                 onFocus={handleActivateEvaluatorPicker}
                             >
-                                <Tooltip title="Add evaluators to automatically score outputs in the playground.">
+                                <Tooltip
+                                    title="Add evaluators to automatically score outputs in the playground."
+                                    mouseLeaveDelay={0}
+                                >
                                     <span>
                                         <EntityPicker<WorkflowRevisionSelectionResult>
                                             variant="popover-cascader"
@@ -779,7 +782,10 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             </span>
                             <TestsetDropdown />
                             {isProjectLevelPlayground ? (
-                                <Tooltip title="Compare mode is unavailable in project-level playground">
+                                <Tooltip
+                                    title="Compare mode is unavailable in project-level playground"
+                                    mouseLeaveDelay={0}
+                                >
                                     <Space.Compact size="small">
                                         <Button
                                             className="flex items-center gap-1"

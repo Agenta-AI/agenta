@@ -42,18 +42,21 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
                         ? "Open this trace from an app's playground to create an evaluation."
                         : "Run your prompt against a full test set with evaluators. Results are saved to the Evaluations page."
                 }
+                mouseLeaveDelay={0}
             >
-                <Button
-                    type="text"
-                    icon={<Flask size={14} />}
-                    className={clsx("self-start", className)}
-                    disabled={isDisabled}
-                    data-tour="run-evaluation-button"
-                    onClick={() => setIsModalOpen(true)}
-                    size="small"
-                >
-                    New Evaluation
-                </Button>
+                <span>
+                    <Button
+                        type="text"
+                        icon={<Flask size={14} />}
+                        className={clsx("self-start", className)}
+                        disabled={isDisabled}
+                        data-tour="run-evaluation-button"
+                        onClick={() => setIsModalOpen(true)}
+                        size="small"
+                    >
+                        New Evaluation
+                    </Button>
+                </span>
             </Tooltip>
 
             <NewEvaluationModal
