@@ -71,6 +71,7 @@ import {
 } from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
+import {CreditAlertStrip} from "../wallet/CreditAlertStrip"
 import {useWalletSummary} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
@@ -167,6 +168,7 @@ export const LiveConversation = ({
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
     const composerRef = useRef<RichChatInputHandle | null>(null)
+    const modelPickerRef = useRef<(() => void) | null>(null)
     // Quote-to-reply anchors its pill and note box inside the transcript rail.
     const quoteRootRef = useRef<HTMLDivElement>(null)
     // The composer's tray, owned here for the same reason: a refusal that arrives after the send
@@ -460,6 +462,14 @@ export const LiveConversation = ({
         }
     }, [conversation.sharedSettledAt, projectId, queryClient])
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    // The chat reads the wallet unpolled, so a finished turn is what refreshes its balance.
+    const turnRunning = streamingHere || conversation.inputBusy
+    const turnWasRunningRef = useRef(turnRunning)
+    useEffect(() => {
+        if (turnWasRunningRef.current && !turnRunning)
+            void queryClient.invalidateQueries({queryKey: ["wallet", "summary", projectId]})
+        turnWasRunningRef.current = turnRunning
+    }, [turnRunning, projectId, queryClient])
     const remoteTurn = deriveMobileRemoteTurnPresentation({
         livenessRunning: running,
         livenessUpdatedAt,
@@ -1044,6 +1054,14 @@ export const LiveConversation = ({
                         the same place the desktop banner sits. */}
                         <ContentRail>
                             <ConnectModelStrip gateActive={modelBlocked} />
+                            {readOnly ? null : (
+                                <CreditAlertStrip
+                                    projectId={projectId}
+                                    entityId={entityId}
+                                    hidden={modelBlocked || setupBlocked}
+                                    onSwitchModel={() => modelPickerRef.current?.()}
+                                />
+                            )}
                             {modelBlocked ? null : (
                                 <ModelSetupBanner revisionId={entityId} onSetUp={openModelSetup} />
                             )}
@@ -1125,6 +1143,7 @@ export const LiveConversation = ({
                                 onStop={stopHere}
                                 inputBusy={conversation.inputBusy}
                                 inputRef={composerRef}
+                                modelPickerRef={modelPickerRef}
                                 // Same gate the rail's `+` uses: starting one needs an agent.
                                 onNewSession={
                                     agentId ? () => startBlankSession(agentId) : undefined
