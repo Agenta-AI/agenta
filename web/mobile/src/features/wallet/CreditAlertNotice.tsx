@@ -1,6 +1,5 @@
 import {Button} from "@agenta/ui/ui"
-import {Coins} from "@phosphor-icons/react"
-import {X} from "lucide-react"
+import {Coins, X} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
@@ -83,10 +82,17 @@ const ROWS: Record<ShownAlert["kind"], Record<ModelFunding, NoticeRow>> = {
     },
 }
 
-const TONES: Record<ShownAlert["kind"], {tile: string; dismissible: boolean}> = {
-    low: {tile: "bg-colorWarningBg text-colorWarningText", dismissible: true},
-    empty: {tile: "bg-colorErrorBg text-colorErrorText", dismissible: false},
-    daily: {tile: "bg-muted text-muted-foreground", dismissible: true},
+// Same tinted strip as `ModelSetupBanner` and `ConnectModelStrip`, so the composer strips read as one family.
+const TONES: Record<ShownAlert["kind"], {strip: string; dismissible: boolean}> = {
+    low: {
+        strip: "border-colorWarning/30 bg-colorWarningBg text-colorWarningText",
+        dismissible: true,
+    },
+    empty: {
+        strip: "border-colorErrorBorder bg-colorErrorBg text-colorErrorText",
+        dismissible: false,
+    },
+    daily: {strip: "border-border bg-muted text-muted-foreground", dismissible: true},
 }
 
 /** The credit card's content for one alert; `CreditAlertStrip` supplies the data and the actions. */
@@ -114,51 +120,42 @@ export const CreditAlertNotice = ({
 
     return (
         <div
+            role="status"
             className={cn(
-                "border-border bg-background relative mb-2 flex items-center gap-3 rounded-[14px] border border-solid py-3 pl-3.5",
-                tone.dismissible ? "pr-9" : "pr-3.5",
+                "flex items-center justify-between gap-3 rounded-lg border border-solid px-3 py-2",
+                tone.strip,
             )}
         >
-            <span
-                className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-[10px]",
-                    tone.tile,
-                )}
-            >
-                <Coins size={18} />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className="text-foreground text-[13px] leading-[18px] font-medium">
-                    {title}
-                </span>
-                <span className="text-muted-foreground text-xs leading-[17px] tabular-nums">
-                    {detail}
+            <span className="flex min-w-0 items-center gap-2 text-xs">
+                <Coins size={14} className="shrink-0" />
+                <span className="min-w-0">
+                    <span className="block truncate font-medium">{title}</span>
+                    <span className="block truncate tabular-nums">{detail}</span>
                 </span>
             </span>
-            {main || secondary ? (
-                <span className="flex shrink-0 items-center gap-1.5">
-                    {secondary ? (
-                        <Button size="sm" variant="outline" onClick={() => onAction(secondary)}>
-                            {ACTION_LABELS[secondary]}
-                        </Button>
-                    ) : null}
-                    {main ? (
-                        <Button size="sm" onClick={() => onAction(main)}>
-                            {ACTION_LABELS[main]}
-                        </Button>
-                    ) : null}
-                </span>
-            ) : null}
-            {tone.dismissible ? (
-                <button
-                    type="button"
-                    aria-label="Dismiss"
-                    onClick={onDismiss}
-                    className="text-muted-foreground hover:text-foreground absolute top-2 right-2 flex size-[18px] cursor-pointer items-center justify-center border-none bg-transparent p-0"
-                >
-                    <X className="size-3.5" />
-                </button>
-            ) : null}
+            <span className="flex shrink-0 items-center gap-1.5">
+                {secondary ? (
+                    <Button size="sm" variant="outline" onClick={() => onAction(secondary)}>
+                        {ACTION_LABELS[secondary]}
+                    </Button>
+                ) : null}
+                {main ? (
+                    <Button size="sm" onClick={() => onAction(main)}>
+                        {ACTION_LABELS[main]}
+                    </Button>
+                ) : null}
+                {tone.dismissible ? (
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Dismiss"
+                        onClick={onDismiss}
+                        className="text-colorTextQuaternary hover:text-colorText size-[22px]"
+                    >
+                        <X size={11} />
+                    </Button>
+                ) : null}
+            </span>
         </div>
     )
 }

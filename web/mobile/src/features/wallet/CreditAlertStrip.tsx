@@ -68,13 +68,17 @@ export const CreditAlertStrip = ({
         <>
             <RevealCollapse open={visible}>
                 {current ? (
-                    <CreditAlertNotice
-                        alert={current}
-                        funding={funding}
-                        canBuy={canBuy}
-                        onAction={(action) => run[action]()}
-                        onDismiss={() => setDismissed({...dismissed, [projectId]: current.kind})}
-                    />
+                    <div className="pt-2">
+                        <CreditAlertNotice
+                            alert={current}
+                            funding={funding}
+                            canBuy={canBuy}
+                            onAction={(action) => run[action]()}
+                            onDismiss={() =>
+                                setDismissed({...dismissed, [projectId]: current.kind})
+                            }
+                        />
+                    </div>
                 ) : null}
             </RevealCollapse>
             <ProviderDrawer
