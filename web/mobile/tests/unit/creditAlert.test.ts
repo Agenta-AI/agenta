@@ -88,6 +88,22 @@ describe("creditAlert", () => {
         })
     })
 
+    it("follows the balance, not the credit rows, when the balance is at its floor", () => {
+        const credits = [
+            credit({remaining_musd: 50 * CREDIT}),
+            daily("2026-11-06"),
+            daily("2026-11-07"),
+        ]
+        expect(creditAlert(wallet(credits, 0), NOW)).toEqual({
+            kind: "daily",
+            todayMusd: null,
+            refills: true,
+        })
+        expect(creditAlert(wallet([credit({remaining_musd: 50 * CREDIT})], 0), NOW)).toEqual({
+            kind: "empty",
+        })
+    })
+
     it("is empty once today's daily grant is spent", () => {
         const credits = [credit({remaining_musd: 0}), daily("2026-11-08", 0)]
         expect(creditAlert(wallet(credits, 0), NOW)).toEqual({kind: "empty"})

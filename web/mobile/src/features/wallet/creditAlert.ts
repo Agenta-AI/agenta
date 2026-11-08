@@ -45,7 +45,9 @@ export const creditAlert = (
         daily.length > 0 && !daily.some((credit) => createdOn(credit) === utcDay(now)) && refills
 
     const spendable = Math.max(0, wallet.spendable_musd ?? 0)
-    if (spendable <= 0 && !grantPending) return {kind: "empty"}
+    // Spendable decides admission; credit rows can show remaining while the balance is at its floor.
+    if (spendable <= 0)
+        return grantPending ? {kind: "daily", todayMusd: null, refills} : {kind: "empty"}
     if (durableRemaining <= 0)
         return {kind: "daily", todayMusd: todayDaily?.remaining_musd ?? null, refills}
     if (
