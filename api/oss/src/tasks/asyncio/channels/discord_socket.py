@@ -562,9 +562,19 @@ class DiscordSocketLoop:
             # credential read.
             if current is not None and current.connection.updated_at == row.updated_at:
                 continue
-            connection = await self.channels_service.fetch_connection(
-                project_id=project_id, connection_id=connection_id
-            )
+            try:
+                connection = await self.channels_service.fetch_connection(
+                    project_id=project_id, connection_id=connection_id
+                )
+            except Exception:
+                # One bad credential must not keep the other connections from
+                # opening; this one is tried again on the next reload.
+                log.error(
+                    "[DISCORD] connection could not be read",
+                    connection_id=str(connection_id),
+                    exc_info=True,
+                )
+                continue
             if connection is None or not _connection_token(connection):
                 await self._close(connection_id)
                 continue

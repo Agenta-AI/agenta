@@ -31,8 +31,9 @@ async def test_worker_answers_through_durable_admission(monkeypatch):
     monkeypatch.setattr(
         worker_queues,
         "ChannelsInboxWorker",
-        lambda **kwargs: captured.update(kwargs)
-        or SimpleNamespace(dispatch_inbox_event=None),
+        lambda **kwargs: (
+            captured.update(kwargs) or SimpleNamespace(dispatch_inbox_event=None)
+        ),
     )
     worker_queues._build_channels_inbox_broker()
     respond = captured["dispatcher"]._respond_interaction_fn

@@ -149,3 +149,23 @@ async def test_intent_refusal_logs_and_backs_off_while_others_stay_open(
     assert not loop.sockets[other.id].task.done()
     assert not refused.task.done()
     await loop.close_all()
+
+
+async def test_one_unreadable_connection_does_not_block_the_others():
+    service = FakeChannelsService()
+    broken = service.add(connection(token="broken"))
+    healthy = service.add(connection(token="ok"))
+    fetch = service.fetch_connection
+
+    async def fetch_or_fail(*, project_id, connection_id):
+        if connection_id == broken.id:
+            raise ValueError("malformed credential_secret_id")
+        return await fetch(project_id=project_id, connection_id=connection_id)
+
+    service.fetch_connection = fetch_or_fail
+    loop = _loop(service)
+
+    await loop.reload()
+
+    assert list(loop.sockets) == [healthy.id]
+    await loop.close_all()
