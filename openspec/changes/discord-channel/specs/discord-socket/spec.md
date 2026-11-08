@@ -145,11 +145,11 @@ On every READY, which Discord sends after a fresh IDENTIFY and never after a suc
 
 #### Scenario: Command already routed
 - **WHEN** the live socket delivers `!new` and the dispatcher routes it, and recovery then reads the same message
-- **THEN** recovery SHALL see that the row is attached to a space and SHALL NOT enqueue it, so the command does not run twice
+- **THEN** recovery SHALL see that the command's row is attached to a space and SHALL NOT enqueue it, so the command does not run twice. A command whose dispatch failed after routing is not retried by recovery, which is a documented limit
 
-#### Scenario: Row stored but never routed
-- **WHEN** recovery reads a message whose row exists but has no space, for example after a lost enqueue
-- **THEN** recovery SHALL pass it through the shared step, which enqueues it
+#### Scenario: Ordinary message already stored
+- **WHEN** recovery reads an ordinary message whose row exists, routed or not
+- **THEN** recovery SHALL pass it through the shared step, which enqueues it, and the turn claim SHALL stop a second turn
 
 #### Scenario: Error during recovery
 - **WHEN** a recovered message, the recovery start or a history page fails with a transient error

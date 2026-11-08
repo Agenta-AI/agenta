@@ -15,10 +15,9 @@ not replay what it sent while the socket was down. So on every READY, the first
 socket of a connection included, the loop reads each channel's history after the
 last message stored before that READY, and passes each message through the same
 step. The inbox unique constraint drops the row of a message the socket already
-delivered. Recovery skips a message whose row the dispatcher already routed, so a
-command the live path ran does not run again; it enqueues a stored row that was
-never routed, and the dispatcher's claim on `(thread_id, event_id)` stops a
-second turn if both dispatches race.
+delivered. The step still enqueues the row again, and the dispatcher's claim on
+`(thread_id, event_id)` stops a second turn. Commands run before that claim, so
+recovery skips a command whose row the dispatcher already routed.
 
 One error rule covers both paths (`_is_transient`). A transient error (network,
 timeout, Discord 5xx or 429, a failed enqueue, a lost database connection) is
@@ -38,6 +37,7 @@ from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
 import oss.src.utils.locking as locking
+from oss.src.core.channels.commands import parse_command
 from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelEventKind,
@@ -321,7 +321,7 @@ class DiscordSocket:
         if inbound is None:
             return
         for event in inbound if isinstance(inbound, list) else [inbound]:
-            if recovered and await self._dispatched(event.external_id):
+            if recovered and await self._command_already_routed(event):
                 continue
             await self.channels_service.record_and_enqueue_inbox_event(
                 project_id=self.project_id,
@@ -332,17 +332,25 @@ class DiscordSocket:
 
     # --- recovery ------------------------------------------------------------ #
 
-    async def _dispatched(self, external_id: str) -> bool:
-        """True when the message's row exists and the dispatcher already routed
-        it (routing attaches the row to its space). Recovery skips such a row,
-        because a command returns before the turn claim and would run twice. A
-        row that was stored but never routed, for example after a lost enqueue,
-        is enqueued again."""
+    async def _command_already_routed(self, inbound) -> bool:
+        """True for a command whose row the dispatcher already routed (routing
+        attaches the row to its space). Recovery skips it, because the
+        dispatcher runs a command before the `(thread_id, event_id)` turn claim,
+        so `!new` would run twice. Every other message goes through the shared
+        step again, and the turn claim stops a second turn. Routing commits the
+        space before the command runs, so a command whose dispatch then failed
+        is not retried by recovery."""
 
+        capabilities = await self.adapter.fetch_capabilities(connection=self.connection)
+        if (
+            parse_command(content=inbound.processed.content, capabilities=capabilities)
+            is None
+        ):
+            return False
         rows = await self.channels_service.query_inbox_events(
             project_id=self.project_id,
             event=ChannelInboxEventQuery(
-                connection_id=self.connection.id, external_id=external_id
+                connection_id=self.connection.id, external_id=inbound.external_id
             ),
         )
         return bool(rows) and rows[0].space_id is not None

@@ -10,6 +10,9 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 import oss.src.utils.locking as locking
+from oss.src.core.channels.adapters.discord.capabilities import (
+    fetch_discord_capabilities,
+)
 from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelConnectionFlags,
@@ -28,8 +31,10 @@ def frame(event: str, data: Optional[Dict[str, Any]] = None) -> str:
     return json.dumps({"op": 0, "t": event, "s": 1, "d": data or {}})
 
 
-def message(message_id: str, channel_id: str = "C1", guild_id: str = "G1"):
-    data = {"id": message_id, "channel_id": channel_id, "content": "hi"}
+def message(
+    message_id: str, channel_id: str = "C1", guild_id: str = "G1", content: str = "hi"
+):
+    data = {"id": message_id, "channel_id": channel_id, "content": content}
     if guild_id:
         data["guild_id"] = guild_id
     return data
@@ -83,6 +88,9 @@ class FakeAdapter:
         self.history: Dict[str, List[Dict[str, Any]]] = {}
         self.history_reads: List[tuple] = []
         self.page_size = 100
+
+    async def fetch_capabilities(self, *, connection=None):
+        return fetch_discord_capabilities()
 
     async def parse_event(self, *, body: bytes, connection=None, request=None):
         payload = json.loads(body)
