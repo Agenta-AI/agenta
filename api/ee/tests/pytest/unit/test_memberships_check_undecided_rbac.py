@@ -32,6 +32,8 @@ def _wire_subscriptions(monkeypatch, plans: dict):
             return None
         return SimpleNamespace(plan=plan, anchor=None)
 
+    # Cloud plans: with Stripe off the instance plan replaces them.
+    monkeypatch.setattr(entitlements_service.env.stripe, "api_key", "sk_test_unit")
     service = SimpleNamespace(read=AsyncMock(side_effect=read))
     monkeypatch.setattr(entitlements_service, "_subscriptions_service", lambda: service)
 
