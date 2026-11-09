@@ -32,9 +32,8 @@ const isText = (value: unknown, max: number): value is string =>
 const isHttpsLink = (value: unknown): value is string =>
     isText(value, 2_000) && /^https:\/\/[^\s]+$/.test(value)
 
-// Release bodies are Markdown. A link in one may only go to https, like every other feed link.
-// Markdown decodes character references in a link ("http&#58;//"), so a body with one is dropped
-// too; the generated changelog has none.
+// Release bodies are Markdown. The dialog renders them with only https links and images; this
+// drops an obviously bad entry before that. The generated changelog has no character references.
 const NON_HTTPS_SCHEME = /\b(?:http|javascript|data|vbscript|file):/i
 const CHARACTER_REFERENCE = /&(?:#|colon;)/i
 

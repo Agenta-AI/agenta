@@ -195,6 +195,7 @@ export const WhatsNewDialog = () => {
                                     baseClassName={proseClassName}
                                     content={feature.body}
                                     icons={markdownIcons}
+                                    httpsOnly
                                 />
                             </section>
                         ))}
