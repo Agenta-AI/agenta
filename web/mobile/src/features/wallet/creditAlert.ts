@@ -44,16 +44,18 @@ export const creditAlert = (
     const grantPending =
         daily.length > 0 && !daily.some((credit) => createdOn(credit) === utcDay(now)) && refills
 
+    // Spendable decides admission, and the credit rows can read fuller than it (a deficit, a floor).
     const spendable = Math.max(0, wallet.spendable_musd ?? 0)
-    // Spendable decides admission; credit rows can show remaining while the balance is at its floor.
+    const todayLeft = Math.max(0, todayDaily?.remaining_musd ?? 0)
+    const durableLeft = Math.min(durableRemaining, Math.max(0, spendable - todayLeft))
     if (spendable <= 0)
         return grantPending ? {kind: "daily", todayMusd: null, refills} : {kind: "empty"}
-    if (durableRemaining <= 0)
+    if (durableLeft <= 0)
         return {kind: "daily", todayMusd: todayDaily?.remaining_musd ?? null, refills}
     if (
         durableTotal > 0 &&
-        durableRemaining < Math.max(LOW_CREDITS_FLOOR_MUSD, LOW_CREDITS_RATIO * durableTotal)
+        durableLeft < Math.max(LOW_CREDITS_FLOOR_MUSD, LOW_CREDITS_RATIO * durableTotal)
     )
-        return {kind: "low", remainingMusd: durableRemaining}
+        return {kind: "low", remainingMusd: durableLeft}
     return {kind: "none"}
 }

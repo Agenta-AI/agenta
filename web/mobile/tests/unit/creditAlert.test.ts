@@ -59,6 +59,26 @@ describe("creditAlert", () => {
         })
     })
 
+    it("warns from the spendable balance when the credit rows still look full", () => {
+        expect(creditAlert(wallet([credit({})], 30 * CREDIT), NOW)).toEqual({
+            kind: "low",
+            remainingMusd: 300_000,
+        })
+    })
+
+    it("does not count today's daily credits toward the durable balance", () => {
+        const credits = [credit({}), daily("2026-11-08", 40)]
+        expect(creditAlert(wallet(credits, 70 * CREDIT), NOW)).toEqual({
+            kind: "low",
+            remainingMusd: 300_000,
+        })
+        expect(creditAlert(wallet(credits, 40 * CREDIT), NOW)).toEqual({
+            kind: "daily",
+            todayMusd: 400_000,
+            refills: true,
+        })
+    })
+
     it("reports today's daily credits once durable credits are spent", () => {
         const credits = [credit({remaining_musd: 0}), daily("2026-11-08", 40)]
         expect(creditAlert(wallet(credits), NOW)).toEqual({
