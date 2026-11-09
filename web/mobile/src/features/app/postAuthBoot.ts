@@ -29,7 +29,7 @@ export const BOOT_STATUSES: Record<AccountKind, readonly [string, string, string
 }
 
 export const BOOT_TIPS = [
-    "You can talk to your agents in Slack, Telegram or WhatsApp.",
+    "You can talk to your agents in Slack, Telegram, WhatsApp or Microsoft Teams.",
     "Correct an agent once and it remembers next time.",
     "Every session runs in its own sandbox, isolated from the others.",
     "Agents can run on a schedule or when something happens in a connected app.",

@@ -4,6 +4,7 @@ import type {
     ChannelConnections,
     ChannelPlatform,
     ChannelScope,
+    ChannelSetupDocument,
     ChannelSetupField,
     ChannelsActions,
     ChannelToolSettings,
@@ -13,15 +14,44 @@ import type {
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
 
 /** Every platform, in the order the Channels card lists them. */
-export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp"]
+export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp", "teams"]
 
 const PLATFORM_LABELS: Record<ChannelPlatform, string> = {
     slack: "Slack",
     telegram: "Telegram",
     whatsapp: "WhatsApp",
+    teams: "Microsoft Teams",
 }
 
 export const platformLabel = (platform: ChannelPlatform): string => PLATFORM_LABELS[platform]
+
+/** The row subtitle of a platform with no connection. */
+const NOT_CONNECTED_SUBS: Record<ChannelPlatform, string> = {
+    slack: "Chat with the agent in your team’s workspace",
+    telegram: "Chat with the agent from your phone",
+    whatsapp: "Answer messages to your WhatsApp Business number",
+    teams: "Chat with the agent in Microsoft Teams",
+}
+
+/** The row subtitle of a revoked connection: what the platform did, and what to do. */
+const REVOKED_SUBS: Record<ChannelPlatform, string> = {
+    slack: "App uninstalled · reconnect",
+    telegram: "Bot token revoked · update it",
+    whatsapp: "Access token rejected · update it",
+    teams: "Client secret rejected · update it",
+}
+
+/** The title of the connect flow when the agent already has a connection on the platform. */
+export const ADD_ANOTHER_TITLES: Record<ChannelPlatform, string> = {
+    slack: "Add a Slack workspace",
+    telegram: "Add a Telegram bot",
+    whatsapp: "Add a WhatsApp number",
+    teams: "Add a Teams bot",
+}
+
+/** Whether the platform's shared places are channels (Slack, Teams) rather than groups. */
+export const hasChannels = (platform: ChannelPlatform): boolean =>
+    platform === "slack" || platform === "teams"
 
 /** How a connection's install is described: the shared Agenta one, or the customer's own. */
 export const installKindLabel = (connection: ChannelConnection): string => {
@@ -90,11 +120,13 @@ export const connectionRowText = (
             ? "App uninstalled · reconnect"
             : connection.platform === "whatsapp"
               ? "Access token rejected"
-              : "Bot token revoked"
+              : connection.platform === "teams"
+                ? "Client secret rejected"
+                : "Bot token revoked"
         return {title, detail}
     }
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = slack ? "channel" : "group"
+    const noun = hasChannels(connection.platform) ? "channel" : "group"
     const places = [
         ...(dm ? ["DMs"] : []),
         ...(nonDm ? [`${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`] : []),
@@ -199,12 +231,7 @@ export const summarizeConnection = (
 ): ChannelRowSummary => {
     if (!connection) {
         return {
-            sub:
-                platform === "slack"
-                    ? "Chat with the agent in your team’s workspace"
-                    : platform === "whatsapp"
-                      ? "Answer messages to your WhatsApp Business number"
-                      : "Chat with the agent from your phone",
+            sub: NOT_CONNECTED_SUBS[platform],
             subClass: "text-colorTextTertiary",
             dotClass: "",
             connected: false,
@@ -215,12 +242,7 @@ export const summarizeConnection = (
 
     if (connection.status === "revoked") {
         return {
-            sub:
-                platform === "telegram"
-                    ? "Bot token revoked · update it"
-                    : platform === "whatsapp"
-                      ? "Access token rejected · update it"
-                      : "App uninstalled · reconnect",
+            sub: REVOKED_SUBS[platform],
             subClass: "text-colorError",
             dotClass: "bg-colorError",
             connected: true,
@@ -289,7 +311,7 @@ export const summarizeConnection = (
     }
 
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = platform === "slack" ? "channel" : "group"
+    const noun = hasChannels(platform) ? "channel" : "group"
     const groupsText = `${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`
     const where =
         nonDm && dm
@@ -333,7 +355,12 @@ export const DEFAULT_TOOL_SETTINGS: ChannelToolSettings = {
 }
 
 /** Nothing connected on any platform. */
-export const EMPTY_CONNECTIONS: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
+export const EMPTY_CONNECTIONS: ChannelConnections = {
+    slack: null,
+    telegram: null,
+    whatsapp: null,
+    teams: null,
+}
 
 export const DIRECT_MESSAGES_CHAT = {name: "Direct messages", type: "dm" as const}
 
@@ -379,6 +406,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     },
     countHostedTelegramBindings: async () => 0,
     hostedSlackInstallUrl: async () => null,
+    teamsAppPackage: async () => null,
     connectCustom: async () => null,
     connectHere: async () => {},
     disconnect: async () => {},
@@ -423,4 +451,28 @@ export const isLiveForAgent = (
     if (!connection || connection.status !== "connected" || connection.agentOff) return false
     const scope = connectionScope(connection, agentId)
     return scope === "here" || scope === "unknown"
+}
+
+/** The bytes of a base64 string, decoded with the browser's own `atob`. */
+export const base64Bytes = (content: string): Uint8Array<ArrayBuffer> => {
+    const binary = atob(content.replace(/\s+/g, ""))
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return bytes
+}
+
+/** Save a `zip` setup document as a file. Returns false when the document has no content. */
+export const downloadSetupDocument = (document: ChannelSetupDocument): boolean => {
+    if (document.format !== "zip" || !document.content) return false
+    const blob = new Blob([base64Bytes(document.content)], {type: "application/zip"})
+    const url = URL.createObjectURL(blob)
+    const link = window.document.createElement("a")
+    link.href = url
+    link.download = document.filename || "app.zip"
+    window.document.body.append(link)
+    link.click()
+    link.remove()
+    // Revoke after the click has handed the file to the browser.
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+    return true
 }

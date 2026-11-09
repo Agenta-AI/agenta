@@ -50,11 +50,24 @@ export const WhatsAppLogo = ({size = 20}: {size?: number}) => (
     </svg>
 )
 
+/** A plain Teams mark: a white "T" on a Teams purple tile, with the people dots behind it. */
+export const TeamsLogo = ({size = 20}: {size?: number}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="19" cy="6.5" r="2.5" fill="#7B83EB" />
+        <path d="M15.5 10H22a1 1 0 0 1 1 1v5a4 4 0 0 1-7.5 1.9z" fill="#7B83EB" />
+        <circle cx="12.5" cy="5" r="3" fill="#5059C9" />
+        <rect x="1" y="6" width="13" height="13" rx="2" fill="#4B53BC" />
+        <path d="M4.5 9.5h6v1.8H8.4V16H6.6v-4.7H4.5z" fill="#fff" />
+    </svg>
+)
+
 export const platformLogo = (platform: ChannelPlatform, size = 20) =>
     platform === "slack" ? (
         <SlackLogo size={size} />
     ) : platform === "whatsapp" ? (
         <WhatsAppLogo size={size} />
+    ) : platform === "teams" ? (
+        <TeamsLogo size={size} />
     ) : (
         <TelegramLogo size={size} />
     )

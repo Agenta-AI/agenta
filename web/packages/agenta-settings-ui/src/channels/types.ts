@@ -6,7 +6,7 @@
  * api-client themselves, so the same UI runs on desktop, on /m, and in Storybook.
  */
 
-export type ChannelPlatform = "slack" | "telegram" | "whatsapp"
+export type ChannelPlatform = "slack" | "telegram" | "whatsapp" | "teams"
 
 /** hosted = Agenta-owned app/bot (one click, the default); custom = the customer's own app/bot. */
 export type ChannelInstallMode = "hosted" | "custom"
@@ -177,7 +177,7 @@ export interface ChannelConnection {
 /**
  * The project's connections, one per platform. `null` means "not connected".
  *
- * `slack` / `telegram` / `whatsapp` hold the connection each entry point summarizes. An agent may answer
+ * `slack` / `telegram` / `whatsapp` / `teams` hold the connection each entry point summarizes. An agent may answer
  * through more than one connection on a platform (two Slack workspaces, two Telegram bots);
  * `agentConnections` lists every one of them, the summarized one included, so the manage
  * panel can show and disconnect each separately. Absent when the host did not resolve it.
@@ -186,6 +186,7 @@ export interface ChannelConnections {
     slack: ChannelConnection | null
     telegram: ChannelConnection | null
     whatsapp: ChannelConnection | null
+    teams: ChannelConnection | null
     agentConnections?: Record<ChannelPlatform, ChannelConnection[]>
     /** Every connection in the project, whichever agent it answers as. */
     allConnections?: ChannelConnection[]
@@ -225,6 +226,14 @@ export interface ChannelSetupIdentity {
     handle?: string
 }
 
+/** A setup document the backend builds for a platform. A `zip` document carries base64 bytes. */
+export interface ChannelSetupDocument {
+    format: string | null
+    content: string | null
+    filename: string | null
+    link: string | null
+}
+
 /** What the backend declares for connecting a custom app/bot on a platform. */
 export interface ChannelSetupInfo {
     /** The manifest (Slack) or null when the platform has none. */
@@ -255,6 +264,9 @@ export interface ChannelsActions {
     /** The hosted Slack install URL (a browser redirect into Slack's OAuth), or null when
      * this deployment has no hosted Slack app. */
     hostedSlackInstallUrl: () => Promise<string | null>
+    /** The Teams app package of a connection, from its setup document; null when the backend
+     * sends none. */
+    teamsAppPackage: (connectionId: string) => Promise<ChannelSetupDocument | null>
     /** Create a custom-app connection from the declared field values, then point it at the
      * current agent. Resolves to the created connection, or null when the host has none. */
     connectCustom: (
