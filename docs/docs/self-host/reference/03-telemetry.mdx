@@ -15,6 +15,7 @@ No event carries an email address, a user name, an organization or project name,
 | Event | When | Stopped by `AGENTA_TELEMETRY_ENABLED=false` |
 |---|---|---|
 | [Install ping](#install-ping) | Once per instance, after the first organization exists | No |
+| [Heartbeat](#heartbeat) | At most once every 12 hours | Yes |
 | [Product events from the API](#product-events-from-the-api) | When a user uses a feature | Yes |
 | [Product events from the browser](#product-events-from-the-browser) | Page views and named actions in the app | Yes |
 
@@ -54,6 +55,37 @@ The distinct id is the instance id. The event has these properties and no others
 
 The PostHog library also adds its own name and version (`$lib`, `$lib_version`), the Python version (`$python_runtime`, `$python_version`), the operating system (`$os`, `$os_version`, and on Linux `$os_distro`), and `$is_server`.
 
+## Heartbeat
+
+Event name: `instance_heartbeat`. It holds counts and settings, never content. A cron job in the API container asks the API every hour, and the API sends the event when 12 hours have passed since the last one. When several API containers share one database, only one of them sends. If the send fails, the next hourly run sends the same period again. One event covers the whole time since the last heartbeat, so an instance that was off for three days sends one event, not six.
+
+The distinct id is the instance id. The event has these properties and no others:
+
+| Property | Value |
+|---|---|
+| `instance_id` | The instance id |
+| `instance_kind` | `production`, `development` (the app runs on `localhost` or a private address) or `ci` (the `CI` variable is set) |
+| `agenta_version` | The Agenta version, such as `v0.128.11` |
+| `edition` | `oss` or `ee` |
+| `deployment_method` | The value of `AGENTA_DEPLOYMENT_METHOD`, or null |
+| `plan` | The instance plan. `self_hosted_community` when there is no license key |
+| `license_key_id` | The id of the active license key, or null. Never the key itself |
+| `total_organizations` | The number of organizations |
+| `total_projects` | The number of projects |
+| `total_users` | The number of users |
+| `total_workflows` | The number of workflows (applications, agents, evaluators and snippets) that are not archived |
+| `window_start` | The start of the period the counts below cover: the time of the last heartbeat, or the time the instance was created |
+| `window_end` | The end of that period: the time of this heartbeat |
+| `window_spans` | The number of trace spans that started in the period |
+| `window_evaluation_runs` | The number of evaluations started in the period |
+| `window_agent_turns` | The number of agent turns in the period |
+| `user_domains` | The 100 most common email domains of your users, each with its number of users, such as `{"domain": "example.com", "users": 3}`. Never a full email address |
+| `$groups` | `{"instance": "<instance id>"}` |
+
+A `window_` count is null when it takes longer than 5 seconds on a large database.
+
+After each heartbeat, the API also sets these properties on the PostHog group of the instance: `instance_kind`, `agenta_version`, `edition`, `deployment_method`, `plan` and the four `total_` counts.
+
 ## Product events from the API
 
 The API sends one event when a user calls one of the routes below. The distinct id is `<instance id>:<user id>`, where the user id is the user's id in your database. The id stays the same when the user changes their email or signs in from another device.
@@ -89,8 +121,9 @@ Each of these events has these properties:
 | `project_id` | The project id, when the route has one |
 | `workspace_id` | The workspace id, when the route has one |
 | `organization_id` | The organization id, when the route has one |
+| `$groups` | `{"instance": "<instance id>"}` |
 
-`user_signed_up_v1` instead has `source` (`auth`), `is_ee` (`true` on the enterprise edition) and `cloud_region` (`Other` on a self-hosted instance).
+`user_signed_up_v1` instead has `source` (`auth`), `is_ee` (`true` on the enterprise edition), `cloud_region` (`Other` on a self-hosted instance) and `$groups`.
 
 The first time a user reaches a feature, the API also marks it on the user with an `$identify` event. The marks are `activated_prompt_management`, `activated_online_evaluation`, `activated_observability`, `activated_evaluation`, `activated_playground` and `invited_user_v1`, each set to `true`.
 
@@ -115,7 +148,7 @@ The PostHog browser library adds the page path, the browser, the operating syste
 
 | Variable | Default | Effect |
 |---|---|---|
-| `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops every event except the install ping. |
+| `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops every event except the install ping, the heartbeat included. |
 | `AGENTA_DEPLOYMENT_METHOD` | unset | `compose`, `helm` or `railway`. The example env files and the templates set it. |
 | `POSTHOG_API_KEY` | Agenta's project key | The PostHog project the events go to. |
 | `POSTHOG_API_URL` | Agenta's PostHog proxy | The PostHog address the events go to. |

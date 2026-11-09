@@ -3,6 +3,7 @@
 import re
 from pathlib import Path
 
+from oss.src.core.telemetry.heartbeat import InstanceHeartbeat
 from oss.src.core.telemetry.service import INSTANCE_INSTALLED_PROPERTIES
 
 DOCS_PAGE = (
@@ -21,6 +22,14 @@ def documented_fields(heading: str) -> set[str]:
 def test_install_ping_table_matches_the_payload():
     documented = documented_fields("Install ping")
     sent = set(INSTANCE_INSTALLED_PROPERTIES)
+
+    assert not sent - documented, f"not on the docs page: {sorted(sent - documented)}"
+    assert not documented - sent, f"not in the payload: {sorted(documented - sent)}"
+
+
+def test_heartbeat_table_matches_the_model():
+    documented = documented_fields("Heartbeat")
+    sent = set(InstanceHeartbeat.model_fields) | {"$groups"}
 
     assert not sent - documented, f"not on the docs page: {sorted(sent - documented)}"
     assert not documented - sent, f"not in the payload: {sorted(documented - sent)}"
