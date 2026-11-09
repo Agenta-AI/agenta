@@ -6,6 +6,10 @@
 // Worker secrets (set with `wrangler secret put`, never committed):
 //   LICENSE_SIGNING_KEY  Ed25519 private key, PKCS#8 PEM
 //   LOOPS_API_KEY        Loops API key for the transactional email
+//
+// The route is public, so two rate limit bindings (wrangler.jsonc `ratelimits`) cap it:
+// one per caller IP and one per email. They count per Cloudflare location and per
+// minute at most, so they slow abuse down; they are not a daily cap.
 
 export const REGISTRATION_PATH = "/api/license-registrations";
 
@@ -17,10 +21,20 @@ const REGISTERED_PLAN = "self_hosted_registered";
 const LOOPS_TRANSACTIONAL_ID = "REPLACE_WITH_LOOPS_TRANSACTIONAL_ID";
 const LOOPS_URL = "https://app.loops.so/api/v1/transactional";
 
+/** A Workers rate limit binding. */
+export interface RateLimiter {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface RegistrationEnv {
   LICENSE_SIGNING_KEY?: string;
   LOOPS_API_KEY?: string;
+  REGISTRATION_IP_LIMIT?: RateLimiter;
+  REGISTRATION_EMAIL_LIMIT?: RateLimiter;
 }
+
+// The body is four short fields; anything larger is not a registration.
+const MAX_BODY_BYTES = 2048;
 
 export interface RegistrationEmail {
   to: string;
@@ -40,8 +54,7 @@ export interface Registration {
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VERSION = /^v\d+\.\d+\.\d+\S*$/;
 
 /** The registration in the body, or null when a field is missing or wrong. */
@@ -60,6 +73,7 @@ export function parseRegistration(body: unknown): Registration | null {
     typeof agenta_version !== "string" ||
     !VERSION.test(agenta_version) ||
     typeof web_url !== "string" ||
+    web_url.length > 512 ||
     !isHttpUrl(web_url)
   ) {
     return null;
@@ -70,7 +84,11 @@ export function parseRegistration(body: unknown): Registration | null {
 function isHttpUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      !url.username &&
+      !url.password
+    );
   } catch {
     return false;
   }
@@ -79,7 +97,10 @@ function isHttpUrl(value: string): boolean {
 function base64url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 function pemToDer(pem: string): ArrayBuffer {
@@ -168,18 +189,64 @@ function error(status: number, code: string, message: string): Response {
   return json(status, { error: { code, status, message } });
 }
 
+/** The body text, or null when it is larger than `MAX_BODY_BYTES`. */
+async function readBody(request: Request): Promise<string | null> {
+  const declared = Number(request.headers.get("Content-Length") ?? 0);
+  if (declared > MAX_BODY_BYTES) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+async function allowed(
+  limiter: RateLimiter | undefined,
+  key: string,
+): Promise<boolean> {
+  // A missing binding is a deploy mistake; refuse rather than run without a limit.
+  if (!limiter) return false;
+  return (await limiter.limit({ key })).success;
+}
+
+const TOO_MANY = () =>
+  error(429, "too_many_requests", "Too many registrations. Try again later.");
+
 export async function handleRegistration(
   request: Request,
   env: RegistrationEnv,
   mailSender?: MailSender,
 ): Promise<Response> {
-  if (request.method.toUpperCase() !== "POST") {
+  if (request.method !== "POST") {
     return new Response(null, { status: 405, headers: { Allow: "POST" } });
   }
 
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  if (!(await allowed(env.REGISTRATION_IP_LIMIT, ip))) return TOO_MANY();
+
+  const text = await readBody(request);
+  if (text === null) {
+    return error(413, "body_too_large", "The registration is too large.");
+  }
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(text);
   } catch {
     body = null;
   }
@@ -187,9 +254,14 @@ export async function handleRegistration(
   if (!registration) {
     return error(400, "invalid_registration", "The registration is not valid.");
   }
+  const emailKey = registration.email.toLowerCase();
+  if (!(await allowed(env.REGISTRATION_EMAIL_LIMIT, emailKey))) {
+    return TOO_MANY();
+  }
 
   const sender =
-    mailSender ?? (env.LOOPS_API_KEY ? loopsMailSender(env.LOOPS_API_KEY) : null);
+    mailSender ??
+    (env.LOOPS_API_KEY ? loopsMailSender(env.LOOPS_API_KEY) : null);
   if (!env.LICENSE_SIGNING_KEY || !sender) {
     return error(503, "unavailable", "Registration is not available.");
   }
