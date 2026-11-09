@@ -147,8 +147,9 @@ export const SessionTab = ({
     const [hot, setHot] = useState(false)
     const onEnter = useCallback(() => setHot(true), [])
     const onLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-        // Don't unmount the cluster out from under keyboard focus (symmetric with onBlurChip).
-        if (!e.currentTarget.contains(document.activeElement)) setHot(false)
+        // Keep the cluster under keyboard focus only; a click's focus must not pin it.
+        const el = e.currentTarget
+        if (!el.matches(":focus-visible") && !el.querySelector(":focus-visible")) setHot(false)
     }, [])
     const onBlurChip = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHot(false)
@@ -228,7 +229,9 @@ export const SessionTab = ({
                     className={clsx(
                         "absolute inset-y-0 flex items-center gap-0.5",
                         // Over the name's tail on the tab's own fill, so the tab never grows on hover.
-                        connected ? "right-1.5 my-auto h-5 rounded bg-inherit pl-1" : "right-1",
+                        connected ? "right-1.5 my-auto h-5 rounded pl-1" : "right-1",
+                        // The open tab's fill is the glide layer, so its own background is clear.
+                        connected && (active ? "bg-background" : "bg-inherit"),
                     )}
                 >
                     {actions}
