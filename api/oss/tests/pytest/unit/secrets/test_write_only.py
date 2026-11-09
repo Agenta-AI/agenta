@@ -1184,6 +1184,21 @@ def test_channel_secret_redacts_every_credential_field():
     assert channel.webhook_secret is None
 
 
+def test_teams_channel_secret_redacts_the_client_secret():
+    # A Teams connection stores only `client_secret`. A caller who can view
+    # secrets but not resolve them must not read it back.
+    response = SecretResponseDTO(
+        id=uuid4(),
+        slug="teams-bot",
+        kind="channel_secret",
+        data={"kind": "teams", "channel": {"client_secret": "teams-secret"}},
+        header={"name": "Teams"},
+        write_only=True,
+    )
+    public = redact_secret_response(response)
+    assert public.data.channel.client_secret is None
+
+
 def test_channel_secret_rotation_keeps_omitted_secondary_secrets():
     from oss.src.core.secrets.dtos import ChannelSecretDTO
     from oss.src.core.secrets.services import _carry_over_saved_value
