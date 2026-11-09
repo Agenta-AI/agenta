@@ -115,7 +115,7 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
 const useRevealWhenActive = (active: boolean, connected: boolean) => {
     const ref = useRef<HTMLDivElement>(null)
     useEffect(() => {
-        // A connected strip keeps the open tab in its own window of whole tabs.
+        // A connected strip scrolls its open tab into view itself.
         if (!active || connected) return
         const reveal = () => {
             const tab = ref.current

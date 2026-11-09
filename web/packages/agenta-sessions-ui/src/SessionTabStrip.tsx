@@ -93,9 +93,9 @@ export interface SessionTabStripProps {
     /** Only the chips and extras, for a host bar that already draws the height and hairline. */
     bare?: boolean
     /**
-     * Bare only: show this many whole tabs. The strip takes their width (short names make it
-     * narrow, long ones wide; the host caps it) and brings the open tab's window into view; a
-     * scroll by hand stays where it is left.
+     * Bare only: show this many tabs. The strip takes the width of the widest run of that many
+     * (the host caps it), so switching tabs never resizes it, and scrolls the open tab into view;
+     * a scroll by hand stays where it is left.
      */
     fitTabs?: number
     /** Fit mode: the width the strip would take for `fitTabs` tabs with room to spare, so the
@@ -151,7 +151,6 @@ export const SessionTabStrip = ({
     const stripElRef = useRef<HTMLDivElement | null>(null)
     // Fit mode: ONE function owns the strip's width and scroll. A separate snap, fit and reveal
     // each moved the strip on their own timers and fought over it.
-    const homeStartRef = useRef(0)
     const naturalRef = useRef(0)
     const onNaturalWidthRef = useRef(onNaturalWidth)
     onNaturalWidthRef.current = onNaturalWidth
@@ -170,65 +169,50 @@ export const SessionTabStrip = ({
             (child) => !child.dataset.curtain,
         )
         if (slots.length === 0) return
+        const margins = slots.map((slot) => parseFloat(getComputedStyle(slot).marginRight) || 0)
         // Exact widths: tabs size to their names, and rounded `offsetWidth`s drift by a pixel
-        // per tab, which lands a rest a few pixels into the next tab.
-        const sizes = slots.map(
-            (slot) =>
-                slot.getBoundingClientRect().width +
-                (parseFloat(getComputedStyle(slot).marginRight) || 0),
-        )
+        // per tab.
+        const sizes = slots.map((slot, i) => slot.getBoundingClientRect().width + margins[i])
         // Flow positions from the sizes, so a tab mid-glide does not skew them.
         const starts = sizes.map((_, i) => sizes.slice(0, i).reduce((sum, size) => sum + size, 0))
-        const active = slots.findIndex((slot) => slot.querySelector('[aria-selected="true"]'))
-        const margin = (i: number) => parseFloat(getComputedStyle(slots[i]).marginRight) || 0
         const room = hostRoom(el)
         // A tab may never be wider than the strip can show, or a one-tab strip clips it.
         if (Number.isFinite(room)) {
             el.style.setProperty("--strip-tab-max", `${Math.floor(room) - 2 * BARE_INSET_PX}px`)
         }
-        const span = (first: number, count: number) => {
-            const last = Math.min(first + count, slots.length) - 1
-            const tabs = sizes.slice(first, last + 1).reduce((sum, size) => sum + size, 0)
-            return Math.round(tabs - margin(last) + 2 * BARE_INSET_PX)
+        // The widest run of `fitTabs` tabs sets the width, whichever tab is open: a width that
+        // followed the open tab resized the centred strip and slid every tab on each switch.
+        const count = Math.min(fitTabs, slots.length)
+        let widest = 0
+        for (let first = 0; first + count <= slots.length; first++) {
+            const last = first + count - 1
+            widest = Math.max(widest, starts[last] + sizes[last] - margins[last] - starts[first])
         }
-        // The home window holds the open tab and moves only as far as it must to keep it.
-        // The strip's width comes from it alone, never from where a scroll rests: a width
-        // that followed the scroll resized the centred bar and slid every tab sideways.
-        const homeFor = (count: number) => {
-            let first = homeStartRef.current
-            if (active >= 0 && active < first) first = active
-            if (active >= 0 && active > first + count - 1) first = active - count + 1
-            return Math.max(0, Math.min(first, slots.length - count))
-        }
-        let count = fitTabs
-        let home = homeFor(count)
-        const natural = span(home, count)
+        const natural = Math.round(widest + 2 * BARE_INSET_PX)
         if (natural !== naturalRef.current) {
             naturalRef.current = natural
             onNaturalWidthRef.current?.(natural)
         }
-        while (count > 1 && span(home, count) > room + 1) {
-            count -= 1
-            home = homeFor(count)
-        }
+        el.style.width = `${Math.min(natural, Math.floor(room))}px`
+        el.style.flex = "none"
+        const active = slots.findIndex((slot) => slot.querySelector('[aria-selected="true"]'))
         const activeSlot = active >= 0 ? slots[active] : null
         const moved = activeSlot !== shownActiveRef.current || slots.length !== tabCountRef.current
-        homeStartRef.current = home
         shownActiveRef.current = activeSlot
         tabCountRef.current = slots.length
-        el.style.width = `${Math.min(span(home, count), Math.floor(room))}px`
-        el.style.flex = "none"
-        const scrollTo = (left: number) => {
-            // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced
-            // motion.
-            if (Math.abs(el.scrollLeft - left) > 1) el.scrollTo({left: Math.max(0, left)})
-        }
-        // A new open tab or a changed tab set brings the open tab's window into view. Otherwise a
-        // refit (titles landing, a resize) re-places it only while the user has not scrolled.
+        // A new open tab or a changed tab set brings the open tab into view. Otherwise a refit
+        // (titles landing, a resize) keeps it in view only while the user has not scrolled.
         if (moved) ownsScrollRef.current = true
-        if (ownsScrollRef.current) {
-            scrollTo(Math.min(starts[home], el.scrollWidth - el.clientWidth))
-        }
+        if (!ownsScrollRef.current || active < 0) return
+        // The least scroll that shows the whole open tab, from where the strip is now, so a tab
+        // already in view never moves under the pointer that opened it.
+        const view = el.clientWidth - 2 * BARE_INSET_PX
+        const from = starts[active]
+        const to = from + sizes[active] - margins[active]
+        const left = el.scrollLeft
+        const target = from < left ? from : to > left + view ? to - view : left
+        // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced motion.
+        if (Math.abs(target - left) > 1) el.scrollTo({left: Math.max(0, target)})
     }, [fitTabs])
     const measureFade = useCallback(() => {
         const el = stripElRef.current

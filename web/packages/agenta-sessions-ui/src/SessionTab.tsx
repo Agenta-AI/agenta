@@ -42,8 +42,9 @@ const LABEL_MASK_HOVER = maskStyle(
 /** Label-sized between a floor (clickable zone left of the hover actions) and a ceiling. No
  * border: plain labels separated by the host's hairline; selected reads by fill alone. */
 const CHIP = "h-7 w-fit min-w-20 max-w-32 gap-1.5 rounded px-2 text-xs"
-/** Sized to the name, up to a cap, so a short name leaves no gap beside it; the open tab gets
- * a wider cap. No outline: the open tab is the page's own colour, and the bar is its edge. */
+/** Sized to the name, up to a cap, so a short name leaves no gap beside it. One cap for open and
+ * closed tabs: a tab that grew when opened pushed its neighbours and resized the strip on every
+ * switch. No outline: the open tab is the page's own colour, and the bar is its edge. */
 // `--strip-tab-max`: the strip's room, so a tab never outgrows a strip that fits only one.
 const CONNECTED =
     "isolate h-8 w-fit min-w-16 max-w-[min(160px,var(--strip-tab-max,160px))] gap-2 rounded-t-[6px] px-3 text-xs"
@@ -189,7 +190,7 @@ export const SessionTab = ({
                 connected
                     ? active
                         ? // One weight for open and closed tabs: a weight swap on switch resized the name mid-glide.
-                          "max-w-[min(200px,var(--strip-tab-max,200px))] text-colorText"
+                          "text-colorText"
                         : "text-colorTextSecondary hover:bg-[var(--ag-surface-tab-hover)] hover:text-colorText"
                     : active
                       ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
