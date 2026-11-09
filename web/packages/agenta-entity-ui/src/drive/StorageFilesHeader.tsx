@@ -10,7 +10,15 @@ const MUTED = "text-xs text-[var(--ag-colorTextTertiary)]"
 
 function StorageFilesToggle({scope, sessionId}: {scope: string; sessionId: string}) {
     const {open, toggle} = useSessionFilesPane(scope, sessionId)
-    return <FilesPaneToggle open={open} onToggle={toggle} disabled={!sessionId} />
+    return (
+        <FilesPaneToggle
+            open={open}
+            onToggle={toggle}
+            disabled={!sessionId}
+            // As quiet as the region titles' "+": full strength on hover or while open.
+            className="!text-colorTextTertiary hover:!text-colorText aria-pressed:!text-colorText"
+        />
+    )
 }
 
 export default function StorageFilesHeader({

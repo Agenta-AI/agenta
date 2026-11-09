@@ -8,11 +8,14 @@ export function FilesPaneToggle({
     onToggle,
     disabled = false,
     tooltipSide,
+    className,
 }: {
     open: boolean
     onToggle: () => void
     disabled?: boolean
     tooltipSide?: SimpleTooltipProps["side"]
+    /** Extra button classes, e.g. a quieter tone inside a section title. */
+    className?: string
 }) {
     return (
         <SimpleTooltip
@@ -37,6 +40,7 @@ export function FilesPaneToggle({
                     aria-keyshortcuts={shortcutAria("panel.files")}
                     disabled={disabled}
                     onClick={onToggle}
+                    className={className}
                 >
                     {open ? <FolderOpen weight="fill" /> : <Folder />}
                 </Button>
