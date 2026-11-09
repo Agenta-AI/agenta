@@ -44,8 +44,8 @@ export interface SpringState {
     velocity: number
 }
 
-/** One step of a critically damped spring: no overshoot, and it keeps the velocity it is handed,
- * so a glide continues the drag's momentum. Closed form, so a dropped frame lands exactly. */
+/** One step of a critically damped spring: it keeps the velocity it is handed, so a glide continues
+ * the drag's momentum. Closed form, so a dropped frame lands exactly. */
 export const stepSpring = (
     state: SpringState,
     target: number,
@@ -54,10 +54,16 @@ export const stepSpring = (
 ): SpringState => {
     if (omegaPerMs <= 0) return {position: target, velocity: 0}
     const offset = state.position - target
-    const k = state.velocity + omegaPerMs * offset
+    // Faster than omega * offset towards the target would carry it past; cap it to ease in instead.
+    const limit = omegaPerMs * Math.abs(offset)
+    const towards = state.velocity * offset < 0
+    const handed = towards
+        ? Math.sign(state.velocity) * Math.min(Math.abs(state.velocity), limit)
+        : state.velocity
+    const k = handed + omegaPerMs * offset
     const decay = Math.exp(-omegaPerMs * elapsedMs)
     const position = target + (offset + k * elapsedMs) * decay
-    const velocity = (state.velocity - k * omegaPerMs * elapsedMs) * decay
+    const velocity = (handed - k * omegaPerMs * elapsedMs) * decay
     if (Math.abs(position - target) < 0.5 && Math.abs(velocity) < 0.02) {
         return {position: target, velocity: 0}
     }

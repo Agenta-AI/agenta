@@ -54,6 +54,20 @@ describe("stepSpring", () => {
         expect(state.velocity).toBe(0)
     })
 
+    it("never passes the target when the handed velocity points at it", () => {
+        const glide = (from: number, velocity: number, target: number) => {
+            let state = {position: from, velocity}
+            const positions: number[] = []
+            for (let frame = 0; frame < 60; frame++) {
+                state = stepSpring(state, target, 16, 0.02)
+                positions.push(state.position)
+            }
+            return positions
+        }
+        expect(Math.min(...glide(70, -1.5, 48))).toBe(48)
+        expect(Math.max(...glide(196, 1.5, 200))).toBe(200)
+    })
+
     it("lands in the same place however the frames are sliced", () => {
         let fine = {position: 192, velocity: -0.5}
         for (let frame = 0; frame < 10; frame++) fine = stepSpring(fine, 48, 10, 0.02)
