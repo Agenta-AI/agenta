@@ -34,19 +34,20 @@ export const LIVE_LINK_CACHE_MAX_ENTRIES = 512;
 export const LIVE_LINK_LOOKUP_MS = 30_000;
 /** The deadline frees the caller, not the SDK request, whose own timeout is 24 h. */
 export const LIVE_LINK_MAX_ACTIVE_LOOKUPS = 64;
+/** A session's lookup hung this long is given up on, so the session can try again. */
+export const LIVE_LINK_STUCK_MS = 5 * 60_000;
 
 /** What the browser's `/health` reports: the open page, and the reason the agent gave `wait`. */
-export interface BrowserPageState {
+export interface BrowserPage {
   wait_reason: string;
   url: string;
-  title: string;
 }
 
 /** Where the api connects, the headers the connection carries, and the page it shows. */
 export interface BrowserLiveLink {
   url: string;
   headers: Record<string, string>;
-  page: BrowserPageState;
+  page: BrowserPage;
 }
 
 export interface LiveLinkScope {
@@ -71,7 +72,7 @@ export interface LiveLinkClient {
 export type BrowserProbe = (
   healthUrl: string,
   headers: Record<string, string>,
-) => Promise<BrowserPageState | null>;
+) => Promise<BrowserPage | null>;
 
 const MAX_PAGE_TEXT = 2_048;
 const pageText = (value: unknown) => (typeof value === "string" ? value.slice(0, MAX_PAGE_TEXT) : "");
@@ -90,7 +91,7 @@ export const probeBrowserHealth: BrowserProbe = async (healthUrl, headers) => {
     // A proxy page can answer 200 too; only the browser answers `{ok: true}`.
     const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
     if (body?.ok !== true) return null;
-    return { wait_reason: pageText(body.wait_reason), url: pageText(body.url), title: pageText(body.title) };
+    return { wait_reason: pageText(body.wait_reason), url: pageText(body.url) };
   } catch {
     return null;
   }
@@ -158,31 +159,37 @@ export function cacheLiveLinks(
     maxEntries = LIVE_LINK_CACHE_MAX_ENTRIES,
     lookupMs = LIVE_LINK_LOOKUP_MS,
     maxActive = LIVE_LINK_MAX_ACTIVE_LOOKUPS,
+    stuckMs = LIVE_LINK_STUCK_MS,
     now = Date.now,
   }: {
     ttlMs?: number;
     maxEntries?: number;
     lookupMs?: number;
     maxActive?: number;
+    stuckMs?: number;
     now?: () => number;
   } = {},
 ): LiveLinkLookup {
   const entries = new Map<string, { at: number; link: Promise<BrowserLiveLink | undefined> }>();
   let active = 0;
-  // A session whose lookup outlived its deadline waits for it, so one hung session holds one slot.
-  const running = new Set<string>();
+  // A session whose lookup outlived its deadline waits for it, so a hung session holds one slot,
+  // until `stuckMs`: the SDK's own timeout is 24 h.
+  const running = new Map<string, { at: number }>();
   return (scope) => {
     const key = JSON.stringify([scope.projectId, scope.sessionId]);
     const hit = entries.get(key);
     if (hit && now() - hit.at < ttlMs) return hit.link;
     entries.delete(key);
-    if (running.has(key)) return Promise.reject(new Error("browser lookup still running"));
+    const previous = running.get(key);
+    if (previous && now() - previous.at < stuckMs)
+      return Promise.reject(new Error("browser lookup still running"));
     if (active >= maxActive) return Promise.reject(new Error("too many browser lookups"));
     active++;
-    running.add(key);
+    const mine = { at: now() };
+    running.set(key, mine);
     const started = lookup(scope).finally(() => {
       active--;
-      running.delete(key);
+      if (running.get(key) === mine) running.delete(key);
     });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<never>((_, reject) => {

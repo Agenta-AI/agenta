@@ -56,7 +56,7 @@ function client(sandboxes: LiveLinkSandbox[], seen: Record<string, string>[] = [
   };
 }
 
-const PAGE = { wait_reason: "Sign in, then click I'm done.", url: "https://example.com/login", title: "Sign in" };
+const PAGE = { wait_reason: "Sign in, then click I'm done.", url: "https://example.com/login" };
 const alive: BrowserProbe = async () => PAGE;
 const dead: BrowserProbe = async () => null;
 
@@ -151,6 +151,22 @@ describe("cacheLiveLinks", () => {
     assert.equal(calls, 1);
     finish(undefined);
     await new Promise((resolve) => setTimeout(resolve, 0));
+    cached(scope).catch(() => {});
+    assert.equal(calls, 2);
+  });
+
+  it("tries again once a session's lookup has hung past the stuck limit", async () => {
+    let clock = 0;
+    let calls = 0;
+    const lookup = () => {
+      calls++;
+      return new Promise<undefined>(() => {});
+    };
+    const cached = cacheLiveLinks(lookup, { lookupMs: 5, stuckMs: 1_000, now: () => clock });
+    const scope = { projectId: "p", sessionId: "s" };
+    await assert.rejects(cached(scope), /timed out/);
+    await assert.rejects(cached(scope), /still running/);
+    clock = 1_000;
     cached(scope).catch(() => {});
     assert.equal(calls, 2);
   });
@@ -296,14 +312,14 @@ describe("probeBrowserHealth", () => {
   }
 
   it("counts only the browser's own answer as live, and reads its page state", async () => {
-    const empty = { wait_reason: "", url: "", title: "" };
+    const empty = { wait_reason: "", url: "" };
     const cases: [number, string, string, unknown][] = [
       [200, '{"ok":true}', "application/json", empty],
       [
         200,
         '{"ok":true,"wait_reason":"Sign in","url":"https://example.com/","title":"Example","extra":1}',
         "application/json",
-        { wait_reason: "Sign in", url: "https://example.com/", title: "Example" },
+        { wait_reason: "Sign in", url: "https://example.com/" },
       ],
       [200, '{"ok":true,"wait_reason":7,"title":null}', "application/json", empty],
       [200, "<html>preview warning</html>", "text/html", null],
