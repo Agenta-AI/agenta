@@ -459,5 +459,18 @@ async def test_an_empty_answer_posts_nothing(adapter, discord):
     assert discord.sent == [] and discord.threads_started == []
 
 
+async def test_history_shows_the_bots_role_mention_as_its_handle(adapter, discord):
+    discord.history[p.CHANNEL_ID] = [p.role_mention("hello", message_id="21")["d"]]
+
+    [event] = await adapter.fetch_history(
+        connection=_connection(),
+        locator={"guild_id": p.GUILD_ID, "channel_id": p.CHANNEL_ID},
+        limit=50,
+    )
+
+    assert event.processed.content[0]["text"] == f"@{p.BOT_USERNAME} hello"
+    assert discord.role_reads == [p.GUILD_ID]
+
+
 async def test_discover_spaces_returns_nothing(adapter):
     assert await adapter.discover_spaces(connection=_connection()) == []
