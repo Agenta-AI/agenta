@@ -171,6 +171,43 @@ async def test_a_mention_of_another_role_does_not_address_the_bot(adapter, disco
     assert f"<@&{p.OTHER_ROLE_ID}>" in event.processed.content[0]["text"]
 
 
+async def test_a_direct_mention_does_not_wait_on_the_roles(adapter, discord):
+    discord.fail_role_reads = True
+    payload = p.mention("hello")
+    payload["d"]["mention_roles"] = [p.OTHER_ROLE_ID]
+
+    event = await _parse(adapter, payload)
+
+    assert event.addressed is True
+    assert discord.role_reads == []
+
+
+async def test_the_bots_role_is_read_again_after_it_expires(
+    adapter, discord, monkeypatch
+):
+    from oss.src.core.channels.adapters.discord import adapter as module
+
+    now = [1000.0]
+    monkeypatch.setattr(module.time, "monotonic", lambda: now[0])
+    connection = _connection()
+    await _parse(adapter, p.role_mention(), connection)
+
+    # The bot was removed and invited again, and Discord made a new role.
+    discord.roles[-1]["id"] = "1100000000000000099"
+    now[0] += 60
+    stale = await _parse(
+        adapter, p.role_mention(role_id="1100000000000000099"), connection
+    )
+    now[0] += module._BOT_ROLE_TTL_SECONDS
+    fresh = await _parse(
+        adapter, p.role_mention(role_id="1100000000000000099"), connection
+    )
+
+    assert stale.addressed is False
+    assert fresh.addressed is True
+    assert discord.role_reads == [p.GUILD_ID, p.GUILD_ID]
+
+
 async def test_a_message_without_role_mentions_reads_no_roles(adapter, discord):
     await _parse(adapter, p.mention())
 

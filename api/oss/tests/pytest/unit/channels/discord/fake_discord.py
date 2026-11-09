@@ -75,6 +75,7 @@ class FakeDiscord:
             },
         ]
         self.role_reads: List[str] = []
+        self.fail_role_reads = False
         self._next_id = 1_500_000_000_000_000_000
         prefix = "/api/v10"
         self.app = Starlette(
@@ -177,6 +178,8 @@ class FakeDiscord:
         if not self._authorized(request):
             return self._unauthorized()
         self.role_reads.append(request.path_params["guild_id"])
+        if self.fail_role_reads:
+            return self._error(0, "503: fake failure", 503)
         return JSONResponse(self.roles)
 
     async def _messages(self, request: Request) -> Response:

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple
 from urllib.parse import quote
 from uuid import UUID
@@ -44,6 +45,9 @@ _HISTORY_PAGE_MAX = 100
 # memory.
 _CACHE_MAX = 1024
 
+# Removing the bot and inviting it again can give it a new managed role.
+_BOT_ROLE_TTL_SECONDS = 600.0
+
 _RECEIVED_EMOJI = quote("👀")
 _COMPLETED_EMOJI = quote("✅")
 
@@ -80,8 +84,8 @@ class DiscordAdapter(ChannelAdapterInterface):
         self._channels: Dict[Tuple[UUID, str], Dict[str, Any]] = {}
         # (connection id, thread id) of threads known to exist
         self._threads: Set[Tuple[UUID, str]] = set()
-        # (connection id, guild id) -> the bot's managed role, or None
-        self._bot_roles: Dict[Tuple[UUID, str], Optional[str]] = {}
+        # (connection id, guild id) -> (read at, the bot's managed role or None)
+        self._bot_roles: Dict[Tuple[UUID, str], Tuple[float, Optional[str]]] = {}
 
     # --- declaration --- #
 
@@ -205,10 +209,13 @@ class DiscordAdapter(ChannelAdapterInterface):
                 parent_id = str(channel["parent_id"])
                 channel = await self._channel(connection, parent_id)
             title = channel.get("name")
-        # Only a message that mentions a role can mention the bot's role.
+        # The roles are read only when a role mention is the bot's only way
+        # to be addressed, so a failed read never drops a direct mention.
         bot_role_id = (
             await self._bot_role(connection, str(guild_id))
-            if guild_id and data.get("mention_roles")
+            if guild_id
+            and data.get("mention_roles")
+            and not mapping.mentions_bot(data, bot_user_id=bot_user_id)
             else None
         )
 
@@ -241,7 +248,9 @@ class DiscordAdapter(ChannelAdapterInterface):
         `tags.bot_id` is the bot. `MESSAGE_CREATE` gives only role ids."""
 
         key = (connection.id, guild_id)
-        if key not in self._bot_roles:
+        now = time.monotonic()
+        cached = self._bot_roles.get(key)
+        if cached is None or now - cached[0] > _BOT_ROLE_TTL_SECONDS:
             roles = await self._request(
                 _bot_token(connection), "GET", f"/guilds/{guild_id}/roles"
             )
@@ -258,8 +267,8 @@ class DiscordAdapter(ChannelAdapterInterface):
             )
             if len(self._bot_roles) >= _CACHE_MAX:
                 self._bot_roles.clear()
-            self._bot_roles[key] = role_id
-        return self._bot_roles[key]
+            self._bot_roles[key] = (now, role_id)
+        return self._bot_roles[key][1]
 
     async def _acknowledge(self, interaction: Dict[str, Any]) -> None:
         """Answer the click with a deferred update: nothing changes on the
