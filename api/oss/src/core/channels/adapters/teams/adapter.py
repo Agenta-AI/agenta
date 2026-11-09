@@ -1,4 +1,6 @@
-from typing import Any, Dict, List, Optional
+from time import monotonic
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 from uuid import UUID
 
 import httpx
@@ -26,17 +28,41 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.types import (
     ChannelConnectionIncomplete,
     ChannelConnectionVerificationFailed,
+    ChannelCredentialRevoked,
+    ChannelDeliveryUncertain,
+    ChannelLocatorIncomplete,
+    ChannelsError,
 )
 from oss.src.utils.env import env
 
 _TOKEN_URL = "https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
 _TOKEN_SCOPE = "https://api.botframework.com/.default"
 _HTTP_TIMEOUT_SECONDS = 10.0
+_TOKEN_REFRESH_MARGIN_SECONDS = 300.0
+_TOKEN_LIFETIME_SECONDS = 3600.0
+_CACHE_MAX = 1024
+
+# The locator fields a receipt keeps, so a card update and a repost reach the
+# same conversation.
+_RECEIPT_FIELDS = ("tenant_id", "conversation_id", "thread_id", "service_url")
 
 # Microsoft Entra error codes (AADSTS<code>) that verify_connection names.
 _INVALID_CLIENT_SECRET = 7000215
 _APPLICATION_NOT_FOUND = 700016
 _TENANT_NOT_FOUND = 90002
+_EXPIRED_CLIENT_SECRET = 7000222
+_APPLICATION_DISABLED = 7000112
+# The codes that prove the stored values can never get a token again. Any
+# other refusal, such as a 400 `temporarily_unavailable`, is retried.
+_REVOKED_CODES = frozenset(
+    {
+        _INVALID_CLIENT_SECRET,
+        _EXPIRED_CLIENT_SECRET,
+        _APPLICATION_NOT_FOUND,
+        _APPLICATION_DISABLED,
+        _TENANT_NOT_FOUND,
+    }
+)
 
 _SECRET_REJECTED = (
     "Microsoft rejected this client secret. Copy the secret's Value, not its Secret ID."
@@ -70,6 +96,43 @@ def _tenant_id(connection: ChannelConnection | ChannelConnectionCreate) -> str:
     return value.strip().lower()
 
 
+def _activities_url(locator: Dict[str, Any]) -> str:
+    """`{service_url}/v3/conversations/{conversation}/activities`, where a
+    channel thread's conversation carries `;messageid=<root id>`. Refused for
+    any host but Microsoft's reply hosts, before the token is read."""
+
+    for field in ("service_url", "conversation_id"):
+        if not locator.get(field):
+            raise ChannelLocatorIncomplete(
+                channel="teams", grain="reply", missing=field
+            )
+    service_url = locator["service_url"]
+    if not mapping.reply_host_allowed(service_url):
+        raise _ReplyHostRefused(service_url=service_url)
+    conversation = mapping.join_conversation_id(
+        locator["conversation_id"], locator.get("thread_id") or ""
+    )
+    return (
+        f"{service_url.rstrip('/')}/v3/conversations/"
+        f"{quote(conversation, safe='')}/activities"
+    )
+
+
+def _outbound(
+    activity: Dict[str, Any], connection: ChannelConnection
+) -> Dict[str, Any]:
+    # Microsoft can refuse a send without the tenant once the inbound
+    # request has ended, which is always the case for the outbox.
+    return {**activity, "channelData": {"tenant": {"id": _tenant_id(connection)}}}
+
+
+def _expires_in(body: Dict[str, Any]) -> float:
+    try:
+        return float(body.get("expires_in") or _TOKEN_LIFETIME_SECONDS)
+    except (TypeError, ValueError):
+        return _TOKEN_LIFETIME_SECONDS
+
+
 class TeamsAdapter(ChannelAdapterInterface):
     """A Teams bot the user registers in their own Microsoft tenant: the
     application (client) id, a client secret and the directory (tenant) id.
@@ -83,6 +146,8 @@ class TeamsAdapter(ChannelAdapterInterface):
     def __init__(self, *, http_client: Optional[httpx.AsyncClient] = None) -> None:
         self._client = http_client or httpx.AsyncClient(timeout=_HTTP_TIMEOUT_SECONDS)
         self._keys = BotFrameworkKeys(http_client=self._client)
+        # connection id -> (access token, monotonic time to stop using it)
+        self._tokens: Dict[UUID, Tuple[str, float]] = {}
 
     # --- declaration --- #
 
@@ -200,7 +265,29 @@ class TeamsAdapter(ChannelAdapterInterface):
         content: List[Dict[str, Any]],
         idempotency_key: UUID,
     ) -> Dict[str, Any]:
-        raise NotImplementedError("Teams replies are not built yet.")
+        url = _activities_url(locator)
+        activities = mapping.build_activities(
+            content, thread_id=locator.get("thread_id") or ""
+        )
+        receipt: Dict[str, Any] = {}
+        for activity in activities:
+            try:
+                sent = await self._send(
+                    connection, "POST", url, _outbound(activity, connection)
+                )
+            except Exception as exc:
+                if receipt:
+                    # An earlier part is already in the chat; a retry would
+                    # post it twice.
+                    raise ChannelDeliveryUncertain(
+                        channel=self.channel, detail=str(exc)[:200]
+                    ) from exc
+                raise
+            receipt = {
+                **{key: locator[key] for key in _RECEIPT_FIELDS if key in locator},
+                "message_id": str(sent.get("id") or ""),
+            }
+        return receipt
 
     async def edit_message(
         self,
@@ -210,7 +297,8 @@ class TeamsAdapter(ChannelAdapterInterface):
         content: List[Dict[str, Any]],
         idempotency_key: UUID,
     ) -> Dict[str, Any]:
-        raise NotImplementedError("Teams replies are not built yet.")
+        # The declaration says controls.update is false, so core never asks.
+        raise NotImplementedError("Teams answers are posted, never edited.")
 
     async def dismiss_choices(
         self,
@@ -219,12 +307,29 @@ class TeamsAdapter(ChannelAdapterInterface):
         external_locator: Dict[str, Any],
         content: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
-        raise NotImplementedError("Teams replies are not built yet.")
+        """Replace the card with the same card without its buttons. Teams
+        cannot change a card in answer to an `Action.Submit` click."""
+
+        message_id = external_locator.get("message_id")
+        if not message_id or not content:
+            return
+        url = f"{_activities_url(external_locator)}/{quote(message_id, safe='')}"
+        activity = {
+            "type": "message",
+            "id": message_id,
+            "attachments": [mapping.card_attachment(content, with_actions=False)],
+        }
+        await self._send(connection, "PUT", url, _outbound(activity, connection))
 
     async def signal_activity(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]
     ) -> None:
-        raise NotImplementedError("Teams replies are not built yet.")
+        await self._send(
+            connection,
+            "POST",
+            _activities_url(locator),
+            _outbound({"type": "typing"}, connection),
+        )
 
     # --- discovery and history --- #
 
@@ -240,6 +345,84 @@ class TeamsAdapter(ChannelAdapterInterface):
         raise NotImplementedError("Teams history is not read; backfill is off.")
 
     # --- internals --- #
+
+    async def _send(
+        self,
+        connection: ChannelConnection,
+        method: str,
+        url: str,
+        activity: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """One Bot Framework call. A 401 gets a new access token and one
+        retry: the cached token may have been revoked before it expired."""
+
+        token = await self._access_token(connection)
+        response = await self._client.request(
+            method, url, json=activity, headers={"Authorization": f"Bearer {token}"}
+        )
+        if response.status_code == 401:
+            token = await self._access_token(connection, refused=token)
+            response = await self._client.request(
+                method,
+                url,
+                json=activity,
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if response.status_code == 401:
+                raise ChannelCredentialRevoked(
+                    channel=self.channel, detail=str(_TeamsApiError(response))
+                )
+        if response.is_error:
+            raise _TeamsApiError(response)
+        try:
+            body = response.json() if response.content else {}
+        except ValueError:
+            body = {}
+        return body if isinstance(body, dict) else {}
+
+    async def _access_token(
+        self, connection: ChannelConnection, *, refused: Optional[str] = None
+    ) -> str:
+        """The connection's cached access token, or a new one when it is
+        within 5 minutes of expiry or is the token Microsoft just `refused`.
+        Two sends that both miss the cache each ask for a token; either one
+        works, and no connection waits on another's token request."""
+
+        cached = self._tokens.get(connection.id)
+        if cached and cached[0] != refused and monotonic() < cached[1]:
+            return cached[0]
+        body = await self._connection_token(connection)
+        if len(self._tokens) >= _CACHE_MAX:
+            self._tokens.clear()
+        self._tokens[connection.id] = (
+            body["access_token"],
+            monotonic() + _expires_in(body) - _TOKEN_REFRESH_MARGIN_SECONDS,
+        )
+        return body["access_token"]
+
+    async def _connection_token(self, connection: ChannelConnection) -> Dict[str, Any]:
+        client_secret = _data(connection).get("client_secret")
+        if not client_secret:
+            raise ChannelConnectionIncomplete(
+                channel=self.channel, field="client_secret"
+            )
+        try:
+            return await self._request_token(
+                app_id=_app_id(connection),
+                tenant_id=_tenant_id(connection),
+                client_secret=client_secret,
+            )
+        except _TokenRequestRefused as e:
+            if e.revoked:
+                # Entra refused the values themselves: a wrong or expired
+                # secret, or a deleted or disabled app or tenant. No retry
+                # can pass.
+                raise ChannelCredentialRevoked(
+                    channel=self.channel, detail=str(e)
+                ) from e
+            raise _TokenUnavailable(detail=str(e)) from e
+        except httpx.HTTPError as e:
+            raise _TokenUnavailable(detail=type(e).__name__) from e
 
     async def _request_token(
         self, *, app_id: str, tenant_id: str, client_secret: str
@@ -283,6 +466,10 @@ class _TokenRequestRefused(Exception):
         )
 
     @property
+    def revoked(self) -> bool:
+        return self.error == "invalid_client" or bool(self.codes & _REVOKED_CODES)
+
+    @property
     def user_message(self) -> str:
         if _APPLICATION_NOT_FOUND in self.codes:
             return _APPLICATION_UNKNOWN
@@ -291,3 +478,42 @@ class _TokenRequestRefused(Exception):
         if _INVALID_CLIENT_SECRET in self.codes or self.error == "invalid_client":
             return _SECRET_REJECTED
         return _CHECK_FAILED
+
+
+class _TeamsApiError(Exception):
+    """A request the Bot Framework refused. `status_code` is what the outbox
+    classifies by: a 4xx other than a 429 is a refusal no retry changes,
+    such as 403 `MessageWritesBlocked` after the app was removed from a
+    chat."""
+
+    def __init__(self, response: httpx.Response):
+        self.status_code = response.status_code
+        try:
+            body = response.json()
+        except ValueError:
+            body = {}
+        error = (body.get("error") if isinstance(body, dict) else None) or {}
+        error = error if isinstance(error, dict) else {}
+        super().__init__(
+            f"Teams API error {error.get('code') or 'unknown'} ({self.status_code}): "
+            f"{str(error.get('message') or '')[:300]}"
+        )
+
+
+class _ReplyHostRefused(ChannelsError):
+    """The locator names a reply host that is not Microsoft's. The access
+    token is never sent there. The locator does not change on a retry, so
+    the outbox reads it as a refusal (`status_code` 400)."""
+
+    status_code = 400
+
+    def __init__(self, *, service_url: str):
+        super().__init__(f"teams: reply host refused ({service_url[:200]})")
+
+
+class _TokenUnavailable(ChannelsError):
+    """Microsoft did not issue an access token for a passing reason (a 429, a
+    5xx, no answer). Nothing was sent, so the outbox retries."""
+
+    def __init__(self, *, detail: str):
+        super().__init__(f"teams: no access token ({detail})")

@@ -29,13 +29,13 @@ The Discord PRs touch the same lists (the adapter registry, the secret kinds, th
 
 Runs in parallel with group 3.
 
-- [ ] 2.1 Add the access token cache per connection in `teams/adapter.py`: one token request per connection, reused until 5 minutes before expiry, behind a lock per connection, with a size cap.
+- [ ] 2.1 Add the access token cache per connection in `teams/adapter.py`: one token per connection, reused until 5 minutes before expiry, with a size cap. No lock: two sends that miss the cache each ask for a token, and no connection waits on another's token request.
 - [ ] 2.2 Add the reply host allowlist check before every outbound request.
 - [ ] 2.3 Set `channelData.tenant.id` to the connection's `tenant_id` on every outbound activity.
 - [ ] 2.4 Implement `post_message`: the reply conversation from `conversation_id` and `thread_id`, Markdown text, the receipt with the returned activity id, and `ChannelDeliveryUncertain` after a partial post.
 - [ ] 2.5 Implement the approval card in `teams/mapping.py` (Adaptive Card with `Action.Submit` buttons that carry the choice token) and `dismiss_choices` (PUT of the same card without actions).
 - [ ] 2.6 Implement `signal_activity` with a `typing` activity.
-- [ ] 2.7 Implement the error mapping: a private `_TeamsApiError` with `status_code`, one token refresh and retry on 401, then `ChannelCredentialRevoked`; `ChannelCredentialRevoked` also when the token request is refused for the secret.
+- [ ] 2.7 Implement the error mapping: a private `_TeamsApiError` with `status_code`, one token refresh and retry on 401, then `ChannelCredentialRevoked`; `ChannelCredentialRevoked` also when the token request is refused with `invalid_client` or an Entra code that names the secret, the app or the tenant; any other refusal is retried.
 - [ ] 2.8 Unit tests: extend `fake_teams.py` with a fake Bot Framework connector service; add `test_teams_delivery.py` (token reuse and refresh, host allowlist, tenant on every send, thread and chat replies, typing, card and dismiss, 401 refresh, 403 `MessageWritesBlocked`, 429, 5xx), `test_teams_outbox.py` (the native indicator and the working message after 30 seconds, long answer split at 20,000 characters), and `test_teams_approval_routing.py` (a click resolves the pending choice, a stale click starts no turn).
 - [ ] 2.9 Run `~/.local/bin/ruff format` then `~/.local/bin/ruff check --fix` in `api`, then `cd api && py-run-tests`.
 

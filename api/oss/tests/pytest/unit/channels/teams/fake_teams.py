@@ -1,11 +1,15 @@
 """Microsoft's side of the Teams adapter, faked: the Bot Framework OpenID
-document and key set, and the Microsoft Entra token service, served to the
-adapter through `httpx.ASGITransport`. Test JWTs are signed with an RSA key
+document and key set, the Microsoft Entra token service and the Bot
+Framework connector (sends and updates), served to the adapter through
+`httpx.ASGITransport`. Test JWTs are signed with an RSA key
 generated here, so nothing reaches Microsoft."""
 
+import itertools
 import json
+import re
 import time
 from typing import Any, Dict, List, Optional
+from urllib.parse import unquote
 
 import httpx
 import jwt
@@ -23,6 +27,11 @@ from . import payloads as p
 KEY_ID = "test-key-1"
 OTHER_KEY_ID = "test-key-2"
 JWKS_URI = "https://login.botframework.com/v1/.well-known/keys"
+
+_CONNECTOR_PATH = re.compile(
+    r"^(?P<prefix>.*)/v3/conversations/(?P<conversation>[^/]+)/activities"
+    r"(?:/(?P<activity_id>[^/]+))?$"
+)
 
 
 def _private_key() -> rsa.RSAPrivateKey:
@@ -77,6 +86,15 @@ class FakeMicrosoft:
             "expires_in": 3599,
             "access_token": "fake-access-token",
         }
+        # Each token request issues a new token after the first one.
+        self.issued_tokens: List[str] = []
+        self._token_numbers = itertools.count(1)
+        # Every connector call, in order: method, host, conversation (as the
+        # path names it, decoded), activity id for an update, the bearer
+        # token and the JSON body.
+        self.calls: List[Dict[str, Any]] = []
+        self._failures: List[tuple] = []
+        self._activity_numbers = itertools.count(1)
         self.app = Starlette(
             routes=[
                 Route(
@@ -89,6 +107,7 @@ class FakeMicrosoft:
                     self._token,
                     methods=["POST"],
                 ),
+                Route("/{path:path}", self._connector, methods=["POST", "PUT"]),
             ]
         )
 
@@ -99,6 +118,65 @@ class FakeMicrosoft:
             "error_description": f"AADSTS{code}: refused for the test.",
             "error_codes": [code],
         }
+
+    def fail_next(
+        self,
+        status: int,
+        *,
+        code: str = "BadRequest",
+        sub_code: Optional[str] = None,
+        times: int = 1,
+    ) -> None:
+        """The next `times` connector calls answer `status`."""
+
+        error: Dict[str, Any] = {"code": code, "message": f"{code} for the test."}
+        if sub_code:
+            error["subCode"] = sub_code
+        self._failures.extend([(status, {"error": error})] * times)
+
+    def sent(self, type_: str = "message") -> List[Dict[str, Any]]:
+        return [
+            call
+            for call in self.calls
+            if call["method"] == "POST"
+            and call["status"] < 400
+            and call["body"].get("type") == type_
+        ]
+
+    def updates(self) -> List[Dict[str, Any]]:
+        return [c for c in self.calls if c["method"] == "PUT" and c["status"] < 400]
+
+    def texts(self) -> List[str]:
+        return [call["body"].get("text") for call in self.sent()]
+
+    async def _connector(self, request: Request) -> JSONResponse:
+        match = _CONNECTOR_PATH.match("/" + request.path_params["path"])
+        if match is None:
+            return JSONResponse({"error": {"code": "NotFound"}}, status_code=404)
+        status, body = self._failures.pop(0) if self._failures else (200, None)
+        activity_id = match.group("activity_id")
+        if body is None:
+            activity_id = (
+                unquote(activity_id)
+                if activity_id
+                else f"1700000000{next(self._activity_numbers):03d}"
+            )
+            body = {"id": activity_id}
+        authorization = request.headers.get("authorization") or ""
+        self.calls.append(
+            {
+                "method": request.method,
+                "host": request.headers.get("host"),
+                "prefix": match.group("prefix"),
+                "conversation": unquote(match.group("conversation")),
+                "activity_id": match.group("activity_id"),
+                "token": authorization.removeprefix("Bearer "),
+                "body": await request.json(),
+                "status": status,
+                "response": body,
+            }
+        )
+        return JSONResponse(body, status_code=status)
 
     async def _openid_configuration(self, request: Request) -> JSONResponse:
         return JSONResponse({"issuer": ISSUER, "jwks_uri": JWKS_URI})
@@ -116,7 +194,13 @@ class FakeMicrosoft:
                 **dict(form),
             }
         )
-        return JSONResponse(self.token_body, status_code=self.token_status)
+        body = dict(self.token_body)
+        if self.token_status < 400 and body.get("access_token"):
+            number = next(self._token_numbers)
+            if number > 1:
+                body["access_token"] = f"{body['access_token']}-{number}"
+            self.issued_tokens.append(body["access_token"])
+        return JSONResponse(body, status_code=self.token_status)
 
 
 def client_for(fake: FakeMicrosoft) -> httpx.AsyncClient:

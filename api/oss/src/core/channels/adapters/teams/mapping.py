@@ -5,13 +5,16 @@ import json
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlsplit
 
+from oss.src.core.channels.adapters.teams.capabilities import TEXT_MAX_CHARS
 from oss.src.core.channels.dtos import (
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
     ChannelSpaceKind,
 )
+from oss.src.core.channels.render.approval import approval_details
 
 _SPACE_KINDS = {
     "personal": ChannelSpaceKind.PRIVATE,
@@ -293,3 +296,136 @@ def parse_activity(
         ),
         addressed=addressed,
     )
+
+
+# --- outbound ------------------------------------------------------------ #
+
+# The only hosts that may receive the bot's access token. Exact match only:
+# anyone can register another name under `trafficmanager.net`.
+REPLY_HOSTS = frozenset(
+    {
+        "smba.trafficmanager.net",
+        "smba.infra.gcc.teams.microsoft.com",
+        "smba.infra.gov.teams.microsoft.us",
+        "smba.infra.dod.teams.microsoft.us",
+    }
+)
+
+_CARD_CONTENT_TYPE = "application/vnd.microsoft.card.adaptive"
+_CARD_VERSION = "1.4"
+
+
+def reply_host_allowed(service_url: Any) -> bool:
+    if not isinstance(service_url, str):
+        return False
+    try:
+        parsed = urlsplit(service_url)
+        port = parsed.port
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and (parsed.hostname or "") in REPLY_HOSTS
+        and port in (None, 443)
+    )
+
+
+def split_text(text: str, *, max_chars: int = TEXT_MAX_CHARS) -> List[str]:
+    """Core splits agent answers at the declared limit and keeps code blocks
+    whole. The channel send tool posts its text as one part that core does
+    not split, so this cuts it at the limit."""
+
+    if len(text) <= max_chars:
+        return [text]
+    return [text[i : i + max_chars] for i in range(0, len(text), max_chars)]
+
+
+def _options(content: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    return [
+        {
+            "label": part.get("label") or part.get("value") or "",
+            "value": part.get("value") or part.get("id") or "",
+        }
+        for part in content
+        if part.get("type") == "button"
+    ]
+
+
+def _card_body(content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    body: List[Dict[str, Any]] = []
+    for part in content:
+        if part.get("type") == "text" and part.get("text"):
+            body.append({"type": "TextBlock", "text": part["text"], "wrap": True})
+        elif part.get("type") == "card":
+            if part.get("title"):
+                body.append(
+                    {
+                        "type": "TextBlock",
+                        "text": part["title"],
+                        "weight": "Bolder",
+                        "size": "Medium",
+                        "wrap": True,
+                    }
+                )
+            if part.get("text"):
+                body.append({"type": "TextBlock", "text": part["text"], "wrap": True})
+            body.append(
+                {
+                    "type": "TextBlock",
+                    "text": approval_details(part.get("arguments")),
+                    "fontType": "Monospace",
+                    "wrap": True,
+                }
+            )
+    return body
+
+
+def card_attachment(
+    content: List[Dict[str, Any]], *, thread_id: str = "", with_actions: bool = True
+) -> Dict[str, Any]:
+    """An Adaptive Card with the content's text and one `Action.Submit` per
+    button. A click comes back as a message whose `value` is the button's
+    `data`. The data carries the thread root too, because a click in a
+    channel thread may arrive without `;messageid=` in its conversation id."""
+
+    card: Dict[str, Any] = {
+        "type": "AdaptiveCard",
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "version": _CARD_VERSION,
+        "body": _card_body(content),
+    }
+    if with_actions:
+        card["actions"] = [
+            {
+                "type": "Action.Submit",
+                "title": option["label"],
+                "data": {"choice_token": option["value"], "thread_id": thread_id},
+            }
+            for option in _options(content)
+        ]
+    return {"contentType": _CARD_CONTENT_TYPE, "content": card}
+
+
+def build_activities(
+    content: List[Dict[str, Any]], *, thread_id: str = ""
+) -> List[Dict[str, Any]]:
+    """The `message` activities for core's content parts, in send order,
+    without the conversation and tenant the adapter adds. Choices go out as
+    one card. Core renders more choices than BUTTONS_MAX as numbered text,
+    so they never reach this point."""
+
+    if _options(content):
+        card = card_attachment(content, thread_id=thread_id)
+        return [{"type": "message", "attachments": [card]}]
+
+    text = "\n".join(
+        part["text"]
+        for part in content
+        if part.get("type") == "text" and part.get("text")
+    )
+    if not text:
+        return []
+    return [
+        {"type": "message", "text": chunk, "textFormat": "markdown"}
+        for chunk in split_text(text)
+    ]

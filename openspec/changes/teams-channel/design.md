@@ -213,6 +213,7 @@ The adapter's send call raises errors that carry `status_code`, so the shared ou
 - A 429 and a connect error are retried, because Teams did not accept the message.
 - A 5xx or a read timeout on a post is recorded as failed and not retried, because the message may have landed, and a retry could post it twice.
 - A 401 first gets a new access token once and retries the call. A second 401 raises `ChannelCredentialRevoked`, which switches the connection off.
+- A refused token request switches the connection off only when Entra names the values themselves: `invalid_client`, or AADSTS7000215, 7000222, 700016, 7000112 or 90002. Entra also answers 400 for passing faults such as `temporarily_unavailable`, so any other refusal is retried.
 - A 403 with `MessageWritesBlocked` means a user or a team removed the app. It is a 4xx, so that one send is refused and not retried.
 
 Install and uninstall events (`installationUpdate`, `conversationUpdate`) are ignored. Removing the app from one chat or one team does not stop the bot elsewhere, so `detect_deactivation` returns false.
