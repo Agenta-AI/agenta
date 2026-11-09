@@ -160,6 +160,8 @@ from oss.src.apis.fastapi.sessions.router import SessionsRouter
 from oss.src.apis.fastapi.sharing.router import SharingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
+from oss.src.apis.fastapi.telemetry.router import TelemetryRouter
+from oss.src.core.telemetry.service import log_telemetry_status, schedule_install_ping
 from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.invocations.service import InvocationsService
 
@@ -385,6 +387,9 @@ async def lifespan(*args, **kwargs):
     warn_deprecated_env_vars()
     validate_required_env_vars()
     validate_platform_runtime_key()
+
+    await log_telemetry_status()
+    schedule_install_ping()
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()
@@ -2243,6 +2248,14 @@ app.include_router(
     prefix="/admin/evaluations",
     tags=["Evaluations", "Admin"],
     include_in_schema=False,
+)
+
+telemetry = TelemetryRouter()
+
+app.include_router(
+    router=telemetry.router,
+    prefix="/instance",
+    tags=["Instance"],
 )
 
 app.include_router(
