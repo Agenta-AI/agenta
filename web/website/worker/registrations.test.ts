@@ -258,7 +258,7 @@ describe("handleRegistration", () => {
       sender,
     );
 
-    expect(response.status).toBe(429);
+    expect(response.status).toBe(503);
     expect(sent).toHaveLength(0);
   });
 

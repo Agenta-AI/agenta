@@ -6,10 +6,6 @@
 // Worker secrets (set with `wrangler secret put`, never committed):
 //   LICENSE_SIGNING_KEY  Ed25519 private key, PKCS#8 PEM
 //   LOOPS_API_KEY        Loops API key for the transactional email
-//
-// The route is public, so two rate limit bindings (wrangler.jsonc `ratelimits`) cap it:
-// one per caller IP and one per email. They count per Cloudflare location and per
-// minute at most, so they slow abuse down; they are not a daily cap.
 
 export const REGISTRATION_PATH = "/api/license-registrations";
 
@@ -216,12 +212,7 @@ async function readBody(request: Request): Promise<string | null> {
   return new TextDecoder().decode(bytes);
 }
 
-async function allowed(
-  limiter: RateLimiter | undefined,
-  key: string,
-): Promise<boolean> {
-  // A missing binding is a deploy mistake; refuse rather than run without a limit.
-  if (!limiter) return false;
+async function allowed(limiter: RateLimiter, key: string): Promise<boolean> {
   return (await limiter.limit({ key })).success;
 }
 
@@ -237,8 +228,14 @@ export async function handleRegistration(
     return new Response(null, { status: 405, headers: { Allow: "POST" } });
   }
 
+  const ipLimit = env.REGISTRATION_IP_LIMIT;
+  const emailLimit = env.REGISTRATION_EMAIL_LIMIT;
+  // A missing binding is a deploy mistake; refuse rather than run without a limit.
+  if (!ipLimit || !emailLimit) {
+    return error(503, "unavailable", "Registration is not available.");
+  }
   const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  if (!(await allowed(env.REGISTRATION_IP_LIMIT, ip))) return TOO_MANY();
+  if (!(await allowed(ipLimit, ip))) return TOO_MANY();
 
   const text = await readBody(request);
   if (text === null) {
@@ -255,7 +252,7 @@ export async function handleRegistration(
     return error(400, "invalid_registration", "The registration is not valid.");
   }
   const emailKey = registration.email.toLowerCase();
-  if (!(await allowed(env.REGISTRATION_EMAIL_LIMIT, emailKey))) {
+  if (!(await allowed(emailLimit, emailKey))) {
     return TOO_MANY();
   }
 

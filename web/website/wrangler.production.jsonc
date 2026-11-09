@@ -11,8 +11,8 @@
   // stays pure SSG; this worker only picks a prebuilt representation and sets
   // agent-facing headers. See worker/index.ts.
   "main": "./worker/index.ts",
-  // Caps on the public POST /api/license-registrations route (worker/registrations.ts):
-  // per caller IP and per email. namespace_id is any number unique in the account.
+  // Limits for POST /api/license-registrations (see web/website/AGENTS.md). Preview and
+  // production use different namespace ids so they do not share counters.
   "ratelimits": [
     {
       "name": "REGISTRATION_IP_LIMIT",
