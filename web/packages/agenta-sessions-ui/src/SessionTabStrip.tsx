@@ -50,6 +50,18 @@ const chipsWidth = (el: HTMLElement): number => {
     return last.offsetLeft + last.offsetWidth + trailing - first.offsetLeft
 }
 
+/**
+ * The width the host lets the strip grow to: the first `max-width` above it. Read from CSS, not by
+ * widening the scroller, which would clamp its scroll to 0.
+ */
+const hostRoom = (el: HTMLElement): number => {
+    for (let node = el.parentElement; node; node = node.parentElement) {
+        const max = parseFloat(getComputedStyle(node).maxWidth)
+        if (Number.isFinite(max)) return max
+    }
+    return Number.POSITIVE_INFINITY
+}
+
 /** How long a scroll must rest before it counts as stopped. */
 const SNAP_IDLE_MS = 140
 
@@ -107,9 +119,9 @@ export interface SessionTabStripProps {
     /** Settle on the nearest chip when a scroll stops, so none rests cut off at the start. */
     snap?: boolean
     /**
-     * Bare only: size the strip to show this many whole tabs, from the first one in view. Short
-     * names make it narrow, long ones wide; the host caps it with a max width. It updates once a
-     * scroll rests, so the bar never resizes under a moving scroll.
+     * Bare only: show this many whole tabs. The strip takes their width (short names make it
+     * narrow, long ones wide; the host caps it), keeps the open tab among them, and settles a
+     * scroll by hand on the nearest window once it rests.
      */
     fitTabs?: number
     className?: string
@@ -132,7 +144,7 @@ const SCROLLER_CLASS =
  */
 export const BARE_INSET_PX = 12
 const BARE_SCROLLER_CLASS =
-    "flex h-full min-w-0 max-w-full flex-1 items-end overflow-x-auto overscroll-x-contain px-3 [justify-content:safe_center] transition-[width] duration-200 ease-out motion-safe:scroll-smooth motion-reduce:transition-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    "flex h-full min-w-0 max-w-full flex-1 items-end overflow-x-auto overscroll-x-contain px-3 [justify-content:safe_center] motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 /** Covers the scroller's padding at each end, so tabs scrolling past never show in the gap beside
  * a docked tab. Under the open tab (z-3), over the rest. Sticky offsets count from the content
  * box, so -12px puts each cover on the padding. */
@@ -162,31 +174,85 @@ export const SessionTabStrip = ({
     const pinAddRef = useRef(false)
     const stripElRef = useRef<HTMLDivElement | null>(null)
     const reorderable = Boolean(reorder)
-    const [fitWidth, setFitWidth] = useState<number | null>(null)
-    const measureFit = useCallback(() => {
-        const el = stripElRef.current
-        if (!el || !fitTabs) return
-        // Tab slots only: the edge covers sit in the padding and take no room in the row.
-        const slots = (Array.from(el.children) as HTMLElement[]).filter((c) => !c.dataset.curtain)
-        if (slots.length === 0) return
-        const sizes = slots.map(
-            (slot) => slot.offsetWidth + (parseFloat(getComputedStyle(slot).marginRight) || 0),
-        )
-        // Flow positions from the sizes, not offsets: a docked tab reports where it is pinned.
-        let first = sizes.length
-        for (let i = 0, at = 0; i < sizes.length; at += sizes[i], i++) {
-            if (at >= el.scrollLeft - 1) {
-                first = i
-                break
+    // Fit mode keeps a window of `fitTabs` whole tabs on show. ONE function sets both the strip's
+    // width and its scroll from that window: a separate snap, fit and reveal each moved the strip
+    // on their own timers and fought over it.
+    const windowStartRef = useRef(0)
+    const pressedRef = useRef(false)
+    // The open tab is pulled into view only when it CHANGES. Re-running that on every resize
+    // undid a scroll by hand: the window's own width change fired the next refit.
+    const shownActiveRef = useRef<Element | null>(null)
+    const fitWindow = useCallback(
+        (mode: "keep" | "nearest") => {
+            const el = stripElRef.current
+            if (!el || !fitTabs || pressedRef.current) return
+            // Tab slots only: the edge covers sit in the padding and take no room in the row.
+            const slots = (Array.from(el.children) as HTMLElement[]).filter(
+                (child) => !child.dataset.curtain,
+            )
+            if (slots.length === 0) return
+            const sizes = slots.map(
+                (slot) => slot.offsetWidth + (parseFloat(getComputedStyle(slot).marginRight) || 0),
+            )
+            // Flow positions from the sizes, not offsets: a docked tab reports where it is pinned.
+            const starts = sizes.map((_, i) =>
+                sizes.slice(0, i).reduce((sum, size) => sum + size, 0),
+            )
+            const active = slots.findIndex((slot) => slot.querySelector('[aria-selected="true"]'))
+            const margin = (i: number) => parseFloat(getComputedStyle(slots[i]).marginRight) || 0
+            const room = hostRoom(el)
+            // Where window `first` of `count` tabs puts the strip. An open tab outside the window
+            // docks at that side; it gets its own room there, so it never covers a window tab.
+            const layout = (first: number, count: number) => {
+                const last = Math.min(first + count, slots.length) - 1
+                const before = active >= 0 && active < first
+                const after = active > last
+                let width = sizes.slice(first, last + 1).reduce((sum, size) => sum + size, 0)
+                if (before || after) width += sizes[active]
+                width -= margin(after ? active : last)
+                return {
+                    scroll: starts[first] - (before ? sizes[active] : 0),
+                    width: Math.round(width + 2 * BARE_INSET_PX),
+                }
             }
-        }
-        first = Math.min(first, Math.max(0, sizes.length - fitTabs))
-        const last = Math.min(first + fitTabs, slots.length) - 1
-        const trailing = parseFloat(getComputedStyle(slots[last]).marginRight) || 0
-        const shown = sizes.slice(first, last + 1).reduce((sum, size) => sum + size, 0)
-        const width = Math.round(shown - trailing + 2 * BARE_INSET_PX)
-        setFitWidth((prev) => (prev === width ? prev : width))
-    }, [fitTabs])
+            const clampFirst = (first: number, count: number) =>
+                Math.max(0, Math.min(first, slots.length - count))
+            const choose = (count: number) => {
+                let first = windowStartRef.current
+                if (mode === "nearest") {
+                    // Matched against each window's own resting scroll, so a settled strip is a
+                    // fixed point and the refit its own scroll fires changes nothing.
+                    for (let i = 0; i <= Math.max(0, slots.length - count); i++) {
+                        if (
+                            Math.abs(layout(i, count).scroll - el.scrollLeft) <
+                            Math.abs(layout(first, count).scroll - el.scrollLeft)
+                        ) {
+                            first = i
+                        }
+                    }
+                } else if (active >= 0 && slots[active] !== shownActiveRef.current) {
+                    if (active < first) first = active
+                    if (active > first + count - 1) first = active - count + 1
+                }
+                return clampFirst(first, count)
+            }
+            // As many whole tabs as the room takes, up to `fitTabs`.
+            let count = fitTabs
+            let first = choose(count)
+            while (count > 1 && layout(first, count).width > room + 1) {
+                count -= 1
+                first = choose(count)
+            }
+            shownActiveRef.current = active >= 0 ? slots[active] : null
+            const {scroll, width} = layout(first, count)
+            windowStartRef.current = first
+            el.style.width = `${Math.min(width, Math.floor(room))}px`
+            el.style.flex = "none"
+            // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced motion.
+            if (Math.abs(el.scrollLeft - scroll) > 1) el.scrollTo({left: Math.max(0, scroll)})
+        },
+        [fitTabs],
+    )
     const measureFade = useCallback(() => {
         const el = stripElRef.current
         if (!el) return
@@ -239,7 +305,7 @@ export const SessionTabStrip = ({
             el.addEventListener("scroll", measureFade, {passive: true})
             const ro = new ResizeObserver(() => {
                 measureFade()
-                measureFit()
+                fitWindow("keep")
             })
             ro.observe(el)
             // Watch the chips too: they animate their width, and a removed chip never resizes the box.
@@ -250,11 +316,17 @@ export const SessionTabStrip = ({
             const mo = new MutationObserver(() => {
                 observeChildren()
                 measureFade()
-                measureFit()
+                fitWindow("keep")
             })
-            mo.observe(el, {childList: true})
+            // `aria-selected` too: switching tabs moves the window to the open one.
+            mo.observe(el, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ["aria-selected"],
+            })
             measureFade()
-            measureFit()
+            fitWindow("keep")
             stripCleanupRef.current = () => {
                 el.removeEventListener("wheel", onWheel)
                 el.removeEventListener("scroll", measureFade)
@@ -262,27 +334,43 @@ export const SessionTabStrip = ({
                 ro.disconnect()
             }
         },
-        [measureFade, measureFit],
+        [measureFade, fitWindow],
     )
-    // Resize only once a scroll rests, after the snap has settled on a tab.
+    // A scroll by hand settles on the nearest whole window once it rests. A held pointer is a
+    // drag or a pan in progress, so nothing moves under it.
     useEffect(() => {
         const el = stripElRef.current
         if (!fitTabs || !el) return
         let timer: ReturnType<typeof setTimeout> | undefined
         const onScroll = () => {
             clearTimeout(timer)
-            timer = setTimeout(measureFit, SNAP_IDLE_MS + 60)
+            timer = setTimeout(() => fitWindow("nearest"), SNAP_IDLE_MS)
+        }
+        const onDown = () => {
+            pressedRef.current = true
+        }
+        const onUp = () => {
+            if (!pressedRef.current) return
+            pressedRef.current = false
+            onScroll()
         }
         el.addEventListener("scroll", onScroll, {passive: true})
+        el.addEventListener("pointerdown", onDown)
+        window.addEventListener("pointerup", onUp)
+        window.addEventListener("pointercancel", onUp)
         return () => {
             clearTimeout(timer)
             el.removeEventListener("scroll", onScroll)
+            el.removeEventListener("pointerdown", onDown)
+            window.removeEventListener("pointerup", onUp)
+            window.removeEventListener("pointercancel", onUp)
         }
-    }, [fitTabs, measureFit, reorderable, showTabs])
+    }, [fitTabs, fitWindow, reorderable, showTabs])
     // Remeasure when the tab set changes, and after the add button moves (it resizes the scroller).
     useEffect(() => {
         const el = stripElRef.current
-        if (!snap || !el) return
+        // Fit mode settles through its window instead.
+        if (!snap || fitTabs || !el) return
         let timer: ReturnType<typeof setTimeout> | undefined
         // A held pointer is a drag in progress: the chip under it must not move.
         let pressed = false
@@ -315,16 +403,14 @@ export const SessionTabStrip = ({
             window.removeEventListener("pointerup", onUp)
             window.removeEventListener("pointercancel", onUp)
         }
-    }, [bare, reorderable, showTabs, snap])
+    }, [bare, fitTabs, reorderable, showTabs, snap])
 
     useEffect(() => {
         measureFade()
     }, [remeasureKey, pinAdd, measureFade])
 
     const maskStyle = bare
-        ? fitTabs && fitWidth !== null
-            ? {width: fitWidth, flex: "none"}
-            : undefined
+        ? undefined
         : {
               maskImage: fadeMask(fade.left, fade.right),
               WebkitMaskImage: fadeMask(fade.left, fade.right),

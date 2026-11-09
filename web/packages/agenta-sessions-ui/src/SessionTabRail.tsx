@@ -51,13 +51,7 @@ import {
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
-import {
-    BARE_INSET_PX,
-    EDGE_FADE_END_PX,
-    EDGE_FADE_START_PX,
-    SessionTabStrip,
-    TAB_DIVIDER,
-} from "./SessionTabStrip"
+import {EDGE_FADE_END_PX, EDGE_FADE_START_PX, SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
@@ -129,7 +123,8 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
 const useRevealWhenActive = (active: boolean, connected: boolean) => {
     const ref = useRef<HTMLDivElement>(null)
     useEffect(() => {
-        if (!active) return
+        // A connected strip keeps the open tab in its own window of whole tabs.
+        if (!active || connected) return
         const reveal = () => {
             const tab = ref.current
             if (!tab) return
@@ -138,17 +133,12 @@ const useRevealWhenActive = (active: boolean, connected: boolean) => {
                 scroller = scroller.parentElement
             }
             if (!scroller) return
-            // A docked tab reports where it is pinned, which is always in view. Measure where it
-            // flows instead, or a tab added past the edge never scrolls in.
-            const position = tab.style.position
-            tab.style.position = "static"
             const t = tab.getBoundingClientRect()
-            tab.style.position = position
             const s = scroller.getBoundingClientRect()
             // Clear of the edge fades too, or the chip lands in view but half dissolved. The
             // browser clamps the scroll, and at either end the strip drops that side's fade.
-            const end = s.right - (connected ? BARE_INSET_PX : EDGE_FADE_END_PX)
-            const start = s.left + (connected ? BARE_INSET_PX : EDGE_FADE_START_PX)
+            const end = s.right - EDGE_FADE_END_PX
+            const start = s.left + EDGE_FADE_START_PX
             const delta = t.right > end ? t.right - end : t.left < start ? t.left - start : 0
             if (delta === 0) return
             // Instant, like the wheel handler: `scroll-smooth` would leave the next frame
