@@ -15,8 +15,11 @@ from uuid import UUID, uuid5
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from oss.src.core.telemetry import heartbeat
+from oss.src.dbs.postgres.instances import dao as instances_dao_module
 from oss.src.core.telemetry import service as telemetry_service
 from oss.src.utils.env import env
 
@@ -421,3 +424,52 @@ async def test_route_answers_with_the_reason(monkeypatch):
     response = await telemetry_router.TelemetryRouter().send_telemetry_heartbeat()
 
     assert response.model_dump() == {"sent": False, "reason": "not_due"}
+
+
+class _PostgresError(Exception):
+    def __init__(self, message, sqlstate):
+        super().__init__(message)
+        self.sqlstate = sqlstate
+
+
+class _Executor:
+    def __init__(self, error):
+        self.error = error
+        self.statements = []
+
+    async def execute(self, statement, params=None):
+        self.statements.append(str(statement))
+        if params is not None:
+            raise DBAPIError(str(statement), params, self.error)
+
+
+def _scope(executor):
+    @asynccontextmanager
+    async def scope():
+        yield executor
+
+    return scope
+
+
+@pytest.mark.asyncio
+async def test_count_past_the_statement_timeout_gives_none():
+    executor = _Executor(
+        _PostgresError("canceling statement due to statement timeout", "57014")
+    )
+
+    count = await instances_dao_module._count_or_none(
+        _scope(executor), text("SELECT count(*) FROM session_turns"), {}
+    )
+
+    assert count is None
+    assert "statement_timeout" in executor.statements[0]
+
+
+@pytest.mark.asyncio
+async def test_count_with_another_database_error_raises():
+    executor = _Executor(_PostgresError('relation "x" does not exist', "42P01"))
+
+    with pytest.raises(DBAPIError):
+        await instances_dao_module._count_or_none(
+            _scope(executor), text("SELECT count(*) FROM x"), {}
+        )

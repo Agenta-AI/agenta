@@ -19,12 +19,24 @@ HEARTBEAT_INTERVAL = literal_column("interval '12 hours'")
 WINDOW_COUNT_TIMEOUT = text("SET LOCAL statement_timeout = '5s'")
 
 
-async def _count_or_none(executor, statement, params) -> Optional[int]:
-    await executor.execute(WINDOW_COUNT_TIMEOUT)
+def _is_statement_timeout(error: DBAPIError) -> bool:
+    # The same rule as the tracing DAO: 57014 also covers a cancel on user request.
+    orig = error.orig
+    return getattr(orig, "sqlstate", None) in (None, "57014") and (
+        "statement timeout" in str(orig)
+    )
+
+
+async def _count_or_none(scope, statement, params) -> Optional[int]:
+    """Run one count in its own transaction from `scope`. The error is handled after
+    the transaction rolled back."""
+
     try:
-        return int((await executor.execute(statement, params)).scalar_one())
+        async with scope() as executor:
+            await executor.execute(WINDOW_COUNT_TIMEOUT)
+            return int((await executor.execute(statement, params)).scalar_one())
     except DBAPIError as error:
-        if "statement timeout" not in str(error.orig):
+        if not _is_statement_timeout(error):
             raise
         return None
 
@@ -148,28 +160,26 @@ class InstancesDAO:
     async def count_window_evaluation_runs(
         self, *, window_start: datetime, window_end: datetime
     ) -> Optional[int]:
-        async with get_transactions_engine().transaction() as connection:
-            return await _count_or_none(
-                connection,
-                text(
-                    "SELECT count(*) FROM evaluation_runs"
-                    " WHERE created_at >= :start AND created_at < :end"
-                ),
-                {"start": window_start, "end": window_end},
-            )
+        return await _count_or_none(
+            get_transactions_engine().transaction,
+            text(
+                "SELECT count(*) FROM evaluation_runs"
+                " WHERE created_at >= :start AND created_at < :end"
+            ),
+            {"start": window_start, "end": window_end},
+        )
 
     async def count_window_session_turns(
         self, *, window_start: datetime, window_end: datetime
     ) -> Optional[int]:
-        async with get_transactions_engine().transaction() as connection:
-            return await _count_or_none(
-                connection,
-                text(
-                    "SELECT count(*) FROM session_turns"
-                    " WHERE created_at >= :start AND created_at < :end"
-                ),
-                {"start": window_start, "end": window_end},
-            )
+        return await _count_or_none(
+            get_transactions_engine().transaction,
+            text(
+                "SELECT count(*) FROM session_turns"
+                " WHERE created_at >= :start AND created_at < :end"
+            ),
+            {"start": window_start, "end": window_end},
+        )
 
     async def count_window_spans(
         self,
@@ -194,16 +204,15 @@ class InstancesDAO:
             bindparam("project_ids", type_=ARRAY(PG_UUID(as_uuid=True))),
         )
 
-        async with get_analytics_engine().session() as session:
-            return await _count_or_none(
-                session,
-                statement,
-                {
-                    "project_ids": project_ids,
-                    "start": window_start,
-                    "end": window_end,
-                },
-            )
+        return await _count_or_none(
+            get_analytics_engine().session,
+            statement,
+            {
+                "project_ids": project_ids,
+                "start": window_start,
+                "end": window_end,
+            },
+        )
 
     async def top_email_domains(self, *, limit: int) -> List[Tuple[str, int]]:
         """`(domain, users)` for the most common email domains, lowercased."""

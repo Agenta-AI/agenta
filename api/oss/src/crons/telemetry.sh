@@ -12,7 +12,7 @@ echo "[$(date)] telemetry.sh running from cron"
 # Make POST request with bounded timeouts; decode curl/HTTP failures instead of
 # masking them (mirrors api/ee/src/crons/{meters,events,spans}.sh).
 RESPONSE=$(curl \
-    --max-time 30 \
+    --max-time 60 \
     --connect-timeout 10 \
     -s \
     -w "\nHTTP_STATUS:%{http_code}\n" \
@@ -25,7 +25,7 @@ if [ -n "${CURL_EXIT:-}" ]; then
     case ${CURL_EXIT} in
         6)  echo "   Could not resolve host" ;;
         7)  echo "   Failed to connect to host" ;;
-        28) echo "   Operation timeout (exceeded 30s)" ;;
+        28) echo "   Operation timeout (exceeded 60s)" ;;
         52) echo "   Empty reply from server" ;;
         56) echo "   Failure in receiving network data" ;;
         *)  echo "   Unknown curl error" ;;
