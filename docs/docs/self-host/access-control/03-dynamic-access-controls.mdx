@@ -136,12 +136,14 @@ per-user daily reads set `limit` via env override.
 | `categories` | array \| null | Endpoint categories the throttle applies to. |
 | `endpoints` | array \| null | Explicit `[method, path]` pairs. |
 
-### Example — `self_hosted_enterprise` (the code-default for self-hosted)
+### Example — `self_hosted_enterprise` (the plan of an enterprise license key)
 
-When `AGENTA_ACCESS_DEFAULT_PLAN` is unset, signup onboards new
-organizations on `self_hosted_enterprise`. This is the operative plan for
-almost every self-hosted deployment, and the canonical shape to use as a
-starting point for any further customization via `AGENTA_ACCESS_PLANS`:
+Without Stripe, the plan of every organization comes from the
+[license key](/self-host/configuration#license): the key's plan,
+or `self_hosted_community` when there is no valid key.
+`self_hosted_enterprise` is the plan of an enterprise license key, and the
+canonical shape to use as a starting point for any further customization
+via `AGENTA_ACCESS_PLANS`:
 
 ```json
 {
@@ -397,8 +399,14 @@ Failures at startup:
 ## `AGENTA_ACCESS_DEFAULT_PLAN`
 
 Plan slug assigned to new organizations on signup. Must resolve to one of
-the slugs in the effective plan map. For self-hosted deployments, leave it
-unset to use `self_hosted_enterprise`.
+the slugs in the effective plan map.
+
+Without Stripe, this setting has no effect on the plan an organization runs
+on: the plan comes from the
+[license key](/self-host/configuration#license). The API logs a
+warning at startup when it is set. No env setting (this one,
+`AGENTA_ACCESS_PLANS` or `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY`) can turn on
+an enterprise feature of `self_hosted_community` or `self_hosted_registered`.
 
 The legacy `AGENTA_DEFAULT_PLAN` env var is still honored; the canonical
 form takes precedence when both are set.

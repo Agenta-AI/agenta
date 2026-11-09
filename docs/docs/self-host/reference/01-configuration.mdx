@@ -1377,6 +1377,28 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 | `TWITTER_OAUTH_CLIENT_ID` | `identity.twitter.client_id` | `identity.twitter.clientId` |
 | `TWITTER_OAUTH_CLIENT_SECRET` | `identity.twitter.client_secret` | `identity.twitter.clientSecret` |
 
+## license
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_LICENSE_KEY` | `license.key` | n/a |
+
+A license key turns on the plan it names for every organization on a self-hosted instance. The
+key looks like `agenta_license_v1.<payload>.<signature>`. The instance checks it offline, with no
+network call. License keys need the Enterprise image.
+
+An instance admin can also add a key in the app, under **Settings > License**. An instance admin
+is a user whose email is in `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`, or, when that list is unset, the
+owner of the oldest organization. A key in `AGENTA_LICENSE_KEY` takes priority over a key added in
+the app, and the License page then shows the key but does not let you change it.
+
+Without Stripe, the plan of every organization comes from the key. With no valid key, or after the
+key expires, the instance runs on `self_hosted_community`, which has no enterprise features. No data
+is deleted when a key expires. `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and
+`AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` cannot turn on enterprise features without a key.
+
+Do not confuse it with `AGENTA_LICENSE`, which selects the edition (`oss` or `ee`).
+
 ## llm (provider API keys)
 
 | Env var | env.py path | values.yaml path |
