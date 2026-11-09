@@ -36,6 +36,7 @@ With the switch off:
 - The API sends no product events and reads no feature flags from PostHog. Sign-up blocklists then come only from `AGENTA_ACCESS_BLOCKED_DOMAINS` and `AGENTA_ACCESS_BLOCKED_EMAILS`.
 - The browser does not load the analytics script and sends nothing.
 - The install ping still runs once. It carries only the instance id.
+- A browser tab that was open before the restart keeps sending until it reloads.
 
 ## Instance id
 
