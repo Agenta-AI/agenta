@@ -45,7 +45,6 @@ import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
 import {ConfigPaneHeader} from "./ConfigPaneHeader"
-import {PaneEdgeToggle} from "./PaneEdgeToggle"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {sessionBarPanelAtom, sessionRenameRequestAtom} from "./sessionBarState"
 import {resolveSessionPanes} from "./sessionPanes"
@@ -250,7 +249,6 @@ export const SessionWorkspace = ({
     const [storedPaneWidth, setStoredPaneWidth] = useAtom(rightPanelWidthAtom)
     const [paneSize, setPaneSize] = useState(storedPaneWidth)
     // What the split actually draws, which a narrow window clamps below `paneSize`.
-    const [paneDrawnSize, setPaneDrawnSize] = useState(0)
     useEffect(() => setPaneSize(storedPaneWidth), [storedPaneWidth])
     // The files pane keeps its own persisted width — the two panes are dragged independently.
     const [storedFilesWidth, setStoredFilesWidth] = useAtom(filesPaneWidthAtom)
@@ -409,6 +407,12 @@ export const SessionWorkspace = ({
     const topBar = (
         <SessionTopBar
             identityInPane={identityInPane}
+            // Closed, the pane's toggle waits at the bar's start.
+            onShowConfig={
+                twoPane && configEntityId && !showConfig && !filesExpanded
+                    ? revealConfig
+                    : undefined
+            }
             entityId={entityId}
             sessionId={sessionId}
             onUpdate={pinRevision}
@@ -483,32 +487,9 @@ export const SessionWorkspace = ({
                             fill={
                                 <div className="flex h-full min-h-0 min-w-0 flex-col">
                                     <div className="relative min-h-0 min-w-0 flex-1">
-                                        {/* Up here because the panes clip, and a pill sits across their edge. */}
-                                        {twoPane &&
-                                        !filesExpanded &&
-                                        configEntityId &&
-                                        (!hideSessionSwitcher || showConfig) ? (
-                                            <PaneEdgeToggle
-                                                open={showConfig}
-                                                offset={showPane ? paneDrawnSize : 0}
-                                                animate={configSlide.animate}
-                                                label={
-                                                    showConfig
-                                                        ? "Hide configuration"
-                                                        : "Show configuration"
-                                                }
-                                                shortcutId="panel.config"
-                                                onToggle={() =>
-                                                    showConfig
-                                                        ? setConfigCollapsed(true)
-                                                        : revealConfig()
-                                                }
-                                            />
-                                        ) : null}
                                         <SplitPane
                                             paneSide="start"
                                             paneSize={twoPane && showPane ? paneSize : 0}
-                                            onDisplayedSize={setPaneDrawnSize}
                                             paneMin={RIGHT_PANEL_MIN}
                                             paneMax={RIGHT_PANEL_MAX}
                                             // Not the desktop's 460 chat floor: `md` is 768, and 768-460 leaves
@@ -544,6 +525,7 @@ export const SessionWorkspace = ({
                                                             agentId={agentId}
                                                             agentHidden={agentHidden}
                                                             onUpdate={pinRevision}
+                                                            onHide={() => setConfigCollapsed(true)}
                                                         />
                                                     ) : null}
                                                     <div className="min-h-0 flex-1">{pane}</div>

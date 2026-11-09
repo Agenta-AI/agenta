@@ -14,6 +14,7 @@ import {sharingCopy} from "@/lib/sharingCopy"
 
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {ConfigPaneToggle} from "./ConfigPaneToggle"
 import {heldCommitAtomFamily} from "./selectedRevision"
 import {SessionAgentIdentity} from "./SessionAgentIdentity"
 import {sessionBarPanelAtom} from "./sessionBarState"
@@ -126,6 +127,7 @@ export const SessionTopBar = ({
     workspaceId,
     projectId,
     identityInPane = false,
+    onShowConfig,
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
     entityId: string | null
@@ -146,6 +148,8 @@ export const SessionTopBar = ({
     projectId: string
     /** Desktop with the config pane open: the agent shows atop that pane, not in the bar. */
     identityInPane?: boolean
+    /** Opens the closed config pane; its button leads the bar. */
+    onShowConfig?: () => void
 }) => {
     // Seeded at load, unlike a media query, so the first paint already has the right layout.
     const phone = useAtomValue(phoneViewportAtom)
@@ -288,15 +292,20 @@ export const SessionTopBar = ({
                 identity={
                     // The open config pane shows the agent at its own top.
                     identityInPane ? undefined : (
-                        <SessionAgentIdentity
-                            entityId={entityId}
-                            sessionId={sessionId}
-                            agentId={agentId}
-                            agentHidden={agentHidden}
-                            onUpdate={onUpdate}
-                            // The Files pane takes the bar's room; the tabs keep it.
-                            iconOnly={hasSessions && filesOpen}
-                        />
+                        <div className="flex min-w-0 items-center gap-1.5">
+                            {onShowConfig ? (
+                                <ConfigPaneToggle open={false} onToggle={onShowConfig} />
+                            ) : null}
+                            <SessionAgentIdentity
+                                entityId={entityId}
+                                sessionId={sessionId}
+                                agentId={agentId}
+                                agentHidden={agentHidden}
+                                onUpdate={onUpdate}
+                                // The Files pane takes the bar's room; the tabs keep it.
+                                iconOnly={hasSessions && filesOpen}
+                            />
+                        </div>
                     )
                 }
                 center={switcher}
