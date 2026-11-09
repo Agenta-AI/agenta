@@ -193,11 +193,10 @@ const EMPTY_HEAD_VERSIONS: Record<string, string> = {}
 
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
 
-/** The panel's row groups, in display order. Advanced stands alone, with no title. */
+/** The panel's row groups, in display order. Advanced closes the Access group. */
 const AGENT_GROUP = {id: "agent", title: "Agent"}
 const CAPABILITIES_GROUP = {id: "capabilities", title: "Capabilities"}
 const ACCESS_GROUP = {id: "access", title: "Access"}
-const ADVANCED_GROUP = {id: "advanced"}
 
 export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
@@ -1353,7 +1352,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         mh.hasAdvanced && {
             key: "advanced",
-            group: ADVANCED_GROUP,
+            group: ACCESS_GROUP,
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
             titleBadge: advancedBadge,
