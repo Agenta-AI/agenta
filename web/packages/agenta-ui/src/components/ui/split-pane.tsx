@@ -317,7 +317,8 @@ export function SplitPane({
             className={cn(
                 // min-w-0: a flex item floors at min-content otherwise, so a pane whose content has
                 // an intrinsic width would refuse to follow `paneSize` down. The basis is the truth.
-                "relative box-border min-h-0 min-w-0 shrink-0 overflow-hidden",
+                // `isolate`: a pane's own sticky headers stack inside it, never over the divider.
+                "relative isolate box-border min-h-0 min-w-0 shrink-0 overflow-hidden",
                 paneGrow ? "grow" : "grow-0",
                 paneClassName,
             )}
@@ -434,7 +435,10 @@ export function SplitPane({
     const fillNode = (
         <div
             data-slot="split-pane-fill"
-            className={cn("box-border min-h-0 min-w-0 flex-auto overflow-hidden", fillClassName)}
+            className={cn(
+                "isolate box-border min-h-0 min-w-0 flex-auto overflow-hidden",
+                fillClassName,
+            )}
         >
             {fill}
         </div>
