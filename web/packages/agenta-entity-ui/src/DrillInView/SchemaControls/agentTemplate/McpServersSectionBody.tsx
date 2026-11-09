@@ -10,7 +10,7 @@
  * dialog mounted in a row reopened that row's drawer on every click inside it, including the
  * click that opened the consent popup, which then surfaced behind it.
  */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {
     mcpReconnectTarget,
@@ -65,6 +65,8 @@ export interface McpServersSectionBodyProps {
     /** The panel's draft and validation markers. Health is layered on top of them here. */
     statusFor: (item: unknown, index: number) => ItemRowStatus | undefined
     /** Driven by the section header's add button, which renders outside this body. */
+    /** Shown instead of the empty line: the section's add button. */
+    emptyAction?: ReactNode
     addOpen: boolean
     onAddClose: () => void
     /** Reopens the add drawer, for the permission drawer's back button. */
@@ -83,6 +85,7 @@ export function McpServersSectionBody({
     closeEditor,
     statusFor,
     agentPolicy,
+    emptyAction,
     addOpen,
     onAddClose,
     onAddOpen,
@@ -234,6 +237,7 @@ export function McpServersSectionBody({
                 closeEditor={closeEditor}
                 disabled={disabled}
                 statusFor={statusForRow}
+                emptyAction={emptyAction}
             />
 
             <McpAddServerDrawer

@@ -82,6 +82,7 @@ import {
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
+import {EmptyAddButton} from "./agentTemplate/EmptyAddButton"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
 import {
     embedRevisionVersion,
@@ -1099,6 +1100,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     // Shared by both subagent-list branches, which differ only by wrapper.
     const subagentListProps = {
+        emptyAction: openSubagentSelector ? (
+            <EmptyAddButton label="Add subagent" onClick={openSubagentSelector} />
+        ) : undefined,
         entries: subagentTools,
         openEdit,
         removeItem,
@@ -1202,6 +1206,20 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         integrationRows={integrationRows}
                         disabled={disabled}
                         statusFor={toolStatusFor}
+                        emptyAction={
+                            openIntegrationDrawer ? (
+                                <CreateWithAIAddMenu
+                                    label="Add integration"
+                                    starterPrompt="I want to connect"
+                                    onManual={openIntegrationDrawer}
+                                    manualTitle="Browse integrations"
+                                    manualHint="Pick an app and its actions"
+                                    manualIcon={<Wrench size={16} />}
+                                    align="start"
+                                    trigger={<EmptyAddButton label="Add integration" />}
+                                />
+                            ) : undefined
+                        }
                         onOpenIntegration={gatewayTools?.enabled ? openIntegrationRow : undefined}
                         onRemoveIntegration={(row) => {
                             removeIntegration(row)
@@ -1250,6 +1268,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     removeItem={(index: number) => removeItem("mcp", index)}
                     closeEditor={closeEditor}
                     statusFor={mcpStatusFor}
+                    emptyAction={
+                        <EmptyAddButton label="Add MCP server" onClick={handleAddMcpServer} />
+                    }
                     addOpen={addMcpOpen}
                     onAddClose={() => setAddMcpOpen(false)}
                     onAddOpen={() => setAddMcpOpen(true)}
@@ -1289,6 +1310,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         closeEditor={closeEditor}
                         disabled={disabled}
                         statusFor={skillStatusFor}
+                        emptyAction={
+                            <CreateWithAIAddMenu
+                                label="Add skill"
+                                starterPrompt="I want a skill that"
+                                onManual={handleAddSkill}
+                                manualTitle="Add manually"
+                                manualHint="From your library, or write one"
+                                manualIcon={<GraduationCap size={16} />}
+                                align="start"
+                                trigger={<EmptyAddButton label="Add skill" />}
+                            />
+                        }
                     />
                 </>
             ),

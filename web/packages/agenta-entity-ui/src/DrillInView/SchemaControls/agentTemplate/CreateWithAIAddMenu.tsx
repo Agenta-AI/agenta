@@ -31,6 +31,10 @@ export interface CreateWithAIAddMenuProps {
     manualTitle: string
     manualHint: string
     manualIcon: ReactNode
+    /** The menu's trigger. Defaults to the header's "+"; an empty section passes its wide button. */
+    trigger?: ReactNode
+    /** Which trigger edge the menu lines up with. */
+    align?: "start" | "end"
 }
 
 /** One row: an icon tile, a name, a one-line hint. Same shape as the header's Share menu. */
@@ -68,6 +72,8 @@ export function CreateWithAIAddMenu({
     manualTitle,
     manualHint,
     manualIcon,
+    trigger,
+    align = "end",
 }: CreateWithAIAddMenuProps) {
     const requestPrefill = useSetAtom(composerPrefillRequestAtom)
     // The menu hands focus back to its trigger as it closes. After "Create with AI" the composer
@@ -81,10 +87,10 @@ export function CreateWithAIAddMenu({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <SectionAddButton label={label} />
+                {trigger ?? <SectionAddButton label={label} />}
             </DropdownMenuTrigger>
             <DropdownMenuContent
-                align="end"
+                align={align}
                 className="w-64"
                 onCloseAutoFocus={(event) => {
                     if (!choseAIRef.current) return
