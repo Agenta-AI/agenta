@@ -398,25 +398,26 @@ export function SplitPane({
                 <span
                     aria-hidden
                     className={cn(
-                        "absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-colorBorderSecondary transition-colors duration-150",
+                        "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-colorBorderSecondary transition-colors duration-150",
                         resizable && "group-hover:bg-colorBorder",
                         dragging && "bg-colorBorder",
                     )}
                 />
             )}
-            {/* Grip pill — quiet at rest, a longer primary tint under the pointer. */}
+            {/* Grip pill — hidden at rest so the seam reads as a 1px line; it shows under the
+                pointer and while dragging. */}
             {resizable && !barHidden ? (
                 <span
                     aria-hidden
                     className={cn(
-                        "absolute left-1/2 top-1/2 h-6 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-colorTextTertiary",
+                        "absolute left-1/2 top-1/2 h-6 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-colorTextTertiary opacity-0",
                         "transition-[background,height,opacity] duration-150",
-                        "group-hover:h-9 group-hover:bg-colorPrimary group-hover:opacity-70",
+                        "group-hover:h-9 group-hover:bg-colorPrimary group-hover:opacity-70 group-focus-visible:opacity-70",
                         dragging && "h-9 bg-colorPrimary opacity-70",
                     )}
                 />
             ) : null}
-            {/* Hit-slop: the visible pixels are 2-4px wide, so the grab target is a wider
+            {/* Hit-slop: the visible line is 1px wide, so the grab target is a wider
                 invisible overlay centred on the seam (antd's dragger was 12px). Its pointer
                 events bubble to the bar's own handlers. */}
             {resizable && !barHidden ? (

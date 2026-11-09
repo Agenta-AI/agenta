@@ -127,7 +127,7 @@ export const DriveHeader = ({
     ) : null
     return (
         // The session bar's height and border token, so its line continues across the divider.
-        <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
+        <div className="flex h-10 shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
             {onClose && closeVariant === "close" ? (
                 <Tooltip title="Close">
                     <Button

@@ -403,6 +403,21 @@ export const SessionWorkspace = ({
         </>
     )
 
+    const topBar = (
+        <SessionTopBar
+            entityId={entityId}
+            sessionId={sessionId}
+            onUpdate={pinRevision}
+            agentId={agentId}
+            agentHidden={agentHidden}
+            agentResolving={agentResolving}
+            canSend={canSend}
+            hasSessions={!hideSessionSwitcher}
+            workspaceId={workspaceId}
+            projectId={projectId}
+        />
+    )
+
     const workspace = (
         <>
             {/* Drive surfaces need the AGENT here, not just the session: without it the per-agent
@@ -412,132 +427,136 @@ export const SessionWorkspace = ({
                 {/* The workspace column: the shared playground top bar, then the panes under it. The
                     column owns the top safe-area inset (the bar is the topmost chrome). */}
                 <div className="ag-app-ground flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))] min-w-0 flex-col pt-[var(--ag-screen-safe-top,env(safe-area-inset-top))]">
-                    <SessionTopBar
-                        entityId={entityId}
-                        sessionId={sessionId}
-                        onUpdate={pinRevision}
-                        agentId={agentId}
-                        agentHidden={agentHidden}
-                        agentResolving={agentResolving}
-                        canSend={canSend}
-                        hasSessions={!hideSessionSwitcher}
-                        workspaceId={workspaceId}
-                        projectId={projectId}
-                    />
-
+                    {/* Phone: the bar stays above everything, Files included. */}
+                    {twoPane ? null : topBar}
                     {/* One split at every width. On a phone the pane it does not show is CSS-hidden
-                        rather than dropped, which is what keeps both halves mounted exactly once. */}
+                        rather than dropped, which is what keeps both halves mounted exactly once.
+                        The Files split is the outer one, so on a desktop the Files pane runs the
+                        full height and the bar spans only the session column beside it. */}
                     <div className="relative min-h-0 min-w-0 flex-1">
-                        {/* Up here because the panes clip, and a pill sits across their edge. */}
-                        {twoPane &&
-                        !filesExpanded &&
-                        configEntityId &&
-                        (!hideSessionSwitcher || showConfig) ? (
-                            <PaneEdgeToggle
-                                open={showConfig}
-                                offset={showPane ? paneDrawnSize : 0}
-                                animate={configSlide.animate}
-                                label={showConfig ? "Hide configuration" : "Show configuration"}
-                                shortcutId="panel.config"
-                                onToggle={() =>
-                                    showConfig ? setConfigCollapsed(true) : revealConfig()
-                                }
-                            />
-                        ) : null}
                         <SplitPane
-                            paneSide="start"
-                            paneSize={twoPane && showPane ? paneSize : 0}
-                            onDisplayedSize={setPaneDrawnSize}
-                            paneMin={RIGHT_PANEL_MIN}
-                            paneMax={RIGHT_PANEL_MAX}
-                            // Not the desktop's 460 chat floor: `md` is 768, and 768-460 leaves
-                            // the pane under its own min.
-                            fillMin={420}
-                            // Phone: no divider, no drag, and the visible half takes the full width.
-                            animate={configSlide.animate}
-                            barHidden={!twoPane || !showPane}
-                            resizable={twoPane && showPane}
-                            paneGrow={!twoPane && showPane}
-                            paneClassName={
-                                filesExpanded || (!twoPane && !showPane) ? "hidden" : undefined
+                            paneSide="end"
+                            paneSize={twoPane && filesOpen && !filesExpanded ? filesPaneSize : 0}
+                            paneMin={FILES_PANE_MIN}
+                            paneMax={FILES_PANE_MAX}
+                            // Lower than the desktop's chat floor for the same reason the
+                            // config split's is.
+                            fillMin={360}
+                            animate={filesSlide.animate}
+                            // The reveal fades the content in with the width; on a phone
+                            // the width is the screen, so there is nothing to key it on.
+                            revealContent={twoPane && !filesExpanded}
+                            // Phone: Files takes the conversation's place, as the config
+                            // pane does — no divider, no drag, full width.
+                            barHidden={filesExpanded || !twoPane || !filesOpen}
+                            resizable={!filesExpanded && twoPane && filesOpen}
+                            paneGrow={filesExpanded || (!twoPane && showFiles)}
+                            paneClassName={!twoPane && !showFiles ? "hidden" : undefined}
+                            fillClassName={
+                                filesExpanded || (!twoPane && showFiles) ? "hidden" : undefined
                             }
-                            fillClassName={!twoPane && showPane ? "hidden" : undefined}
-                            // Controlled width: the drag must write through per tick, or the pane only
-                            // snaps at pointer-up.
-                            onResize={(size) => setPaneSize(size)}
-                            onResizeEnd={(size) => setStoredPaneWidth(size)}
+                            // Controlled width, so the drag must write through per tick or the
+                            // pane only moves at pointer-up.
+                            onResize={(size) => setFilesPaneSize(size)}
+                            onResizeEnd={(size) => setStoredFilesWidth(size)}
                             className="h-full"
                             pane={
-                                <div className="h-full min-h-0" inert={!showPane}>
-                                    {pane}
-                                </div>
+                                filesSlide.keepMounted ? (
+                                    <DriveLinkContext.Provider value={driveLink.copyLink}>
+                                        <SessionFilesPane
+                                            scope={filesScope}
+                                            sessionId={sessionId}
+                                            onSelectionChange={driveLink.onSelectionChange}
+                                            // The bar's icon closes the pane on a desktop;
+                                            // a phone gets the pane's own control.
+                                            closeControl={twoPane ? "none" : "back"}
+                                            expanded={filesExpanded}
+                                            onToggleExpand={filesLayout.toggleExpand}
+                                        />
+                                    </DriveLinkContext.Provider>
+                                ) : null
                             }
                             fill={
-                                <SplitPane
-                                    paneSide="end"
-                                    paneSize={
-                                        twoPane && filesOpen && !filesExpanded ? filesPaneSize : 0
-                                    }
-                                    paneMin={FILES_PANE_MIN}
-                                    paneMax={FILES_PANE_MAX}
-                                    // Lower than the desktop's chat floor for the same reason the
-                                    // config split's is.
-                                    fillMin={360}
-                                    animate={filesSlide.animate}
-                                    // The reveal fades the content in with the width; on a phone
-                                    // the width is the screen, so there is nothing to key it on.
-                                    revealContent={twoPane && !filesExpanded}
-                                    // Phone: Files takes the conversation's place, as the config
-                                    // pane does — no divider, no drag, full width.
-                                    barHidden={filesExpanded || !twoPane || !filesOpen}
-                                    resizable={!filesExpanded && twoPane && filesOpen}
-                                    paneGrow={filesExpanded || (!twoPane && showFiles)}
-                                    paneClassName={!twoPane && !showFiles ? "hidden" : undefined}
-                                    fillClassName={
-                                        filesExpanded || (!twoPane && showFiles)
-                                            ? "hidden"
-                                            : undefined
-                                    }
-                                    // Controlled width, so the drag must write through per tick or the
-                                    // pane only moves at pointer-up.
-                                    onResize={(size) => setFilesPaneSize(size)}
-                                    onResizeEnd={(size) => setStoredFilesWidth(size)}
-                                    className="h-full"
-                                    pane={
-                                        filesSlide.keepMounted ? (
-                                            <DriveLinkContext.Provider value={driveLink.copyLink}>
-                                                <SessionFilesPane
-                                                    scope={filesScope}
-                                                    sessionId={sessionId}
-                                                    onSelectionChange={driveLink.onSelectionChange}
-                                                    // The bar's icon closes the pane on a desktop;
-                                                    // a phone gets the pane's own control.
-                                                    closeControl={twoPane ? "none" : "back"}
-                                                    expanded={filesExpanded}
-                                                    onToggleExpand={filesLayout.toggleExpand}
-                                                />
-                                            </DriveLinkContext.Provider>
-                                        ) : null
-                                    }
-                                    fill={
-                                        <div
-                                            className="ag-canvas flex h-full min-h-0"
-                                            inert={filesExpanded || (!twoPane && showFiles)}
-                                        >
-                                            {/* Where the collapsed pane went, on a surface with no
-                                                reveal in its bar: the empty column becomes the
-                                                pane's own edge instead of dead canvas. Needs the
-                                                width for a vertical label, so `md` up. */}
-                                            {hideSessionSwitcher &&
-                                            twoPane &&
-                                            !chatMaximized &&
-                                            configCollapsed ? (
-                                                <CollapsedConfigRail />
-                                            ) : null}
-                                            <div className="min-h-0 min-w-0 flex-1">{chat}</div>
-                                        </div>
-                                    }
-                                />
+                                <div className="flex h-full min-h-0 min-w-0 flex-col">
+                                    {twoPane ? topBar : null}
+                                    <div className="relative min-h-0 min-w-0 flex-1">
+                                        {/* Up here because the panes clip, and a pill sits across their edge. */}
+                                        {twoPane &&
+                                        !filesExpanded &&
+                                        configEntityId &&
+                                        (!hideSessionSwitcher || showConfig) ? (
+                                            <PaneEdgeToggle
+                                                open={showConfig}
+                                                offset={showPane ? paneDrawnSize : 0}
+                                                animate={configSlide.animate}
+                                                label={
+                                                    showConfig
+                                                        ? "Hide configuration"
+                                                        : "Show configuration"
+                                                }
+                                                shortcutId="panel.config"
+                                                onToggle={() =>
+                                                    showConfig
+                                                        ? setConfigCollapsed(true)
+                                                        : revealConfig()
+                                                }
+                                            />
+                                        ) : null}
+                                        <SplitPane
+                                            paneSide="start"
+                                            paneSize={twoPane && showPane ? paneSize : 0}
+                                            onDisplayedSize={setPaneDrawnSize}
+                                            paneMin={RIGHT_PANEL_MIN}
+                                            paneMax={RIGHT_PANEL_MAX}
+                                            // Not the desktop's 460 chat floor: `md` is 768, and 768-460 leaves
+                                            // the pane under its own min.
+                                            fillMin={420}
+                                            // Phone: no divider, no drag, and the visible half takes the full width.
+                                            animate={configSlide.animate}
+                                            barHidden={!twoPane || !showPane}
+                                            resizable={twoPane && showPane}
+                                            paneGrow={!twoPane && showPane}
+                                            paneClassName={
+                                                filesExpanded || (!twoPane && !showPane)
+                                                    ? "hidden"
+                                                    : undefined
+                                            }
+                                            fillClassName={
+                                                !twoPane && showPane ? "hidden" : undefined
+                                            }
+                                            // Controlled width: the drag must write through per tick, or the pane only
+                                            // snaps at pointer-up.
+                                            onResize={(size) => setPaneSize(size)}
+                                            onResizeEnd={(size) => setStoredPaneWidth(size)}
+                                            className="h-full"
+                                            pane={
+                                                <div className="h-full min-h-0" inert={!showPane}>
+                                                    {pane}
+                                                </div>
+                                            }
+                                            fill={
+                                                <div
+                                                    className="ag-canvas flex h-full min-h-0"
+                                                    inert={filesExpanded || (!twoPane && showFiles)}
+                                                >
+                                                    {/* Where the collapsed pane went, on a surface with no
+                                                        reveal in its bar: the empty column becomes the
+                                                        pane's own edge instead of dead canvas. Needs the
+                                                        width for a vertical label, so `md` up. */}
+                                                    {hideSessionSwitcher &&
+                                                    twoPane &&
+                                                    !chatMaximized &&
+                                                    configCollapsed ? (
+                                                        <CollapsedConfigRail />
+                                                    ) : null}
+                                                    <div className="min-h-0 min-w-0 flex-1">
+                                                        {chat}
+                                                    </div>
+                                                </div>
+                                            }
+                                        />
+                                    </div>
+                                </div>
                             }
                         />
                     </div>
