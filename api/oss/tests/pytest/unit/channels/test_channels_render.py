@@ -253,7 +253,7 @@ def test_split_closes_and_reopens_a_code_fence_across_chunks():
     assert len(chunks) > 1
     assert all(len(chunk) <= 1000 for chunk in chunks)
     assert all(chunk.count("```") % 2 == 0 for chunk in chunks)
-    assert chunks[1].startswith("```\n")
+    assert chunks[1].startswith("```python\n")
 
 
 def test_split_of_one_unbroken_word_still_respects_the_limit():
@@ -286,6 +286,28 @@ def test_split_keeps_a_code_block_that_starts_the_chunk_whole():
     chunks = _split_text(text, 2000)
 
     assert chunks[0] == block
+    assert all(len(chunk) <= 2000 for chunk in chunks)
+
+
+def test_split_reopens_every_part_with_the_language_tag():
+    from oss.src.core.channels.render.render import _split_text
+
+    block = "```python\n" + "x = 1\n" * 1500 + "```"
+    chunks = _split_text("Here is the script:\n\n" + block, 2000)
+
+    assert len(chunks) == 5
+    assert all(len(chunk) <= 2000 for chunk in chunks)
+    assert all(chunk.startswith("```python\n") for chunk in chunks[1:])
+    assert all(chunk.count("```") % 2 == 0 for chunk in chunks)
+
+
+def test_split_keeps_a_block_of_the_full_limit_whole():
+    from oss.src.core.channels.render.render import _split_text
+
+    block = "```\n" + "x" * 1991 + "\n```"  # 1,999 characters
+    chunks = _split_text("intro " * 10 + "\n\n" + block + "\n\nafter", 2000)
+
+    assert block in chunks
     assert all(len(chunk) <= 2000 for chunk in chunks)
 
 

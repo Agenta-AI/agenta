@@ -472,5 +472,18 @@ async def test_history_shows_the_bots_role_mention_as_its_handle(adapter, discor
     assert discord.role_reads == [p.GUILD_ID]
 
 
+async def test_history_is_kept_when_the_role_read_fails(adapter, discord):
+    discord.fail_role_reads = True
+    discord.history[p.CHANNEL_ID] = [p.role_mention("hello", message_id="21")["d"]]
+
+    [event] = await adapter.fetch_history(
+        connection=_connection(),
+        locator={"guild_id": p.GUILD_ID, "channel_id": p.CHANNEL_ID},
+        limit=50,
+    )
+
+    assert event.processed.content[0]["text"] == f"<@&{p.BOT_ROLE_ID}> hello"
+
+
 async def test_discover_spaces_returns_nothing(adapter):
     assert await adapter.discover_spaces(connection=_connection()) == []

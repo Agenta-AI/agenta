@@ -471,11 +471,14 @@ class DiscordAdapter(ChannelAdapterInterface):
         )
         messages = messages if isinstance(messages, list) else []
         guild_id = locator.get("guild_id")
-        bot_role_id = (
-            await self._bot_role(connection, str(guild_id))
-            if guild_id and any(m.get("mention_roles") for m in messages)
-            else None
-        )
+        bot_role_id = None
+        if guild_id and any(m.get("mention_roles") for m in messages):
+            # Without the role, a role mention stays as Discord wrote it; the
+            # page is still context worth keeping.
+            try:
+                bot_role_id = await self._bot_role(connection, str(guild_id))
+            except (_DiscordApiError, httpx.HTTPError) as exc:
+                log.warning("[DISCORD] role read failed: %s", type(exc).__name__)
         events: List[ChannelInboundEvent] = []
         # Discord answers newest first; the inbox keeps context in insert order.
         for message in reversed(messages):
