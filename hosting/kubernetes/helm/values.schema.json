@@ -1079,6 +1079,26 @@
         }
       }
     },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "AGENTA_TELEMETRY_ENABLED."
+        }
+      }
+    },
+    "releases": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "updateCheckEnabled": {
+          "type": "boolean",
+          "description": "AGENTA_UPDATE_CHECK_ENABLED."
+        }
+      }
+    },
     "sendgrid": {
       "type": "object",
       "additionalProperties": false,
