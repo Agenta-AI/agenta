@@ -194,7 +194,7 @@ const EMPTY_HEAD_VERSIONS: Record<string, string> = {}
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
 
 /** The panel's row groups, in display order. Advanced closes the Access group. */
-const AGENT_GROUP = {id: "agent", title: "Agent"}
+const BRAIN_GROUP = {id: "brain", title: "Brain"}
 const CAPABILITIES_GROUP = {id: "capabilities", title: "Capabilities"}
 const ACCESS_GROUP = {id: "access", title: "Access"}
 
@@ -1125,7 +1125,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sections = [
         mh.hasModelOrHarness && {
             key: "model-harness",
-            group: AGENT_GROUP,
+            group: BRAIN_GROUP,
             icon: <Cpu size={16} />,
             title: "Model",
             titleBadge: modelHarnessBadge,
@@ -1161,7 +1161,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         hasInstructions && {
             key: "instructions",
-            group: AGENT_GROUP,
+            group: BRAIN_GROUP,
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
             indicator: sectionIndicator("instructions"),
