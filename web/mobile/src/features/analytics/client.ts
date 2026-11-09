@@ -6,7 +6,7 @@ import {
     generateOrRetrieveDistinctId,
     type FirstAgentIntentPayload,
 } from "@agenta/shared/analytics"
-import {isEE} from "@agenta/shared/api/env"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {atom, getDefaultStore} from "jotai"
 import type {PostHog} from "posthog-js"
 
@@ -20,7 +20,28 @@ export const isAnalyticsAuthRoute = (path: string) => {
     return route.startsWith("/auth") && !route.startsWith("/auth/callback")
 }
 
-export function loadPostHog(): Promise<PostHog | null> {
+/** `GET /instance/telemetry`: whether to send events, and the identity to send them under. */
+export interface InstanceTelemetry {
+    enabled: boolean
+    distinct_id: string | null
+    /** Set on self-hosted instances only. */
+    groups: {instance: string} | null
+}
+
+export async function fetchInstanceTelemetry(): Promise<InstanceTelemetry> {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/instance/telemetry`)
+    const instance = data?.groups?.instance
+    return {
+        enabled: data?.enabled === true,
+        distinct_id: typeof data?.distinct_id === "string" ? data.distinct_id : null,
+        groups: typeof instance === "string" ? {instance} : null,
+    }
+}
+
+/** Cloud keeps its email identity and settings; a self-hosted instance names its group. */
+export const isCloudTelemetry = (telemetry: InstanceTelemetry) => telemetry.groups === null
+
+export function loadPostHog(cloud: boolean): Promise<PostHog | null> {
     if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return Promise.resolve(null)
     if (loading) return loading
     loading = (async () => {
@@ -32,13 +53,15 @@ export function loadPostHog(): Promise<PostHog | null> {
                 return await new Promise<PostHog>((resolve) => {
                     posthog.init(key, {
                         ...POSTHOG_CONFIG,
-                        ...(isEE() ? CLOUD_CONFIG : OSS_CONFIG),
+                        ...(cloud ? CLOUD_CONFIG : OSS_CONFIG),
                         loaded: (client) => {
                             if (process.env.NODE_ENV === "development") client.debug()
-                            try {
-                                client.identify(generateOrRetrieveDistinctId())
-                            } catch {
-                                // Identification must not prevent initialization from settling.
+                            if (cloud) {
+                                try {
+                                    client.identify(generateOrRetrieveDistinctId())
+                                } catch {
+                                    // Identification must not prevent initialization from settling.
+                                }
                             }
                             resolve(client as PostHog)
                         },

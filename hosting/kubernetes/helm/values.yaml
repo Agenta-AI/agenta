@@ -171,6 +171,19 @@ posthog:
   apiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
 
 # ================================================================== #
+# telemetry: what this instance sends to Agenta.
+# See https://docs.agenta.ai/self-host/telemetry
+# ================================================================== #
+telemetry:
+  enabled: true
+
+# ================================================================== #
+# releases: the update check that reads Agenta's public release list.
+# ================================================================== #
+releases:
+  updateCheckEnabled: true
+
+# ================================================================== #
 # postgresql (Bitnami subchart) — bundled deployment.
 #  - enabled: required for the subchart's Chart.yaml condition to fire
 #  - auth.username: lines up with what the chart-managed pgauth Secret
