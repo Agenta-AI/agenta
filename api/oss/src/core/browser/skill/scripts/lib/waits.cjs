@@ -17,7 +17,7 @@ function createWaits({
   sliceMs,
   totalMs,
   graceMs = 120_000,
-  answerMs = 30_000,
+  answerMs = 90_000,
   now = Date.now,
   onChange = () => {},
 }) {
@@ -29,6 +29,13 @@ function createWaits({
     clearTimeout(slot.timer);
     clearTimeout(slot.grace);
     slot = null;
+    // A call still pending belonged to the forgotten wait; it must not answer the next one.
+    const orphans = pending;
+    pending = [];
+    for (const waiter of orphans) {
+      clearTimeout(waiter.timer);
+      waiter.resolve("expired");
+    }
     onChange();
   }
 

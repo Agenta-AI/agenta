@@ -111,14 +111,15 @@ test("a reworded reason updates the ask and keeps the total time", async () => {
   assert.equal(await second, "expired");
 });
 
-test("a grace shorter than a slice ends the pending call instead of crashing", async () => {
-  const { waits } = setup({ sliceMs: 80, graceMs: 20 });
-  assert.equal(await waits.wait("Sign in"), "still");
+test("a call still pending when its wait is forgotten ends as expired, and never answers the next", async () => {
+  const { waits } = setup({ sliceMs: 60, graceMs: 20 });
+  const first = waits.wait("Sign in");
+  await new Promise((r) => setTimeout(r, 30));
   const second = waits.wait("Sign in");
-  waits.done();
-  assert.equal(await second, "done");
-  const third = waits.wait("Sign in");
-  await new Promise((r) => setTimeout(r, 120));
-  assert.ok(["still", "expired"].includes(await third));
+  assert.equal(await first, "still");
+  assert.equal(await second, "expired");
   assert.equal(waits.active(), false);
+  const next = waits.wait("Solve the CAPTCHA");
+  waits.done();
+  assert.equal(await next, "done");
 });
