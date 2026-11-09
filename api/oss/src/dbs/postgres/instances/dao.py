@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import bindparam, func, literal_column, select, text, update
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
+from sqlalchemy.exc import DBAPIError
 
 from oss.src.dbs.postgres.instances.dbes import InstanceDBE
 from oss.src.dbs.postgres.shared.engine import (
@@ -13,6 +14,19 @@ from oss.src.dbs.postgres.shared.engine import (
 )
 
 HEARTBEAT_INTERVAL = literal_column("interval '12 hours'")
+# `evaluation_runs` and `session_turns` have no index on `created_at`, so their window
+# counts scan the table. A count that runs longer is sent as null.
+WINDOW_COUNT_TIMEOUT = text("SET LOCAL statement_timeout = '5s'")
+
+
+async def _count_or_none(executor, statement, params) -> Optional[int]:
+    await executor.execute(WINDOW_COUNT_TIMEOUT)
+    try:
+        return int((await executor.execute(statement, params)).scalar_one())
+    except DBAPIError as error:
+        if "statement timeout" not in str(error.orig):
+            raise
+        return None
 
 
 class InstancesDAO:
@@ -131,25 +145,31 @@ class InstancesDAO:
             )
             return (*totals, list(project_ids))
 
-    async def count_window(
+    async def count_window_evaluation_runs(
         self, *, window_start: datetime, window_end: datetime
-    ) -> Tuple[int, int]:
-        """`(evaluation_runs, session_turns)` created in the window."""
-
+    ) -> Optional[int]:
         async with get_transactions_engine().transaction() as connection:
-            row = (
-                await connection.execute(
-                    text(
-                        "SELECT"
-                        " (SELECT count(*) FROM evaluation_runs"
-                        "  WHERE created_at >= :start AND created_at < :end),"
-                        " (SELECT count(*) FROM session_turns"
-                        "  WHERE created_at >= :start AND created_at < :end)"
-                    ),
-                    {"start": window_start, "end": window_end},
-                )
-            ).one()
-            return row[0], row[1]
+            return await _count_or_none(
+                connection,
+                text(
+                    "SELECT count(*) FROM evaluation_runs"
+                    " WHERE created_at >= :start AND created_at < :end"
+                ),
+                {"start": window_start, "end": window_end},
+            )
+
+    async def count_window_session_turns(
+        self, *, window_start: datetime, window_end: datetime
+    ) -> Optional[int]:
+        async with get_transactions_engine().transaction() as connection:
+            return await _count_or_none(
+                connection,
+                text(
+                    "SELECT count(*) FROM session_turns"
+                    " WHERE created_at >= :start AND created_at < :end"
+                ),
+                {"start": window_start, "end": window_end},
+            )
 
     async def count_window_spans(
         self,
@@ -157,7 +177,7 @@ class InstancesDAO:
         project_ids: List[UUID],
         window_start: datetime,
         window_end: datetime,
-    ) -> int:
+    ) -> Optional[int]:
         """Spans that started in the window. One range scan of
         `ix_project_id_start_time` per project, never a scan of the whole table."""
 
@@ -175,7 +195,8 @@ class InstancesDAO:
         )
 
         async with get_analytics_engine().session() as session:
-            result = await session.execute(
+            return await _count_or_none(
+                session,
                 statement,
                 {
                     "project_ids": project_ids,
@@ -183,7 +204,6 @@ class InstancesDAO:
                     "end": window_end,
                 },
             )
-            return int(result.scalar_one())
 
     async def top_email_domains(self, *, limit: int) -> List[Tuple[str, int]]:
         """`(domain, users)` for the most common email domains, lowercased."""
@@ -193,7 +213,7 @@ class InstancesDAO:
                 text(
                     "SELECT lower(split_part(email, '@', 2)) AS domain,"
                     " count(*) AS users FROM users"
-                    " WHERE email LIKE '%@%'"
+                    " WHERE split_part(email, '@', 2) <> ''"
                     " GROUP BY 1 ORDER BY users DESC, domain LIMIT :limit"
                 ),
                 {"limit": limit},

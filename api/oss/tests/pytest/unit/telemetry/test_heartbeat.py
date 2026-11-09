@@ -6,8 +6,10 @@ caller that finds the row locked, or already sent, gets False.
 """
 
 import asyncio
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid5
 
@@ -95,8 +97,11 @@ class _InstancesDAO:
         self.collected += 1
         return 2, 3, 4, 5, [UUID(int=1), UUID(int=2)]
 
-    async def count_window(self, *, window_start, window_end):
-        return 6, 7
+    async def count_window_evaluation_runs(self, *, window_start, window_end):
+        return 6
+
+    async def count_window_session_turns(self, *, window_start, window_end):
+        return 7
 
     async def count_window_spans(self, *, project_ids, window_start, window_end):
         return 8
@@ -306,16 +311,24 @@ async def test_caller_that_read_an_old_window_sends_nothing(dao, posthog):
         assert locked is False
 
 
+LICENSE_SERVICE = "ee.src.core.licenses.service"
+
+
 @pytest.mark.asyncio
 async def test_ee_reads_plan_and_license_key_id(monkeypatch, dao, posthog):
     monkeypatch.setattr(env.agenta, "license", "ee")
-    monkeypatch.setattr(
-        heartbeat,
-        "_plan_and_license_key_id",
-        AsyncMock(return_value=("self_hosted_enterprise", str(LICENSE_KEY_ID))),
+    monkeypatch.setitem(
+        sys.modules,
+        LICENSE_SERVICE,
+        SimpleNamespace(
+            active_license=AsyncMock(
+                return_value=SimpleNamespace(key_id=LICENSE_KEY_ID)
+            ),
+            instance_plan=AsyncMock(return_value="self_hosted_enterprise"),
+        ),
     )
 
-    await heartbeat.send_heartbeat()
+    assert await heartbeat.send_heartbeat() == "sent"
 
     properties = posthog.captures[0]["properties"]
     assert properties["edition"] == "ee"
@@ -323,20 +336,48 @@ async def test_ee_reads_plan_and_license_key_id(monkeypatch, dao, posthog):
     assert properties["license_key_id"] == str(LICENSE_KEY_ID)
 
 
-def test_domains_are_capped_at_100_and_hold_domains_only():
+@pytest.mark.asyncio
+async def test_ee_without_the_license_module_sends_the_plan_with_no_key(
+    monkeypatch, dao, posthog
+):
+    monkeypatch.setattr(env.agenta, "license", "ee")
+    # None in sys.modules makes the import raise ImportError, as a missing module does.
+    monkeypatch.setitem(sys.modules, LICENSE_SERVICE, None)
+
+    assert await heartbeat.send_heartbeat() == "sent"
+
+    properties = posthog.captures[0]["properties"]
+    assert properties["edition"] == "ee"
+    assert properties["plan"] == "self_hosted_community"
+    assert properties["license_key_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_count_past_its_timeout_is_sent_as_null(monkeypatch, dao, posthog):
+    monkeypatch.setattr(dao, "count_window_session_turns", AsyncMock(return_value=None))
+
+    assert await heartbeat.send_heartbeat() == "sent"
+
+    properties = posthog.captures[0]["properties"]
+    assert properties["window_agent_turns"] is None
+    assert properties["window_evaluation_runs"] == 6
+
+
+def test_domains_hold_domains_only():
     rows = [
-        ("Ada@Example.com", 50),
+        ("example.org", 50),
         ("", 40),
         ("two words.com", 30),
-        ("Example.ORG", 20),
-    ] + [(f"d{n}.example.net", 1) for n in range(200)]
+        ("ada@example.com", 20),
+        ("example.net", 10),
+    ]
 
     domains = heartbeat.user_domains_from(rows)
 
-    assert len(domains) == 100
-    assert domains[0].model_dump() == {"domain": "example.org", "users": 20}
-    assert all("@" not in domain.domain for domain in domains)
-    assert all(set(domain.model_dump()) == {"domain", "users"} for domain in domains)
+    assert [domain.model_dump() for domain in domains] == [
+        {"domain": "example.org", "users": 50},
+        {"domain": "example.net", "users": 10},
+    ]
 
 
 def test_model_refuses_more_than_100_domains_or_an_email():

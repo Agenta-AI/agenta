@@ -58,9 +58,10 @@ class InstanceHeartbeat(BaseModel):
     total_workflows: int
     window_start: str
     window_end: str
-    window_spans: int
-    window_evaluation_runs: int
-    window_agent_turns: int
+    # Null when the count runs past its statement timeout on a large database.
+    window_spans: Optional[int]
+    window_evaluation_runs: Optional[int]
+    window_agent_turns: Optional[int]
     user_domains: List[UserDomain] = Field(max_length=MAX_USER_DOMAINS)
 
 
@@ -83,16 +84,14 @@ def _iso(value: datetime) -> str:
 
 
 def user_domains_from(rows: List[Tuple[str, int]]) -> List[UserDomain]:
-    """Keep well-formed domains only, at most `MAX_USER_DOMAINS` of them."""
+    """Keep well-formed domains only."""
 
     domains = []
     for domain, users in rows:
         try:
-            domains.append(UserDomain(domain=(domain or "").lower(), users=users))
+            domains.append(UserDomain(domain=domain, users=users))
         except ValidationError:
             continue
-        if len(domains) == MAX_USER_DOMAINS:
-            break
     return domains
 
 
@@ -100,10 +99,14 @@ async def _plan_and_license_key_id() -> Tuple[str, Optional[str]]:
     if not is_ee():
         return COMMUNITY_PLAN, None
 
-    from ee.src.core.licenses.service import (  # noqa: PLC0415
-        active_license,
-        instance_plan,
-    )
+    try:
+        from ee.src.core.licenses.service import (  # noqa: PLC0415
+            active_license,
+            instance_plan,
+        )
+    except ImportError:
+        # An EE image without the license module has no key: the plan with no key.
+        return COMMUNITY_PLAN, None
 
     license_key = await active_license()
     return (
@@ -125,7 +128,11 @@ async def collect_heartbeat(
         total_workflows,
         project_ids,
     ) = await instances_dao.count_totals()
-    window_evaluation_runs, window_agent_turns = await instances_dao.count_window(
+    window_evaluation_runs = await instances_dao.count_window_evaluation_runs(
+        window_start=window_start,
+        window_end=window_end,
+    )
+    window_agent_turns = await instances_dao.count_window_session_turns(
         window_start=window_start,
         window_end=window_end,
     )
@@ -205,6 +212,7 @@ async def send_heartbeat() -> HeartbeatReason:
         log.warning(
             "Telemetry heartbeat not sent; the next run tries again",
             reason=type(exc).__name__,
+            error=str(exc),
         )
         return "failed"
 
@@ -219,6 +227,7 @@ async def send_heartbeat() -> HeartbeatReason:
         log.warning(
             "Instance group properties not sent; the next heartbeat sets them",
             reason=type(exc).__name__,
+            error=str(exc),
         )
 
     return "sent"

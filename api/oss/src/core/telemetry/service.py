@@ -105,11 +105,9 @@ async def group_identify(
     )
 
 
-async def instance_groups() -> Optional[Dict[str, str]]:
-    """The PostHog groups of a self-hosted event; cloud events carry none."""
+async def instance_groups() -> Dict[str, str]:
+    """The PostHog groups of a self-hosted event. Cloud events carry none."""
 
-    if env.stripe.enabled:
-        return None
     return {"instance": str(await get_instance_id())}
 
 

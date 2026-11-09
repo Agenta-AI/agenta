@@ -1,6 +1,8 @@
-from typing import Dict, Literal, Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel
+
+from oss.src.core.telemetry.heartbeat import HeartbeatReason
 
 
 class InstanceTelemetryResponse(BaseModel):
@@ -11,4 +13,4 @@ class InstanceTelemetryResponse(BaseModel):
 
 class TelemetryHeartbeatResponse(BaseModel):
     sent: bool
-    reason: Literal["sent", "not_due", "disabled", "cloud", "failed"]
+    reason: HeartbeatReason
