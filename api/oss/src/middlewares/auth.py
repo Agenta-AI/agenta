@@ -1711,7 +1711,8 @@ async def _check_organization_policy(request: Request):
     # This prevents SSO logins from being blocked by the default org policy
     # before the frontend can redirect to the intended SSO org.
     if (
-        request.url.path in {"/api/profile", "/api/organizations"}
+        request.url.path
+        in {"/api/profile", "/api/organizations", "/api/instance/telemetry"}
         or request.url.path.startswith("/api/projects")
         or request.url.path.startswith("/api/organizations/")
     ):

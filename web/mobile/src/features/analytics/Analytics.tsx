@@ -2,7 +2,11 @@ import {useEffect, useRef} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {setAgentCreationFailureReporter} from "@agenta/entities/workflow/agentCreationTelemetry"
-import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
+import {
+    adoptInstanceIdentity,
+    analyticsIdentity,
+    generateOrRetrieveDistinctId,
+} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -58,13 +62,13 @@ export const Analytics = () => {
                 client.alias(id, baseId)
                 aliasedIdRef.current = id
             }
-            client.identify(id, properties)
-            if (instanceGroup) client.group("instance", instanceGroup)
+            if (cloud) client.identify(id, properties)
+            else adoptInstanceIdentity(client, telemetry)
             identityRef.current = key
         } catch {
             // A blocked analytics client must not affect profile hydration.
         }
-    }, [client, enabled, cloud, authRoute, user, distinctId, instanceGroup])
+    }, [client, enabled, cloud, authRoute, user, distinctId, instanceGroup, telemetry])
 
     useEffect(() => {
         if (!client || !enabled) return

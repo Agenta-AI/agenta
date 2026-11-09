@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
     captureIntent: vi.fn(),
     pending: true,
     invited: false,
-    telemetry: null as {groups: {instance: string} | null} | null,
+    telemetry: null as {enabled: boolean; groups: {instance: string} | null} | null,
     replace: vi.fn(),
     endOnboarding: vi.fn(),
     flow: null as Record<string, (...args: never[]) => unknown> | null,
@@ -21,7 +21,8 @@ const state = vi.hoisted(() => ({
 vi.mock("@/features/analytics/client", () => ({
     capture: state.capture,
     captureIntent: state.captureIntent,
-    isCloudTelemetry: (telemetry: {groups: unknown}) => telemetry.groups === null,
+    isCloudTelemetry: (telemetry: {enabled: boolean; groups: unknown}) =>
+        telemetry.enabled && telemetry.groups === null,
 }))
 vi.mock("@/features/analytics/useInstanceTelemetry", () => ({
     useInstanceTelemetry: () => state.telemetry,
@@ -129,7 +130,7 @@ const surveyEvents = () => state.capture.mock.calls.filter(([event]) => event ==
 beforeEach(() => {
     state.pending = true
     state.invited = false
-    state.telemetry = {groups: null}
+    state.telemetry = {enabled: true, groups: null}
     state.replace.mockClear()
     state.endOnboarding.mockClear()
     state.capture.mockClear()
@@ -159,7 +160,7 @@ describe("the onboarding's PostHog events", () => {
     })
 
     it("sends the self-hosted survey without the email answer", () => {
-        state.telemetry = {groups: {instance: "instance-1"}}
+        state.telemetry = {enabled: true, groups: {instance: "instance-1"}}
         mount()
         flow().onStepCompleted("source", draft)
         expect(surveyEvents()).toHaveLength(1)

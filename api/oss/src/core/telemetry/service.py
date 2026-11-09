@@ -19,6 +19,19 @@ INSTANCE_INSTALLED_EVENT = "instance_installed"
 INSTANCE_INSTALLED_PROPERTIES = {"$geoip_disable": True, "$ip": ""}
 INSTALL_PING_TIMEOUT_SECONDS = 5
 
+# What the PostHog library adds to every event. Instance events send only their own
+# properties, so these are dropped before the send.
+_LIBRARY_PROPERTIES = (
+    "$lib",
+    "$lib_version",
+    "$python_runtime",
+    "$python_version",
+    "$os",
+    "$os_version",
+    "$os_distro",
+    "$is_server",
+)
+
 
 async def telemetry_status() -> TelemetryStatus:
     if env.stripe.enabled:
@@ -55,6 +68,13 @@ async def instance_telemetry_for(user_id: UUID, email: str) -> InstanceTelemetry
     )
 
 
+def _without_library_properties(message: Dict[str, Any]) -> Dict[str, Any]:
+    properties = message.get("properties") or {}
+    for key in _LIBRARY_PROPERTIES:
+        properties.pop(key, None)
+    return message
+
+
 @lru_cache(maxsize=None)
 def _sync_client(timeout: int) -> Posthog:
     return Posthog(
@@ -62,6 +82,7 @@ def _sync_client(timeout: int) -> Posthog:
         host=env.posthog.api_url,
         sync_mode=True,
         timeout=timeout,
+        before_send=_without_library_properties,
     )
 
 
@@ -79,13 +100,16 @@ async def capture(
     the queued client from `_load_posthog()`. A fixed `uuid` lets PostHog drop a copy.
     """
 
-    await asyncio.to_thread(
+    sent = await asyncio.to_thread(
         _sync_client(timeout).capture,
         event,
         distinct_id=distinct_id,
         properties=properties,
         uuid=uuid,
     )
+    # The client catches its own send errors and returns None instead of the event uuid.
+    if sent is None:
+        raise RuntimeError(f"PostHog did not accept {event}")
 
 
 async def group_identify(

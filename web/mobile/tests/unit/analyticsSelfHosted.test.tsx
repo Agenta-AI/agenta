@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
     alias: vi.fn(),
     identify: vi.fn(),
     group: vi.fn(),
+    reset: vi.fn(),
     init: vi.fn(),
 }))
 
@@ -61,7 +62,9 @@ beforeEach(async () => {
             alias: state.alias,
             identify: state.identify,
             group: state.group,
-            get_distinct_id: () => "anonymous",
+            reset: state.reset,
+            // An id stored before the upgrade, such as the email.
+            get_distinct_id: () => "person@example.test",
             opt_out_capturing: vi.fn(),
         })
     })
@@ -92,7 +95,11 @@ describe("self-hosted PostHog", () => {
             disable_session_recording: true,
         })
         expect(config).not.toHaveProperty("session_recording")
-        expect(state.identify.mock.calls).toEqual([["instance-1:user-1", undefined]])
+        expect(state.reset).toHaveBeenCalledTimes(1)
+        expect(state.reset.mock.invocationCallOrder[0]).toBeLessThan(
+            state.identify.mock.invocationCallOrder[0],
+        )
+        expect(state.identify.mock.calls).toEqual([["instance-1:user-1"]])
         expect(state.group).toHaveBeenCalledWith("instance", "instance-1")
         expect(state.alias).not.toHaveBeenCalled()
         const sent = JSON.stringify([state.identify.mock.calls, state.capture.mock.calls])
