@@ -89,6 +89,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                         if (cloud && distinctId) {
                             posthog.identify?.(distinctId)
                         } else if (!cloud) {
+                            // Here, not in usePostHogAg: it must run before the first page view.
                             adoptInstanceIdentity(posthog, telemetry)
                         }
                         posthog.capture?.("$pageview", {$current_url: window.location.href})
@@ -114,8 +115,9 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     }, [initPosthog, isAuthRoute, isPostSignupRoute])
 
     const handleRouteChange = useCallback(() => {
+        if (!telemetry?.enabled) return
         posthogClient?.capture("$pageview", {$current_url: window.location.href})
-    }, [posthogClient])
+    }, [posthogClient, telemetry?.enabled])
 
     useEffect(() => {
         router.events.on("routeChangeComplete", handleRouteChange)

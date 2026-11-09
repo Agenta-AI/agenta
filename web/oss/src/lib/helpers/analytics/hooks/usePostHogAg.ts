@@ -5,7 +5,7 @@ import {
     generateOrRetrieveDistinctId,
     isCloudTelemetry,
 } from "@agenta/shared/analytics"
-import {useAtom, useAtomValue} from "jotai"
+import {getDefaultStore, useAtom, useAtomValue} from "jotai"
 import {type PostHog} from "posthog-js"
 
 import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
@@ -29,7 +29,7 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
     const {id: analyticsId, properties: personProps} = useMemo(
         () => analyticsIdentity(user, cloud, telemetry?.distinct_id ?? ""),
-        [user, cloud, telemetry?.distinct_id, baseDistinctId],
+        [user, cloud, telemetry?.distinct_id],
     )
     const identifiedRef = useRef<string | null>(null)
     const personPropsIdentifiedRef = useRef<string | null>(null)
@@ -42,12 +42,13 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const baseIdentify = useMemo(() => posthog?.identify?.bind(posthog), [posthog])
     const capture: PostHog["capture"] = useCallback(
         (...args) => {
-            if (trackingEnabled && telemetry?.enabled) {
+            // Read at call time: other hooks keep a bound copy of this wrapper.
+            if (trackingEnabled && getDefaultStore().get(instanceTelemetryAtom)?.enabled) {
                 return baseCapture?.(...args)
             }
             return undefined
         },
-        [baseCapture, trackingEnabled, telemetry?.enabled],
+        [baseCapture, trackingEnabled],
     )
     const identify: PostHog["identify"] = useCallback(
         (id, ...args) => {

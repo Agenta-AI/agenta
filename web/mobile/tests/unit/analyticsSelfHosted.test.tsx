@@ -99,7 +99,7 @@ describe("self-hosted PostHog", () => {
         expect(state.reset.mock.invocationCallOrder[0]).toBeLessThan(
             state.identify.mock.invocationCallOrder[0],
         )
-        expect(state.identify.mock.calls).toEqual([["instance-1:user-1", undefined]])
+        expect(state.identify.mock.calls).toEqual([["instance-1:user-1"]])
         expect(state.group).toHaveBeenCalledWith("instance", "instance-1")
         expect(state.alias).not.toHaveBeenCalled()
         const sent = JSON.stringify([state.identify.mock.calls, state.capture.mock.calls])
