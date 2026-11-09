@@ -46,7 +46,7 @@ import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
-import {dockToClose, resolveSessionPanes} from "./sessionPanes"
+import {endPaneToClose, resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
@@ -234,18 +234,18 @@ export const SessionWorkspace = ({
     const browserEnabled = isBrowserEnabled()
     const [browserPaneOpen, setBrowserOpen] = useAtom(browserPaneOpenAtomFamily(sessionId))
     const browserOpen = browserEnabled && browserPaneOpen
-    const dockOpen = filesOpen || browserOpen
-    const closeDock = useCallback(() => {
+    const endPaneOpen = filesOpen || browserOpen
+    const closeEndPane = useCallback(() => {
         closeFilesPane()
         setBrowserOpen(false)
     }, [closeFilesPane, setBrowserOpen])
-    const prevDockRef = useRef({sessionId, files: filesOpen, browser: browserOpen})
+    const prevEndPaneRef = useRef({sessionId, files: filesOpen, browser: browserOpen})
     useEffect(() => {
         const next = {sessionId, files: filesOpen, browser: browserOpen}
         // Files follows the agent and the browser the session: a switch is not an opening.
-        const prev = prevDockRef.current.sessionId === sessionId ? prevDockRef.current : next
-        const close = dockToClose(prev, next)
-        prevDockRef.current = next
+        const prev = prevEndPaneRef.current.sessionId === sessionId ? prevEndPaneRef.current : next
+        const close = endPaneToClose(prev, next)
+        prevEndPaneRef.current = next
         if (close === "files") closeFilesPane()
         else if (close === "browser") setBrowserOpen(false)
     }, [sessionId, filesOpen, browserOpen, closeFilesPane, setBrowserOpen])
@@ -255,12 +255,12 @@ export const SessionWorkspace = ({
     const configEntityId = agentHidden ? null : entityId
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
     // pane replaces the conversation, so getting it wrong puts the composer out of reach.
-    const {showConfig, showPane, showDock} = resolveSessionPanes({
+    const {showConfig, showPane, showEndPane} = resolveSessionPanes({
         chatMaximized,
         configCollapsed,
         twoPane,
         hasEntity: Boolean(configEntityId),
-        dockOpen,
+        endPaneOpen,
         filesExpanded,
     })
     // Live px during a drag, mirrored from the shared persisted width — which is written at
@@ -268,16 +268,16 @@ export const SessionWorkspace = ({
     const [storedPaneWidth, setStoredPaneWidth] = useAtom(rightPanelWidthAtom)
     const [paneSize, setPaneSize] = useState(storedPaneWidth)
     useEffect(() => setPaneSize(storedPaneWidth), [storedPaneWidth])
-    // The files pane keeps its own persisted width — the two panes are dragged independently.
-    const [storedFilesWidth, setStoredFilesWidth] = useAtom(filesPaneWidthAtom)
-    const [dockPaneSize, setDockPaneSize] = useState(storedFilesWidth)
-    useEffect(() => setDockPaneSize(storedFilesWidth), [storedFilesWidth])
+    // The end pane (Files or the browser) keeps its own persisted width, stored as the Files width.
+    const [storedEndPaneWidth, setStoredEndPaneWidth] = useAtom(filesPaneWidthAtom)
+    const [endPaneSize, setEndPaneSize] = useState(storedEndPaneWidth)
+    useEffect(() => setEndPaneSize(storedEndPaneWidth), [storedEndPaneWidth])
 
     // Both panes slide rather than snap, on the same shared mechanism the desktop uses. Without
     // it the pane's width flipped in one frame and its content unmounted before the flip, so
     // opening and hiding either panel jumped instead of moving.
     const configSlide = usePaneSlide(showPane || filesExpanded)
-    const dockSlide = usePaneSlide(showDock)
+    const endPaneSlide = usePaneSlide(showEndPane)
 
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
 
@@ -292,23 +292,24 @@ export const SessionWorkspace = ({
     // Edge-triggered, so they cannot evict each other in a loop.
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const panesMustAlternate = twoPane && !canPanesCoexist
-    const prevDockOpenRef = useRef(dockOpen)
+    const prevEndPaneOpenRef = useRef(endPaneOpen)
     useEffect(() => {
-        if (dockOpen && !prevDockOpenRef.current && panesMustAlternate) setConfigCollapsed(true)
-        prevDockOpenRef.current = dockOpen
-    }, [dockOpen, panesMustAlternate, setConfigCollapsed])
+        if (endPaneOpen && !prevEndPaneOpenRef.current && panesMustAlternate)
+            setConfigCollapsed(true)
+        prevEndPaneOpenRef.current = endPaneOpen
+    }, [endPaneOpen, panesMustAlternate, setConfigCollapsed])
     const prevConfigCollapsedRef = useRef(configCollapsed)
     useEffect(() => {
-        if (!configCollapsed && prevConfigCollapsedRef.current && panesMustAlternate) closeDock()
+        if (!configCollapsed && prevConfigCollapsedRef.current && panesMustAlternate) closeEndPane()
         prevConfigCollapsedRef.current = configCollapsed
-    }, [configCollapsed, panesMustAlternate, closeDock])
+    }, [configCollapsed, panesMustAlternate, closeEndPane])
     // Shrinking past the threshold with both open keeps Files, the surface opened deliberately.
     const prevAlternateRef = useRef(panesMustAlternate)
     useEffect(() => {
-        if (panesMustAlternate && !prevAlternateRef.current && dockOpen && !configCollapsed)
+        if (panesMustAlternate && !prevAlternateRef.current && endPaneOpen && !configCollapsed)
             setConfigCollapsed(true)
         prevAlternateRef.current = panesMustAlternate
-    }, [panesMustAlternate, dockOpen, configCollapsed, setConfigCollapsed])
+    }, [panesMustAlternate, endPaneOpen, configCollapsed, setConfigCollapsed])
 
     // The SAME session shortcuts the desktop playground binds. The rail publishes the tabs it
     // renders, so `Alt+1…9` addresses exactly what is on screen. A phone sends no Alt chord, so
@@ -395,8 +396,8 @@ export const SessionWorkspace = ({
     if (showPane) lastPaneKindRef.current = wantsConfig ? "config" : "sessions"
     const paneKind = showPane ? (wantsConfig ? "config" : "sessions") : lastPaneKindRef.current
     // Same for the right-edge slot: a closing slide keeps what it was showing.
-    const lastDockKindRef = useRef<"files" | "browser">("files")
-    if (dockOpen) lastDockKindRef.current = browserOpen ? "browser" : "files"
+    const lastEndPaneKindRef = useRef<"files" | "browser">("files")
+    if (endPaneOpen) lastEndPaneKindRef.current = browserOpen ? "browser" : "files"
     const pane = (
         <>
             {configMountedRef.current && configEntityId ? (
@@ -480,42 +481,42 @@ export const SessionWorkspace = ({
                                 <SplitPane
                                     paneSide="end"
                                     paneSize={
-                                        twoPane && dockOpen && !filesExpanded ? dockPaneSize : 0
+                                        twoPane && endPaneOpen && !filesExpanded ? endPaneSize : 0
                                     }
                                     paneMin={FILES_PANE_MIN}
                                     paneMax={FILES_PANE_MAX}
                                     // Lower than the desktop's chat floor for the same reason the
                                     // config split's is.
                                     fillMin={360}
-                                    animate={dockSlide.animate}
+                                    animate={endPaneSlide.animate}
                                     // The reveal fades the content in with the width; on a phone
                                     // the width is the screen, so there is nothing to key it on.
                                     revealContent={twoPane && !filesExpanded}
                                     // Phone: Files takes the conversation's place, as the config
                                     // pane does — no divider, no drag, full width.
-                                    barHidden={filesExpanded || !twoPane || !dockOpen}
-                                    resizable={!filesExpanded && twoPane && dockOpen}
-                                    paneGrow={filesExpanded || (!twoPane && showDock)}
-                                    paneClassName={!twoPane && !showDock ? "hidden" : undefined}
+                                    barHidden={filesExpanded || !twoPane || !endPaneOpen}
+                                    resizable={!filesExpanded && twoPane && endPaneOpen}
+                                    paneGrow={filesExpanded || (!twoPane && showEndPane)}
+                                    paneClassName={!twoPane && !showEndPane ? "hidden" : undefined}
                                     fillClassName={
-                                        filesExpanded || (!twoPane && showDock)
+                                        filesExpanded || (!twoPane && showEndPane)
                                             ? "hidden"
                                             : undefined
                                     }
                                     // Controlled width, so the drag must write through per tick or the
                                     // pane only moves at pointer-up.
-                                    onResize={(size) => setDockPaneSize(size)}
-                                    onResizeEnd={(size) => setStoredFilesWidth(size)}
+                                    onResize={(size) => setEndPaneSize(size)}
+                                    onResizeEnd={(size) => setStoredEndPaneWidth(size)}
                                     className="h-full"
                                     pane={
-                                        dockSlide.keepMounted &&
-                                        lastDockKindRef.current === "browser" ? (
+                                        endPaneSlide.keepMounted &&
+                                        lastEndPaneKindRef.current === "browser" ? (
                                             <BrowserPane
                                                 sessionId={sessionId}
                                                 closeControl={twoPane ? "collapse" : "back"}
                                                 onClose={() => setBrowserOpen(false)}
                                             />
-                                        ) : dockSlide.keepMounted ? (
+                                        ) : endPaneSlide.keepMounted ? (
                                             <DriveLinkContext.Provider value={driveLink.copyLink}>
                                                 <SessionFilesPane
                                                     scope={filesScope}
@@ -534,7 +535,7 @@ export const SessionWorkspace = ({
                                     fill={
                                         <div
                                             className="ag-canvas flex h-full min-h-0"
-                                            inert={filesExpanded || (!twoPane && showDock)}
+                                            inert={filesExpanded || (!twoPane && showEndPane)}
                                         >
                                             {/* Where the collapsed pane went, on a surface with no
                                                 tab rail to carry its reveal — the empty column
