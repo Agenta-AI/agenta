@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
 class InstanceLicenseKey(BaseModel):
@@ -28,3 +28,12 @@ class InstanceLicenseResponse(BaseModel):
 
 class InstanceLicenseActivateRequest(BaseModel):
     key: str
+
+
+class InstanceRegistrationRequest(BaseModel):
+    email: EmailStr
+    product_updates: bool
+
+
+class InstanceRegistrationResponse(BaseModel):
+    email: str

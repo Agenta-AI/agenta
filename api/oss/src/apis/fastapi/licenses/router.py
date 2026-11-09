@@ -12,10 +12,16 @@ from oss.src.apis.fastapi.licenses.models import (
     InstanceLicenseKey,
     InstanceLicenseResponse,
     InstanceLicenseUsage,
+    InstanceRegistrationRequest,
+    InstanceRegistrationResponse,
 )
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
 from oss.src.core.licenses.admins import count_users, is_instance_admin
+from oss.src.core.licenses.registrations import (
+    RegistrationFailed,
+    request_registration,
+)
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
@@ -59,6 +65,15 @@ class LicensesRouter:
             operation_id="fetch_instance_license",
             status_code=status.HTTP_200_OK,
             response_model=InstanceLicenseResponse,
+        )
+
+        self.router.add_api_route(
+            "/license/registrations",
+            self.create_instance_registration,
+            methods=["POST"],
+            operation_id="create_instance_registration",
+            status_code=status.HTTP_202_ACCEPTED,
+            response_model=InstanceRegistrationResponse,
         )
 
         if is_ee():
@@ -125,6 +140,33 @@ class LicensesRouter:
             ) from None
 
         return await _response(state)
+
+    @intercept_exceptions()
+    async def create_instance_registration(
+        self,
+        request: Request,
+        *,
+        body: InstanceRegistrationRequest,
+    ) -> InstanceRegistrationResponse:
+        if env.stripe.enabled:
+            raise _NOT_AVAILABLE
+        await require_instance_admin()
+
+        if not body.product_updates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A registration needs consent to product updates.",
+            )
+
+        try:
+            await request_registration(body.email)
+        except RegistrationFailed:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="We could not reach Agenta. Try again later.",
+            ) from None
+
+        return InstanceRegistrationResponse(email=body.email)
 
 
 async def _response(state) -> InstanceLicenseResponse:
