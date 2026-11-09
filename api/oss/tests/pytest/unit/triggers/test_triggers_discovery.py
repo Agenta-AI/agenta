@@ -168,7 +168,9 @@ def _request():
 
 def _router_with_discover(discover_fn):
     return TriggersRouter(
-        triggers_service=SimpleNamespace(discover_triggers=discover_fn)
+        triggers_service=SimpleNamespace(discover_triggers=discover_fn),
+        outcomes_service=MagicMock(),
+        notifications_service=MagicMock(),
     )
 
 

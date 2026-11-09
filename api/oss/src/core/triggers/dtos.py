@@ -380,12 +380,13 @@ class TriggerScheduleQuery(BaseModel):
 
 
 class TriggerDeliveryOutcome(str, Enum):
-    """How a delivery's run ended. `status` keeps how its dispatch went."""
+    """How a delivery's run ended. `status` keeps how its dispatch went.
+    `needed_approval` means the run stopped to ask a person for approval."""
 
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
-    WAITING = "waiting"
+    NEEDED_APPROVAL = "needed_approval"
     SKIPPED = "skipped"
 
 
@@ -425,7 +426,7 @@ class TriggerDelivery(Identifier, Lifecycle):
     event_id: str
 
 
-class Settled(BaseModel):
+class TriggerDeliverySettlement(BaseModel):
     """A row of the settle table. `ended_at` is set for `failed` and `skipped`."""
 
     outcome: TriggerDeliveryOutcome

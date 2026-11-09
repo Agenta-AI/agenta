@@ -55,8 +55,8 @@ Notifications SHALL still be recorded.
 
 ### Requirement: Send step
 The system SHALL send `created` email notification deliveries in the same request as the settle
-pass, after settling, under the same guard lock, at most 100 per request, oldest first. A provider
-error SHALL stop the send loop for that request, and no new send SHALL start 5 minutes after the
+pass, after settling, under the same guard lock, at most 100 per request, oldest first. A provider-wide
+error SHALL stop the send loop for that request (a rejected recipient SHALL NOT), and no new send SHALL start 5 minutes after the
 request began. Before it sends, it SHALL mark a delivery `skipped`
 if its notification is resolved or the recipient has no email. A success SHALL set `sent` and
 `sent_at`. A failure, or an error before the send, SHALL add 1 to `attempt_count`, and at 5 SHALL set
@@ -77,6 +77,10 @@ if its notification is resolved or the recipient has no email. A success SHALL s
 #### Scenario: Provider hangs
 - **WHEN** a send times out
 - **THEN** the request SHALL count one failed attempt, stop sending, and leave the other deliveries for the next request, and no notification delivery SHALL be sent twice
+
+#### Scenario: Provider rejects one recipient
+- **WHEN** the provider rejects one recipient's address
+- **THEN** the request SHALL count one failed attempt for that delivery and go on to the next one
 
 
 ### Requirement: Email sender

@@ -1,6 +1,6 @@
 from oss.src.core.notifications.dtos import (
     NotificationState,
-    PendingNotificationDelivery,
+    CreatedNotificationDelivery,
 )
 from oss.src.dbs.postgres.notifications.dbes import (
     NotificationDBE,
@@ -8,12 +8,12 @@ from oss.src.dbs.postgres.notifications.dbes import (
 )
 
 
-def map_pending_delivery(
+def map_created_delivery(
     *,
     delivery_dbe: NotificationDeliveryDBE,
     notification_dbe: NotificationDBE,
-) -> PendingNotificationDelivery:
-    return PendingNotificationDelivery(
+) -> CreatedNotificationDelivery:
+    return CreatedNotificationDelivery(
         project_id=delivery_dbe.project_id,
         id=delivery_dbe.id,
         notification_id=delivery_dbe.notification_id,

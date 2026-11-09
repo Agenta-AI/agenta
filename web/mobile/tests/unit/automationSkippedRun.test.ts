@@ -46,13 +46,15 @@ describe("a started run reads its settled outcome", () => {
         expect(runOutcomeLabel(started("failed"))).toBe("Failed")
     })
 
-    it("gives cancelled and waiting runs their own label and dot", () => {
+    it("gives cancelled and needed-approval runs their own label and dot", () => {
         expect(deliveryOutcome(started("cancelled"))).toBe("cancelled")
         expect(runOutcomeLabel(started("cancelled"))).toBe("Cancelled")
-        expect(deliveryOutcome(started("waiting"))).toBe("waiting")
-        expect(runOutcomeLabel(started("waiting"))).toBe("Waiting for a person")
+        expect(deliveryOutcome(started("needed_approval"))).toBe("needed_approval")
+        expect(runOutcomeLabel(started("needed_approval"))).toBe("Asked for approval")
 
-        const dots = ["cancelled", "waiting", undefined].map((value) => runDotClass(started(value)))
+        const dots = ["cancelled", "needed_approval", undefined].map((value) =>
+            runDotClass(started(value)),
+        )
         expect(new Set(dots).size).toBe(3)
     })
 
@@ -68,7 +70,7 @@ describe("a started run reads its settled outcome", () => {
     })
 
     it("filters and groups by the new outcomes", () => {
-        const runs = [started("cancelled"), started("waiting"), started()]
+        const runs = [started("cancelled"), started("needed_approval"), started()]
 
         expect(
             deriveRunList(runs, {...DEFAULT_RUN_LIST_VIEW, status: "cancelled"}).map(
@@ -76,11 +78,13 @@ describe("a started run reads its settled outcome", () => {
             ),
         ).toEqual(["202-cancelled"])
         expect(
-            deriveRunList(runs, {...DEFAULT_RUN_LIST_VIEW, status: "waiting"}).map((run) => run.id),
-        ).toEqual(["202-waiting"])
+            deriveRunList(runs, {...DEFAULT_RUN_LIST_VIEW, status: "needed_approval"}).map(
+                (run) => run.id,
+            ),
+        ).toEqual(["202-needed_approval"])
         expect(runGroups(runs, "status").map((group) => group.label)).toEqual([
             "Cancelled",
-            "Waiting for a person",
+            "Asked for approval",
             "Running",
         ])
     })

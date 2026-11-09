@@ -27,7 +27,7 @@ class NotificationChannel(str, Enum):
     EMAIL = "email"
 
 
-class PendingNotificationDelivery(BaseModel):
+class CreatedNotificationDelivery(BaseModel):
     """A `created` notification delivery, read with its notification."""
 
     project_id: UUID

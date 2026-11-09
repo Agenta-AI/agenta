@@ -11,14 +11,14 @@ from oss.src.core.notifications.dtos import (
     NotificationDeliveryState,
     NotificationKind,
     NotificationState,
-    PendingNotificationDelivery,
+    CreatedNotificationDelivery,
 )
 from oss.src.core.notifications.interfaces import NotificationsDAOInterface
 from oss.src.dbs.postgres.notifications.dbes import (
     NotificationDBE,
     NotificationDeliveryDBE,
 )
-from oss.src.dbs.postgres.notifications.mappings import map_pending_delivery
+from oss.src.dbs.postgres.notifications.mappings import map_created_delivery
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
@@ -34,7 +34,7 @@ WHERE project_id = :project_id AND dedup_key = :dedup_key AND state = :open
 """
 
 _RESOLVE_STARTED_AT_FILTER = """
-  AND (data->>'last_failed_at')::timestamptz <= :started_at
+  AND (data->>'last_failure_started_at')::timestamptz <= :started_at
 """
 
 # `started_at` and `started_at_text` are separate binds: one bind cannot be both a
@@ -42,8 +42,8 @@ _RESOLVE_STARTED_AT_FILTER = """
 _NOTE_FAILURE_SQL = """
 UPDATE notifications
 SET data = CASE
-        WHEN (data->>'last_failed_at')::timestamptz < :started_at
-        THEN jsonb_set(data, '{last_failed_at}', to_jsonb(CAST(:started_at_text AS text)))
+        WHEN (data->>'last_failure_started_at')::timestamptz < :started_at
+        THEN jsonb_set(data, '{last_failure_started_at}', to_jsonb(CAST(:started_at_text AS text)))
         ELSE data
     END,
     updated_at = now()
@@ -157,7 +157,7 @@ class NotificationsDAO(NotificationsDAOInterface):
         self,
         *,
         limit: int,
-    ) -> List[PendingNotificationDelivery]:
+    ) -> List[CreatedNotificationDelivery]:
         stmt = (
             select(NotificationDeliveryDBE, NotificationDBE)
             .join(
@@ -177,7 +177,7 @@ class NotificationsDAO(NotificationsDAOInterface):
         async with self.engine.session() as session:
             rows = (await session.execute(stmt)).all()
         return [
-            map_pending_delivery(delivery_dbe=delivery, notification_dbe=notification)
+            map_created_delivery(delivery_dbe=delivery, notification_dbe=notification)
             for delivery, notification in rows
         ]
 

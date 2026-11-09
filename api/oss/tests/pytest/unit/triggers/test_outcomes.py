@@ -89,7 +89,7 @@ def test_other_statuses_are_not_settled(code):
     ("terminal_outcome", "outcome"),
     [
         ("completed", Outcome.COMPLETED),
-        ("continued", Outcome.WAITING),
+        ("continued", Outcome.NEEDED_APPROVAL),
         ("stopped", Outcome.CANCELLED),
         ("not_running", Outcome.CANCELLED),
         ("a_value_added_later", Outcome.CANCELLED),
@@ -136,7 +136,7 @@ def test_a_failed_execution_gets_its_reason(execution, signals, reason_code):
 @pytest.mark.parametrize(
     ("signals", "outcome"),
     [
-        (TurnSignals(stop_reason="paused"), Outcome.WAITING),
+        (TurnSignals(stop_reason="paused"), Outcome.NEEDED_APPROVAL),
         (TurnSignals(stop_reason="cancelled"), Outcome.CANCELLED),
     ],
 )

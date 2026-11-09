@@ -5,7 +5,7 @@ from uuid import UUID
 
 from oss.src.core.notifications.dtos import (
     NotificationKind,
-    PendingNotificationDelivery,
+    CreatedNotificationDelivery,
 )
 
 
@@ -32,7 +32,7 @@ class NotificationsDAOInterface(ABC):
         started_at: Optional[datetime] = None,
     ) -> int:
         """Resolve the open notification. With `started_at`, only if that time is at or
-        after `data.last_failed_at`. Returns the row count."""
+        after `data.last_failure_started_at`. Returns the row count."""
 
     @abstractmethod
     async def note_failure(
@@ -42,7 +42,7 @@ class NotificationsDAOInterface(ABC):
         dedup_key: str,
         started_at: datetime,
     ) -> int:
-        """Move `data.last_failed_at` of the open notification forward to `started_at`.
+        """Move `data.last_failure_started_at` of the open notification forward to `started_at`.
         Returns the count of open rows, 0 when none is open."""
 
     @abstractmethod
@@ -50,7 +50,7 @@ class NotificationsDAOInterface(ABC):
         self,
         *,
         limit: int,
-    ) -> List[PendingNotificationDelivery]:
+    ) -> List[CreatedNotificationDelivery]:
         """`created` deliveries, oldest first."""
 
     @abstractmethod

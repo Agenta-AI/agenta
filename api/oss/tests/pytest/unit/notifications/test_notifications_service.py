@@ -1,10 +1,12 @@
 """The send step of `NotificationsService`."""
 
+import smtplib
 import time
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from python_http_client.exceptions import HTTPError
 
 from oss.src.core.notifications import service as service_module
 from oss.src.core.notifications.dtos import (
@@ -58,13 +60,13 @@ async def _open(dao, *, recipients=1, key=None):
         project_id=uuid4(),
         kind=NotificationKind.AUTOMATION_FAILING,
         dedup_key=key or f"automation:{uuid4()}",
-        data={"last_failed_at": "2026-11-05T11:50:00+00:00"},
+        data={"last_failure_started_at": "2026-11-05T11:50:00+00:00"},
         user_ids=[uuid4() for _ in range(recipients)],
     )
 
 
 async def _send(service):
-    await service.send_pending(request_started_at=time.monotonic())
+    await service.send_created(request_started_at=time.monotonic())
 
 
 def _states(dao):
@@ -156,6 +158,43 @@ async def test_a_provider_error_counts_one_attempt_and_stops_the_loop(sender):
     assert _states(dao) == [State.CREATED] * 3
 
 
+def _sendgrid_error(status):
+    return HTTPError(status, "reason", b"{}", {})
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        smtplib.SMTPRecipientsRefused({EMAIL: (550, b"no such user")}),
+        _sendgrid_error(400),
+    ],
+)
+async def test_a_rejected_recipient_counts_one_attempt_and_the_loop_goes_on(
+    sender, error
+):
+    sender.side_effect = [error, None, None]
+    service, dao = _service()
+    await _open(dao, recipients=3)
+
+    await _send(service)
+
+    assert sender.await_count == 3
+    assert [row["attempt_count"] for row in dao.deliveries] == [1, 0, 0]
+    assert _states(dao) == [State.CREATED, State.SENT, State.SENT]
+
+
+@pytest.mark.parametrize("status", [401, 403, 429, 500])
+async def test_a_provider_wide_sendgrid_error_stops_the_loop(sender, status):
+    sender.side_effect = _sendgrid_error(status)
+    service, dao = _service()
+    await _open(dao, recipients=3)
+
+    await _send(service)
+
+    assert sender.await_count == 1
+    assert _states(dao) == [State.CREATED] * 3
+
+
 async def test_the_provider_comes_back_and_the_delivery_is_sent(sender):
     sender.side_effect = [ConnectionError(), ConnectionError(), None]
     service, dao = _service()
@@ -180,7 +219,7 @@ async def test_five_failures_end_as_failed_and_no_more_sends(sender):
 
 
 async def test_an_error_before_the_send_counts_and_the_loop_goes_on(sender):
-    template = MagicMock(side_effect=[KeyError("failed_at"), RENDERED])
+    template = MagicMock(side_effect=[KeyError("first_failure_started_at"), RENDERED])
     service, dao = _service(template=template)
     await _open(dao, recipients=2)
 
@@ -194,7 +233,7 @@ async def test_no_new_send_after_five_minutes(sender):
     service, dao = _service()
     await _open(dao)
 
-    await service.send_pending(request_started_at=time.monotonic() - 300)
+    await service.send_created(request_started_at=time.monotonic() - 300)
 
     sender.assert_not_awaited()
     assert _states(dao) == [State.CREATED]
@@ -211,7 +250,7 @@ async def test_a_slow_provider_stops_at_the_window(sender, monkeypatch):
     service, dao = _service()
     await _open(dao, recipients=8)
 
-    await service.send_pending(request_started_at=0.0)
+    await service.send_created(request_started_at=0.0)
 
     assert sender.await_count == 5
     assert _states(dao).count(State.CREATED) == 3

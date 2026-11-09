@@ -301,7 +301,11 @@ async def test_exact_fetch_routes_use_historical_service_and_view_permission(
     service.fetch_schedule = AsyncMock()
     service.fetch_subscription_including_deleted = AsyncMock(return_value=subscription)
     service.fetch_schedule_including_deleted = AsyncMock(return_value=schedule)
-    router = TriggersRouter(triggers_service=service)
+    router = TriggersRouter(
+        triggers_service=service,
+        outcomes_service=MagicMock(),
+        notifications_service=MagicMock(),
+    )
     project_id = uuid4()
     user_id = uuid4()
     request = SimpleNamespace(
@@ -378,7 +382,11 @@ async def test_exact_fetch_route_returns_not_found_for_wrong_project(
     service = MagicMock()
     historical_fetch = AsyncMock(return_value=None)
     setattr(service, service_name, historical_fetch)
-    router = TriggersRouter(triggers_service=service)
+    router = TriggersRouter(
+        triggers_service=service,
+        outcomes_service=MagicMock(),
+        notifications_service=MagicMock(),
+    )
     request = SimpleNamespace(
         state=SimpleNamespace(project_id=str(wrong_project_id), user_id=str(uuid4()))
     )
@@ -510,7 +518,11 @@ async def test_delete_router_passes_user_to_service(
     service = MagicMock()
     delete_method = AsyncMock(return_value=True)
     setattr(service, method_name, delete_method)
-    router = TriggersRouter(triggers_service=service)
+    router = TriggersRouter(
+        triggers_service=service,
+        outcomes_service=MagicMock(),
+        notifications_service=MagicMock(),
+    )
     request = SimpleNamespace(
         state=SimpleNamespace(project_id=str(project_id), user_id=str(user_id))
     )

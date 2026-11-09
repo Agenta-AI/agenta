@@ -166,18 +166,23 @@ def _send_smtp_email_sync(
     html_content: str,
     from_email: str,
 ) -> bool:
+    message = EmailMessage()
+    message["From"] = from_email
+    message["To"] = to_email
+    message["Subject"] = subject
+    message.set_content(html_content, subtype="html")
+
+    _smtp_send(message, timeout=env.smtp.timeout)
+    return True
+
+
+def _smtp_send(message: EmailMessage, timeout: int | None) -> None:
     username = env.smtp.username
     password = env.smtp.password
     if bool(username) != bool(password):
         raise RuntimeError(
             "SMTP_USERNAME and SMTP_PASSWORD must be configured together"
         )
-
-    message = EmailMessage()
-    message["From"] = from_email
-    message["To"] = to_email
-    message["Subject"] = subject
-    message.set_content(html_content, subtype="html")
 
     context = ssl.create_default_context()
 
@@ -186,24 +191,18 @@ def _send_smtp_email_sync(
             env.smtp.host,
             env.smtp.port,
             context=context,
-            timeout=env.smtp.timeout,
+            timeout=timeout,
         ) as smtp:
             if username and password:
                 smtp.login(username, password)
             smtp.send_message(message)
     else:
-        with smtplib.SMTP(
-            env.smtp.host,
-            env.smtp.port,
-            timeout=env.smtp.timeout,
-        ) as smtp:
+        with smtplib.SMTP(env.smtp.host, env.smtp.port, timeout=timeout) as smtp:
             if env.smtp.use_tls:
                 smtp.starttls(context=context)
             if username and password:
                 smtp.login(username, password)
             smtp.send_message(message)
-
-    return True
 
 
 async def _send_sendgrid_email(
@@ -250,33 +249,7 @@ def _send_sendgrid_email_sync(
 
 
 def _send_rendered_smtp_sync(message: EmailMessage) -> None:
-    username = env.smtp.username
-    password = env.smtp.password
-    if bool(username) != bool(password):
-        raise RuntimeError(
-            "SMTP_USERNAME and SMTP_PASSWORD must be configured together"
-        )
-
-    context = ssl.create_default_context()
-    timeout = env.smtp.timeout or RENDERED_EMAIL_TIMEOUT_SECONDS
-
-    if env.smtp.use_ssl:
-        with smtplib.SMTP_SSL(
-            env.smtp.host,
-            env.smtp.port,
-            context=context,
-            timeout=timeout,
-        ) as smtp:
-            if username and password:
-                smtp.login(username, password)
-            smtp.send_message(message)
-    else:
-        with smtplib.SMTP(env.smtp.host, env.smtp.port, timeout=timeout) as smtp:
-            if env.smtp.use_tls:
-                smtp.starttls(context=context)
-            if username and password:
-                smtp.login(username, password)
-            smtp.send_message(message)
+    _smtp_send(message, timeout=env.smtp.timeout or RENDERED_EMAIL_TIMEOUT_SECONDS)
 
 
 def _send_rendered_sendgrid_sync(mail: Mail) -> None:

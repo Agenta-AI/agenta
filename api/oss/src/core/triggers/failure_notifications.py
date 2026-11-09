@@ -2,7 +2,7 @@ import json
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import quote
 from uuid import UUID
 
@@ -23,7 +23,7 @@ from oss.src.core.notifications.dtos import NotificationKind, RenderedEmail
 from oss.src.core.notifications.service import NotificationsService
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.triggers.dtos import (
-    Settled,
+    TriggerDeliverySettlement,
     TriggerDeliveryOutcome as Outcome,
     UnsettledTriggerDelivery,
 )
@@ -36,7 +36,7 @@ log = get_module_logger(__name__)
 # Older failures open nothing, so the first pass after a deploy sends no backlog.
 OPEN_WINDOW = timedelta(hours=1)
 
-HEALTHY_OUTCOMES = (Outcome.COMPLETED, Outcome.WAITING)
+HEALTHY_OUTCOMES = (Outcome.COMPLETED, Outcome.NEEDED_APPROVAL)
 RECIPIENT_ROLES = ("owner", "admin")
 MEMBERS_PAGE_SIZE = 500
 
@@ -67,7 +67,7 @@ class FailureNotifications:
         self,
         *,
         delivery: UnsettledTriggerDelivery,
-        settled: Settled,
+        settled: TriggerDeliverySettlement,
         now: datetime,
     ) -> None:
         """Rules A1 to A5."""
@@ -102,7 +102,7 @@ class FailureNotifications:
         self,
         *,
         delivery: UnsettledTriggerDelivery,
-        settled: Settled,
+        settled: TriggerDeliverySettlement,
         dedup_key: str,
     ) -> None:
         project_id = delivery.project_id
@@ -138,8 +138,8 @@ class FailureNotifications:
                 "organization_id": str(project.organization_id),
                 "automation_name": automation.name,
                 "project_name": project.project_name,
-                "failed_at": started_at,
-                "last_failed_at": started_at,
+                "first_failure_started_at": started_at,
+                "last_failure_started_at": started_at,
                 "reason_code": settled.reason_code,
                 "error_message": plain_error_message(settled.error_message),
             },
@@ -291,12 +291,22 @@ def plain_error_message(message: Optional[str]) -> str:
     return text
 
 
+def _reason_and_action(reason_code: Optional[str]) -> Tuple[str, str]:
+    if reason_code in REASON_CATALOG:
+        return REASON_CATALOG[reason_code]
+    if reason_code and reason_code.startswith("paused_"):
+        return _PAUSED
+    return _RUN_ERROR
+
+
 def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> RenderedEmail:
     automation_name = normalize_name(data.get("automation_name")) or UNTITLED_AUTOMATION
     project_name = normalize_name(data.get("project_name"))
-    failed_at = datetime.fromisoformat(data["failed_at"])
-    failed_at = f"{failed_at:%b} {failed_at.day}, {failed_at:%Y, %H:%M} UTC"
-    reason, action = REASON_CATALOG.get(data.get("reason_code"), _RUN_ERROR)
+    failing_since = datetime.fromisoformat(data["first_failure_started_at"])
+    failing_since = (
+        f"{failing_since:%b} {failing_since.day}, {failing_since:%Y, %H:%M} UTC"
+    )
+    reason, action = _reason_and_action(data.get("reason_code"))
     reason = data.get("error_message") or reason
     link = "/".join(
         [
@@ -312,7 +322,7 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
     subject = f'Automation "{automation_name}" in {project_name} is failing'
     summary = (
         f"The automation {automation_name} in project {project_name} "
-        f"has been failing since {failed_at}."
+        f"has been failing since {failing_since}."
     )
     note = f"{action} You will not get another email about this until it is fixed."
 
@@ -329,7 +339,7 @@ def render_automation_failing(project_id: UUID, data: Dict[str, Any]) -> Rendere
                         " in project ",
                         Strong(project_name),
                         " has been failing since ",
-                        Strong(failed_at.replace(" ", "\u00a0")),
+                        Strong(failing_since.replace(" ", "\u00a0")),
                         ".",
                     ]
                 ),

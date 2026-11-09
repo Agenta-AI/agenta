@@ -8,7 +8,7 @@ from oss.src.core.notifications.dtos import (
     NotificationDeliveryState,
     NotificationKind,
     NotificationState,
-    PendingNotificationDelivery,
+    CreatedNotificationDelivery,
 )
 from oss.src.core.notifications.interfaces import NotificationsDAOInterface
 from oss.src.core.shared.dtos import Status
@@ -113,8 +113,10 @@ class FakeNotificationsDAO(NotificationsDAOInterface):
         row = self._open_row(project_id, dedup_key)
         if row is None:
             return 0
-        last_failed_at = datetime.fromisoformat(row["data"]["last_failed_at"])
-        if started_at is not None and last_failed_at > started_at:
+        last_failure_started_at = datetime.fromisoformat(
+            row["data"]["last_failure_started_at"]
+        )
+        if started_at is not None and last_failure_started_at > started_at:
             return 0
         row["state"] = NotificationState.RESOLVED
         return 1
@@ -129,13 +131,13 @@ class FakeNotificationsDAO(NotificationsDAOInterface):
         row = self._open_row(project_id, dedup_key)
         if row is None:
             return 0
-        if datetime.fromisoformat(row["data"]["last_failed_at"]) < started_at:
-            row["data"]["last_failed_at"] = started_at.isoformat()
+        if datetime.fromisoformat(row["data"]["last_failure_started_at"]) < started_at:
+            row["data"]["last_failure_started_at"] = started_at.isoformat()
         return 1
 
-    async def query_created(self, *, limit: int) -> List[PendingNotificationDelivery]:
+    async def query_created(self, *, limit: int) -> List[CreatedNotificationDelivery]:
         return [
-            PendingNotificationDelivery(
+            CreatedNotificationDelivery(
                 project_id=row["project_id"],
                 id=row["id"],
                 notification_id=row["notification"]["id"],

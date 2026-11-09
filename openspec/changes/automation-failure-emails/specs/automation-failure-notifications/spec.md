@@ -10,19 +10,19 @@ Tell the right people, once, when an automation starts failing, and stay quiet u
 The system SHALL open an `automation_failing` notification with `dedup_key`
 `automation:<automation_id>` when a trigger delivery of a not-deleted automation is settled as
 `failed` or `skipped`, no notification for that key is open, and the failure ended less than 1
-hour before the pass. It SHALL NOT open one for `completed`, `cancelled` or `waiting`, or for a
+hour before the pass. It SHALL NOT open one for `completed`, `cancelled` or `needed_approval`, or for a
 trigger delivery that is not settled.
 
 #### Scenario: First failed run
 - **WHEN** an automation with no open notification has a trigger delivery settled as `failed`
-- **THEN** the system SHALL open one notification, with its `reason_code` and its `created_at` as `failed_at` and `last_failed_at`
+- **THEN** the system SHALL open one notification, with its `reason_code` and its `created_at` as `first_failure_started_at` and `last_failure_started_at`
 
 #### Scenario: Platform pauses the automation
 - **WHEN** the dispatcher writes a `403` trigger delivery with `error_details.code` `agent_deleted` and pauses the automation
 - **THEN** the system SHALL open one notification with `reason_code` `paused_agent_deleted`
 
 #### Scenario: Run waits for a person
-- **WHEN** a trigger delivery is settled as `waiting`
+- **WHEN** a trigger delivery is settled as `needed_approval`
 - **THEN** the system SHALL NOT open a notification
 
 #### Scenario: Subscription revoked
@@ -39,7 +39,7 @@ trigger delivery that is not settled.
 
 ### Requirement: One open notification per automation
 The database SHALL allow at most one `open` notification per `(project_id, dedup_key)`. While one is
-open, each new failure SHALL update `data.last_failed_at` to the newest start, and SHALL send
+open, each new failure SHALL update `data.last_failure_started_at` to the newest start, and SHALL send
 nothing.
 
 #### Scenario: Ten failed runs in a row
@@ -56,7 +56,7 @@ nothing.
 
 ### Requirement: What resolves a notification
 The system SHALL resolve the open notification of an automation when a trigger delivery of the
-automation that started at or after `data.last_failed_at` is settled as `completed` or `waiting`,
+automation that started at or after `data.last_failure_started_at` is settled as `completed` or `needed_approval`,
 and after a person's successful start or delete of the automation, or an edit after which the
 automation is active. It SHALL NOT
 resolve it on a stop, a refresh, a revoke, a schedule stopped at its end time, or a pause by the dispatcher.
@@ -68,7 +68,7 @@ notification, also when its run started before the fix.
 - **THEN** the notification SHALL be resolved and no email SHALL be sent
 
 #### Scenario: Runs that wait for approval
-- **WHEN** a `422` opened a notification, a person sets up the model, and the next run ends waiting for an approval
+- **WHEN** a `422` opened a notification, a person sets up the model, and the next run ends by asking for an approval
 - **THEN** the notification SHALL be resolved
 
 #### Scenario: Older run succeeds after a newer failure

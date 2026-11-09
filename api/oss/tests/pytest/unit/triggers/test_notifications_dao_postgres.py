@@ -41,8 +41,11 @@ KEY = "automation:one"
 T0 = datetime(2026, 11, 5, 10, 0, tzinfo=timezone.utc)
 
 
-def _data(failed_at=T0):
-    return {"failed_at": failed_at.isoformat(), "last_failed_at": failed_at.isoformat()}
+def _data(started_at=T0):
+    return {
+        "first_failure_started_at": started_at.isoformat(),
+        "last_failure_started_at": started_at.isoformat(),
+    }
 
 
 async def _open(dao, project_id, user_ids, *, key=KEY, data=None):
@@ -112,10 +115,12 @@ async def test_note_failure_counts_open_rows_and_never_moves_backwards(trigger_s
     )
 
     [row] = await _rows(project_id, "notifications")
-    assert row["data"]["last_failed_at"] == "2026-11-05T10:05:00+00:00"
+    assert row["data"]["last_failure_started_at"] == "2026-11-05T10:05:00+00:00"
 
 
-async def test_resolve_with_a_start_time_compares_it_to_last_failed_at(trigger_scope):
+async def test_resolve_with_a_start_time_compares_it_to_last_failure_started_at(
+    trigger_scope,
+):
     dao = NotificationsDAO()
     project_id = trigger_scope["project_id"]
     await _open(dao, project_id, [])

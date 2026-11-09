@@ -188,8 +188,8 @@ class TriggersRouter:
         self,
         *,
         triggers_service: TriggersService,
-        outcomes_service: Optional[OutcomesService] = None,
-        notifications_service: Optional[NotificationsService] = None,
+        outcomes_service: OutcomesService,
+        notifications_service: NotificationsService,
         dispatch_task: Optional[Any] = None,
     ):
         self.triggers_service = triggers_service
@@ -1624,7 +1624,7 @@ class TriggersRouter:
                     "[triggers] settle pass failed",
                     error_type=type(error).__name__,
                 )
-            await self.notifications_service.send_pending(
+            await self.notifications_service.send_created(
                 request_started_at=request_started_at
             )
         finally:

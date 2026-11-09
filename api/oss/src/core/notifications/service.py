@@ -1,13 +1,16 @@
+import smtplib
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional, Sequence
 from uuid import UUID
 
+from python_http_client.exceptions import HTTPError
+
 from oss.src.core.memberships.service import MembershipsService
 from oss.src.core.notifications.dtos import (
     NotificationKind,
     NotificationState,
-    PendingNotificationDelivery,
+    CreatedNotificationDelivery,
     RenderedEmail,
 )
 from oss.src.core.notifications.interfaces import NotificationsDAOInterface
@@ -24,8 +27,27 @@ SEND_WINDOW_SECONDS = 300
 
 NotificationTemplate = Callable[[UUID, Dict[str, Any]], RenderedEmail]
 
+# A bad key or a missing permission fails every send, so they stop the loop like a 5xx.
+_PROVIDER_WIDE_STATUSES = {401, 403, 429}
+
+
+def _recipient_rejected(error: Exception) -> bool:
+    if isinstance(error, smtplib.SMTPRecipientsRefused):
+        return True
+    if isinstance(error, HTTPError):
+        status = getattr(error, "status_code", None)
+        return (
+            isinstance(status, int)
+            and 400 <= status < 500
+            and status not in _PROVIDER_WIDE_STATUSES
+        )
+    return False
+
 
 class NotificationsService:
+    """`template` renders every delivery. It is the `automation_failing` template, the only
+    kind today."""
+
     def __init__(
         self,
         *,
@@ -80,7 +102,7 @@ class NotificationsService:
             started_at=started_at,
         )
 
-    async def send_pending(self, *, request_started_at: float) -> None:
+    async def send_created(self, *, request_started_at: float) -> None:
         """Send `created` deliveries. `request_started_at` is a `time.monotonic()` value."""
         deliveries = await self.dao.query_created(limit=MAX_SENDS_PER_REQUEST)
         can_send = env.agenta.notifications.email_enabled and (
@@ -117,6 +139,8 @@ class NotificationsService:
                 )
             except Exception as error:  # pylint: disable=broad-exception-caught
                 await self._record_failure(delivery, error)
+                if _recipient_rejected(error):
+                    continue
                 return
 
             await self.dao.mark_sent(
@@ -125,7 +149,7 @@ class NotificationsService:
             )
 
     async def _recipient_email(
-        self, delivery: PendingNotificationDelivery
+        self, delivery: CreatedNotificationDelivery
     ) -> Optional[str]:
         emails = await self.memberships_service.fetch_member_emails(
             user_ids=[delivery.user_id]
@@ -134,7 +158,7 @@ class NotificationsService:
 
     async def _record_failure(
         self,
-        delivery: PendingNotificationDelivery,
+        delivery: CreatedNotificationDelivery,
         error: Exception,
     ) -> None:
         log.warning(

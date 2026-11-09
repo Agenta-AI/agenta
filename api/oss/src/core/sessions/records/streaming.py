@@ -31,6 +31,9 @@ MAX_ATTRIBUTES_BYTES = 64 * 1024  # 64 KB per record
 
 _TRUNCATION_MARKER = "…[truncated]"
 
+# Records are stripped of NUL here, at the producer boundary that already bounds the body
+# size: a NUL that reaches the INSERT fails the batch, which is then redelivered forever.
+# orjson escapes NUL, so the serialized body is scanned for the escape before the walk.
 _NUL_ESCAPE = b"\\u0000"
 
 

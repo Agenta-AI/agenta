@@ -72,8 +72,8 @@ export const AutomationRunFilterMenu = ({
                         icon: <Prohibit size={ICON} className="text-muted-foreground" />,
                     },
                     {
-                        value: "waiting",
-                        label: "Waiting for a person",
+                        value: "needed_approval",
+                        label: "Asked for approval",
                         icon: <Hourglass size={ICON} className="text-colorInfo" />,
                     },
                 ],

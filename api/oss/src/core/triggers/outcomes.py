@@ -11,7 +11,7 @@ from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInte
 from oss.src.core.sessions.records.dtos import TurnSignals
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.core.triggers.dtos import (
-    Settled,
+    TriggerDeliverySettlement,
     TriggerDelivery,
     TriggerDeliveryOutcome as Outcome,
     UnsettledTriggerDelivery,
@@ -50,12 +50,12 @@ _EXECUTION_ROWS = {
     "completed": Outcome.COMPLETED,
     "failed": Outcome.FAILED,
     "lost": Outcome.FAILED,
-    "continued": Outcome.WAITING,
+    "continued": Outcome.NEEDED_APPROVAL,
 }
 
 # O9 and the second half of O10, for a turn with no settled execution.
 _STOP_REASON_ROWS = {
-    "paused": Outcome.WAITING,
+    "paused": Outcome.NEEDED_APPROVAL,
     "cancelled": Outcome.CANCELLED,
 }
 
@@ -96,13 +96,13 @@ def settle(
     delivery: TriggerDelivery,
     execution: Optional[SessionExecutionSettlement],
     signals: Optional[TurnSignals],
-) -> Optional[Settled]:
+) -> Optional[TriggerDeliverySettlement]:
     """The settle table. None leaves the delivery unsettled."""
     code = delivery.status.code
 
     if code in _START_ROWS:
         outcome, reason = _START_ROWS[code]
-        return Settled(
+        return TriggerDeliverySettlement(
             outcome=outcome,
             reason_code=reason(delivery),
             error_message=_start_message(delivery),
@@ -115,8 +115,8 @@ def settle(
     if execution is not None:
         outcome = _EXECUTION_ROWS.get(execution.terminal_outcome, Outcome.CANCELLED)
         if outcome != Outcome.FAILED:
-            return Settled(outcome=outcome)
-        return Settled(
+            return TriggerDeliverySettlement(outcome=outcome)
+        return TriggerDeliverySettlement(
             outcome=outcome,
             reason_code=_failed_reason(execution, signals),
             error_message=_failed_message(execution, signals),
@@ -124,7 +124,7 @@ def settle(
         )
 
     outcome = _STOP_REASON_ROWS.get(signals.stop_reason) if signals else None
-    return Settled(outcome=outcome) if outcome else None
+    return TriggerDeliverySettlement(outcome=outcome) if outcome else None
 
 
 def _turn_key(delivery: TriggerDelivery) -> Optional[TurnKey]:
@@ -222,14 +222,18 @@ class OutcomesService:
         executions: Dict[Tuple[UUID, TurnKey], SessionExecutionSettlement] = {}
         signals: Dict[Tuple[UUID, TurnKey], TurnSignals] = {}
         for project_id, keys in keys_by_project.items():
-            settled = await self.session_executions_dao.query_settled(
+            settled_executions = await self.session_executions_dao.query_settled(
                 project_id=project_id,
                 keys=keys,
             )
             read = await self.records_dao.turn_signals(
                 project_id=project_id,
-                keys=[key for key in keys if _needs_signals(settled.get(key))],
+                keys=[
+                    key for key in keys if _needs_signals(settled_executions.get(key))
+                ],
             )
-            executions.update({(project_id, k): v for k, v in settled.items()})
+            executions.update(
+                {(project_id, k): v for k, v in settled_executions.items()}
+            )
             signals.update({(project_id, k): v for k, v in read.items()})
         return executions, signals

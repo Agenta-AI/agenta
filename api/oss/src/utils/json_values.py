@@ -1,9 +1,5 @@
-# Postgres stores neither `text` nor `jsonb` containing U+0000, so a single NUL anywhere in a
-# record body fails the INSERT with `UntranslatableCharacterError` (SQLSTATE 22P05). Record
-# bodies carry arbitrary tool output — a `grep` across a binary file is enough to produce one —
-# and by the time the write fails the record is long past the runner, so the batch can only be
-# redelivered, forever. Strip the character here instead, at the same producer boundary that
-# already bounds the body size.
+# Postgres stores neither `text` nor `jsonb` containing U+0000: one NUL fails the INSERT with
+# `UntranslatableCharacterError` (SQLSTATE 22P05).
 _NUL = "\x00"
 
 

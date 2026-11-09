@@ -15,7 +15,10 @@ from oss.src.core.notifications.dtos import (
     NotificationState,
 )
 from oss.src.core.notifications.service import NotificationsService
-from oss.src.core.triggers.dtos import Settled, TriggerDeliveryOutcome as Outcome
+from oss.src.core.triggers.dtos import (
+    TriggerDeliverySettlement,
+    TriggerDeliveryOutcome as Outcome,
+)
 from oss.src.core.triggers.failure_notifications import (
     FailureNotifications,
     automation_dedup_key,
@@ -97,7 +100,7 @@ class Harness:
             schedule_id=AUTOMATION_ID,
             created_at=minutes_ago(started),
         )
-        settled = Settled(
+        settled = TriggerDeliverySettlement(
             outcome=outcome,
             reason_code=reason_code if outcome in (FAILED, Outcome.SKIPPED) else None,
             ended_at=minutes_ago(started if ended is None else ended),
@@ -130,8 +133,8 @@ async def test_the_first_failure_opens_one_notification_for_the_creator():
         "organization_id": str(ORGANIZATION_ID),
         "automation_name": "Daily report",
         "project_name": "Growth",
-        "failed_at": "2026-11-05T11:50:00+00:00",
-        "last_failed_at": "2026-11-05T11:50:00+00:00",
+        "first_failure_started_at": "2026-11-05T11:50:00+00:00",
+        "last_failure_started_at": "2026-11-05T11:50:00+00:00",
         "reason_code": "start_failed",
         "error_message": "",
     }
@@ -146,21 +149,21 @@ async def test_a_skipped_run_opens_too():
     assert harness.states == [OPEN]
 
 
-async def test_ten_failures_keep_one_notification_and_move_last_failed_at():
+async def test_ten_failures_keep_one_notification_and_move_last_failure_started_at():
     harness = Harness()
 
     for started in range(30, 20, -1):
         await harness.run(FAILED, started=started)
 
     [row] = harness.dao.notifications
-    assert row["data"]["failed_at"] == "2026-11-05T11:30:00+00:00"
-    assert row["data"]["last_failed_at"] == "2026-11-05T11:39:00+00:00"
+    assert row["data"]["first_failure_started_at"] == "2026-11-05T11:30:00+00:00"
+    assert row["data"]["last_failure_started_at"] == "2026-11-05T11:39:00+00:00"
     assert len(harness.dao.deliveries) == 1
     harness.triggers_dao.fetch_schedule_including_deleted.assert_awaited_once()
 
 
 @pytest.mark.parametrize(
-    "outcome", [Outcome.CANCELLED, Outcome.COMPLETED, Outcome.WAITING]
+    "outcome", [Outcome.CANCELLED, Outcome.COMPLETED, Outcome.NEEDED_APPROVAL]
 )
 async def test_a_run_that_did_not_fail_opens_nothing(outcome):
     harness = Harness()
@@ -170,7 +173,7 @@ async def test_a_run_that_did_not_fail_opens_nothing(outcome):
     assert harness.dao.notifications == []
 
 
-@pytest.mark.parametrize("outcome", [Outcome.COMPLETED, Outcome.WAITING])
+@pytest.mark.parametrize("outcome", [Outcome.COMPLETED, Outcome.NEEDED_APPROVAL])
 async def test_a_healthy_run_resolves(outcome):
     harness = Harness()
     await harness.run(FAILED, started=10)
@@ -252,7 +255,7 @@ async def test_an_old_failure_still_moves_an_open_notification():
     await harness.run(FAILED, started=100, ended=90)
 
     [row] = harness.dao.notifications
-    assert row["data"]["last_failed_at"] == "2026-11-05T10:20:00+00:00"
+    assert row["data"]["last_failure_started_at"] == "2026-11-05T10:20:00+00:00"
 
 
 @pytest.mark.parametrize("automation", ["deleted", "missing"])
@@ -274,7 +277,7 @@ async def test_a_notification_opened_and_resolved_in_one_page_sends_nothing(
     await harness.run(FAILED, started=10)
     await harness.run(Outcome.COMPLETED, started=5)
 
-    await harness.service.send_pending(request_started_at=time.monotonic())
+    await harness.service.send_created(request_started_at=time.monotonic())
 
     [delivery] = harness.dao.deliveries
     assert delivery["state"] == NotificationDeliveryState.SKIPPED
@@ -348,8 +351,8 @@ def _data(**overrides):
         "organization_id": str(ORGANIZATION_ID),
         "automation_name": "Daily report",
         "project_name": "Growth",
-        "failed_at": "2026-11-05T11:50:00+00:00",
-        "last_failed_at": "2026-11-05T11:55:00+00:00",
+        "first_failure_started_at": "2026-11-05T11:50:00+00:00",
+        "last_failure_started_at": "2026-11-05T11:55:00+00:00",
         "reason_code": "start_failed",
         **overrides,
     }
@@ -399,6 +402,11 @@ def test_the_email_has_every_part(monkeypatch):
         ),
         (
             "paused_agent_deleted",
+            "The automation was paused.",
+            "Open the automation, check its agent and who can run it, then turn it on.",
+        ),
+        (
+            "paused_unknown",
             "The automation was paused.",
             "Open the automation, check its agent and who can run it, then turn it on.",
         ),

@@ -28,7 +28,8 @@ export const AutomationRunRow = ({
     const time = runTimeOfDay(delivery)
     // These say what happened on the row: the dot alone reads as one more run in flight.
     const outcome = deliveryOutcome(delivery)
-    const explained = outcome === "skipped" || outcome === "cancelled" || outcome === "waiting"
+    const explained =
+        outcome === "skipped" || outcome === "cancelled" || outcome === "needed_approval"
 
     return (
         <button

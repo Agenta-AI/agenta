@@ -223,8 +223,8 @@ class TriggersDAOInterface(ABC):
         provider ``ti_*`` and no tenant scope, so this lookup *recovers* the
         project from the project-scoped partial-unique ``trigger_id`` column. Returns
         no match when multiple live projects share the id, rather than selecting a
-        tenant. Besides `query_unsettled_deliveries`, the only sanctioned unscoped DAO read — every other read/write takes
-        ``project_id``.
+        tenant. It is unscoped like `query_unsettled_deliveries` and the active-schedule
+        reads called without ``project_id``; every other read and write takes ``project_id``.
         """
         ...
 

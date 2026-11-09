@@ -9,7 +9,7 @@ Record how each automation run ended, so the automations screen shows the real r
 
 ### Requirement: Outcome on the trigger delivery
 The system SHALL settle a trigger delivery by writing `data.outcome` (`completed`, `failed`,
-`cancelled`, `waiting` or `skipped`) and, for `failed` and `skipped`, `data.reason_code`. It SHALL
+`cancelled`, `needed_approval` or `skipped`) and, for `failed` and `skipped`, `data.reason_code`. It SHALL
 NOT change the trigger delivery's `status`, and SHALL NOT add a column to `trigger_deliveries`. The
 outcome of a started run SHALL come from the turn's `session_executions` row. The tracing records
 SHALL be read only for a turn with no settled execution and for the error code of a failed one,
@@ -45,7 +45,7 @@ which SHALL be the code of the newest `error` record that has a code.
 
 #### Scenario: Run waits for a person
 - **WHEN** a `202` trigger delivery's turn has no settled execution and its newest `done` has `stopReason` `paused`, or its execution settled `continued`
-- **THEN** it SHALL get `data.outcome` `waiting`
+- **THEN** it SHALL get `data.outcome` `needed_approval`
 
 #### Scenario: Run stopped
 - **WHEN** a `202` trigger delivery's turn has an execution settled `stopped` or `not_running`
@@ -121,13 +121,13 @@ when the pass raises.
 
 ### Requirement: Outcome on the automations screen
 For a trigger delivery with status `202` and a `data.outcome`, the automations screen SHALL show
-`completed` as worked, `failed` as failed, `cancelled` as "Cancelled", and `waiting` as "Waiting for
-a person", with their own dot colors and run filters. Every other trigger delivery SHALL keep
+`completed` as worked, `failed` as failed, `cancelled` as "Cancelled", and `needed_approval` as "Asked for
+approval", with their own dot colors and run filters. Every other trigger delivery SHALL keep
 today's reading of `status.message`.
 
-#### Scenario: Cancelled and waiting runs are not "Running"
-- **WHEN** a trigger delivery has status `202` and `data.outcome` `cancelled` or `waiting`
-- **THEN** the screen SHALL show "Cancelled" or "Waiting for a person", not "Running"
+#### Scenario: Cancelled and needed-approval runs are not "Running"
+- **WHEN** a trigger delivery has status `202` and `data.outcome` `cancelled` or `needed_approval`
+- **THEN** the screen SHALL show "Cancelled" or "Asked for approval", not "Running"
 
 #### Scenario: Failed run after dispatch
 - **WHEN** a trigger delivery has status `202 dispatched` and `data.outcome` `failed`

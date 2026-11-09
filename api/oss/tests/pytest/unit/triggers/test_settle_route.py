@@ -32,13 +32,13 @@ def _router(calls, *, settle_error=None, send_error=None):
         if settle_error:
             raise settle_error
 
-    async def send_pending(**_):
+    async def send_created(**_):
         calls.append(("send", {}))
         if send_error:
             raise send_error
 
     outcomes = MagicMock(settle_pass=settle_pass)
-    notifications = MagicMock(send_pending=send_pending)
+    notifications = MagicMock(send_created=send_created)
     return TriggersRouter(
         triggers_service=MagicMock(),
         outcomes_service=outcomes,

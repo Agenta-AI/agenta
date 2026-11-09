@@ -10,7 +10,7 @@ description: "Agenta now emails you once when a schedule or event automation sta
 
 Agenta now emails you once when an automation starts failing. You get no more emails about it until it is fixed.
 
-- The automations screen shows how each run ended: **Succeeded**, **Failed**, **Cancelled** or **Waiting for a person**. Runs started in the last 24 hours no longer stay at **Running** after they end.
+- The automations screen shows how each run ended: **Succeeded**, **Failed**, **Cancelled** or **Asked for approval**. Runs started in the last 24 hours no longer stay at **Running** after they end.
 - A run that fails before the agent starts, for example when no sandbox can be created, now reads as failed.
 - Self-hosted deployments can turn the emails off with `AGENTA_NOTIFICATIONS_EMAIL_ENABLED`.
 
@@ -30,7 +30,7 @@ A run that a person cancels sends no email. A run that waits for a person sends 
 
 ## Run results on the automations screen
 
-A started run used to stay at **Running** for good, also when it failed. Each run now shows how it ended, and you can filter the run history by **Cancelled** and **Waiting for a person**.
+A started run used to stay at **Running** for good, also when it failed. Each run now shows how it ended, and you can filter the run history by **Cancelled** and **Asked for approval**.
 
 ## Self-hosting
 

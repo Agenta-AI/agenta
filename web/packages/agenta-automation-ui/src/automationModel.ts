@@ -150,13 +150,13 @@ export function generatedAutomationName(a: Automation, agentName: string | null)
     return `${runsWhen} — ${agent}`
 }
 
-export type DeliveryOutcome = "ok" | "bad" | "pending" | "skipped" | "cancelled" | "waiting"
+export type DeliveryOutcome = "ok" | "bad" | "pending" | "skipped" | "cancelled" | "needed_approval"
 
 const STARTED_RUN_OUTCOMES: Partial<Record<string, DeliveryOutcome>> = {
     completed: "ok",
     failed: "bad",
     cancelled: "cancelled",
-    waiting: "waiting",
+    needed_approval: "needed_approval",
 }
 
 /**

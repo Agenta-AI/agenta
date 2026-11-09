@@ -11,7 +11,7 @@ import {runDayGroups, runOutcomeLabel, sortRuns, type RunDayGroup} from "./runMo
  * bottom-up answers no question the day headings do not already answer.
  */
 
-export type RunStatusFilter = "all" | "ok" | "bad" | "pending" | "cancelled" | "waiting"
+export type RunStatusFilter = "all" | "ok" | "bad" | "pending" | "cancelled" | "needed_approval"
 /** How the run started — the three things `runLabel` can call a row. */
 export type RunTypeFilter = "all" | "scheduled" | "event" | "test"
 export type RunGrouping = "day" | "none" | "status" | "type"
