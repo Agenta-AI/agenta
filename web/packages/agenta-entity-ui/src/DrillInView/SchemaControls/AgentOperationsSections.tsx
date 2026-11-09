@@ -29,10 +29,10 @@ import {
     type TriggerOwnerRef,
 } from "./TriggerManagementSection"
 
-// A group title like the config rows' (Agent, Capabilities): a hairline above, on the panel's
-// own sheet, so the regions read as more groups of one list rather than banded blocks.
+// A group title like the config rows' (Agent, Capabilities): a hairline, then the same title
+// spacing, on the panel's own sheet, so the regions read as more groups of one list.
 const barClass = (sticky: boolean) =>
-    `flex h-10 items-center justify-between overflow-hidden border-0 border-t border-solid border-[var(--ag-c-EAEFF5)] px-4 ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-content)]`
+    `mt-1.5 flex items-center justify-between overflow-hidden border-0 border-t border-solid border-[var(--ag-c-EAEFF5)] px-4 pb-1.5 pt-3.5 ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-content)]`
 const titleClass = "text-xs text-colorTextTertiary"
 
 /** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */
@@ -142,7 +142,7 @@ export function AgentOperationsSections({
                         14px slot only held the "+" off the bar's right edge. */}
                     {/* `-mr-[7px]`: the icon button's padding, so the "+" glyph lands on the
                         rows' right edge. */}
-                    <ConfigRowTrailing reserve={false} className="-mr-[7px]">
+                    <ConfigRowTrailing reserve={false} className="-my-1.5 -mr-[7px]">
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             {countSummary(triggerCount, "automation")}
                         </span>

@@ -322,7 +322,7 @@ export function TriggerManagementSection({
     )
 
     return (
-        <div className="flex flex-col gap-2 py-3">
+        <div className="flex flex-col gap-2 pb-3 pt-0.5">
             {/* One list, not a Subscriptions section beside a Schedules section: both are
                 automations, the region header above already names them, and two accordions for
                 what is usually one or two rows spent more height on their own headers than on

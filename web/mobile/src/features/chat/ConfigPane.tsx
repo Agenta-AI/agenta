@@ -52,6 +52,8 @@ const ConfigPaneView = ({
                 <AgentBuildPanel
                     // Grow to the pane's height so the last region's sheet fills the empty space.
                     className="flex grow flex-col"
+                    // Region titles scroll with the list, like the config groups' titles.
+                    sticky={false}
                     revisionId={entityId}
                     disabled={!editAccess.pending && !editAccess.allowed}
                     stickyHeaderTop={0}
