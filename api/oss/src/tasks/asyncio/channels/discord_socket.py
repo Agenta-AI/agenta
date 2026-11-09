@@ -369,7 +369,7 @@ class DiscordSocket:
                 origin=ChannelEventOrigin.PUSHED,
             ),
             windowing=Windowing(
-                oldest=ready_at - RECOVERY_WINDOW,
+                oldest=self._recovery_oldest(ready_at),
                 newest=ready_at - RECOVERY_CLOCK_MARGIN,
                 limit=RECOVERY_SCAN_LIMIT,
             ),
@@ -395,6 +395,23 @@ class DiscordSocket:
                         str(locator.get("guild_id") or ""),
                     )
         return start
+
+    def _recovery_oldest(self, ready_at: datetime) -> datetime:
+        """The recovery window starts 24 hours before READY, or when the bot was
+        last connected if that is later. Rows from before a disconnect then
+        start no history read, so a message sent while the bot was off is not
+        answered after it is connected again."""
+
+        oldest = ready_at - RECOVERY_WINDOW
+        try:
+            connected_at = datetime.fromisoformat(
+                str((self.connection.data or {}).get("connected_at"))
+            )
+        except ValueError:
+            return oldest
+        if connected_at.tzinfo is None:
+            connected_at = connected_at.replace(tzinfo=timezone.utc)
+        return max(oldest, connected_at)
 
     async def _recover(self, ready_at: datetime) -> None:
         connection_id = str(self.connection.id)

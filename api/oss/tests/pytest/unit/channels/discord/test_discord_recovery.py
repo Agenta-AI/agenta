@@ -5,6 +5,7 @@ A resume sends RESUMED, which reads no history."""
 
 import asyncio
 import json
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -418,6 +419,30 @@ async def test_follow_up_in_a_mention_thread_during_the_gap_is_recovered():
 
     assert ("100", "100") in adapter.history_reads
     assert service.enqueued == ["200"]
+
+
+async def test_message_sent_while_disconnected_is_not_recovered():
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    await _live(socket, message("100", channel_id="C"))
+    # The bot is disconnected, "After disconnect." is posted in C, and the
+    # same connection is connected again later.
+    adapter.history["C"] = [message("200", "C", content="After disconnect.")]
+    await asyncio.sleep(0.01)
+    socket.connection = socket.connection.model_copy(
+        update={
+            "data": {
+                **socket.connection.data,
+                "connected_at": datetime.now(timezone.utc).isoformat(),
+            }
+        }
+    )
+    await _ready(socket)
+
+    # The only stored row is from before the reconnect, so C is not read.
+    assert adapter.history_reads == []
+    assert service.enqueued == ["100"]
 
 
 async def test_successful_resume_reads_no_history():

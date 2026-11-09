@@ -127,6 +127,10 @@ On every READY, which Discord sends after a fresh IDENTIFY and never after a suc
 - **WHEN** a mention M in channel C opened thread M, M is the thread's only stored row, and a follow-up with a mention is posted in thread M during the gap
 - **THEN** the pass SHALL also read thread M after M, with the same start rule, and SHALL store and enqueue the follow-up once. A thread listed both as a delivering channel and from a mention's `thread_id` SHALL be read once
 
+#### Scenario: Message sent while the bot was disconnected
+- **WHEN** a user disconnects the bot, a message is posted in channel C, and the same connection is connected again later
+- **THEN** the pass SHALL count only rows stored after the connection's `connected_at`, which `verify_connection` records on every connect and reconnect, so it SHALL NOT read C and SHALL NOT answer that message
+
 #### Scenario: Holder stops or the lock moves
 - **WHEN** messages are posted while no replica holds the sockets, and a replica then opens the connection's socket
 - **THEN** the loop SHALL recover after that socket's first READY, as after any other gap

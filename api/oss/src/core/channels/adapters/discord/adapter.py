@@ -1,5 +1,6 @@
 import asyncio
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple
 from urllib.parse import quote
 from uuid import UUID
@@ -137,6 +138,10 @@ class DiscordAdapter(ChannelAdapterInterface):
             "bot_user_id": str(bot["id"]) if bot.get("id") else None,
             "bot_username": bot.get("username"),
             "application_name": application.get("name"),
+            # Stored on every connect and reconnect (never on an edit), so the
+            # socket loop's recovery never answers a message sent while the
+            # bot was disconnected.
+            "connected_at": datetime.now(timezone.utc).isoformat(),
         }
         return {k: v for k, v in discovered.items() if v is not None}
 
