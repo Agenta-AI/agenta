@@ -72,7 +72,7 @@ import {
 import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 import {CreditAlertStrip} from "../wallet/CreditAlertStrip"
-import {useWalletSummary} from "../wallet/useWalletSummary"
+import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
@@ -460,7 +460,7 @@ export const LiveConversation = ({
         if (conversation.sharedSettledAt) {
             void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
             // A turn from another device can settle between polls without `inputBusy` flipping.
-            void queryClient.invalidateQueries({queryKey: ["wallet", "summary", projectId]})
+            void queryClient.invalidateQueries({queryKey: walletSummaryKey(projectId)})
         }
     }, [conversation.sharedSettledAt, projectId, queryClient])
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
@@ -469,7 +469,7 @@ export const LiveConversation = ({
     const turnWasRunningRef = useRef(turnRunning)
     useEffect(() => {
         if (turnWasRunningRef.current && !turnRunning)
-            void queryClient.invalidateQueries({queryKey: ["wallet", "summary", projectId]})
+            void queryClient.invalidateQueries({queryKey: walletSummaryKey(projectId)})
         turnWasRunningRef.current = turnRunning
     }, [turnRunning, projectId, queryClient])
     const remoteTurn = deriveMobileRemoteTurnPresentation({
