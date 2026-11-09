@@ -2,19 +2,24 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     CLOUD_CONFIG,
-    OSS_CONFIG,
     POSTHOG_CONFIG,
+    SELF_HOSTED_CONFIG,
     generateOrRetrieveDistinctId,
+    isCloudTelemetry,
+    parseInstanceTelemetry,
 } from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 import type {PostHog} from "posthog-js"
 
+import axios from "@/oss/lib/api/assets/axiosConfig"
+import {useProfileData} from "@/oss/state/profile"
+
+import {getAgentaApiUrl} from "../api"
 import {getEnv} from "../dynamicEnv"
-import {isDemo} from "../utils"
 
 import {useAgentCreationFailureReporter} from "./hooks/useAgentCreationFailureReporter"
-import {posthogAtom, type PostHogConfig} from "./store/atoms"
+import {instanceTelemetryAtom, posthogAtom, type PostHogConfig} from "./store/atoms"
 import {CustomPosthogProviderType} from "./types"
 
 const MAX_POSTHOG_INIT_ATTEMPTS = 3
@@ -23,6 +28,9 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const router = useRouter()
     const [loadingPosthog, setLoadingPosthog] = useState(false)
     const [posthogClient, setPosthogClient] = useAtom(posthogAtom)
+    const [telemetry, setTelemetry] = useAtom(instanceTelemetryAtom)
+    const {user} = useProfileData()
+    const userId = user?.id ?? null
     const failedAttemptsRef = useRef(0)
     const initCapturedRef = useRef(false)
     const currentPath = router.asPath || router.pathname || ""
@@ -31,11 +39,31 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
 
     useAgentCreationFailureReporter()
 
+    // The API decides whether this instance sends events, and under which id.
+    useEffect(() => {
+        if (!userId) return
+        let cancelled = false
+        axios
+            .get(`${getAgentaApiUrl()}/instance/telemetry`)
+            .then(({data}) => {
+                if (!cancelled) setTelemetry(parseInstanceTelemetry(data))
+            })
+            .catch(() => {
+                // No answer: no analytics.
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [userId, setTelemetry])
+
+    const cloud = telemetry ? isCloudTelemetry(telemetry) : false
+
     const initPosthog = useCallback(async () => {
         if (posthogClient) return
         if (loadingPosthog) return
         if (failedAttemptsRef.current >= MAX_POSTHOG_INIT_ATTEMPTS) return
         if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return
+        if (!telemetry?.enabled) return
 
         setLoadingPosthog(true)
 
@@ -55,13 +83,13 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                     if (!initCapturedRef.current) {
                         initCapturedRef.current = true
                         const distinctId = generateOrRetrieveDistinctId()
-                        if (distinctId) {
+                        if (cloud && distinctId) {
                             posthog.identify?.(distinctId)
                         }
                         posthog.capture?.("$pageview", {$current_url: window.location.href})
                     }
                 },
-                ...((isDemo() ? CLOUD_CONFIG : OSS_CONFIG) as Partial<PostHogConfig>),
+                ...((cloud ? CLOUD_CONFIG : SELF_HOSTED_CONFIG) as Partial<PostHogConfig>),
             })
         } catch (error) {
             failedAttemptsRef.current += 1
@@ -71,7 +99,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
         } finally {
             setLoadingPosthog(false)
         }
-    }, [loadingPosthog, posthogClient, setPosthogClient])
+    }, [loadingPosthog, posthogClient, setPosthogClient, telemetry, cloud])
 
     useEffect(() => {
         // Initialize PostHog everywhere except auth routes (but DO initialize on post-signup for survey)

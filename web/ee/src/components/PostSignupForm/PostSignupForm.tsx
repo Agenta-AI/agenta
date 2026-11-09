@@ -1,9 +1,11 @@
 import {useCallback, useMemo, useState} from "react"
 
 import type {Org} from "@agenta/entities/organization"
+import {isCloudTelemetry} from "@agenta/shared/analytics"
 import type {User} from "@agenta/shared/types"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Checkbox, Form, Input, Radio, Rate, Space, Typography} from "antd"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {
     type MultipleSurveyQuestion,
@@ -14,6 +16,7 @@ import {
 } from "posthog-js"
 import {flushSync} from "react-dom"
 
+import {instanceTelemetryAtom} from "@/oss/lib/helpers/analytics/store/atoms"
 import {
     buildPostLoginPathResolved,
     waitForWorkspaceContext,
@@ -132,6 +135,8 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
     const formData = Form.useWatch([], form)
     const [currentStep, setCurrentStep] = useState(0)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const telemetry = useAtomValue(instanceTelemetryAtom)
+    const cloud = telemetry ? isCloudTelemetry(telemetry) : false
 
     const allQuestions: QuestionMeta[] = useMemo(() => {
         if (!survey.questions) return []
@@ -206,8 +211,9 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     // The email question is filtered from the rendered form; we
                     // backfill it from the user's profile on submit so PostHog
                     // still receives a response for that question id.
+                    // Self-hosted events carry no email.
                     if (kind === "email") {
-                        responses[key] = user.email
+                        if (cloud) responses[key] = user.email
                         return
                     }
 
@@ -265,7 +271,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                 setIsSubmitting(false)
             }
         },
-        [allQuestions, form, posthog, router, survey.id, survey.name, user.email],
+        [allQuestions, cloud, form, posthog, router, survey.id, survey.name, user.email],
     )
 
     // Memoize shuffled choices keyed by the stable question index

@@ -1,10 +1,13 @@
 import {
     CLOUD_CONFIG,
-    OSS_CONFIG,
     POSTHOG_CONFIG,
+    SELF_HOSTED_CONFIG,
     captureFirstAgentIntent,
     generateOrRetrieveDistinctId,
+    isCloudTelemetry,
+    parseInstanceTelemetry,
     type FirstAgentIntentPayload,
+    type InstanceTelemetry,
 } from "@agenta/shared/analytics"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {atom, getDefaultStore} from "jotai"
@@ -20,26 +23,12 @@ export const isAnalyticsAuthRoute = (path: string) => {
     return route.startsWith("/auth") && !route.startsWith("/auth/callback")
 }
 
-/** `GET /instance/telemetry`: whether to send events, and the identity to send them under. */
-export interface InstanceTelemetry {
-    enabled: boolean
-    distinct_id: string | null
-    /** Set on self-hosted instances only. */
-    groups: {instance: string} | null
-}
+export {isCloudTelemetry, type InstanceTelemetry}
 
 export async function fetchInstanceTelemetry(): Promise<InstanceTelemetry> {
     const {data} = await axios.get(`${getAgentaApiUrl()}/instance/telemetry`)
-    const instance = data?.groups?.instance
-    return {
-        enabled: data?.enabled === true,
-        distinct_id: typeof data?.distinct_id === "string" ? data.distinct_id : null,
-        groups: typeof instance === "string" ? {instance} : null,
-    }
+    return parseInstanceTelemetry(data)
 }
-
-/** Cloud keeps its email identity and settings; a self-hosted instance names its group. */
-export const isCloudTelemetry = (telemetry: InstanceTelemetry) => telemetry.groups === null
 
 export function loadPostHog(cloud: boolean): Promise<PostHog | null> {
     if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return Promise.resolve(null)
@@ -53,7 +42,7 @@ export function loadPostHog(cloud: boolean): Promise<PostHog | null> {
                 return await new Promise<PostHog>((resolve) => {
                     posthog.init(key, {
                         ...POSTHOG_CONFIG,
-                        ...(cloud ? CLOUD_CONFIG : OSS_CONFIG),
+                        ...(cloud ? CLOUD_CONFIG : SELF_HOSTED_CONFIG),
                         loaded: (client) => {
                             if (process.env.NODE_ENV === "development") client.debug()
                             if (cloud) {

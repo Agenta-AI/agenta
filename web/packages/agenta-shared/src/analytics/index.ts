@@ -7,22 +7,20 @@ export const CLOUD_CONFIG = {
     },
 }
 
-/** Properties posthog-js adds that name the instance's address. */
-const INSTANCE_URL_PROPERTIES = [
-    "$current_url",
-    "$host",
-    "$referrer",
-    "$referring_domain",
-    "$initial_current_url",
-    "$initial_host",
-    "$initial_referrer",
-    "$initial_referring_domain",
-]
+/** Properties posthog-js adds that name the instance's address or the referrer. */
+const INSTANCE_URL_PROPERTIES = ["$current_url", "$host", "$referrer", "$referring_domain"]
+// `$initial_person_info` holds the first URL and referrer; PostHog expands it into
+// `$initial_current_url` and the rest. `$session_entry_*` repeats them per session.
+const INSTANCE_URL_PREFIXES = ["$initial_", "$session_entry_"]
+
+const isInstanceUrlProperty = (key: string) =>
+    INSTANCE_URL_PROPERTIES.includes(key) ||
+    INSTANCE_URL_PREFIXES.some((prefix) => key.startsWith(prefix))
 
 const withoutInstanceUrl = (properties: Record<string, unknown> | undefined) => {
     if (!properties) return properties
     const kept = {...properties}
-    for (const key of INSTANCE_URL_PROPERTIES) delete kept[key]
+    for (const key of Object.keys(kept)) if (isInstanceUrlProperty(key)) delete kept[key]
     for (const key of ["$set", "$set_once"]) {
         const nested = kept[key]
         if (nested && typeof nested === "object") {
@@ -47,8 +45,8 @@ export const stripInstanceUrl = <T extends CapturedEvent>(event: T | null): T | 
         $set_once: withoutInstanceUrl(event.$set_once),
     }
 
-/** Self-hosted: only the named product events and page views; nothing recorded on its own. */
-export const OSS_CONFIG = {
+/** Self-hosted (both editions): only the named product events and page views; nothing recorded on its own. */
+export const SELF_HOSTED_CONFIG = {
     persistence: "localStorage+cookie" as const,
     autocapture: false,
     capture_dead_clicks: false,
@@ -81,6 +79,28 @@ export const generateOrRetrieveDistinctId = (): string => {
     }
     return (fallbackDistinctId ??= uuidv4())
 }
+
+/** `GET /instance/telemetry`: whether to send events, and the identity to send them under. */
+export interface InstanceTelemetry {
+    enabled: boolean
+    distinct_id: string | null
+    /** Set on self-hosted instances only. */
+    groups: {instance: string} | null
+}
+
+export const parseInstanceTelemetry = (data: unknown): InstanceTelemetry => {
+    const body = (data ?? {}) as {enabled?: unknown; distinct_id?: unknown; groups?: unknown}
+    const instance = (body.groups as {instance?: unknown} | null | undefined)?.instance
+    return {
+        enabled: body.enabled === true,
+        distinct_id: typeof body.distinct_id === "string" ? body.distinct_id : null,
+        groups: typeof instance === "string" ? {instance} : null,
+    }
+}
+
+/** Cloud keeps its email identity and settings. Only known when telemetry is on: off, `groups` is null everywhere. */
+export const isCloudTelemetry = (telemetry: InstanceTelemetry) =>
+    telemetry.enabled && telemetry.groups === null
 
 export interface AnalyticsUser {
     email?: string | null
