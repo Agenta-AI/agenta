@@ -13,7 +13,7 @@ const phone = {
     hasEntity: true,
     chatMaximized: false,
     configCollapsed: true,
-    filesOpen: false,
+    dockOpen: false,
 }
 
 describe("resolveSessionPanes on a phone", () => {
@@ -21,7 +21,7 @@ describe("resolveSessionPanes on a phone", () => {
         expect(resolveSessionPanes(phone)).toEqual({
             showConfig: false,
             showPane: false,
-            showFiles: false,
+            showDock: false,
         })
     })
 
@@ -29,7 +29,7 @@ describe("resolveSessionPanes on a phone", () => {
         expect(resolveSessionPanes({...phone, configCollapsed: false})).toEqual({
             showConfig: true,
             showPane: true,
-            showFiles: false,
+            showDock: false,
         })
     })
 
@@ -37,7 +37,7 @@ describe("resolveSessionPanes on a phone", () => {
         expect(resolveSessionPanes({...phone, chatMaximized: true})).toEqual({
             showConfig: false,
             showPane: false,
-            showFiles: false,
+            showDock: false,
         })
     })
 
@@ -45,26 +45,26 @@ describe("resolveSessionPanes on a phone", () => {
         expect(resolveSessionPanes({...phone, configCollapsed: false, hasEntity: false})).toEqual({
             showConfig: false,
             showPane: false,
-            showFiles: false,
+            showDock: false,
         })
     })
 })
 
 describe("resolveSessionPanes on a phone with the Files pane open", () => {
     it("gives Files the screen in place of the conversation", () => {
-        expect(resolveSessionPanes({...phone, filesOpen: true})).toEqual({
+        expect(resolveSessionPanes({...phone, dockOpen: true})).toEqual({
             showConfig: false,
             showPane: false,
-            showFiles: true,
+            showDock: true,
         })
     })
 
     it("outranks the configuration, which comes back once Files closes", () => {
         const withConfig = {...phone, configCollapsed: false}
-        expect(resolveSessionPanes({...withConfig, filesOpen: true})).toEqual({
+        expect(resolveSessionPanes({...withConfig, dockOpen: true})).toEqual({
             showConfig: false,
             showPane: false,
-            showFiles: true,
+            showDock: true,
         })
         expect(resolveSessionPanes(withConfig).showConfig).toBe(true)
     })
@@ -78,11 +78,11 @@ describe("resolveSessionPanes with the Files pane expanded", () => {
                     ...phone,
                     twoPane: true,
                     configCollapsed: false,
-                    filesOpen: true,
+                    dockOpen: true,
                     filesExpanded: true,
                     chatMaximized,
                 }),
-            ).toEqual({showConfig: false, showPane: false, showFiles: true})
+            ).toEqual({showConfig: false, showPane: false, showDock: true})
         }
         expect(
             resolveSessionPanes({
@@ -91,7 +91,7 @@ describe("resolveSessionPanes with the Files pane expanded", () => {
                 configCollapsed: false,
                 filesExpanded: true,
             }),
-        ).toEqual({showConfig: true, showPane: true, showFiles: false})
+        ).toEqual({showConfig: true, showPane: true, showDock: false})
     })
     it("brings Settings back beside Files when the expansion ends", () => {
         expect(
@@ -99,35 +99,35 @@ describe("resolveSessionPanes with the Files pane expanded", () => {
                 ...phone,
                 twoPane: true,
                 configCollapsed: false,
-                filesOpen: true,
+                dockOpen: true,
                 filesExpanded: false,
             }),
-        ).toEqual({showConfig: true, showPane: true, showFiles: true})
+        ).toEqual({showConfig: true, showPane: true, showDock: true})
     })
     it("restores at the current breakpoint, keeping a collapsed Settings pane collapsed", () => {
-        expect(resolveSessionPanes({...phone, filesOpen: true, filesExpanded: false})).toEqual({
+        expect(resolveSessionPanes({...phone, dockOpen: true, filesExpanded: false})).toEqual({
             showConfig: false,
             showPane: false,
-            showFiles: true,
+            showDock: true,
         })
         expect(
-            resolveSessionPanes({...phone, twoPane: true, filesOpen: true, filesExpanded: false}),
-        ).toEqual({showConfig: false, showPane: false, showFiles: true})
+            resolveSessionPanes({...phone, twoPane: true, dockOpen: true, filesExpanded: false}),
+        ).toEqual({showConfig: false, showPane: false, showDock: true})
     })
 })
 
 describe("resolveSessionPanes with two panes", () => {
     it("shows Files beside the configuration, not instead of it", () => {
         expect(
-            resolveSessionPanes({...phone, twoPane: true, configCollapsed: false, filesOpen: true}),
-        ).toEqual({showConfig: true, showPane: true, showFiles: true})
+            resolveSessionPanes({...phone, twoPane: true, configCollapsed: false, dockOpen: true}),
+        ).toEqual({showConfig: true, showPane: true, showDock: true})
     })
 
     it("keeps the desktop swap: the sessions rail stands in for the config panel", () => {
         expect(resolveSessionPanes({...phone, twoPane: true, chatMaximized: true})).toEqual({
             showConfig: false,
             showPane: true,
-            showFiles: false,
+            showDock: false,
         })
     })
 
@@ -135,7 +135,7 @@ describe("resolveSessionPanes with two panes", () => {
         expect(resolveSessionPanes({...phone, twoPane: true, configCollapsed: false})).toEqual({
             showConfig: true,
             showPane: true,
-            showFiles: false,
+            showDock: false,
         })
     })
 })

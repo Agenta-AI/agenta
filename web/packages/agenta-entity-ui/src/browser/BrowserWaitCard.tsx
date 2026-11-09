@@ -10,7 +10,7 @@ const hostOf = (url: string) => {
 }
 
 /** The agent's ask for the person, docked above the composer like an approval. */
-export const BrowserAskCard = ({
+export const BrowserWaitCard = ({
     reason,
     url,
     onOpen,

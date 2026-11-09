@@ -17,8 +17,8 @@ export interface SessionPaneInputs {
     twoPane: boolean
     /** False when the session has no revision to configure yet, such as a session with no turns. */
     hasEntity: boolean
-    /** The Files pane's open flag (`useSessionFilesPane`), which any file opener latches. */
-    filesOpen: boolean
+    /** The right-edge dock is open: the Files pane or the agent's browser, one at a time. */
+    dockOpen: boolean
     filesExpanded?: boolean
 }
 
@@ -27,8 +27,8 @@ export interface SessionPanes {
     showConfig: boolean
     /** Give the pane slot the screen. On a phone this hides the conversation. */
     showPane: boolean
-    /** Show the Files pane. Beside the conversation with two panes; in its place on a phone. */
-    showFiles: boolean
+    /** Show the dock. Beside the conversation with two panes; in its place on a phone. */
+    showDock: boolean
 }
 
 export const resolveSessionPanes = ({
@@ -36,13 +36,13 @@ export const resolveSessionPanes = ({
     configCollapsed,
     twoPane,
     hasEntity,
-    filesOpen,
+    dockOpen,
     filesExpanded = false,
 }: SessionPaneInputs): SessionPanes => {
-    // On a phone an open Files pane takes the whole screen, so nothing else gets a slot. Neither
-    // flag is touched: closing Files lands back on whatever was showing under it.
-    if (filesOpen && (filesExpanded || !twoPane))
-        return {showConfig: false, showPane: false, showFiles: true}
+    // On a phone an open dock takes the whole screen, so nothing else gets a slot. Neither flag
+    // is touched: closing the dock lands back on whatever was showing under it.
+    if (dockOpen && (filesExpanded || !twoPane))
+        return {showConfig: false, showPane: false, showDock: true}
     const showConfig = !chatMaximized && !configCollapsed && hasEntity
     // The sessions rail stands in for the config panel ONLY in maximized mode, as on the desktop.
     // Collapsing config collapses the PANE and gives the width to the conversation; swapping the
@@ -52,7 +52,7 @@ export const resolveSessionPanes = ({
     // chat belongs, with no way out: `/m` reads the maximized flag and never writes it, and the
     // desktop playground writes it to the same origin. A phone in maximized mode shows the
     // conversation, and the tab rail above it still reaches every session.
-    return {showConfig, showPane: showConfig || (twoPane && chatMaximized), showFiles: filesOpen}
+    return {showConfig, showPane: showConfig || (twoPane && chatMaximized), showDock: dockOpen}
 }
 
 interface DockState {
@@ -62,7 +62,8 @@ interface DockState {
 
 /**
  * Files and the browser share the right-edge dock. Each has openers this screen does not own (a
- * chat file link, the browser's ask card), so when both end up open the one opened last stays.
+ * chat file link, the browser's wait card), so when both end up open in one session the one
+ * opened last stays.
  */
 export const dockToClose = (prev: DockState, next: DockState): "files" | "browser" | null =>
     next.files && next.browser ? (prev.browser ? "browser" : "files") : null
