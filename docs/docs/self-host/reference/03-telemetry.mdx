@@ -33,7 +33,7 @@ Telemetry is off (AGENTA_TELEMETRY_ENABLED=false). The install ping still runs o
 
 With the switch off:
 
-- The API sends no product events and reads no feature flags from PostHog.
+- The API sends no product events and reads no feature flags from PostHog. Sign-up blocklists then come only from `AGENTA_ACCESS_BLOCKED_DOMAINS` and `AGENTA_ACCESS_BLOCKED_EMAILS`.
 - The browser does not load the analytics script and sends nothing.
 - The install ping still runs once. It carries only the instance id.
 
@@ -52,7 +52,7 @@ The distinct id is the instance id. The event has these properties and no others
 | `$geoip_disable` | `true`. PostHog does not look up a location. |
 | `$ip` | Empty. PostHog does not store an IP address. |
 
-The PostHog library also adds its own name and version (`$lib`, `$lib_version`), the Python version (`$python_runtime`, `$python_version`), the operating system (`$os`, `$os_version`, and on Linux `$os_distro`), and `$is_server`.
+The API removes the properties the PostHog library adds on its own (its name and version, the Python version and the operating system).
 
 ## Product events from the API
 
@@ -90,9 +90,24 @@ Each of these events has these properties:
 | `workspace_id` | The workspace id, when the route has one |
 | `organization_id` | The organization id, when the route has one |
 
-`user_signed_up_v1` instead has `source` (`auth`), `is_ee` (`true` on the enterprise edition) and `cloud_region` (`Other` on a self-hosted instance).
+`user_signed_up_v1` has these properties instead:
 
-The first time a user reaches a feature, the API also marks it on the user with an `$identify` event. The marks are `activated_prompt_management`, `activated_online_evaluation`, `activated_observability`, `activated_evaluation`, `activated_playground` and `invited_user_v1`, each set to `true`.
+| Property | Value |
+|---|---|
+| `source` | `auth` |
+| `is_ee` | `true` on the enterprise edition |
+| `cloud_region` | `Other` on a self-hosted instance |
+
+The first time a user reaches a feature, the API also marks it on the user with an `$identify` event. Each mark is set to `true`:
+
+| Mark | Set when a user first |
+|---|---|
+| `activated_prompt_management` | fetches a configuration with an API key |
+| `activated_online_evaluation` | creates a query |
+| `activated_observability` | sends traces with an API key |
+| `activated_evaluation` | starts an evaluation |
+| `activated_playground` | creates a variant |
+| `invited_user_v1` | invites a member |
 
 ## Product events from the browser
 
@@ -111,12 +126,17 @@ The browser asks the API whether telemetry is on before it loads the analytics s
 
 The PostHog browser library adds the page path, the browser, the operating system and the screen size. Agenta removes the page address, the host and the referrer from every event, and turns off GeoIP. Automatic click capture, heatmaps and session recordings are off.
 
+## Update check
+
+The update check downloads `https://agenta.ai/releases.json` at most every 12 hours. It sends no instance id, no version and no other data. Turn it off with `AGENTA_UPDATE_CHECK_ENABLED=false`.
+
 ## Settings
 
 | Variable | Default | Effect |
 |---|---|---|
 | `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops every event except the install ping. |
 | `AGENTA_DEPLOYMENT_METHOD` | unset | `compose`, `helm` or `railway`. The example env files and the templates set it. |
+| `AGENTA_UPDATE_CHECK_ENABLED` | `true` | `false` stops the update check. It does not follow `AGENTA_TELEMETRY_ENABLED`. |
 | `POSTHOG_API_KEY` | Agenta's project key | The PostHog project the events go to. |
 | `POSTHOG_API_URL` | Agenta's PostHog proxy | The PostHog address the events go to. |
 

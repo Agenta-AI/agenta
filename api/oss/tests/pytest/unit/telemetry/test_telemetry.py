@@ -34,6 +34,7 @@ class _Recorder:
         if self.fail is not None:
             raise self.fail
         self.calls.append({"event": event, **kwargs})
+        return str(kwargs.get("uuid") or "recorded")
 
 
 @pytest.fixture
@@ -198,6 +199,49 @@ async def test_failed_install_ping_rolls_back_and_does_not_raise(
     assert install_row.rolled_back
     assert not install_row.committed
     warning.assert_called_once()
+
+
+@pytest.fixture
+def wire(monkeypatch):
+    """The real synchronous PostHog client, with the HTTP post recorded or failing."""
+    state = SimpleNamespace(batches=[], fail=None)
+
+    def _batch_post(api_key, host=None, **kwargs):
+        if state.fail is not None:
+            raise state.fail
+        state.batches.append(kwargs["batch"])
+
+    monkeypatch.setattr("posthog.client.batch_post", _batch_post)
+    telemetry_service._sync_client.cache_clear()
+    yield state
+    telemetry_service._sync_client.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_install_ping_on_the_wire_has_only_its_properties(
+    self_hosted, wire, install_row
+):
+    await telemetry_service.send_install_ping()
+
+    [[message]] = wire.batches
+    assert message["event"] == "instance_installed"
+    assert message["distinct_id"] == str(INSTANCE_ID)
+    assert message["uuid"] == str(uuid5(INSTANCE_ID, "instance_installed"))
+    assert message["properties"] == {"$geoip_disable": True, "$ip": ""}
+    assert install_row.committed
+
+
+@pytest.mark.asyncio
+async def test_install_ping_the_client_swallows_still_rolls_back(
+    self_hosted, wire, install_row
+):
+    # The PostHog client catches send errors itself and returns None.
+    wire.fail = ConnectionError("no route to host")
+
+    await telemetry_service.send_install_ping()
+
+    assert install_row.rolled_back
+    assert not install_row.committed
 
 
 @pytest.mark.asyncio
@@ -397,3 +441,48 @@ async def test_startup_log_names_the_reason_and_the_docs(
     [message] = info.call_args.args
     assert message.startswith(expected)
     assert telemetry_service.TELEMETRY_DOCS_URL in message
+
+
+# --- the docs page lists every field the API sends -------------------------
+
+
+@pytest.mark.asyncio
+async def test_docs_list_every_api_event_field(monkeypatch, self_hosted, queued):
+    from oss.tests.pytest.unit.telemetry.test_telemetry_docs import documented_fields
+
+    monkeypatch.setattr(analytics, "get_cache", AsyncMock(return_value=None))
+    monkeypatch.setattr(analytics, "set_cache", AsyncMock())
+    monkeypatch.setattr(
+        overrides,
+        "ensure_auth_info_not_blocked",
+        AsyncMock(side_effect=lambda auth_info: auth_info),
+    )
+    monkeypatch.setattr(overrides, "get_user_with_email", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        overrides,
+        "create_accounts",
+        AsyncMock(return_value=SimpleNamespace(id=USER_ID, email=EMAIL)),
+    )
+
+    await analytics.analytics_middleware(
+        _request(
+            path="/organizations/x/invite",
+            user_email=EMAIL,
+            user_id=str(USER_ID),
+            project_id="p1",
+            workspace_id="w1",
+            organization_id="o1",
+            organization_name=ORGANIZATION_NAME,
+        ),
+        _call_next,
+    )
+    await overrides._create_account(EMAIL, "uid")
+
+    documented = documented_fields("Product events from the API")
+    sent = set()
+    for call in queued.calls:
+        if call["event"] == "$identify":
+            sent |= set(call["properties"]["$set_once"])
+        else:
+            sent |= {call["event"], *call["properties"]}
+    assert not sent - documented, f"not on the docs page: {sorted(sent - documented)}"
