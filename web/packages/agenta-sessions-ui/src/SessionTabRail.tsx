@@ -179,8 +179,7 @@ const TAB_DOT_STATUSES = new Set(["waiting", "running"])
  * past, so it never leaves the page it opens. */
 const tabSlotClass = (connected: boolean, active: boolean, divided?: boolean) =>
     connected
-        ? // Only the open tab sits on the page line; the rest stop above it, so hover never cuts it.
-          clsx("mr-0.5 shrink-0", active ? "sticky left-0 right-0 z-[3]" : "mb-px")
+        ? clsx("mr-0.5 shrink-0", active && "sticky left-0 right-0 z-[3]")
         : clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)
 
 /**

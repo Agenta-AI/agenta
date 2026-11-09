@@ -193,8 +193,8 @@ export const SessionSwitcher = ({
             <Popover open={open} onOpenChange={onOpenChange}>
                 <PopoverAnchor asChild>
                     {/* Two tabs, three from `xl`: each is 180px plus a 2px gap, and 12px of room
-                        at each end. `-mb-px` lowers the tabs onto the bar's page line. */}
-                    <div className="-mb-px flex w-[388px] min-w-0 self-stretch xl:w-[570px]">
+                        at each end. `pt-2` is the room above them. */}
+                    <div className="flex w-[388px] min-w-0 self-stretch pt-2 xl:w-[570px]">
                         {agentId || !agentResolving ? (
                             <SessionTabRail
                                 bare

@@ -183,7 +183,8 @@ export const SessionTopBar = ({
 
     return (
         <AgentPageHeader
-            className="md:min-h-12"
+            // Tabs set the bar's height; without them it keeps the 48px row.
+            className={switcher ? undefined : "md:min-h-12"}
             tabbed={Boolean(switcher)}
             // Nav is the drawer below `lg`; it hides itself where the rail takes over.
             leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}

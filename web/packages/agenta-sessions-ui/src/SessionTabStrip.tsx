@@ -129,8 +129,8 @@ const BARE_SCROLLER_CLASS =
     "flex h-full min-w-0 flex-1 items-end overflow-x-auto overscroll-x-contain px-3 [justify-content:safe_center] motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 /** Covers the scroller's padding at each end, so tabs scrolling past never show in the gap beside
  * a docked tab. Under the open tab (z-3), over the rest. Sticky offsets count from the content
- * box, so -12px puts each cover on the padding. `mb-px` keeps the page line under it visible. */
-const CURTAIN = "sticky z-[2] mb-px w-3 shrink-0 self-stretch bg-[var(--ag-surface-tab-bar)]"
+ * box, so -12px puts each cover on the padding. */
+const CURTAIN = "sticky z-[2] w-3 shrink-0 self-stretch bg-[var(--ag-surface-tab-bar)]"
 
 export const SessionTabStrip = ({
     children,

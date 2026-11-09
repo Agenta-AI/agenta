@@ -29,8 +29,9 @@ export interface AgentPageHeaderProps {
      * that opens the icon picker. Omitted, the bar draws the shared robot. */
     icon?: ReactNode
     /**
-     * The bar holds page tabs in `center`: a darker tab-bar ground, and no bottom padding, so
-     * the open tab can reach down to the bar's page line.
+     * The bar holds page tabs in `center`: a darker tab-bar ground, no vertical padding and no
+     * bottom line. The tabs bring their own top room and meet the panes below; the identity and
+     * actions centre on the whole bar.
      */
     tabbed?: boolean
     className?: string
@@ -75,10 +76,10 @@ export const AgentPageHeader = ({
                 center
                     ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center"
                     : "flex items-center justify-between"
-            } min-h-[48px] shrink-0 gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] px-2.5 sm:min-h-0 sm:gap-4 ${
+            } min-h-[48px] shrink-0 gap-2 px-2.5 sm:min-h-0 sm:gap-4 ${
                 tabbed
-                    ? "bg-[var(--ag-surface-tab-bar)] pt-2"
-                    : "bg-[var(--ag-surface-raised)] py-2"
+                    ? "bg-[var(--ag-surface-tab-bar)]"
+                    : "border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] py-2"
             } ${className ?? ""}`}
         >
             {/* min-w-0 + shrink (not shrink-0): on a phone the identity yields to the actions rather
