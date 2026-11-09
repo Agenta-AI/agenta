@@ -3,14 +3,12 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
-from oss.src.core.access.service import AccessService
-from oss.src.core.memberships.service import MembershipsService
-from oss.src.core.notifications.service import NotificationsService
 from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.records.dtos import TurnSignals
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.core.triggers.dtos import (
+    PAUSED_REASON_PREFIX,
     TriggerDeliverySettlement,
     TriggerDelivery,
     TriggerDeliveryOutcome as Outcome,
@@ -34,15 +32,15 @@ TurnKey = Tuple[str, str]
 
 def _paused_reason(delivery: TriggerDelivery) -> str:
     details = delivery.data.error_details if delivery.data else None
-    return f"paused_{details.code if details else 'unknown'}"
+    return f"{PAUSED_REASON_PREFIX}{details.code if details else 'unknown'}"
 
 
-# O1 to O4.
+# O1 to O4. A `None` reason is built from the delivery by `_paused_reason`.
 _START_ROWS = {
-    "400": (Outcome.FAILED, lambda _: "bad_configuration"),
-    "403": (Outcome.FAILED, _paused_reason),
-    "422": (Outcome.SKIPPED, lambda _: "agent_needs_setup"),
-    "500": (Outcome.FAILED, lambda _: "start_failed"),
+    "400": (Outcome.FAILED, "bad_configuration"),
+    "403": (Outcome.FAILED, None),
+    "422": (Outcome.SKIPPED, "agent_needs_setup"),
+    "500": (Outcome.FAILED, "start_failed"),
 }
 
 # O5 to O8. Any other settled value is O10: it can only mean that the run was stopped.
@@ -104,7 +102,7 @@ def settle(
         outcome, reason = _START_ROWS[code]
         return TriggerDeliverySettlement(
             outcome=outcome,
-            reason_code=reason(delivery),
+            reason_code=reason or _paused_reason(delivery),
             error_message=_start_message(delivery),
             ended_at=delivery.updated_at or delivery.created_at,
         )
@@ -146,19 +144,12 @@ class OutcomesService:
         triggers_dao: TriggersDAOInterface,
         session_executions_dao: SessionExecutionsDAOInterface,
         records_dao: RecordsDAOInterface,
-        notifications_service: NotificationsService,
-        memberships_service: MembershipsService,
-        access_service: AccessService,
+        failure_notifications: FailureNotifications,
     ):
         self.triggers_dao = triggers_dao
         self.session_executions_dao = session_executions_dao
         self.records_dao = records_dao
-        self.failure_notifications = FailureNotifications(
-            triggers_dao=triggers_dao,
-            notifications_service=notifications_service,
-            memberships_service=memberships_service,
-            access_service=access_service,
-        )
+        self.failure_notifications = failure_notifications
 
     async def settle_pass(self) -> None:
         before: Optional[Tuple[datetime, UUID]] = None

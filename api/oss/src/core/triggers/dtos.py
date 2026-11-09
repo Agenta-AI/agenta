@@ -40,6 +40,9 @@ TRIGGER_MAX_RETRIES = 5
 # they can never disagree on what counts as retryable.
 TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE = "500"
 
+# A delivery refused because its trigger is paused has the reason `paused_<error code>`.
+PAUSED_REASON_PREFIX = "paused_"
+
 
 # ---------------------------------------------------------------------------
 # Trigger Enums

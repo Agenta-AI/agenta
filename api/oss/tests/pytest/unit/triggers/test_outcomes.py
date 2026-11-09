@@ -175,12 +175,8 @@ def _service(pages, *, executions=None, signals=None, rules=None):
         triggers_dao=triggers_dao,
         session_executions_dao=executions_dao,
         records_dao=records_dao,
-        notifications_service=MagicMock(),
-        memberships_service=MagicMock(),
-        access_service=MagicMock(),
+        failure_notifications=MagicMock(apply=rules or AsyncMock()),
     )
-    service.failure_notifications = MagicMock()
-    service.failure_notifications.apply = rules or AsyncMock()
     return service, triggers_dao, records_dao
 
 

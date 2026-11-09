@@ -150,6 +150,7 @@ export function generatedAutomationName(a: Automation, agentName: string | null)
     return `${runsWhen} — ${agent}`
 }
 
+/** `ok`, `bad` and `pending` are UI states; the other values pass the API's outcome through. */
 export type DeliveryOutcome = "ok" | "bad" | "pending" | "skipped" | "cancelled" | "needed_approval"
 
 const STARTED_RUN_OUTCOMES: Partial<Record<string, DeliveryOutcome>> = {

@@ -71,6 +71,7 @@ def _service(*, subscription=None):
         triggers_dao=dao,
         connections_service=connections,
         workflows_service=MagicMock(),
+        notifications_service=AsyncMock(),
     )
     return service, dao, adapter
 

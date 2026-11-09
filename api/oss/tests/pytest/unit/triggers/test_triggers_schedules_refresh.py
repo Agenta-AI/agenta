@@ -57,6 +57,7 @@ def _service(*, schedules=None, seen=False, with_task=True):
         triggers_dao=dao,
         connections_service=MagicMock(),
         workflows_service=MagicMock(),
+        notifications_service=AsyncMock(),
     )
     if with_task:
         service.schedule_dispatch_task = MagicMock(kiq=AsyncMock())
@@ -254,6 +255,7 @@ class TestSetScheduleActiveWindowGuard:
             triggers_dao=dao,
             connections_service=MagicMock(),
             workflows_service=MagicMock(),
+            notifications_service=AsyncMock(),
         )
         return service, dao
 

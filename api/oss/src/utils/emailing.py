@@ -9,6 +9,7 @@ from typing import Sequence
 
 import httpx
 
+from python_http_client.exceptions import HTTPError
 from sendgrid.helpers.mail import (
     Attachment,
     ContentId,
@@ -26,6 +27,12 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 RENDERED_EMAIL_TIMEOUT_SECONDS = 15
+
+# Mailbox-level SMTP refusals. Other codes, such as 554 for a refused relay or 530 for
+# missing auth, fail every send.
+_SMTP_MAILBOX_CODES = {550, 551, 553}
+# A bad key, a missing permission or a rate limit fails every send, like a 5xx.
+_SENDGRID_PROVIDER_WIDE_STATUSES = {401, 403, 429}
 
 
 @dataclass(frozen=True)
@@ -329,6 +336,22 @@ async def send_rendered_email(
         return
 
     raise RuntimeError("No email provider is set up")
+
+
+def is_recipient_rejection(error: Exception) -> bool:
+    """True when the provider refused this one recipient and other sends can still work."""
+    if isinstance(error, smtplib.SMTPRecipientsRefused):
+        return bool(error.recipients) and all(
+            code in _SMTP_MAILBOX_CODES for code, _ in error.recipients.values()
+        )
+    if isinstance(error, HTTPError):
+        status = getattr(error, "status_code", None)
+        return (
+            isinstance(status, int)
+            and 400 <= status < 500
+            and status not in _SENDGRID_PROVIDER_WIDE_STATUSES
+        )
+    return False
 
 
 async def add_contact(

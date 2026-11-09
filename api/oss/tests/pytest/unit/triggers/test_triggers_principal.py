@@ -41,6 +41,7 @@ def _service(*, revision_artifact_id=None):
         triggers_dao=dao,
         connections_service=MagicMock(),
         workflows_service=workflows,
+        notifications_service=AsyncMock(),
     )
     return service, dao
 
@@ -461,6 +462,7 @@ def _resume_service(schedule):
         triggers_dao=dao,
         connections_service=MagicMock(),
         workflows_service=MagicMock(),
+        notifications_service=AsyncMock(),
     )
     return service, dao
 

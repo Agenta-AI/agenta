@@ -360,9 +360,9 @@ class TriggersService:
         triggers_dao: TriggersDAOInterface,
         connections_service: ConnectionsService,
         workflows_service: WorkflowsService,
+        notifications_service: NotificationsService,
         # Assigned post-construction in the composition root (worker wiring); guarded at use.
         schedule_dispatch_task: Optional[Any] = None,
-        notifications_service: Optional[NotificationsService] = None,
     ):
         self.adapter_registry = adapter_registry
         self.catalog_service = catalog_service
@@ -383,8 +383,6 @@ class TriggersService:
         project_id: UUID,
         automation_id: UUID,
     ) -> None:
-        if self.notifications_service is None:
-            return
         try:
             await self.notifications_service.resolve(
                 project_id=project_id,

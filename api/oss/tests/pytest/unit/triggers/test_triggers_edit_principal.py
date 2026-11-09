@@ -94,6 +94,7 @@ def _service(*, schedule=None, subscription=None):
         triggers_dao=dao,
         connections_service=connections,
         workflows_service=MagicMock(),
+        notifications_service=AsyncMock(),
     )
     service._validate_references = AsyncMock(return_value=uuid4())
     service._require_connection = AsyncMock(return_value=connection)

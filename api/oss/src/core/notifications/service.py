@@ -1,10 +1,7 @@
-import smtplib
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional, Sequence
 from uuid import UUID
-
-from python_http_client.exceptions import HTTPError
 
 from oss.src.core.memberships.service import MembershipsService
 from oss.src.core.notifications.dtos import (
@@ -14,7 +11,7 @@ from oss.src.core.notifications.dtos import (
     RenderedEmail,
 )
 from oss.src.core.notifications.interfaces import NotificationsDAOInterface
-from oss.src.utils.emailing import send_rendered_email
+from oss.src.utils.emailing import is_recipient_rejection, send_rendered_email
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -26,22 +23,6 @@ MAX_SEND_ATTEMPTS = 5
 SEND_WINDOW_SECONDS = 300
 
 NotificationTemplate = Callable[[UUID, Dict[str, Any]], RenderedEmail]
-
-# A bad key or a missing permission fails every send, so they stop the loop like a 5xx.
-_PROVIDER_WIDE_STATUSES = {401, 403, 429}
-
-
-def _recipient_rejected(error: Exception) -> bool:
-    if isinstance(error, smtplib.SMTPRecipientsRefused):
-        return True
-    if isinstance(error, HTTPError):
-        status = getattr(error, "status_code", None)
-        return (
-            isinstance(status, int)
-            and 400 <= status < 500
-            and status not in _PROVIDER_WIDE_STATUSES
-        )
-    return False
 
 
 class NotificationsService:
@@ -139,7 +120,7 @@ class NotificationsService:
                 )
             except Exception as error:  # pylint: disable=broad-exception-caught
                 await self._record_failure(delivery, error)
-                if _recipient_rejected(error):
+                if is_recipient_rejection(error):
                     continue
                 return
 

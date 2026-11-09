@@ -90,6 +90,7 @@ def _service(existing, *, upserted_trigger_id=None):
         triggers_dao=dao,
         connections_service=connections,
         workflows_service=MagicMock(),
+        notifications_service=AsyncMock(),
     )
     service._require_connection = AsyncMock(return_value=connection)
     service._validate_references = AsyncMock()

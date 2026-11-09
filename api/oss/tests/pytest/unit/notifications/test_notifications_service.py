@@ -183,9 +183,15 @@ async def test_a_rejected_recipient_counts_one_attempt_and_the_loop_goes_on(
     assert _states(dao) == [State.CREATED, State.SENT, State.SENT]
 
 
-@pytest.mark.parametrize("status", [401, 403, 429, 500])
-async def test_a_provider_wide_sendgrid_error_stops_the_loop(sender, status):
-    sender.side_effect = _sendgrid_error(status)
+@pytest.mark.parametrize(
+    "error",
+    [
+        smtplib.SMTPRecipientsRefused({EMAIL: (554, b"relay access denied")}),
+        _sendgrid_error(429),
+    ],
+)
+async def test_a_provider_wide_error_stops_the_loop(sender, error):
+    sender.side_effect = error
     service, dao = _service()
     await _open(dao, recipients=3)
 

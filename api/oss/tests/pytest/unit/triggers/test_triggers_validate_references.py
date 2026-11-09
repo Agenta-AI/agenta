@@ -29,6 +29,7 @@ def _make_service(*, side_effect=None, return_value=None):
         triggers_dao=MagicMock(),
         connections_service=MagicMock(),
         workflows_service=workflows,
+        notifications_service=MagicMock(),
     )
 
 

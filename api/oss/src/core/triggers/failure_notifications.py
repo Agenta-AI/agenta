@@ -23,6 +23,7 @@ from oss.src.core.notifications.dtos import NotificationKind, RenderedEmail
 from oss.src.core.notifications.service import NotificationsService
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.triggers.dtos import (
+    PAUSED_REASON_PREFIX,
     TriggerDeliverySettlement,
     TriggerDeliveryOutcome as Outcome,
     UnsettledTriggerDelivery,
@@ -243,9 +244,6 @@ REASON_CATALOG = {
         "set correctly.",
         "Open the automation and check its agent and inputs.",
     ),
-    "paused_missing_principal": _PAUSED,
-    "paused_agent_deleted": _PAUSED,
-    "paused_access_denied": _PAUSED,
     "agent_needs_setup": (
         "The agent's model needs setup, so runs are skipped.",
         "Set up the agent's model. The next run starts as usual.",
@@ -294,7 +292,7 @@ def plain_error_message(message: Optional[str]) -> str:
 def _reason_and_action(reason_code: Optional[str]) -> Tuple[str, str]:
     if reason_code in REASON_CATALOG:
         return REASON_CATALOG[reason_code]
-    if reason_code and reason_code.startswith("paused_"):
+    if reason_code and reason_code.startswith(PAUSED_REASON_PREFIX):
         return _PAUSED
     return _RUN_ERROR
 

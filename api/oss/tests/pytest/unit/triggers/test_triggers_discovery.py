@@ -55,6 +55,7 @@ def _service(*, connections=None, integration=None):
         triggers_dao=MagicMock(),
         connections_service=connections_service,
         workflows_service=MagicMock(),
+        notifications_service=MagicMock(),
     )
 
 

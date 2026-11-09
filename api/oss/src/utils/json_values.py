@@ -4,7 +4,7 @@ _NUL = "\x00"
 
 
 def strip_nul(value):
-    """Drop every U+0000 from a record body, in dict keys as well as string values."""
+    """Drop every U+0000 from a JSON value, in dict keys as well as string values."""
     if isinstance(value, str):
         return value.replace(_NUL, "")
     if isinstance(value, dict):

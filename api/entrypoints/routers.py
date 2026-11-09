@@ -188,7 +188,10 @@ from oss.src.dbs.postgres.triggers.dao import TriggersDAO
 from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.service import TriggersService
-from oss.src.core.triggers.failure_notifications import render_automation_failing
+from oss.src.core.triggers.failure_notifications import (
+    FailureNotifications,
+    render_automation_failing,
+)
 from oss.src.core.triggers.outcomes import OutcomesService
 from oss.src.core.notifications.service import NotificationsService
 from oss.src.dbs.postgres.notifications.dao import NotificationsDAO
@@ -1095,9 +1098,12 @@ outcomes_service = OutcomesService(
     triggers_dao=triggers_dao,
     session_executions_dao=session_executions_dao,
     records_dao=records_dao,
-    notifications_service=notifications_service,
-    memberships_service=get_memberships_service(),
-    access_service=get_access_service(),
+    failure_notifications=FailureNotifications(
+        triggers_dao=triggers_dao,
+        notifications_service=notifications_service,
+        memberships_service=get_memberships_service(),
+        access_service=get_access_service(),
+    ),
 )
 
 triggers_service = TriggersService(

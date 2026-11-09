@@ -1,6 +1,8 @@
+import smtplib
 from unittest.mock import Mock
 
 import pytest
+from python_http_client.exceptions import HTTPError
 
 from oss.src.utils import emailing
 from oss.src.utils.env import env
@@ -379,3 +381,33 @@ async def test_rendered_email_embeds_inline_images_over_smtp(monkeypatch):
     )
     assert image["Content-ID"] == "<logo>"
     assert image.get_content_disposition() == "inline"
+
+
+def _refused(*codes):
+    return smtplib.SMTPRecipientsRefused(
+        {f"user{i}@example.com": (code, b"refused") for i, code in enumerate(codes)}
+    )
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (_refused(550), True),
+        (_refused(551), True),
+        (_refused(553), True),
+        (_refused(550, 553), True),
+        (_refused(554), False),
+        (_refused(530), False),
+        (_refused(550, 554), False),
+        (HTTPError(400, "reason", b"{}", {}), True),
+        (HTTPError(404, "reason", b"{}", {}), True),
+        (HTTPError(401, "reason", b"{}", {}), False),
+        (HTTPError(403, "reason", b"{}", {}), False),
+        (HTTPError(429, "reason", b"{}", {}), False),
+        (HTTPError(500, "reason", b"{}", {}), False),
+        (TimeoutError(), False),
+        (smtplib.SMTPServerDisconnected(), False),
+    ],
+)
+def test_is_recipient_rejection(error, expected):
+    assert emailing.is_recipient_rejection(error) is expected
