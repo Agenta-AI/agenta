@@ -5,9 +5,8 @@ import {
     ALL_RELEASES_LINK,
     isWhatsNewOptedOut,
     markAllReleasesSeen,
-    newerReleases,
+    notInstalledReleasesAtom,
     releaseListAtom,
-    runningVersionAtom,
     setWhatsNewOptedOut,
     type Release,
 } from "@agenta/navigation"
@@ -48,8 +47,8 @@ export const WhatsNewDialog = () => {
     const optOutId = useId()
     // The bundled list plus newer releases from the feed, which this instance does not run yet.
     const releases = useAtomValue(releaseListAtom)
-    const runningVersion = useAtomValue(runningVersionAtom)
-    const notInstalled = new Set(newerReleases(releases, runningVersion).map((r) => r.id))
+    const notInstalledReleases = useAtomValue(notInstalledReleasesAtom)
+    const notInstalled = new Set(notInstalledReleases.map((r) => r.id))
     const railReleases = releases.slice(0, RAIL_COUNT)
 
     const selected =

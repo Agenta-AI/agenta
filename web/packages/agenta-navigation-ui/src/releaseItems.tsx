@@ -2,7 +2,6 @@ import type {ReactNode} from "react"
 
 import {
     ALL_RELEASES_LINK,
-    newerReleases,
     RELEASES,
     UPGRADE_GUIDE_LINK,
     type Notice,
@@ -65,37 +64,37 @@ const RowNote = ({children}: {children: ReactNode}) => (
     <span className="text-[11px] leading-none text-colorTextTertiary">{children}</span>
 )
 
-/** The key of a feed notice's row, so a host can tell it from a release row. */
-export const noticeNavKey = (id: string) => `notice:${id}`
-
 export interface ReleaseNavOptions {
     /** The bundled list merged with the release feed. Defaults to the bundled list. */
     releases?: Release[]
-    /** The version the API runs. Releases above it are marked as not installed. */
-    runningVersion?: string | null
+    /** Releases newer than the running version that the reader can install. */
+    notInstalled?: Release[]
     /** Feed notices that already passed their filters. */
     notices?: Notice[]
+    /** Opens a notice. Without it, a notice row is a plain link. */
+    onOpenNotice?: (notice: Notice) => void
 }
 
 /**
  * The help menu's "What's new?" block: a heading, the feed's notices, the way to upgrade when a
  * newer release exists, the recent releases, and the way to the rest.
  *
- * Shared by both rails so one changelog reads the same in the desktop app and in `/m`. `version`
- * rides the last row — the running build belongs beside the list of what shipped.
+ * Shared by both rails so one changelog reads the same in the desktop app and in `/m`.
+ * `appVersion` (the web build, without the "v") rides the last row — the running build belongs
+ * beside the list of what shipped.
  */
 export const buildReleaseNavItems = (
-    version?: string,
-    {releases = RELEASES, runningVersion = null, notices = []}: ReleaseNavOptions = {},
+    appVersion?: string,
+    {releases = RELEASES, notInstalled = [], notices = [], onOpenNotice}: ReleaseNavOptions = {},
 ): SidebarConfig[] => {
-    const newer = new Set(newerReleases(releases, runningVersion).map((release) => release.id))
+    const newer = new Set(notInstalled.map((release) => release.id))
     return [
         {key: "releases-heading", title: "What's new?", isGroupLabel: true},
         ...notices.map((notice) => ({
-            key: noticeNavKey(notice.id),
+            key: `notice:${notice.id}`,
             title: notice.title,
             tooltip: notice.body,
-            link: notice.link,
+            ...(onOpenNotice ? {onClick: () => onOpenNotice(notice)} : {link: notice.link}),
             icon:
                 notice.severity === "warning" ? (
                     <WarningIcon size={14} className="text-colorWarning" />
@@ -128,7 +127,7 @@ export const buildReleaseNavItems = (
             link: ALL_RELEASES_LINK,
             icon: <ReleaseGlyph last />,
             rowClassName: RELEASE_ROW,
-            suffix: version ? <RowNote>v{version}</RowNote> : undefined,
+            suffix: appVersion ? <RowNote>v{appVersion}</RowNote> : undefined,
         },
     ]
 }

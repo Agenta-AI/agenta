@@ -18,24 +18,52 @@ export const compareVersions = (a: string, b: string): number => {
     return 0
 }
 
-// The feed is remote data: an entry the dialog cannot render is dropped, not drawn half.
+// The feed is remote data: bound what it may hold, and drop an entry the dialog cannot render
+// rather than draw it half.
+const MAX_FEED_RELEASES = 50
+const MAX_FEED_NOTICES = 10
+const MAX_LIST_LENGTH = 50
+const MAX_TITLE_LENGTH = 300
+const MAX_BODY_LENGTH = 20_000
+
+const isText = (value: unknown, max: number): value is string =>
+    typeof value === "string" && value.length <= max
+
+const isHttpsLink = (value: unknown): value is string =>
+    isText(value, 2_000) && /^https:\/\/[^\s]+$/.test(value)
+
+const isReleaseItem = (value: unknown): boolean => {
+    if (!value || typeof value !== "object") return false
+    const item = value as {area?: unknown; text?: unknown}
+    return isText(item.area, MAX_TITLE_LENGTH) && isText(item.text, MAX_BODY_LENGTH)
+}
+
 const isRelease = (value: unknown): value is Release => {
     if (!value || typeof value !== "object") return false
     const release = value as Partial<Release>
     return (
         isVersion(release.id) &&
-        typeof release.date === "string" &&
+        isText(release.date, MAX_TITLE_LENGTH) &&
         Array.isArray(release.features) &&
         release.features.length > 0 &&
+        release.features.length <= MAX_LIST_LENGTH &&
         release.features.every(
             (feature) =>
-                typeof feature?.id === "string" &&
-                typeof feature.title === "string" &&
-                typeof feature.body === "string" &&
-                typeof feature.link === "string",
+                isText(feature?.id, MAX_TITLE_LENGTH) &&
+                isText(feature.title, MAX_TITLE_LENGTH) &&
+                isText(feature.body, MAX_BODY_LENGTH) &&
+                isHttpsLink(feature.link) &&
+                (feature.streamVideoId === undefined ||
+                    (typeof feature.streamVideoId === "string" &&
+                        /^[A-Za-z0-9]{1,64}$/.test(feature.streamVideoId))),
         ) &&
         Array.isArray(release.improvements) &&
-        Array.isArray(release.fixes)
+        release.improvements.length <= MAX_LIST_LENGTH &&
+        release.improvements.every(isReleaseItem) &&
+        Array.isArray(release.fixes) &&
+        release.fixes.length <= MAX_LIST_LENGTH &&
+        release.fixes.every(isReleaseItem) &&
+        (release.securityFix === undefined || release.securityFix === true)
     )
 }
 
@@ -45,11 +73,14 @@ const isRelease = (value: unknown): value is Release => {
  */
 export const mergeReleases = (bundled: Release[], feed: readonly unknown[] = []): Release[] => {
     const known = new Set(bundled.map((release) => release.id))
-    const added = feed.filter(isRelease).filter((release) => {
-        if (known.has(release.id)) return false
-        known.add(release.id)
-        return true
-    })
+    const added = feed
+        .slice(0, MAX_FEED_RELEASES)
+        .filter(isRelease)
+        .filter((release) => {
+            if (known.has(release.id)) return false
+            known.add(release.id)
+            return true
+        })
     if (added.length === 0) return bundled
     return [...bundled, ...added].sort((a, b) => compareVersions(b.id, a.id))
 }
@@ -88,15 +119,14 @@ const isStringList = (value: unknown): value is string[] =>
 
 /** The feed's notices that are well formed; anything else is dropped. */
 export const parseNotices = (feed: readonly unknown[] = []): Notice[] =>
-    feed.filter((value): value is Notice => {
+    feed.slice(0, MAX_FEED_NOTICES).filter((value): value is Notice => {
         if (!value || typeof value !== "object") return false
         const notice = value as Partial<Notice>
         return (
-            typeof notice.id === "string" &&
-            typeof notice.title === "string" &&
-            typeof notice.body === "string" &&
-            typeof notice.link === "string" &&
-            /^https:\/\//.test(notice.link) &&
+            isText(notice.id, MAX_TITLE_LENGTH) &&
+            isText(notice.title, MAX_TITLE_LENGTH) &&
+            isText(notice.body, MAX_BODY_LENGTH) &&
+            isHttpsLink(notice.link) &&
             NOTICE_SEVERITIES.has(notice.severity ?? "") &&
             (notice.editions === undefined || isStringList(notice.editions)) &&
             (notice.plans === undefined || isStringList(notice.plans)) &&

@@ -5,7 +5,7 @@ import {X} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {isAnalyticsAuthRoute} from "@/features/analytics/client"
-import {useSecurityUpdate} from "@/features/education/useSecurityUpdate"
+import {useSecurityWarning} from "@/features/education/useSecurityWarning"
 import {cn} from "@/lib/utils"
 
 import {useMaintenanceNotice} from "./useMaintenanceNotice"
@@ -29,7 +29,7 @@ const SCREEN_SAFE_TOP_VAR = "--ag-screen-safe-top"
  */
 export const MaintenanceNoticeBar = () => {
     const maintenance = useMaintenanceNotice()
-    const security = useSecurityUpdate()
+    const security = useSecurityWarning()
     const router = useRouter()
     const authRoute = isAnalyticsAuthRoute(router.asPath || router.pathname || "")
     // Start hidden: localStorage is not readable during the server render.
@@ -73,13 +73,13 @@ export const MaintenanceNoticeBar = () => {
         }
     }, [visible])
 
-    const {dismiss: dismissSecurity} = security
+    const {snooze: snoozeSecurity} = security
     const handleDismiss = useCallback(() => {
         if (showMaintenance && maintenance) {
             dismissNotice(maintenance)
             setMaintenanceDismissed(true)
-        } else dismissSecurity()
-    }, [dismissSecurity, maintenance, showMaintenance])
+        } else snoozeSecurity()
+    }, [maintenance, showMaintenance, snoozeSecurity])
 
     if (!visible || !notice) return null
 

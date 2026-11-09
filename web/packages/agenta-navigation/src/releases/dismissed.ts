@@ -1,40 +1,35 @@
-// Same storage rules as seen.ts: blocked storage means the notice may show again, never a crash.
+import {readStorage, writeStorage} from "./seen"
+
 const DISMISSED_NOTICES_KEY = "agenta-release-notices-dismissed"
 const SECURITY_WARNING_KEY = "agenta-security-warning-dismissed"
 
 /** A closed security warning comes back after this long while the instance is still behind. */
 export const SECURITY_WARNING_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000
 
-const read = (key: string): unknown => {
-    if (typeof window === "undefined") return null
+const readJson = (key: string): unknown => {
+    const raw = readStorage(key)
+    if (raw === null) return null
     try {
-        const raw = window.localStorage.getItem(key)
-        return raw === null ? null : (JSON.parse(raw) as unknown)
+        return JSON.parse(raw) as unknown
     } catch {
         return null
     }
 }
 
-const write = (key: string, value: unknown) => {
-    if (typeof window === "undefined") return
-    try {
-        window.localStorage.setItem(key, JSON.stringify(value))
-    } catch {
-        // Not persisted: the notice shows again on the next load.
-    }
-}
-
-/** Ids of the feed notices closed in this browser. */
-export const getDismissedNoticeIds = (): string[] => {
-    const stored = read(DISMISSED_NOTICES_KEY)
+/** Ids of the release notices closed in this browser. Closed is for good. */
+export const getDismissedReleaseNoticeIds = (): string[] => {
+    const stored = readJson(DISMISSED_NOTICES_KEY)
     return Array.isArray(stored) ? stored.filter((id) => typeof id === "string") : []
 }
 
-export const dismissNotice = (id: string) =>
-    write(DISMISSED_NOTICES_KEY, [...new Set([...getDismissedNoticeIds(), id])])
+export const dismissReleaseNotice = (id: string) =>
+    writeStorage(
+        DISMISSED_NOTICES_KEY,
+        JSON.stringify([...new Set([...getDismissedReleaseNoticeIds(), id])]),
+    )
 
 /** The pure core: a warning for `releaseId` closed less than seven days before `now`. */
-export const isSecurityWarningSnoozed = ({
+export const isSnoozeActive = ({
     stored,
     releaseId,
     now,
@@ -48,8 +43,8 @@ export const isSecurityWarningSnoozed = ({
     return id === releaseId && typeof at === "number" && now - at < SECURITY_WARNING_SNOOZE_MS
 }
 
-export const isSecurityWarningDismissed = (releaseId: string, now = Date.now()): boolean =>
-    isSecurityWarningSnoozed({stored: read(SECURITY_WARNING_KEY), releaseId, now})
+export const isSecurityWarningSnoozed = (releaseId: string, now = Date.now()): boolean =>
+    isSnoozeActive({stored: readJson(SECURITY_WARNING_KEY), releaseId, now})
 
-export const dismissSecurityWarning = (releaseId: string, now = Date.now()) =>
-    write(SECURITY_WARNING_KEY, {id: releaseId, at: now})
+export const snoozeSecurityWarning = (releaseId: string, now = Date.now()) =>
+    writeStorage(SECURITY_WARNING_KEY, JSON.stringify({id: releaseId, at: now}))

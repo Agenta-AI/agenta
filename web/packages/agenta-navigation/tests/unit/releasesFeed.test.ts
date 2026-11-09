@@ -1,7 +1,7 @@
 import {describe, expect, it} from "vitest"
 
 import type {Notice, Release} from "../../src/releases"
-import {isSecurityWarningSnoozed, SECURITY_WARNING_SNOOZE_MS} from "../../src/releases/dismissed"
+import {isSnoozeActive, SECURITY_WARNING_SNOOZE_MS} from "../../src/releases/dismissed"
 import {
     compareVersions,
     latestSecurityRelease,
@@ -73,6 +73,20 @@ describe("mergeReleases", () => {
             release("v0.131.0", {features: []}),
         ])
         expect(merged).toBe(bundled)
+    })
+
+    it("drops a release with a bad item, a link that is not https or an oversized body", () => {
+        const feature = release("v0.129.0").features[0]
+        const merged = mergeReleases(bundled, [
+            release("v0.129.0", {fixes: [null as never]}),
+            release("v0.129.1", {improvements: [{area: "x"} as never]}),
+            release("v0.129.2", {features: [{...feature, link: "javascript:alert(1)"}]}),
+            release("v0.129.3", {features: [{...feature, link: "http://agenta.ai"}]}),
+            release("v0.129.4", {features: [{...feature, body: "x".repeat(20_001)}]}),
+            release("v0.129.5", {features: [{...feature, streamVideoId: "../x"}]}),
+            release("v0.130.0"),
+        ])
+        expect(merged.map((r) => r.id)).toEqual(["v0.130.0", "v0.127.3", "v0.127.2"])
     })
 })
 
@@ -166,26 +180,26 @@ describe("parseNotices", () => {
     })
 })
 
-describe("isSecurityWarningSnoozed", () => {
+describe("isSnoozeActive", () => {
     const now = 1_800_000_000_000
 
     it("stays closed for seven days after it was closed", () => {
         const stored = {id: "v0.128.2", at: now - SECURITY_WARNING_SNOOZE_MS + 1}
-        expect(isSecurityWarningSnoozed({stored, releaseId: "v0.128.2", now})).toBe(true)
+        expect(isSnoozeActive({stored, releaseId: "v0.128.2", now})).toBe(true)
     })
 
     it("comes back after seven days", () => {
         const stored = {id: "v0.128.2", at: now - SECURITY_WARNING_SNOOZE_MS}
-        expect(isSecurityWarningSnoozed({stored, releaseId: "v0.128.2", now})).toBe(false)
+        expect(isSnoozeActive({stored, releaseId: "v0.128.2", now})).toBe(false)
     })
 
     it("shows at once for a newer security release", () => {
         const stored = {id: "v0.128.2", at: now}
-        expect(isSecurityWarningSnoozed({stored, releaseId: "v0.129.1", now})).toBe(false)
+        expect(isSnoozeActive({stored, releaseId: "v0.129.1", now})).toBe(false)
     })
 
     it("shows when nothing or garbage is stored", () => {
-        expect(isSecurityWarningSnoozed({stored: null, releaseId: "v0.128.2", now})).toBe(false)
-        expect(isSecurityWarningSnoozed({stored: "x", releaseId: "v0.128.2", now})).toBe(false)
+        expect(isSnoozeActive({stored: null, releaseId: "v0.128.2", now})).toBe(false)
+        expect(isSnoozeActive({stored: "x", releaseId: "v0.128.2", now})).toBe(false)
     })
 })

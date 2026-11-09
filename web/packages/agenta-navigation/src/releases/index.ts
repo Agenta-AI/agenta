@@ -74,16 +74,18 @@ export {
     parseNotices,
 } from "./feed"
 export {
-    dismissNotice as dismissReleaseNotice,
-    dismissSecurityWarning,
-    getDismissedNoticeIds,
-    isSecurityWarningDismissed,
+    dismissReleaseNotice,
+    getDismissedReleaseNoticeIds,
+    isSecurityWarningSnoozed,
+    snoozeSecurityWarning,
 } from "./dismissed"
 export {
-    feedNoticesAtom,
     instanceReleasesQueryAtom,
+    notInstalledReleasesAtom,
     releaseListAtom,
+    releaseNoticesAtom,
     runningVersionAtom,
+    securityReleaseAtom,
 } from "./state"
 export {
     getUnseenReleases,

@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import httpx
@@ -6,8 +7,9 @@ import pytest
 from oss.src.core.releases import service as releases_service
 from oss.src.core.releases.dtos import ReleaseFeed
 from oss.src.core.releases.service import (
-    FAILED_FEED_TTL,
-    FEED_TTL,
+    FAILED_FEED_TTL_SECONDS,
+    FEED_TTL_SECONDS,
+    MAX_FEED_BYTES,
     RELEASE_FEED_URL,
     ReleasesService,
 )
@@ -88,7 +90,7 @@ async def test_returns_the_feed_and_the_running_version(cache, requests):
     assert result.version == "v0.128.11"
     assert result.releases == FEED["releases"]
     assert result.notices == FEED["notices"]
-    assert cache.writes[0]["ttl"] == FEED_TTL
+    assert cache.writes[0]["ttl"] == FEED_TTL_SECONDS
     assert cache.writes[0]["namespace"] == "releases:feed"
     assert cache.writes[0]["key"] == "feed"
 
@@ -153,7 +155,7 @@ async def test_bad_feed_gives_an_empty_result(cache, requests, handler):
 
     assert result.releases == []
     assert result.notices == []
-    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL
+    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL_SECONDS
 
 
 @pytest.mark.parametrize(
@@ -173,7 +175,7 @@ async def test_unreachable_or_slow_feed_gives_an_empty_result(cache, requests, e
 
     assert result.releases == []
     assert result.notices == []
-    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL
+    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL_SECONDS
 
 
 async def test_request_has_a_short_timeout(cache, requests):
@@ -192,3 +194,56 @@ async def test_skips_entries_that_are_not_objects(cache, requests):
 
     assert result.releases == FEED["releases"]
     assert result.notices == []
+
+
+async def test_shared_cache_off_fetches_once_per_ttl(cache, requests):
+    # FakeCache never stores, like an instance with API caching off.
+    service = ReleasesService()
+
+    await service.fetch_instance_releases()
+    result = await service.fetch_instance_releases()
+
+    assert len(requests) == 1
+    assert result.releases == FEED["releases"]
+
+
+async def test_failed_fetch_is_not_retried_on_the_next_request(cache, requests):
+    requests.handler = lambda request: httpx.Response(503)
+    service = ReleasesService()
+
+    await service.fetch_instance_releases()
+    await service.fetch_instance_releases()
+
+    assert len(requests) == 1
+
+
+async def test_concurrent_requests_share_one_fetch(cache, requests):
+    service = ReleasesService()
+
+    await asyncio.gather(*(service.fetch_instance_releases() for _ in range(5)))
+
+    assert len(requests) == 1
+
+
+async def test_too_large_feed_gives_an_empty_result(cache, requests):
+    requests.handler = lambda request: httpx.Response(
+        200, content=b" " * (MAX_FEED_BYTES + 1)
+    )
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.releases == []
+    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL_SECONDS
+
+
+async def test_whole_download_has_a_deadline(cache, requests, monkeypatch):
+    async def never_ends():
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(releases_service, "_read_feed_body", never_ends)
+    monkeypatch.setattr(releases_service, "FETCH_TIMEOUT_SECONDS", 0.05)
+
+    result = await ReleasesService().fetch_instance_releases()
+
+    assert result.releases == []
+    assert cache.writes[0]["ttl"] == FAILED_FEED_TTL_SECONDS

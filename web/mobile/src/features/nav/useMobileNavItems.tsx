@@ -13,9 +13,8 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
-    newerReleases,
+    notInstalledReleasesAtom,
     releaseListAtom,
-    runningVersionAtom,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     setSidebarSessionFilterDefaults,
@@ -24,12 +23,7 @@ import {
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {
-    buildReleaseNavItems,
-    noticeNavKey,
-    SessionFilterMenu,
-    SessionSearchButton,
-} from "@agenta/navigation-ui"
+import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {
     SessionRowActions,
@@ -409,9 +403,9 @@ export const useMobileHelpItem = ({
     const version = useMobileVersion()
     const openWhatsNew = useSetAtom(whatsNewAtom)
     const releases = useAtomValue(releaseListAtom)
-    const runningVersion = useAtomValue(runningVersionAtom)
-    const {notices, dismiss: dismissNotice} = useReleaseNotices()
-    const updateAvailable = newerReleases(releases, runningVersion).length > 0
+    const notInstalled = useAtomValue(notInstalledReleasesAtom)
+    const {notices, dismiss: dismissReleaseNotice} = useReleaseNotices()
+    const updateAvailable = notInstalled.length > 0
 
     return useMemo(
         () =>
@@ -444,38 +438,32 @@ export const useMobileHelpItem = ({
                     },
                     // Release rows reopen the what's-new dialog; a notice opens its link and
                     // stays closed after; "View all releases" links out.
-                    ...buildReleaseNavItems(version, {releases, runningVersion, notices}).map(
-                        (item) => {
-                            const notice = notices.find(
-                                (entry) => noticeNavKey(entry.id) === item.key,
-                            )
-                            if (notice)
-                                return {
-                                    ...item,
-                                    link: undefined,
-                                    onClick: () => {
-                                        window.open(notice.link, "_blank", "noopener,noreferrer")
-                                        dismissNotice(notice.id)
-                                    },
-                                }
-                            return releases.some((release) => release.id === item.key)
-                                ? {
-                                      ...item,
-                                      link: undefined,
-                                      onClick: () => openWhatsNew({releaseId: item.key}),
-                                  }
-                                : item
+                    ...buildReleaseNavItems(version, {
+                        releases,
+                        notInstalled,
+                        notices,
+                        onOpenNotice: (notice) => {
+                            window.open(notice.link, "_blank", "noopener,noreferrer")
+                            dismissReleaseNotice(notice.id)
                         },
+                    }).map((item) =>
+                        releases.some((release) => release.id === item.key)
+                            ? {
+                                  ...item,
+                                  link: undefined,
+                                  onClick: () => openWhatsNew({releaseId: item.key}),
+                              }
+                            : item,
                     ),
                 ],
             }),
         [
-            dismissNotice,
+            dismissReleaseNotice,
+            notInstalled,
             notices,
             onOpenShortcuts,
             openWhatsNew,
             releases,
-            runningVersion,
             updateAvailable,
             version,
         ],
