@@ -8,16 +8,13 @@ from uuid import UUID
 
 import httpx
 
+from oss.src.core.licenses.types import RegistrationFailed
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
 REGISTRATION_URL = "https://agenta.ai/api/license-registrations"
-
-
-class RegistrationFailed(Exception):
-    pass
 
 
 async def _instance_id() -> UUID:
@@ -34,13 +31,18 @@ def _agenta_version() -> str:
     return get_agenta_version()
 
 
-async def request_registration(email: str) -> None:
-    payload = {
-        "email": email,
-        "instance_id": str(await _instance_id()),
-        "agenta_version": _agenta_version(),
-        "web_url": env.agenta.web_url,
-    }
+async def create_registration(email: str) -> None:
+    try:
+        payload = {
+            "email": email,
+            "instance_id": str(await _instance_id()),
+            "agenta_version": _agenta_version(),
+            "web_url": env.agenta.web_url,
+        }
+    except ImportError as error:
+        # Until the instance id and version modules ship in this image.
+        log.error("[licenses] registration is not wired", module=error.name)
+        raise RegistrationFailed() from None
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:

@@ -126,3 +126,19 @@ async def test_registration_with_stripe_answers_404(admin, agenta, monkeypatch):
 
     assert error.value.status_code == 404
     assert agenta.calls == []
+
+
+@pytest.mark.asyncio
+async def test_registration_answers_502_when_the_instance_id_is_not_wired(
+    admin, agenta, monkeypatch
+):
+    def missing():
+        raise ModuleNotFoundError(name="oss.src.core.instances.service")
+
+    monkeypatch.setattr(registrations, "_instance_id", AsyncMock(side_effect=missing))
+
+    with pytest.raises(HTTPException) as error:
+        await _register()
+
+    assert error.value.status_code == 502
+    assert agenta.calls == []

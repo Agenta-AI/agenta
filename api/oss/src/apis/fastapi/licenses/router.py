@@ -18,10 +18,8 @@ from oss.src.apis.fastapi.licenses.models import (
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import PrincipalKind, RequestCredentialKind
 from oss.src.core.licenses.admins import count_users, is_instance_admin
-from oss.src.core.licenses.registrations import (
-    RegistrationFailed,
-    request_registration,
-)
+from oss.src.core.licenses.registrations import create_registration
+from oss.src.core.licenses.types import RegistrationFailed
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
@@ -159,7 +157,7 @@ class LicensesRouter:
             )
 
         try:
-            await request_registration(body.email)
+            await create_registration(body.email)
         except RegistrationFailed:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
