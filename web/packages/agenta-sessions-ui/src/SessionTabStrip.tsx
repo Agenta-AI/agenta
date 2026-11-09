@@ -198,7 +198,13 @@ export const SessionTabStrip = ({
         const from = starts[active]
         const to = from + sizes[active] - margins[active]
         const left = el.scrollLeft
-        const target = from < left ? from : to > left + view ? to - view : left
+        // Scrolling right rests on a tab start, so the first tab in view is whole too.
+        const target =
+            from < left
+                ? from
+                : to > left + view
+                  ? (starts.find((start) => start >= to - view - 1) ?? from)
+                  : left
         // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced motion.
         if (Math.abs(target - left) > 1) el.scrollTo({left: Math.max(0, target)})
     }, [fitTabs])
