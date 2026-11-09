@@ -13,6 +13,7 @@ from oss.src.core.channels.adapters.telegram.adapter import TelegramAdapter
 from oss.src.core.channels.adapters.telegram_hosted.adapter import (
     HostedTelegramAdapter,
 )
+from oss.src.core.channels.adapters.teams.adapter import TeamsAdapter
 from oss.src.core.channels.adapters.whatsapp.adapter import WhatsAppAdapter
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.core.access.service import get_access_service
@@ -60,6 +61,7 @@ def build_channel_adapter_registry() -> ChannelAdapterRegistry:
             "telegram": TelegramAdapter(),
             "telegram_hosted": HostedTelegramAdapter(),
             "whatsapp": WhatsAppAdapter(),
+            "teams": TeamsAdapter(),
             "mock": MockAdapter(),
             "bridge": BridgeAdapter(),
             "agenta": AgentaAdapter(
