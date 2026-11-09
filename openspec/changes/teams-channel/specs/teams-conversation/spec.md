@@ -108,7 +108,8 @@ The adapter SHALL cache Microsoft's signing keys for the whole deployment, read 
 - **THEN** `parse_event` SHALL return `None`, and no inbox row SHALL be written
 
 ### Requirement: Mentions address the bot
-`parse_event` SHALL set `addressed` to true only when an `entities` entry of type `mention` has a `mentioned.id` that names the connection's `app_id`, and SHALL then remove that entry's `text` from the message text. Mention entities carry no offsets, so the n-th entity with a given `text` SHALL own the n-th occurrence of that text.
+For a message activity, `parse_event` SHALL set `addressed` to true only when an `entities` entry of type `mention` has a `mentioned.id` that names the connection's `app_id`, and SHALL then remove that entry's `text` from the message text. Mention entities carry no offsets, so the n-th entity with a given `text` SHALL own the n-th occurrence of that text.
+A card click (an `ACTION` event) SHALL always be addressed, because the bot posted the card.
 
 #### Scenario: Bot mentioned
 - **WHEN** a channel message has the text `<at>Helper</at> what is the status?` and a mention entity for `28:<app_id>`
