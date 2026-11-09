@@ -1,3 +1,5 @@
+import {downloadBlob} from "@agenta/shared/utils"
+
 import {channelSharingCopy} from "./sharingCopy"
 import type {
     ChannelConnection,
@@ -40,6 +42,26 @@ const REVOKED_SUBS: Record<ChannelPlatform, string> = {
     whatsapp: "Access token rejected · update it",
     teams: "Client secret rejected · update it",
 }
+
+/** The short revoked text of a connection's line in a list. */
+const REVOKED_DETAILS: Record<ChannelPlatform, string> = {
+    slack: "App uninstalled · reconnect",
+    telegram: "Bot token revoked",
+    whatsapp: "Access token rejected",
+    teams: "Client secret rejected",
+}
+
+/** The name of a platform's shared places, as the "group" switch says it. */
+export const PLACES_LABELS: Record<ChannelPlatform, string> = {
+    slack: "Channels",
+    telegram: "Group chats",
+    whatsapp: "Group chats",
+    teams: "Channels and group chats",
+}
+
+/** The noun for one shared place. A Teams place is a team channel or a group chat. */
+export const placeNoun = (platform: ChannelPlatform): string =>
+    platform === "slack" ? "channel" : platform === "teams" ? "chat" : "group"
 
 /** The title of the connect flow when the agent already has a connection on the platform. */
 export const ADD_ANOTHER_TITLES: Record<ChannelPlatform, string> = {
@@ -116,17 +138,10 @@ export const connectionRowText = (
           ? connection.workspaceName || botHandle(connection, hostedHandle)
           : connectionLabel(connection, hostedHandle)
     if (connection.status === "revoked") {
-        const detail = slack
-            ? "App uninstalled · reconnect"
-            : connection.platform === "whatsapp"
-              ? "Access token rejected"
-              : connection.platform === "teams"
-                ? "Client secret rejected"
-                : "Bot token revoked"
-        return {title, detail}
+        return {title, detail: REVOKED_DETAILS[connection.platform]}
     }
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = hasChannels(connection.platform) ? "channel" : "group"
+    const noun = placeNoun(connection.platform)
     const places = [
         ...(dm ? ["DMs"] : []),
         ...(nonDm ? [`${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`] : []),
@@ -311,7 +326,7 @@ export const summarizeConnection = (
     }
 
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = hasChannels(platform) ? "channel" : "group"
+    const noun = placeNoun(platform)
     const groupsText = `${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`
     const where =
         nonDm && dm
@@ -464,15 +479,6 @@ export const base64Bytes = (content: string): Uint8Array<ArrayBuffer> => {
 /** Save a `zip` setup document as a file. Returns false when the document has no content. */
 export const downloadSetupDocument = (document: ChannelSetupDocument): boolean => {
     if (document.format !== "zip" || !document.content) return false
-    const blob = new Blob([base64Bytes(document.content)], {type: "application/zip"})
-    const url = URL.createObjectURL(blob)
-    const link = window.document.createElement("a")
-    link.href = url
-    link.download = document.filename || "app.zip"
-    window.document.body.append(link)
-    link.click()
-    link.remove()
-    // Revoke after the click has handed the file to the browser.
-    setTimeout(() => URL.revokeObjectURL(url), 0)
+    downloadBlob([base64Bytes(document.content)], document.filename || "app.zip", "application/zip")
     return true
 }

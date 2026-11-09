@@ -21,7 +21,7 @@ import {
     Warning,
 } from "@phosphor-icons/react"
 
-import {nameSpacesFrom} from "./actions"
+import {chatTypeOf, nameSpacesFrom} from "./actions"
 import {ChannelAdvancedSection} from "./ChannelAdvancedSection"
 import {ChannelPeopleSection} from "./ChannelPeopleSection"
 import {
@@ -36,6 +36,7 @@ import {
     errorMessage,
     formatConnectedOn,
     hasChannels,
+    PLACES_LABELS,
     platformLabel,
     slackInviteHandle,
 } from "./helpers"
@@ -105,9 +106,10 @@ const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
 const candidateKey = (candidate: ChannelSpaceCandidate): string =>
     `${candidate.kind}:${JSON.stringify(candidate.externalLocator)}`
 
-const spaceIcon = (kind: ChannelSpaceKind, channels: boolean) => {
-    if (kind === "private") return <ChatCircle size={15} />
-    return channels ? <Hash size={15} /> : <UsersThree size={15} />
+const spaceIcon = (kind: ChannelSpaceKind, platform: ChannelPlatform) => {
+    const type = chatTypeOf(kind, platform)
+    if (type === "dm") return <ChatCircle size={15} />
+    return type === "channel" ? <Hash size={15} /> : <UsersThree size={15} />
 }
 
 const SECTION_TITLE = "pb-1 text-[13px] font-semibold text-foreground"
@@ -400,10 +402,12 @@ export const ChannelManagePanel = ({
         },
         {
             key: "group",
-            title: channels ? "Channels" : "Group chats",
-            help: channels
-                ? `Replies in a thread when someone mentions ${handle}.`
-                : "Groups the bot is added to, when it’s mentioned.",
+            title: PLACES_LABELS[connection.platform],
+            help: isTeams
+                ? `Replies when someone mentions ${handle}. In a team channel, it replies in the thread.`
+                : channels
+                  ? `Replies in a thread when someone mentions ${handle}.`
+                  : "Groups the bot is added to, when it’s mentioned.",
         },
     ]
     // WhatsApp is one-to-one only: there is no group chat to switch.
@@ -764,7 +768,13 @@ export const ChannelManagePanel = ({
                 <div className="flex flex-col pt-5">
                     <div className="flex items-center justify-between pb-1">
                         <span className="text-[13px] font-semibold text-foreground">
-                            {channels ? "Channels it’s in" : isWhatsApp ? "Chats" : "Groups"}
+                            {isTeams
+                                ? PLACES_LABELS.teams
+                                : channels
+                                  ? "Channels it’s in"
+                                  : isWhatsApp
+                                    ? "Chats"
+                                    : "Groups"}
                         </span>
                         {isSlack && !pickerOpen ? (
                             <Button
@@ -793,7 +803,7 @@ export const ChannelManagePanel = ({
                                 data-testid="channels-space"
                             >
                                 <span className="flex flex-none text-muted-foreground">
-                                    {spaceIcon(space.kind, channels)}
+                                    {spaceIcon(space.kind, connection.platform)}
                                 </span>
                                 <span
                                     className={`flex-1 truncate text-sm ${
@@ -887,7 +897,10 @@ export const ChannelManagePanel = ({
                                                         aria-label={candidate.displayName}
                                                     />
                                                     <span className="flex flex-none text-muted-foreground">
-                                                        {spaceIcon(candidate.kind, channels)}
+                                                        {spaceIcon(
+                                                            candidate.kind,
+                                                            connection.platform,
+                                                        )}
                                                     </span>
                                                     <span className="flex-1 truncate text-[13px] text-foreground">
                                                         {candidate.displayName}

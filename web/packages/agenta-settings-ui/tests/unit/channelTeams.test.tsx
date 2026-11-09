@@ -45,6 +45,7 @@ vi.mock("../../src/channels/qr", () => ({QrCode: () => null}))
 
 import {
     buildAgentChannelsActions,
+    chatTypeOf,
     connectionsForAgent,
     groupKindsOf,
     type ChannelsClientLike,
@@ -370,8 +371,11 @@ describe("Teams actions", () => {
         )
     })
 
-    it("answers in channels with the group switch, and lists Teams last", () => {
+    it("answers in channels and group chats with the group switch, and lists Teams last", () => {
         expect(groupKindsOf("teams")).toEqual(["group", "topic"])
+        // A team channel is a channel; a group chat stays a group.
+        expect(chatTypeOf("topic", "teams")).toBe("channel")
+        expect(chatTypeOf("group", "teams")).toBe("group")
         expect(CHANNEL_PLATFORMS.at(-1)).toBe("teams")
         const out = connectionsForAgent([CONNECTED], "agent")
         expect(out.teams).toBe(CONNECTED)
@@ -421,7 +425,8 @@ describe("Teams manage panel", () => {
         await renderPanel(CONNECTED)
         expect(container.textContent).toContain("Teams app")
         expect((byTestId("channels-teams-endpoint") as HTMLInputElement).value).toBe(ENDPOINT)
-        expect(container.textContent).toContain("Channels it’s in")
+        expect(container.textContent).toContain("Channels and group chats")
+        expect(container.textContent).not.toContain("Channels it’s in")
         await click("Download Teams app")
         expect(await savedBytes()).toEqual(ZIP_BYTES)
     })

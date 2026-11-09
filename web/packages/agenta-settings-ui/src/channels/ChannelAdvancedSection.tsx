@@ -3,7 +3,7 @@ import {useCallback, useEffect, useState} from "react"
 import {Alert, Button, Checkbox, RadioGroup, RadioGroupItem, Spinner, Switch} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
-import {errorMessage, hasChannels} from "./helpers"
+import {errorMessage, hasChannels, PLACES_LABELS, placeNoun} from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelPlatform,
@@ -60,7 +60,7 @@ const AnswersInRow = ({
     const {behavior, channels, onSave, busy = false} = answersIn
     const isSlack = platform === "slack"
     const inChannels = hasChannels(platform)
-    const noun = inChannels ? "channel" : "group"
+    const noun = placeNoun(platform)
     const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
     const [draft, setDraft] = useState<string[]>(stored ?? [])
@@ -101,7 +101,12 @@ const AnswersInRow = ({
         setDraft(stored ?? [])
     }
 
-    const title = inChannels ? "Channels it answers in" : "Groups it answers in"
+    const title =
+        platform === "teams"
+            ? "Chats it answers in"
+            : inChannels
+              ? "Channels it answers in"
+              : "Groups it answers in"
 
     return (
         <div
@@ -123,8 +128,7 @@ const AnswersInRow = ({
                 </div>
             ) : !behavior.group ? (
                 <span className={HELP}>
-                    {inChannels ? "Channels" : "Group chats"} are switched off above, so it answers
-                    in none.
+                    {PLACES_LABELS[platform]} are switched off above, so it answers in none.
                 </span>
             ) : (
                 <>
@@ -284,7 +288,7 @@ export const ChannelAdvancedSection = ({
     const toggleChannel = (key: string, checked: boolean) =>
         setDraft((keys) => (checked ? [...keys, key] : keys.filter((k) => k !== key)))
 
-    const noun = hasChannels(platform) ? "channel" : "group"
+    const noun = placeNoun(platform)
 
     return (
         <div className="flex flex-col gap-2" data-testid="channels-advanced">

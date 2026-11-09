@@ -322,16 +322,15 @@ export const ChannelConnectFlow = ({
     // Teams has no Agenta-hosted bot either: the customer always brings their own.
     const isTeams = platform === "teams"
     // The platforms with one method only show no method choice.
-    const ownOnly = isWhatsApp || isTeams
+    const customOnly = isWhatsApp || isTeams
     const name = platformLabel(platform)
 
     const [mode, setMode] = useState<ChannelInstallMode>(
-        ownOnly || hostedConnectedHere ? "custom" : initialMode,
+        customOnly || hostedConnectedHere ? "custom" : initialMode,
     )
-    // A new WhatsApp connection, held on screen until its webhook values are copied into Meta.
-    const [whatsAppConnection, setWhatsAppConnection] = useState<ChannelConnection | null>(null)
-    // A new Teams connection, held on screen until its endpoint is pasted and the app installed.
-    const [teamsConnection, setTeamsConnection] = useState<ChannelConnection | null>(null)
+    // A new WhatsApp or Teams connection, held on screen until its last setup step is done:
+    // the webhook values copied into Meta, or the Teams endpoint pasted and the app installed.
+    const [created, setCreated] = useState<ChannelConnection | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     // --- custom app/bot: the declared setup ---------------------------------- //
@@ -631,13 +630,13 @@ export const ChannelConnectFlow = ({
         setSaving(true)
         setError(null)
         try {
-            const created = await actions.connectCustom(platform, values)
+            const connection = await actions.connectCustom(platform, values)
             if (!alive.current) return
-            if (isWhatsApp && created?.webhookUrl && created.webhookVerifyToken) {
-                setWhatsAppConnection(created)
-            } else if (isTeams && created?.connectionId) {
-                setTeamsConnection(created)
-            } else await onConnected()
+            const keep = isWhatsApp
+                ? !!(connection?.webhookUrl && connection.webhookVerifyToken)
+                : isTeams && !!connection?.connectionId
+            if (keep) setCreated(connection)
+            else await onConnected()
         } catch (e) {
             if (!alive.current) return
             setError(errorMessage(e, `${name} rejected the credentials.`))
@@ -943,7 +942,7 @@ export const ChannelConnectFlow = ({
             )
     } else if (isTeams) {
         note = "Your bot answers only as this agent. Other bots stay connected."
-        cta = teamsConnection ? (
+        cta = created ? (
             <Button onClick={() => void onConnected()} data-testid="channels-teams-done">
                 Done
             </Button>
@@ -958,7 +957,7 @@ export const ChannelConnectFlow = ({
         )
     } else if (isWhatsApp) {
         note = "Meta bills your business directly for WhatsApp messages."
-        cta = whatsAppConnection ? (
+        cta = created ? (
             <Button onClick={() => void onConnected()}>Done</Button>
         ) : (
             <Button
@@ -1018,7 +1017,7 @@ export const ChannelConnectFlow = ({
             <div className="flex min-h-full flex-1 flex-col gap-[22px]">
                 {errorAlert}
 
-                {ownOnly ? null : (
+                {customOnly ? null : (
                     <div className="flex flex-col gap-2">
                         <span className={SECTION_TITLE}>Connect with</span>
                         <MethodCards
@@ -1315,7 +1314,7 @@ export const ChannelConnectFlow = ({
                 ) : null}
 
                 {/* TEAMS · your own bot */}
-                {isTeams && !teamsConnection ? (
+                {isTeams && !created ? (
                     <div className="flex flex-col">
                         <StepRow
                             index={1}
@@ -1396,7 +1395,7 @@ export const ChannelConnectFlow = ({
                     </div>
                 ) : null}
 
-                {isTeams && teamsConnection ? (
+                {isTeams && created ? (
                     <div className="flex flex-col gap-4">
                         <div
                             className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground"
@@ -1405,12 +1404,12 @@ export const ChannelConnectFlow = ({
                             <Check size={14} weight="bold" className="text-colorSuccess" />
                             {TEAMS_APP_STEPS.connected}
                         </div>
-                        <TeamsAppSetup connection={teamsConnection} actions={actions} />
+                        <TeamsAppSetup connection={created} actions={actions} />
                     </div>
                 ) : null}
 
                 {/* WHATSAPP · your own number */}
-                {isWhatsApp && !whatsAppConnection ? (
+                {isWhatsApp && !created ? (
                     <div className="flex flex-col gap-[22px]">
                         <Alert
                             type="info"
@@ -1481,7 +1480,7 @@ export const ChannelConnectFlow = ({
                     </div>
                 ) : null}
 
-                {isWhatsApp && whatsAppConnection ? (
+                {isWhatsApp && created ? (
                     <div className="flex flex-col gap-4">
                         <div
                             className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground"
@@ -1490,7 +1489,7 @@ export const ChannelConnectFlow = ({
                             <Check size={14} weight="bold" className="text-colorSuccess" />
                             Connected. One step left in Meta.
                         </div>
-                        <WhatsAppWebhook connection={whatsAppConnection} />
+                        <WhatsAppWebhook connection={created} />
                     </div>
                 ) : null}
 

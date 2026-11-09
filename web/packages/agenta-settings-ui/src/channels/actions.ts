@@ -1,4 +1,5 @@
 import {hasChannels, platformLabel} from "./helpers"
+import {TEAMS_APP_STEPS} from "./teamsSetupCopy"
 import type {
     ChannelAudiencePerson,
     ChannelBehaviorState,
@@ -195,6 +196,8 @@ export const nameSpacesFrom = (
 /** The card's chat type for a space kind: only "is it a DM" changes the row's copy. */
 export const chatTypeOf = (kind: ChannelSpaceKind, platform: ChannelPlatform): ChannelChatType => {
     if (kind === "private") return "dm"
+    // A Teams group chat stays a group: only a team channel is a channel.
+    if (platform === "teams") return kind === "topic" ? "channel" : "group"
     return hasChannels(platform) ? "channel" : "group"
 }
 
@@ -887,7 +890,7 @@ export const buildAgentChannelsActions = ({
     const teamsAppPackage = async (connectionId: string): Promise<ChannelSetupDocument | null> => {
         const res = await client
             .fetchChannelConnectionSetup({connection_id: connectionId}, scope())
-            .catch(rethrow("Could not load the Teams app."))
+            .catch(rethrow(TEAMS_APP_STEPS.loadError))
         return setupDocumentOf(asRecord(asRecord(res).setup))
     }
 
