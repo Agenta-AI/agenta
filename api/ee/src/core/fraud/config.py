@@ -114,7 +114,7 @@ async def read_fraud_check_config() -> FraudCheckConfig:
     if isinstance(cached, dict):
         return _config_from_payload(cached)
 
-    posthog = _load_posthog()
+    posthog = await _load_posthog()
     if posthog is None:
         log.warning(
             "[fraud] PostHog feature flag lookup skipped; using defaults",

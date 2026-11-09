@@ -89,8 +89,10 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
     monkeypatch.setattr(
         auth_helper,
         "_load_posthog",
-        lambda: SimpleNamespace(
-            get_feature_flag_payload=lambda feature_flag, distinct_id: "agenta.dev",
+        AsyncMock(
+            side_effect=lambda: SimpleNamespace(
+                get_feature_flag_payload=lambda feature_flag, distinct_id: "agenta.dev",
+            )
         ),
     )
 
@@ -133,10 +135,13 @@ async def test_get_blocked_domains_splits_comma_separated_posthog_payload(monkey
     monkeypatch.setattr(
         auth_helper,
         "_load_posthog",
-        lambda: SimpleNamespace(
-            get_feature_flag_payload=(
-                lambda feature_flag, distinct_id: "spica.asia, agenta.ai , yopmail.com"
-            ),
+        AsyncMock(
+            side_effect=lambda: SimpleNamespace(
+                get_feature_flag_payload=(
+                    lambda feature_flag,
+                    distinct_id: "spica.asia, agenta.ai , yopmail.com"
+                ),
+            )
         ),
     )
 
@@ -170,10 +175,12 @@ async def test_get_blocked_emails_treats_posthog_errors_as_empty(monkeypatch):
     monkeypatch.setattr(
         auth_helper,
         "_load_posthog",
-        lambda: SimpleNamespace(
-            get_feature_flag_payload=lambda feature_flag, distinct_id: (
-                _ for _ in ()
-            ).throw(ValueError("API key is required")),
+        AsyncMock(
+            side_effect=lambda: SimpleNamespace(
+                get_feature_flag_payload=lambda feature_flag, distinct_id: (
+                    _ for _ in ()
+                ).throw(ValueError("API key is required")),
+            )
         ),
     )
 
@@ -339,7 +346,7 @@ async def test_signup_on_lookalike_domain_is_not_blocked(
     create_accounts = AsyncMock()
     monkeypatch.setattr(overrides, "create_accounts", create_accounts)
     monkeypatch.setattr(overrides, "get_user_with_email", AsyncMock(return_value=None))
-    monkeypatch.setattr(overrides, "_load_posthog", lambda: None)
+    monkeypatch.setattr(overrides, "_load_posthog", AsyncMock(side_effect=lambda: None))
 
     assert await overrides._create_account(email, "uid") is True
 

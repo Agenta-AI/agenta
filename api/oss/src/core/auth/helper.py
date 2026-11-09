@@ -61,7 +61,7 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
     if cached_entries is not None:
         return _normalize_string_set(cached_entries)
 
-    posthog = _load_posthog()
+    posthog = await _load_posthog()
     if posthog is None:
         log.warning(
             "[AUTH] PostHog feature flag lookup skipped",
