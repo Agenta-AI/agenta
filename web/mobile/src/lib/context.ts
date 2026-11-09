@@ -1,5 +1,6 @@
 import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getProjectsClient} from "@agenta/sdk/resources"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {z} from "zod"
 
 import {refreshSessionOutcome} from "./auth"
@@ -134,6 +135,21 @@ export function rememberLicenseKey(key: string): void {
     } catch {
         // storage unavailable — the link must be opened again after sign-in
     }
+}
+
+/**
+ * Move the `#key=` of an activation link into session storage and out of the address bar. The
+ * `/m/settings` page calls this during its first render: before analytics loads and sends the
+ * page address, and before a sign-in redirect drops it. With billing on there is no instance
+ * license, so the key is only removed.
+ */
+export function takeLicenseLinkKey(): void {
+    if (typeof window === "undefined") return
+    const key = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("key")?.trim()
+    if (!key) return
+    if (!isBillingEnabled()) rememberLicenseKey(key)
+    const {pathname, search} = window.location
+    window.history.replaceState(window.history.state, "", `${pathname}${search}`)
 }
 
 /** The remembered activation link key, or "" when none is kept. */
