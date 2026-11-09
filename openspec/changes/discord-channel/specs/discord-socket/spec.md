@@ -111,9 +111,9 @@ On every READY, which Discord sends after a fresh IDENTIFY and never after a suc
 - **WHEN** a READY arrives
 - **THEN** the pass SHALL start each channel after the highest message id per `source_channel_id` among the connection's `PUSHED` message rows of the last 24 hours stored before the READY time minus a 5 second clock margin, compared as integers
 
-#### Scenario: History message shape
-- **WHEN** the pass reads a REST message object, which has no `guild_id`
-- **THEN** the loop SHALL wrap it as `{"t": "MESSAGE_CREATE", "d": {...message, "guild_id": <guild_id>}}` with the channel's `guild_id` from the row's locator, and with no `guild_id` for a DM channel
+#### Scenario: Server message recovered from history
+- **WHEN** recovery reads a message from a server channel, whose REST message object has no `guild_id`
+- **THEN** the pass SHALL have kept the channel's `guild_id` from the row's locator, and the loop SHALL pass the message to `parse_event` as `{"t": "MESSAGE_CREATE", "d": {...message, "guild_id": <guild_id>}}`, with no `guild_id` for a DM channel
 
 #### Scenario: Messages missed during the gap
 - **WHEN** a socket loses its session, two messages are posted in channel C, and the new socket identifies fresh

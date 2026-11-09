@@ -24,6 +24,15 @@ In a server channel, a message SHALL start a turn only when it mentions the bot,
 - **WHEN** a person mentions the bot in a server text channel
 - **THEN** Agenta SHALL start one turn and SHALL post the answer in a thread started from that message with `POST /channels/{channel.id}/messages/{message.id}/threads`
 
+#### Scenario: Mention of the bot's role
+- **WHEN** a person mentions the role Discord made for the bot in the server (`<@&ROLE_ID>` in the content and the role id in `mention_roles`), which Discord's autocomplete often offers in place of the bot user
+- **THEN** Agenta SHALL treat it as a mention of the bot: it SHALL start one turn, and the agent SHALL see the bot's handle in place of `<@&ROLE_ID>`
+- **AND** the adapter SHALL find that role as the server role whose `tags.bot_id` is the bot user id, read with `GET /guilds/{guild.id}/roles` only for a message that mentions a role and not the bot user, and kept for at most 10 minutes per server, because inviting the bot again can give it a new role
+
+#### Scenario: Mention of another role
+- **WHEN** a person mentions a server role that is not the bot's role
+- **THEN** Agenta SHALL store the message and SHALL NOT start a turn
+
 #### Scenario: Message without a mention
 - **WHEN** a person posts in a server channel without a mention, a sigil or a command
 - **THEN** Agenta SHALL store the message and SHALL NOT start a turn

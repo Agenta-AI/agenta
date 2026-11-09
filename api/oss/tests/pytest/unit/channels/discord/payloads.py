@@ -14,6 +14,8 @@ CHANNEL_ID = "1100000000000000002"
 CHANNEL_NAME = "support"
 DM_CHANNEL_ID = "1100000000000000003"
 THREAD_ID = "1200000000000000009"
+BOT_ROLE_ID = "1100000000000000010"
+OTHER_ROLE_ID = "1100000000000000011"
 MESSAGE_ID = "1200000000000000001"
 USER_ID = "1000000000000000001"
 
@@ -51,6 +53,14 @@ def message(
 
 def mention(text: str = "where is my order?", **kwargs) -> Dict[str, Any]:
     return message(f"<@{BOT_USER_ID}> {text}", mentions_bot=True, **kwargs)
+
+
+def role_mention(
+    text: str = "where is my order?", *, role_id: str = BOT_ROLE_ID, **kwargs
+) -> Dict[str, Any]:
+    payload = message(f"<@&{role_id}> {text}", **kwargs)
+    payload["d"]["mention_roles"] = [role_id]
+    return payload
 
 
 def dm(content: str = "Where is my order?", **kwargs) -> Dict[str, Any]:
