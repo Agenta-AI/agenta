@@ -87,6 +87,7 @@ export function useModelHarness({
     onCredentialRevisionCommitted,
     normalizeSandbox = false,
     onlyCurrentConnection = false,
+    policyPicker,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -94,6 +95,8 @@ export function useModelHarness({
     disabled?: boolean
     withTooltip?: boolean
     revisionId?: string | null
+    /** The Permissions row opens the policy picker, so the row owns its open state. */
+    policyPicker?: {open: boolean; onOpenChange: (open: boolean) => void}
     /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
     buildKitOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
     /** The owning section drawer has unsaved local state outside the workflow draft atom. */
@@ -621,12 +624,16 @@ export function useModelHarness({
 
     const permissionsBody = (
         <>
-            {/* The Permissions row's value: a borderless picker on the row's right edge. */}
+            {/* The Permissions row's value. The whole row opens the picker, so the trigger is
+                plain text that only anchors the menu: no chevron, no pointer, no tab stop. */}
             {runnerPermissionSchema && policyInFocus ? (
                 <PermissionPolicySelect
                     size="sm"
                     align="end"
-                    triggerClassName="-mr-2 h-7 w-auto gap-1 border-transparent bg-transparent px-2 text-xs text-colorTextDescription shadow-none hover:bg-[var(--ag-colorFillTertiary)] hover:text-colorText dark:bg-transparent"
+                    open={policyPicker?.open}
+                    triggerTabIndex={policyPicker ? -1 : undefined}
+                    onOpenChange={policyPicker?.onOpenChange}
+                    triggerClassName="pointer-events-none h-auto w-auto border-transparent bg-transparent p-0 text-xs text-colorTextDescription shadow-none focus:border-transparent focus:shadow-none data-[state=open]:border-transparent data-[state=open]:shadow-none dark:bg-transparent [&>svg]:hidden"
                     value={currentRunnerPermission}
                     onChange={(v) =>
                         setSection("runner", {

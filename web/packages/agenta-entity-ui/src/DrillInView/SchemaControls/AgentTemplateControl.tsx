@@ -1113,6 +1113,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
     // tabs / cards) without duplicating the content. Schema-gated, like before.
+    // The Permissions row opens the policy picker it shows as its value.
+    const [policyPickerOpen, setPolicyPickerOpen] = useState(false)
+    const policyPicker = useMemo(
+        () => ({open: policyPickerOpen, onOpenChange: setPolicyPickerOpen}),
+        [policyPickerOpen],
+    )
     const sections = [
         mh.hasModelOrHarness && {
             key: "model-harness",
@@ -1292,12 +1298,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             group: ACCESS_GROUP,
             icon: <ShieldCheck size={16} />,
             title: "Permissions",
-            // One row: the policy picker is the row's value, so nothing expands under it.
-            collapsible: false,
+            // One row whose value is the policy; the whole row opens the picker, like Model and
+            // Advanced open theirs.
+            onOpen: disabled ? undefined : () => setPolicyPickerOpen(true),
             summary: (
                 <ChangedPathsProvider changes={panelChangedPaths}>
                     <ModelHarnessSectionBody
                         section="permissions"
+                        policyPicker={policyPicker}
                         schema={schema}
                         config={config}
                         onChange={onChange}
