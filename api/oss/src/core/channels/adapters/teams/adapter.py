@@ -272,7 +272,6 @@ class _TokenRequestRefused(Exception):
     error code and the message to show the user, never the secret."""
 
     def __init__(self, *, status_code: int, body: Dict[str, Any]):
-        self.status_code = status_code
         self.error = str(body.get("error") or "")
         codes = {
             code for code in body.get("error_codes") or [] if isinstance(code, int)
