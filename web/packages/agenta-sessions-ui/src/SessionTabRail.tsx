@@ -179,7 +179,9 @@ const TAB_DOT_STATUSES = new Set(["waiting", "running"])
  * past, so it never leaves the page it opens. */
 const tabSlotClass = (connected: boolean, active: boolean, divided?: boolean) =>
     connected
-        ? clsx("mr-0.5 shrink-0", active && "sticky left-0 right-0 z-[3]")
+        ? // `!`: the drag item writes `z-index: unset` inline, and a docked tab must stay above the
+          // tabs scrolling under it.
+          clsx("mr-0.5 shrink-0", active && "sticky left-0 right-0 z-[3]!")
         : clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)
 
 /**
