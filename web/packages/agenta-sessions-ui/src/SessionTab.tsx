@@ -38,10 +38,12 @@ const CHIP = "h-7 w-fit min-w-20 max-w-32 gap-1.5 rounded px-2 text-xs"
  * tab is the page's own colour, and the bar's darker ground is its edge. */
 const CONNECTED = "h-8 w-[180px] gap-2 rounded-t-[6px] px-3 text-xs"
 /** The open tab's lower corners curve outward into the page, as browser tabs do. The shadow
- * paints the page colour into the curve's outer side. */
-const FLARE = "pointer-events-none absolute bottom-0 h-1 w-1"
-const FLARE_LEFT = "-left-1 rounded-br-[4px] shadow-[2px_2px_0_2px_var(--ag-surface-canvas)]"
-const FLARE_RIGHT = "-right-1 rounded-bl-[4px] shadow-[-2px_2px_0_2px_var(--ag-surface-canvas)]"
+ * paints the transcript's colour (`--background`) into the curve's outer side, and they fade
+ * in with the tab's fill when it opens. */
+const FLARE =
+    "pointer-events-none absolute bottom-0 h-1 w-1 transition-opacity duration-200 ease-out starting:opacity-0 motion-reduce:transition-none"
+const FLARE_LEFT = "-left-1 rounded-br-[4px] shadow-[2px_2px_0_2px_var(--background)]"
+const FLARE_RIGHT = "-right-1 rounded-bl-[4px] shadow-[-2px_2px_0_2px_var(--background)]"
 
 export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
     /** The session on screen: primary text on the `colorFill` chip. */
@@ -116,11 +118,11 @@ export const SessionTab = ({
             className={clsx(
                 // `select-none`: a second click on the chip you are already on must not start
                 // painting its label — a tab is a control, not text (#6379).
-                "group relative flex shrink-0 cursor-pointer select-none items-center transition-colors",
+                "group relative flex shrink-0 cursor-pointer select-none items-center transition-colors duration-200 ease-out motion-reduce:transition-none",
                 connected ? CONNECTED : CHIP,
                 connected
                     ? active
-                        ? "bg-[var(--ag-surface-canvas)] font-medium text-colorText"
+                        ? "bg-background font-medium text-colorText"
                         : "text-colorTextSecondary hover:bg-[var(--ag-surface-tab-hover)] hover:text-colorText"
                     : active
                       ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
@@ -145,8 +147,19 @@ export const SessionTab = ({
             )}
             <span
                 // A rename input inside the label keeps its own selection.
-                className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left [&_input]:select-text"
-                style={!maskLabel ? undefined : actions ? LABEL_MASK_HOVER : LABEL_MASK_REST}
+                className={clsx(
+                    "block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left [&_input]:select-text",
+                    // A page tab cuts a long name with an ellipsis, clear of the × when it shows.
+                    connected && "truncate [&>*]:truncate",
+                    connected && actions && "pr-5",
+                )}
+                style={
+                    connected || !maskLabel
+                        ? undefined
+                        : actions
+                          ? LABEL_MASK_HOVER
+                          : LABEL_MASK_REST
+                }
             >
                 {label}
             </span>
