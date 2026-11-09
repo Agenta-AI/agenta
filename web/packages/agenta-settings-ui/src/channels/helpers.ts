@@ -40,6 +40,10 @@ const REVOKED_SUBS: Record<ChannelPlatform, string> = {
     discord: "Bot token revoked · update it",
 }
 
+/** A bot invited to a server cannot see a private channel until someone adds it there. */
+export const DISCORD_PRIVATE_CHANNEL_HINT =
+    "For a private channel, also add the bot to that channel."
+
 /** The title of the connect flow when the agent already has a connection on the platform. */
 export const ADD_ANOTHER_TITLES: Record<ChannelPlatform, string> = {
     slack: "Add a Slack workspace",

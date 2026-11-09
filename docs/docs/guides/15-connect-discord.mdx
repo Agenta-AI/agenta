@@ -57,6 +57,8 @@ In a text channel of your server, mention the bot, for example `@Support agent w
 
 **"Turn on the Message Content intent for this bot in the Discord Developer Portal, then try again."** The intent is off. Do [step 2](#2-turn-on-the-message-content-intent), then paste the same token again.
 
+**The bot does not answer in a private channel.** The invite link adds the bot to the server, but a private channel stays hidden from it until someone adds it to that channel. Open the channel settings, go to **Permissions**, click **Add members or roles**, and pick the bot.
+
 **"Could not check this bot token with Discord. Try again."** Agenta could not reach Discord. Wait a moment and connect again.
 
 **The bot does not answer in a channel.** Check that you mentioned the bot. In a server channel, the agent answers only a message that mentions it. Also check that the bot can see the channel: in the channel settings, open **Permissions** and make sure the bot's role has **View Channel**, **Send Messages**, **Create Public Threads** and **Send Messages in Threads**. The agent starts a thread for its reply, so it needs the thread permissions too.

@@ -157,6 +157,9 @@ describe("Discord connect flow", () => {
         expect(discordInviteUrl).toHaveBeenCalledWith("dc-1")
         const link = byTestId("channels-discord-invite-link") as HTMLAnchorElement | null
         expect(link?.getAttribute("href")).toBe(INVITE_URL)
+        expect(container.textContent).toContain(
+            "For a private channel, also add the bot to that channel.",
+        )
         expect(onConnected).not.toHaveBeenCalled()
 
         await click("Done")
@@ -342,7 +345,7 @@ describe("Discord manage panel", () => {
         expect(link?.getAttribute("href")).toBe(INVITE_URL)
         expect(container.textContent).toContain("Channels it’s in")
         expect(container.textContent).toContain(
-            "Add @SupportAgent to a server and mention it in a channel. The channel appears here.",
+            "Add @SupportAgent to a server and mention it in a channel. The channel appears here. For a private channel, also add the bot to that channel.",
         )
         expect(container.textContent).not.toContain("Telegram")
     })

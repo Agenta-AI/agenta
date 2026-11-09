@@ -25,6 +25,7 @@ import {nameSpacesFrom} from "./actions"
 import {ChannelAdvancedSection} from "./ChannelAdvancedSection"
 import {ChannelPeopleSection} from "./ChannelPeopleSection"
 import {
+    DISCORD_PRIVATE_CHANNEL_HINT,
     NOOP_ACTIONS,
     ROW_BUTTON,
     answeringAgentName,
@@ -197,7 +198,7 @@ export const ChannelManagePanel = ({
     const emptyPlaces: Record<ChannelPlatform, string | null> = {
         slack: `Invite ${inviteHandle} to a channel to add it here.`,
         telegram: `Add ${handle} to a group and mention it once. The group appears here.`,
-        discord: `Add ${handle} to a server and mention it in a channel. The channel appears here.`,
+        discord: `Add ${handle} to a server and mention it in a channel. The channel appears here. ${DISCORD_PRIVATE_CHANNEL_HINT}`,
         whatsapp: null,
     }
 

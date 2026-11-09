@@ -31,6 +31,7 @@ import {
 
 import {CodeBlock} from "./CodeBlock"
 import {
+    DISCORD_PRIVATE_CHANNEL_HINT,
     NOOP_ACTIONS,
     SLACK_APP_DESCRIPTION_MAX,
     SLACK_APP_NAME_MAX,
@@ -1389,6 +1390,9 @@ export const ChannelConnectFlow = ({
                         <div className="flex flex-col gap-2">
                             <span className="text-[13px] text-muted-foreground">
                                 Open the link, pick your server, then authorize.
+                            </span>
+                            <span className="text-[13px] text-muted-foreground">
+                                {DISCORD_PRIVATE_CHANNEL_HINT}
                             </span>
                             {discordInviteError ? (
                                 <Alert
