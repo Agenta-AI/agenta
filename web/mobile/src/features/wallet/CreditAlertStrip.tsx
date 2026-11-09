@@ -23,7 +23,7 @@ import {useWalletSummary} from "./useWalletSummary"
 /** In memory only, per project: a dismissed alert comes back on reload or when its kind changes. */
 const dismissedCreditAlertsAtom = atom<Record<string, CreditAlert["kind"]>>({})
 
-/** The wallet warning above the composer, hidden while another composer strip shows. */
+/** The wallet warning above the composer; low and daily notes yield to another composer strip. */
 export const CreditAlertStrip = ({
     projectId,
     entityId,
@@ -35,8 +35,11 @@ export const CreditAlertStrip = ({
     hidden: boolean
     onSwitchModel: () => void
 }) => {
-    const wallet = useWalletSummary(projectId, {poll: false})
+    // Polled only while an alert shows: a turn in another session can move the balance meanwhile.
+    const [watching, setWatching] = useState(false)
+    const wallet = useWalletSummary(projectId, {poll: watching})
     const alert = useMemo(() => creditAlert(wallet.data), [wallet.data])
+    useEffect(() => setWatching(alert.kind !== "none"), [alert.kind])
     const funding = useModelFunding(entityId)
     const billing = useProjectPermissionState(projectId, "edit_billing")
     const canBuy: CanBuy = !isBillingEnabled() ? false : billing.pending ? null : billing.allowed
@@ -53,7 +56,11 @@ export const CreditAlertStrip = ({
         if (alert.kind !== "none") setShown(alert)
     }, [alert])
     const current = alert.kind !== "none" ? alert : shown
-    const visible = !hidden && alert.kind !== "none" && dismissed[projectId] !== alert.kind
+    // A model key does not fund agent runtime, so being out of credits shows even beside another strip.
+    const visible =
+        (!hidden || alert.kind === "empty") &&
+        alert.kind !== "none" &&
+        dismissed[projectId] !== alert.kind
 
     const run: Record<CreditAlertAction, () => void> = {
         "switch-model": onSwitchModel,
