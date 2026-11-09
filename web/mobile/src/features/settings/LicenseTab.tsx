@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
 import {isEE} from "@agenta/shared/api"
@@ -46,6 +46,14 @@ export const LicenseTab = ({projectId}: SettingsTabProps) => {
         },
         onError: (cause) => setError(errorMessage(cause)),
     })
+
+    // A reader who cannot add the key: drop it, so the `/m` root stops sending them here.
+    const cannotAddKey =
+        license.notInstanceAdmin ||
+        (license.data && (!isEE() || license.data.source === "environment"))
+    useEffect(() => {
+        if (linkKey && cannotAddKey) dismissLinkKey()
+    }, [linkKey, cannotAddKey, dismissLinkKey])
 
     if (license.notInstanceAdmin) return <LicenseAdminOnly />
     if (license.isError)

@@ -1,6 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {isBillingEnabled} from "@agenta/shared/api"
 import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
@@ -104,7 +103,7 @@ export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps =
             ? projectTemplateUrl(target, templateKey)
             : forwardTo
               ? forwardTo(target)
-              : peekLicenseKey() && !isBillingEnabled()
+              : peekLicenseKey()
                 ? licenseUrl(target)
                 : projectHomeUrl(target)
         // A gate that forwards to itself would loop; nothing here ever resolves to its own
