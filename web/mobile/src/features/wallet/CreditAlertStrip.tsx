@@ -38,7 +38,12 @@ export const CreditAlertStrip = ({
     // Polled only while an alert shows: a turn in another session can move the balance meanwhile.
     const [watching, setWatching] = useState(false)
     const wallet = useWalletSummary(projectId, {poll: watching})
-    const alert = useMemo(() => creditAlert(wallet.data), [wallet.data])
+    // Judged at the last fetch: an unchanged response keeps `data`, but the date may have moved.
+    const fetchedAt = wallet.dataUpdatedAt
+    const alert = useMemo(
+        () => creditAlert(wallet.data, fetchedAt || Date.now()),
+        [wallet.data, fetchedAt],
+    )
     useEffect(() => setWatching(alert.kind !== "none"), [alert.kind])
     const funding = useModelFunding(entityId)
     const billing = useProjectPermissionState(projectId, "edit_billing")
