@@ -33,10 +33,15 @@ const isHttpsLink = (value: unknown): value is string =>
     isText(value, 2_000) && /^https:\/\/[^\s]+$/.test(value)
 
 // Release bodies are Markdown. A link in one may only go to https, like every other feed link.
+// Markdown decodes character references in a link ("http&#58;//"), so a body with one is dropped
+// too; the generated changelog has none.
 const NON_HTTPS_SCHEME = /\b(?:http|javascript|data|vbscript|file):/i
+const CHARACTER_REFERENCE = /&(?:#|colon;)/i
 
 const isReleaseBody = (value: unknown): value is string =>
-    isText(value, MAX_BODY_LENGTH) && !NON_HTTPS_SCHEME.test(value)
+    isText(value, MAX_BODY_LENGTH) &&
+    !NON_HTTPS_SCHEME.test(value) &&
+    !CHARACTER_REFERENCE.test(value)
 
 const isReleaseItem = (value: unknown): boolean => {
     if (!value || typeof value !== "object") return false
