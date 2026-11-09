@@ -64,6 +64,17 @@ class FakeDiscord:
         self.callbacks: List[Dict[str, Any]] = []
         self.channel_reads: List[str] = []
         self.thread_start_failures: List[int] = []
+        self.roles: List[Dict[str, Any]] = [
+            {"id": p.GUILD_ID, "name": "@everyone"},
+            {"id": p.OTHER_ROLE_ID, "name": "Support"},
+            {
+                "id": p.BOT_ROLE_ID,
+                "name": p.APPLICATION_NAME,
+                "managed": True,
+                "tags": {"bot_id": p.BOT_USER_ID},
+            },
+        ]
+        self.role_reads: List[str] = []
         self._next_id = 1_500_000_000_000_000_000
         prefix = "/api/v10"
         self.app = Starlette(
@@ -96,6 +107,7 @@ class FakeDiscord:
                     methods=["POST"],
                 ),
                 Route(f"{prefix}/channels/{{channel_id}}", self._channel),
+                Route(f"{prefix}/guilds/{{guild_id}}/roles", self._roles),
                 Route(
                     f"{prefix}/interactions/{{interaction_id}}/{{token}}/callback",
                     self._callback,
@@ -160,6 +172,12 @@ class FakeDiscord:
         self.channel_reads.append(channel_id)
         channel = self.channels.get(channel_id)
         return JSONResponse(channel) if channel else self._unknown_channel()
+
+    async def _roles(self, request: Request) -> Response:
+        if not self._authorized(request):
+            return self._unauthorized()
+        self.role_reads.append(request.path_params["guild_id"])
+        return JSONResponse(self.roles)
 
     async def _messages(self, request: Request) -> Response:
         if not self._authorized(request):

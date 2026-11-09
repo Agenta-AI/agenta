@@ -151,6 +151,32 @@ async def test_a_thread_message_reads_its_channels_once_per_connection(
     assert discord.channel_reads == [p.THREAD_ID, p.CHANNEL_ID]
 
 
+async def test_a_mention_of_the_bots_role_addresses_the_bot(adapter, discord):
+    connection = _connection()
+    event = await _parse(adapter, p.role_mention("hello"), connection)
+    again = await _parse(adapter, p.role_mention("again", message_id="13"), connection)
+
+    assert event.addressed is True
+    assert event.processed.content == [
+        {"type": "text", "text": f"@{p.BOT_USERNAME} hello"}
+    ]
+    assert again.addressed is True
+    assert discord.role_reads == [p.GUILD_ID]
+
+
+async def test_a_mention_of_another_role_does_not_address_the_bot(adapter, discord):
+    event = await _parse(adapter, p.role_mention(role_id=p.OTHER_ROLE_ID))
+
+    assert event.addressed is False
+    assert f"<@&{p.OTHER_ROLE_ID}>" in event.processed.content[0]["text"]
+
+
+async def test_a_message_without_role_mentions_reads_no_roles(adapter, discord):
+    await _parse(adapter, p.mention())
+
+    assert discord.role_reads == []
+
+
 async def test_a_dm_needs_no_channel_read(adapter, discord):
     event = await _parse(adapter, p.dm())
 

@@ -182,3 +182,46 @@ async def test_a_new_channel_space_is_named_after_the_channel():
     created = dao.get_or_create_space.call_args.kwargs["space"]
     assert created.name == p.CHANNEL_NAME
     assert created.kind is ChannelSpaceKind.TOPIC
+
+
+async def _route_message(service, adapter, connection, payload):
+    inbound = await adapter.parse_event(body=p.encode(payload), connection=connection)
+    event = ChannelInboxEvent(
+        id=uuid4(),
+        connection_id=connection.id,
+        external_id=inbound.external_id,
+        kind=inbound.kind,
+        origin=ChannelEventOrigin.PUSHED,
+        data=ChannelInboxEventData(
+            external_locator=inbound.external_locator,
+            processed=inbound.processed,
+            space_kind=inbound.space_kind,
+            addressed=inbound.addressed,
+        ),
+    )
+    return await service.resolve(
+        project_id=uuid4(), connection_id=connection.id, event=event
+    )
+
+
+async def test_a_mention_of_the_bots_role_opens_a_turn():
+    service, _, adapter, connection, _ = _world(INTERACTION_ID)
+
+    resolution = await _route_message(
+        service, adapter, connection, p.role_mention("where is my order?")
+    )
+
+    assert resolution is not None
+
+
+async def test_a_mention_of_another_role_opens_no_turn():
+    service, _, adapter, connection, _ = _world(INTERACTION_ID)
+
+    resolution = await _route_message(
+        service,
+        adapter,
+        connection,
+        p.role_mention("where is my order?", role_id=p.OTHER_ROLE_ID),
+    )
+
+    assert resolution is None

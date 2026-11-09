@@ -80,6 +80,8 @@ class DiscordAdapter(ChannelAdapterInterface):
         self._channels: Dict[Tuple[UUID, str], Dict[str, Any]] = {}
         # (connection id, thread id) of threads known to exist
         self._threads: Set[Tuple[UUID, str]] = set()
+        # (connection id, guild id) -> the bot's managed role, or None
+        self._bot_roles: Dict[Tuple[UUID, str], Optional[str]] = {}
 
     # --- declaration --- #
 
@@ -203,12 +205,19 @@ class DiscordAdapter(ChannelAdapterInterface):
                 parent_id = str(channel["parent_id"])
                 channel = await self._channel(connection, parent_id)
             title = channel.get("name")
+        # Only a message that mentions a role can mention the bot's role.
+        bot_role_id = (
+            await self._bot_role(connection, str(guild_id))
+            if guild_id and data.get("mention_roles")
+            else None
+        )
 
         return mapping.parse_message(
             data,
             guild_id=guild_id,
             parent_id=parent_id,
             title=title,
+            bot_role_id=bot_role_id,
             bot_user_id=bot_user_id,
             bot_username=_data(connection).get("bot_username"),
         )
@@ -224,6 +233,33 @@ class DiscordAdapter(ChannelAdapterInterface):
                 _bot_token(connection), "GET", f"/channels/{channel_id}"
             )
         return self._channels[key]
+
+    async def _bot_role(
+        self, connection: ChannelConnection, guild_id: str
+    ) -> Optional[str]:
+        """The role Discord made for the bot in this server: the one whose
+        `tags.bot_id` is the bot. `MESSAGE_CREATE` gives only role ids."""
+
+        key = (connection.id, guild_id)
+        if key not in self._bot_roles:
+            roles = await self._request(
+                _bot_token(connection), "GET", f"/guilds/{guild_id}/roles"
+            )
+            bot_user_id = _bot_user_id(connection)
+            role_id = next(
+                (
+                    str(role["id"])
+                    for role in (roles if isinstance(roles, list) else [])
+                    if isinstance(role, dict)
+                    and bot_user_id
+                    and str((role.get("tags") or {}).get("bot_id")) == bot_user_id
+                ),
+                None,
+            )
+            if len(self._bot_roles) >= _CACHE_MAX:
+                self._bot_roles.clear()
+            self._bot_roles[key] = role_id
+        return self._bot_roles[key]
 
     async def _acknowledge(self, interaction: Dict[str, Any]) -> None:
         """Answer the click with a deferred update: nothing changes on the
