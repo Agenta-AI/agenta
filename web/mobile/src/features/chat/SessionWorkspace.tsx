@@ -42,6 +42,7 @@ import {useRouter} from "next/router"
 
 import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 import {AppShell} from "../nav/AppShell"
+import {NavDrawer} from "../nav/NavDrawer"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
 import {ConfigPaneHeader} from "./ConfigPaneHeader"
@@ -526,6 +527,12 @@ export const SessionWorkspace = ({
                                                             agentHidden={agentHidden}
                                                             onUpdate={pinRevision}
                                                             onHide={() => setConfigCollapsed(true)}
+                                                            leading={
+                                                                <NavDrawer
+                                                                    workspaceId={workspaceId}
+                                                                    projectId={projectId}
+                                                                />
+                                                            }
                                                         />
                                                     ) : null}
                                                     <div className="min-h-0 flex-1">{pane}</div>

@@ -297,7 +297,12 @@ const SessionTopBarView = ({
                 className={switcher ? undefined : "md:min-h-12"}
                 tabbed={Boolean(switcher)}
                 // Nav is the drawer below `lg`; it hides itself where the rail takes over.
-                leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
+                // With the config pane open, the menu leads that pane's header at the window's edge.
+                leading={
+                    identityInPane ? undefined : (
+                        <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                    )
+                }
                 identity={
                     // The open config pane shows the agent at its own top.
                     identityInPane ? undefined : (
