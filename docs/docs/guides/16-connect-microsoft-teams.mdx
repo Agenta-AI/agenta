@@ -1,0 +1,112 @@
+---
+title: "Connect an agent to Microsoft Teams"
+sidebar_label: "Connect Microsoft Teams"
+description: "Put an Agenta agent in Microsoft Teams, so people can chat with it in a personal chat, a group chat, or a team channel."
+---
+
+Connect a Teams bot to an agent, and the agent answers people in Microsoft Teams: in personal chats, in group chats, and in team channels. You set this up in three places: the Teams Developer Portal, where you register the bot; Agenta, where you connect it; and Teams, where you install the app.
+
+The bot is your own. Agenta does not offer a shared Teams bot.
+
+## Before you start
+
+You need:
+
+- **A Microsoft 365 work or school account** in the organization (tenant) where people will use the agent.
+- **Permission to upload custom apps in Teams.** If your organization blocks this, see [Troubleshooting](#troubleshooting).
+
+## 1. Register the bot
+
+1. Open the [Teams Developer Portal](https://dev.teams.microsoft.com/bots).
+2. Go to **Tools**, then **Bot management**, and select **New bot**. Give it a name, such as `Support agent`, and add it.
+3. On the bot's **Client secrets** page, add a client secret. Copy the secret's value. The portal shows it only once.
+4. Copy the bot's app ID. It is on the bot page.
+
+To register the bot in the Azure portal instead, create an [Azure Bot resource](https://learn.microsoft.com/azure/bot-service/abs-quickstart) with the type **Single Tenant**, then [turn on the Microsoft Teams channel](https://learn.microsoft.com/azure/bot-service/channel-connect-teams) for it. The client secret and the app ID come from the bot's app registration.
+
+## 2. Find your tenant ID
+
+Open the [Microsoft Entra admin center](https://entra.microsoft.com). The **Overview** page shows the **Tenant ID**. Copy it.
+
+## 3. Connect the bot in Agenta
+
+1. Open the agent that should answer in Teams and go to its **Channels** section.
+2. Choose **Microsoft Teams**.
+3. Paste the three values:
+   - **Application (client) ID**: the bot's app ID.
+   - **Client secret value**: the secret's value, not its secret ID.
+   - **Directory (tenant) ID**: your tenant ID.
+4. Click **Connect bot**.
+
+Agenta checks the three values with Microsoft before it saves anything. If the check fails, nothing is stored. The secret stays masked after you save it.
+
+## 4. Paste the messaging endpoint
+
+After the bot connects, Agenta shows the **Messaging endpoint**. Teams sends every message for the bot to this address.
+
+1. Click **Copy** next to the endpoint.
+2. In the Teams Developer Portal, open your bot and go to **Configure**.
+3. Paste the endpoint as the **Endpoint address** and save.
+
+If you registered the bot in the Azure portal, paste the endpoint as the **Messaging endpoint** on the bot's **Configuration** page.
+
+To find the endpoint later, open the Teams connection in the agent's **Channels** section.
+
+## 5. Install the app in Teams
+
+Agenta builds the Teams app for your bot. You do not need to create it yourself.
+
+1. In Agenta, click **Download Teams app**. Your browser saves a `.zip` file.
+2. In Teams, open **Apps**, then **Manage your apps**, then **Upload an app**.
+3. Choose the downloaded file and add the app.
+
+To add the agent to a team channel or a group chat, open the app in Teams and choose where to add it. You upload the app once. A new download gives the same app, so you do not need to upload it again.
+
+## 6. Send a test message
+
+Open a personal chat with the app and send a message, for example `what can you do?`. The agent replies in the chat.
+
+## Troubleshooting
+
+**"Microsoft rejected this client secret. Copy the secret's Value, not its Secret ID."** The secret is wrong, or you copied its ID. Add a new client secret, copy its value, and connect again.
+
+**"Microsoft found no application with this ID in this tenant."** The app ID is wrong, or the bot belongs to another tenant. Check the app ID on the bot page and the tenant ID in the Microsoft Entra admin center.
+
+**"Microsoft found no directory with this tenant ID."** The tenant ID is wrong. Copy it again from the **Overview** page of the Microsoft Entra admin center.
+
+**"Could not check these values with Microsoft. Try again."** Agenta could not reach Microsoft. Wait a moment and connect again.
+
+**There is no Upload an app option in Teams.** Your organization does not allow custom apps. Ask your Teams admin to allow custom app uploads. Microsoft describes the setting in [Manage custom app policies and settings](https://learn.microsoft.com/microsoftteams/teams-custom-app-policies-and-settings).
+
+**The agent does not answer.** Check that the endpoint address on the bot is the **Messaging endpoint** that Agenta shows. In a team channel or a group chat, also check that you mentioned the bot.
+
+## How conversations work
+
+### Personal chats
+
+In a personal chat, the agent answers every message. All messages in one personal chat are one conversation. To start a new conversation, send `!new`.
+
+### Team channels
+
+In a team channel, the agent answers only a message that mentions the bot. It replies in the thread of that post. Each new post that mentions the bot starts its own thread and its own conversation. To continue a conversation, mention the bot in its thread.
+
+### Group chats
+
+In a group chat, the agent answers only a message that mentions the bot. A group chat has no threads, so the whole chat is one conversation.
+
+### Typing and long replies
+
+While the agent works, the chat shows the typing indicator. If the reply takes more than 30 seconds, the agent posts one message: "Working on it, I'll reply here when I'm done."
+
+Teams allows about 20,000 characters in one message, so a longer answer is split into several messages, sent in order.
+
+### Approvals
+
+When the agent needs approval before it runs a tool, it posts a card with **Approve** and **Deny** buttons. After someone clicks one, the buttons are removed.
+
+## Limits
+
+- The agent sees only messages that mention it in team channels and group chats. It does not read the rest of the conversation.
+- The agent cannot send or receive files in Teams yet.
+- The agent does not edit its messages while it works. The full answer arrives when it is done.
+- Disconnecting the bot in Agenta stops the agent from answering, but the app stays installed in Teams. To remove it, remove the app in Teams.

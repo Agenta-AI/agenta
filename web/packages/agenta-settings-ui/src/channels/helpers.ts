@@ -1,9 +1,12 @@
+import {downloadBlob} from "@agenta/shared/utils"
+
 import {channelSharingCopy} from "./sharingCopy"
 import type {
     ChannelConnection,
     ChannelConnections,
     ChannelPlatform,
     ChannelScope,
+    ChannelSetupDocument,
     ChannelSetupField,
     ChannelsActions,
     ChannelToolSettings,
@@ -13,15 +16,71 @@ import type {
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
 
 /** Every platform, in the order the Channels card lists them. */
-export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp"]
+export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp", "teams"]
 
 const PLATFORM_LABELS: Record<ChannelPlatform, string> = {
     slack: "Slack",
     telegram: "Telegram",
     whatsapp: "WhatsApp",
+    teams: "Microsoft Teams",
 }
 
 export const platformLabel = (platform: ChannelPlatform): string => PLATFORM_LABELS[platform]
+
+/** The row subtitle of a platform with no connection. */
+const NOT_CONNECTED_SUBS: Record<ChannelPlatform, string> = {
+    slack: "Chat with the agent in your team’s workspace",
+    telegram: "Chat with the agent from your phone",
+    whatsapp: "Answer messages to your WhatsApp Business number",
+    teams: "Chat with the agent in Microsoft Teams",
+}
+
+/** The row subtitle of a revoked connection: what the platform did, and what to do. */
+const REVOKED_SUBS: Record<ChannelPlatform, string> = {
+    slack: "App uninstalled · reconnect",
+    telegram: "Bot token revoked · update it",
+    whatsapp: "Access token rejected · update it",
+    teams: "Client secret rejected · update it",
+}
+
+/** The short revoked text of a connection's line in a list. */
+const REVOKED_DETAILS: Record<ChannelPlatform, string> = {
+    slack: "App uninstalled · reconnect",
+    telegram: "Bot token revoked",
+    whatsapp: "Access token rejected",
+    teams: "Client secret rejected",
+}
+
+/** The name of a platform's shared places, as the "group" switch says it. */
+export const PLACES_LABELS: Record<ChannelPlatform, string> = {
+    slack: "Channels",
+    telegram: "Group chats",
+    whatsapp: "Group chats",
+    teams: "Channels and group chats",
+}
+
+/** The noun for one shared place. A Teams place is a team channel or a group chat. */
+const PLACE_NOUNS: Record<ChannelPlatform, string> = {
+    slack: "channel",
+    telegram: "group",
+    whatsapp: "group",
+    teams: "chat",
+}
+
+export const placeNoun = (platform: ChannelPlatform): string => PLACE_NOUNS[platform]
+
+/** The title of the connect flow when the agent already has a connection on the platform. */
+export const ADD_ANOTHER_TITLES: Record<ChannelPlatform, string> = {
+    slack: "Add a Slack workspace",
+    telegram: "Add a Telegram bot",
+    whatsapp: "Add a WhatsApp number",
+    teams: "Add a Teams bot",
+}
+
+/** Whether the platform has channels (Slack, Teams) rather than only groups. Teams also has
+ *  group chats, so its place words come from `PLACES_LABELS` and `placeNoun`. */
+export const hasChannels = (platform: ChannelPlatform): boolean =>
+    platform === "slack" || platform === "teams"
 
 /** How a connection's install is described: the shared Agenta one, or the customer's own. */
 export const installKindLabel = (connection: ChannelConnection): string => {
@@ -86,15 +145,10 @@ export const connectionRowText = (
           ? connection.workspaceName || botHandle(connection, hostedHandle)
           : connectionLabel(connection, hostedHandle)
     if (connection.status === "revoked") {
-        const detail = slack
-            ? "App uninstalled · reconnect"
-            : connection.platform === "whatsapp"
-              ? "Access token rejected"
-              : "Bot token revoked"
-        return {title, detail}
+        return {title, detail: REVOKED_DETAILS[connection.platform]}
     }
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = slack ? "channel" : "group"
+    const noun = placeNoun(connection.platform)
     const places = [
         ...(dm ? ["DMs"] : []),
         ...(nonDm ? [`${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`] : []),
@@ -199,12 +253,7 @@ export const summarizeConnection = (
 ): ChannelRowSummary => {
     if (!connection) {
         return {
-            sub:
-                platform === "slack"
-                    ? "Chat with the agent in your team’s workspace"
-                    : platform === "whatsapp"
-                      ? "Answer messages to your WhatsApp Business number"
-                      : "Chat with the agent from your phone",
+            sub: NOT_CONNECTED_SUBS[platform],
             subClass: "text-colorTextTertiary",
             dotClass: "",
             connected: false,
@@ -215,12 +264,7 @@ export const summarizeConnection = (
 
     if (connection.status === "revoked") {
         return {
-            sub:
-                platform === "telegram"
-                    ? "Bot token revoked · update it"
-                    : platform === "whatsapp"
-                      ? "Access token rejected · update it"
-                      : "App uninstalled · reconnect",
+            sub: REVOKED_SUBS[platform],
             subClass: "text-colorError",
             dotClass: "bg-colorError",
             connected: true,
@@ -289,7 +333,7 @@ export const summarizeConnection = (
     }
 
     const {dm, groups: nonDm} = answeringPlaces(connection)
-    const noun = platform === "slack" ? "channel" : "group"
+    const noun = placeNoun(platform)
     const groupsText = `${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`
     const where =
         nonDm && dm
@@ -333,7 +377,12 @@ export const DEFAULT_TOOL_SETTINGS: ChannelToolSettings = {
 }
 
 /** Nothing connected on any platform. */
-export const EMPTY_CONNECTIONS: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
+export const EMPTY_CONNECTIONS: ChannelConnections = {
+    slack: null,
+    telegram: null,
+    whatsapp: null,
+    teams: null,
+}
 
 export const DIRECT_MESSAGES_CHAT = {name: "Direct messages", type: "dm" as const}
 
@@ -379,6 +428,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     },
     countHostedTelegramBindings: async () => 0,
     hostedSlackInstallUrl: async () => null,
+    teamsAppPackage: async () => null,
     connectCustom: async () => null,
     connectHere: async () => {},
     disconnect: async () => {},
@@ -423,4 +473,19 @@ export const isLiveForAgent = (
     if (!connection || connection.status !== "connected" || connection.agentOff) return false
     const scope = connectionScope(connection, agentId)
     return scope === "here" || scope === "unknown"
+}
+
+/** The bytes of a base64 string, decoded with the browser's own `atob`. */
+export const base64Bytes = (content: string): Uint8Array<ArrayBuffer> => {
+    const binary = atob(content.replace(/\s+/g, ""))
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return bytes
+}
+
+/** Save a `zip` setup document as a file. Returns false when the document has no content. */
+export const downloadSetupDocument = (document: ChannelSetupDocument): boolean => {
+    if (document.format !== "zip" || !document.content) return false
+    downloadBlob([base64Bytes(document.content)], document.filename || "app.zip", "application/zip")
+    return true
 }

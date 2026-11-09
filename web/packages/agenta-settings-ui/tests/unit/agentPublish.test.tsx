@@ -53,6 +53,7 @@ const ALL_LIVE: ChannelConnections = {
     slack: connected("slack"),
     telegram: connected("telegram"),
     whatsapp: null,
+    teams: null,
 }
 
 // A stand-in for the host's drawer: the open panel renders a dialog carrying its title.
@@ -131,7 +132,7 @@ describe("AgentPublish", () => {
     })
 
     it("opens connect for a platform that is not set up", async () => {
-        await render({slack: null, telegram: null, whatsapp: null})
+        await render({slack: null, telegram: null, whatsapp: null, teams: null})
         await click("publish-button")
         await click("channels-hub-add-slack")
         expect(dialog()?.dataset.title).toBe("Connect Slack")
@@ -154,7 +155,12 @@ describe("AgentPublish", () => {
         const fresh = {...connected("slack"), connectionId: "slack-2"}
         const next: ChannelConnections = {
             ...ALL_LIVE,
-            agentConnections: {slack: [connected("slack"), fresh], telegram: [], whatsapp: []},
+            agentConnections: {
+                slack: [connected("slack"), fresh],
+                telegram: [],
+                whatsapp: [],
+                teams: [],
+            },
         }
         const reload = vi.fn(async () => next)
         await render(ALL_LIVE, {actions: {...NOOP_ACTIONS, reload}})
@@ -169,7 +175,7 @@ describe("AgentPublish", () => {
     it("re-reads the connections when a connect view is left", async () => {
         const reload = vi.fn(async () => ALL_LIVE)
         await render(
-            {slack: null, telegram: null, whatsapp: null},
+            {slack: null, telegram: null, whatsapp: null, teams: null},
             {actions: {...NOOP_ACTIONS, reload}},
         )
         await click("publish-button")

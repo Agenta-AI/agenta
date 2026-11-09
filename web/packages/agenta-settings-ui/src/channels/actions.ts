@@ -1,4 +1,5 @@
-import {platformLabel} from "./helpers"
+import {hasChannels, platformLabel} from "./helpers"
+import {TEAMS_APP_STEPS} from "./teamsSetupCopy"
 import type {
     ChannelAudiencePerson,
     ChannelBehaviorState,
@@ -9,6 +10,7 @@ import type {
     ChannelPerson,
     ChannelPlatform,
     ChannelReadableChannel,
+    ChannelSetupDocument,
     ChannelSetupIdentity,
     ChannelSetupInfo,
     ChannelSpace,
@@ -51,6 +53,7 @@ export interface ChannelsClientLike {
     archiveChannelConnection(body: object, scope?: Scope): Promise<unknown>
     editChannelConnection(body: object, scope?: Scope): Promise<unknown>
     fetchChannelSetup(body: object, scope?: Scope): Promise<unknown>
+    fetchChannelConnectionSetup(body: object, scope?: Scope): Promise<unknown>
     createTelegramHostedBindLink(body: object, scope?: Scope): Promise<unknown>
     listTelegramHostedBindings(body: object, scope?: Scope): Promise<unknown>
     queryChannelSpaces(body: object, scope?: Scope): Promise<unknown>
@@ -90,8 +93,9 @@ export const channelKey = (platform: ChannelPlatform, hosted: boolean): string =
     platform === "telegram" ? (hosted ? "telegram_hosted" : "telegram") : platform
 
 const platformOf = (channel: string): ChannelPlatform | null =>
-    (["telegram", "slack", "whatsapp"] as const).find((platform) => channel.startsWith(platform)) ??
-    null
+    (["telegram", "slack", "whatsapp", "teams"] as const).find((platform) =>
+        channel.startsWith(platform),
+    ) ?? null
 
 /** The first reference id in a channel agent's `data.references` (the app it answers as). */
 export const referencedAppId = (agent: Row): string | null => {
@@ -189,15 +193,18 @@ export const nameSpacesFrom = (
     })
 }
 
-/** The card's chat type for a space kind: only "is it a DM" changes the row's copy. */
+/** The chat type of a space kind: a DM, a channel or a group. It picks the row's copy and
+ *  icon. On Teams, only a team channel is a channel. */
 export const chatTypeOf = (kind: ChannelSpaceKind, platform: ChannelPlatform): ChannelChatType => {
     if (kind === "private") return "dm"
-    return platform === "slack" ? "channel" : "group"
+    // A Teams group chat stays a group: only a team channel is a channel.
+    if (platform === "teams") return kind === "topic" ? "channel" : "group"
+    return hasChannels(platform) ? "channel" : "group"
 }
 
 /** The space kinds the "group" switch covers. A Slack channel is a topic-bearing space. */
 export const groupKindsOf = (platform: ChannelPlatform): ChannelSpaceKind[] =>
-    platform === "slack" ? ["group", "topic"] : ["group"]
+    hasChannels(platform) ? ["group", "topic"] : ["group"]
 
 /** The active default channel agent of a connection, or its first active agent. */
 export const answeringAgentRow = (agents: Row[]): Row | null => {
@@ -237,6 +244,19 @@ export const mapConnectionRow = (row: Row): ChannelConnection | null => {
     }
 }
 
+/** The setup document of a setup response, or null when it has none. */
+export const setupDocumentOf = (setup: Row): ChannelSetupDocument | null => {
+    const document = setup.document
+    if (!document || typeof document !== "object") return null
+    const row = asRecord(document)
+    return {
+        format: asString(row.format),
+        content: asString(row.content),
+        filename: asString(row.filename),
+        link: asString(row.link),
+    }
+}
+
 /** A readable message from a rejected client call. */
 export const clientErrorMessage = (error: unknown, fallback: string): string => {
     const record = asRecord(error)
@@ -270,11 +290,12 @@ export const connectionsForAgent = (
         const here = c.agent === undefined || c.agent?.id === appId ? 4 : 0
         return here + (c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0)
     }
-    const out: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
+    const out: ChannelConnections = {slack: null, telegram: null, whatsapp: null, teams: null}
     const mine: Record<ChannelPlatform, ChannelConnection[]> = {
         slack: [],
         telegram: [],
         whatsapp: [],
+        teams: [],
     }
     for (const connection of rows) {
         const current = out[connection.platform]
@@ -293,6 +314,7 @@ export const connectionsForAgent = (
         slack: lead("slack"),
         telegram: lead("telegram"),
         whatsapp: lead("whatsapp"),
+        teams: lead("teams"),
     }
     out.allConnections = rows
     return out
@@ -811,7 +833,7 @@ export const buildAgentChannelsActions = ({
             .catch(rethrow(`Could not load the ${platform} setup.`))
         const setup = asRecord(asRecord(res).setup)
         return {
-            manifest: asString(asRecord(setup.document).content),
+            manifest: setupDocumentOf(setup)?.content ?? null,
             fields: asArray(setup.fields).map((field) => ({
                 name: asString(field.name) ?? "",
                 label: asString(field.label) ?? asString(field.name) ?? "",
@@ -865,6 +887,14 @@ export const buildAgentChannelsActions = ({
         return mapConnectionRow(row)
     }
 
+    /** The Teams app package is the connection's setup document, built from its app id. */
+    const teamsAppPackage = async (connectionId: string): Promise<ChannelSetupDocument | null> => {
+        const res = await client
+            .fetchChannelConnectionSetup({connection_id: connectionId}, scope())
+            .catch(rethrow(TEAMS_APP_STEPS.loadError))
+        return setupDocumentOf(asRecord(asRecord(res).setup))
+    }
+
     const connectHere = async (platform: ChannelPlatform, connectionId: string) =>
         pointHere(connectionId).catch(rethrow("Could not connect this agent."))
 
@@ -908,6 +938,7 @@ export const buildAgentChannelsActions = ({
             if (setup && !setup.hostedAvailable) return null
             return hostedSlackInstallUrl(id)
         },
+        teamsAppPackage,
         connectCustom,
         connectHere,
         disconnect,

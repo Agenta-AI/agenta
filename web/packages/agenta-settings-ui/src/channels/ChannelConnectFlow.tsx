@@ -44,6 +44,13 @@ import {
 import {platformLogo} from "./icons"
 import {PanelFooter} from "./PanelFooter"
 import {QrCode} from "./qr"
+import {TeamsAppSetup} from "./TeamsAppSetup"
+import {
+    ENTRA_ADMIN_CENTER_URL,
+    TEAMS_APP_STEPS,
+    TEAMS_CONNECT_STEPS,
+    TEAMS_DEVELOPER_PORTAL_URL,
+} from "./teamsSetupCopy"
 import type {
     ChannelConnection,
     ChannelInstallMode,
@@ -63,6 +70,7 @@ import {WhatsAppWebhook, copyText} from "./WhatsAppWebhook"
  * the /start in Telegram to bind the chat (polled through `actions`). Hosted Slack: open the
  * install redirect in a new window and wait for a new connection to appear. Custom app/bot:
  * render the fields the backend declares, create the connection, point it at this agent.
+ * Teams: the user's own bot only; after connect, the flow shows the endpoint and the app download.
  */
 
 export interface ChannelConnectFlowProps {
@@ -99,6 +107,10 @@ type TelegramHostedStep = "preparing" | "qr" | "waiting" | "linked" | "expired" 
 /** Example values for declared setup fields; the backend sends none. */
 const FIELD_PLACEHOLDERS: Partial<Record<ChannelPlatform, Record<string, string>>> = {
     telegram: {bot_token: "123456789:AAH…"},
+    teams: {
+        app_id: "00000000-0000-0000-0000-000000000000",
+        tenant_id: "00000000-0000-0000-0000-000000000000",
+    },
 }
 
 /** How long the hosted Slack install wait runs before giving up, ms. */
@@ -307,13 +319,17 @@ export const ChannelConnectFlow = ({
     const isTelegram = platform === "telegram"
     // WhatsApp has no Agenta-hosted number: the customer always brings their own.
     const isWhatsApp = platform === "whatsapp"
+    // Teams has no Agenta-hosted bot either: the customer always brings their own.
+    const isTeams = platform === "teams"
+    // The platforms with one method only show no method choice.
+    const customOnly = isWhatsApp || isTeams
     const name = platformLabel(platform)
 
     const [mode, setMode] = useState<ChannelInstallMode>(
-        isWhatsApp || hostedConnectedHere ? "custom" : initialMode,
+        customOnly || hostedConnectedHere ? "custom" : initialMode,
     )
-    // A new WhatsApp connection, held on screen until its webhook values are copied into Meta.
-    const [whatsAppConnection, setWhatsAppConnection] = useState<ChannelConnection | null>(null)
+    // A new WhatsApp or Teams connection, kept on screen for its setup steps after connect.
+    const [created, setCreated] = useState<ChannelConnection | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     // --- custom app/bot: the declared setup ---------------------------------- //
@@ -395,7 +411,7 @@ export const ChannelConnectFlow = ({
     // Load the declared fields the first time the custom mode opens; the guard is a ref so
     // the effect does not cancel its own request.
     const setupRequested = useRef(false)
-    // Bumped by "Try again": WhatsApp has no method switch to re-run the load.
+    // Bumped by "Try again": WhatsApp and Teams have no method switch to re-run the load.
     const [setupAttempt, setSetupAttempt] = useState(0)
     useEffect(() => {
         if (mode !== "custom" || setupRequested.current) return
@@ -613,11 +629,13 @@ export const ChannelConnectFlow = ({
         setSaving(true)
         setError(null)
         try {
-            const created = await actions.connectCustom(platform, values)
+            const connection = await actions.connectCustom(platform, values)
             if (!alive.current) return
-            if (isWhatsApp && created?.webhookUrl && created.webhookVerifyToken) {
-                setWhatsAppConnection(created)
-            } else await onConnected()
+            const keep = isWhatsApp
+                ? !!(connection?.webhookUrl && connection.webhookVerifyToken)
+                : isTeams && !!connection?.connectionId
+            if (keep) setCreated(connection)
+            else await onConnected()
         } catch (e) {
             if (!alive.current) return
             setError(errorMessage(e, `${name} rejected the credentials.`))
@@ -921,9 +939,24 @@ export const ChannelConnectFlow = ({
                     Continue
                 </Button>
             )
+    } else if (isTeams) {
+        note = "Your bot answers only as this agent. Other bots stay connected."
+        cta = created ? (
+            <Button onClick={() => void onConnected()} data-testid="channels-teams-done">
+                Done
+            </Button>
+        ) : (
+            <Button
+                disabled={!fieldsValid || saving || fields.length === 0}
+                onClick={() => void submitCustom()}
+                data-testid="channels-connect-custom"
+            >
+                {saving ? "Connecting…" : "Connect bot"}
+            </Button>
+        )
     } else if (isWhatsApp) {
         note = "Meta bills your business directly for WhatsApp messages."
-        cta = whatsAppConnection ? (
+        cta = created ? (
             <Button onClick={() => void onConnected()}>Done</Button>
         ) : (
             <Button
@@ -983,7 +1016,7 @@ export const ChannelConnectFlow = ({
             <div className="flex min-h-full flex-1 flex-col gap-[22px]">
                 {errorAlert}
 
-                {isWhatsApp ? null : (
+                {customOnly ? null : (
                     <div className="flex flex-col gap-2">
                         <span className={SECTION_TITLE}>Connect with</span>
                         <MethodCards
@@ -1279,8 +1312,103 @@ export const ChannelConnectFlow = ({
                     </div>
                 ) : null}
 
+                {/* TEAMS · your own bot */}
+                {isTeams && !created ? (
+                    <div className="flex flex-col">
+                        <StepRow
+                            index={1}
+                            total={4}
+                            active={!tokenEntered}
+                            title={TEAMS_CONNECT_STEPS.register.title}
+                            body={TEAMS_CONNECT_STEPS.register.body}
+                        >
+                            <div>
+                                <Button variant="outline" size="sm" asChild>
+                                    <a
+                                        href={TEAMS_DEVELOPER_PORTAL_URL}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        <ArrowSquareOut data-icon="inline-start" />
+                                        {TEAMS_CONNECT_STEPS.register.link}
+                                    </a>
+                                </Button>
+                            </div>
+                        </StepRow>
+                        <StepRow
+                            index={2}
+                            total={4}
+                            active={false}
+                            title={TEAMS_CONNECT_STEPS.secret.title}
+                            body={TEAMS_CONNECT_STEPS.secret.body}
+                        />
+                        <StepRow
+                            index={3}
+                            total={4}
+                            active={false}
+                            title={TEAMS_CONNECT_STEPS.tenant.title}
+                            body={TEAMS_CONNECT_STEPS.tenant.body}
+                        >
+                            <div>
+                                <Button variant="outline" size="sm" asChild>
+                                    <a
+                                        href={ENTRA_ADMIN_CENTER_URL}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        <ArrowSquareOut data-icon="inline-start" />
+                                        {TEAMS_CONNECT_STEPS.tenant.link}
+                                    </a>
+                                </Button>
+                            </div>
+                        </StepRow>
+                        <StepRow
+                            index={4}
+                            total={4}
+                            active={tokenEntered}
+                            title={TEAMS_CONNECT_STEPS.paste.title}
+                            body={TEAMS_CONNECT_STEPS.paste.body}
+                        >
+                            {renderFields()}
+                            {!setup && !setupLoading ? (
+                                <div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setError(null)
+                                            setSetupAttempt((n) => n + 1)
+                                        }}
+                                    >
+                                        Try again
+                                    </Button>
+                                </div>
+                            ) : null}
+                        </StepRow>
+                        <span
+                            className="px-0.5 pt-2 text-xs text-muted-foreground"
+                            data-testid="channels-connect-note"
+                        >
+                            {note}
+                        </span>
+                    </div>
+                ) : null}
+
+                {isTeams && created ? (
+                    <div className="flex flex-col gap-4">
+                        <div
+                            className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground"
+                            data-testid="channels-teams-connected"
+                        >
+                            <Check size={14} weight="bold" className="text-colorSuccess" />
+                            {TEAMS_APP_STEPS.connected}
+                        </div>
+                        <TeamsAppSetup connection={created} actions={actions} />
+                    </div>
+                ) : null}
+
                 {/* WHATSAPP · your own number */}
-                {isWhatsApp && !whatsAppConnection ? (
+                {isWhatsApp && !created ? (
                     <div className="flex flex-col gap-[22px]">
                         <Alert
                             type="info"
@@ -1351,7 +1479,7 @@ export const ChannelConnectFlow = ({
                     </div>
                 ) : null}
 
-                {isWhatsApp && whatsAppConnection ? (
+                {isWhatsApp && created ? (
                     <div className="flex flex-col gap-4">
                         <div
                             className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground"
@@ -1360,7 +1488,7 @@ export const ChannelConnectFlow = ({
                             <Check size={14} weight="bold" className="text-colorSuccess" />
                             Connected. One step left in Meta.
                         </div>
-                        <WhatsAppWebhook connection={whatsAppConnection} />
+                        <WhatsAppWebhook connection={created} />
                     </div>
                 ) : null}
 

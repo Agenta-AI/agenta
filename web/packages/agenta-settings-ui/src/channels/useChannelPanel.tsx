@@ -9,6 +9,7 @@ import {ChannelConnectionList} from "./ChannelConnectionList"
 import {ChannelManagePanel} from "./ChannelManagePanel"
 import {ChannelsHubView} from "./ChannelsHubView"
 import {
+    ADD_ANOTHER_TITLES,
     agentConnectionsOf,
     EMPTY_CONNECTIONS,
     liveCountOf,
@@ -439,13 +440,7 @@ export const useChannelPanel = ({
             case "connect": {
                 const label = platformLabel(route.platform)
                 const hasAny = agentConnectionsOf(connections, route.platform).length > 0
-                const title = !hasAny
-                    ? `Connect ${label}`
-                    : route.platform === "slack"
-                      ? "Add a Slack workspace"
-                      : route.platform === "whatsapp"
-                        ? "Add a WhatsApp number"
-                        : "Add a Telegram bot"
+                const title = !hasAny ? `Connect ${label}` : ADD_ANOTHER_TITLES[route.platform]
                 return {title, icon: platformLogo(route.platform, 18)}
             }
             default:

@@ -133,6 +133,47 @@ settings:
       - message.im
 `
 
+const GUID_PATTERN = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+const GUID_ERROR = "Enter the ID as a GUID, for example 00000000-0000-0000-0000-000000000000."
+
+export const TEAMS_SETUP: ChannelSetupInfo = {
+    manifest: null,
+    hostedAvailable: false,
+    fields: [
+        {
+            name: "app_id",
+            label: "Application (client) ID",
+            secret: false,
+            required: true,
+            pattern: GUID_PATTERN,
+            patternError: GUID_ERROR,
+        },
+        {
+            name: "client_secret",
+            label: "Client secret value",
+            secret: true,
+            required: true,
+            help: "Copy the secret's Value, not its Secret ID.",
+        },
+        {
+            name: "tenant_id",
+            label: "Directory (tenant) ID",
+            secret: false,
+            required: true,
+            pattern: GUID_PATTERN,
+            patternError: GUID_ERROR,
+        },
+    ],
+}
+
+/** An empty zip archive, base64: enough for the download button to save a file. */
+export const TEAMS_APP_PACKAGE = {
+    format: "zip",
+    content: "UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA==",
+    filename: "agenta-teams-app.zip",
+    link: null,
+}
+
 export const SLACK_SETUP: ChannelSetupInfo = {
     manifest: SLACK_MANIFEST,
     hostedAvailable: true,
@@ -167,6 +208,19 @@ export const whatsappHere: ChannelConnection = {
     handle: "+1 555 0100",
     webhookUrl: "https://cloud.agenta.ai/api/channels/whatsapp/events/",
     webhookVerifyToken: "1065550100.example-verify-token",
+}
+
+export const teamsHere: ChannelConnection = {
+    connectionId: "cx-teams",
+    platform: "teams",
+    kind: "custom",
+    status: "connected",
+    dm: "allow",
+    group: "allow",
+    chats: [DIRECT_MESSAGES_CHAT, {name: "Support", type: "channel"}],
+    agent: {id: AGENT_ID, name: AGENT_NAME},
+    connectedAt: "2026-08-21T10:12:00.000Z",
+    webhookUrl: "https://agenta.example.com/api/channels/teams/events/",
 }
 
 export const telegramElsewhere: ChannelConnection = {
@@ -423,13 +477,20 @@ export const createChannelStoryActions = (
             }
             return slackInstallUrl
         },
+        teamsAppPackage: async () => {
+            await delay(latencyMs)
+            return TEAMS_APP_PACKAGE
+        },
         connectCustom: async (platform) => {
             await delay(latencyMs)
             if (connectCustomError) throw new Error(connectCustomError)
             const connection: ChannelConnection = {
-                ...{slack: slackCustomHere, telegram: telegramHere, whatsapp: whatsappHere}[
-                    platform
-                ],
+                ...{
+                    slack: slackCustomHere,
+                    telegram: telegramHere,
+                    whatsapp: whatsappHere,
+                    teams: teamsHere,
+                }[platform],
                 kind: "custom",
                 agent: {id: AGENT_ID, name: AGENT_NAME},
             }

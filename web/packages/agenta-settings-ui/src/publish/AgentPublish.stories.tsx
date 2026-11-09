@@ -80,6 +80,7 @@ export const SeveralConnections: Story = {
                 slack: slackHere,
                 telegram: telegramHere,
                 whatsapp: null,
+                teams: null,
                 agentConnections: {
                     slack: [
                         {...slackHere, workspaceName: "Acme"},
@@ -92,6 +93,7 @@ export const SeveralConnections: Story = {
                     ],
                     telegram: [telegramHere, telegramCustomHere],
                     whatsapp: [],
+                    teams: [],
                 },
             }}
         />
@@ -101,14 +103,18 @@ export const SeveralConnections: Story = {
 /** The Agenta bot answers as another agent: Telegram opens the move-or-own-bot choice. */
 export const TelegramOnAnotherAgent: Story = {
     render: () => (
-        <PublishHost initial={{slack: slackHere, telegram: telegramElsewhere, whatsapp: null}} />
+        <PublishHost
+            initial={{slack: slackHere, telegram: telegramElsewhere, whatsapp: null, teams: null}}
+        />
     ),
 }
 
 /** A hosted Telegram link was minted but no chat is linked yet. */
 export const TelegramPending: Story = {
     render: () => (
-        <PublishHost initial={{slack: null, telegram: telegramPending, whatsapp: null}} />
+        <PublishHost
+            initial={{slack: null, telegram: telegramPending, whatsapp: null, teams: null}}
+        />
     ),
 }
 

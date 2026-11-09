@@ -3,7 +3,7 @@ import {useCallback, useEffect, useState} from "react"
 import {Alert, Button, Checkbox, RadioGroup, RadioGroupItem, Spinner, Switch} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
-import {errorMessage} from "./helpers"
+import {errorMessage, hasChannels, PLACES_LABELS, placeNoun} from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelPlatform,
@@ -51,14 +51,16 @@ const HELP = "text-xs leading-normal text-colorTextSecondary"
  * channel the bot joins later stays off until it is checked.
  */
 const AnswersInRow = ({
-    isSlack,
+    platform,
     answersIn,
 }: {
-    isSlack: boolean
+    platform: ChannelPlatform
     answersIn: ChannelAnswersInProps
 }) => {
     const {behavior, channels, onSave, busy = false} = answersIn
-    const noun = isSlack ? "channel" : "group"
+    const isSlack = platform === "slack"
+    const inChannels = hasChannels(platform)
+    const noun = placeNoun(platform)
     const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
     const [draft, setDraft] = useState<string[]>(stored ?? [])
@@ -99,7 +101,12 @@ const AnswersInRow = ({
         setDraft(stored ?? [])
     }
 
-    const title = isSlack ? "Channels it answers in" : "Groups it answers in"
+    const title =
+        platform === "teams"
+            ? "Chats it answers in"
+            : inChannels
+              ? "Channels it answers in"
+              : "Groups it answers in"
 
     return (
         <div
@@ -109,8 +116,9 @@ const AnswersInRow = ({
             <span className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-medium text-colorText">{title}</span>
                 <span className={HELP}>
-                    Where it answers when mentioned. {isSlack ? "Direct messages" : "Private chats"}{" "}
-                    follow the switch above.{isSlack ? " Channels include group DMs." : ""}
+                    Where it answers when mentioned.{" "}
+                    {inChannels ? "Direct messages" : "Private chats"} follow the switch above.
+                    {isSlack ? " Channels include group DMs." : ""}
                 </span>
             </span>
             {error ? <Alert type="error" showIcon message={error} /> : null}
@@ -120,8 +128,7 @@ const AnswersInRow = ({
                 </div>
             ) : !behavior.group ? (
                 <span className={HELP}>
-                    {isSlack ? "Channels" : "Group chats"} are switched off above, so it answers in
-                    none.
+                    {PLACES_LABELS[platform]} are switched off above, so it answers in none.
                 </span>
             ) : (
                 <>
@@ -210,7 +217,6 @@ export const ChannelAdvancedSection = ({
     actions,
     answersIn,
 }: ChannelAdvancedSectionProps) => {
-    const isSlack = platform === "slack"
     const [open, setOpen] = useState(false)
     const [settings, setSettings] = useState<ChannelToolSettings | null>(null)
     const [choice, setChoice] = useState<Choice>("all")
@@ -282,7 +288,11 @@ export const ChannelAdvancedSection = ({
     const toggleChannel = (key: string, checked: boolean) =>
         setDraft((keys) => (checked ? [...keys, key] : keys.filter((k) => k !== key)))
 
-    const noun = isSlack ? "channel" : "group"
+    const noun = placeNoun(platform)
+    // A Teams bot reads team channels and group chats; elsewhere the card says channels.
+    const readPlural = platform === "teams" ? "chats" : "channels"
+    const readTitle =
+        platform === "teams" ? "Chats it can search and read" : "Channels it can search and read"
 
     return (
         <div className="flex flex-col gap-2" data-testid="channels-advanced">
@@ -334,9 +344,9 @@ export const ChannelAdvancedSection = ({
                             <div className={`flex flex-col gap-2.5 px-3 py-3 ${DIVIDED}`}>
                                 <span className="flex flex-col gap-0.5">
                                     <span className="text-[13px] font-medium text-colorText">
-                                        Channels it can search and read
+                                        {readTitle}
                                     </span>
-                                    {isSlack ? null : (
+                                    {platform === "telegram" ? (
                                         <span
                                             className={HELP}
                                             data-testid="channels-advanced-telegram-help"
@@ -344,18 +354,18 @@ export const ChannelAdvancedSection = ({
                                             Telegram does not let bots read chat history, so the bot
                                             can read only messages it received.
                                         </span>
-                                    )}
+                                    ) : null}
                                 </span>
                                 <RadioGroup
                                     value={choice}
                                     onValueChange={choose}
                                     disabled={saving}
-                                    aria-label="Channels it can search and read"
+                                    aria-label={readTitle}
                                 >
                                     {(
                                         [
-                                            ["all", "All channels the bot is in"],
-                                            ["only", "Only these channels"],
+                                            ["all", `All ${readPlural} the bot is in`],
+                                            ["only", `Only these ${readPlural}`],
                                         ] as const
                                     ).map(([value, label]) => (
                                         <label
@@ -436,7 +446,7 @@ export const ChannelAdvancedSection = ({
                                 ) : null}
                             </div>
                             {answersIn ? (
-                                <AnswersInRow isSlack={isSlack} answersIn={answersIn} />
+                                <AnswersInRow platform={platform} answersIn={answersIn} />
                             ) : null}
                         </div>
                     )}

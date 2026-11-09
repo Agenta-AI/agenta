@@ -42,10 +42,12 @@ const withAgentNames = (
         slack: renameOrNull(connections.slack),
         telegram: renameOrNull(connections.telegram),
         whatsapp: renameOrNull(connections.whatsapp),
+        teams: renameOrNull(connections.teams),
         agentConnections: connections.agentConnections && {
             slack: connections.agentConnections.slack.map(rename),
             telegram: connections.agentConnections.telegram.map(rename),
             whatsapp: connections.agentConnections.whatsapp.map(rename),
+            teams: connections.agentConnections.teams.map(rename),
         },
         allConnections: connections.allConnections?.map(rename),
     }

@@ -54,7 +54,7 @@ export const AgentChannelsCard = ({
                     detail={
                         <span
                             className="flex items-center"
-                            aria-label="Slack, Telegram and WhatsApp"
+                            aria-label="Slack, Telegram, WhatsApp and Microsoft Teams"
                         >
                             {CHANNEL_PLATFORMS.map((platform, i) => (
                                 <span

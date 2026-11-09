@@ -20,6 +20,7 @@ import {
     slackCustomHere,
     slackHere,
     slackRevoked,
+    teamsHere,
     telegramCustomHere,
     telegramElsewhere,
     telegramHere,
@@ -208,6 +209,11 @@ export const ConnectedOwnTelegramBot: Story = {
             },
         },
     },
+}
+
+/** The customer's own Teams bot: the messaging endpoint and the app download stay findable. */
+export const ConnectedTeams: Story = {
+    render: () => <ManageHost connection={teamsHere} />,
 }
 
 /** One switch is off, so the agent answers direct messages only. */
