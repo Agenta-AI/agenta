@@ -162,6 +162,29 @@ export function AgentOperationsSections({
                         disabled={disabled}
                         automationDrawer={automationDrawer}
                         onOpenRunHistory={onOpenRunHistory}
+                        // Say what automations are, not only that there are none.
+                        emptyState={
+                            <span className="text-xs leading-5 text-colorTextTertiary">
+                                Run this agent on a schedule or an event.{" "}
+                                <CreateWithAIAddMenu
+                                    label="Add automation"
+                                    starterPrompt="I want an automation that"
+                                    onManual={onAdd}
+                                    manualTitle="Create manually"
+                                    manualHint="Run on a schedule or an event"
+                                    manualIcon={<Lightning size={16} />}
+                                    align="start"
+                                    trigger={
+                                        <button
+                                            type="button"
+                                            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-colorTextSecondary underline decoration-colorBorder underline-offset-2 hover:text-colorText hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ag-controlOutline)]"
+                                        >
+                                            Add one
+                                        </button>
+                                    }
+                                />
+                            </span>
+                        }
                     />
                 </div>
             </section>
