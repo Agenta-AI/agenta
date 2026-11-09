@@ -11,9 +11,9 @@ const { createWaits } = load("waits");
 const { createSession } = load("browser");
 const { createLiveView } = load("live-view");
 
-function setup({ sliceMs = 150, totalMs = 10_000, graceMs } = {}) {
+function setup({ sliceMs = 150, totalMs = 10_000, graceMs, answerMs } = {}) {
   let session;
-  const waits = createWaits({ sliceMs, totalMs, graceMs, onChange: () => session.emit("status") });
+  const waits = createWaits({ sliceMs, totalMs, graceMs, answerMs, onChange: () => session.emit("status") });
   session = createSession({ stateFile: path.join(os.tmpdir(), "agenta-browser-unused.json"), waits });
   const live = createLiveView(session);
   const viewer = () => {
@@ -88,7 +88,7 @@ test("a reason nobody waits on any more stops showing", async () => {
 });
 
 test("an old I'm done does not answer a later wait", async () => {
-  const { waits } = setup({ sliceMs: 20, graceMs: 40 });
+  const { waits } = setup({ sliceMs: 20, graceMs: 1_000, answerMs: 40 });
   assert.equal(await waits.wait("Sign in"), "still");
   waits.done();
   await new Promise((r) => setTimeout(r, 80));
@@ -109,4 +109,16 @@ test("a reworded reason updates the ask and keeps the total time", async () => {
   const second = waits.wait("Sign in to GitHub");
   assert.equal(waits.reason(), "Sign in to GitHub");
   assert.equal(await second, "expired");
+});
+
+test("a grace shorter than a slice ends the pending call instead of crashing", async () => {
+  const { waits } = setup({ sliceMs: 80, graceMs: 20 });
+  assert.equal(await waits.wait("Sign in"), "still");
+  const second = waits.wait("Sign in");
+  waits.done();
+  assert.equal(await second, "done");
+  const third = waits.wait("Sign in");
+  await new Promise((r) => setTimeout(r, 120));
+  assert.ok(["still", "expired"].includes(await third));
+  assert.equal(waits.active(), false);
 });

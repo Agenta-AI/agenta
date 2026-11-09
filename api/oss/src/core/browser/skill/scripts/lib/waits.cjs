@@ -8,11 +8,19 @@
 //   open -> done      on `done()`; pending calls resolve "done" now, else the next `wait` does,
 //                     so a click between two calls is not lost
 //   open -> expired   when `totalMs` passed since the wait opened
-//   done | expired    answered once by the next `wait`, then forgotten
+//   done | expired    answered once by the next `wait` within `answerMs`, then forgotten, so
+//                     an answer left over from an ended turn cannot answer a new one
 //   a call -> "still" when its slice ends first; the wait stays open
 //   no call for `graceMs` after a slice or a done: the turn ended, so the wait is forgotten
 
-function createWaits({ sliceMs, totalMs, graceMs = 120_000, now = Date.now, onChange = () => {} }) {
+function createWaits({
+  sliceMs,
+  totalMs,
+  graceMs = 120_000,
+  answerMs = 30_000,
+  now = Date.now,
+  onChange = () => {},
+}) {
   let slot = null; // { reason, startedAt, state: "open" | "done" | "expired", timer, grace }
   let pending = []; // { resolve, timer }
 
@@ -24,9 +32,10 @@ function createWaits({ sliceMs, totalMs, graceMs = 120_000, now = Date.now, onCh
     onChange();
   }
 
-  function forgetLater() {
+  function forgetLater(ms = graceMs) {
+    if (!slot) return;
     clearTimeout(slot.grace);
-    slot.grace = setTimeout(forget, graceMs);
+    slot.grace = setTimeout(forget, ms);
     slot.grace.unref?.();
   }
 
@@ -42,7 +51,7 @@ function createWaits({ sliceMs, totalMs, graceMs = 120_000, now = Date.now, onCh
     }
     if (resolved.length) forget();
     else {
-      forgetLater();
+      forgetLater(answerMs);
       onChange();
     }
   }
@@ -73,9 +82,14 @@ function createWaits({ sliceMs, totalMs, graceMs = 120_000, now = Date.now, onCh
       return new Promise((resolve) => {
         const waiter = { resolve };
         waiter.timer = setTimeout(() => {
-          // The last slice ends with the total time; it must not race the expiry into "still".
-          if (now() >= end) return settle("expired");
           pending = pending.filter((w) => w !== waiter);
+          // The wait was forgotten under this call (a grace shorter than a slice): it is over.
+          if (!slot) return resolve("expired");
+          // The last slice ends with the total time; it must not race the expiry into "still".
+          if (now() >= end) {
+            pending.push(waiter);
+            return settle("expired");
+          }
           forgetLater();
           resolve("still");
         }, Math.min(sliceMs, end - now()));
