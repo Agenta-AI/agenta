@@ -2,7 +2,7 @@
 import {afterEach, describe, expect, it} from "vitest"
 
 import type {InstanceLicense} from "@/features/settings/licenseApi"
-import {licenseNotices} from "@/features/settings/licenseNotices"
+import {licenseNotices} from "@/features/settings/LicenseNotices"
 import {forgetLicenseKey, peekLicenseKey, takeLicenseLinkKey} from "@/lib/context"
 
 const NOW = Date.parse("2026-11-09T12:00:00Z")
