@@ -19,6 +19,7 @@ OPENID_CONFIGURATION_URL = (
     "https://login.botframework.com/v1/.well-known/openidconfiguration"
 )
 ISSUER = "https://api.botframework.com"
+CHANNEL_ID = "msteams"
 LEEWAY_SECONDS = 300
 
 # Microsoft asks for a refresh at least once a day.
@@ -99,16 +100,18 @@ async def verify_token(
     token: Optional[str],
     app_id: str,
     service_url: Any,
+    channel_id: Any,
     keys: BotFrameworkKeys,
 ) -> None:
     """Raise ChannelSignatureInvalid unless `token` is a Bot Framework JWT for
-    `app_id` that vouches for `service_url`. Emulator tokens have another
-    issuer, so they fail."""
+    `app_id` that vouches for `service_url`, signed by a key that Microsoft
+    endorses for Teams, on an activity from Teams. Emulator tokens have
+    another issuer, so they fail."""
 
     def refuse() -> ChannelSignatureInvalid:
         return ChannelSignatureInvalid(channel="teams")
 
-    if not token or not app_id:
+    if not token or not app_id or channel_id != CHANNEL_ID:
         raise refuse()
     try:
         header = jwt.get_unverified_header(token)
@@ -119,7 +122,7 @@ async def verify_token(
         raise refuse()
 
     jwk = await keys.get(key_id)
-    if jwk is None:
+    if jwk is None or CHANNEL_ID not in (jwk.get("endorsements") or []):
         raise refuse()
     try:
         claims = jwt.decode(

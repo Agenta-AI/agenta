@@ -106,7 +106,7 @@ def test_the_locator_keeps_the_service_url_and_the_message_id():
     assert event.external_locator["service_url"] == p.SERVICE_URL
     assert event.external_locator["message_id"] == "1700000000777"
     assert event.external_locator["tenant_id"] == p.TENANT_ID
-    assert event.external_id == "1700000000777"
+    assert event.external_id == f"{p.PERSONAL_CONVERSATION}:1700000000777"
     assert event.processed.message_ref == "1700000000777"
     assert event.processed.sent_at is not None
 
@@ -172,6 +172,35 @@ def test_only_the_bot_mention_is_removed():
     assert event.processed.content[0]["text"] == "ask <at>Grace</at>"
 
 
+def test_a_person_with_the_bot_name_keeps_their_mention():
+    namesake = {
+        "type": "mention",
+        "text": "<at>Helper</at>",
+        "mentioned": {"id": "29:1namesake", "name": "Helper"},
+    }
+    event = _parse(
+        p.channel_message(
+            text="<at>Helper</at> ask <at>Helper</at>",
+            entities=[p.bot_mention(), namesake],
+        )
+    )
+
+    assert event.processed.content[0]["text"] == "ask <at>Helper</at>"
+
+
+def test_one_activity_id_in_two_conversations_gives_two_keys():
+    chat = _parse(p.message(text="hi", activity_id="1700000000777"))
+    channel = _parse(
+        p.channel_message(
+            text="<at>Helper</at> hi",
+            activity_id="1700000000777",
+            entities=[p.bot_mention()],
+        )
+    )
+
+    assert chat.external_id != channel.external_id
+
+
 def test_a_tag_or_channel_mention_does_not_address_the_bot():
     tag = {
         "type": "mention",
@@ -215,7 +244,8 @@ def test_a_card_click_is_an_action_with_the_choice_token():
     assert event.kind is ChannelEventKind.ACTION
     assert event.processed.content == [{"type": "text", "text": token}]
     assert event.external_locator["message_id"] == "1700000000555"
-    assert event.external_id == "1700000000556"
+    conversation_id = event.external_locator["conversation_id"]
+    assert event.external_id == f"{conversation_id}:1700000000556"
     assert event.addressed is True
 
 
