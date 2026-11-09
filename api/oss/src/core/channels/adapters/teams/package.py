@@ -24,6 +24,11 @@ MANIFEST_SCHEMA_VERSION = "1.16"
 DEFAULT_NAME = "Agenta"
 DEFAULT_DESCRIPTION = "An Agenta agent."
 DEVELOPER_NAME = "Agenta"
+# Teams accepts only HTTPS here, and a deployment's own web URL is often a
+# plain HTTP local address.
+DEVELOPER_WEBSITE_URL = "https://agenta.ai"
+DEVELOPER_PRIVACY_URL = "https://agenta.ai/privacy-policy"
+DEVELOPER_TERMS_URL = "https://agenta.ai/terms"
 FILENAME = "agenta-teams-app.zip"
 
 _SHORT_NAME_MAX = 30
@@ -50,7 +55,7 @@ def _fit(value: Optional[str], limit: int, default: str) -> str:
 
 
 def build_manifest(
-    *, app_id: str, identity: Optional[ChannelSetupIdentity], web_url: str
+    *, app_id: str, identity: Optional[ChannelSetupIdentity]
 ) -> Dict[str, Any]:
     identity = identity or ChannelSetupIdentity()
     return {
@@ -63,9 +68,9 @@ def build_manifest(
         "id": manifest_id(app_id),
         "developer": {
             "name": DEVELOPER_NAME,
-            "websiteUrl": web_url,
-            "privacyUrl": web_url,
-            "termsOfUseUrl": web_url,
+            "websiteUrl": DEVELOPER_WEBSITE_URL,
+            "privacyUrl": DEVELOPER_PRIVACY_URL,
+            "termsOfUseUrl": DEVELOPER_TERMS_URL,
         },
         "name": {
             "short": _fit(identity.name, _SHORT_NAME_MAX, DEFAULT_NAME),
@@ -93,10 +98,8 @@ def build_manifest(
     }
 
 
-def build_package(
-    *, app_id: str, identity: Optional[ChannelSetupIdentity], web_url: str
-) -> bytes:
-    manifest = build_manifest(app_id=app_id, identity=identity, web_url=web_url)
+def build_package(*, app_id: str, identity: Optional[ChannelSetupIdentity]) -> bytes:
+    manifest = build_manifest(app_id=app_id, identity=identity)
     entries = {
         "manifest.json": json.dumps(manifest, indent=2).encode(),
         "color.png": (_ICONS_DIR / "color.png").read_bytes(),
@@ -115,9 +118,9 @@ def build_package(
 
 
 def build_setup_document(
-    *, app_id: str, identity: Optional[ChannelSetupIdentity], web_url: str
+    *, app_id: str, identity: Optional[ChannelSetupIdentity]
 ) -> ChannelSetupDoc:
-    content = build_package(app_id=app_id, identity=identity, web_url=web_url)
+    content = build_package(app_id=app_id, identity=identity)
     return ChannelSetupDoc(
         format="zip",
         content=base64.b64encode(content).decode("ascii"),

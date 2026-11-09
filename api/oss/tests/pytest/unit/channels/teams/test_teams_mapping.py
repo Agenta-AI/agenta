@@ -250,27 +250,41 @@ def test_other_activity_types_are_ignored():
         assert _parse(p.message(text="hi", type=kind)) is None
 
 
-def test_a_click_in_a_channel_thread_keys_on_the_thread_of_the_card():
+def _channel_click(*, conversation_id, value_thread_id=None):
     activity = p.card_click(token="x:approve", card_id="333")
     activity["conversation"].update(
-        {
-            "id": f"{p.CHANNEL_CONVERSATION};messageid=111",
-            "conversationType": "channel",
-        }
+        {"id": conversation_id, "conversationType": "channel"}
     )
+    if value_thread_id is not None:
+        activity["value"]["thread_id"] = value_thread_id
+    return activity
 
-    event = _parse(activity)
+
+def test_a_click_takes_the_thread_from_the_conversation_id():
+    event = _parse(
+        _channel_click(
+            conversation_id=f"{p.CHANNEL_CONVERSATION};messageid=111",
+            value_thread_id="999",
+        )
+    )
 
     assert event.external_locator["conversation_id"] == p.CHANNEL_CONVERSATION
     assert event.external_locator["thread_id"] == "111"
+    assert event.external_locator["message_id"] == "333"
+    assert event.processed.message_ref == "333"
 
 
-def test_a_click_on_a_top_level_card_keys_on_the_card():
-    activity = p.card_click(token="x:approve", card_id="333")
-    activity["conversation"].update(
-        {"id": p.CHANNEL_CONVERSATION, "conversationType": "channel"}
+def test_a_click_without_a_thread_suffix_takes_the_thread_from_the_card_data():
+    event = _parse(
+        _channel_click(conversation_id=p.CHANNEL_CONVERSATION, value_thread_id="111")
     )
 
-    event = _parse(activity)
+    assert event.external_locator["thread_id"] == "111"
+    assert event.external_locator["message_id"] == "333"
 
-    assert event.external_locator["thread_id"] == "333"
+
+def test_a_click_in_a_chat_has_no_thread_even_with_card_data():
+    activity = p.card_click(token="x:approve", card_id="333")
+    activity["value"]["thread_id"] = "111"
+
+    assert _parse(activity).external_locator["thread_id"] == ""

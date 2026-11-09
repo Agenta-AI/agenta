@@ -132,6 +132,17 @@ def choice_token(activity: Dict[str, Any]) -> Optional[str]:
     return token if isinstance(token, str) and token else None
 
 
+def card_thread_id(activity: Dict[str, Any]) -> str:
+    """The thread root the card's button data names. The card's own id is
+    not the root when the card sits inside a thread. A forged value only
+    points the click at a thread whose pending choice the token must still
+    match."""
+
+    value = activity.get("value")
+    thread_id = value.get("thread_id") if isinstance(value, dict) else None
+    return thread_id if isinstance(thread_id, str) else ""
+
+
 def _sender(activity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """The Entra object id, the same for one person in every chat and for
     every bot. `from.id` changes per bot, so it is not an identity."""
@@ -164,13 +175,15 @@ def _title(activity: Dict[str, Any]) -> Optional[str]:
 
 
 def build_locator(
-    activity: Dict[str, Any], *, kind: ChannelSpaceKind, message_id: str
+    activity: Dict[str, Any],
+    *,
+    kind: ChannelSpaceKind,
+    message_id: str,
+    fallback_root: str,
 ) -> Optional[Dict[str, Any]]:
     """`conversation_id` never carries `;messageid=`. In a channel,
     `thread_id` is the root of the reply chain: the `messageid` part, or else
-    `message_id`, because a top-level post is the root of its own thread (for
-    a click, `message_id` is the card's). Chats have no threads, so
-    `thread_id` is `""`."""
+    `fallback_root`. Chats have no threads, so `thread_id` is `""`."""
 
     raw = (activity.get("conversation") or {}).get("id")
     tenant = tenant_id(activity)
@@ -178,7 +191,7 @@ def build_locator(
     if not isinstance(raw, str) or not raw or not tenant or not service_url:
         return None
     conversation_id, root = split_conversation_id(raw)
-    thread_id = (root or message_id) if kind is ChannelSpaceKind.TOPIC else ""
+    thread_id = (root or fallback_root) if kind is ChannelSpaceKind.TOPIC else ""
     return {
         "tenant_id": tenant,
         "conversation_id": conversation_id,
@@ -208,7 +221,12 @@ def parse_activity(
         card_id = activity.get("replyToId")
         if not card_id:
             return None
-        locator = build_locator(activity, kind=kind, message_id=str(card_id))
+        locator = build_locator(
+            activity,
+            kind=kind,
+            message_id=str(card_id),
+            fallback_root=card_thread_id(activity),
+        )
         if locator is None:
             return None
         return ChannelInboundEvent(
@@ -232,7 +250,10 @@ def parse_activity(
     text = strip_bot_mentions(text, activity, app_id=app_id)
     if not text:
         return None
-    locator = build_locator(activity, kind=kind, message_id=activity_id)
+    # A top-level post is the root of its own thread.
+    locator = build_locator(
+        activity, kind=kind, message_id=activity_id, fallback_root=activity_id
+    )
     if locator is None:
         return None
     title = _title(activity)

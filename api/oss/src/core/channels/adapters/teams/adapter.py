@@ -197,9 +197,7 @@ class TeamsAdapter(ChannelAdapterInterface):
         app_id = mapping.bare_app_id((locator or {}).get("app_id"))
         if not app_id:
             return None
-        return package.build_setup_document(
-            app_id=app_id, identity=identity, web_url=env.agenta.web_url
-        )
+        return package.build_setup_document(app_id=app_id, identity=identity)
 
     # --- ingress --- #
 

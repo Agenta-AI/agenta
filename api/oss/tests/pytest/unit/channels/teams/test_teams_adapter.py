@@ -215,9 +215,9 @@ async def test_the_manifest_text_defaults_and_developer_fields(adapter):
     assert manifest["description"]["short"] == "An Agenta agent."
     assert manifest["developer"] == {
         "name": "Agenta",
-        "websiteUrl": env.agenta.web_url,
-        "privacyUrl": env.agenta.web_url,
-        "termsOfUseUrl": env.agenta.web_url,
+        "websiteUrl": "https://agenta.ai",
+        "privacyUrl": "https://agenta.ai/privacy-policy",
+        "termsOfUseUrl": "https://agenta.ai/terms",
     }
 
 

@@ -127,11 +127,19 @@ The adapter SHALL cache Microsoft's signing keys for the whole deployment, read 
 - **THEN** `addressed` SHALL be false
 
 ### Requirement: Card clicks
-`parse_event` SHALL turn a `message` activity whose `value.choice_token` holds a choice token into an `ACTION` event whose content is that token, with `message_id` set to the activity's `replyToId`.
+`parse_event` SHALL turn a `message` activity whose `value.choice_token` holds a choice token into an `ACTION` event whose content is that token, with `message_id` set to the activity's `replyToId`. In a team channel, the click's `thread_id` SHALL come from the `;messageid=` part of `conversation.id` when present, else from `value.thread_id`; in chats it SHALL be `""`.
 
 #### Scenario: Approve click
 - **WHEN** a user clicks Approve on an approval card
 - **THEN** `parse_event` SHALL return an `ACTION` event with the content `<interaction UUID>:approve`
+
+#### Scenario: Click in a channel thread
+- **WHEN** a user clicks a card whose button data has `thread_id` `111`, and the click arrives with `conversation.id` `19:abc@thread.tacv2;messageid=111`
+- **THEN** the event's `thread_id` SHALL be `111` and its `message_id` SHALL be the card's activity id
+
+#### Scenario: Click without a thread suffix
+- **WHEN** a channel click arrives with `conversation.id` `19:abc@thread.tacv2` and button data with `thread_id` `111`
+- **THEN** the event's `thread_id` SHALL be `111`, so the click finds the pending choice on the thread of the card
 
 #### Scenario: Value without a choice token
 - **WHEN** a `message` activity has a `value` that carries no choice token and no text

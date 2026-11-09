@@ -85,7 +85,7 @@ The adapter SHALL declare `max_chars` 20000, so core splits a longer answer into
 - **THEN** the adapter SHALL raise `ChannelDeliveryUncertain`, so the outbox does not post the answer twice
 
 ### Requirement: Approval cards
-For a message with choices, `post_message` SHALL attach an Adaptive Card whose `Action.Submit` buttons carry `{"choice_token": <choice token>}` in `data`, and `dismiss_choices` SHALL replace the card with a copy without buttons through `PUT {service_url}/v3/conversations/{conversation}/activities/{message_id}`.
+For a message with choices, `post_message` SHALL attach an Adaptive Card whose `Action.Submit` buttons carry `{"choice_token": <choice token>, "thread_id": <the locator's thread_id>}` in `data`, and `dismiss_choices` SHALL replace the card with a copy without buttons through `PUT {service_url}/v3/conversations/{conversation}/activities/{message_id}`.
 
 #### Scenario: Card with Approve and Deny
 - **WHEN** the outbox posts a pending approval
