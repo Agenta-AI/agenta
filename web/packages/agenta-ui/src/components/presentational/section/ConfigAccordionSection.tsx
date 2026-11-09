@@ -411,7 +411,7 @@ export function ConfigAccordionSection({
                 className={cn(
                     "flex items-center justify-between gap-2 select-none",
                     quiet
-                        ? "group/row -mx-2 rounded-md px-2 py-2 transition-colors duration-150 hover:bg-[var(--ag-colorFillQuaternary)]"
+                        ? "group/row relative -mx-2 rounded-md px-2 py-2 transition-colors duration-150 hover:bg-[var(--ag-colorFillQuaternary)]"
                         : "py-3",
                     // An open quiet row keeps its hover fill, so it reads as the one in use.
                     quiet && isOpen && "bg-[var(--ag-colorFillQuaternary)]",

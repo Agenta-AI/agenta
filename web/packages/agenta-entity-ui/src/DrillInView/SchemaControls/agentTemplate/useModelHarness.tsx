@@ -624,27 +624,37 @@ export function useModelHarness({
 
     const permissionsBody = (
         <>
-            {/* The Permissions row's value. The whole row opens the picker, so the trigger is
-                plain text that only anchors the menu: no chevron, no pointer, no tab stop. */}
+            {/* The Permissions row's value is plain text. The picker's trigger is an invisible
+                layer over the whole row, so the menu opens as wide as the row; the row itself is
+                what the user clicks or focuses. */}
             {runnerPermissionSchema && policyInFocus ? (
-                <PermissionPolicySelect
-                    size="sm"
-                    align="end"
-                    open={policyPicker?.open}
-                    triggerTabIndex={policyPicker ? -1 : undefined}
-                    onOpenChange={policyPicker?.onOpenChange}
-                    triggerClassName="pointer-events-none h-auto w-auto border-transparent bg-transparent p-0 text-xs text-colorTextDescription shadow-none max-md:text-xs focus:border-transparent focus:shadow-none data-[state=open]:border-transparent data-[state=open]:shadow-none dark:bg-transparent [&>svg]:hidden"
-                    value={currentRunnerPermission}
-                    onChange={(v) =>
-                        setSection("runner", {
-                            ...runner,
-                            permissions: {...runnerPermissions, default: v},
-                        })
-                    }
-                    options={runnerPermissionOptions}
-                    disabled={disabled}
-                    aria-label="Policy"
-                />
+                <>
+                    {policyPicker ? (
+                        <span>{permissionPolicyLabel(currentRunnerPermission)}</span>
+                    ) : null}
+                    <PermissionPolicySelect
+                        size="sm"
+                        align="start"
+                        open={policyPicker?.open}
+                        triggerTabIndex={policyPicker ? -1 : undefined}
+                        onOpenChange={policyPicker?.onOpenChange}
+                        triggerClassName={
+                            policyPicker
+                                ? "pointer-events-none absolute inset-0 h-auto w-auto border-transparent bg-transparent opacity-0 shadow-none"
+                                : undefined
+                        }
+                        value={currentRunnerPermission}
+                        onChange={(v) =>
+                            setSection("runner", {
+                                ...runner,
+                                permissions: {...runnerPermissions, default: v},
+                            })
+                        }
+                        options={runnerPermissionOptions}
+                        disabled={disabled}
+                        aria-label="Policy"
+                    />
+                </>
             ) : null}
         </>
     )
