@@ -35,9 +35,9 @@ export const CreditAlertStrip = ({
     hidden: boolean
     onSwitchModel: () => void
 }) => {
-    // Polled only while an alert shows: a turn in another session can move the balance meanwhile.
+    // A turn in another session can move the balance: poll fast while an alert shows, slowly otherwise.
     const [watching, setWatching] = useState(false)
-    const wallet = useWalletSummary(projectId, {poll: watching})
+    const wallet = useWalletSummary(projectId, {poll: watching ? true : 60_000})
     // Judged at the last fetch: an unchanged response keeps `data`, but the date may have moved.
     const fetchedAt = wallet.dataUpdatedAt
     const alert = useMemo(
