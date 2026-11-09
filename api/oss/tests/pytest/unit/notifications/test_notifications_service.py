@@ -46,7 +46,7 @@ def _service(*, emails=None, template=None):
             return {user_id: EMAIL for user_id in user_ids}
         return emails
 
-    memberships.fetch_member_emails = fetch_member_emails
+    memberships.fetch_member_emails = AsyncMock(side_effect=fetch_member_emails)
     service = NotificationsService(
         notifications_dao=dao,
         memberships_service=memberships,
@@ -88,6 +88,35 @@ async def test_a_delivery_is_sent_with_its_rendered_parts(sender):
         from_name=None,
     )
     assert _states(dao) == [State.SENT]
+
+
+async def test_one_email_read_serves_every_delivery(sender):
+    service, dao = _service()
+    await _open(dao, recipients=3)
+
+    await _send(service)
+
+    fetch = service.memberships_service.fetch_member_emails
+    fetch.assert_awaited_once()
+    assert set(fetch.await_args.kwargs["user_ids"]) == {
+        row["user_id"] for row in dao.deliveries
+    }
+    assert _states(dao) == [State.SENT] * 3
+
+
+async def test_a_failed_email_read_keeps_every_delivery_created(sender, monkeypatch):
+    warning = MagicMock()
+    monkeypatch.setattr(service_module.log, "warning", warning)
+    service, dao = _service()
+    service.memberships_service.fetch_member_emails.side_effect = ConnectionError()
+    await _open(dao, recipients=2)
+
+    await _send(service)
+
+    sender.assert_not_awaited()
+    assert [row["attempt_count"] for row in dao.deliveries] == [0, 0]
+    assert _states(dao) == [State.CREATED] * 2
+    assert "ConnectionError" in repr(warning.call_args)
 
 
 async def test_a_request_sends_at_most_100(sender):

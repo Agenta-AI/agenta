@@ -40,8 +40,12 @@ TRIGGER_MAX_RETRIES = 5
 # they can never disagree on what counts as retryable.
 TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE = "500"
 
-# A delivery refused because its trigger is paused has the reason `paused_<error code>`.
+# A `403` refusal pauses the trigger. Its reason is `paused_<error code>`, the cause of
+# the pause.
 PAUSED_REASON_PREFIX = "paused_"
+
+# The delivery status codes the outcomes pass settles.
+SETTLEABLE_STATUS_CODES = ("202", "400", "403", "422", "500")
 
 
 # ---------------------------------------------------------------------------

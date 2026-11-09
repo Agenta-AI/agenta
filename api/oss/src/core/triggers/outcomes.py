@@ -133,10 +133,6 @@ def _turn_key(delivery: TriggerDelivery) -> Optional[TurnKey]:
     return (data.session_id, run_id) if data.session_id and run_id else None
 
 
-def _needs_signals(execution: Optional[SessionExecutionSettlement]) -> bool:
-    return execution is None or execution.terminal_outcome == "failed"
-
-
 class OutcomesService:
     def __init__(
         self,
@@ -219,9 +215,7 @@ class OutcomesService:
             )
             read = await self.records_dao.turn_signals(
                 project_id=project_id,
-                keys=[
-                    key for key in keys if _needs_signals(settled_executions.get(key))
-                ],
+                keys=keys,
             )
             executions.update(
                 {(project_id, k): v for k, v in settled_executions.items()}

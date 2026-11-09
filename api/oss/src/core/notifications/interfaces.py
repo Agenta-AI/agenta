@@ -60,7 +60,7 @@ class NotificationsDAOInterface(ABC):
     async def mark_skipped(self, *, project_id: UUID, delivery_id: UUID) -> None: ...
 
     @abstractmethod
-    async def record_failure(
+    async def record_send_failure(
         self,
         *,
         project_id: UUID,

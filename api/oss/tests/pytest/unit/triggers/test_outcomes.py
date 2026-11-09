@@ -11,10 +11,15 @@ from oss.src.core.sessions.executions.dtos import (
     SessionExecutionState,
 )
 from oss.src.core.sessions.records.dtos import TurnSignals
-from oss.src.core.triggers.dtos import TriggerDeliveryOutcome as Outcome
+from oss.src.core.triggers.dtos import (
+    SETTLEABLE_STATUS_CODES,
+    TriggerDeliveryOutcome as Outcome,
+)
 from oss.src.core.triggers.outcomes import (
+    _START_ROWS,
     MAX_PAGES,
     PAGE_SIZE,
+    STARTED_STATUS_CODE,
     OutcomesService,
     settle,
 )
@@ -259,7 +264,11 @@ async def test_the_guarded_write_gets_the_status_that_was_read():
     }
 
 
-async def test_records_are_read_only_for_turns_that_need_them():
+def test_the_settleable_codes_are_the_codes_settle_handles():
+    assert set(_START_ROWS) | {STARTED_STATUS_CODE} == set(SETTLEABLE_STATUS_CODES)
+
+
+async def test_records_are_read_for_every_turn():
     project_id = uuid4()
     deliveries = [
         make_delivery(
@@ -281,6 +290,7 @@ async def test_records_are_read_only_for_turns_that_need_them():
     await service.settle_pass()
 
     assert records_dao.turn_signals.await_args.kwargs["keys"] == [
+        ("session-1", "turn-done"),
         ("session-1", "turn-coded"),
         ("session-1", "turn-codeless"),
         ("session-1", "turn-running"),

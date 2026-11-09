@@ -19,7 +19,8 @@ log = get_module_logger(__name__)
 
 MAX_SENDS_PER_REQUEST = 100
 MAX_SEND_ATTEMPTS = 5
-# With 15 s per socket operation, a send started now ends well inside the 600 s lock.
+# A send waits at most `SMTP_TIMEOUT` (else 15 s) per SMTP socket operation, or 15 s for
+# SendGrid, so a send started inside this window ends well inside the 600 s lock.
 SEND_WINDOW_SECONDS = 300
 
 NotificationTemplate = Callable[[UUID, Dict[str, Any]], RenderedEmail]
@@ -90,6 +91,25 @@ class NotificationsService:
             env.smtp.enabled or env.sendgrid.enabled
         )
 
+        user_ids = {
+            delivery.user_id
+            for delivery in deliveries
+            if delivery.notification_state == NotificationState.OPEN
+        }
+        emails: Dict[UUID, str] = {}
+        if can_send and user_ids:
+            try:
+                emails = await self.memberships_service.fetch_member_emails(
+                    user_ids=list(user_ids)
+                )
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                log.warning(
+                    "[notifications] recipient emails read failed",
+                    delivery_ids=[str(delivery.id) for delivery in deliveries],
+                    error_type=type(error).__name__,
+                )
+                return
+
         for delivery in deliveries:
             if time.monotonic() - request_started_at >= SEND_WINDOW_SECONDS:
                 return
@@ -97,7 +117,7 @@ class NotificationsService:
             try:
                 email = None
                 if can_send and delivery.notification_state == NotificationState.OPEN:
-                    email = await self._recipient_email(delivery)
+                    email = emails.get(delivery.user_id)
                 if email is None:
                     await self.dao.mark_skipped(
                         project_id=delivery.project_id,
@@ -106,7 +126,7 @@ class NotificationsService:
                     continue
                 rendered = self.template(delivery.project_id, delivery.data)
             except Exception as error:  # pylint: disable=broad-exception-caught
-                await self._record_failure(delivery, error)
+                await self._record_send_failure(delivery, error)
                 continue
 
             try:
@@ -119,7 +139,7 @@ class NotificationsService:
                     from_name=rendered.from_name,
                 )
             except Exception as error:  # pylint: disable=broad-exception-caught
-                await self._record_failure(delivery, error)
+                await self._record_send_failure(delivery, error)
                 if is_recipient_rejection(error):
                     continue
                 return
@@ -129,15 +149,7 @@ class NotificationsService:
                 delivery_id=delivery.id,
             )
 
-    async def _recipient_email(
-        self, delivery: CreatedNotificationDelivery
-    ) -> Optional[str]:
-        emails = await self.memberships_service.fetch_member_emails(
-            user_ids=[delivery.user_id]
-        )
-        return emails.get(delivery.user_id)
-
-    async def _record_failure(
+    async def _record_send_failure(
         self,
         delivery: CreatedNotificationDelivery,
         error: Exception,
@@ -149,7 +161,7 @@ class NotificationsService:
             notification_id=str(delivery.notification_id),
             error_type=type(error).__name__,
         )
-        await self.dao.record_failure(
+        await self.dao.record_send_failure(
             project_id=delivery.project_id,
             delivery_id=delivery.id,
             max_attempts=MAX_SEND_ATTEMPTS,

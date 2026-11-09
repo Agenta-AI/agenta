@@ -6,6 +6,7 @@ from sqlalchemy import (
     text,
 )
 
+from oss.src.core.triggers.dtos import SETTLEABLE_STATUS_CODES
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.triggers.dbas import (
     TriggerDeliveryDBA,
@@ -138,7 +139,8 @@ class TriggerDeliveryDBE(Base, TriggerDeliveryDBA):
             "id",
             postgresql_where=text(
                 "(data->>'outcome') IS NULL "
-                "AND (status->>'code') IN ('202','400','403','422','500')"
+                "AND (status->>'code') IN "
+                f"({','.join(repr(code) for code in SETTLEABLE_STATUS_CODES)})"
             ),
         ),
     )

@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.triggers.dtos import (
+    SETTLEABLE_STATUS_CODES,
     TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE,
     TriggerDelivery,
     TriggerDeliveryCreate,
@@ -73,7 +74,8 @@ log = get_module_logger(__name__)
 # index `ix_trigger_deliveries_unsettled_created_at_id`.
 _UNSETTLED_FILTER = text(
     "(trigger_deliveries.data->>'outcome') IS NULL "
-    "AND (trigger_deliveries.status->>'code') IN ('202','400','403','422','500') "
+    "AND (trigger_deliveries.status->>'code') IN "
+    f"({','.join(repr(code) for code in SETTLEABLE_STATUS_CODES)}) "
     "AND trigger_deliveries.created_at > now() - interval '24 hours'"
 )
 

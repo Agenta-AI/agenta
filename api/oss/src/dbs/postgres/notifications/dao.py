@@ -198,7 +198,7 @@ class NotificationsDAO(NotificationsDAOInterface):
             values={"state": NotificationDeliveryState.SKIPPED.value},
         )
 
-    async def record_failure(
+    async def record_send_failure(
         self,
         *,
         project_id: UUID,

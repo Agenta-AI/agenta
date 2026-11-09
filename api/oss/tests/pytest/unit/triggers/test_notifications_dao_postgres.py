@@ -163,13 +163,13 @@ async def test_deliveries_are_read_with_their_notification_and_move_state(
 
     delivery_id = pending[0].id
     for _ in range(4):
-        await dao.record_failure(
+        await dao.record_send_failure(
             project_id=project_id, delivery_id=delivery_id, max_attempts=5
         )
     [row] = await _rows(project_id, "notification_deliveries")
     assert (row["attempt_count"], row["state"]) == (4, "created")
 
-    await dao.record_failure(
+    await dao.record_send_failure(
         project_id=project_id, delivery_id=delivery_id, max_attempts=5
     )
     [row] = await _rows(project_id, "notification_deliveries")
