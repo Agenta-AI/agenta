@@ -68,6 +68,7 @@ def parse_license_key(text: str) -> LicenseKey:
         raise InvalidLicenseKey("format")
     _, payload_part, signature_part = parts
 
+    payload_bytes = _b64url_decode(payload_part)
     signature = _b64url_decode(signature_part)
     try:
         _public_key().verify(signature, payload_part.encode("ascii"))
@@ -75,7 +76,7 @@ def parse_license_key(text: str) -> LicenseKey:
         raise InvalidLicenseKey("signature") from e
 
     try:
-        payload = json.loads(_b64url_decode(payload_part).decode("utf-8"))
+        payload = json.loads(payload_bytes.decode("utf-8"))
         if not isinstance(payload, dict):
             raise InvalidLicenseKey("payload")
         license_key = LicenseKey.model_validate(payload)
