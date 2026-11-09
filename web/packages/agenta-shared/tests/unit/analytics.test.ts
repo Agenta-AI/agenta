@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {
+    adoptInstanceIdentity,
     analyticsIdentity,
     captureFirstAgentIntent,
     classifyAgentIntent,
@@ -83,6 +84,22 @@ describe("shared desktop and mobile analytics", () => {
         ).toBe(false)
         expect(isCloudTelemetry(parseInstanceTelemetry({enabled: false, distinct_id: null, groups: null}))).toBe(false)
         expect(parseInstanceTelemetry(undefined)).toEqual({enabled: false, distinct_id: null, groups: null})
+    })
+
+    it("starts over before it identifies a browser that holds another id", () => {
+        const calls: string[] = []
+        const client = {
+            get_distinct_id: () => "person@example.test",
+            reset: () => calls.push("reset"),
+            identify: (id: string) => calls.push(`identify ${id}`),
+            group: (type: string, key: string) => calls.push(`group ${type} ${key}`),
+        }
+        adoptInstanceIdentity(client, {
+            enabled: true,
+            distinct_id: "instance-1:user-1",
+            groups: {instance: "instance-1"},
+        })
+        expect(calls).toEqual(["reset", "identify instance-1:user-1", "group instance instance-1"])
     })
 
     it("classifies text without sending it as an event property", () => {

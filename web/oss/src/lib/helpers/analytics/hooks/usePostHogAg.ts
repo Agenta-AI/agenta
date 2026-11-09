@@ -28,7 +28,7 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const instanceGroup = telemetry?.groups?.instance ?? null
     const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
     const {id: analyticsId, properties: personProps} = useMemo(
-        () => analyticsIdentity(user, cloud, telemetry?.distinct_id ?? baseDistinctId),
+        () => analyticsIdentity(user, cloud, telemetry?.distinct_id ?? ""),
         [user, cloud, telemetry?.distinct_id, baseDistinctId],
     )
     const identifiedRef = useRef<string | null>(null)
@@ -42,12 +42,12 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const baseIdentify = useMemo(() => posthog?.identify?.bind(posthog), [posthog])
     const capture: PostHog["capture"] = useCallback(
         (...args) => {
-            if (trackingEnabled) {
+            if (trackingEnabled && telemetry?.enabled) {
                 return baseCapture?.(...args)
             }
             return undefined
         },
-        [baseCapture, trackingEnabled],
+        [baseCapture, trackingEnabled, telemetry?.enabled],
     )
     const identify: PostHog["identify"] = useCallback(
         (id, ...args) => {
@@ -75,7 +75,8 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
 
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
-        if (!analyticsId) return
+        // No answer from the API yet (or a new user): no identity to send.
+        if (!telemetry?.distinct_id || !analyticsId) return
         const shouldIdentify =
             identifiedRef.current !== analyticsId ||
             (identifiedPersonPropsKey !== null &&

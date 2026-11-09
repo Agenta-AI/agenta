@@ -102,6 +102,28 @@ export const parseInstanceTelemetry = (data: unknown): InstanceTelemetry => {
 export const isCloudTelemetry = (telemetry: InstanceTelemetry) =>
     telemetry.enabled && telemetry.groups === null
 
+interface IdentityClient {
+    get_distinct_id: () => string
+    reset: () => void
+    identify: (id: string) => void
+    group: (type: string, key: string) => void
+}
+
+/**
+ * Self-hosted: identify with the API's id before the first event. A browser that holds
+ * another id (for example an email from before) starts over, so nothing stored under
+ * that id is sent again.
+ */
+export const adoptInstanceIdentity = (
+    client: IdentityClient,
+    telemetry: InstanceTelemetry | null,
+) => {
+    if (!telemetry?.distinct_id) return
+    if (client.get_distinct_id() !== telemetry.distinct_id) client.reset()
+    client.identify(telemetry.distinct_id)
+    if (telemetry.groups) client.group("instance", telemetry.groups.instance)
+}
+
 export interface AnalyticsUser {
     email?: string | null
     username?: string | null

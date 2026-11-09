@@ -5,6 +5,7 @@ import {
     POSTHOG_CONFIG,
     SELF_HOSTED_CONFIG,
     generateOrRetrieveDistinctId,
+    adoptInstanceIdentity,
     isCloudTelemetry,
     parseInstanceTelemetry,
 } from "@agenta/shared/analytics"
@@ -41,6 +42,8 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
 
     // The API decides whether this instance sends events, and under which id.
     useEffect(() => {
+        // A new user (or none) must not send under the previous user's answer.
+        setTelemetry(null)
         if (!userId) return
         let cancelled = false
         axios
@@ -85,6 +88,8 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                         const distinctId = generateOrRetrieveDistinctId()
                         if (cloud && distinctId) {
                             posthog.identify?.(distinctId)
+                        } else if (!cloud) {
+                            adoptInstanceIdentity(posthog, telemetry)
                         }
                         posthog.capture?.("$pageview", {$current_url: window.location.href})
                     }

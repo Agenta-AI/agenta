@@ -58,6 +58,9 @@ export const Analytics = () => {
                 client.alias(id, baseId)
                 aliasedIdRef.current = id
             }
+            // Self-hosted: a browser that holds another id (for example an email from
+            // before) starts over, so nothing stored under that id is sent again.
+            if (!cloud && client.get_distinct_id() !== id) client.reset()
             client.identify(id, properties)
             if (instanceGroup) client.group("instance", instanceGroup)
             identityRef.current = key
