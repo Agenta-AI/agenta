@@ -161,13 +161,9 @@ const TAB_DOT_STATUSES = new Set(["waiting", "running"])
 const RUNNING_TITLE =
     "bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_50%,var(--ag-colorTextQuaternary)_100%)] bg-clip-text motion-safe:animate-text-shimmer motion-safe:bg-[length:200%_100%] motion-safe:text-transparent"
 
-/** The chip's slot in the strip. A connected open tab docks at the strip's edge when scrolled
- * past, so it never leaves the page it opens. */
-const tabSlotClass = (connected: boolean, active: boolean, divided?: boolean) =>
-    connected
-        ? // A docked tab stays above the tabs scrolling under it.
-          clsx("mr-0.5 shrink-0", active && "sticky left-0 right-0 z-[3]")
-        : clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)
+/** The chip's slot in the strip. Every tab scrolls with the strip; none docks over the others. */
+const tabSlotClass = (connected: boolean, divided?: boolean) =>
+    connected ? "mr-0.5 shrink-0" : clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)
 
 /**
  * A row as a chip: the shared `SessionTab`, with the status dot derived from the row view-model
@@ -324,7 +320,7 @@ const RailTab = ({
 
     // 9px = 4px + the 1px divider + 4px, so TAB_DIVIDER lands centred with clearance either side.
     return (
-        <div ref={ref} className={tabSlotClass(connected, active, divided)}>
+        <div ref={ref} className={tabSlotClass(connected, divided)}>
             {chip}
         </div>
     )
@@ -335,6 +331,9 @@ const PICK_TIMEOUT_MS = 3000
 
 /** Placeholder chips while the first rows load — a long, a short and a middling title. */
 const SKELETON_CHIP_WIDTHS = ["w-32", "w-24", "w-28"]
+
+/** A strip entry: a listed row, or a session open here whose row has not landed. */
+type StripItem = {id: string; vm: SessionRowVm} | {id: string; tab: {id: string; title: string}}
 /** Title-line widths for the page-tab skeleton, near what real session names measure. */
 const SKELETON_TAB_TITLES = ["w-24", "w-14", "w-20"]
 
@@ -370,7 +369,7 @@ const UnlistedTab = ({
 }) => {
     const ref = useRevealWhenActive(active, connected)
     return (
-        <div ref={ref} className={tabSlotClass(connected, active, divided)}>
+        <div ref={ref} className={tabSlotClass(connected, divided)}>
             <SessionRowContextMenu entries={menu} onSelect={onMenuSelect}>
                 <SessionTab
                     active={active}
@@ -441,10 +440,16 @@ export const SessionTabRail = ({
     // the agent whose sessions these are.
     const orderScope = sessionTabScope(listArgs.agentId)
     const savedOrder = useAtomValue(sessionTabOrderAtomFamily(orderScope))
-    // Rank every session the list carries, open or not, so reopening one restores its old slot.
-    useSessionTabOrderSeed(orderScope, listedIds)
     // Membership is the user's own: tabs are an explicit set here, not a view of the server list.
     const openIds = useOpenSessionTabs(orderScope, listedIds, activeSessionId)
+    // Rank every session the list carries, open or not, so reopening one restores its old slot,
+    // and every open tab too: a new session takes its slot when it opens, not when its first turn
+    // lists it, so it never jumps past the drafts opened before it.
+    const seedIds = useMemo(() => {
+        const listed = new Set(listedIds)
+        return [...listedIds, ...(openIds ?? []).filter((id) => !listed.has(id))]
+    }, [listedIds, openIds])
+    useSessionTabOrderSeed(orderScope, seedIds)
     // Rows for exactly that set, by id — see the header for why not the list's rows.
     const tabs = useSessionTabRows({
         policy: listArgs.policy,
@@ -525,21 +530,30 @@ export const SessionTabRail = ({
         },
         [onSelectUnlisted],
     )
-    const orderedIds = useMemo(() => rows.map((vm) => vm.id), [rows])
-    // Everything on the strip, in rendered order — unlisted chips trail the rows. This is the
-    // order a close reads its survivor from, so closing an unlisted chip lands somewhere too.
-    const renderedIds = useMemo(
-        () => [...orderedIds, ...visibleUnlisted.map((tab) => tab.id)],
-        [orderedIds, visibleUnlisted],
+    // Everything on the strip in ONE order, listed rows and unlisted chips alike: rendering the
+    // unlisted ones after every row made a new session jump ahead of older drafts the moment its
+    // first turn listed it. This is also the order a close reads its survivor from.
+    const stripItems = useMemo(
+        () =>
+            applySessionTabOrder<StripItem>(
+                [
+                    ...rows.map((vm) => ({id: vm.id, vm})),
+                    ...(tabs.isPending ? [] : visibleUnlisted.map((tab) => ({id: tab.id, tab}))),
+                ],
+                savedOrder,
+            ),
+        [rows, visibleUnlisted, tabs.isPending, savedOrder],
     )
+    const renderedIds = useMemo(() => stripItems.map((item) => item.id), [stripItems])
     // Published so a keyboard surface outside the rail can address "the Nth tab".
     usePublishRenderedSessionTabs(orderScope, renderedIds)
     const closeTabs = useMemo(
-        () => [
-            ...rows.map((vm) => ({id: vm.id, pinned: vm.isPinned})),
-            ...visibleUnlisted.map((tab) => ({id: tab.id, pinned: false})),
-        ],
-        [rows, visibleUnlisted],
+        () =>
+            stripItems.map((item) => ({
+                id: item.id,
+                pinned: "vm" in item ? item.vm.isPinned : false,
+            })),
+        [stripItems],
     )
     // The last chip stays: closing it would leave the surface with nothing to show.
     const closable = renderedIds.length > 1
@@ -554,7 +568,6 @@ export const SessionTabRail = ({
             }
             remeasureKey={rows.length}
             bare={bare}
-            snap={bare}
             fitTabs={bare ? 3 : undefined}
             onNaturalWidth={onStripNaturalWidth}
             className={className}
@@ -586,73 +599,87 @@ export const SessionTabRail = ({
                               className={clsx("mr-2.25 h-7 shrink-0 rounded", width)}
                           />
                       ))
-                : rows.map((vm, index) => (
-                      <RailTab
-                          key={vm.id}
-                          vm={vm}
-                          active={vm.id === shownActiveId}
-                          connected={Boolean(bare)}
-                          divided={index > 0}
-                          onSelect={selectTab}
-                          onClose={onClose && closable ? () => onClose(vm, renderedIds) : undefined}
-                          onRename={
-                              onRenameTab && (canRenameTab?.(vm) ?? true)
-                                  ? (name) => onRenameTab(vm, name)
-                                  : undefined
-                          }
-                          menuFor={(row) => [
-                              ...(menuFor?.(row) ?? []),
-                              ...(onClose
-                                  ? closeEntries(sessionTabCloseTargets(closeTabs, row.id))
-                                  : []),
-                          ]}
-                          onMenuSelect={(row, key) => {
-                              if (key === CLOSE) {
-                                  onClose?.(row, renderedIds)
-                                  return
-                              }
-                              if (key === CLOSE_OTHERS || key === CLOSE_RIGHT) {
-                                  const targets = sessionTabCloseTargets(closeTabs, row.id)
-                                  onCloseMany?.(
-                                      key === CLOSE_OTHERS ? targets.others : targets.toRight,
-                                      renderedIds,
-                                  )
-                                  return
-                              }
-                              onMenuSelect?.(row, key)
-                          }}
-                      />
-                  ))}
-            {tabs.isPending
-                ? null
-                : visibleUnlisted.map((tab, index) => (
-                      <UnlistedTab
-                          key={tab.id}
-                          id={tab.id}
-                          title={tab.title}
-                          active={tab.id === shownActiveId}
-                          connected={Boolean(bare)}
-                          divided={rows.length > 0 || index > 0}
-                          onSelect={selectUnlistedTab}
-                          // Only the tab verbs, and only when the host can land a close.
-                          menu={onCloseMany ? unlistedTabMenu(closeTabs, tab.id) : undefined}
-                          onMenuSelect={(key) => {
-                              const ids = unlistedTabCloseIds(key, closeTabs, tab.id)
-                              if (ids) onCloseMany?.(ids, renderedIds)
-                          }}
-                          // The host owns where a close lands, so it takes the active chip's
-                          // close; without a host handler only a chip you are not on can go.
-                          onClose={
-                              !closable
-                                  ? undefined
-                                  : onCloseMany
-                                    ? () => onCloseMany([tab.id], renderedIds)
-                                    : tab.id === activeSessionId
+                : stripItems.map((item, index) => {
+                      if ("vm" in item) {
+                          const vm = item.vm
+                          return (
+                              <RailTab
+                                  key={vm.id}
+                                  vm={vm}
+                                  active={vm.id === shownActiveId}
+                                  connected={Boolean(bare)}
+                                  divided={index > 0}
+                                  onSelect={selectTab}
+                                  onClose={
+                                      onClose && closable
+                                          ? () => onClose(vm, renderedIds)
+                                          : undefined
+                                  }
+                                  onRename={
+                                      onRenameTab && (canRenameTab?.(vm) ?? true)
+                                          ? (name) => onRenameTab(vm, name)
+                                          : undefined
+                                  }
+                                  menuFor={(row) => [
+                                      ...(menuFor?.(row) ?? []),
+                                      ...(onClose
+                                          ? closeEntries(sessionTabCloseTargets(closeTabs, row.id))
+                                          : []),
+                                  ]}
+                                  onMenuSelect={(row, key) => {
+                                      if (key === CLOSE) {
+                                          onClose?.(row, renderedIds)
+                                          return
+                                      }
+                                      if (key === CLOSE_OTHERS || key === CLOSE_RIGHT) {
+                                          const targets = sessionTabCloseTargets(closeTabs, row.id)
+                                          onCloseMany?.(
+                                              key === CLOSE_OTHERS
+                                                  ? targets.others
+                                                  : targets.toRight,
+                                              renderedIds,
+                                          )
+                                          return
+                                      }
+                                      onMenuSelect?.(row, key)
+                                  }}
+                              />
+                          )
+                      }
+                      const tab = item.tab
+                      return (
+                          <UnlistedTab
+                              key={tab.id}
+                              id={tab.id}
+                              title={tab.title}
+                              active={tab.id === shownActiveId}
+                              connected={Boolean(bare)}
+                              divided={index > 0}
+                              onSelect={selectUnlistedTab}
+                              // Only the tab verbs, and only when the host can land a close.
+                              menu={onCloseMany ? unlistedTabMenu(closeTabs, tab.id) : undefined}
+                              onMenuSelect={(key) => {
+                                  const ids = unlistedTabCloseIds(key, closeTabs, tab.id)
+                                  if (ids) onCloseMany?.(ids, renderedIds)
+                              }}
+                              // The host owns where a close lands, so it takes the active chip's
+                              // close; without a host handler only a chip you are not on can go.
+                              onClose={
+                                  !closable
                                       ? undefined
-                                      : () => closeOpenTabs({scope: orderScope, ids: [tab.id]})
-                          }
-                      />
-                  ))}
+                                      : onCloseMany
+                                        ? () => onCloseMany([tab.id], renderedIds)
+                                        : tab.id === activeSessionId
+                                          ? undefined
+                                          : () =>
+                                                closeOpenTabs({
+                                                    scope: orderScope,
+                                                    ids: [tab.id],
+                                                })
+                              }
+                          />
+                      )
+                  })}
         </SessionTabStrip>
     )
 }

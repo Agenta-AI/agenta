@@ -42,8 +42,10 @@ const INLINE_ADD_PX = 28
  * overflow and offsets do not.
  */
 const chipsWidth = (el: HTMLElement): number => {
-    const first = el.firstElementChild as HTMLElement | null
-    const last = el.lastElementChild as HTMLElement | null
+    // The edge covers are sticky and report where they are pinned, so they never bound the row.
+    const chips = (Array.from(el.children) as HTMLElement[]).filter((c) => !c.dataset.curtain)
+    const first = chips[0]
+    const last = chips[chips.length - 1]
     if (!first || !last) return 0
     const trailing = parseFloat(getComputedStyle(last).marginRight) || 0
     return last.offsetLeft + last.offsetWidth + trailing - first.offsetLeft
@@ -63,30 +65,6 @@ const hostRoom = (el: HTMLElement): number => {
         if (Number.isFinite(max)) return max
     }
     return Number.POSITIVE_INFINITY
-}
-
-/** How long a scroll must rest before it counts as stopped. */
-const SNAP_IDLE_MS = 140
-
-/**
- * Where the scroller should rest: the tab start closest to `scrollLeft`, `inset` in from the left
- * edge. Null at either end of the strip, where there is nothing to settle. Sticky children (the
- * edge covers, a docked tab) sit where they are pinned, not where they flow, so they are skipped.
- */
-const snapTarget = (el: HTMLElement, inset: number): number | null => {
-    const max = el.scrollWidth - el.clientWidth
-    if (el.scrollLeft <= 1 || el.scrollLeft >= max - 1) return null
-    const origin = el.getBoundingClientRect().left
-    let target: number | null = null
-    for (const child of Array.from(el.children) as HTMLElement[]) {
-        if (getComputedStyle(child).position === "sticky") continue
-        const at = el.scrollLeft + child.getBoundingClientRect().left - origin - inset
-        const stop = Math.max(0, Math.min(max, at))
-        if (target === null || Math.abs(stop - el.scrollLeft) < Math.abs(target - el.scrollLeft)) {
-            target = stop
-        }
-    }
-    return target
 }
 
 export interface SessionTabStripProps {
@@ -114,12 +92,10 @@ export interface SessionTabStripProps {
     remeasureKey?: unknown
     /** Only the chips and extras, for a host bar that already draws the height and hairline. */
     bare?: boolean
-    /** Settle on the nearest chip when a scroll stops, so none rests cut off at the start. */
-    snap?: boolean
     /**
      * Bare only: show this many whole tabs. The strip takes their width (short names make it
-     * narrow, long ones wide; the host caps it), keeps the open tab among them, and settles a
-     * scroll by hand on the nearest window once it rests.
+     * narrow, long ones wide; the host caps it) and brings the open tab's window into view; a
+     * scroll by hand stays where it is left.
      */
     fitTabs?: number
     /** Fit mode: the width the strip would take for `fitTabs` tabs with room to spare, so the
@@ -139,16 +115,16 @@ const SCROLLER_CLASS =
     "flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 
 /**
- * The bare strip's room at each end: the open tab's flared corners need it, and a docked tab sits
- * this far in. Cut-off tabs are never left at rest (the strip snaps), so the bare strip has no
- * edge fade: a fade would also dim the open tab while it is docked at that edge.
+ * The bare strip's room at each end: the open tab's flared corners need it. A scroll by hand can
+ * rest with a tab cut at an edge, so that edge fades; an edge with whole tabs stays crisp, so the
+ * open tab is never dimmed.
  */
 export const BARE_INSET_PX = 12
 const BARE_SCROLLER_CLASS =
     "flex h-full min-w-0 max-w-full flex-1 items-end overflow-x-auto overscroll-x-contain px-3 [justify-content:safe_center] motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-/** Covers the scroller's padding at each end, so tabs scrolling past never show in the gap beside
- * a docked tab. Under the open tab (z-3), over the rest. Sticky offsets count from the content
- * box, so -12px puts each cover on the padding. */
+/** Covers the scroller's padding at each end, so a tab scrolling past stops at the same 12px inset
+ * the open tab's flared corners need. Sticky offsets count from the content box, so -12px puts
+ * each cover on the padding. */
 const CURTAIN = "sticky z-[2] w-3 shrink-0 self-stretch bg-[var(--ag-surface-tab-bar)]"
 
 export const SessionTabStrip = ({
@@ -161,7 +137,6 @@ export const SessionTabStrip = ({
     leadingExtra,
     remeasureKey,
     bare = false,
-    snap = false,
     fitTabs,
     onNaturalWidth,
     className,
@@ -181,134 +156,80 @@ export const SessionTabStrip = ({
     const onNaturalWidthRef = useRef(onNaturalWidth)
     onNaturalWidthRef.current = onNaturalWidth
     const tabCountRef = useRef(0)
-    const pressedRef = useRef(false)
     // The open tab is pulled into view only when it CHANGES. Re-running that on every resize
     // undid a scroll by hand: the window's own width change fired the next refit.
     const shownActiveRef = useRef<Element | null>(null)
-    // Where the strip last scrolled itself. While the scroll still sits there, the user has not
-    // scrolled by hand, so a refit may move it again (e.g. when titles land and tabs change width).
-    const autoScrollRef = useRef<number | null>(0)
-    const fitWindow = useCallback(
-        (mode: "keep" | "nearest") => {
-            const el = stripElRef.current
-            if (!el || !fitTabs || pressedRef.current) return
-            // Tab slots only: the edge covers sit in the padding and take no room in the row.
-            const slots = (Array.from(el.children) as HTMLElement[]).filter(
-                (child) => !child.dataset.curtain,
-            )
-            if (slots.length === 0) return
-            // Exact widths: tabs size to their names, and rounded `offsetWidth`s drift by a pixel
-            // per tab, which lands a rest a few pixels into the next tab.
-            const sizes = slots.map(
-                (slot) =>
-                    slot.getBoundingClientRect().width +
-                    (parseFloat(getComputedStyle(slot).marginRight) || 0),
-            )
-            // Flow positions from the sizes, not offsets: a docked tab reports where it is pinned.
-            const starts = sizes.map((_, i) =>
-                sizes.slice(0, i).reduce((sum, size) => sum + size, 0),
-            )
-            const active = slots.findIndex((slot) => slot.querySelector('[aria-selected="true"]'))
-            const margin = (i: number) => parseFloat(getComputedStyle(slots[i]).marginRight) || 0
-            const room = hostRoom(el)
-            // A tab may never be wider than the strip can show, or a one-tab strip clips it.
-            if (Number.isFinite(room)) {
-                el.style.setProperty("--strip-tab-max", `${Math.floor(room) - 2 * BARE_INSET_PX}px`)
-            }
-            const span = (first: number, count: number) => {
-                const last = Math.min(first + count, slots.length) - 1
-                const tabs = sizes.slice(first, last + 1).reduce((sum, size) => sum + size, 0)
-                return Math.round(tabs - margin(last) + 2 * BARE_INSET_PX)
-            }
-            // The home window holds the open tab and moves only as far as it must to keep it.
-            // The strip's width comes from it alone, never from where a scroll rests: a width
-            // that followed the scroll resized the centred bar and slid every tab sideways.
-            const homeFor = (count: number) => {
-                let first = homeStartRef.current
-                if (active >= 0 && active < first) first = active
-                if (active >= 0 && active > first + count - 1) first = active - count + 1
-                return Math.max(0, Math.min(first, slots.length - count))
-            }
-            let count = fitTabs
-            let home = homeFor(count)
-            const natural = span(home, count)
-            if (natural !== naturalRef.current) {
-                naturalRef.current = natural
-                onNaturalWidthRef.current?.(natural)
-            }
-            while (count > 1 && span(home, count) > room + 1) {
-                count -= 1
-                home = homeFor(count)
-            }
-            const activeSlot = active >= 0 ? slots[active] : null
-            const moved =
-                activeSlot !== shownActiveRef.current || slots.length !== tabCountRef.current
-            homeStartRef.current = home
-            shownActiveRef.current = activeSlot
-            tabCountRef.current = slots.length
-            el.style.width = `${Math.min(span(home, count), Math.floor(room))}px`
-            el.style.flex = "none"
-            const scrollTo = (left: number) => {
-                // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced
-                // motion.
-                if (Math.abs(el.scrollLeft - left) > 1) el.scrollTo({left: Math.max(0, left)})
-            }
-            if (mode === "nearest") {
-                // The strip's own scroll settling, not a hand scroll: nothing to rest.
-                if (
-                    autoScrollRef.current !== null &&
-                    Math.abs(el.scrollLeft - autoScrollRef.current) <= 1
-                ) {
-                    return
-                }
-                // A scroll by hand rests where no tab is cut at either edge. The width is the
-                // home window's, so a rest on a tab start can still cut the tab at the far edge;
-                // candidates aligned to a tab end cover that. A docked open tab takes its edge.
-                const view = el.clientWidth - 2 * BARE_INSET_PX
-                const maxScroll = el.scrollWidth - el.clientWidth
-                const end = (i: number) => starts[i] + sizes[i] - margin(i)
-                const whole = (x: number) => {
-                    let lo = x
-                    let hi = x + view
-                    if (active >= 0 && starts[active] < lo) lo += sizes[active]
-                    else if (active >= 0 && end(active) > hi) hi -= sizes[active]
-                    return slots.every((_, i) => {
-                        if (i === active) return true
-                        const inside = starts[i] >= lo - 1 && end(i) <= hi + 1
-                        const outside = end(i) <= lo + 1 || starts[i] >= hi - 1
-                        return inside || outside
-                    })
-                }
-                const candidates = slots.flatMap((_, i) => [
-                    starts[i] - (active >= 0 && active < i ? sizes[active] : 0),
-                    end(i) - view + (active >= 0 && active > i ? sizes[active] : 0),
-                ])
-                const clamp = (x: number) => Math.max(0, Math.min(Math.round(x), maxScroll))
-                const nearest = (list: number[]) =>
-                    list.reduce((a, b) =>
-                        Math.abs(b - el.scrollLeft) < Math.abs(a - el.scrollLeft) ? b : a,
-                    )
-                // The two ends always count: a scroll to the start or the end must reach it, even
-                // when the tab at the far edge is then cut.
-                const fitting = [0, maxScroll, ...candidates.map(clamp).filter(whole)]
-                scrollTo(nearest(fitting))
-                // A hand scroll owns the view until the open tab or the tab set changes.
-                autoScrollRef.current = null
-                return
-            }
-            // A new open tab or a changed tab set moves the view. Otherwise a refit moves it only
-            // while the user has not scrolled by hand since the strip last placed it.
-            const untouched =
-                autoScrollRef.current !== null &&
-                Math.abs(el.scrollLeft - autoScrollRef.current) <= 1
-            if (moved || untouched) {
-                const target = Math.max(0, Math.min(starts[home], el.scrollWidth - el.clientWidth))
-                scrollTo(target)
-                autoScrollRef.current = target
-            }
-        },
-        [fitTabs],
-    )
+    // Whether the strip still owns its scroll. A wheel or a press on the strip hands it to the user,
+    // and a scroll by hand then stays where it is left; a new open tab or tab set takes it back.
+    const ownsScrollRef = useRef(true)
+    const fitWindow = useCallback(() => {
+        const el = stripElRef.current
+        if (!el || !fitTabs) return
+        // Tab slots only: the edge covers sit in the padding and take no room in the row.
+        const slots = (Array.from(el.children) as HTMLElement[]).filter(
+            (child) => !child.dataset.curtain,
+        )
+        if (slots.length === 0) return
+        // Exact widths: tabs size to their names, and rounded `offsetWidth`s drift by a pixel
+        // per tab, which lands a rest a few pixels into the next tab.
+        const sizes = slots.map(
+            (slot) =>
+                slot.getBoundingClientRect().width +
+                (parseFloat(getComputedStyle(slot).marginRight) || 0),
+        )
+        // Flow positions from the sizes, so a tab mid-glide does not skew them.
+        const starts = sizes.map((_, i) => sizes.slice(0, i).reduce((sum, size) => sum + size, 0))
+        const active = slots.findIndex((slot) => slot.querySelector('[aria-selected="true"]'))
+        const margin = (i: number) => parseFloat(getComputedStyle(slots[i]).marginRight) || 0
+        const room = hostRoom(el)
+        // A tab may never be wider than the strip can show, or a one-tab strip clips it.
+        if (Number.isFinite(room)) {
+            el.style.setProperty("--strip-tab-max", `${Math.floor(room) - 2 * BARE_INSET_PX}px`)
+        }
+        const span = (first: number, count: number) => {
+            const last = Math.min(first + count, slots.length) - 1
+            const tabs = sizes.slice(first, last + 1).reduce((sum, size) => sum + size, 0)
+            return Math.round(tabs - margin(last) + 2 * BARE_INSET_PX)
+        }
+        // The home window holds the open tab and moves only as far as it must to keep it.
+        // The strip's width comes from it alone, never from where a scroll rests: a width
+        // that followed the scroll resized the centred bar and slid every tab sideways.
+        const homeFor = (count: number) => {
+            let first = homeStartRef.current
+            if (active >= 0 && active < first) first = active
+            if (active >= 0 && active > first + count - 1) first = active - count + 1
+            return Math.max(0, Math.min(first, slots.length - count))
+        }
+        let count = fitTabs
+        let home = homeFor(count)
+        const natural = span(home, count)
+        if (natural !== naturalRef.current) {
+            naturalRef.current = natural
+            onNaturalWidthRef.current?.(natural)
+        }
+        while (count > 1 && span(home, count) > room + 1) {
+            count -= 1
+            home = homeFor(count)
+        }
+        const activeSlot = active >= 0 ? slots[active] : null
+        const moved = activeSlot !== shownActiveRef.current || slots.length !== tabCountRef.current
+        homeStartRef.current = home
+        shownActiveRef.current = activeSlot
+        tabCountRef.current = slots.length
+        el.style.width = `${Math.min(span(home, count), Math.floor(room))}px`
+        el.style.flex = "none"
+        const scrollTo = (left: number) => {
+            // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced
+            // motion.
+            if (Math.abs(el.scrollLeft - left) > 1) el.scrollTo({left: Math.max(0, left)})
+        }
+        // A new open tab or a changed tab set brings the open tab's window into view. Otherwise a
+        // refit (titles landing, a resize) re-places it only while the user has not scrolled.
+        if (moved) ownsScrollRef.current = true
+        if (ownsScrollRef.current) {
+            scrollTo(Math.min(starts[home], el.scrollWidth - el.clientWidth))
+        }
+    }, [fitTabs])
     const measureFade = useCallback(() => {
         const el = stripElRef.current
         if (!el) return
@@ -320,8 +241,19 @@ export const SessionTabStrip = ({
         // inside one commit chain, and React threw "Maximum update depth exceeded" (#6742).
         const content = chipsWidth(el)
         const overflow = content - el.clientWidth > 1
-        const left = overflow && el.scrollLeft > 1
-        const right = overflow && el.scrollLeft < content - el.clientWidth - 1
+        let left = overflow && el.scrollLeft > 1
+        let right = overflow && el.scrollLeft < content - el.clientWidth - 1
+        if (bare) {
+            // Fade only an edge a tab is cut at, so whole tabs (the open tab among them) stay crisp.
+            const box = el.getBoundingClientRect()
+            const lo = box.left + BARE_INSET_PX
+            const hi = box.right - BARE_INSET_PX
+            const tabs = (Array.from(el.children) as HTMLElement[])
+                .filter((child) => !child.dataset.curtain)
+                .map((child) => child.getBoundingClientRect())
+            left = left && tabs.some((tab) => tab.left < lo - 1 && tab.right > lo + 1)
+            right = right && tabs.some((tab) => tab.left < hi - 1 && tab.right > hi + 1)
+        }
         // Chips resize per frame while animating; bail on an unchanged mask to avoid re-rendering.
         setFade((prev) => (prev.left === left && prev.right === right ? prev : {left, right}))
         // Pin once the chips overflow; un-pin once they leave the button's footprint spare. The
@@ -332,7 +264,7 @@ export const SessionTabStrip = ({
             pinAddRef.current = pin
             setPinAdd(pin)
         }
-    }, [])
+    }, [bare])
     // React 19 registers onWheel as passive, so preventDefault would be a no-op. Attach a native
     // non-passive listener that maps vertical wheel delta to horizontal scroll; also track scroll +
     // resize to recompute the edge fade.
@@ -352,16 +284,23 @@ export const SessionTabStrip = ({
                 const delta =
                     e.deltaMode === 1 ? axis * 16 : e.deltaMode === 2 ? axis * el.clientWidth : axis
                 e.preventDefault()
+                // A hand scroll: it stays where it is left.
+                ownsScrollRef.current = false
                 const prev = el.style.scrollBehavior
                 el.style.scrollBehavior = "auto"
                 el.scrollLeft += delta
                 el.style.scrollBehavior = prev
             }
+            // A touch pan or a press on a tab: the user takes the scroll. A tab switch hands it back.
+            const onPointerDown = () => {
+                ownsScrollRef.current = false
+            }
             el.addEventListener("wheel", onWheel, {passive: false})
+            el.addEventListener("pointerdown", onPointerDown)
             el.addEventListener("scroll", measureFade, {passive: true})
             const ro = new ResizeObserver(() => {
                 measureFade()
-                fitWindow("keep")
+                fitWindow()
             })
             ro.observe(el)
             // The host may fill its row (`data-strip-room="fill"`) and resize with the bar.
@@ -375,7 +314,7 @@ export const SessionTabStrip = ({
             const mo = new MutationObserver(() => {
                 observeChildren()
                 measureFade()
-                fitWindow("keep")
+                fitWindow()
             })
             // `aria-selected` too: switching tabs moves the window to the open one.
             mo.observe(el, {
@@ -385,9 +324,10 @@ export const SessionTabStrip = ({
                 attributeFilter: ["aria-selected"],
             })
             measureFade()
-            fitWindow("keep")
+            fitWindow()
             stripCleanupRef.current = () => {
                 el.removeEventListener("wheel", onWheel)
+                el.removeEventListener("pointerdown", onPointerDown)
                 el.removeEventListener("scroll", measureFade)
                 mo.disconnect()
                 ro.disconnect()
@@ -395,85 +335,15 @@ export const SessionTabStrip = ({
         },
         [measureFade, fitWindow],
     )
-    // A scroll by hand settles on the nearest whole window once it rests. A held pointer is a pan
-    // or a scrollbar drag in progress, so nothing moves under it.
-    useEffect(() => {
-        const el = stripElRef.current
-        if (!fitTabs || !el) return
-        let timer: ReturnType<typeof setTimeout> | undefined
-        const onScroll = () => {
-            clearTimeout(timer)
-            timer = setTimeout(() => fitWindow("nearest"), SNAP_IDLE_MS)
-        }
-        const onDown = () => {
-            pressedRef.current = true
-        }
-        const onUp = () => {
-            if (!pressedRef.current) return
-            pressedRef.current = false
-            onScroll()
-        }
-        el.addEventListener("scroll", onScroll, {passive: true})
-        el.addEventListener("pointerdown", onDown)
-        window.addEventListener("pointerup", onUp)
-        window.addEventListener("pointercancel", onUp)
-        return () => {
-            clearTimeout(timer)
-            el.removeEventListener("scroll", onScroll)
-            el.removeEventListener("pointerdown", onDown)
-            window.removeEventListener("pointerup", onUp)
-            window.removeEventListener("pointercancel", onUp)
-        }
-    }, [fitTabs, fitWindow, showTabs])
-    // Remeasure when the tab set changes, and after the add button moves (it resizes the scroller).
-    useEffect(() => {
-        const el = stripElRef.current
-        // Fit mode settles through its window instead.
-        if (!snap || fitTabs || !el) return
-        let timer: ReturnType<typeof setTimeout> | undefined
-        // A held pointer is a pan in progress: the chip under it must not move.
-        let pressed = false
-        const settle = () => {
-            if (pressed) return
-            const target = snapTarget(el, bare ? BARE_INSET_PX : EDGE_FADE_START_PX)
-            // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced motion.
-            if (target !== null && Math.abs(target - el.scrollLeft) > 1) el.scrollTo({left: target})
-        }
-        const onScroll = () => {
-            clearTimeout(timer)
-            timer = setTimeout(settle, SNAP_IDLE_MS)
-        }
-        const onDown = () => {
-            pressed = true
-        }
-        const onUp = () => {
-            pressed = false
-            onScroll()
-        }
-        el.addEventListener("scroll", onScroll, {passive: true})
-        el.addEventListener("pointerdown", onDown)
-        window.addEventListener("pointerup", onUp)
-        // A touch pan ends in `pointercancel`, not `pointerup`.
-        window.addEventListener("pointercancel", onUp)
-        return () => {
-            clearTimeout(timer)
-            el.removeEventListener("scroll", onScroll)
-            el.removeEventListener("pointerdown", onDown)
-            window.removeEventListener("pointerup", onUp)
-            window.removeEventListener("pointercancel", onUp)
-        }
-    }, [bare, fitTabs, showTabs, snap])
 
     useEffect(() => {
         measureFade()
     }, [remeasureKey, pinAdd, measureFade])
 
-    const maskStyle = bare
-        ? undefined
-        : {
-              maskImage: fadeMask(fade.left, fade.right),
-              WebkitMaskImage: fadeMask(fade.left, fade.right),
-          }
+    const maskStyle = {
+        maskImage: fadeMask(fade.left, fade.right),
+        WebkitMaskImage: fadeMask(fade.left, fade.right),
+    }
 
     const canAdd = Boolean(showTabs && onAdd)
     const addButton = canAdd ? (
