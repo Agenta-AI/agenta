@@ -113,7 +113,9 @@ def strip_bot_mentions(text: str, activity: Dict[str, Any], *, app_id: str) -> s
     for entity in _bot_mentions(activity, app_id=app_id):
         mention_text = entity.get("text")
         if isinstance(mention_text, str) and mention_text:
-            text = text.replace(mention_text, "")
+            # One entity is one mention, so a person who shares the bot's
+            # display name keeps their own mention.
+            text = text.replace(mention_text, "", 1)
     return text.strip()
 
 
@@ -195,6 +197,13 @@ def build_locator(
     }
 
 
+def _external_id(locator: Dict[str, Any], activity_id: str) -> str:
+    """Teams activity ids are unique only within one conversation, so the
+    dedup key carries the conversation too."""
+
+    return f"{locator['conversation_id']}:{activity_id}"
+
+
 def parse_activity(
     activity: Dict[str, Any], *, app_id: str
 ) -> Optional[ChannelInboundEvent]:
@@ -224,7 +233,7 @@ def parse_activity(
         if locator is None:
             return None
         return ChannelInboundEvent(
-            external_id=activity_id,
+            external_id=_external_id(locator, activity_id),
             kind=ChannelEventKind.ACTION,
             space_kind=kind,
             external_locator=locator,
@@ -255,7 +264,7 @@ def parse_activity(
         locator["title"] = title
 
     return ChannelInboundEvent(
-        external_id=activity_id,
+        external_id=_external_id(locator, activity_id),
         kind=ChannelEventKind.MESSAGE,
         space_kind=kind,
         external_locator=locator,

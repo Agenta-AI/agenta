@@ -261,6 +261,12 @@ def test_a_body_without_a_recipient_has_no_locator(adapter):
     assert adapter.connection_locator(request=request) is None
 
 
+def test_a_recipient_that_is_not_an_object_has_no_locator(adapter):
+    request = ChannelRequestContext(headers={}, path="/", body=b'{"recipient": "x"}')
+
+    assert adapter.connection_locator(request=request) is None
+
+
 async def test_a_signed_request_returns_the_bare_app_id(adapter):
     request = ChannelRequestContext(
         headers=f.auth_headers(f.sign_token(audience=f"api://botid-{p.APP_ID}")),
@@ -311,7 +317,7 @@ async def test_the_same_tenant_parses_and_keys_on_the_activity_id(adapter):
         connection=p.connection(),
     )
 
-    assert event.external_id == "1700000000999"
+    assert event.external_id == f"{p.PERSONAL_CONVERSATION}:1700000000999"
 
 
 @pytest.mark.parametrize(

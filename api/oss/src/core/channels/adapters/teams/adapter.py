@@ -1,4 +1,3 @@
-import re
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -38,7 +37,6 @@ _HTTP_TIMEOUT_SECONDS = 10.0
 _INVALID_CLIENT_SECRET = 7000215
 _APPLICATION_NOT_FOUND = 700016
 _TENANT_NOT_FOUND = 90002
-_AADSTS_CODE = re.compile(r"AADSTS(\d+)")
 
 _SECRET_REJECTED = (
     "Microsoft rejected this client secret. Copy the secret's Value, not its Secret ID."
@@ -150,18 +148,22 @@ class TeamsAdapter(ChannelAdapterInterface):
     def connection_locator(
         self, *, request: ChannelRequestContext
     ) -> Optional[Dict[str, Any]]:
-        activity = mapping.parse_body(request.body)
-        app_id = mapping.bare_app_id((activity.get("recipient") or {}).get("id"))
+        recipient = mapping.parse_body(request.body).get("recipient")
+        if not isinstance(recipient, dict):
+            return None
+        app_id = mapping.bare_app_id(recipient.get("id"))
         return {"app_id": app_id} if app_id else None
 
     async def verify_signature(
         self, *, request: ChannelRequestContext, connection: ChannelConnection
     ) -> str:
         app_id = _app_id(connection)
+        activity = mapping.parse_body(request.body)
         await verify_token(
             token=bearer_token(request.headers),
             app_id=app_id,
-            service_url=mapping.parse_body(request.body).get("serviceUrl"),
+            service_url=activity.get("serviceUrl"),
+            channel_id=activity.get("channelId"),
             keys=self._keys,
         )
         return app_id
@@ -274,10 +276,6 @@ class _TokenRequestRefused(Exception):
         self.error = str(body.get("error") or "")
         codes = {
             code for code in body.get("error_codes") or [] if isinstance(code, int)
-        }
-        codes |= {
-            int(code)
-            for code in _AADSTS_CODE.findall(str(body.get("error_description") or ""))
         }
         self.codes = codes
         super().__init__(

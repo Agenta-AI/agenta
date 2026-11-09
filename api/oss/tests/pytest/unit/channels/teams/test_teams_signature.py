@@ -22,8 +22,16 @@ def keys(fake):
     return BotFrameworkKeys(http_client=f.client_for(fake))
 
 
-async def _verify(keys, token, *, service_url=p.SERVICE_URL, app_id=p.APP_ID):
-    await verify_token(token=token, app_id=app_id, service_url=service_url, keys=keys)
+async def _verify(
+    keys, token, *, service_url=p.SERVICE_URL, app_id=p.APP_ID, channel_id="msteams"
+):
+    await verify_token(
+        token=token,
+        app_id=app_id,
+        service_url=service_url,
+        channel_id=channel_id,
+        keys=keys,
+    )
 
 
 @pytest.mark.parametrize(
@@ -73,6 +81,20 @@ async def test_a_trailing_slash_does_not_matter(keys):
 async def test_a_bad_token_is_refused(keys, token):
     with pytest.raises(ChannelSignatureInvalid):
         await _verify(keys, token)
+
+
+@pytest.mark.parametrize("channel_id", [None, "slack", "webchat"])
+async def test_an_activity_from_another_channel_is_refused(keys, channel_id):
+    with pytest.raises(ChannelSignatureInvalid):
+        await _verify(keys, f.sign_token(), channel_id=channel_id)
+
+
+@pytest.mark.parametrize("endorsements", [None, [], ["webchat"]])
+async def test_a_key_not_endorsed_for_teams_is_refused(fake, keys, endorsements):
+    fake.keys[0]["endorsements"] = endorsements
+
+    with pytest.raises(ChannelSignatureInvalid):
+        await _verify(keys, f.sign_token())
 
 
 async def test_an_expired_token_within_the_leeway_is_accepted(keys):
