@@ -24,6 +24,7 @@ const LOADERS: Partial<Record<SettingsTabKey, Loader>> = {
     projects: () => import("./ProjectsTab").then((m) => m.ProjectsTab),
     organization: () => import("./AccessSecurityTab").then((m) => m.AccessSecurityTab),
     auditLog: () => import("./AuditLogTab").then((m) => m.AuditLogTab),
+    license: () => import("./LicenseTab").then((m) => m.LicenseTab),
     account: () => import("./AccountTab").then((m) => m.AccountTab),
     preferences: () => import("./PreferencesTab").then((m) => m.PreferencesTab),
 }
