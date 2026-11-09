@@ -88,6 +88,31 @@ async def capture(
     )
 
 
+async def group_identify(
+    group_type: str,
+    group_key: str,
+    properties: Dict[str, Any],
+    *,
+    timeout: int,
+) -> None:
+    """Set a PostHog group's properties and return once PostHog accepted them."""
+
+    await asyncio.to_thread(
+        _sync_client(timeout).group_identify,
+        group_type,
+        group_key,
+        properties,
+    )
+
+
+async def instance_groups() -> Optional[Dict[str, str]]:
+    """The PostHog groups of a self-hosted event; cloud events carry none."""
+
+    if env.stripe.enabled:
+        return None
+    return {"instance": str(await get_instance_id())}
+
+
 async def send_install_ping() -> None:
     """Send `instance_installed` once per instance, whatever the switch says.
 

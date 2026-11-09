@@ -2259,6 +2259,13 @@ app.include_router(
 )
 
 app.include_router(
+    router=telemetry.admin_router,
+    prefix="/admin/telemetry",
+    tags=["Instance", "Admin"],
+    include_in_schema=False,
+)
+
+app.include_router(
     router=evaluations.router,
     prefix="/evaluations",
     tags=["Evaluations"],
