@@ -208,9 +208,7 @@ export const AccessSecurityTab = ({workspaceId, projectId}: SettingsTabProps) =>
     const lockedNotices = isBillingEnabled() ? (
         <AccessUpgradeNotice locked={locked} />
     ) : (
-        locked.map((feature) => (
-            <LockedAccessFeature key={feature} feature={feature} projectId={projectId} />
-        ))
+        locked.map((feature) => <LockedAccessFeature key={feature} feature={feature} />)
     )
     // With nothing included there is no organization setting to read.
     if (locked.length === 3) return <div className="flex flex-col gap-8">{lockedNotices}</div>

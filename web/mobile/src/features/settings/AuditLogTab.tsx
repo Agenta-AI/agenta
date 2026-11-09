@@ -4,7 +4,7 @@ import {AuditLogPage, useEntitlements} from "@agenta/settings-ui"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useMobileSettingsAccess} from "./settingsTabs"
 import {UpgradeActions} from "./UpgradeActions"
-import {upgradeAvailability, useUpgradePrompt} from "./upgradePrompt"
+import {SELF_HOSTED_AVAILABILITY, useUpgradePrompt} from "./upgradePrompt"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 /** Settings > Audit Log, gated by the plan's audit entitlement and naming users from the roster. */
@@ -16,14 +16,13 @@ export const AuditLogTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const prompt = useUpgradePrompt({
         feature: "audit",
         screen: "auditLog",
-        projectId,
         shown: !entitlements.isLoading && !entitlements.hasAudit,
     })
     return (
         <AuditLogPage
             hasAudit={entitlements.hasAudit}
             entitlementsLoading={entitlements.isLoading}
-            upgradeAvailability={prompt.selfHosted ? upgradeAvailability(prompt) : undefined}
+            upgradeAvailability={prompt.selfHosted ? SELF_HOSTED_AVAILABILITY : undefined}
             upgradeAction={
                 prompt.selfHosted ? (
                     <UpgradeActions feature="audit" screen="auditLog" actions={prompt.actions} />

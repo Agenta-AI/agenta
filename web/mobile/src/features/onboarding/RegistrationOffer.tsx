@@ -33,7 +33,7 @@ export const RegistrationOffer = ({
         <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Register this instance</DialogTitle>
+                    <DialogTitle>Get a free key</DialogTitle>
                     <DialogDescription>
                         Get product updates and the free features we add later. We email you a free
                         key.

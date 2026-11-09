@@ -52,10 +52,11 @@ export const isRegistrationUnreachable = (error: unknown) => status(error) === 5
 export const createInstanceRegistration = async (
     projectId: string,
     email: string,
+    productUpdates: boolean,
 ): Promise<{email: string}> => {
     const {data} = await axios.post(
         `${getAgentaApiUrl()}/instance/license/registrations`,
-        {email, product_updates: true},
+        {email, product_updates: productUpdates},
         {params: {project_id: projectId}},
     )
     return data

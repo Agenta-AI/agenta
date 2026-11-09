@@ -13,8 +13,6 @@ const fixture = vi.hoisted(() => ({
         fetchOrganizationDomains: vi.fn(),
         fetchOrganizationProviders: vi.fn(),
     },
-    fetchAccessPlans: vi.fn(),
-    fetchCurrentSubscription: vi.fn(),
 }))
 
 vi.mock("next/router", () => ({
@@ -66,13 +64,11 @@ vi.mock("@agenta/settings-ui", async (importOriginal) => ({
         hasAudit: false,
         isLoading: false,
     }),
-    fetchAccessPlans: fixture.fetchAccessPlans,
-    useBillingSubscription: () => ({data: {plan: "self_hosted_community"}}),
 }))
 
 import {AccessSecurityTab} from "@/features/settings/AccessSecurityTab"
 import {AuditLogTab} from "@/features/settings/AuditLogTab"
-import {upgradeActions} from "@/features/settings/upgradePrompt"
+import {availableUpgradeActions} from "@/features/settings/upgradePrompt"
 
 import {nextRouterModule, routerQuery} from "../support/nextRouter"
 import {WithQueryClient} from "../support/queryClient"
@@ -96,9 +92,6 @@ describe("locked enterprise settings", () => {
         fixture.replace.mockReset()
         fixture.api.fetchOrganizationDomains.mockReset()
         fixture.api.fetchOrganizationProviders.mockReset()
-        fixture.fetchAccessPlans.mockReset().mockResolvedValue({
-            self_hosted_registered: {flags: {}},
-        })
         routerQuery.tab = undefined
         host = document.createElement("div")
         document.body.appendChild(host)
@@ -185,16 +178,9 @@ describe("locked enterprise settings", () => {
     })
 })
 
-describe("upgradeActions", () => {
-    it("offers a free key first only when the registered plan unlocks the feature", () => {
-        expect(upgradeActions({enterprise: true, freeKeyUnlocks: true})).toEqual([
-            "get_free_key",
-            "add_license_key",
-            "talk_to_us",
-        ])
-        expect(upgradeActions({enterprise: false, freeKeyUnlocks: false})).toEqual([
-            "upgrade_docs",
-            "talk_to_us",
-        ])
+describe("availableUpgradeActions", () => {
+    it("offers a license key on EE and the upgrade docs on OSS, then the contact page", () => {
+        expect(availableUpgradeActions(true)).toEqual(["add_license_key", "talk_to_us"])
+        expect(availableUpgradeActions(false)).toEqual(["upgrade_docs", "talk_to_us"])
     })
 })

@@ -21,9 +21,9 @@ export const RegistrationForm = ({
     onRegistered?: () => void
 }) => {
     const [email, setEmail] = useState(defaultEmail ?? "")
-    const [productUpdates, setProductUpdates] = useState(true)
+    const [productUpdates, setProductUpdates] = useState(false)
     const register = useMutation({
-        mutationFn: (value: string) => createInstanceRegistration(projectId, value),
+        mutationFn: (value: string) => createInstanceRegistration(projectId, value, productUpdates),
         onSuccess: () => onRegistered?.(),
     })
     const trimmed = email.trim()
@@ -60,7 +60,7 @@ export const RegistrationForm = ({
                     checked={productUpdates}
                     onCheckedChange={(checked) => setProductUpdates(checked === true)}
                 />
-                <span>Send me product updates</span>
+                <span>Send me product updates. The free key needs this.</span>
             </label>
             {register.isError ? (
                 <p role="alert" className="text-colorError m-0 text-sm">

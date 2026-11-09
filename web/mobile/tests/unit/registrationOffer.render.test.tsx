@@ -102,14 +102,28 @@ describe("RegistrationOffer", () => {
         expect(fixture.register).not.toHaveBeenCalled()
     })
 
-    it("registers with the email and consent to product updates", async () => {
+    it("leaves the consent box clear, and sends nothing until the user checks it", async () => {
         await mount(false)
+
+        const consent = document.querySelector<HTMLElement>("[role=checkbox]")!
+        expect(consent.getAttribute("aria-checked")).toBe("false")
+        expect(button("Send me a key")!.hasAttribute("disabled")).toBe(true)
 
         await act(async () => {
             button("Send me a key")!.click()
         })
+        expect(fixture.register).not.toHaveBeenCalled()
+    })
 
-        expect(fixture.register).toHaveBeenCalledWith("proj-1", "ada@example.com")
+    it("registers with the email and consent to product updates", async () => {
+        await mount(false)
+
+        act(() => document.querySelector<HTMLElement>("[role=checkbox]")!.click())
+        await act(async () => {
+            button("Send me a key")!.click()
+        })
+
+        expect(fixture.register).toHaveBeenCalledWith("proj-1", "ada@example.com", true)
         expect(document.body.textContent).toContain("We sent a key to ada@example.com.")
     })
 })
