@@ -42,12 +42,18 @@ function sandbox(
     },
     async getPreviewLink(port: number) {
       assert.equal(port, BROWSER_PORT);
-      return { url: `https://${BROWSER_PORT}-${id}.proxy.example/`, token: `preview-${id}` };
+      return {
+        url: `https://${BROWSER_PORT}-${id}.proxy.example/`,
+        token: `preview-${id}`,
+      };
     },
   };
 }
 
-function client(sandboxes: LiveLinkSandbox[], seen: Record<string, string>[] = []): LiveLinkClient {
+function client(
+  sandboxes: LiveLinkSandbox[],
+  seen: Record<string, string>[] = [],
+): LiveLinkClient {
   return {
     async *list({ labels }) {
       seen.push(labels);
@@ -56,7 +62,10 @@ function client(sandboxes: LiveLinkSandbox[], seen: Record<string, string>[] = [
   };
 }
 
-const PAGE = { wait_reason: "Sign in, then click I'm done.", url: "https://example.com/login" };
+const PAGE = {
+  wait_reason: "Sign in, then click I'm done.",
+  url: "https://example.com/login",
+};
 const alive: BrowserProbe = async () => PAGE;
 const dead: BrowserProbe = async () => null;
 
@@ -79,7 +88,10 @@ describe("findBrowserLiveLink", () => {
 
   it("returns the WebSocket link and both tokens of the sandbox whose browser answers", async () => {
     const link = await findBrowserLiveLink(
-      client([sandbox("harness", "started"), sandbox("commands", "started", "browser-token")]),
+      client([
+        sandbox("harness", "started"),
+        sandbox("commands", "started", "browser-token"),
+      ]),
       SCOPE,
       alive,
     );
@@ -97,15 +109,24 @@ describe("findBrowserLiveLink", () => {
       },
     );
     assert.deepEqual(probes, [
-      [`https://${BROWSER_PORT}-commands.proxy.example/health`, LINK_OF_COMMANDS.headers],
+      [
+        `https://${BROWSER_PORT}-commands.proxy.example/health`,
+        LINK_OF_COMMANDS.headers,
+      ],
     ]);
   });
 
   it("skips a sandbox the list returned without both labels of this session", async () => {
     const link = await findBrowserLiveLink(
       client([
-        sandbox("other-session", "started", "t", { ...LABELS, "agenta.conversation": "session-2" }),
-        sandbox("other-project", "started", "t", { ...LABELS, "agenta.project": "project-2" }),
+        sandbox("other-session", "started", "t", {
+          ...LABELS,
+          "agenta.conversation": "session-2",
+        }),
+        sandbox("other-project", "started", "t", {
+          ...LABELS,
+          "agenta.project": "project-2",
+        }),
         sandbox("no-labels", "started", "t", {}),
       ]),
       SCOPE,
@@ -116,21 +137,33 @@ describe("findBrowserLiveLink", () => {
 
   it("skips a sandbox whose token file outlived its browser", async () => {
     assert.equal(
-      await findBrowserLiveLink(client([sandbox("commands", "started", "stale")]), SCOPE, dead),
+      await findBrowserLiveLink(
+        client([sandbox("commands", "started", "stale")]),
+        SCOPE,
+        dead,
+      ),
       undefined,
     );
   });
 
   it("skips a stopped sandbox, even with a token file left on its disk", async () => {
     assert.equal(
-      await findBrowserLiveLink(client([sandbox("parked", "stopped", "old")]), SCOPE, alive),
+      await findBrowserLiveLink(
+        client([sandbox("parked", "stopped", "old")]),
+        SCOPE,
+        alive,
+      ),
       undefined,
     );
   });
 
   it("returns nothing when no browser runs in the session", async () => {
     assert.equal(
-      await findBrowserLiveLink(client([sandbox("harness", "started")]), SCOPE, alive),
+      await findBrowserLiveLink(
+        client([sandbox("harness", "started")]),
+        SCOPE,
+        alive,
+      ),
       undefined,
     );
   });
@@ -147,7 +180,10 @@ describe("cacheLiveLinks", () => {
     const cached = cacheLiveLinks(lookup, { lookupMs: 5, maxActive: 1 });
     const scope = { projectId: "p", sessionId: "s" };
     await assert.rejects(cached(scope), /timed out/);
-    await assert.rejects(cached({ projectId: "p", sessionId: "other" }), /too many/);
+    await assert.rejects(
+      cached({ projectId: "p", sessionId: "other" }),
+      /too many/,
+    );
     assert.equal(calls, 1);
     finish(undefined);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -162,13 +198,38 @@ describe("cacheLiveLinks", () => {
       calls++;
       return new Promise<undefined>(() => {});
     };
-    const cached = cacheLiveLinks(lookup, { lookupMs: 5, stuckMs: 1_000, now: () => clock });
+    const cached = cacheLiveLinks(lookup, {
+      lookupMs: 5,
+      stuckMs: 1_000,
+      now: () => clock,
+    });
     const scope = { projectId: "p", sessionId: "s" };
     await assert.rejects(cached(scope), /timed out/);
     await assert.rejects(cached(scope), /still running/);
     clock = 1_000;
     cached(scope).catch(() => {});
     assert.equal(calls, 2);
+  });
+
+  it("counts a replaced stuck lookup against its session's one slot only", async () => {
+    let clock = 0;
+    let calls = 0;
+    const lookup = () => {
+      calls++;
+      return new Promise<undefined>(() => {});
+    };
+    const cached = cacheLiveLinks(lookup, {
+      lookupMs: 5,
+      stuckMs: 1_000,
+      maxActive: 2,
+      now: () => clock,
+    });
+    const scope = { projectId: "p", sessionId: "s" };
+    await assert.rejects(cached(scope), /timed out/);
+    clock = 1_000;
+    await assert.rejects(cached(scope), /timed out/);
+    cached({ projectId: "p", sessionId: "other" }).catch(() => {});
+    assert.equal(calls, 3);
   });
 
   it("starts no second lookup for a session while its first still runs", async () => {
@@ -210,12 +271,17 @@ describe("cacheLiveLinks", () => {
   function counted(sandboxes: LiveLinkSandbox[]) {
     const seen: Record<string, string>[] = [];
     const list = client(sandboxes, seen);
-    return { seen, lookup: (scope: typeof SCOPE) => findBrowserLiveLink(list, scope, alive) };
+    return {
+      seen,
+      lookup: (scope: typeof SCOPE) => findBrowserLiveLink(list, scope, alive),
+    };
   }
 
   it("answers a repeat inside the window without asking Daytona again", async () => {
     let clock = 1_000;
-    const { seen, lookup } = counted([sandbox("commands", "started", "browser-token")]);
+    const { seen, lookup } = counted([
+      sandbox("commands", "started", "browser-token"),
+    ]);
     const cached = cacheLiveLinks(lookup, { ttlMs: 5_000, now: () => clock });
     assert.deepEqual(await cached(SCOPE), LINK_OF_COMMANDS);
     clock += 4_999;
@@ -235,7 +301,9 @@ describe("cacheLiveLinks", () => {
 
   it("asks Daytona again once the window has passed", async () => {
     let clock = 0;
-    const { seen, lookup } = counted([sandbox("commands", "started", "browser-token")]);
+    const { seen, lookup } = counted([
+      sandbox("commands", "started", "browser-token"),
+    ]);
     const cached = cacheLiveLinks(lookup, { ttlMs: 5_000, now: () => clock });
     await cached(SCOPE);
     clock += 5_000;
@@ -264,7 +332,10 @@ describe("cacheLiveLinks", () => {
     const first = cached(SCOPE);
     const second = cached(SCOPE);
     release(undefined);
-    assert.deepEqual(await Promise.all([first, second]), [undefined, undefined]);
+    assert.deepEqual(await Promise.all([first, second]), [
+      undefined,
+      undefined,
+    ]);
     assert.equal(calls, 1);
   });
 
@@ -300,15 +371,24 @@ describe("cacheLiveLinks", () => {
 });
 
 describe("probeBrowserHealth", () => {
-  async function serve(status: number, body: string, type: string): Promise<{ url: string; close: () => void }> {
+  async function serve(
+    status: number,
+    body: string,
+    type: string,
+  ): Promise<{ url: string; close: () => void }> {
     const { createServer } = await import("node:http");
     const server = createServer((_req, res) => {
       res.writeHead(status, { "content-type": type });
       res.end(body);
     });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
     const { port } = server.address() as { port: number };
-    return { url: `http://127.0.0.1:${port}/health`, close: () => server.close() };
+    return {
+      url: `http://127.0.0.1:${port}/health`,
+      close: () => server.close(),
+    };
   }
 
   it("counts only the browser's own answer as live, and reads its page state", async () => {
@@ -321,14 +401,18 @@ describe("probeBrowserHealth", () => {
         "application/json",
         { wait_reason: "Sign in", url: "https://example.com/" },
       ],
-      [200, '{"ok":true,"wait_reason":7,"title":null}', "application/json", empty],
+      [200, '{"ok":true,"wait_reason":7}', "application/json", empty],
       [200, "<html>preview warning</html>", "text/html", null],
       [503, '{"ok":false}', "application/json", null],
     ];
     for (const [status, body, type, page] of cases) {
       const server = await serve(status, body, type);
       try {
-        assert.deepEqual(await probeBrowserHealth(server.url, {}), page, `${status} ${body}`);
+        assert.deepEqual(
+          await probeBrowserHealth(server.url, {}),
+          page,
+          `${status} ${body}`,
+        );
       } finally {
         server.close();
       }
@@ -355,15 +439,24 @@ describe("findLocalBrowserLiveLink", () => {
       page: PAGE,
     });
     assert.deepEqual(seen, [
-      [`http://127.0.0.1:${BROWSER_PORT}/health`, { "x-agenta-browser-token": "tok" }],
+      [
+        `http://127.0.0.1:${BROWSER_PORT}/health`,
+        { "x-agenta-browser-token": "tok" },
+      ],
     ]);
   });
 
   it("finds nothing without a token file", async () => {
-    assert.equal(await findLocalBrowserLiveLink(async () => "", "h", up), undefined);
+    assert.equal(
+      await findLocalBrowserLiveLink(async () => "", "h", up),
+      undefined,
+    );
   });
 
   it("finds nothing when a stale token's browser does not answer", async () => {
-    assert.equal(await findLocalBrowserLiveLink(async () => "tok", "h", dead), undefined);
+    assert.equal(
+      await findLocalBrowserLiveLink(async () => "tok", "h", dead),
+      undefined,
+    );
   });
 });

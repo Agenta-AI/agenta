@@ -65,7 +65,9 @@ export interface LiveLinkSandbox {
 }
 
 export interface LiveLinkClient {
-  list(query: { labels: Record<string, string> }): AsyncIterable<LiveLinkSandbox>;
+  list(query: {
+    labels: Record<string, string>;
+  }): AsyncIterable<LiveLinkSandbox>;
 }
 
 /** The page state of the browser behind `healthUrl`, or null when it does not answer. */
@@ -75,7 +77,8 @@ export type BrowserProbe = (
 ) => Promise<BrowserPage | null>;
 
 const MAX_PAGE_TEXT = 2_048;
-const pageText = (value: unknown) => (typeof value === "string" ? value.slice(0, MAX_PAGE_TEXT) : "");
+const pageText = (value: unknown) =>
+  typeof value === "string" ? value.slice(0, MAX_PAGE_TEXT) : "";
 
 export const probeBrowserHealth: BrowserProbe = async (healthUrl, headers) => {
   try {
@@ -89,7 +92,10 @@ export const probeBrowserHealth: BrowserProbe = async (healthUrl, headers) => {
       return null;
     }
     // A proxy page can answer 200 too; only the browser answers `{ok: true}`.
-    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    const body = (await res.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null;
     if (body?.ok !== true) return null;
     return { wait_reason: pageText(body.wait_reason), url: pageText(body.url) };
   } catch {
@@ -108,12 +114,16 @@ export async function findBrowserLiveLink(
     labels: sessionSandboxLabels(projectId, sessionId),
   })) {
     if (!belongsToSession(sandbox.labels, projectId, sessionId)) continue;
-    if (!RUNNING_STATES.has(String(sandbox.state ?? "").toLowerCase())) continue;
+    if (!RUNNING_STATES.has(String(sandbox.state ?? "").toLowerCase()))
+      continue;
     // No token file: this sandbox runs no browser (a session can hold a harness sandbox and a
     // command sandbox), or its browser has not finished starting.
     const token = await sandbox.fs
       .downloadFile(BROWSER_TOKEN_PATH, BROWSER_TOKEN_TIMEOUT_S)
-      .then((b) => b.toString("utf8").trim(), () => "");
+      .then(
+        (b) => b.toString("utf8").trim(),
+        () => "",
+      );
     if (!token) continue;
     const preview = await sandbox.getPreviewLink(BROWSER_PORT);
     const base = preview.url.replace(/\/+$/, "");
@@ -133,7 +143,10 @@ export async function findBrowserLiveLink(
 /** The browser a local run started on this host; the API reaches it by this container's name. */
 export async function findLocalBrowserLiveLink(
   readToken: () => Promise<string> = () =>
-    readFile(BROWSER_TOKEN_PATH, "utf8").then((t) => t.trim(), () => ""),
+    readFile(BROWSER_TOKEN_PATH, "utf8").then(
+      (t) => t.trim(),
+      () => "",
+    ),
   host: string = hostname(),
   probe: BrowserProbe = probeBrowserHealth,
 ): Promise<BrowserLiveLink | undefined> {
@@ -145,7 +158,9 @@ export async function findLocalBrowserLiveLink(
   return { url: `ws://${host}:${BROWSER_PORT}/live`, headers, page };
 }
 
-export type LiveLinkLookup = (scope: LiveLinkScope) => Promise<BrowserLiveLink | undefined>;
+export type LiveLinkLookup = (
+  scope: LiveLinkScope,
+) => Promise<BrowserLiveLink | undefined>;
 
 /**
  * `lookup` with each answer, found or not, kept for `ttlMs` per session. Lookups for one session
@@ -170,10 +185,13 @@ export function cacheLiveLinks(
     now?: () => number;
   } = {},
 ): LiveLinkLookup {
-  const entries = new Map<string, { at: number; link: Promise<BrowserLiveLink | undefined> }>();
-  let active = 0;
-  // A session whose lookup outlived its deadline waits for it, so a hung session holds one slot,
-  // until `stuckMs`: the SDK's own timeout is 24 h.
+  const entries = new Map<
+    string,
+    { at: number; link: Promise<BrowserLiveLink | undefined> }
+  >();
+  // One entry per session with a lookup running, so the cap counts sessions: a session whose
+  // lookup outlived its deadline waits for it, until `stuckMs` (the SDK's own timeout is 24 h),
+  // and a replacement takes over the session's one slot.
   const running = new Map<string, { at: number }>();
   return (scope) => {
     const key = JSON.stringify([scope.projectId, scope.sessionId]);
@@ -183,19 +201,23 @@ export function cacheLiveLinks(
     const previous = running.get(key);
     if (previous && now() - previous.at < stuckMs)
       return Promise.reject(new Error("browser lookup still running"));
-    if (active >= maxActive) return Promise.reject(new Error("too many browser lookups"));
-    active++;
+    if (!previous && running.size >= maxActive)
+      return Promise.reject(new Error("too many browser lookups"));
     const mine = { at: now() };
     running.set(key, mine);
     const started = lookup(scope).finally(() => {
-      active--;
       if (running.get(key) === mine) running.delete(key);
     });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error("browser lookup timed out")), lookupMs);
+      timer = setTimeout(
+        () => reject(new Error("browser lookup timed out")),
+        lookupMs,
+      );
     });
-    const link = Promise.race([started, late]).finally(() => clearTimeout(timer));
+    const link = Promise.race([started, late]).finally(() =>
+      clearTimeout(timer),
+    );
     // Pending lookups do not expire by the cache time: a slow Daytona is when sharing matters most.
     const entry = { at: Number.POSITIVE_INFINITY, link };
     entries.set(key, entry);
@@ -219,7 +241,9 @@ let client: LiveLinkClient | undefined;
 /** The live link on this deployment's Daytona, else the shared-host browser when allowed. */
 export const browserLiveLink: LiveLinkLookup = cacheLiveLinks(async (scope) => {
   const config = loadRunnerConfig();
-  client ??= daytonaLabelClient(config, () => buildDaytonaClient(config.daytona));
+  client ??= daytonaLabelClient(config, () =>
+    buildDaytonaClient(config.daytona),
+  );
   const link = client ? await findBrowserLiveLink(client, scope) : undefined;
   if (link || process.env.AGENTA_BROWSER_ALLOW_SHARED_HOST !== "1") return link;
   return findLocalBrowserLiveLink();
