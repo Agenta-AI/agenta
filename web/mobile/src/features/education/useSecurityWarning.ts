@@ -25,7 +25,11 @@ export const useSecurityWarning = (): {release: Release | null; snooze: () => vo
     // Start snoozed: localStorage is not readable during the server render.
     const [snoozed, setSnoozed] = useState(true)
     useEffect(() => {
-        setSnoozed(release ? isSecurityWarningSnoozed(release.id) : true)
+        const check = () => setSnoozed(release ? isSecurityWarningSnoozed(release.id) : true)
+        check()
+        // The app may stay open past the seven days: check again when the tab comes back.
+        document.addEventListener("visibilitychange", check)
+        return () => document.removeEventListener("visibilitychange", check)
     }, [release])
 
     const snooze = useCallback(() => {

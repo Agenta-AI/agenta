@@ -84,6 +84,8 @@ describe("mergeReleases", () => {
             release("v0.129.3", {features: [{...feature, link: "http://agenta.ai"}]}),
             release("v0.129.4", {features: [{...feature, body: "x".repeat(20_001)}]}),
             release("v0.129.5", {features: [{...feature, streamVideoId: "../x"}]}),
+            release("v0.129.6", {features: [{...feature, body: "[More](http://agenta.ai)"}]}),
+            release("v0.129.7", {fixes: [{area: "x", text: "[x](javascript:alert(1))"}]}),
             release("v0.130.0"),
         ])
         expect(merged.map((r) => r.id)).toEqual(["v0.130.0", "v0.127.3", "v0.127.2"])

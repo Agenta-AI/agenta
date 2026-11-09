@@ -32,10 +32,16 @@ const isText = (value: unknown, max: number): value is string =>
 const isHttpsLink = (value: unknown): value is string =>
     isText(value, 2_000) && /^https:\/\/[^\s]+$/.test(value)
 
+// Release bodies are Markdown. A link in one may only go to https, like every other feed link.
+const NON_HTTPS_SCHEME = /\b(?:http|javascript|data|vbscript|file):/i
+
+const isReleaseBody = (value: unknown): value is string =>
+    isText(value, MAX_BODY_LENGTH) && !NON_HTTPS_SCHEME.test(value)
+
 const isReleaseItem = (value: unknown): boolean => {
     if (!value || typeof value !== "object") return false
     const item = value as {area?: unknown; text?: unknown}
-    return isText(item.area, MAX_TITLE_LENGTH) && isText(item.text, MAX_BODY_LENGTH)
+    return isText(item.area, MAX_TITLE_LENGTH) && isReleaseBody(item.text)
 }
 
 const isRelease = (value: unknown): value is Release => {
@@ -51,7 +57,7 @@ const isRelease = (value: unknown): value is Release => {
             (feature) =>
                 isText(feature?.id, MAX_TITLE_LENGTH) &&
                 isText(feature.title, MAX_TITLE_LENGTH) &&
-                isText(feature.body, MAX_BODY_LENGTH) &&
+                isReleaseBody(feature.body) &&
                 isHttpsLink(feature.link) &&
                 (feature.streamVideoId === undefined ||
                     (typeof feature.streamVideoId === "string" &&

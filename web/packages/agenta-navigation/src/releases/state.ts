@@ -7,7 +7,7 @@ import {isVersion, latestSecurityRelease, mergeReleases, newerReleases, parseNot
 
 import {RELEASES, type InstanceReleases, type Notice, type Release} from "./index"
 
-// The API refreshes the feed every 12 hours, so once per page load is plenty.
+// The API keeps the feed for 12 hours, so asking it at most once an hour is plenty.
 const STALE_TIME_MS = 60 * 60 * 1000
 
 /**

@@ -405,23 +405,23 @@ export const useMobileHelpItem = ({
     const releases = useAtomValue(releaseListAtom)
     const notInstalled = useAtomValue(notInstalledReleasesAtom)
     const {notices, dismiss: dismissReleaseNotice} = useReleaseNotices()
-    const updateAvailable = notInstalled.length > 0
 
     return useMemo(
         () =>
             buildHelpDocsNavItem({
                 icons: {
-                    help: updateAvailable
-                        ? createElement(
-                              "span",
-                              {className: "relative flex", "aria-label": "Update available"},
-                              createElement(QuestionIcon, {size: 16}),
-                              createElement("span", {
-                                  className:
-                                      "absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-colorSuccess",
-                              }),
-                          )
-                        : createElement(QuestionIcon, {size: 16}),
+                    help:
+                        notInstalled.length > 0
+                            ? createElement(
+                                  "span",
+                                  {className: "relative flex", "aria-label": "Update available"},
+                                  createElement(QuestionIcon, {size: 16}),
+                                  createElement("span", {
+                                      className:
+                                          "absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-colorSuccess",
+                                  }),
+                              )
+                            : createElement(QuestionIcon, {size: 16}),
                     docs: createElement(ScrollIcon, {size: 14}),
                     github: createElement(GithubLogoIcon, {size: 14}),
                     slack: createElement(SlackLogoIcon, {size: 14}),
@@ -464,7 +464,6 @@ export const useMobileHelpItem = ({
             onOpenShortcuts,
             openWhatsNew,
             releases,
-            updateAvailable,
             version,
         ],
     )
