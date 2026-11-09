@@ -39,6 +39,7 @@
     "run_worker_first": [
       "/",
       "/api",
+      "/api/license-registrations",
       "/pricing",
       "/contact",
       "/imprint",
