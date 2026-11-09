@@ -5,12 +5,13 @@ const pageText = z
     .nullish()
     .transform((value) => value ?? "")
 
-/** `waiting` is the agent's open ask for the person; empty when it is not waiting. */
-export const browserLiveStatusSchema = z.object({
-    running: z.boolean().default(false),
-    waiting: pageText,
-    url: pageText,
-    title: pageText,
-})
+export const browserLiveStatusSchema = z
+    .object({
+        running: z.boolean().default(false),
+        wait_reason: pageText,
+        url: pageText,
+        title: pageText,
+    })
+    .transform(({wait_reason, ...page}) => ({...page, waitReason: wait_reason}))
 
-export type BrowserSessionStatus = z.infer<typeof browserLiveStatusSchema>
+export type BrowserLiveStatus = z.infer<typeof browserLiveStatusSchema>

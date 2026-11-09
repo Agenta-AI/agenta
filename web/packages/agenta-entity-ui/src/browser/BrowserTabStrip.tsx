@@ -21,7 +21,6 @@ export const BrowserTabStrip = ({
     trailing,
 }: {
     tabs: BrowserLiveTab[]
-    /** Not called for the tab on screen: picking a tab takes control, like the address bar. */
     /** Absent while the agent is in control: switching would move the tab it acts on. */
     onSelect?: (id: number) => void
     leading?: ReactNode

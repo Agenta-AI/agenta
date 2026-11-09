@@ -29,7 +29,7 @@ describe("parseBrowserLiveMessage", () => {
                     control: "user",
                     url: "https://example.com/",
                     title: "Example",
-                    waiting: "Log in to the shop",
+                    wait_reason: "Log in to the shop",
                 }),
             ),
         ).toEqual({
@@ -37,7 +37,7 @@ describe("parseBrowserLiveMessage", () => {
             control: "user",
             url: "https://example.com/",
             title: "Example",
-            waiting: "Log in to the shop",
+            waitReason: "Log in to the shop",
             tabs: [],
         })
         expect(parseBrowserLiveMessage(JSON.stringify({type: "status", control: "x"}))).toEqual({
@@ -45,7 +45,7 @@ describe("parseBrowserLiveMessage", () => {
             control: "agent",
             url: "",
             title: "",
-            waiting: "",
+            waitReason: "",
             tabs: [],
         })
     })

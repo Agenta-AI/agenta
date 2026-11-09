@@ -6,7 +6,7 @@ import {BrowserLiveSurface} from "../../../packages/agenta-entity-ui/src/browser
 import {
     closedBy,
     type BrowserLiveConnection,
-    type BrowserLiveStatus,
+    type BrowserLiveViewStatus,
 } from "../../../packages/agenta-entity-ui/src/browser/useBrowserLiveSocket"
 
 /**
@@ -18,7 +18,7 @@ const LiveSurface = ({
     status = null,
 }: {
     connection: BrowserLiveConnection
-    status?: BrowserLiveStatus | null
+    status?: BrowserLiveViewStatus | null
 }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null)
     return (
@@ -44,11 +44,11 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof LiveSurface>
 
-const page: BrowserLiveStatus = {
+const page: BrowserLiveViewStatus = {
     control: "agent",
     url: "https://shop.example.com/cart",
     title: "Cart",
-    waiting: "",
+    waitReason: "",
     tabs: [],
 }
 
@@ -64,7 +64,7 @@ export const UserControl: Story = {
 export const Waiting: Story = {
     args: {
         connection: {phase: "live"},
-        status: {...page, control: "user", waiting: "Sign in to the shop, then click I'm done."},
+        status: {...page, control: "user", waitReason: "Sign in to the shop, then click I'm done."},
     },
 }
 

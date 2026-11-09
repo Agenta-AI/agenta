@@ -56,7 +56,7 @@ function client(sandboxes: LiveLinkSandbox[], seen: Record<string, string>[] = [
   };
 }
 
-const PAGE = { waiting: "Sign in, then click I'm done.", url: "https://example.com/login", title: "Sign in" };
+const PAGE = { wait_reason: "Sign in, then click I'm done.", url: "https://example.com/login", title: "Sign in" };
 const alive: BrowserProbe = async () => PAGE;
 const dead: BrowserProbe = async () => null;
 
@@ -147,7 +147,7 @@ describe("cacheLiveLinks", () => {
     const cached = cacheLiveLinks(lookup, { lookupMs: 5, maxActive: 1 });
     const scope = { projectId: "p", sessionId: "s" };
     await assert.rejects(cached(scope), /timed out/);
-    await assert.rejects(cached(scope), /too many/);
+    await assert.rejects(cached({ projectId: "p", sessionId: "other" }), /too many/);
     assert.equal(calls, 1);
     finish(undefined);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -155,15 +155,20 @@ describe("cacheLiveLinks", () => {
     assert.equal(calls, 2);
   });
 
-  it("releases a lookup that never settles, so the next call starts a new one", async () => {
+  it("starts no second lookup for a session while its first still runs", async () => {
     let calls = 0;
+    let finish: (link: undefined) => void = () => {};
     const lookup = () => {
       calls++;
-      return new Promise<undefined>(() => {});
+      return new Promise<undefined>((resolve) => (finish = resolve));
     };
-    const cached = cacheLiveLinks(lookup, { lookupMs: 10 });
+    const cached = cacheLiveLinks(lookup, { lookupMs: 5 });
     const scope = { projectId: "p", sessionId: "s" };
     await assert.rejects(cached(scope), /timed out/);
+    await assert.rejects(cached(scope), /still running/);
+    assert.equal(calls, 1);
+    finish(undefined);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     cached(scope).catch(() => {});
     assert.equal(calls, 2);
   });
@@ -291,16 +296,16 @@ describe("probeBrowserHealth", () => {
   }
 
   it("counts only the browser's own answer as live, and reads its page state", async () => {
-    const empty = { waiting: "", url: "", title: "" };
+    const empty = { wait_reason: "", url: "", title: "" };
     const cases: [number, string, string, unknown][] = [
       [200, '{"ok":true}', "application/json", empty],
       [
         200,
-        '{"ok":true,"waiting":"Sign in","url":"https://example.com/","title":"Example","extra":1}',
+        '{"ok":true,"wait_reason":"Sign in","url":"https://example.com/","title":"Example","extra":1}',
         "application/json",
-        { waiting: "Sign in", url: "https://example.com/", title: "Example" },
+        { wait_reason: "Sign in", url: "https://example.com/", title: "Example" },
       ],
-      [200, '{"ok":true,"waiting":7,"title":null}', "application/json", empty],
+      [200, '{"ok":true,"wait_reason":7,"title":null}', "application/json", empty],
       [200, "<html>preview warning</html>", "text/html", null],
       [503, '{"ok":false}', "application/json", null],
     ];

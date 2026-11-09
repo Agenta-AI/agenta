@@ -70,7 +70,7 @@ function createLiveView(session) {
     return {
       type: "status",
       control: session.control,
-      waiting: session.waits.reason(),
+      wait_reason: session.waits.reason(),
       url: active?.url ?? "",
       title: active?.title ?? "",
       tabs,

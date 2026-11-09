@@ -270,8 +270,6 @@ log = get_module_logger(__name__)
 _ATTACHMENT_MULTIPART_OVERHEAD_BYTES = 64 * 1024
 _MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 
-# matches the streams contract allowlist (dbs/redis/sessions/contract.py)
-
 
 def _session_capabilities() -> SessionCapabilities:
     return SessionCapabilities(

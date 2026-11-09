@@ -92,7 +92,7 @@ class BrowserRouter:
             return BrowserLiveStatusResponse(running=False)
         return BrowserLiveStatusResponse(
             running=True,
-            waiting=link.page.waiting or None,
+            wait_reason=link.page.wait_reason or None,
             url=link.page.url or None,
             title=link.page.title or None,
         )

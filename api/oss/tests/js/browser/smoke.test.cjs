@@ -197,7 +197,7 @@ test("open, read, click, type, set, tabs, wait and the pay refusal through the r
   viewer.close();
   assert.equal(done.code, 0, done.out);
   assert.match(done.out, /^The person is done\.\nPage: Help/);
-  assert.equal(statuses[0].waiting, "Please sign in");
+  assert.equal(statuses[0].wait_reason, "Please sign in");
 
   const stop = await cli("stop");
   assert.equal(stop.out.trim(), "Stopped.");

@@ -48,7 +48,6 @@ test("giving control back or closing the view does not end the wait", async () =
   assert.equal(await outcome, "still");
   assert.equal(session.control, "agent");
   assert.equal(waits.reason(), "Please sign in");
-  assert.equal(waits.pendingCount(), 0);
 });
 
 test("the live view shows the open reason between wait calls", async () => {
@@ -56,7 +55,7 @@ test("the live view shows the open reason between wait calls", async () => {
   assert.equal(await waits.wait("Solve the CAPTCHA"), "still");
   const ws = viewer();
   await new Promise((r) => setTimeout(r, 20));
-  assert.deepEqual(ws.sent.find((m) => m.type === "status"), { type: "status", control: "agent", waiting: "Solve the CAPTCHA", url: "", title: "", tabs: [] });
+  assert.deepEqual(ws.sent.find((m) => m.type === "status"), { type: "status", control: "agent", wait_reason: "Solve the CAPTCHA", url: "", title: "", tabs: [] });
 });
 
 test("a reason expires after its total time, counted from the first wait", async () => {
@@ -94,4 +93,20 @@ test("an old I'm done does not answer a later wait", async () => {
   waits.done();
   await new Promise((r) => setTimeout(r, 80));
   assert.equal(await waits.wait("Sign in"), "still");
+});
+
+test("I'm done answers the next wait even when the agent rewords its reason", async () => {
+  const { waits, viewer, say } = setup({ sliceMs: 50 });
+  assert.equal(await waits.wait("Please sign in to GitHub"), "still");
+  say(viewer(), { type: "done" });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(await waits.wait("Sign in to GitHub, then click I'm done"), "done");
+});
+
+test("a reworded reason updates the ask and keeps the total time", async () => {
+  const { waits } = setup({ sliceMs: 100, totalMs: 160 });
+  assert.equal(await waits.wait("Sign in"), "still");
+  const second = waits.wait("Sign in to GitHub");
+  assert.equal(waits.reason(), "Sign in to GitHub");
+  assert.equal(await second, "expired");
 });

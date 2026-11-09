@@ -23,7 +23,7 @@ from starlette.websockets import WebSocketDisconnect
 
 PROJECT_ID = "019a0000-0000-7000-8000-000000000001"
 ORIGIN = "https://app.example"
-PAGE = BrowserPage(waiting="Sign in", url="https://example.com/", title="Example")
+PAGE = BrowserPage(wait_reason="Sign in", url="https://example.com/", title="Example")
 LINK = BrowserLiveLink(
     url="wss://8790-sb.proxy/live", headers={"x-agenta-browser-token": "t"}, page=PAGE
 )
@@ -72,7 +72,7 @@ async def test_returns_the_link_the_runner_found(runner):
 
 @pytest.mark.parametrize(
     "page",
-    [None, "nope", {"waiting": 7, "url": None}, {"title": "x" * 5000}],
+    [None, "nope", {"wait_reason": 7, "url": None}, {"title": "x" * 5000}],
 )
 async def test_a_bad_page_state_keeps_the_link(runner, page):
     runner.response = httpx.Response(
@@ -80,7 +80,7 @@ async def test_a_bad_page_state_keeps_the_link(runner, page):
     )
     got = await fetch_browser_live_link(project_id=PROJECT_ID, session_id="s1")
     assert got.url == LINK.url
-    assert got.page.waiting == "" and got.page.url == ""
+    assert got.page.wait_reason == "" and got.page.url == ""
     assert len(got.page.title) <= 2048
 
 
@@ -417,7 +417,7 @@ def test_status_carries_the_page_and_the_agents_ask(monkeypatch):
     got = _status(monkeypatch, LINK)
     assert got.model_dump(exclude_none=True) == {
         "running": True,
-        "waiting": "Sign in",
+        "wait_reason": "Sign in",
         "url": "https://example.com/",
         "title": "Example",
     }

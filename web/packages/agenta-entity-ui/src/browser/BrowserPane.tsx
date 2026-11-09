@@ -13,7 +13,7 @@ import {browserLiveUrl} from "./live"
 import {
     useBrowserLiveSocket,
     type BrowserLiveConnection,
-    type BrowserLiveStatus,
+    type BrowserLiveViewStatus,
 } from "./useBrowserLiveSocket"
 
 // Mobile's StatusTag tones: the accent asks for action, success is live, muted is at rest.
@@ -57,11 +57,11 @@ const StateDot = ({tone, label}: BrowserState) => (
 
 const browserState = (
     connection: BrowserLiveConnection,
-    status: BrowserLiveStatus | null,
+    status: BrowserLiveViewStatus | null,
 ): BrowserState | null => {
     if (connection.phase !== "live" || !status)
         return connection.phase === "connecting" ? null : {tone: "muted", label: "Closed"}
-    if (status.waiting) return {tone: "attention", dot: true, label: "Needs you"}
+    if (status.waitReason) return {tone: "attention", dot: true, label: "Needs you"}
     if (status.control === "user") return {tone: "muted", label: "You're in control"}
     return {tone: "live", dot: true, label: "Live"}
 }
@@ -91,7 +91,7 @@ export const BrowserPane = ({
             <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Close browser"
+                aria-label="Hide browser"
                 onClick={onClose}
                 className={ROW_ICON_BTN}
             >
@@ -104,7 +104,7 @@ export const BrowserPane = ({
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Close browser"
+                    aria-label="Hide browser"
                     onClick={onClose}
                     className={ROW_ICON_BTN}
                 >

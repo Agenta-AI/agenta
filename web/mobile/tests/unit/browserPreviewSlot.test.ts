@@ -3,7 +3,7 @@ import {describe, expect, it} from "vitest"
 import {showBrowserPreview} from "@/features/chat/BrowserPreviewSlot"
 import {browserPollMs} from "@/features/chat/useBrowserStatusPoll"
 
-const working = {working: true, running: true, waiting: "", paneOpen: false}
+const working = {working: true, running: true, waitReason: "", paneOpen: false}
 
 describe("showBrowserPreview", () => {
     it("shows while the agent works in a running browser", () => {
@@ -16,7 +16,7 @@ describe("showBrowserPreview", () => {
 
     it("gives way to the pane and to the agent's ask", () => {
         expect(showBrowserPreview({...working, paneOpen: true})).toBe(false)
-        expect(showBrowserPreview({...working, waiting: "Sign in"})).toBe(false)
+        expect(showBrowserPreview({...working, waitReason: "Sign in"})).toBe(false)
     })
 
     it("needs a running browser", () => {

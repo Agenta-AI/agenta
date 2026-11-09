@@ -35,9 +35,9 @@ export const LIVE_LINK_LOOKUP_MS = 30_000;
 /** The deadline frees the caller, not the SDK request, whose own timeout is 24 h. */
 export const LIVE_LINK_MAX_ACTIVE_LOOKUPS = 64;
 
-/** What the browser's `/health` reports: the open page, and the agent's ask while it waits. */
+/** What the browser's `/health` reports: the open page, and the reason the agent gave `wait`. */
 export interface BrowserPageState {
-  waiting: string;
+  wait_reason: string;
   url: string;
   title: string;
 }
@@ -90,7 +90,7 @@ export const probeBrowserHealth: BrowserProbe = async (healthUrl, headers) => {
     // A proxy page can answer 200 too; only the browser answers `{ok: true}`.
     const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
     if (body?.ok !== true) return null;
-    return { waiting: pageText(body.waiting), url: pageText(body.url), title: pageText(body.title) };
+    return { wait_reason: pageText(body.wait_reason), url: pageText(body.url), title: pageText(body.title) };
   } catch {
     return null;
   }
@@ -169,15 +169,20 @@ export function cacheLiveLinks(
 ): LiveLinkLookup {
   const entries = new Map<string, { at: number; link: Promise<BrowserLiveLink | undefined> }>();
   let active = 0;
+  // A session whose lookup outlived its deadline waits for it, so one hung session holds one slot.
+  const running = new Set<string>();
   return (scope) => {
     const key = JSON.stringify([scope.projectId, scope.sessionId]);
     const hit = entries.get(key);
     if (hit && now() - hit.at < ttlMs) return hit.link;
     entries.delete(key);
+    if (running.has(key)) return Promise.reject(new Error("browser lookup still running"));
     if (active >= maxActive) return Promise.reject(new Error("too many browser lookups"));
     active++;
+    running.add(key);
     const started = lookup(scope).finally(() => {
       active--;
+      running.delete(key);
     });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<never>((_, reject) => {

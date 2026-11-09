@@ -14,7 +14,10 @@ export type BrowserLiveConnection =
     | {phase: "closed"; reason: string}
     | {phase: "error"; reason: string}
 
-export type BrowserLiveStatus = Omit<Extract<BrowserLiveServerMessage, {type: "status"}>, "type">
+export type BrowserLiveViewStatus = Omit<
+    Extract<BrowserLiveServerMessage, {type: "status"}>,
+    "type"
+>
 
 /** Why the browser did not do what the viewer asked; `seq` tells two equal messages apart. */
 export interface BrowserLiveNotice {
@@ -65,7 +68,7 @@ export const useBrowserLiveSocket = (
     canvasRef: RefObject<HTMLCanvasElement | null>,
 ) => {
     const [connection, setConnection] = useState<BrowserLiveConnection>({phase: "connecting"})
-    const [status, setStatus] = useState<BrowserLiveStatus | null>(null)
+    const [status, setStatus] = useState<BrowserLiveViewStatus | null>(null)
     const [notice, setNotice] = useState<BrowserLiveNotice | null>(null)
     const [viewport, setViewport] = useState<BrowserViewport>(BROWSER_VIEWPORT)
     const [attempt, setAttempt] = useState(0)
@@ -107,7 +110,7 @@ export const useBrowserLiveSocket = (
                     control: message.control,
                     url: message.url,
                     title: message.title,
-                    waiting: message.waiting,
+                    waitReason: message.waitReason,
                     tabs: message.tabs,
                 })
             } else if (message?.type === "notice") {

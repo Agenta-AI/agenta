@@ -46,9 +46,8 @@ CAPTCHA, run `wait` with a short reason, for example
 with an **Open browser** button; tell the person to click it.
 
 `wait` returns within about 90 seconds. If it prints `Still waiting`, the person has not
-finished yet: run the same `wait` command again, with the same reason. When the person clicks
-**I'm done**, `wait` prints the page they left you on. After 25 minutes with one reason, it
-gives up.
+finished yet: run `wait` again. When the person clicks **I'm done**, `wait` prints the page they
+left you on. After 25 minutes of waiting, it gives up.
 
 If a command says a person is controlling the browser, run `wait` and continue when it returns.
 

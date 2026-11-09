@@ -12,12 +12,12 @@ export const BrowserAskDock = ({sessionId, working}: {sessionId: string; working
     useBrowserStatusPoll(sessionId, working, isBrowserEnabled())
     const status = useAtomValue(browserLiveStatusQueryAtomFamily(sessionId)).data
     const [paneOpen, setPaneOpen] = useAtom(browserPaneOpenAtomFamily(sessionId))
-    if (!isBrowserEnabled() || !status?.running || !status.waiting || paneOpen) return null
+    if (!isBrowserEnabled() || !status?.running || !status.waitReason || paneOpen) return null
     return (
         <div className="bg-background shrink-0 px-3 pt-3 pb-0">
             <ContentRail>
                 <BrowserAskCard
-                    ask={status.waiting}
+                    reason={status.waitReason}
                     url={status.url}
                     onOpen={() => setPaneOpen(true)}
                 />

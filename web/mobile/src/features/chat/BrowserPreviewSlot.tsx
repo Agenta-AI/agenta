@@ -10,14 +10,14 @@ import {fadeUp} from "@/lib/motion/presets"
 export const showBrowserPreview = ({
     working,
     running,
-    waiting,
+    waitReason,
     paneOpen,
 }: {
     working: boolean
     running?: boolean
-    waiting?: string
+    waitReason?: string
     paneOpen: boolean
-}) => working && Boolean(running) && !waiting && !paneOpen
+}) => working && Boolean(running) && !waitReason && !paneOpen
 
 export const BrowserPreviewSlot = ({sessionId, working}: {sessionId: string; working: boolean}) => {
     const reduced = useReducedMotion()
@@ -28,7 +28,7 @@ export const BrowserPreviewSlot = ({sessionId, working}: {sessionId: string; wor
         showBrowserPreview({
             working,
             running: status?.running,
-            waiting: status?.waiting,
+            waitReason: status?.waitReason,
             paneOpen,
         })
     return (

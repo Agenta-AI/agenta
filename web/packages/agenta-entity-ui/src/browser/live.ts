@@ -23,7 +23,7 @@ export type BrowserLiveServerMessage =
           control: "agent" | "user"
           url: string
           title: string
-          waiting: string
+          waitReason: string
           tabs: BrowserLiveTab[]
       }
     | {type: "notice"; message: string}
@@ -97,7 +97,7 @@ export const parseBrowserLiveMessage = (raw: unknown): BrowserLiveServerMessage 
             control: data.control === "user" ? "user" : "agent",
             url: typeof data.url === "string" ? data.url : "",
             title: typeof data.title === "string" ? data.title : "",
-            waiting: typeof data.waiting === "string" ? data.waiting : "",
+            waitReason: typeof data.wait_reason === "string" ? data.wait_reason : "",
             tabs: parseTabs(data.tabs),
         }
     }

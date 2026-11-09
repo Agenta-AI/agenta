@@ -232,6 +232,7 @@ def build_cors_origins(web_url: str) -> list[str]:
     return origins
 
 
+# Matches the streams contract allowlist (dbs/redis/sessions/contract.py).
 SESSION_ID_RE = re.compile(r"[a-zA-Z0-9_\-]{1,128}")
 
 

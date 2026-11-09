@@ -17,12 +17,12 @@ import {isCommandKey, mouseButton, toViewportPoint} from "./liveInput"
 import type {
     BrowserLiveConnection,
     BrowserLiveNotice,
-    BrowserLiveStatus,
+    BrowserLiveViewStatus,
 } from "./useBrowserLiveSocket"
 
 export interface BrowserLiveSurfaceProps {
     connection: BrowserLiveConnection
-    status: BrowserLiveStatus | null
+    status: BrowserLiveViewStatus | null
     notice?: BrowserLiveNotice | null
     /** The remote viewport of the latest frame, in CSS pixels; pointer input maps into it. */
     viewport: BrowserViewport
@@ -54,7 +54,7 @@ export const BrowserLiveSurface = ({
     const live = connection.phase === "live"
     const userControl = live && status?.control === "user"
     // The agent ran `agenta-browser wait`: only "I'm done" ends it; giving back control does not.
-    const waiting = live ? status?.waiting || "" : ""
+    const waitReason = live ? status?.waitReason || "" : ""
 
     const point = (clientX: number, clientY: number) =>
         canvasRef.current ? toViewportPoint(canvasRef.current, clientX, clientY, viewport) : null
@@ -191,7 +191,7 @@ export const BrowserLiveSurface = ({
                     <Keyboard size={15} />
                 </Button>
                 {/* While the agent waits, its ask below carries the actions. */}
-                {waiting ? null : (
+                {waitReason ? null : (
                     <Button
                         size="sm"
                         variant="outline"
@@ -203,7 +203,7 @@ export const BrowserLiveSurface = ({
                     </Button>
                 )}
             </div>
-            {waiting ? (
+            {waitReason ? (
                 <div
                     role="status"
                     className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3"
@@ -214,7 +214,7 @@ export const BrowserLiveSurface = ({
                             The agent needs you
                         </span>
                         <span className="text-[13px] leading-relaxed text-colorTextSecondary [text-wrap:pretty]">
-                            {waiting}
+                            {waitReason}
                         </span>
                     </div>
                     <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -304,7 +304,7 @@ export const BrowserLiveSurface = ({
                     </div>
                 ) : null}
             </div>
-            {live && status && !userControl && !waiting ? (
+            {live && status && !userControl && !waitReason ? (
                 <p className="m-0 text-xs text-colorTextTertiary">
                     View only. Take control to click and type.
                 </p>

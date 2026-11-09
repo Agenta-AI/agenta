@@ -2,7 +2,7 @@
 
 export interface BrowserLiveStatusResponse {
     running?: boolean | undefined;
-    waiting?: string | undefined;
+    wait_reason?: string | undefined;
     url?: string | undefined;
     title?: string | undefined;
 }

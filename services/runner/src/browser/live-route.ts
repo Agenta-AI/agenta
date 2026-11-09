@@ -1,6 +1,6 @@
 /**
  * `POST /browser/live {projectId, sessionId}`: the live-view link of the session's browser.
- * 400 bad body, 413 body too large, 404 no live browser, 200 `{url, headers}`, 502 lookup error.
+ * 400 bad body, 413 body too large, 404 no live browser, 200 `{url, headers, page}`, 502 lookup error.
  * The server checks the runner token before it calls this.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";

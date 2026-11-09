@@ -189,7 +189,7 @@ async function serve() {
         ok: true,
         text:
           `Still waiting: the person has not clicked I'm done yet ("${reason}").\n` +
-          "Run the same wait command again, with the same reason, to keep waiting.",
+          "Run wait again to keep waiting.",
       };
     if (outcome === "expired")
       return agentError("wait_timeout", `Nobody clicked I'm done within ${Math.round(config.WAIT_TOTAL_MS / 60_000)} minutes.`, {
@@ -221,7 +221,7 @@ async function serve() {
       const active = (await session.tabs()).find((tab) => tab.active);
       return reply(res, 200, {
         ok: true,
-        waiting: waits.reason(),
+        wait_reason: waits.reason(),
         url: active?.url ?? "",
         title: active?.title ?? "",
       });

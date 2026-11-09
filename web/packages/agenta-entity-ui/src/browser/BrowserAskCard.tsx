@@ -11,11 +11,11 @@ const hostOf = (url: string) => {
 
 /** The agent's ask for the person, docked above the composer like an approval. */
 export const BrowserAskCard = ({
-    ask,
+    reason,
     url,
     onOpen,
 }: {
-    ask: string
+    reason: string
     url?: string
     onOpen: () => void
 }) => {
@@ -36,7 +36,7 @@ export const BrowserAskCard = ({
                     ) : null}
                 </span>
                 <span className="text-[13px] leading-relaxed text-colorTextSecondary [text-wrap:pretty]">
-                    {ask}
+                    {reason}
                 </span>
             </div>
             <Button size="sm" className="ml-auto shrink-0" onClick={onOpen}>

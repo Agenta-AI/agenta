@@ -100,7 +100,7 @@ export const SessionTabs = ({
                 <BrowserPaneToggle
                     open={browserOpen}
                     onToggle={() => setBrowserOpen(!browserOpen)}
-                    needsYou={Boolean(browser?.waiting) && !browserOpen}
+                    needsYou={Boolean(browser?.waitReason) && !browserOpen}
                 />
             ) : null}
             <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} disabled={!sessionId} />

@@ -2,15 +2,15 @@ import {getBrowserClient} from "@agenta/sdk/resources"
 
 import {safeParseWithLogging} from "../shared"
 
-import {browserLiveStatusSchema, type BrowserSessionStatus} from "./types"
+import {browserLiveStatusSchema, type BrowserLiveStatus} from "./types"
 
-const NOT_RUNNING: BrowserSessionStatus = {running: false, waiting: "", url: "", title: ""}
+const NOT_RUNNING: BrowserLiveStatus = {running: false, waitReason: "", url: "", title: ""}
 
 /** Whether the agent of this session runs a browser right now, and what it shows. */
 export const fetchBrowserLiveStatus = async (
     projectId: string,
     sessionId: string,
-): Promise<BrowserSessionStatus> => {
+): Promise<BrowserLiveStatus> => {
     const data = await getBrowserClient().fetchBrowserLiveStatus(
         {session_id: sessionId},
         {queryParams: {project_id: projectId}},

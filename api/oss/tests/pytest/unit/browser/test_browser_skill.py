@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from oss.src.core.browser.skill import BROWSER_SKILL, BROWSER_SLUG, SCRIPT_PATH
+from oss.src.core.browser.assembly import BROWSER_SKILL, BROWSER_SLUG, SCRIPT_PATH
 from oss.src.core.workflows import build_kit
 
 API_DIR = Path(__file__).resolve().parents[5]

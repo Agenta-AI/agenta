@@ -21,7 +21,6 @@ function capped(text) {
 }
 
 const ITEM_ROLES = /^- (listitem|row|article|option|treeitem)\b/;
-const MAX_FIND_MATCHES = 20;
 const MAX_ITEM_LINES = 40;
 
 const indentOf = (line) => line.length - line.trimStart().length;

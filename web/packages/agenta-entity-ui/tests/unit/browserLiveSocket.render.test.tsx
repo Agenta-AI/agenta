@@ -10,7 +10,7 @@ import type {BrowserLiveClientMessage} from "../../src/browser/live"
 import {
     useBrowserLiveSocket,
     type BrowserLiveConnection,
-    type BrowserLiveStatus,
+    type BrowserLiveViewStatus,
 } from "../../src/browser/useBrowserLiveSocket"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -85,7 +85,7 @@ describe("useBrowserLiveSocket", () => {
         const [replaced, current] = FakeSocket.all
         act(() => {
             current.open()
-            current.receive({type: "status", control: "agent", url: "", title: "", waiting: ""})
+            current.receive({type: "status", control: "agent", url: "", title: "", waitReason: ""})
         })
         act(() => {
             replaced.onerror?.()
@@ -109,7 +109,7 @@ describe("useBrowserLiveSocket", () => {
         act(() => socket.open())
         expect(phases.at(-1)).toBe("connecting")
         act(() =>
-            socket.receive({type: "status", control: "agent", url: "", title: "", waiting: ""}),
+            socket.receive({type: "status", control: "agent", url: "", title: "", waitReason: ""}),
         )
         expect(phases.at(-1)).toBe("live")
     })
@@ -124,15 +124,15 @@ describe("useBrowserLiveSocket", () => {
 
 describe("BrowserLiveSurface control buttons", () => {
     const live: BrowserLiveConnection = {phase: "live"}
-    const status = (over: Partial<BrowserLiveStatus>): BrowserLiveStatus => ({
+    const status = (over: Partial<BrowserLiveViewStatus>): BrowserLiveViewStatus => ({
         tabs: [],
         control: "agent",
         url: "https://example.com/",
         title: "Example",
-        waiting: "",
+        waitReason: "",
         ...over,
     })
-    const renderSurface = (current: BrowserLiveStatus) => {
+    const renderSurface = (current: BrowserLiveViewStatus) => {
         const sent: BrowserLiveClientMessage[] = []
         act(() =>
             root.render(
@@ -157,14 +157,14 @@ describe("BrowserLiveSurface control buttons", () => {
     }
 
     it("ends the wait with done, not by giving back control", () => {
-        const sent = renderSurface(status({control: "user", waiting: "Log in"}))
+        const sent = renderSurface(status({control: "user", waitReason: "Log in"}))
         click("I'm done")
         click("Give back control")
         expect(sent).toEqual([{type: "done"}, {type: "control", take: false}])
     })
 
     it("offers I'm done while the agent waits, even before the person takes control", () => {
-        const sent = renderSurface(status({waiting: "Log in"}))
+        const sent = renderSurface(status({waitReason: "Log in"}))
         click("Take control")
         click("I'm done")
         expect(sent).toEqual([{type: "control", take: true}, {type: "done"}])

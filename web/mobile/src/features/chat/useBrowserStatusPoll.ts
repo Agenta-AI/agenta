@@ -7,7 +7,6 @@ const TURN_POLL_MS = 10_000
 const BROWSING_POLL_MS = 4_000
 const RUNNING_POLL_MS = 30_000
 
-/** Keeps the session's browser status fresh; mount once per session screen. */
 /** Null stops the poll. A turn starts the browser; an idle exit or a teardown stops it with none. */
 export const browserPollMs = (turnRunning: boolean, browserRunning: boolean): number | null =>
     !turnRunning
@@ -18,7 +17,8 @@ export const browserPollMs = (turnRunning: boolean, browserRunning: boolean): nu
           ? BROWSING_POLL_MS
           : TURN_POLL_MS
 
-/** `turnRunning` is the conversation's own: the project liveness poll stops while it reads idle. */
+/** Keeps the session's browser status fresh; mount once per session screen.
+ * `turnRunning` is the conversation's own: the project liveness poll stops while it reads idle. */
 export const useBrowserStatusPoll = (sessionId: string, turnRunning: boolean, enabled: boolean) => {
     const {data, refetch} = useAtomValue(browserLiveStatusQueryAtomFamily(sessionId))
     const browserRunning = Boolean(data?.running)

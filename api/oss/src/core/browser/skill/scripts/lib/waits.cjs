@@ -1,93 +1,94 @@
 "use strict";
 
-// The agent waiting for the person. A reason stays open across `wait` calls (each call blocks for
-// one slice) until the person clicks "I'm done" or the total time for that reason runs out.
+// The agent waiting for the person. One agent drives one browser, so there is one wait at a time:
+// it stays open across `wait` calls (each call blocks for one slice) until the person clicks
+// "I'm done" or its total time runs out. Models reword their reason between calls, so a new
+// reason only updates the ask the person sees; it neither opens a second wait nor resets the time.
 //
-//   open -> done      on `done()`; pending calls resolve "done" now, and the next `wait` with the
-//                     reason answers "done" too, so a click between two calls is not lost
-//   open -> expired   when `totalMs` passed since the first `wait` with the reason
-//   done | expired    answered once by the next `wait` with the reason, then forgotten
-//   a call -> "still" when its slice ends first; the reason stays open
-//   no call for `graceMs` after a slice or a done: the turn ended, so the reason is forgotten
+//   open -> done      on `done()`; pending calls resolve "done" now, else the next `wait` does,
+//                     so a click between two calls is not lost
+//   open -> expired   when `totalMs` passed since the wait opened
+//   done | expired    answered once by the next `wait`, then forgotten
+//   a call -> "still" when its slice ends first; the wait stays open
+//   no call for `graceMs` after a slice or a done: the turn ended, so the wait is forgotten
 
 function createWaits({ sliceMs, totalMs, graceMs = 120_000, now = Date.now, onChange = () => {} }) {
-  const reasons = new Map(); // reason -> { startedAt, state: "open" | "done" | "expired", timer }
-  let pending = []; // { reason, resolve, timer }
+  let slot = null; // { reason, startedAt, state: "open" | "done" | "expired", timer, grace }
+  let pending = []; // { resolve, timer }
 
-  function forgetLater(reason, entry) {
-    clearTimeout(entry.grace);
-    entry.grace = setTimeout(() => {
-      clearTimeout(entry.timer);
-      if (reasons.get(reason) === entry) reasons.delete(reason);
-      onChange();
-    }, graceMs);
-    entry.grace.unref?.();
-  }
-
-  function settle(reason, state) {
-    const entry = reasons.get(reason);
-    if (!entry || entry.state !== "open") return;
-    clearTimeout(entry.timer);
-    entry.state = state;
-    const resolved = pending.filter((w) => w.reason === reason);
-    pending = pending.filter((w) => w.reason !== reason);
-    for (const waiter of resolved) {
-      clearTimeout(waiter.timer);
-      reasons.delete(reason);
-      waiter.resolve(state);
-    }
-    if (!resolved.length) forgetLater(reason, entry);
+  function forget() {
+    if (!slot) return;
+    clearTimeout(slot.timer);
+    clearTimeout(slot.grace);
+    slot = null;
     onChange();
   }
 
-  function open(reason) {
-    let entry = reasons.get(reason);
-    if (!entry) {
-      entry = { startedAt: now(), state: "open" };
-      entry.timer = setTimeout(() => settle(reason, "expired"), totalMs);
-      entry.timer.unref?.();
-      reasons.set(reason, entry);
+  function forgetLater() {
+    clearTimeout(slot.grace);
+    slot.grace = setTimeout(forget, graceMs);
+    slot.grace.unref?.();
+  }
+
+  function settle(state) {
+    if (!slot || slot.state !== "open") return;
+    clearTimeout(slot.timer);
+    slot.state = state;
+    const resolved = pending;
+    pending = [];
+    for (const waiter of resolved) {
+      clearTimeout(waiter.timer);
+      waiter.resolve(state);
+    }
+    if (resolved.length) forget();
+    else {
+      forgetLater();
       onChange();
     }
-    return entry;
   }
 
   return {
     wait(reason) {
-      const entry = open(reason);
-      clearTimeout(entry.grace);
-      if (entry.state !== "open") {
-        reasons.delete(reason);
-        return Promise.resolve(entry.state);
+      if (slot && slot.state !== "open") {
+        const state = slot.state;
+        forget();
+        return Promise.resolve(state);
       }
-      const left = entry.startedAt + totalMs - now();
-      if (left <= 0) {
-        settle(reason, "expired");
-        reasons.delete(reason);
+      if (!slot) {
+        slot = { reason, startedAt: now(), state: "open" };
+        slot.timer = setTimeout(() => settle("expired"), totalMs);
+        slot.timer.unref?.();
+        onChange();
+      } else if (slot.reason !== reason) {
+        slot.reason = reason;
+        onChange();
+      }
+      clearTimeout(slot.grace);
+      const end = slot.startedAt + totalMs;
+      if (now() >= end) {
+        settle("expired");
+        forget();
         return Promise.resolve("expired");
       }
       return new Promise((resolve) => {
-        const waiter = { reason, resolve };
+        const waiter = { resolve };
         waiter.timer = setTimeout(() => {
           // The last slice ends with the total time; it must not race the expiry into "still".
-          if (now() >= entry.startedAt + totalMs) return settle(reason, "expired");
+          if (now() >= end) return settle("expired");
           pending = pending.filter((w) => w !== waiter);
-          forgetLater(reason, entry);
+          forgetLater();
           resolve("still");
-        }, Math.min(sliceMs, left));
+        }, Math.min(sliceMs, end - now()));
         pending.push(waiter);
       });
     },
     done() {
-      for (const [reason, entry] of reasons) if (entry.state === "open") settle(reason, "done");
+      settle("done");
     },
-    // The newest reason still open, for the live view's banner.
+    // The open wait's reason, for the live view's banner and `/health`.
     reason() {
-      let last = "";
-      for (const [reason, entry] of reasons) if (entry.state === "open") last = reason;
-      return last;
+      return slot?.state === "open" ? slot.reason : "";
     },
-    pendingCount: () => pending.length,
     active() {
       return pending.length > 0 || this.reason() !== "";
     },

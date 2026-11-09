@@ -16,7 +16,7 @@ from agenta.sdk.agents.platform.workflow import (
 )
 
 from oss.src.core.apps.assembly import AGENTA_APPS_SKILL, AGENTA_APPS_SLUG
-from oss.src.core.browser.skill import BROWSER_SKILL, BROWSER_SLUG
+from oss.src.core.browser.assembly import BROWSER_SKILL, BROWSER_SLUG
 from oss.src.utils.env import env
 
 BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"

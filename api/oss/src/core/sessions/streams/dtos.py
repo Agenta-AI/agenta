@@ -358,9 +358,9 @@ class SessionHeartbeatResult(BaseModel):
 
 
 class BrowserPage(NamedTuple):
-    """The browser's open page, and the agent's ask while it waits for the person (else empty)."""
+    """The browser's open page, and the reason the agent gave `wait` (empty when not waiting)."""
 
-    waiting: str = ""
+    wait_reason: str = ""
     url: str = ""
     title: str = ""
 
