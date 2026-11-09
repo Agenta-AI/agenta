@@ -131,6 +131,11 @@ link (`<web_url>/m/settings?tab=license#key=<key>`) through Loops. It stores not
 back to an asset. Worker secrets, set with `wrangler secret put` and never committed:
 `LICENSE_SIGNING_KEY` (the Ed25519 private key, PKCS#8 PEM) and `LOOPS_API_KEY`. Without them
 the route answers 503. The Loops email template id is the constant `LOOPS_TRANSACTIONAL_ID`.
+The route is public, so it refuses a body over 2 KiB (413) and checks two rate limit bindings
+from the `ratelimits` block of both wrangler configs before it signs: `REGISTRATION_IP_LIMIT`
+(per caller IP) and `REGISTRATION_EMAIL_LIMIT` (per email). Over a limit, or with a binding
+missing, it answers 429. These limits count per minute and per Cloudflare location; they are
+not a daily cap.
 
 `/openapi.json` is published by `scripts/copy-openapi.mjs` (a `prebuild` step)
 from the committed `docs/docs/reference/openapi.json`: it rewrites the spec's
