@@ -17,6 +17,7 @@ from oss.src.core.channels.dtos import (
     ChannelSpaceKind,
 )
 from oss.src.core.channels.render.approval import approval_details
+from oss.src.core.channels.render.render import _split_text
 
 # Application flags that let the bot read message content.
 GATEWAY_MESSAGE_CONTENT = 1 << 18
@@ -306,13 +307,12 @@ def parse_interaction(interaction: Dict[str, Any]) -> Optional[ChannelInboundEve
 
 
 def split_text(text: str, *, max_chars: int = TEXT_MAX_CHARS) -> List[str]:
-    """The safety net: core already splits answers at the declared limit,
-    keeping code blocks whole. This only catches oversize content that
-    reached the adapter anyway, such as a long approval card."""
+    """Core already splits answers at the declared limit. Text that reaches
+    the adapter oversize anyway (a channel tool's message, a long approval
+    card) goes through the same Markdown split, so code blocks stay
+    readable."""
 
-    if len(text) <= max_chars:
-        return [text]
-    return [text[i : i + max_chars] for i in range(0, len(text), max_chars)]
+    return _split_text(text, max_chars)
 
 
 def _card_text(card: Dict[str, Any]) -> str:

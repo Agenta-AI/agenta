@@ -178,6 +178,15 @@ def test_oversize_content_is_still_cut_to_the_limit():
     assert all(body["allowed_mentions"] == {"parse": []} for body in bodies)
 
 
+def test_an_oversize_message_keeps_its_code_block_readable():
+    text = ("word " * 300).strip() + "\n\n```python\n" + "x = 1\n" * 300 + "```"
+    bodies = mapping.build_messages([{"type": "text", "text": text}])
+
+    assert len(bodies) > 1
+    assert all(len(body["content"]) <= 2000 for body in bodies)
+    assert all(body["content"].count("```") % 2 == 0 for body in bodies)
+
+
 # --- buttons ------------------------------------------------------------- #
 
 
