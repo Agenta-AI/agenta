@@ -169,8 +169,9 @@ async def send_heartbeat() -> HeartbeatReason:
     """Send the heartbeat when 12 hours have passed since the last one.
 
     The counts are collected before the row lock, so the lock covers only the send.
-    One container sends: the others skip the locked row. A failed send rolls back,
-    so the next hourly run covers the same window again.
+    One container sends: the others skip the locked row. A failed send of the event
+    or of the group properties rolls back, so the next hourly run covers the same
+    window again; the fixed event uuid lets PostHog drop the copy.
     """
 
     if env.stripe.enabled:
@@ -208,6 +209,12 @@ async def send_heartbeat() -> HeartbeatReason:
                 uuid=uuid5(instance_id, heartbeat.window_start),
                 timeout=HEARTBEAT_TIMEOUT_SECONDS,
             )
+            await telemetry.group_identify(
+                "instance",
+                heartbeat.instance_id,
+                heartbeat.model_dump(mode="json", include=set(GROUP_PROPERTIES)),
+                timeout=HEARTBEAT_TIMEOUT_SECONDS,
+            )
     except Exception as exc:  # noqa: BLE001
         log.warning(
             "Telemetry heartbeat not sent; the next run tries again",
@@ -215,19 +222,5 @@ async def send_heartbeat() -> HeartbeatReason:
             error=str(exc),
         )
         return "failed"
-
-    try:
-        await telemetry.group_identify(
-            "instance",
-            heartbeat.instance_id,
-            heartbeat.model_dump(mode="json", include=set(GROUP_PROPERTIES)),
-            timeout=HEARTBEAT_TIMEOUT_SECONDS,
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.warning(
-            "Instance group properties not sent; the next heartbeat sets them",
-            reason=type(exc).__name__,
-            error=str(exc),
-        )
 
     return "sent"

@@ -50,18 +50,26 @@ CONTRACT_FIELDS = {
 
 
 class _PostHog:
-    def __init__(self, fail: Exception | None = None):
+    """Like the real sync client: a send returns the event uuid, or None when PostHog
+    did not accept it."""
+
+    def __init__(self, fail: Exception | None = None, group_accepted: bool = True):
         self.captures = []
         self.groups = []
         self.fail = fail
+        self.group_accepted = group_accepted
 
     def capture(self, event=None, **kwargs):
         if self.fail is not None:
             raise self.fail
         self.captures.append({"event": event, **kwargs})
+        return str(kwargs.get("uuid"))
 
     def group_identify(self, group_type, group_key, properties):
+        if not self.group_accepted:
+            return None
         self.groups.append((group_type, group_key, properties))
+        return "group-uuid"
 
 
 class _InstancesDAO:
@@ -273,6 +281,22 @@ async def test_failed_send_rolls_back(monkeypatch, dao):
     assert await heartbeat.send_heartbeat() == "failed"
     assert dao.heartbeat_sent_at is None
     assert failing.groups == []
+
+
+@pytest.mark.asyncio
+async def test_refused_group_properties_roll_back(monkeypatch, dao):
+    refusing = _PostHog(group_accepted=False)
+    monkeypatch.setattr(telemetry_service, "_sync_client", lambda timeout: refusing)
+
+    assert await heartbeat.send_heartbeat() == "failed"
+    assert dao.heartbeat_sent_at is None
+    assert len(refusing.captures) == 1
+
+    accepting = _PostHog()
+    monkeypatch.setattr(telemetry_service, "_sync_client", lambda timeout: accepting)
+
+    assert await heartbeat.send_heartbeat() == "sent"
+    assert accepting.captures[0]["uuid"] == refusing.captures[0]["uuid"]
 
 
 @pytest.mark.asyncio

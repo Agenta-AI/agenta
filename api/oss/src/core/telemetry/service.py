@@ -119,14 +119,18 @@ async def group_identify(
     *,
     timeout: int,
 ) -> None:
-    """Set a PostHog group's properties and return once PostHog accepted them."""
+    """Set a PostHog group's properties and return once PostHog accepted them; raise
+    when it did not."""
 
-    await asyncio.to_thread(
+    sent = await asyncio.to_thread(
         _sync_client(timeout).group_identify,
         group_type,
         group_key,
         properties,
     )
+    # The client catches its own send errors and returns None instead of the event uuid.
+    if sent is None:
+        raise RuntimeError(f"PostHog did not accept the {group_type} group properties")
 
 
 async def instance_groups() -> Dict[str, str]:
