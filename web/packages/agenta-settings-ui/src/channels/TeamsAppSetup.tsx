@@ -11,11 +11,7 @@ import {CopyField} from "./WhatsAppWebhook"
 const TITLE = "text-[13px] font-medium text-foreground"
 const BODY = "m-0 text-xs leading-relaxed text-colorTextSecondary"
 
-/**
- * What a Teams connection needs after it is stored: the messaging endpoint to paste into the
- * bot, and the app package to upload in Teams. The connect flow shows it right after connecting
- * and the manage view keeps it findable.
- */
+/** The messaging endpoint and the app package download of a Teams connection. */
 export const TeamsAppSetup = ({
     connection,
     actions,

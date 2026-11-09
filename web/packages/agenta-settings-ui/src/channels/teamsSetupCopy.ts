@@ -1,7 +1,4 @@
-/**
- * The Microsoft Teams setup steps, in one place. The path is the Teams Developer Portal; the
- * docs link the Azure portal path. Change the steps here when the path changes.
- */
+/** Teams setup copy for the Developer Portal path; the docs cover the Azure portal path. */
 
 export const TEAMS_DEVELOPER_PORTAL_URL = "https://dev.teams.microsoft.com/bots"
 export const ENTRA_ADMIN_CENTER_URL = "https://entra.microsoft.com"

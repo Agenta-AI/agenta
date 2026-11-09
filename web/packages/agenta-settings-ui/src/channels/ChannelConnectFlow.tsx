@@ -328,8 +328,7 @@ export const ChannelConnectFlow = ({
     const [mode, setMode] = useState<ChannelInstallMode>(
         customOnly || hostedConnectedHere ? "custom" : initialMode,
     )
-    // A new WhatsApp or Teams connection, held on screen until its last setup step is done:
-    // the webhook values copied into Meta, or the Teams endpoint pasted and the app installed.
+    // A new WhatsApp or Teams connection, kept on screen for its setup steps after connect.
     const [created, setCreated] = useState<ChannelConnection | null>(null)
     const [error, setError] = useState<string | null>(null)
 
