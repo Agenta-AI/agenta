@@ -133,8 +133,9 @@ const BARE_SCROLLER_CLASS =
     "flex h-full min-w-0 max-w-full flex-1 items-end overflow-x-auto overscroll-x-contain px-3 [justify-content:safe_center] motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 /** Covers the scroller's padding at each end, so a tab scrolling past stops at the same 12px inset
  * the open tab's flared corners need. Sticky offsets count from the content box, so -12px puts
- * each cover on the padding. */
-const CURTAIN = "sticky z-[2] w-3 shrink-0 self-stretch bg-[var(--ag-surface-tab-bar)]"
+ * each cover on the padding. It stops 4px short of the bottom, where those corners are drawn, or
+ * the first and last tabs lose their curves. */
+const CURTAIN = "sticky z-[2] mb-1 w-3 shrink-0 self-stretch bg-[var(--ag-surface-tab-bar)]"
 
 export const SessionTabStrip = ({
     children,
