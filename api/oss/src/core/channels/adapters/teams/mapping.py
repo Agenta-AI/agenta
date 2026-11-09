@@ -331,9 +331,9 @@ def reply_host_allowed(service_url: Any) -> bool:
 
 
 def split_text(text: str, *, max_chars: int = TEXT_MAX_CHARS) -> List[str]:
-    """The safety net: core already splits answers at the declared limit,
-    keeping code blocks whole. This only catches oversize text that reached
-    the adapter anyway."""
+    """Core splits agent answers at the declared limit and keeps code blocks
+    whole. The channel send tool posts its text as one part that core does
+    not split, so this cuts it at the limit."""
 
     if len(text) <= max_chars:
         return [text]

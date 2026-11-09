@@ -257,7 +257,7 @@ async def test_an_empty_answer_sends_nothing(adapter, fake, connection):
     assert fake.calls == []
 
 
-async def test_oversize_text_is_split_as_a_safety_net(adapter, fake, connection):
+async def test_oversize_text_is_split_at_the_limit(adapter, fake, connection):
     await _post(adapter, connection, text="a" * 45000)
 
     assert [len(t) for t in fake.texts()] == [20000, 20000, 5000]
@@ -411,6 +411,7 @@ async def test_a_second_401_revokes_the_credential(adapter, fake, connection):
         (401, "invalid_client", 7000215),
         (401, "invalid_client", 7000222),
         (400, "unauthorized_client", 700016),
+        (400, "unauthorized_client", 7000112),
         (400, "invalid_request", 90002),
     ],
 )
