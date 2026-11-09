@@ -50,6 +50,8 @@ const ConfigPaneView = ({
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
             <DrillInBridgeProvider projectId={projectId} onWorkflowRevisionCommitted={pinRevision}>
                 <AgentBuildPanel
+                    // Grow to the pane's height so the last region's sheet fills the empty space.
+                    className="flex grow flex-col"
                     revisionId={entityId}
                     disabled={!editAccess.pending && !editAccess.allowed}
                     stickyHeaderTop={0}
