@@ -49,6 +49,21 @@ const contentWidth = (el: Element | null | undefined): number => {
     return Math.max(...boxes.map((b) => b.right)) - Math.min(...boxes.map((b) => b.left))
 }
 
+/** The content width with every truncated label at its full length. The laid-out width depends on
+ * the layout this measure picks, so reading it made the choice flip on every render. */
+const naturalWidth = (el: Element | null | undefined): number => {
+    let clipped = 0
+    for (const node of Array.from(el?.querySelectorAll<HTMLElement>("*") ?? [])) {
+        if (
+            node.scrollWidth > node.clientWidth + 1 &&
+            getComputedStyle(node).overflowX !== "visible"
+        ) {
+            clipped += node.scrollWidth - node.clientWidth
+        }
+    }
+    return contentWidth(el) + clipped
+}
+
 /**
  * Which of Share and Publish the bar folds into ⋯, and whether the tabs centre or start left.
  * Buttons fold one at a time and only when the tabs would otherwise meet them; with room to
@@ -64,8 +79,9 @@ const useBarFit = (
         folded: NONE,
         center: preferCenter,
     })
-    // Widths of the buttons as last seen in the bar, so a folded one still counts.
-    const seen = useRef({share: 76, publish: 84, divider: 9})
+    // Footprints of the buttons as last seen in the bar, so a folded one still counts. Share's
+    // includes the divider and both gaps it brings, or a fold undercounted it and undid itself.
+    const seen = useRef({shareTail: 101, publish: 84})
     useLayoutEffect(() => {
         const bar = barRef.current
         const grid = bar?.firstElementChild
@@ -73,19 +89,20 @@ const useBarFit = (
         const measure = () => {
             const shareButton = grid.querySelector('[data-testid="share-menu-share"]')
             const publishButton = grid.querySelector('[data-testid="share-menu-publish"]')
-            if (shareButton) seen.current.share = shareButton.getBoundingClientRect().width
+            const right = grid.lastElementChild
+            // The session tools never fold; Share, its divider and Publish trail them.
+            const tools = right?.firstElementChild?.getBoundingClientRect().width ?? 0
             if (publishButton) seen.current.publish = publishButton.getBoundingClientRect().width
+            if (shareButton) {
+                seen.current.shareTail =
+                    contentWidth(right) - tools - (publishButton ? seen.current.publish : 0)
+            }
             const room = grid.clientWidth - 20
-            const left = contentWidth(grid.firstElementChild)
-            const shown = contentWidth(grid.lastElementChild)
-            const full =
-                shown +
-                (publishButton ? 0 : seen.current.publish) +
-                (shareButton ? 0 : seen.current.share + seen.current.divider)
+            const left = naturalWidth(grid.firstElementChild)
             const rightFor = (folded: FoldedShare) =>
-                full -
-                (folded.includes("publish") ? seen.current.publish : 0) -
-                (folded.includes("share") ? seen.current.share + seen.current.divider : 0)
+                tools +
+                (folded.includes("share") ? 0 : seen.current.shareTail) +
+                (folded.includes("publish") ? 0 : seen.current.publish)
             const fits = (folded: FoldedShare, center: boolean) => {
                 const right = rightFor(folded)
                 return center
