@@ -317,6 +317,12 @@ def _render_text(
 
 
 _FENCE = "```"
+# A fence counts only at the start of a line; "```" inside a code line is text.
+_FENCE_LINE = re.compile(r"^[ \t]*```", re.MULTILINE)
+
+
+def _fence_starts(text: str) -> List[int]:
+    return [match.start() for match in _FENCE_LINE.finditer(text)]
 
 
 def _split_text(text: str, max_chars: int) -> List[str]:
@@ -336,7 +342,7 @@ def _split_text(text: str, max_chars: int) -> List[str]:
     opening = _FENCE
     while rest:
         prefix = opening + "\n" if in_fence else ""
-        fenced = in_fence or _FENCE in rest[:max_chars]
+        fenced = in_fence or bool(_fence_starts(rest[:max_chars]))
         budget = max_chars - len(prefix) - (close_cost if fenced else 0)
         if budget < 1:
             # a limit too small to carry fence markers: plain fixed split
@@ -352,15 +358,15 @@ def _split_text(text: str, max_chars: int) -> List[str]:
             cut = max(window.rfind(" "), window.rfind("\t"))
         if cut <= 0:
             cut = budget
-        if not in_fence and rest[:cut].count(_FENCE) % 2 == 1:
+        if not in_fence and len(_fence_starts(rest[:cut])) % 2 == 1:
             cut = _whole_block_cut(rest, cut=cut, max_chars=max_chars)
         piece, rest = rest[:cut], rest[cut:].lstrip("\n ")
         body = prefix + piece
-        in_fence = body.count(_FENCE) % 2 == 1
+        fences = _fence_starts(body)
+        in_fence = len(fences) % 2 == 1
         if in_fence:
             # the open block's fence line, so the next chunk reopens it as is
-            start = body.rfind(_FENCE)
-            opening = body[start:].split("\n", 1)[0]
+            opening = body[fences[-1] :].split("\n", 1)[0].strip()
             body = body.rstrip("\n") + "\n" + _FENCE
         chunks.append(body)
     return chunks
@@ -370,8 +376,12 @@ def _whole_block_cut(text: str, *, cut: int, max_chars: int) -> int:
     """`cut` lands inside a code block. When the block fits in one chunk,
     cut before it, or right after it when the chunk starts with it."""
 
-    start = text.rfind(_FENCE, 0, cut)
-    end = text.find(_FENCE, start + len(_FENCE))
-    if end == -1 or end + len(_FENCE) - start > max_chars:
+    fences = _fence_starts(text)
+    start = max(f for f in fences if f < cut)
+    after = [f for f in fences if f > start]
+    if not after:
         return cut
-    return start if start > 0 else end + len(_FENCE)
+    end = text.find(_FENCE, after[0]) + len(_FENCE)
+    if end - start > max_chars:
+        return cut
+    return start if start > 0 else end

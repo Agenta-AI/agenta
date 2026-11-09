@@ -311,6 +311,19 @@ def test_split_keeps_a_block_of_the_full_limit_whole():
     assert all(len(chunk) <= 2000 for chunk in chunks)
 
 
+def test_split_ignores_backticks_inside_a_code_line():
+    from oss.src.core.channels.render.render import _split_text
+
+    line = 'print("``` and ```")\n'
+    block = "```python\n" + line * 200 + "```"
+    chunks = _split_text("intro\n\n" + block, 2000)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 2000 for chunk in chunks)
+    assert all(chunk.startswith("```python\n") for chunk in chunks[1:])
+    assert all(chunk.rstrip().endswith("```") for chunk in chunks)
+
+
 def test_split_still_reopens_a_code_block_longer_than_one_chunk():
     from oss.src.core.channels.render.render import _split_text
 
