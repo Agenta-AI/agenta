@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef} from "react"
+import {memo, useEffect, useMemo, useRef} from "react"
 
 import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK, useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {sessionRowVm} from "@agenta/sessions/row"
@@ -36,7 +36,7 @@ const RENAME_INPUT =
  * Which session is on screen, and the way to any other: a rail of this agent's sessions. `Alt+K`
  * and the ⋯ menu open a search for the rest. On a phone the bar's title opens that search.
  */
-export const SessionSwitcher = ({
+const SessionSwitcherView = ({
     sessionId,
     agentId,
     agentResolving,
@@ -262,3 +262,6 @@ export const SessionSwitcher = ({
         </>
     )
 }
+
+/** Memoized: the bar re-renders as it refits, and this part rarely changes. */
+export const SessionSwitcher = memo(SessionSwitcherView)

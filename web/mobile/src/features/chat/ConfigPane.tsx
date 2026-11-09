@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {memo, useCallback} from "react"
 
 import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
 import {ModelSetupBanner} from "@agenta/chat/components"
@@ -19,7 +19,7 @@ import {useOpenModelSetup} from "./useOpenModelSetup"
  * The drive is session-scoped, so the session is passed straight in: this surface already knows
  * which conversation it is (the desktop has to resolve it from its open tabs instead).
  */
-export const ConfigPane = ({
+const ConfigPaneView = ({
     entityId,
     sessionId,
     filesScope,
@@ -84,3 +84,6 @@ export const ConfigPane = ({
         </div>
     )
 }
+
+/** Memoized: a pane slide re-renders the workspace, and this form is its heaviest part. */
+export const ConfigPane = memo(ConfigPaneView)

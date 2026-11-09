@@ -1,4 +1,4 @@
-import {useRef, useState, type ReactNode} from "react"
+import {memo, useRef, useState, type ReactNode} from "react"
 
 import {
     chatPanelMaximizedAtom,
@@ -56,7 +56,7 @@ interface MoreAction {
 }
 
 /** The session bar's overflow: a menu on a desktop, a sheet that also holds Share on a phone. */
-export const SessionMoreMenu = ({
+const SessionMoreMenuView = ({
     sessionId,
     entityId,
     agentId,
@@ -341,3 +341,6 @@ export const SessionMoreMenu = ({
         </>
     )
 }
+
+/** Memoized: the bar re-renders as it refits, and this part rarely changes. */
+export const SessionMoreMenu = memo(SessionMoreMenuView)

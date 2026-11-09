@@ -1,3 +1,5 @@
+import {memo} from "react"
+
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
@@ -9,7 +11,7 @@ import {sharingCopy} from "@/lib/sharingCopy"
 import {heldCommitAtomFamily} from "./selectedRevision"
 
 /** The agent's icon, name and version status: in the session bar, or atop the config pane. */
-export const SessionAgentIdentity = ({
+const SessionAgentIdentityView = ({
     entityId,
     sessionId,
     agentId,
@@ -54,3 +56,6 @@ export const SessionAgentIdentity = ({
         </>
     )
 }
+
+/** Memoized: the bar re-renders as it refits, and this part rarely changes. */
+export const SessionAgentIdentity = memo(SessionAgentIdentityView)

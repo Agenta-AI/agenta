@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
+import {memo, useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     agentWorkflowsListQueryStateAtom,
@@ -40,7 +40,7 @@ import {useSessionSharing} from "./useSessionSharing"
  * and the template requests; each row opens the flow that already owns it. On a phone both
  * buttons live in the ⋯ sheet, which reaches them through `sessionBarPanelAtom`.
  */
-export const ShareMenu = ({
+const ShareMenuView = ({
     agentId,
     sessionId,
     sessionName,
@@ -276,3 +276,6 @@ export const ShareMenu = ({
         </>
     )
 }
+
+/** Memoized: the bar re-renders as it refits, and this part rarely changes. */
+export const ShareMenu = memo(ShareMenuView)

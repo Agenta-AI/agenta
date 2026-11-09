@@ -1,4 +1,12 @@
-import {useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject} from "react"
+import {
+    memo,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type RefObject,
+} from "react"
 
 import {phoneViewportAtom} from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
@@ -115,7 +123,7 @@ const useBarFit = (
  *
  * No Build/Chat switch: the config pane is shown or collapsed, and that is the whole model.
  */
-export const SessionTopBar = ({
+const SessionTopBarView = ({
     entityId,
     sessionId,
     onUpdate,
@@ -166,7 +174,8 @@ export const SessionTopBar = ({
     const startBlank = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
 
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
-    useShortcutsSheetHotkey(useCallback(() => setShortcutsOpen(true), []))
+    const openShortcuts = useCallback(() => setShortcutsOpen(true), [])
+    useShortcutsSheetHotkey(openShortcuts)
 
     // A panel belongs to the session it was opened on.
     const setPanel = useSetAtom(sessionBarPanelAtom)
@@ -221,7 +230,7 @@ export const SessionTopBar = ({
             phone={phone}
             // Folded one by one, only when the tabs would meet them.
             foldedShare={foldedShare}
-            onOpenShortcuts={() => setShortcutsOpen(true)}
+            onOpenShortcuts={openShortcuts}
         />
     )
 
@@ -349,3 +358,6 @@ export const SessionTopBar = ({
         </div>
     )
 }
+
+/** Memoized: a pane slide re-renders the workspace around it. */
+export const SessionTopBar = memo(SessionTopBarView)
