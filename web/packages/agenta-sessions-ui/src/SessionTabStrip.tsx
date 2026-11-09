@@ -212,6 +212,10 @@ export const SessionTabStrip = ({
             const active = slots.findIndex((slot) => slot.querySelector('[aria-selected="true"]'))
             const margin = (i: number) => parseFloat(getComputedStyle(slots[i]).marginRight) || 0
             const room = hostRoom(el)
+            // A tab may never be wider than the strip can show, or a one-tab strip clips it.
+            if (Number.isFinite(room)) {
+                el.style.setProperty("--strip-tab-max", `${Math.floor(room) - 2 * BARE_INSET_PX}px`)
+            }
             const span = (first: number, count: number) => {
                 const last = Math.min(first + count, slots.length) - 1
                 const tabs = sizes.slice(first, last + 1).reduce((sum, size) => sum + size, 0)
@@ -251,17 +255,37 @@ export const SessionTabStrip = ({
                 if (Math.abs(el.scrollLeft - left) > 1) el.scrollTo({left: Math.max(0, left)})
             }
             if (mode === "nearest") {
-                // A scroll by hand rests on the nearest tab start. A docked open tab on the left
-                // takes the first slot, so the next tab starts after it, not under it.
-                const rest = (i: number) =>
-                    starts[i] - (active >= 0 && active < i ? sizes[active] : 0)
-                let best = 0
-                for (let i = 1; i < slots.length; i++) {
-                    if (Math.abs(rest(i) - el.scrollLeft) < Math.abs(rest(best) - el.scrollLeft)) {
-                        best = i
-                    }
+                // A scroll by hand rests where no tab is cut at either edge. The width is the
+                // home window's, so a rest on a tab start can still cut the tab at the far edge;
+                // candidates aligned to a tab end cover that. A docked open tab takes its edge.
+                const view = el.clientWidth - 2 * BARE_INSET_PX
+                const maxScroll = el.scrollWidth - el.clientWidth
+                const end = (i: number) => starts[i] + sizes[i] - margin(i)
+                const whole = (x: number) => {
+                    let lo = x
+                    let hi = x + view
+                    if (active >= 0 && starts[active] < lo) lo += sizes[active]
+                    else if (active >= 0 && end(active) > hi) hi -= sizes[active]
+                    return slots.every((_, i) => {
+                        if (i === active) return true
+                        const inside = starts[i] >= lo - 1 && end(i) <= hi + 1
+                        const outside = end(i) <= lo + 1 || starts[i] >= hi - 1
+                        return inside || outside
+                    })
                 }
-                scrollTo(rest(best))
+                const candidates = slots.flatMap((_, i) => [
+                    starts[i] - (active >= 0 && active < i ? sizes[active] : 0),
+                    end(i) - view + (active >= 0 && active > i ? sizes[active] : 0),
+                ])
+                const clamp = (x: number) => Math.max(0, Math.min(Math.round(x), maxScroll))
+                const nearest = (list: number[]) =>
+                    list.reduce((a, b) =>
+                        Math.abs(b - el.scrollLeft) < Math.abs(a - el.scrollLeft) ? b : a,
+                    )
+                // The two ends always count: a scroll to the start or the end must reach it, even
+                // when the tab at the far edge is then cut.
+                const fitting = [0, maxScroll, ...candidates.map(clamp).filter(whole)]
+                scrollTo(nearest(fitting))
                 return
             }
             // Only a new open tab or a changed tab set moves the view; a plain resize does not.

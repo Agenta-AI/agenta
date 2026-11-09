@@ -44,7 +44,9 @@ const LABEL_MASK_HOVER = maskStyle(
 const CHIP = "h-7 w-fit min-w-20 max-w-32 gap-1.5 rounded px-2 text-xs"
 /** Sized to the name, up to a cap, so a short name leaves no gap beside it; the open tab gets
  * a wider cap. No outline: the open tab is the page's own colour, and the bar is its edge. */
-const CONNECTED = "isolate h-8 w-fit min-w-16 max-w-[160px] gap-2 rounded-t-[6px] px-3 text-xs"
+// `--strip-tab-max`: the strip's room, so a tab never outgrows a strip that fits only one.
+const CONNECTED =
+    "isolate h-8 w-fit min-w-16 max-w-[min(160px,var(--strip-tab-max,160px))] gap-2 rounded-t-[6px] px-3 text-xs"
 /** The open tab's page-coloured surface. `isolate` on the tab keeps it behind the label. */
 const SURFACE =
     "pointer-events-none absolute inset-0 -z-10 origin-left rounded-t-[6px] bg-background will-change-transform"
@@ -186,7 +188,7 @@ export const SessionTab = ({
                 connected ? CONNECTED : CHIP,
                 connected
                     ? active
-                        ? "max-w-[200px] font-medium text-colorText"
+                        ? "max-w-[min(200px,var(--strip-tab-max,200px))] font-medium text-colorText"
                         : "text-colorTextSecondary hover:bg-[var(--ag-surface-tab-hover)] hover:text-colorText"
                     : active
                       ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
