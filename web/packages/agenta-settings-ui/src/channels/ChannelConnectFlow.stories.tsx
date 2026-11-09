@@ -3,6 +3,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 import {ChannelConnectFlow} from "./ChannelConnectFlow"
 import {
     ConnectFlowHost,
+    DISCORD_SETUP,
     SLACK_SETUP,
     TELEGRAM_LINK,
     TELEGRAM_SETUP,
@@ -228,4 +229,64 @@ export const WhatsAppCustom: Story = {
     render: () => (
         <ConnectFlowHost platform="whatsapp" options={{setup: {whatsapp: WHATSAPP_SETUP}}} />
     ),
+}
+
+/** Discord: create the bot, turn on the intent, paste the token, then invite the bot. */
+export const DiscordCustomBot: Story = {
+    render: () => (
+        <ConnectFlowHost platform="discord" options={{setup: {discord: DISCORD_SETUP}}} />
+    ),
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "Discord has no Agenta bot, so the flow opens on the three steps. Fill the " +
+                    "token and connect. The fake actions accept it and return the invite link " +
+                    "from the setup document, which the flow shows before it finishes.",
+            },
+        },
+    },
+}
+
+/** Discord: the bot connects, but the invite link does not load. */
+export const DiscordInviteLinkFails: Story = {
+    render: () => (
+        <ConnectFlowHost
+            platform="discord"
+            options={{setup: {discord: DISCORD_SETUP}, discordInviteUrl: null}}
+        />
+    ),
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "Fill the token and connect. The bot connects, but the setup document has no " +
+                    'link, so the flow shows the error and a "Try again" button instead of ' +
+                    "skipping the step.",
+            },
+        },
+    },
+}
+
+/** Discord: the Message Content intent is off, so Agenta refuses the bot. */
+export const DiscordIntentOff: Story = {
+    render: () => (
+        <ConnectFlowHost
+            platform="discord"
+            options={{
+                setup: {discord: DISCORD_SETUP},
+                connectCustomError:
+                    "Turn on the Message Content intent for this bot in the Discord Developer Portal, then try again.",
+            }}
+        />
+    ),
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "Fill the token and connect. The action rejects with the message the backend " +
+                    "sends when the intent is off, and the field keeps what was typed.",
+            },
+        },
+    },
 }

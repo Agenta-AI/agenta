@@ -31,6 +31,7 @@ import {
 
 import {CodeBlock} from "./CodeBlock"
 import {
+    DISCORD_PRIVATE_CHANNEL_HINT,
     NOOP_ACTIONS,
     SLACK_APP_DESCRIPTION_MAX,
     SLACK_APP_NAME_MAX,
@@ -63,6 +64,7 @@ import {WhatsAppWebhook, copyText} from "./WhatsAppWebhook"
  * the /start in Telegram to bind the chat (polled through `actions`). Hosted Slack: open the
  * install redirect in a new window and wait for a new connection to appear. Custom app/bot:
  * render the fields the backend declares, create the connection, point it at this agent.
+ * Discord: the user's own bot only; after the token is checked, the flow shows the invite link.
  */
 
 export interface ChannelConnectFlowProps {
@@ -107,6 +109,7 @@ const SLACK_INSTALL_TIMEOUT_MS = 5 * 60 * 1000
 const SECTION_TITLE = "text-[13px] font-semibold text-foreground"
 
 const META_APPS_URL = "https://developers.facebook.com/apps"
+const DISCORD_APPS_URL = "https://discord.com/developers/applications"
 const WHATSAPP_PRICING_URL =
     "https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing"
 
@@ -307,13 +310,21 @@ export const ChannelConnectFlow = ({
     const isTelegram = platform === "telegram"
     // WhatsApp has no Agenta-hosted number: the customer always brings their own.
     const isWhatsApp = platform === "whatsapp"
+    // Discord has no Agenta-hosted bot either: the customer always brings their own.
+    const isDiscord = platform === "discord"
+    // The platforms with one method only show no method choice.
+    const ownOnly = isWhatsApp || isDiscord
     const name = platformLabel(platform)
 
     const [mode, setMode] = useState<ChannelInstallMode>(
-        isWhatsApp || hostedConnectedHere ? "custom" : initialMode,
+        ownOnly || hostedConnectedHere ? "custom" : initialMode,
     )
     // A new WhatsApp connection, held on screen until its webhook values are copied into Meta.
     const [whatsAppConnection, setWhatsAppConnection] = useState<ChannelConnection | null>(null)
+    // A new Discord bot, held on screen until the user adds it to a server with its invite link.
+    const [discordConnectionId, setDiscordConnectionId] = useState<string | null>(null)
+    const [discordInviteUrl, setDiscordInviteUrl] = useState<string | null>(null)
+    const [discordInviteError, setDiscordInviteError] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     // --- custom app/bot: the declared setup ---------------------------------- //
@@ -395,7 +406,7 @@ export const ChannelConnectFlow = ({
     // Load the declared fields the first time the custom mode opens; the guard is a ref so
     // the effect does not cancel its own request.
     const setupRequested = useRef(false)
-    // Bumped by "Try again": WhatsApp has no method switch to re-run the load.
+    // Bumped by "Try again": WhatsApp and Discord have no method switch to re-run the load.
     const [setupAttempt, setSetupAttempt] = useState(0)
     useEffect(() => {
         if (mode !== "custom" || setupRequested.current) return
@@ -609,6 +620,21 @@ export const ChannelConnectFlow = ({
             !fieldPatternError(field, values[field.name] ?? ""),
     )
 
+    // The bot answers in a server only after it is invited, so a failed read offers a retry
+    // instead of skipping the step. A retry reads the link again; it never connects again.
+    const loadDiscordInvite = async (connectionId: string) => {
+        setDiscordInviteError(null)
+        const fallback = "Could not load the invite link."
+        try {
+            const url = await actions.discordInviteUrl(connectionId)
+            if (!alive.current) return
+            if (url) setDiscordInviteUrl(url)
+            else setDiscordInviteError(fallback)
+        } catch (e) {
+            if (alive.current) setDiscordInviteError(errorMessage(e, fallback))
+        }
+    }
+
     const submitCustom = async () => {
         setSaving(true)
         setError(null)
@@ -617,6 +643,9 @@ export const ChannelConnectFlow = ({
             if (!alive.current) return
             if (isWhatsApp && created?.webhookUrl && created.webhookVerifyToken) {
                 setWhatsAppConnection(created)
+            } else if (isDiscord && created?.connectionId) {
+                setDiscordConnectionId(created.connectionId)
+                await loadDiscordInvite(created.connectionId)
             } else await onConnected()
         } catch (e) {
             if (!alive.current) return
@@ -921,6 +950,21 @@ export const ChannelConnectFlow = ({
                     Continue
                 </Button>
             )
+    } else if (isDiscord) {
+        note = "Your bot answers only as this agent. Other bots stay connected."
+        cta = discordConnectionId ? (
+            <Button onClick={() => void onConnected()} data-testid="channels-discord-done">
+                Done
+            </Button>
+        ) : (
+            <Button
+                disabled={!fieldsValid || saving || fields.length === 0}
+                onClick={() => void submitCustom()}
+                data-testid="channels-connect-custom"
+            >
+                {saving ? "Connecting…" : "Connect bot"}
+            </Button>
+        )
     } else if (isWhatsApp) {
         note = "Meta bills your business directly for WhatsApp messages."
         cta = whatsAppConnection ? (
@@ -983,7 +1027,7 @@ export const ChannelConnectFlow = ({
             <div className="flex min-h-full flex-1 flex-col gap-[22px]">
                 {errorAlert}
 
-                {isWhatsApp ? null : (
+                {ownOnly ? null : (
                     <div className="flex flex-col gap-2">
                         <span className={SECTION_TITLE}>Connect with</span>
                         <MethodCards
@@ -1276,6 +1320,117 @@ export const ChannelConnectFlow = ({
                         >
                             {renderFields(true)}
                         </StepRow>
+                    </div>
+                ) : null}
+
+                {/* DISCORD · your own bot */}
+                {isDiscord && !discordConnectionId ? (
+                    <div className="flex flex-col">
+                        <StepRow
+                            index={1}
+                            total={3}
+                            active={!tokenEntered}
+                            title="Create a bot in Discord"
+                            body="In the Developer Portal, create an application. On its Bot page, reset the token and copy it."
+                        >
+                            <div>
+                                <Button variant="outline" size="sm" asChild>
+                                    <a href={DISCORD_APPS_URL} target="_blank" rel="noreferrer">
+                                        <ArrowSquareOut data-icon="inline-start" />
+                                        Open the Developer Portal
+                                    </a>
+                                </Button>
+                            </div>
+                        </StepRow>
+                        <StepRow
+                            index={2}
+                            total={3}
+                            active={false}
+                            title="Turn on Message Content Intent"
+                            body="It is on the same Bot page. Without it, the bot cannot read messages."
+                        />
+                        <StepRow
+                            index={3}
+                            total={3}
+                            active={tokenEntered}
+                            title="Paste the bot token"
+                            body="We check it with Discord, then keep it masked."
+                        >
+                            {renderFields(true)}
+                            {!setup && !setupLoading ? (
+                                <div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setError(null)
+                                            setSetupAttempt((n) => n + 1)
+                                        }}
+                                    >
+                                        Try again
+                                    </Button>
+                                </div>
+                            ) : null}
+                        </StepRow>
+                        <span
+                            className="px-0.5 pt-2 text-xs text-muted-foreground"
+                            data-testid="channels-connect-note"
+                        >
+                            {note}
+                        </span>
+                    </div>
+                ) : null}
+
+                {isDiscord && discordConnectionId ? (
+                    <div className="flex flex-col gap-4" data-testid="channels-discord-invite">
+                        <div className="flex items-center gap-2 rounded-lg bg-colorSuccessBg p-3 text-[13px] text-foreground">
+                            <Check size={14} weight="bold" className="text-colorSuccess" />
+                            Connected. Now add the bot to your server.
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-[13px] text-muted-foreground">
+                                Open the link, pick your server, then authorize.
+                            </span>
+                            <span className="text-[13px] text-muted-foreground">
+                                {DISCORD_PRIVATE_CHANNEL_HINT}
+                            </span>
+                            {discordInviteError ? (
+                                <Alert
+                                    type="error"
+                                    showIcon
+                                    message={discordInviteError}
+                                    data-testid="channels-discord-invite-error"
+                                />
+                            ) : null}
+                            <div>
+                                {discordInviteUrl ? (
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a
+                                            href={discordInviteUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            data-testid="channels-discord-invite-link"
+                                        >
+                                            <ArrowSquareOut data-icon="inline-start" />
+                                            Add to a server
+                                        </a>
+                                    </Button>
+                                ) : discordInviteError ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            discordConnectionId &&
+                                            void loadDiscordInvite(discordConnectionId)
+                                        }
+                                    >
+                                        Try again
+                                    </Button>
+                                ) : (
+                                    <Spinner size="small" />
+                                )}
+                            </div>
+                        </div>
                     </div>
                 ) : null}
 

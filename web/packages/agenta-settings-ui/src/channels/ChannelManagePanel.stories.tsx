@@ -4,11 +4,12 @@ import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {ChannelManagePanel} from "./ChannelManagePanel"
-import {platformLabel} from "./helpers"
+import {EMPTY_CONNECTIONS, platformLabel} from "./helpers"
 import {platformLogo} from "./icons"
 import {
     AGENT_ID,
     AGENT_NAME,
+    DISCORD_SETUP,
     HOSTED_HANDLE,
     OTHER_AGENT,
     SLACK_SETUP,
@@ -16,6 +17,7 @@ import {
     TELEGRAM_SETUP,
     WORKSPACE_NAME,
     createChannelStoryActions,
+    discordHere,
     InlinePanel,
     slackCustomHere,
     slackHere,
@@ -55,12 +57,12 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-const asConnections = (connection: ChannelConnection): ChannelConnections =>
-    connection.platform === "slack"
-        ? {slack: connection, telegram: null, whatsapp: null}
-        : {slack: null, telegram: connection, whatsapp: null}
+const asConnections = (connection: ChannelConnection): ChannelConnections => ({
+    ...EMPTY_CONNECTIONS,
+    [connection.platform]: connection,
+})
 
-const setup = {slack: SLACK_SETUP, telegram: TELEGRAM_SETUP}
+const setup = {slack: SLACK_SETUP, telegram: TELEGRAM_SETUP, discord: DISCORD_SETUP}
 
 /**
  * The manage view inside the story panel, with the fake actions wired. The panel renders from
@@ -208,6 +210,25 @@ export const ConnectedOwnTelegramBot: Story = {
             },
         },
     },
+}
+
+/** Discord: the user's own bot, with the invite link to add it to another server. */
+export const ConnectedDiscordBot: Story = {
+    render: () => <ManageHost connection={discordHere} />,
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    'The panel reads the invite link from the setup document and shows "Add to a ' +
+                    'server" next to the channel list. Discord channels use the Slack wording.',
+            },
+        },
+    },
+}
+
+/** Discord: the invite link does not load, so the panel offers a retry. */
+export const DiscordInviteLinkFails: Story = {
+    render: () => <ManageHost connection={discordHere} options={{discordInviteUrl: null}} />,
 }
 
 /** One switch is off, so the agent answers direct messages only. */
