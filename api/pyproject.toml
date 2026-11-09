@@ -23,6 +23,7 @@ dependencies = [
     "python-dotenv>=1,<2",
     "python-multipart>=0.0.32,<0.0.33",
     "cryptography>=49,<51",
+    "pyjwt[crypto]>=2.15,<3",
     "sqlalchemy>=2,<3",
     "sqlalchemy-utils>=0.42,<0.43",
     "sqlalchemy-json>=0.7,<0.8",
