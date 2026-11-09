@@ -333,6 +333,9 @@ export function ConfigAccordionSection({
             iconNode
         )
 
+    // The caret's axis nudge lines it up in the reserved column; a quiet row has no column, so
+    // its ink ends on the value's right edge instead.
+    const quietCaret = quiet ? "!translate-x-0" : undefined
     const affordanceNode = locked ? (
         lockedReason ? (
             <TooltipProvider>
@@ -347,9 +350,9 @@ export function ConfigAccordionSection({
             <Lock size={14} className="text-[var(--ag-zinc-5)]" />
         )
     ) : opensDrawer ? (
-        <ConfigRowCaret />
+        <ConfigRowCaret className={quietCaret} />
     ) : collapsible ? (
-        <ConfigRowCaret open={isOpen} />
+        <ConfigRowCaret open={isOpen} className={quietCaret} />
     ) : null
     const summaryNode = summary && (!summaryCollapsedOnly || !isOpen) ? summary : null
     const extraNode = extra ? (
@@ -505,7 +508,8 @@ export function ConfigAccordionSection({
                             <span
                                 className={cn(
                                     QUIET_CELL,
-                                    "flex items-center gap-1.5",
+                                    // No gap: the add button's own padding already spaces it.
+                                    "flex items-center",
                                     !actionsShown && QUIET_REVEAL,
                                 )}
                             >
