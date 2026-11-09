@@ -39,6 +39,8 @@ With the switch off:
 - The install ping still runs once. It carries only the instance id.
 - A browser tab that was open before the restart keeps sending until it reloads.
 
+A paid license key keeps telemetry on, and the switch then has no effect. The startup line then says `Telemetry is on (required by the license key)`. The switch works as usual with no key, with the free key you get when you register, and with a paid key whose contract exempts the instance from telemetry.
+
 ## Instance id
 
 Each instance has one random id (a UUID). The database migration creates it, and every API container that uses the same database uses the same id. It is not made from a host name, an address, an email, or a secret. A new, empty database gets a new id.
@@ -171,7 +173,7 @@ The update check downloads `https://agenta.ai/releases.json` at most every 12 ho
 
 | Variable | Default | Effect |
 |---|---|---|
-| `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops every event except the install ping, the heartbeat included. |
+| `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops every event except the install ping, the heartbeat included. A paid license key keeps telemetry on. |
 | `AGENTA_DEPLOYMENT_METHOD` | unset | `compose`, `helm` or `railway`. The example env files and the templates set it. |
 | `AGENTA_UPDATE_CHECK_ENABLED` | `true` | `false` stops the update check. It does not follow `AGENTA_TELEMETRY_ENABLED`. |
 | `POSTHOG_API_KEY` | Agenta's project key | The PostHog project the events go to. |

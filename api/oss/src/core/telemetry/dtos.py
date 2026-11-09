@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class TelemetryStatus(BaseModel):
     enabled: bool
-    reason: Literal["cloud", "default", "switch"]
+    reason: Literal["cloud", "default", "license", "switch"]
 
 
 class InstanceTelemetry(BaseModel):
