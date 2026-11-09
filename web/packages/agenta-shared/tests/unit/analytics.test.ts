@@ -32,10 +32,13 @@ describe("shared desktop and mobile analytics", () => {
         expect(generateOrRetrieveDistinctId()).toBe(generateOrRetrieveDistinctId())
     })
 
-    it("uses email on cloud, the visitor ID on OSS, and preserves person properties", () => {
+    it("uses email and person properties on cloud, and the API's id alone when self-hosted", () => {
         const user = {email: "person@example.test", username: "Person"}
         expect(analyticsIdentity(user, true, "visitor")).toEqual({id: user.email, properties: user})
-        expect(analyticsIdentity(user, false, "visitor")).toEqual({id: "visitor", properties: user})
+        expect(analyticsIdentity(user, false, "instance:user")).toEqual({
+            id: "instance:user",
+            properties: undefined,
+        })
         expect(analyticsIdentity(null, true, "visitor")).toEqual({
             id: "visitor",
             properties: undefined,

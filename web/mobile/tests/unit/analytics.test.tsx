@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import {act, StrictMode} from "react"
 
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const state = vi.hoisted(() => ({
     key: "test-project-key",
-    cloud: true,
-    user: null as {email: string; username: string} | null,
+    telemetry: null as Record<string, unknown> | null,
+    user: null as {id: string; email: string; username: string} | null,
     path: "/w/ws/p/project/sessions/one",
     listeners: new Set<() => void>(),
     reporter: null as ((payload: Record<string, unknown>) => void) | null,
@@ -16,13 +17,18 @@ const state = vi.hoisted(() => ({
     capture: vi.fn(),
     alias: vi.fn(),
     identify: vi.fn(),
+    group: vi.fn(),
     optOut: vi.fn(),
+    get: vi.fn(),
     reset: vi.fn(),
     init: vi.fn(),
 }))
 
 vi.mock("@/lib/env", () => ({getEnv: () => state.key}))
-vi.mock("@agenta/shared/api/env", () => ({isEE: () => state.cloud}))
+vi.mock("@agenta/shared/api", () => ({
+    axios: {get: state.get},
+    getAgentaApiUrl: () => "https://agenta.example.test/api",
+}))
 vi.mock("@agenta/entities/profile", () => ({useProfile: () => ({user: state.user})}))
 vi.mock("@agenta/entities/workflow/agentCreationTelemetry", () => ({
     setAgentCreationFailureReporter: (reporter: typeof state.reporter) => {
@@ -42,6 +48,7 @@ vi.mock("posthog-js", () => ({
         capture: state.capture,
         alias: state.alias,
         identify: state.identify,
+        group: state.group,
         get_distinct_id: () => state.distinctId,
         opt_out_capturing: state.optOut,
         reset: state.reset,
@@ -53,22 +60,38 @@ import {captureIntent, posthogAtom, resetAnalytics} from "@/features/analytics/c
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 let root: Root
+let queryClient: QueryClient
+
+const CLOUD_USER = {id: "user-1", email: "person@example.test", username: "Person"}
+const cloudTelemetry = (email = CLOUD_USER.email) => ({
+    enabled: true,
+    distinct_id: email,
+    groups: null,
+})
 
 const render = async () => {
     await act(async () =>
         root.render(
-            <StrictMode>
-                <Analytics />
-            </StrictMode>,
+            <QueryClientProvider client={queryClient}>
+                <StrictMode>
+                    <Analytics />
+                </StrictMode>
+            </QueryClientProvider>,
         ),
     )
+    // Let the telemetry request settle and the effects that follow it run.
+    for (let tick = 0; tick < 3; tick++) {
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+    }
 }
 
 beforeEach(async () => {
     vi.clearAllMocks()
     state.key = "test-project-key"
-    state.cloud = true
-    state.user = null
+    state.user = CLOUD_USER
+    state.telemetry = cloudTelemetry()
+    state.get.mockImplementation(async () => ({data: state.telemetry}))
+    queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
     state.distinctId = "anonymous"
     state.path = "/w/ws/p/project/sessions/one"
     state.listeners.clear()
@@ -84,6 +107,7 @@ beforeEach(async () => {
             capture: state.capture,
             alias: state.alias,
             identify: state.identify,
+            group: state.group,
             get_distinct_id: () => state.distinctId,
             opt_out_capturing: state.optOut,
             reset: state.reset,
@@ -114,7 +138,7 @@ describe("mobile PostHog parity", () => {
                 },
             }),
         )
-        expect(state.identify).toHaveBeenCalledWith("desktop-visitor", undefined)
+        expect(state.identify).toHaveBeenCalledWith("desktop-visitor")
         expect(state.capture.mock.calls.filter(([event]) => event === "$pageview")).toEqual([
             ["$pageview", {$current_url: window.location.href}],
         ])
@@ -124,27 +148,39 @@ describe("mobile PostHog parity", () => {
         expect(state.listeners.size).toBe(1)
     })
 
-    it("identifies a hydrated cloud profile and reuses desktop identity and properties", async () => {
+    it("waits for a signed-in user before it loads", async () => {
+        state.user = null
         await render()
-        state.user = {email: "person@example.test", username: "Person"}
+        expect(state.get).not.toHaveBeenCalled()
+        expect(state.init).not.toHaveBeenCalled()
+    })
+
+    it("identifies a cloud profile by email and keeps desktop identity and properties", async () => {
         await render()
+        expect(state.get).toHaveBeenCalledWith("https://agenta.example.test/api/instance/telemetry")
         expect(state.alias).toHaveBeenCalledWith("person@example.test", "desktop-visitor")
-        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", state.user)
+        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", {
+            email: CLOUD_USER.email,
+            username: CLOUD_USER.username,
+        })
+        expect(state.group).not.toHaveBeenCalled()
         const count = state.identify.mock.calls.length
         await render()
         expect(state.identify).toHaveBeenCalledTimes(count)
-        state.user = {...state.user, username: "Renamed"}
+        state.user = {...CLOUD_USER, username: "Renamed"}
         await render()
         expect(state.alias).toHaveBeenCalledTimes(1)
-        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", state.user)
+        expect(state.identify).toHaveBeenLastCalledWith("person@example.test", {
+            email: CLOUD_USER.email,
+            username: "Renamed",
+        })
     })
 
-    it("keeps the desktop visitor ID for self-hosted users", async () => {
-        state.cloud = false
-        state.user = {email: "person@example.test", username: "Person"}
+    it("loads nothing and sends nothing when the instance turned telemetry off", async () => {
+        state.telemetry = {enabled: false, distinct_id: null, groups: null}
         await render()
-        expect(state.identify).toHaveBeenCalledWith("desktop-visitor", state.user)
-        expect(state.alias).not.toHaveBeenCalled()
+        expect(state.init).not.toHaveBeenCalled()
+        expect(state.capture).not.toHaveBeenCalled()
     })
 
     it("captures client navigation, but never the sign-in page, and removes listeners", async () => {

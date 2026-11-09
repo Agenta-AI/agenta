@@ -7,7 +7,57 @@ export const CLOUD_CONFIG = {
     },
 }
 
-export const OSS_CONFIG = {persistence: "localStorage+cookie" as const}
+/** Properties posthog-js adds that name the instance's address. */
+const INSTANCE_URL_PROPERTIES = [
+    "$current_url",
+    "$host",
+    "$referrer",
+    "$referring_domain",
+    "$initial_current_url",
+    "$initial_host",
+    "$initial_referrer",
+    "$initial_referring_domain",
+]
+
+const withoutInstanceUrl = (properties: Record<string, unknown> | undefined) => {
+    if (!properties) return properties
+    const kept = {...properties}
+    for (const key of INSTANCE_URL_PROPERTIES) delete kept[key]
+    for (const key of ["$set", "$set_once"]) {
+        const nested = kept[key]
+        if (nested && typeof nested === "object") {
+            kept[key] = withoutInstanceUrl(nested as Record<string, unknown>)
+        }
+    }
+    return kept
+}
+
+interface CapturedEvent {
+    properties: Record<string, unknown>
+    $set?: Record<string, unknown>
+    $set_once?: Record<string, unknown>
+}
+
+/** Self-hosted events carry no instance address and no GeoIP lookup. */
+export const stripInstanceUrl = <T extends CapturedEvent>(event: T | null): T | null =>
+    event && {
+        ...event,
+        properties: {...withoutInstanceUrl(event.properties), $geoip_disable: true},
+        $set: withoutInstanceUrl(event.$set),
+        $set_once: withoutInstanceUrl(event.$set_once),
+    }
+
+/** Self-hosted: only the named product events and page views; nothing recorded on its own. */
+export const OSS_CONFIG = {
+    persistence: "localStorage+cookie" as const,
+    autocapture: false,
+    capture_dead_clicks: false,
+    capture_heatmaps: false,
+    capture_performance: false,
+    disable_session_recording: true,
+    save_referrer: false,
+    before_send: stripInstanceUrl,
+}
 
 export const POSTHOG_CONFIG = {
     api_host: "https://alef.agenta.ai",
@@ -37,16 +87,21 @@ export interface AnalyticsUser {
     username?: string | null
 }
 
+/**
+ * The id and person properties to identify with. `id` is the id the API gives the
+ * browser. Cloud identifies by email with email and username properties; self-hosted
+ * sends no email or username.
+ */
 export function analyticsIdentity(
     user: AnalyticsUser | null | undefined,
     cloud: boolean,
-    baseId: string,
+    id: string,
 ) {
     const properties: Record<string, unknown> = {}
-    if (user?.email) properties.email = user.email
-    if (user?.username) properties.username = user.username
+    if (cloud && user?.email) properties.email = user.email
+    if (cloud && user?.username) properties.username = user.username
     return {
-        id: cloud && user?.email ? user.email : baseId,
+        id: cloud && user?.email ? user.email : id,
         properties: Object.keys(properties).length ? properties : undefined,
     }
 }
