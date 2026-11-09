@@ -5,9 +5,11 @@ from uuid import UUID
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 from oss.src.utils.context import get_auth_scope
+from oss.src.utils.env import env
 
 from fastapi.responses import JSONResponse
 from ee.src.core.subscriptions.service import SubscriptionsService
+from ee.src.core.licenses.service import instance_plan
 from oss.src.services import db_manager
 from ee.src.core.access.entitlements.types import (
     PROJECT_LIMIT_MESSAGE,
@@ -265,7 +267,12 @@ def period_from(
 
 
 async def _subscription_data(organization_id) -> dict:
-    """The organization's plan and billing anchor, through the shared Redis cache."""
+    """The organization's plan and billing anchor, through the shared Redis cache.
+    Without Stripe, the plan is the instance plan, read on every call and never put in
+    this per-organization cache, so a new license key applies at once everywhere."""
+    if not env.stripe.enabled:
+        return await _self_hosted_subscription_data(organization_id)
+
     cache_key = {
         "organization_id": str(organization_id),
     }
@@ -297,6 +304,42 @@ async def _subscription_data(organization_id) -> dict:
         )
 
     return subscription_data
+
+
+async def _self_hosted_subscription_data(organization_id) -> dict:
+    cache_key = {
+        "organization_id": str(organization_id),
+    }
+
+    anchor_data = await get_cache(
+        namespace="entitlements:anchor",
+        key=cache_key,
+    )
+
+    if anchor_data is None:
+        subscription = await _subscriptions_service().read(
+            organization_id=str(organization_id),
+        )
+
+        if not subscription:
+            raise EntitlementsException(
+                f"No subscription found for organization [{organization_id}]"
+            )
+
+        anchor_data = {
+            "anchor": subscription.anchor,
+        }
+
+        await set_cache(
+            namespace="entitlements:anchor",
+            key=cache_key,
+            value=anchor_data,
+        )
+
+    return {
+        "plan": await instance_plan(),
+        "anchor": anchor_data.get("anchor"),
+    }
 
 
 async def plan_for(organization_id) -> Optional[str]:
