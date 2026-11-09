@@ -118,7 +118,9 @@ export const BrowserPane = ({
             {tabs.length > 1 ? (
                 <BrowserTabStrip
                     tabs={tabs}
-                    onSelect={(id) => send({type: "tab", id})}
+                    onSelect={
+                        status?.control === "user" ? (id) => send({type: "tab", id}) : undefined
+                    }
                     leading={backButton}
                     trailing={
                         <>

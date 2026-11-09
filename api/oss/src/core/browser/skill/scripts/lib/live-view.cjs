@@ -158,9 +158,9 @@ function createLiveView(session) {
     } else if (message.type === "control") {
       session.setControl(message.take ? "user" : "agent");
     } else {
+      // Only a person in control moves the browser: the agent acts on the active tab.
       const tab = session.pageById(Number(message.id));
-      if (!tab || tab === session.activePage) return;
-      session.setControl("user");
+      if (!tab || tab === session.activePage || session.control !== "user") return;
       await session.switchTo(tab);
     }
   }

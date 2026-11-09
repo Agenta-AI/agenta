@@ -256,8 +256,16 @@ test("the agent opens tabs, a viewer sees and switches them, and an old ref is r
 
   await cli("tab", "2");
   const helpRead = await cli("read");
+  // A viewer who has not taken control cannot move the agent's tab.
   viewer.send(JSON.stringify({ type: "tab", id: status.tabs[0].id }));
-  await until(() => status.title === "Shop" && status.control === "user");
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.equal(status.title, "Help");
+  assert.equal(status.control, "agent");
+
+  viewer.send(JSON.stringify({ type: "control", take: true }));
+  await until(() => status.control === "user");
+  viewer.send(JSON.stringify({ type: "tab", id: status.tabs[0].id }));
+  await until(() => status.title === "Shop");
   assert.deepEqual(status.tabs.map(({ active }) => active), [true, false]);
   viewer.send(JSON.stringify({ type: "control", take: false }));
   await until(() => status.control === "agent");

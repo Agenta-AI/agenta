@@ -22,7 +22,8 @@ export const BrowserTabStrip = ({
 }: {
     tabs: BrowserLiveTab[]
     /** Not called for the tab on screen: picking a tab takes control, like the address bar. */
-    onSelect: (id: number) => void
+    /** Absent while the agent is in control: switching would move the tab it acts on. */
+    onSelect?: (id: number) => void
     leading?: ReactNode
     trailing?: ReactNode
 }) => {
@@ -50,9 +51,9 @@ export const BrowserTabStrip = ({
                     <SessionTab
                         active={tab.active}
                         label={tabLabel(tab)}
-                        title={tab.url}
+                        title={onSelect ? tab.url : "Take control to switch tabs"}
                         onSelect={() => {
-                            if (!tab.active) onSelect(tab.id)
+                            if (!tab.active) onSelect?.(tab.id)
                         }}
                     />
                 </div>
