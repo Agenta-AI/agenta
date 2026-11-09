@@ -1,5 +1,103 @@
 [
     {
+        "id": "v0.128.0",
+        "date": "2026-10-30",
+        "features": [
+            {
+                "id": "agent-needs-setup",
+                "title": "Know what an agent is missing before you run it",
+                "body": "When something an agent uses goes missing, the new app now tells you before a run fails. The item shows **Needs setup** in the agent editor, with the reason under it. If the model can't run, a banner above the chat box says so, and Send stays off until you set it up.\n\n- A missing MCP server, secret or connected app no longer stops a run. The agent runs without it.\n- A scheduled or event run whose model needs setup is recorded once as skipped, instead of being retried five times.\n- Invite links open in the new app, and new teammates land in the project they were invited to.",
+                "link": "https://agenta.ai/docs/changelog/agent-needs-setup"
+            }
+        ],
+        "improvements": [],
+        "fixes": []
+    },
+    {
+        "id": "v0.127.1",
+        "date": "2026-10-29",
+        "features": [
+            {
+                "id": "agent-run-startup-and-reliability",
+                "title": "Less repeated work when agent runs start and finish",
+                "body": "The runner now avoids several repeated steps when starting an agent session. It reuses local tool binaries and Pi skill copies where applicable, mounts drives in parallel, and reuses a harness capability probe.\n\nWhen its trace is ready, a completed Pi turn no longer waits for the full trace-drain polling window. Organization owners and admins can test their connections from a project that does not use them. Conversation replay no longer cuts through a character and leaves a chat unable to continue.",
+                "link": "https://agenta.ai/docs/changelog/agent-run-startup-and-reliability"
+            }
+        ],
+        "improvements": [],
+        "fixes": []
+    },
+    {
+        "id": "v0.127.0",
+        "date": "2026-10-29",
+        "features": [
+            {
+                "id": "first-agent-onboarding-and-automation-fixes",
+                "title": "First-agent onboarding and more dependable event automations",
+                "body": "New accounts now enter first-agent onboarding when their project has no agents. The questions use the same role, company-size and referral choices as the signup survey, so people do not need to answer conflicting versions of them.\n\n- Event automations now receive Composio V3 webhook events instead of silently dropping them.\n- Editing an automation's event filters now updates its Composio trigger.\n- Organizations replace workspace records; self-hosted operators should read the upgrade notes before deploying.",
+                "link": "https://agenta.ai/docs/changelog/first-agent-onboarding-and-automation-fixes"
+            }
+        ],
+        "improvements": [],
+        "fixes": []
+    },
+    {
+        "id": "v0.126.0",
+        "date": "2026-10-28",
+        "features": [
+            {
+                "id": "organization-ai-connections",
+                "title": "Use AI provider connections across an organization",
+                "body": "Organization owners and admins can now add an AI provider connection once for the organization instead of saving the same credential in every project. In Settings, the **Organization** tab shows the connections available to the current project.\n\n- Choose which projects may use a connection; selecting individual projects requires the supported Enterprise entitlement.\n- Pick an organization connection explicitly in an agent's model picker.\n- Agent runs using a saved bare model ID now mark the matching model row as selected.",
+                "link": "https://agenta.ai/docs/changelog/organization-ai-connections"
+            }
+        ],
+        "improvements": [],
+        "fixes": []
+    },
+    {
+        "id": "v0.125.3",
+        "date": "2026-10-27",
+        "features": [
+            {
+                "id": "security-and-agent-run-fixes-125-3",
+                "title": "Security updates and agent-run fixes",
+                "body": "This release updates vulnerable dependencies across the web app, API, SDK and runner.\n\nOn self-hosted setups that override `HOME`, Codex runs no longer wait indefinitely on their first turn. Agent runs send the correct project even without an authorization header. The model picker shows a readable Kimi K3.1 Pro label, and session names no longer show a lock icon.",
+                "link": "https://agenta.ai/docs/changelog/security-and-agent-run-fixes-125-3"
+            }
+        ],
+        "improvements": [],
+        "fixes": []
+    },
+    {
+        "id": "v0.125.2",
+        "date": "2026-10-27",
+        "features": [
+            {
+                "id": "channel-chats-from-agenta",
+                "title": "Continue channel chats in Agenta",
+                "body": "You can now continue a Slack or Telegram chat in Agenta. Members who can send to a project-visible channel chat can write in the app, and the agent's answer also goes back to the channel thread.\n\n- A private agent can stay connected to a channel through a connection its owner made.\n- A new channel chat with that private agent belongs to its owner and starts private.\n- Fixes keep first messages and more of a long turn's work when a chat changes or a turn ends.",
+                "link": "https://agenta.ai/docs/changelog/channel-chats-from-agenta"
+            }
+        ],
+        "improvements": [],
+        "fixes": []
+    },
+    {
+        "id": "v0.125.1",
+        "date": "2026-10-26",
+        "features": [
+            {
+                "id": "built-in-gemini-native-routing",
+                "title": "More reliable built-in Gemini runs",
+                "body": "Built-in Gemini agent runs now use Google's native protocol instead of its OpenAI-compatible endpoint. This changes the route used for model calls that could stall on follow-up turns.\n\nBedrock and SageMaker credentials now travel with each call instead of being set in the shared process environment. The Python SDK also accepts an `AGENTA_API_URL` without a URL scheme, and CSV preview comments no longer show a stray colon when a column has no header.",
+                "link": "https://agenta.ai/docs/changelog/built-in-gemini-native-routing"
+            }
+        ],
+        "improvements": [],
+        "fixes": []
+    },
+    {
         "id": "v0.125.0",
         "date": "2026-10-26",
         "features": [
@@ -7,7 +105,8 @@
                 "id": "private-agents-and-chats",
                 "title": "Private agents and chats, and sharing with your project",
                 "body": "New chats and agents that you create in Agenta now start private. Only you see them until you share them. You can share a chat with chosen people as **Can view** or **Can send**, or make it visible to the whole project. You can also make an agent private.\n\nChats and agents that existed before this release keep working as before. They are visible to the project, with their creator as owner.",
-                "link": "https://agenta.ai/docs/changelog/private-agents-and-chats"
+                "link": "https://agenta.ai/docs/changelog/private-agents-and-chats",
+                "streamVideoId": "62669af1430b79044ec5275e0453194f"
             }
         ],
         "improvements": [
@@ -98,189 +197,5 @@
                 "text": "The membership repair migration stays fast on large databases"
             }
         ]
-    },
-    {
-        "id": "v0.123.0",
-        "date": "2026-10-24",
-        "features": [
-            {
-                "id": "chat-redesign-and-office-previews",
-                "title": "Office file previews, preview comments and a redesigned chat",
-                "body": "The Files pane now previews Excel, Word and PowerPoint files, so you can open what your agent produces without leaving Agenta. You can also comment on a spot in an HTML app, document, slide or spreadsheet, and the agent receives the comment with its location.\n\nEvery file and folder in a session now has a link you can share. The chat transcript, file cards, attachments and composer have a new design. Agents open straight into the playground.",
-                "link": "https://agenta.ai/docs/changelog/chat-redesign-and-office-previews"
-            }
-        ],
-        "improvements": [
-            {
-                "area": "Playground",
-                "text": "Opening an agent opens the playground, not the overview"
-            }
-        ],
-        "fixes": [
-            {
-                "area": "Models",
-                "text": "Claude 5 models return JSON that matches your schema"
-            },
-            {
-                "area": "Models",
-                "text": "Kimi K3.1 Pro agent turns no longer fail with a provider error"
-            },
-            {
-                "area": "Runs",
-                "text": "Stopping a run while its sandbox starts ends the run as cancelled"
-            },
-            {
-                "area": "Traces",
-                "text": "The trace drawer no longer swaps spans while you read them"
-            },
-            {
-                "area": "Tools",
-                "text": "One invalid MCP endpoint no longer hides the valid ones"
-            }
-        ]
-    },
-    {
-        "id": "v0.122.11",
-        "date": "2026-10-23",
-        "features": [
-            {
-                "id": "built-in-models-for-agent-runs",
-                "title": "Built-in models now serve only agent runs",
-                "body": "The built-in models that Agenta provides now serve only the agent runs that the platform starts. A direct call to the built-in model route with an API key, or with a credential exchanged from one, gets a `403` with the code `builtin_requires_agent_run`.\n\nCalls with your own provider keys and connections work as before.",
-                "link": "https://agenta.ai/docs/changelog/built-in-models-for-agent-runs"
-            }
-        ],
-        "improvements": [
-            {
-                "area": "Security",
-                "text": "Code evaluators receive a scoped credential and no write-only provider keys"
-            },
-            {
-                "area": "Security",
-                "text": "On Daytona, the gateway token stays out of the sandbox environment"
-            }
-        ],
-        "fixes": [
-            {
-                "area": "Agents",
-                "text": "The first run of a new agent that uses a stored Claude or ChatGPT sign-in no longer fails"
-            },
-            {
-                "area": "Pi",
-                "text": "Pi's ChatGPT subscription no longer offers models that ChatGPT refuses"
-            }
-        ]
-    },
-    {
-        "id": "v0.122.5",
-        "date": "2026-10-12",
-        "features": [
-            {
-                "id": "credit-plans-and-reliability-fixes",
-                "title": "Credit-based plans and reliability fixes",
-                "body": "Agenta Cloud plans now use credits. The Pro plan is renamed Starter, every public plan gets 75 free credits a day (on up to 10 days a month), and new organizations start on Hobby with a 500-credit signup bonus. Version 0.122.5 also fixes analytics errors, live reply streaming in other projects, and Gemini on Vertex AI. Self-hosters should read the upgrade notes below.",
-                "link": "https://agenta.ai/docs/changelog/credit-plans-and-reliability-fixes"
-            }
-        ],
-        "improvements": [],
-        "fixes": [
-            {
-                "area": "Analytics",
-                "text": "A 30-day range that takes too long shows an error instead of empty charts"
-            },
-            {
-                "area": "Analytics",
-                "text": "Agent runs show in the model charts and the model filter again"
-            },
-            {
-                "area": "Chat",
-                "text": "Replies in a project other than your default one stream while the model writes"
-            },
-            {
-                "area": "Models",
-                "text": "Gemini models from a Vertex AI connection run on the pi_core harness"
-            },
-            {
-                "area": "Triggers",
-                "text": "Triggers added from an agent's config panel bind to the agent by its slug"
-            }
-        ]
-    },
-    {
-        "id": "v0.122.3",
-        "date": "2026-10-07",
-        "features": [
-            {
-                "id": "agent-analytics",
-                "title": "See what your agents cost and how often they fail",
-                "body": "Settings now has an **Analytics** tab. It shows what your agents cost, how often they run, how often they succeed and how many tokens they use, over the last day, week, month or 90 days.\n\nGroup the charts by agent or by model to see where the money goes and which agents fail most. Click **Explore** to see the runs behind a number and open their traces.",
-                "link": "https://agenta.ai/docs/changelog/agent-analytics",
-                "streamVideoId": "bc658a58ff2f83f196a336a28eefbf25"
-            },
-            {
-                "id": "cleaner-settings-and-whats-new",
-                "title": "A cleaner Settings, a What's New window, and live chat",
-                "body": "Settings is rebuilt on one layout. AI providers, integrations and channels are now catalogs you connect with a click, and every page works on a phone. You can also switch, create and transfer organizations, and remove members.\n\nNew releases now show up in a **What's New** window with a short video. Empty pages explain what they're for and suggest templates to start from. And on Agenta Cloud, you can reach our team from the live chat button in the sidebar.",
-                "link": "https://agenta.ai/docs/changelog/cleaner-settings-and-whats-new"
-            },
-            {
-                "id": "more-reliable-agent-runs",
-                "title": "Agent runs that hold up",
-                "body": "Agent runs hold up better. When a model stalls before it starts answering, Agenta retries the turn on its own instead of failing your message. Long runs keep their connection and their full trace.\n\nThe queue also responds the moment you click, and while an agent starts up, you can see what it's doing.",
-                "link": "https://agenta.ai/docs/changelog/more-reliable-agent-runs"
-            }
-        ],
-        "improvements": [],
-        "fixes": []
-    },
-    {
-        "id": "v0.122.1",
-        "date": "2026-10-06",
-        "features": [
-            {
-                "id": "expand-the-files-pane",
-                "title": "Expand the files pane",
-                "body": "You can now expand the files pane to fill the window while you read or edit a file. Click again to get your chat and layout back.",
-                "link": "https://agenta.ai/docs/changelog/expand-the-files-pane"
-            }
-        ],
-        "improvements": [],
-        "fixes": []
-    },
-    {
-        "id": "v0.121.8",
-        "date": "2026-10-05",
-        "features": [
-            {
-                "id": "agent-marketplace",
-                "title": "Browse the Agent Marketplace",
-                "body": "The Templates page is now the **Agent Marketplace**. See templates at work in example runs, filter them by category or by the apps you already use, and preview one without leaving the list.\n\nEach template has its own page with an example run, how it works, the tools it uses and how to set it up. Click **Use this template** to start.",
-                "link": "https://agenta.ai/docs/changelog/agent-marketplace",
-                "streamVideoId": "7481846b7ddbe6a4dc53b70511ca56a9"
-            },
-            {
-                "id": "reply-to-a-selection",
-                "title": "Reply to one part of an agent's answer",
-                "body": "Select any part of an agent's reply, or a few lines in a file, and reply to just that part. The agent sees the exact text you mean, so you don't have to describe \"the second bullet about pricing\".\n\nYou can also collect quotes from several replies and files and send them in one message.",
-                "link": "https://agenta.ai/docs/changelog/reply-to-a-selection",
-                "streamVideoId": "39d52fca3ab7a1b3b173efc705779fcf"
-            }
-        ],
-        "improvements": [],
-        "fixes": []
-    },
-    {
-        "id": "v0.121.7",
-        "date": "2026-10-02",
-        "features": [
-            {
-                "id": "send-files-from-slack-telegram-whatsapp",
-                "title": "Send files and voice notes to your agent in Slack, Telegram and WhatsApp",
-                "body": "You can now send photos, documents, voice notes and videos to your agent in Slack, Telegram and WhatsApp. They reach the agent as attachments, so you can hand it a screenshot or a quick voice note from the chat app you already use.",
-                "link": "https://agenta.ai/docs/changelog/send-files-from-slack-telegram-whatsapp"
-            }
-        ],
-        "improvements": [],
-        "fixes": []
     }
 ]

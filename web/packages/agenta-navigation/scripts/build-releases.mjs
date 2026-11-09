@@ -6,9 +6,11 @@ import {fileURLToPath} from "node:url"
 const here = dirname(fileURLToPath(import.meta.url))
 const ENTRIES_DIR = resolve(here, "../../../../docs/blog/entries")
 const OUT_FILE = resolve(here, "../src/releases/changelog.json")
+const NOTICES_FILE = resolve(here, "../src/releases/notices.json")
 const DOCS_ORIGIN = "https://agenta.ai/docs"
 const KEEP_VERSIONS = 10
 const VERSION_TAG = /^v\d+\.\d+\.\d+$/
+const SECURITY_TAG = "security"
 
 const unquote = (raw) => {
     const value = raw.trim()
@@ -95,9 +97,8 @@ const entries = readdirSync(ENTRIES_DIR)
     .map((name) => {
         const source = readFileSync(join(ENTRIES_DIR, name), "utf8")
         const data = parseFrontmatter(source, name)
-        const version = (Array.isArray(data.tags) ? data.tags : []).find((tag) =>
-            VERSION_TAG.test(tag),
-        )
+        const tags = Array.isArray(data.tags) ? data.tags : []
+        const version = tags.find((tag) => VERSION_TAG.test(tag))
         if (!version) return null
         for (const key of ["title", "slug", "date"])
             if (typeof data[key] !== "string" || !data[key])
@@ -111,6 +112,7 @@ const entries = readdirSync(ENTRIES_DIR)
             /cloudflarestream\.com\/([0-9a-f]{32})\//.exec(source)
         return {
             version,
+            securityFix: tags.includes(SECURITY_TAG),
             date: data.date,
             feature: {
                 id: data.slug,
@@ -132,7 +134,7 @@ for (const entry of entries) {
     byVersion.set(entry.version, group)
 }
 
-const releases = [...byVersion.entries()]
+const allReleases = [...byVersion.entries()]
     .map(([id, group]) => {
         group.sort(
             (a, b) => b.date.localeCompare(a.date) || a.feature.id.localeCompare(b.feature.id),
@@ -143,10 +145,52 @@ const releases = [...byVersion.entries()]
             features: group.map((entry) => entry.feature),
             improvements: group.flatMap((entry) => entry.improvements),
             fixes: group.flatMap((entry) => entry.fixes),
+            ...(group.some((entry) => entry.securityFix) ? {securityFix: true} : {}),
         }
     })
     .sort((a, b) => b.date.localeCompare(a.date) || compareSemverDesc(a.id, b.id))
-    .slice(0, KEEP_VERSIONS)
+
+const releases = allReleases.slice(0, KEEP_VERSIONS)
+// An instance far behind must still hear about the newest security fix.
+const newestSecurityFix = allReleases.find((release) => release.securityFix)
+if (newestSecurityFix && !releases.includes(newestSecurityFix)) releases.push(newestSecurityFix)
+
+const NOTICE_SEVERITIES = ["info", "warning"]
+const NOTICE_EDITIONS = ["oss", "ee"]
+
+// notices.json is hand-written, so a bad edit fails here rather than in the published feed.
+const checkNotices = (notices) => {
+    if (!Array.isArray(notices)) throw new Error(`${NOTICES_FILE}: must be a list`)
+    const ids = new Set()
+    for (const notice of notices) {
+        const where = `${NOTICES_FILE}: notice ${JSON.stringify(notice?.id)}`
+        for (const key of ["id", "title", "body", "link"])
+            if (typeof notice?.[key] !== "string" || !notice[key])
+                throw new Error(`${where}: missing ${key}`)
+        if (ids.has(notice.id)) throw new Error(`${where}: duplicate id`)
+        ids.add(notice.id)
+        if (!/^https:\/\//.test(notice.link)) throw new Error(`${where}: link must be https`)
+        if (!NOTICE_SEVERITIES.includes(notice.severity))
+            throw new Error(`${where}: severity must be one of ${NOTICE_SEVERITIES.join(", ")}`)
+        if (
+            notice.editions !== undefined &&
+            !(
+                Array.isArray(notice.editions) &&
+                notice.editions.every((edition) => NOTICE_EDITIONS.includes(edition))
+            )
+        )
+            throw new Error(`${where}: editions must list ${NOTICE_EDITIONS.join(", ")}`)
+        if (
+            notice.plans !== undefined &&
+            !(Array.isArray(notice.plans) && notice.plans.every((plan) => typeof plan === "string"))
+        )
+            throw new Error(`${where}: plans must be a list of plan slugs`)
+        for (const key of ["minVersion", "maxVersion"])
+            if (notice[key] !== undefined && !VERSION_TAG.test(notice[key]))
+                throw new Error(`${where}: ${key} must look like v0.128.0`)
+    }
+}
+checkNotices(JSON.parse(readFileSync(NOTICES_FILE, "utf8")))
 
 const output = `${JSON.stringify(releases, null, 4)}\n`
 if (process.argv.includes("--check")) {
