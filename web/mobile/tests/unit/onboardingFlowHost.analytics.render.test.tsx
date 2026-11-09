@@ -112,6 +112,9 @@ const draft = {
 }
 
 let root: Root | undefined
+let rendered: ComponentProps<typeof OnboardingFlowHost> | undefined
+
+const rerender = () => act(() => root!.render(<OnboardingFlowHost {...rendered!} />))
 
 const mount = () => {
     root = createRoot(document.createElement("div"))
@@ -123,7 +126,8 @@ const mount = () => {
         userEmail: "person@example.com",
         homeUrl: "/home",
     }
-    act(() => root!.render(<OnboardingFlowHost {...props} />))
+    rendered = props
+    rerender()
 }
 
 const flow = () =>
@@ -142,6 +146,7 @@ beforeEach(() => {
     state.captureIntent.mockClear()
     state.offer = null
     state.license = {isInstanceAdmin: true, data: {license: null}}
+    window.localStorage.clear()
 })
 
 afterEach(() => {
@@ -244,6 +249,30 @@ describe("the registration offer after the survey", () => {
 
     it("stays closed when the instance already has a key", () => {
         state.license = {isInstanceAdmin: true, data: {license: {key_id: "k"}}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(state.offer?.open).toBe(false)
+    })
+
+    it("opens when the license answer arrives after the survey", () => {
+        state.license = {isInstanceAdmin: false, data: {license: null}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(state.offer?.open).toBe(false)
+
+        state.license = {isInstanceAdmin: true, data: {license: null}}
+        rerender()
+        expect(state.offer?.open).toBe(true)
+    })
+
+    it("does not open again after Skip, also in a new tab", () => {
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(state.offer?.open).toBe(true)
+        act(() => (state.offer as unknown as {onClose: () => void}).onClose())
+        expect(state.offer?.open).toBe(false)
+
+        act(() => root!.unmount())
         mount()
         act(() => flow().onStepCompleted("source", draft))
         expect(state.offer?.open).toBe(false)

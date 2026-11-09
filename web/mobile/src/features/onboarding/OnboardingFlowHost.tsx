@@ -36,7 +36,12 @@ import {endOnboarding, isOnboardingInvited, isOnboardingPending} from "./onboard
 import {personProperties, signupSurveyProperties} from "./onboardingQuestions"
 import {isFixedStep, onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {RegistrationOffer} from "./RegistrationOffer"
-import {isLargeCompany, shouldOfferRegistration} from "./registrationOfferRules"
+import {
+    isLargeCompany,
+    isRegistrationOfferSeen,
+    markRegistrationOfferSeen,
+    shouldOfferRegistration,
+} from "./registrationOfferRules"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
 
@@ -101,7 +106,20 @@ export const OnboardingFlowHost = ({
     const store = useStore()
     const draftKey = onboardingDraftKey(userId ?? "anonymous")
     const license = useInstanceLicense(projectId)
-    const [offer, setOffer] = useState<{largeCompany: boolean} | null>(null)
+    // Set when the survey ends; the offer opens once the license answer allows it, even late.
+    const [survey, setSurvey] = useState<{largeCompany: boolean} | null>(null)
+    const [offerClosed, setOfferClosed] = useState(false)
+    const offerOpen =
+        survey !== null &&
+        !offerClosed &&
+        shouldOfferRegistration({
+            selfHosted: !isBillingEnabled(),
+            isInstanceAdmin: license.isInstanceAdmin,
+            hasKey: Boolean(license.data?.license),
+        })
+    useEffect(() => {
+        if (offerOpen && userId) markRegistrationOfferSeen(userId)
+    }, [offerOpen, userId])
     const track = (event: string, properties?: Record<string, unknown>) => {
         if (!preview) capture(event, properties)
     }
@@ -132,13 +150,8 @@ export const OnboardingFlowHost = ({
         })
         if (step === steps.findLast((shown) => !isFixedStep(shown))) {
             track("survey sent", signupSurveyProperties(draft.answers, userEmail))
-            const offered = shouldOfferRegistration({
-                selfHosted: !isBillingEnabled(),
-                isInstanceAdmin: license.isInstanceAdmin,
-                hasKey: Boolean(license.data?.license),
-            })
-            if (!preview && !invited && offered) {
-                setOffer({largeCompany: isLargeCompany(draft.answers)})
+            if (!preview && !invited && !(userId && isRegistrationOfferSeen(userId))) {
+                setSurvey({largeCompany: isLargeCompany(draft.answers)})
             }
         }
     }
@@ -229,11 +242,11 @@ export const OnboardingFlowHost = ({
                 onSkip={onSkip}
             />
             <RegistrationOffer
-                open={Boolean(offer)}
+                open={offerOpen}
                 projectId={projectId}
                 email={userEmail}
-                largeCompany={offer?.largeCompany ?? false}
-                onClose={() => setOffer(null)}
+                largeCompany={survey?.largeCompany ?? false}
+                onClose={() => setOfferClosed(true)}
             />
         </>
     )

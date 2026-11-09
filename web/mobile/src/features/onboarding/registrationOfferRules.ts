@@ -18,3 +18,22 @@ export const shouldOfferRegistration = ({
     isInstanceAdmin: boolean
     hasKey: boolean
 }) => selfHosted && isInstanceAdmin && !hasKey
+
+const offerSeenKey = (userId: string) => `agenta:onboarding:registration-offer:${userId}`
+
+/** The offer shows once per user, also across tabs while onboarding is still pending. */
+export const markRegistrationOfferSeen = (userId: string) => {
+    try {
+        window.localStorage.setItem(offerSeenKey(userId), "1")
+    } catch {
+        // Storage restrictions only cost a second offer, never the onboarding.
+    }
+}
+
+export const isRegistrationOfferSeen = (userId: string): boolean => {
+    try {
+        return window.localStorage.getItem(offerSeenKey(userId)) !== null
+    } catch {
+        return false
+    }
+}
