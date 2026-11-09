@@ -36,6 +36,7 @@ import {
     UsersIcon,
 } from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {Ellipsis} from "lucide-react"
 
 import {canRenameSession, sessionBarPanelAtom, sessionRenameRequestAtom} from "./sessionBarState"
 import {SessionInspectorSheet} from "./SessionInspectorSheet"
@@ -307,7 +308,8 @@ export const SessionMoreMenu = ({
                             size="icon-sm"
                             aria-label="More actions"
                         >
-                            <DotsThreeIcon weight="bold" />
+                            {/* Lucide's: Phosphor's reads too small beside the bar's other icons. */}
+                            <Ellipsis />
                         </Button>
                     </DropdownMenuTrigger>
                 </SimpleTooltip>

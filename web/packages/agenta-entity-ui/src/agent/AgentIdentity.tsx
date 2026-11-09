@@ -49,6 +49,8 @@ export interface AgentIdentityProps {
     onRename?: (id: string, name: string) => Promise<boolean>
     /** True when `name` already belongs to a different agent — blocks the commit without a modal. */
     isDuplicateName?: (name: string, selfId?: string) => boolean
+    /** The icon alone, for a bar that needs the room; the name stays as the chip's label. */
+    iconOnly?: boolean
     className?: string
 }
 
@@ -68,6 +70,7 @@ export const AgentIdentity = ({
     onRenamed,
     onRename,
     isDuplicateName,
+    iconOnly = false,
     className,
 }: AgentIdentityProps) => {
     const spec = IDENTITY_SIZE[size]
@@ -84,6 +87,7 @@ export const AgentIdentity = ({
 
     const chip = (
         <span
+            title={iconOnly ? name || "Agent" : undefined}
             className={`${spec.chip} ${chrome.className}`}
             style={
                 chrome.style ??
@@ -99,20 +103,22 @@ export const AgentIdentity = ({
     return (
         <div className={`${spec.row} ${className ?? ""}`}>
             {editing ? <AgentIconPopover workflowId={workflowId}>{chip}</AgentIconPopover> : chip}
-            {namePlaceholder ??
-                (editing ? (
-                    <AgentNameInline
-                        workflowId={workflowId}
-                        name={name}
-                        size={size}
-                        as={spec.label}
-                        onRenamed={onRenamed}
-                        onRename={onRename}
-                        isDuplicateName={isDuplicateName}
-                    />
-                ) : (
-                    <Label className={agentNameLabelClass(size)}>{name || "Agent"}</Label>
-                ))}
+            {iconOnly
+                ? null
+                : (namePlaceholder ??
+                  (editing ? (
+                      <AgentNameInline
+                          workflowId={workflowId}
+                          name={name}
+                          size={size}
+                          as={spec.label}
+                          onRenamed={onRenamed}
+                          onRename={onRename}
+                          isDuplicateName={isDuplicateName}
+                      />
+                  ) : (
+                      <Label className={agentNameLabelClass(size)}>{name || "Agent"}</Label>
+                  )))}
         </div>
     )
 }

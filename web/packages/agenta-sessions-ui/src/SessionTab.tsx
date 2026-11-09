@@ -13,7 +13,15 @@
  * Rest props land on the root, so a host can wrap it in a Radix `asChild` trigger (the desktop's
  * context menu does).
  */
-import {useCallback, useState, type ComponentProps, type CSSProperties, type ReactNode} from "react"
+import {
+    useCallback,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type ComponentProps,
+    type CSSProperties,
+    type ReactNode,
+} from "react"
 
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {PushPin} from "@phosphor-icons/react"
@@ -36,14 +44,69 @@ const LABEL_MASK_HOVER = maskStyle(
 const CHIP = "h-7 w-fit min-w-20 max-w-32 gap-1.5 rounded px-2 text-xs"
 /** Sized to the name, up to a cap, so a short name leaves no gap beside it; the open tab gets
  * a wider cap. No outline: the open tab is the page's own colour, and the bar is its edge. */
-const CONNECTED = "h-8 w-fit min-w-16 max-w-[160px] gap-2 rounded-t-[6px] px-3 text-xs"
+const CONNECTED = "isolate h-8 w-fit min-w-16 max-w-[160px] gap-2 rounded-t-[6px] px-3 text-xs"
+/** The open tab's page-coloured surface. `isolate` on the tab keeps it behind the label. */
+const SURFACE =
+    "pointer-events-none absolute inset-0 -z-10 origin-left rounded-t-[6px] bg-background will-change-transform"
+/** Where the last open tab's surface sat, so the next one can grow out of it. One strip shows
+ * at a time, so one slot is enough. */
+let lastSurface: {rect: DOMRect; at: number} | null = null
+/** Older than this, the last surface belongs to another visit, not to a switch. */
+const GLIDE_WINDOW_MS = 1500
+/** A soft spring as a curve: it overshoots a little and settles, so the surface stretches
+ * across and lands with some give. */
+const SURFACE_GLIDE = {duration: 420, easing: "cubic-bezier(0.32, 1.32, 0.5, 1)"}
+
+/** The surface glides from the previous open tab into this one: FLIP on its transform. */
+const useSurfaceGlide = () => {
+    const ref = useRef<HTMLSpanElement>(null)
+    useLayoutEffect(() => {
+        const el = ref.current
+        if (!el) return
+        const to = el.getBoundingClientRect()
+        const from =
+            lastSurface && performance.now() - lastSurface.at < GLIDE_WINDOW_MS
+                ? lastSurface.rect
+                : null
+        const still = matchMedia("(prefers-reduced-motion: reduce)").matches
+        if (from && !still && Math.abs(from.left - to.left) > 1) {
+            // Transform only, so the compositor runs it: the route's own render lands mid-glide,
+            // and a layout-driven animation stalled there.
+            el.animate(
+                [
+                    {
+                        transform: `translateX(${from.left - to.left}px) scaleX(${from.width / to.width})`,
+                    },
+                    {transform: "translateX(0) scaleX(1)"},
+                ],
+                SURFACE_GLIDE,
+            )
+        }
+        // Read on the way out: the next open tab starts from wherever this one last was.
+        return () => {
+            lastSurface = {rect: el.getBoundingClientRect(), at: performance.now()}
+        }
+    }, [])
+    return ref
+}
+
 /** The open tab's lower corners curve outward into the page, as browser tabs do. The shadow
- * paints the transcript's colour (`--background`) into the curve's outer side, and they fade
- * in with the tab's fill when it opens. */
-const FLARE =
-    "pointer-events-none absolute bottom-0 h-1 w-1 transition-opacity duration-200 ease-out starting:opacity-0 motion-reduce:transition-none"
+ * paints the transcript's colour (`--background`) into the curve's outer side. They ride on the
+ * travelling surface. */
+const FLARE = "absolute bottom-0 h-1 w-1"
 const FLARE_LEFT = "-left-1 rounded-br-[4px] shadow-[2px_2px_0_2px_var(--background)]"
 const FLARE_RIGHT = "-right-1 rounded-bl-[4px] shadow-[-2px_2px_0_2px_var(--background)]"
+
+/** Mounted only on the open tab, so its mount is the switch to animate. */
+const OpenTabSurface = () => {
+    const ref = useSurfaceGlide()
+    return (
+        <span ref={ref} aria-hidden className={SURFACE}>
+            <span className={clsx(FLARE, FLARE_LEFT)} />
+            <span className={clsx(FLARE, FLARE_RIGHT)} />
+        </span>
+    )
+}
 
 export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
     /** The session on screen: primary text on the `colorFill` chip. */
@@ -122,7 +185,7 @@ export const SessionTab = ({
                 connected ? CONNECTED : CHIP,
                 connected
                     ? active
-                        ? "max-w-[200px] bg-background font-medium text-colorText"
+                        ? "max-w-[200px] font-medium text-colorText"
                         : "text-colorTextSecondary hover:bg-[var(--ag-surface-tab-hover)] hover:text-colorText"
                     : active
                       ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
@@ -130,12 +193,7 @@ export const SessionTab = ({
                 className,
             )}
         >
-            {connected && active ? (
-                <>
-                    <span aria-hidden className={clsx(FLARE, FLARE_LEFT)} />
-                    <span aria-hidden className={clsx(FLARE, FLARE_RIGHT)} />
-                </>
-            ) : null}
+            {connected && active ? <OpenTabSurface /> : null}
             {statusDot}
             {pinned && (
                 <PushPin

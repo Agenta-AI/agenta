@@ -338,6 +338,9 @@ const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
     return next
 }
 
+/** How long a clicked tab may show as open before the route confirms it. */
+const PICK_TIMEOUT_MS = 3000
+
 /** Placeholder chips while the first rows load — a long, a short and a middling title. */
 const SKELETON_CHIP_WIDTHS = ["w-32", "w-24", "w-28"]
 
@@ -501,6 +504,34 @@ export const SessionTabRail = ({
         () => unlisted.filter((tab) => !fetchedIds.includes(tab.id)),
         [unlisted, fetchedIds],
     )
+    // The clicked tab shows as open at once; the route catches up a few hundred ms later. A
+    // switch that waited on it read as lag before the surface even moved.
+    const [pickedId, setPickedId] = useState<string | null>(null)
+    useEffect(() => {
+        if (!pickedId) return
+        if (pickedId === activeSessionId) {
+            setPickedId(null)
+            return
+        }
+        // A navigation that never lands gives the tab back to the route.
+        const timer = setTimeout(() => setPickedId(null), PICK_TIMEOUT_MS)
+        return () => clearTimeout(timer)
+    }, [pickedId, activeSessionId])
+    const shownActiveId = pickedId ?? activeSessionId
+    const selectTab = useCallback(
+        (vm: SessionRowVm) => {
+            setPickedId(vm.id)
+            onSelect(vm)
+        },
+        [onSelect],
+    )
+    const selectUnlistedTab = useCallback(
+        (id: string) => {
+            setPickedId(id)
+            onSelectUnlisted?.(id)
+        },
+        [onSelectUnlisted],
+    )
     const orderedIds = useMemo(() => rows.map((vm) => vm.id), [rows])
     // Everything on the strip, in rendered order — unlisted chips trail the rows. This is the
     // order a close reads its survivor from, so closing an unlisted chip lands somewhere too.
@@ -562,10 +593,10 @@ export const SessionTabRail = ({
                       <RailTab
                           key={vm.id}
                           vm={vm}
-                          active={vm.id === activeSessionId}
+                          active={vm.id === shownActiveId}
                           connected={Boolean(bare)}
                           divided={index > 0}
-                          onSelect={onSelect}
+                          onSelect={selectTab}
                           draggable={reorderable}
                           onClose={onClose && closable ? () => onClose(vm, renderedIds) : undefined}
                           onRename={
@@ -610,10 +641,10 @@ export const SessionTabRail = ({
                           key={tab.id}
                           id={tab.id}
                           title={tab.title}
-                          active={tab.id === activeSessionId}
+                          active={tab.id === shownActiveId}
                           connected={Boolean(bare)}
                           divided={rows.length > 0 || index > 0}
-                          onSelect={onSelectUnlisted}
+                          onSelect={selectUnlistedTab}
                           // Only the tab verbs, and only when the host can land a close.
                           menu={onCloseMany ? unlistedTabMenu(closeTabs, tab.id) : undefined}
                           onMenuSelect={(key) => {

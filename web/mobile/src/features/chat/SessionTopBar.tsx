@@ -196,7 +196,12 @@ export const SessionTopBar = ({
                     </span>
                 ) : (
                     <>
-                        <AgentIdentity workflowId={agentId} name={agentName} />
+                        <AgentIdentity
+                            workflowId={agentId}
+                            name={agentName}
+                            // The Files pane takes the bar's room; the tabs keep it.
+                            iconOnly={hasSessions && filesOpen}
+                        />
                         {revision}
                     </>
                 )
@@ -204,28 +209,35 @@ export const SessionTopBar = ({
             center={switcher}
             actions={
                 <>
-                    {hasSessions && agentId ? (
-                        <SimpleTooltip
-                            title={
-                                <span className="flex items-center gap-1.5">
-                                    New session <ShortcutKeys id="session.new" tone="inverse" />
-                                </span>
-                            }
-                        >
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="New session"
-                                onClick={() => startBlank(agentId)}
+                    {/* The session tools sit tight as one group. */}
+                    <div className="flex items-center gap-0.5">
+                        {hasSessions && agentId ? (
+                            <SimpleTooltip
+                                title={
+                                    <span className="flex items-center gap-1.5">
+                                        New session <ShortcutKeys id="session.new" tone="inverse" />
+                                    </span>
+                                }
                             >
-                                <NotePencilIcon />
-                            </Button>
-                        </SimpleTooltip>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="New session"
+                                    onClick={() => startBlank(agentId)}
+                                >
+                                    <NotePencilIcon />
+                                </Button>
+                            </SimpleTooltip>
+                        ) : null}
+                        {hasSessions ? (
+                            <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} />
+                        ) : null}
+                        {more}
+                    </div>
+                    {/* Separates the session's tools from the agent's sharing; gone with them. */}
+                    {agentId && !agentHidden && !filesOpen ? (
+                        <span aria-hidden className="bg-border mx-1 h-4 w-px shrink-0" />
                     ) : null}
-                    {hasSessions ? (
-                        <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} />
-                    ) : null}
-                    {more}
                     {share}
                     {shortcuts}
                 </>
