@@ -34,6 +34,8 @@ import {
 const barClass = (sticky: boolean) =>
     `mt-1.5 flex items-center justify-between overflow-hidden border-0 border-t border-solid border-[var(--ag-c-EAEFF5)] px-4 pb-1.5 pt-3.5 ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-content)]`
 const titleClass = "text-xs text-colorTextTertiary"
+// Each region is one white sheet, so the space above its title line is not the panel's tint.
+const SECTION_SHEET = "bg-[var(--ag-surface-section-content)]"
 
 /** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */
 export function AgentRegionHeaderBar({
@@ -68,7 +70,7 @@ const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
 export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
     return (
         <>
-            <section className="flex flex-col" aria-busy>
+            <section className={`flex flex-col ${SECTION_SHEET}`} aria-busy>
                 <AgentRegionHeaderBar title="Automations" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
@@ -79,7 +81,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                     <SkeletonSectionRow title={82} value={44} withAdd />
                 </div>
             </section>
-            <section className="flex grow flex-col" aria-busy>
+            <section className={`flex grow flex-col ${SECTION_SHEET}`} aria-busy>
                 <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
@@ -136,7 +138,7 @@ export function AgentOperationsSections({
 
     return (
         <>
-            <section className="flex flex-col">
+            <section className={`flex flex-col ${SECTION_SHEET}`}>
                 <AgentRegionHeaderBar title="Automations" sticky={sticky}>
                     {/* No reserved affordance column: this region has no caret, and the empty
                         14px slot only held the "+" off the bar's right edge. */}
@@ -193,7 +195,7 @@ export function AgentOperationsSections({
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
-            <section className="flex grow flex-col">
+            <section className={`flex grow flex-col ${SECTION_SHEET}`}>
                 <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     {storageHeader}
                 </AgentRegionHeaderBar>
