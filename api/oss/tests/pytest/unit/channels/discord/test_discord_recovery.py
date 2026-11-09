@@ -395,8 +395,29 @@ async def test_opening_mention_groups_by_the_delivering_channel():
     adapter.history["C"] = [message("200", "C")]
     await _ready(socket)
 
-    assert adapter.history_reads[0] == ("C", "100")
+    assert ("C", "100") in adapter.history_reads
     assert "200" in service.enqueued
+
+
+async def test_follow_up_in_a_mention_thread_during_the_gap_is_recovered():
+    adapter = FakeAdapter()
+    service = FakeChannelsService(adapter)
+    socket = _socket(service)
+    # A mention 100 in channel C opens thread 100; it is the only stored row.
+    inbound = await adapter.parse_event(
+        body=frame("MESSAGE_CREATE", message("100", "C")).encode(),
+        connection=socket.connection,
+    )
+    inbound.external_locator.update({"thread_id": "100", "source_channel_id": "C"})
+    service.store_row(socket.connection, inbound)
+
+    # The socket goes down, and a follow-up with a mention is posted in the
+    # thread.
+    adapter.history["100"] = [message("200", "100", content="<@bot> and now?")]
+    await _ready(socket)
+
+    assert ("100", "100") in adapter.history_reads
+    assert service.enqueued == ["200"]
 
 
 async def test_successful_resume_reads_no_history():

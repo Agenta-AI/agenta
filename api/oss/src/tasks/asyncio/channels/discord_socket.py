@@ -377,16 +377,23 @@ class DiscordSocket:
         start: RecoveryStart = {}
         for row in rows:
             locator = row.data.external_locator if row.data else {}
-            channel_id = str(locator.get("source_channel_id") or "")
-            if not channel_id or not str(row.external_id).isdigit():
+            if not str(row.external_id).isdigit():
                 continue
-            # Snowflakes compare as integers, not as strings.
-            current = start.get(channel_id)
-            if current is None or int(row.external_id) > int(current[0]):
-                start[channel_id] = (
-                    str(row.external_id),
-                    str(locator.get("guild_id") or ""),
-                )
+            channel_ids = {str(locator.get("source_channel_id") or "")}
+            # A mention opens a thread whose id is the mention's own id, so the
+            # thread's messages all come after it. Reading the thread too
+            # recovers a follow-up posted there during the gap, when the
+            # mention is the thread's only stored row.
+            if row.data and row.data.addressed:
+                channel_ids.add(str(locator.get("thread_id") or ""))
+            for channel_id in channel_ids - {""}:
+                # Snowflakes compare as integers, not as strings.
+                current = start.get(channel_id)
+                if current is None or int(row.external_id) > int(current[0]):
+                    start[channel_id] = (
+                        str(row.external_id),
+                        str(locator.get("guild_id") or ""),
+                    )
         return start
 
     async def _recover(self, ready_at: datetime) -> None:

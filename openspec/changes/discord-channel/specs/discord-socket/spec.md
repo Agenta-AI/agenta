@@ -123,6 +123,10 @@ On every READY, which Discord sends after a fresh IDENTIFY and never after a suc
 - **WHEN** the only recent inbox row from channel C is a mention M whose locator has `channel_id` C, `thread_id` M and `source_channel_id` C, and a second mention is posted in C during the gap
 - **THEN** the loop SHALL group the rows by `source_channel_id` C, SHALL read the history of C, and SHALL store and enqueue the second mention
 
+#### Scenario: Follow-up in a mention thread during the gap
+- **WHEN** a mention M in channel C opened thread M, M is the thread's only stored row, and a follow-up with a mention is posted in thread M during the gap
+- **THEN** the pass SHALL also read thread M after M, with the same start rule, and SHALL store and enqueue the follow-up once. A thread listed both as a delivering channel and from a mention's `thread_id` SHALL be read once
+
 #### Scenario: Holder stops or the lock moves
 - **WHEN** messages are posted while no replica holds the sockets, and a replica then opens the connection's socket
 - **THEN** the loop SHALL recover after that socket's first READY, as after any other gap
