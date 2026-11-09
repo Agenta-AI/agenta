@@ -15,7 +15,7 @@
 import {useCallback, type ReactNode} from "react"
 
 import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
-import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
+import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {Lightning} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
@@ -29,9 +29,11 @@ import {
     type TriggerOwnerRef,
 } from "./TriggerManagementSection"
 
+// A group title like the config rows' (Agent, Capabilities): a hairline above, on the panel's
+// own sheet, so the regions read as more groups of one list rather than banded blocks.
 const barClass = (sticky: boolean) =>
-    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
-const titleClass = "text-[13px] font-semibold text-colorText"
+    `flex h-10 items-center justify-between overflow-hidden border-0 border-t border-solid border-[var(--ag-c-EAEFF5)] px-4 ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-content)]`
+const titleClass = "text-xs text-colorTextTertiary"
 
 /** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */
 export function AgentRegionHeaderBar({

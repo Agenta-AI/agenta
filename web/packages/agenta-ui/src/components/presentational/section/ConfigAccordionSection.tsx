@@ -156,6 +156,11 @@ export interface ConfigAccordionSectionProps {
      */
     headerBand?: string
     /**
+     * Grouped-list look: no divider and no band; the header fills on hover, and the add control
+     * and caret show on hover, keyboard focus, or while open. Off by default.
+     */
+    quiet?: boolean
+    /**
      * Fade + subtle rise the section in on mount (opacity/transform only — no layout impact). Off by
      * default so existing usages are unchanged; the agent config panel opts in (staggered via
      * `revealDelayMs`) so its sections don't pop in when the panel resolves. Motion-safe.
@@ -181,6 +186,10 @@ export interface ConfigAccordionSectionProps {
     children?: ReactNode
 }
 
+/** Quiet rows show their controls on hover, keyboard focus, or while a control's menu is open. */
+const QUIET_REVEAL =
+    "transition-opacity duration-150 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 [@media(hover:hover)]:group-focus-within/row:opacity-100 [@media(hover:hover)]:has-[[aria-expanded=true]]:opacity-100"
+
 /**
  * A single collapsible section for accordion-style config panels.
  */
@@ -204,7 +213,8 @@ export function ConfigAccordionSection({
     titleBadge,
     preserveTitle = false,
     className,
-    headerBand,
+    headerBand: headerBandProp,
+    quiet = false,
     revealOnMount = false,
     revealDelayMs = 0,
     animateInitialOpen = false,
@@ -240,6 +250,8 @@ export function ConfigAccordionSection({
           : status === "warning"
             ? "var(--ag-colorWarning)"
             : "var(--ag-c-586673)"
+    // A quiet row never bands: its hover fill and group spacing do that job.
+    const headerBand = quiet ? undefined : headerBandProp
     const isControlled = open !== undefined
     // With `animateInitialOpen`, a default-open section still MOUNTS closed and expands via the
     // effect below, so its first paint is the collapsed row (matching skeletons), not the content.
@@ -342,7 +354,9 @@ export function ConfigAccordionSection({
                                         : "border-[var(--ag-c-EAEFF5)]",
                                 ),
                       )
-                    : !noDivider && "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
+                    : !noDivider &&
+                          !quiet &&
+                          "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
                 className,
             )}
         >
@@ -351,7 +365,10 @@ export function ConfigAccordionSection({
             <div
                 onClick={headerActs ? activate : undefined}
                 className={cn(
-                    "flex items-center justify-between gap-2 py-3 select-none",
+                    "flex items-center justify-between gap-2 select-none",
+                    quiet
+                        ? "group/row -mx-2 rounded-md px-2 py-2 transition-colors duration-150 hover:bg-[var(--ag-colorFillQuaternary)]"
+                        : "py-3",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
                     // Header fill: bled to the section edges and layered over the section's body fill so
@@ -439,9 +456,13 @@ export function ConfigAccordionSection({
                                 <Lock size={14} className="text-[var(--ag-zinc-5)]" />
                             )
                         ) : opensDrawer ? (
-                            <ConfigRowCaret />
+                            <span className={cn("flex", quiet && QUIET_REVEAL)}>
+                                <ConfigRowCaret />
+                            </span>
                         ) : collapsible ? (
-                            <ConfigRowCaret open={isOpen} />
+                            <span className={cn("flex", quiet && !isOpen && QUIET_REVEAL)}>
+                                <ConfigRowCaret open={isOpen} />
+                            </span>
                         ) : null
                     }
                 >
@@ -464,7 +485,7 @@ export function ConfigAccordionSection({
                         // stretching the header past its text-driven height, so every section row
                         // stays the same height whether or not it has an `extra` action.
                         <span
-                            className="-my-2 flex items-center"
+                            className={cn("-my-2 flex items-center", quiet && QUIET_REVEAL)}
                             onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => e.stopPropagation()}
                             onKeyUp={(e) => e.stopPropagation()}
@@ -475,7 +496,8 @@ export function ConfigAccordionSection({
                 </ConfigRowTrailing>
             </div>
 
-            {opensDrawer ? null : (
+            {/* No body at all without content: a non-collapsible value row stays "open". */}
+            {opensDrawer || children == null ? null : (
                 // The 4px bleed keeps a focused control's 3px ring inside the collapse's clip.
                 <HeightCollapse open={isOpen} className="-mx-1" contentClassName="px-1">
                     {/* Top padding gives the body room below the header band (which carries the

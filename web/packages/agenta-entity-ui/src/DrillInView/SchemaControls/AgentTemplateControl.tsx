@@ -192,6 +192,12 @@ const EMPTY_HEAD_VERSIONS: Record<string, string> = {}
 
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
 
+/** The panel's row groups, in display order. Advanced stands alone, with no title. */
+const AGENT_GROUP = {id: "agent", title: "Agent"}
+const CAPABILITIES_GROUP = {id: "capabilities", title: "Capabilities"}
+const ACCESS_GROUP = {id: "access", title: "Access"}
+const ADVANCED_GROUP = {id: "advanced"}
+
 export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
     value,
@@ -1110,6 +1116,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sections = [
         mh.hasModelOrHarness && {
             key: "model-harness",
+            group: AGENT_GROUP,
             icon: <Cpu size={16} />,
             title: "Model",
             titleBadge: modelHarnessBadge,
@@ -1145,6 +1152,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         hasInstructions && {
             key: "instructions",
+            group: AGENT_GROUP,
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
             indicator: sectionIndicator("instructions"),
@@ -1164,6 +1172,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
                 key: "tools",
+                group: CAPABILITIES_GROUP,
                 icon: <Wrench size={16} />,
                 title: "Integrations",
                 summary: countSummary(integrationCount, "integration"),
@@ -1199,6 +1208,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openSubagentSelector) || subagentCount > 0) && {
                 key: "subagents",
+                group: CAPABILITIES_GROUP,
                 icon: <Robot size={16} />,
                 title: "Subagents",
                 summary: countSummary(subagentCount, "subagent"),
@@ -1217,6 +1227,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             },
         hasMcp && {
             key: "mcp",
+            group: CAPABILITIES_GROUP,
             icon: <Plugs size={16} />,
             title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
@@ -1241,6 +1252,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         hasSkills && {
             key: "skills",
+            group: CAPABILITIES_GROUP,
             icon: <GraduationCap size={16} />,
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
@@ -1277,12 +1289,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         mh.hasPermissions && {
             key: "permissions",
+            group: ACCESS_GROUP,
             icon: <ShieldCheck size={16} />,
             title: "Permissions",
-            summary: mh.runnerPermissionSummary,
-            indicator: sectionIndicator("permissions"),
-            defaultOpen: true,
-            content: (
+            // One row: the policy picker is the row's value, so nothing expands under it.
+            collapsible: false,
+            summary: (
                 <ChangedPathsProvider changes={panelChangedPaths}>
                     <ModelHarnessSectionBody
                         section="permissions"
@@ -1295,9 +1307,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     />
                 </ChangedPathsProvider>
             ),
+            indicator: sectionIndicator("permissions"),
+            content: null,
         },
         mh.hasAdvanced && {
             key: "advanced",
+            group: ADVANCED_GROUP,
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
             titleBadge: advancedBadge,

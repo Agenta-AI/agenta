@@ -621,10 +621,12 @@ export function useModelHarness({
 
     const permissionsBody = (
         <>
-            {/* No rail label: the section header already reads "Policy: …", so the select
-                takes the full width. */}
+            {/* The Permissions row's value: a borderless picker on the row's right edge. */}
             {runnerPermissionSchema && policyInFocus ? (
                 <PermissionPolicySelect
+                    size="sm"
+                    align="end"
+                    triggerClassName="-mr-2 h-7 w-auto gap-1 border-transparent bg-transparent px-2 text-xs text-colorTextDescription shadow-none hover:bg-[var(--ag-colorFillTertiary)] hover:text-colorText dark:bg-transparent"
                     value={currentRunnerPermission}
                     onChange={(v) =>
                         setSection("runner", {
