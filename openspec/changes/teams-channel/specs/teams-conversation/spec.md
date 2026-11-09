@@ -29,7 +29,7 @@ The channels ingress SHALL accept `POST /teams/events/` under both `/channels` a
 - **THEN** the ingress SHALL answer 401, the same as a bad signature
 
 ### Requirement: Inbound JWT check
-`verify_signature` SHALL accept a request only when its `Authorization: Bearer` JWT has a valid RS256 signature from Microsoft's Bot Framework keys, issuer `https://api.botframework.com`, an audience that names the connection's `app_id`, a valid time window with 300 seconds of leeway, and a `serviceurl` claim equal to the activity's `serviceUrl`.
+`verify_signature` SHALL accept a request only when its `Authorization: Bearer` JWT has a valid RS256 signature from Microsoft's Bot Framework keys, issuer `https://api.botframework.com`, an audience that names the connection's `app_id`, a valid time window with 300 seconds of leeway, a `serviceurl` claim equal to the activity's `serviceUrl`, an activity `channelId` of `msteams`, and a signing key whose `endorsements` include `msteams`.
 
 #### Scenario: Valid token
 - **WHEN** the JWT passes every check and its audience is `<app_id>`, `api://<app_id>` or `api://botid-<app_id>`
@@ -41,6 +41,10 @@ The channels ingress SHALL accept `POST /teams/events/` under both `/channels` a
 
 #### Scenario: Service URL mismatch
 - **WHEN** the JWT's `serviceurl` claim differs from the activity's `serviceUrl` after a trailing `/` is removed from both
+- **THEN** `verify_signature` SHALL raise `ChannelSignatureInvalid`
+
+#### Scenario: Another channel
+- **WHEN** the activity's `channelId` is not `msteams`, or the signing key's `endorsements` do not include `msteams`
 - **THEN** `verify_signature` SHALL raise `ChannelSignatureInvalid`
 
 #### Scenario: Emulator token
@@ -104,7 +108,7 @@ The adapter SHALL cache Microsoft's signing keys for the whole deployment, read 
 - **THEN** `parse_event` SHALL return `None`, and no inbox row SHALL be written
 
 ### Requirement: Mentions address the bot
-`parse_event` SHALL set `addressed` to true only when an `entities` entry of type `mention` has a `mentioned.id` that names the connection's `app_id`, and SHALL then remove that entry's `text` from the message text.
+`parse_event` SHALL set `addressed` to true only when an `entities` entry of type `mention` has a `mentioned.id` that names the connection's `app_id`, and SHALL then remove that entry's `text` from the message text. Mention entities carry no offsets, so the n-th entity with a given `text` SHALL own the n-th occurrence of that text.
 
 #### Scenario: Bot mentioned
 - **WHEN** a channel message has the text `<at>Helper</at> what is the status?` and a mention entity for `28:<app_id>`
@@ -118,6 +122,10 @@ The adapter SHALL cache Microsoft's signing keys for the whole deployment, read 
 - **WHEN** a message mentions the bot and another person
 - **THEN** only the bot's mention text SHALL be removed, and the other mention SHALL stay in the text
 
+#### Scenario: Person with the bot's display name
+- **WHEN** a message mentions the bot and another person whose mention text is the same as the bot's, in either order
+- **THEN** only the occurrence that matches the bot's entity SHALL be removed, and the other person's mention SHALL stay in the text
+
 #### Scenario: Tag or channel mention
 - **WHEN** a message mentions a tag or the whole channel, and not the bot
 - **THEN** `addressed` SHALL be false
@@ -127,11 +135,19 @@ The adapter SHALL cache Microsoft's signing keys for the whole deployment, read 
 - **THEN** `addressed` SHALL be false
 
 ### Requirement: Card clicks
-`parse_event` SHALL turn a `message` activity whose `value.choice_token` holds a choice token into an `ACTION` event whose content is that token, with `message_id` set to the activity's `replyToId`.
+`parse_event` SHALL turn a `message` activity whose `value.choice_token` holds a choice token into an `ACTION` event whose content is that token, with `message_id` set to the activity's `replyToId`. In a team channel, the click's `thread_id` SHALL come from the `;messageid=` part of `conversation.id` when present, else from `value.thread_id`; in chats it SHALL be `""`.
 
 #### Scenario: Approve click
 - **WHEN** a user clicks Approve on an approval card
 - **THEN** `parse_event` SHALL return an `ACTION` event with the content `<interaction UUID>:approve`
+
+#### Scenario: Click in a channel thread
+- **WHEN** a user clicks a card whose button data has `thread_id` `111`, and the click arrives with `conversation.id` `19:abc@thread.tacv2;messageid=111`
+- **THEN** the event's `thread_id` SHALL be `111` and its `message_id` SHALL be the card's activity id
+
+#### Scenario: Click without a thread suffix
+- **WHEN** a channel click arrives with `conversation.id` `19:abc@thread.tacv2` and button data with `thread_id` `111`
+- **THEN** the event's `thread_id` SHALL be `111`, so the click finds the pending choice on the thread of the card
 
 #### Scenario: Value without a choice token
 - **WHEN** a `message` activity has a `value` that carries no choice token and no text
@@ -153,11 +169,15 @@ The adapter SHALL cache Microsoft's signing keys for the whole deployment, read 
 - **THEN** `parse_event` SHALL return `None`
 
 ### Requirement: Duplicate deliveries
-The adapter SHALL use the activity `id` as the event's `external_id`, so the existing inbox constraint on `(project_id, connection_id, external_id)` SHALL drop a second delivery of the same activity.
+The adapter SHALL use `<conversation_id>:<activity id>` as the event's `external_id`, because Teams activity ids are unique only within one conversation, so the existing inbox constraint on `(project_id, connection_id, external_id)` SHALL drop a second delivery of the same activity.
 
 #### Scenario: Teams retries a request
 - **WHEN** Teams sends the same activity twice
 - **THEN** only one inbox row SHALL exist, and at most one turn SHALL start
+
+#### Scenario: Same activity id in two conversations
+- **WHEN** two conversations of one connection send activities with the same `id`
+- **THEN** each activity SHALL have its own inbox row
 
 ### Requirement: Who may talk to the agent
 Messages from Teams SHALL follow the existing trigger rule, grants and roster, so a private space always triggers and a shared space triggers only on a mention, a command or an answer to a pending choice.

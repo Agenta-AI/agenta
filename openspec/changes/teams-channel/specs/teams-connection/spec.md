@@ -82,7 +82,7 @@ For a connection whose locator has an `app_id`, `build_setup_document` SHALL ret
 - **THEN** `build_setup_document` SHALL return no document
 
 ### Requirement: Manifest text
-The manifest SHALL take `name.short` and `description.short` from the `identity` argument of `build_setup_document`, fitted to one line of at most 30 and 80 characters, with the defaults "Agenta" and "An Agenta agent.", and SHALL set `developer.name` to "Agenta" and `developer.websiteUrl`, `developer.privacyUrl` and `developer.termsOfUseUrl` to `env.agenta.web_url`.
+The manifest SHALL take `name.short` and `description.short` from the `identity` argument of `build_setup_document`, fitted to one line of at most 30 and 80 characters, with the defaults "Agenta" and "An Agenta agent.", and SHALL set `developer.name` to "Agenta", `developer.websiteUrl` to `https://agenta.ai`, `developer.privacyUrl` to `https://agenta.ai/privacy-policy` and `developer.termsOfUseUrl` to `https://agenta.ai/terms`.
 
 #### Scenario: Long name
 - **WHEN** `identity.name` has 45 characters
@@ -93,8 +93,8 @@ The manifest SHALL take `name.short` and `description.short` from the `identity`
 - **THEN** `name.short` SHALL be "Agenta" and `description.short` SHALL be "An Agenta agent."
 
 #### Scenario: Developer fields
-- **WHEN** the package is built on a deployment whose `AGENTA_WEB_URL` is set
-- **THEN** the three developer URLs SHALL equal that value, and `developer.name` SHALL be "Agenta"
+- **WHEN** the package is built on any deployment, including one whose `AGENTA_WEB_URL` is a plain HTTP address
+- **THEN** the three developer URLs SHALL be the fixed HTTPS Agenta URLs, and `developer.name` SHALL be "Agenta"
 
 ### Requirement: Package download and install steps
 After a Teams connection is stored, the setup screen SHALL offer a "Download Teams app" button that saves the decoded zip under the document's `filename`, and SHALL show the install steps.

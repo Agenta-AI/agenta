@@ -190,6 +190,17 @@ class ChannelsIngressRouter:
             status_code=status.HTTP_202_ACCEPTED,
         )
 
+        # Teams: one messaging endpoint for every bot. The activity names the
+        # bot, and the signed token proves it.
+        self.router.add_api_route(
+            "/teams/events/",
+            self.ingest_teams_event,
+            methods=["POST"],
+            operation_id="ingest_teams_event",
+            response_model=ChannelEventAck,
+            status_code=status.HTTP_202_ACCEPTED,
+        )
+
         # Bridges share one route -- their channel key is unknown at build time.
         self.router.add_api_route(
             "/bridge/events/",
@@ -600,6 +611,11 @@ class ChannelsIngressRouter:
         if not accepted:
             raise ChannelSignatureInvalid(channel="whatsapp")
         return ChannelEventAck(status="accepted")
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def ingest_teams_event(self, request: Request) -> Any:
+        return await self._ingest(channel="teams", request=request)
 
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()
