@@ -140,7 +140,9 @@ export function AgentOperationsSections({
                 <AgentRegionHeaderBar title="Automations" sticky={sticky}>
                     {/* No reserved affordance column: this region has no caret, and the empty
                         14px slot only held the "+" off the bar's right edge. */}
-                    <ConfigRowTrailing reserve={false}>
+                    {/* `-mr-[7px]`: the icon button's padding, so the "+" glyph lands on the
+                        rows' right edge. */}
+                    <ConfigRowTrailing reserve={false} className="-mr-[7px]">
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             {countSummary(triggerCount, "automation")}
                         </span>

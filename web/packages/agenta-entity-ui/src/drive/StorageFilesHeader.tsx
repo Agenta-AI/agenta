@@ -34,7 +34,8 @@ export default function StorageFilesHeader({
               : `${shown} files`
 
     return (
-        <div className="flex items-center gap-1.5">
+        // The folder button's padding pulled out, so its glyph lands on the rows' right edge.
+        <div className={`flex items-center gap-1.5 ${scope !== undefined ? "-mr-[7px]" : ""}`}>
             {drive.isLoading ? (
                 <ConfigRowTrailing reserve={false}>
                     <SkeletonBlock className="h-[14px] w-[44px]" />
