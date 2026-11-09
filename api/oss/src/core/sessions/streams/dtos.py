@@ -362,7 +362,6 @@ class BrowserPage(NamedTuple):
 
     wait_reason: str = ""
     url: str = ""
-    title: str = ""
 
 
 class BrowserLiveLink(NamedTuple):

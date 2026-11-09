@@ -216,14 +216,13 @@ async function serve() {
     const url = new URL(req.url, "http://browser");
     if (req.method === "GET" && url.pathname === "/health") {
       if (!session.connected()) return reply(res, 503, { ok: false });
-      // The app shows this without opening the live view: the page, and the agent's ask.
-      // A frozen page must not stop this answering: a silent /health gets the browser restarted.
-      const active = (await session.tabs()).find((tab) => tab.active);
+      // The app shows this without opening the live view. It reads no page, so a frozen tab
+      // cannot silence it: a silent /health gets the browser restarted.
+      const page = session.activePage;
       return reply(res, 200, {
         ok: true,
         wait_reason: waits.reason(),
-        url: active?.url ?? "",
-        title: active?.title ?? "",
+        url: page && !page.isClosed() ? page.url() : "",
       });
     }
     if (req.method !== "POST") return reply(res, 404, { ok: false });

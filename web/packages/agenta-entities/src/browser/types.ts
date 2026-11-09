@@ -10,7 +10,6 @@ export const browserLiveStatusSchema = z
         running: z.boolean().default(false),
         wait_reason: pageText,
         url: pageText,
-        title: pageText,
     })
     .transform(({wait_reason, ...page}) => ({...page, waitReason: wait_reason}))
 

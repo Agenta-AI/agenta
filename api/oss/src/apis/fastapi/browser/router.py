@@ -94,7 +94,6 @@ class BrowserRouter:
             running=True,
             wait_reason=link.page.wait_reason or None,
             url=link.page.url or None,
-            title=link.page.title or None,
         )
 
     # WS /browser/live?project_id=..&session_id=..

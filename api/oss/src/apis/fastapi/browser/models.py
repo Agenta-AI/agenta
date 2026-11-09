@@ -12,4 +12,3 @@ class BrowserLiveStatusResponse(BaseModel):
     # The reason the agent gave `wait`; absent when it is not waiting for the person.
     wait_reason: Optional[str] = None
     url: Optional[str] = None
-    title: Optional[str] = None

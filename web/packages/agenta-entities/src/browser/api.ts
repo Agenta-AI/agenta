@@ -4,7 +4,7 @@ import {safeParseWithLogging} from "../shared"
 
 import {browserLiveStatusSchema, type BrowserLiveStatus} from "./types"
 
-const NOT_RUNNING: BrowserLiveStatus = {running: false, waitReason: "", url: "", title: ""}
+const NOT_RUNNING: BrowserLiveStatus = {running: false, waitReason: "", url: ""}
 
 /** Whether the agent of this session runs a browser right now, and what it shows. */
 export const fetchBrowserLiveStatus = async (
