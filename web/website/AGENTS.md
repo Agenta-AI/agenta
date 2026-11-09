@@ -122,6 +122,16 @@ What it does, and the invariants that keep it safe:
   so markdown responses are `Cache-Control: private, max-age=0` — a shared cache
   must never be able to hand a markdown body to a browser.
 
+**One API route, `POST /api/license-registrations`** (`worker/registrations.ts`). A
+self-hosted instance asks for a free registration key. The worker checks the body (`email`,
+`instance_id`, `agenta_version`, `web_url`), signs a license key on the
+`self_hosted_registered` plan with WebCrypto Ed25519, and emails the key and its activation
+link (`<web_url>/m/settings?tab=license#key=<key>`) through Loops. It stores nothing and answers
+`202 {}`. It runs before the negotiation `try/catch`, so a failure answers JSON and never falls
+back to an asset. Worker secrets, set with `wrangler secret put` and never committed:
+`LICENSE_SIGNING_KEY` (the Ed25519 private key, PKCS#8 PEM) and `LOOPS_API_KEY`. Without them
+the route answers 503. The Loops email template id is the constant `LOOPS_TRANSACTIONAL_ID`.
+
 `/openapi.json` is published by `scripts/copy-openapi.mjs` (a `prebuild` step)
 from the committed `docs/docs/reference/openapi.json`: it rewrites the spec's
 relative `/api` server to the real `us`/`eu.cloud.agenta.ai` base URLs and drops
