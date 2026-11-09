@@ -136,7 +136,7 @@ export const AgentTemplateSectionList = ({
                         aria-label={typeof g.title === "string" ? g.title : undefined}
                     >
                         {g.title ? (
-                            <div className="pb-0.5 pt-3 text-xs text-colorTextTertiary">
+                            <div className="pb-1.5 pt-2 text-xs text-colorTextTertiary">
                                 {g.title}
                             </div>
                         ) : null}

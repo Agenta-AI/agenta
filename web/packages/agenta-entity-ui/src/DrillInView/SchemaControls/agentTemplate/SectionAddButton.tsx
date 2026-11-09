@@ -33,7 +33,7 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 ref={ref}
                 type={type}
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 aria-label={label}
                 disabled={disabled}
                 // Quieter than the row title at rest; full strength on hover or while open.
@@ -43,7 +43,7 @@ export const SectionAddButton = forwardRef<HTMLButtonElement, SectionAddButtonPr
                 )}
                 {...rest}
             >
-                <Plus size={16} />
+                <Plus size={14} />
             </Button>
         )
         return (

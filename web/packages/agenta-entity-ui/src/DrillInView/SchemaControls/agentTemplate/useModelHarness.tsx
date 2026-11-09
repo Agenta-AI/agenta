@@ -633,7 +633,7 @@ export function useModelHarness({
                     open={policyPicker?.open}
                     triggerTabIndex={policyPicker ? -1 : undefined}
                     onOpenChange={policyPicker?.onOpenChange}
-                    triggerClassName="pointer-events-none h-auto w-auto border-transparent bg-transparent p-0 text-xs text-colorTextDescription shadow-none focus:border-transparent focus:shadow-none data-[state=open]:border-transparent data-[state=open]:shadow-none dark:bg-transparent [&>svg]:hidden"
+                    triggerClassName="pointer-events-none h-auto w-auto border-transparent bg-transparent p-0 text-xs text-colorTextDescription shadow-none max-md:text-xs focus:border-transparent focus:shadow-none data-[state=open]:border-transparent data-[state=open]:shadow-none dark:bg-transparent [&>svg]:hidden"
                     value={currentRunnerPermission}
                     onChange={(v) =>
                         setSection("runner", {
