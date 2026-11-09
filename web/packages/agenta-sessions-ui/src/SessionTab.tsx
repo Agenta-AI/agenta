@@ -34,9 +34,9 @@ const LABEL_MASK_HOVER = maskStyle(
 /** Label-sized between a floor (clickable zone left of the hover actions) and a ceiling. No
  * border: plain labels separated by the host's hairline; selected reads by fill alone. */
 const CHIP = "h-7 w-fit min-w-20 max-w-32 gap-1.5 rounded px-2 text-xs"
-/** One width for every tab, so the strip shows a whole number of them. No outline: the open
- * tab is the page's own colour, and the bar's darker ground is its edge. */
-const CONNECTED = "h-8 w-[180px] gap-2 rounded-t-[6px] px-3 text-xs"
+/** Sized to the name, up to a cap, so a short name leaves no gap beside it; the open tab gets
+ * a wider cap. No outline: the open tab is the page's own colour, and the bar is its edge. */
+const CONNECTED = "h-8 w-fit min-w-16 max-w-[160px] gap-2 rounded-t-[6px] px-3 text-xs"
 /** The open tab's lower corners curve outward into the page, as browser tabs do. The shadow
  * paints the transcript's colour (`--background`) into the curve's outer side, and they fade
  * in with the tab's fill when it opens. */
@@ -122,7 +122,7 @@ export const SessionTab = ({
                 connected ? CONNECTED : CHIP,
                 connected
                     ? active
-                        ? "bg-background font-medium text-colorText"
+                        ? "max-w-[200px] bg-background font-medium text-colorText"
                         : "text-colorTextSecondary hover:bg-[var(--ag-surface-tab-hover)] hover:text-colorText"
                     : active
                       ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
@@ -149,9 +149,8 @@ export const SessionTab = ({
                 // A rename input inside the label keeps its own selection.
                 className={clsx(
                     "block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left [&_input]:select-text",
-                    // A page tab cuts a long name with an ellipsis, clear of the × when it shows.
+                    // A page tab cuts a long name with an ellipsis.
                     connected && "truncate [&>*]:truncate",
-                    connected && actions && "pr-5",
                 )}
                 style={
                     connected || !maskLabel
@@ -170,7 +169,8 @@ export const SessionTab = ({
                 <div
                     className={clsx(
                         "absolute inset-y-0 flex items-center gap-0.5",
-                        connected ? "right-2" : "right-1",
+                        // Over the name's tail on the tab's own fill, so the tab never grows on hover.
+                        connected ? "right-1.5 my-auto h-5 rounded bg-inherit pl-1" : "right-1",
                     )}
                 >
                     {actions}
