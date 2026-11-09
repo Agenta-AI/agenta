@@ -67,6 +67,15 @@ const hostRoom = (el: HTMLElement): number => {
     return Number.POSITIVE_INFINITY
 }
 
+/** The host's own cap on the strip: the first `max-width` above it, whatever room it has now. */
+const hostCap = (el: HTMLElement): number => {
+    for (let node = el.parentElement; node; node = node.parentElement) {
+        const max = parseFloat(getComputedStyle(node).maxWidth)
+        if (Number.isFinite(max)) return max
+    }
+    return Number.POSITIVE_INFINITY
+}
+
 export interface SessionTabStripProps {
     /** The chips — `SessionTab`s, each in its own `shrink-0` wrapper. */
     children?: ReactNode
@@ -98,7 +107,7 @@ export interface SessionTabStripProps {
      * a scroll by hand stays where it is left.
      */
     fitTabs?: number
-    /** Fit mode: the width the strip would take for `fitTabs` tabs with room to spare, so the
+    /** Fit mode: the width the strip takes with room to spare (its host's cap included), so the
      * host can make room before the strip has to shrink. */
     onNaturalWidth?: (width: number) => void
     className?: string
@@ -188,7 +197,9 @@ export const SessionTabStrip = ({
             const last = first + count - 1
             widest = Math.max(widest, starts[last] + sizes[last] - margins[last] - starts[first])
         }
-        const natural = Math.round(widest + 2 * BARE_INSET_PX)
+        // Within the host's cap: the host decides centre or start from this width, and a width
+        // the strip never takes made it start a strip that fits centred.
+        const natural = Math.min(Math.round(widest + 2 * BARE_INSET_PX), hostCap(el))
         if (natural !== naturalRef.current) {
             naturalRef.current = natural
             onNaturalWidthRef.current?.(natural)

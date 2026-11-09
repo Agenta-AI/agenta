@@ -111,7 +111,25 @@ const useBarFit = (
         apply()
         const ro = new ResizeObserver(apply)
         ro.observe(bar)
-        return () => ro.disconnect()
+        // The side groups too: a button that lands after the first measure (Publish once the
+        // agent's state loads) widens them without resizing the bar.
+        const observeSides = () => {
+            for (const side of [grid.firstElementChild, grid.lastElementChild]) {
+                for (const child of Array.from(side?.children ?? [])) ro.observe(child)
+            }
+        }
+        observeSides()
+        const mo = new MutationObserver(() => {
+            observeSides()
+            apply()
+        })
+        for (const side of [grid.firstElementChild, grid.lastElementChild]) {
+            if (side) mo.observe(side, {childList: true})
+        }
+        return () => {
+            mo.disconnect()
+            ro.disconnect()
+        }
     }, [barRef, stripWidth, preferCenter])
     return fit
 }
