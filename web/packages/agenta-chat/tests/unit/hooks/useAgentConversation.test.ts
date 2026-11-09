@@ -456,7 +456,7 @@ describe("useAgentConversation", () => {
         expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
-    it("rewinding a user message truncates the conversation and hands back its text", async () => {
+    it("editing a user message hands back its text and keeps the turn until the edit is sent", async () => {
         const store = createStore()
         const sessionId = nextSessionId()
         markSessionFresh(sessionId)
@@ -475,10 +475,11 @@ describe("useAgentConversation", () => {
         expect(plan?.sideEffects).toEqual([])
         expect(plan?.restoreText).toBe("rewind me")
         await act(async () => {
-            plan?.confirm()
+            await plan?.confirm()
+            await new Promise((resolve) => setTimeout(resolve, 400))
         })
-        // The stream throttle coalesces UI commits — the truncation lands a beat later.
-        await waitFor(() => expect(result.current.messages).toHaveLength(0), {timeout: 5000})
+        expect(result.current.messages).toHaveLength(2)
+        expect(result.current.rewindEditId).toBe(result.current.messages[0].id)
     })
 
     // The skin holds the plan open across its warning dialog, so the transcript can move
@@ -505,9 +506,8 @@ describe("useAgentConversation", () => {
 
         const plan = result.current.rewind(result.current.messages[0])
         await act(async () => {
-            plan?.confirm()
+            await plan?.confirm()
         })
-        await waitFor(() => expect(result.current.messages).toHaveLength(0), {timeout: 5000})
 
         await act(async () => {
             await result.current.send({text: "second"})
@@ -515,14 +515,13 @@ describe("useAgentConversation", () => {
         await waitFor(() => expect(result.current.messages).toHaveLength(2), {timeout: 5000})
         expect(displayText(result.current.messages[0])).toBe("second")
 
-        // Confirming the now-stale plan must not truncate the conversation that replaced it.
-        // A truncation commits one throttle window later (50ms), so wait past it before
-        // asserting nothing happened.
+        // Confirming the now-stale plan must not open an edit of a message that is gone.
         await act(async () => {
-            plan?.confirm()
+            await plan?.confirm()
             await new Promise((resolve) => setTimeout(resolve, 400))
         })
         expect(result.current.messages).toHaveLength(2)
+        expect(result.current.rewindEditId).toBeNull()
     })
 
     it("seeds from the persisted store and skips hydration for cached sessions", async () => {

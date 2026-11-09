@@ -82,6 +82,7 @@ import {ConnectModelStrip} from "./ConnectModelStrip"
 import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
+import {RewindEditStrip} from "./RewindEditStrip"
 import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
 import type {SessionReadOnly} from "./sessionReadOnly"
 import {refreshOnSetupFailure} from "./setupFailureRefresh"
@@ -320,15 +321,16 @@ export const LiveConversation = ({
     }, [modelKeyLoading])
 
     // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
-    const {beginEdit, cancelEdit} = conversation
+    const {beginEdit, cancelEdit, cancelRewindEdit} = conversation
     const editQueued = useCallback(
         (message: QueuedMessage) => {
             const input = composerRef.current
+            cancelRewindEdit()
             beginEdit(message.id, input?.getMarkdown() ?? "")
             input?.setMarkdown(message.text)
             input?.focus()
         },
-        [beginEdit],
+        [beginEdit, cancelRewindEdit],
     )
     const cancelQueuedEdit = useCallback(() => {
         const input = composerRef.current
@@ -796,6 +798,13 @@ export const LiveConversation = ({
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is
     // declared above, with the parked task that also refills the input.
     const {rewind} = conversation
+    // The draft an edit of a sent message displaced; Cancel puts it back.
+    const rewindDraftRef = useRef("")
+    const cancelSentEdit = useCallback(() => {
+        cancelRewindEdit()
+        composerRef.current?.setMarkdown(rewindDraftRef.current)
+        rewindDraftRef.current = ""
+    }, [cancelRewindEdit])
     const handleRewind = useCallback(
         (turn: TurnViewModel) => {
             const plan = rewind(turn.message)
@@ -808,6 +817,8 @@ export const LiveConversation = ({
                     return
                 }
                 if (plan.restoreText === undefined) return
+                if (!conversation.rewindEditId)
+                    rewindDraftRef.current = composerRef.current?.getMarkdown() ?? ""
                 composerRef.current?.setMarkdown(plan.restoreText)
                 requestAnimationFrame(() => composerRef.current?.focus())
             }
@@ -825,7 +836,7 @@ export const LiveConversation = ({
                 onOk: run,
             })
         },
-        [rewind],
+        [rewind, conversation.rewindEditId],
     )
 
     // The desktop's run-level shortcuts, with its guards — what makes Stop's `Escape` true here.
@@ -971,6 +982,13 @@ export const LiveConversation = ({
                                         editingId={conversation.editingId}
                                         touch
                                     />
+                                </ContentRail>
+                            </div>
+                        ) : null}
+                        {!locked && conversation.rewindEditId ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <RewindEditStrip onCancel={cancelSentEdit} />
                                 </ContentRail>
                             </div>
                         ) : null}
