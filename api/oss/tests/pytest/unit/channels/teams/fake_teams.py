@@ -173,6 +173,7 @@ class FakeMicrosoft:
                 "token": authorization.removeprefix("Bearer "),
                 "body": await request.json(),
                 "status": status,
+                "response": body,
             }
         )
         return JSONResponse(body, status_code=status)
