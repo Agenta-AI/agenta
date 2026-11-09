@@ -1,4 +1,4 @@
-import {useEffect, useRef} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK, useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {sessionRowVm} from "@agenta/sessions/row"
@@ -144,6 +144,18 @@ export const SessionSwitcher = ({
         <span className="min-w-0 max-w-[200px] truncate lg:max-w-[240px]">{title}</span>
     )
     const order = agentId || !agentResolving ? <SessionOrderPublisher agentId={agentId} /> : null
+    const stripRef = useRef<HTMLDivElement>(null)
+    const searchAnchor = useMemo(
+        () => ({
+            current: {
+                getBoundingClientRect: () =>
+                    (
+                        document.querySelector("[data-session-more-trigger]") ?? stripRef.current
+                    )?.getBoundingClientRect() ?? new DOMRect(),
+            },
+        }),
+        [],
+    )
     const openSession = (id: string) => {
         if (id !== sessionId) void router.push(`${base}/sessions/${id}`)
     }
@@ -191,43 +203,47 @@ export const SessionSwitcher = ({
         <>
             <PageTitle title={stream?.name} />
             <Popover open={open} onOpenChange={onOpenChange}>
-                <PopoverAnchor asChild>
-                    {/* The strip sizes itself to three tabs; this caps it on narrower screens.
-                        `pt-2` is the room above the tabs. */}
-                    <div className="flex min-w-0 max-w-[388px] self-stretch pt-2 xl:max-w-[570px]">
-                        {agentId || !agentResolving ? (
-                            <SessionTabRail
-                                bare
-                                agentId={agentId ?? undefined}
-                                policy={{origin: "exclude-trigger", expansions: []}}
-                                limit={12}
-                                withPinned
-                                lowPriority
-                                activeSessionId={sessionId}
-                                activeFallbackTitle={stream?.name}
-                                menuFor={(vm) =>
-                                    withSessionShortcutKeys(menu.menuFor(vm), {
-                                        isActive: vm.id === sessionId,
-                                    })
-                                }
-                                onMenuSelect={menu.onMenuSelect}
-                                onRenameTab={menu.onRenameRow}
-                                canRenameTab={(vm) =>
-                                    sessionMenuAccess(
-                                        {ownerUserId: vm.stream.owner_user_id ?? null},
-                                        me?.id,
-                                    ) !== "member"
-                                }
-                                onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
-                                onCloseMany={closeTabs}
-                                onSelect={(vm) => openSession(vm.id)}
-                                onSelectUnlisted={openSession}
-                            />
-                        ) : (
-                            <SessionTabStrip bare />
-                        )}
-                    </div>
-                </PopoverAnchor>
+                {/* The search drops from the ⋯ button, where it is also offered; the strip is
+                    the fallback while that button is not mounted. */}
+                <PopoverAnchor virtualRef={searchAnchor} />
+                {/* The strip sizes itself to three tabs; this caps it on narrower screens.
+                    `pt-2` is the room above the tabs. */}
+                <div
+                    ref={stripRef}
+                    className="flex min-w-0 max-w-[388px] self-stretch pt-2 xl:max-w-[570px]"
+                >
+                    {agentId || !agentResolving ? (
+                        <SessionTabRail
+                            bare
+                            agentId={agentId ?? undefined}
+                            policy={{origin: "exclude-trigger", expansions: []}}
+                            limit={12}
+                            withPinned
+                            lowPriority
+                            activeSessionId={sessionId}
+                            activeFallbackTitle={stream?.name}
+                            menuFor={(vm) =>
+                                withSessionShortcutKeys(menu.menuFor(vm), {
+                                    isActive: vm.id === sessionId,
+                                })
+                            }
+                            onMenuSelect={menu.onMenuSelect}
+                            onRenameTab={menu.onRenameRow}
+                            canRenameTab={(vm) =>
+                                sessionMenuAccess(
+                                    {ownerUserId: vm.stream.owner_user_id ?? null},
+                                    me?.id,
+                                ) !== "member"
+                            }
+                            onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
+                            onCloseMany={closeTabs}
+                            onSelect={(vm) => openSession(vm.id)}
+                            onSelectUnlisted={openSession}
+                        />
+                    ) : (
+                        <SessionTabStrip bare />
+                    )}
+                </div>
                 {sessionsPanel}
             </Popover>
         </>

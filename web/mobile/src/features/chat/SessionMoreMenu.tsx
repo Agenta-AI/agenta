@@ -307,6 +307,8 @@ export const SessionMoreMenu = ({
                             variant="ghost"
                             size="icon-sm"
                             aria-label="More actions"
+                            // The session search anchors here.
+                            data-session-more-trigger=""
                         >
                             {/* Lucide's: Phosphor's reads too small beside the bar's other icons. */}
                             <Ellipsis />
