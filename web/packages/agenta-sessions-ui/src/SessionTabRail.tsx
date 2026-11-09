@@ -21,7 +21,6 @@ import {
     sessionTabCloseTargets,
     sessionTabOrderAtomFamily,
     sessionTabScope,
-    setSessionTabOrderAtom,
     useOpenSessionTabs,
     usePublishRenderedSessionTabs,
     useSessionCardList,
@@ -42,15 +41,11 @@ import {
     CLOSE_OTHERS,
     CLOSE_RIGHT,
     closeEntries,
-    MOVE_LEFT,
-    MOVE_RIGHT,
-    moveEntries,
     unlistedTabCloseIds,
     unlistedTabMenu,
 } from "./railTabMenu"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
-import {SessionTabDragItem} from "./SessionTabDragItem"
 import {EDGE_FADE_END_PX, EDGE_FADE_START_PX, SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
 
@@ -105,11 +100,6 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      * no row view-model, so the host routes from the id alone. Omit and such a chip is inert.
      */
     onSelectUnlisted?: (sessionId: string) => void
-    /**
-     * Drag to hand-arrange the tabs, persisted per agent. On by default — a tab strip is a place
-     * users expect to arrange. Off leaves the rail in list order.
-     */
-    reorderable?: boolean
     /** See `SessionTabStrip.onNaturalWidth`. */
     onStripNaturalWidth?: (width: number) => void
     /** See `SessionTabStrip`: the host bar draws the chrome. */
@@ -167,13 +157,16 @@ const useRevealWhenActive = (active: boolean, connected: boolean) => {
 /** Only states that ask for a look earn a dot on a page tab; a quiet session shows its name alone. */
 const TAB_DOT_STATUSES = new Set(["waiting", "running"])
 
+/** The chat's live-text sweep (`text-shimmer`), so a running tab reads like a live turn. */
+const RUNNING_TITLE =
+    "bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_50%,var(--ag-colorTextQuaternary)_100%)] bg-clip-text motion-safe:animate-text-shimmer motion-safe:bg-[length:200%_100%] motion-safe:text-transparent"
+
 /** The chip's slot in the strip. A connected open tab docks at the strip's edge when scrolled
  * past, so it never leaves the page it opens. */
 const tabSlotClass = (connected: boolean, active: boolean, divided?: boolean) =>
     connected
-        ? // `!`: the drag item writes `z-index: unset` inline, and a docked tab must stay above the
-          // tabs scrolling under it.
-          clsx("mr-0.5 shrink-0", active && "sticky left-0 right-0 z-[3]!")
+        ? // A docked tab stays above the tabs scrolling under it.
+          clsx("mr-0.5 shrink-0", active && "sticky left-0 right-0 z-[3]")
         : clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)
 
 /**
@@ -186,7 +179,6 @@ const RailTab = ({
     onSelect,
     menuFor,
     onMenuSelect,
-    draggable,
     divided,
     onClose,
     onRename,
@@ -202,12 +194,12 @@ const RailTab = ({
     onClose?: () => void
     /** Omit where tabs are not renameable — then no pencil mounts and no editor opens. */
     onRename?: (name: string) => Promise<boolean>
-    /** A drag slot only inside a reorder group — a lone `Reorder.Item` has no context to drag in. */
-    draggable: boolean
     /** Hairline before this tab — every tab but the first. */
     divided?: boolean
 }) => {
     const ref = useRevealWhenActive(active, connected)
+    // A running tab beeps and its name shimmers, like the chat's live "Thinking" line.
+    const running = connected && vm.status.status === "running"
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
     // The SAME rename machine the session rows use, so Enter/blur commit and Escape abandons here
     // exactly as they do in a list — and the commit lands on the host's one rename path.
@@ -256,7 +248,10 @@ const RailTab = ({
                             />
                         </span>
                     ) : (
-                        <span className="block" onDoubleClick={onRename ? startRename : undefined}>
+                        <span
+                            className={clsx("block", running && RUNNING_TITLE)}
+                            onDoubleClick={onRename ? startRename : undefined}
+                        >
                             {vm.title}
                         </span>
                     )
@@ -302,15 +297,24 @@ const RailTab = ({
                 statusDot={
                     connected && !TAB_DOT_STATUSES.has(vm.status.status) ? undefined : (
                         <SimpleTooltip title={vm.status.label}>
-                            <span
-                                aria-label={vm.status.label}
-                                // No pulse: at 6px the fade to half read as a washed-out colour,
-                                // not as motion. The hue alone says running / waiting.
-                                className={clsx(
-                                    "h-1.5 w-1.5 shrink-0 rounded-full",
-                                    vm.status.dotClassName,
-                                )}
-                            />
+                            {running ? (
+                                // A tab that is running beeps: an ink dot with a ring that fades out.
+                                <span
+                                    aria-label={vm.status.label}
+                                    className="relative flex h-1.5 w-1.5 shrink-0"
+                                >
+                                    <span className="absolute inset-0 rounded-full bg-colorText opacity-60 motion-safe:animate-ping" />
+                                    <span className="relative h-1.5 w-1.5 rounded-full bg-colorText" />
+                                </span>
+                            ) : (
+                                <span
+                                    aria-label={vm.status.label}
+                                    className={clsx(
+                                        "h-1.5 w-1.5 shrink-0 rounded-full",
+                                        vm.status.dotClassName,
+                                    )}
+                                />
+                            )}
                         </SimpleTooltip>
                     )
                 }
@@ -319,25 +323,11 @@ const RailTab = ({
     )
 
     // 9px = 4px + the 1px divider + 4px, so TAB_DIVIDER lands centred with clearance either side.
-    const wrapper = tabSlotClass(connected, active, divided)
-    return draggable ? (
-        <SessionTabDragItem ref={ref} id={vm.id} className={wrapper}>
-            {chip}
-        </SessionTabDragItem>
-    ) : (
-        <div ref={ref} className={wrapper}>
+    return (
+        <div ref={ref} className={tabSlotClass(connected, active, divided)}>
             {chip}
         </div>
     )
-}
-
-/** Moves the id at `index` one slot in `direction`, returning the new order. */
-const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
-    const target = index + direction
-    if (target < 0 || target >= ids.length) return ids
-    const next = [...ids]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    return next
 }
 
 /** How long a clicked tab may show as open before the route confirms it. */
@@ -345,6 +335,8 @@ const PICK_TIMEOUT_MS = 3000
 
 /** Placeholder chips while the first rows load — a long, a short and a middling title. */
 const SKELETON_CHIP_WIDTHS = ["w-32", "w-24", "w-28"]
+/** Title-line widths for the page-tab skeleton, near what real session names measure. */
+const SKELETON_TAB_TITLES = ["w-24", "w-14", "w-20"]
 
 /** The pending tab has no stream yet, so it wears the same idle chrome every quiet row does. */
 const IDLE_STATUS = sessionRowStatusMeta("idle")
@@ -433,7 +425,6 @@ export const SessionTabRail = ({
     onSelectUnlisted,
     onRenameTab,
     canRenameTab,
-    reorderable = true,
     bare,
     onStripNaturalWidth,
     className,
@@ -446,11 +437,10 @@ export const SessionTabRail = ({
         () => list.groups.flatMap((group) => group.rows.map((vm) => vm.id)),
         [list.groups],
     )
-    // A rail is arranged by hand, so the user's order wins over the list's. Scoped to the agent
-    // whose sessions these are — arranging one agent's rail says nothing about another's.
+    // Tabs keep the slot they first appeared in, so a turn never reshuffles them (#6544). Scoped to
+    // the agent whose sessions these are.
     const orderScope = sessionTabScope(listArgs.agentId)
     const savedOrder = useAtomValue(sessionTabOrderAtomFamily(orderScope))
-    const setSavedOrder = useSetAtom(setSessionTabOrderAtom)
     // Rank every session the list carries, open or not, so reopening one restores its old slot.
     useSessionTabOrderSeed(orderScope, listedIds)
     // Membership is the user's own: tabs are an explicit set here, not a view of the server list.
@@ -463,14 +453,14 @@ export const SessionTabRail = ({
         // The rail's own reads share the card's priority — its host decides (see the card list).
         lowPriority: listArgs.lowPriority,
     })
-    const arranged = useMemo(
+    const ordered = useMemo(
         () => applySessionTabOrder(tabs.rows, savedOrder),
         [tabs.rows, savedOrder],
     )
     // Still filtered: a by-id page can lag the open set by one fetch after a close.
     const rows = useMemo(
-        () => openSessionTabRows(arranged, openIds, activeSessionId),
-        [arranged, openIds, activeSessionId],
+        () => openSessionTabRows(ordered, openIds, activeSessionId),
+        [ordered, openIds, activeSessionId],
     )
     const fetchedIds = useMemo(() => tabs.rows.map((vm) => vm.id), [tabs.rows])
     const hasActive = rows.some((vm) => vm.id === activeSessionId)
@@ -553,12 +543,6 @@ export const SessionTabRail = ({
     )
     // The last chip stays: closing it would leave the surface with nothing to show.
     const closable = renderedIds.length > 1
-    // Persist the WHOLE visible order on every drop, so sessions the saved order had never seen are
-    // captured by the first arrangement that touches them.
-    const handleReorder = useCallback(
-        (ids: string[]) => setSavedOrder({scope: orderScope, ids}),
-        [orderScope, setSavedOrder],
-    )
 
     return (
         <SessionTabStrip
@@ -569,7 +553,6 @@ export const SessionTabRail = ({
                 </span>
             }
             remeasureKey={rows.length}
-            reorder={reorderable ? {ids: orderedIds, onReorder: handleReorder} : undefined}
             bare={bare}
             snap={bare}
             fitTabs={bare ? 3 : undefined}
@@ -577,22 +560,32 @@ export const SessionTabRail = ({
             className={className}
         >
             {tabs.isPending && rows.length === 0
-                ? // Three chips at the widths real titles land on, so the strip does not jump
-                  // when they arrive. SkeletonBlock, not the composite: that one is a title plus
-                  // paragraph rows, and squeezed into 28px it read as a smear.
-                  SKELETON_CHIP_WIDTHS.map((width) => (
-                      <SkeletonBlock
-                          key={width}
-                          active
-                          className={clsx(
-                              "shrink-0",
-                              bare
-                                  ? "mb-1.5 mr-0.5 h-7 w-[180px] rounded-md"
-                                  : "mr-2.25 h-7 rounded",
-                              !bare && width,
-                          )}
-                      />
-                  ))
+                ? bare
+                    ? // Page tabs: the real tab's box (32px, top corners, name-sized) with a text line
+                      // at the widths titles land on, the first on the open tab's surface, so the
+                      // strip keeps its shape when the names arrive.
+                      SKELETON_TAB_TITLES.map((width, index) => (
+                          <div
+                              key={width}
+                              aria-hidden
+                              className={clsx(
+                                  "mr-0.5 flex h-8 shrink-0 items-center rounded-t-[6px] px-3",
+                                  index === 0 && "bg-background",
+                              )}
+                          >
+                              <SkeletonBlock active className={clsx("h-3 rounded", width)} />
+                          </div>
+                      ))
+                    : // Three chips at the widths real titles land on, so the strip does not jump
+                      // when they arrive. SkeletonBlock, not the composite: that one is a title plus
+                      // paragraph rows, and squeezed into 28px it read as a smear.
+                      SKELETON_CHIP_WIDTHS.map((width) => (
+                          <SkeletonBlock
+                              key={width}
+                              active
+                              className={clsx("mr-2.25 h-7 shrink-0 rounded", width)}
+                          />
+                      ))
                 : rows.map((vm, index) => (
                       <RailTab
                           key={vm.id}
@@ -601,7 +594,6 @@ export const SessionTabRail = ({
                           connected={Boolean(bare)}
                           divided={index > 0}
                           onSelect={selectTab}
-                          draggable={reorderable}
                           onClose={onClose && closable ? () => onClose(vm, renderedIds) : undefined}
                           onRename={
                               onRenameTab && (canRenameTab?.(vm) ?? true)
@@ -613,15 +605,8 @@ export const SessionTabRail = ({
                               ...(onClose
                                   ? closeEntries(sessionTabCloseTargets(closeTabs, row.id))
                                   : []),
-                              ...(reorderable ? moveEntries(index, rows.length) : []),
                           ]}
                           onMenuSelect={(row, key) => {
-                              if (key === MOVE_LEFT || key === MOVE_RIGHT) {
-                                  handleReorder(
-                                      moved(orderedIds, index, key === MOVE_LEFT ? -1 : 1),
-                                  )
-                                  return
-                              }
                               if (key === CLOSE) {
                                   onClose?.(row, renderedIds)
                                   return

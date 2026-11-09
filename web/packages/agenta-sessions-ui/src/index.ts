@@ -47,7 +47,6 @@ export {SessionListPanel, type SessionListPanelProps} from "./SessionListPanel"
 // rather than only the strip.
 export {SessionTab, type SessionTabProps} from "./SessionTab"
 export {SessionTabStrip, type SessionTabStripProps} from "./SessionTabStrip"
-export {SessionTabDragItem, type SessionTabDragItemProps} from "./SessionTabDragItem"
 export {
     SessionTabRail,
     useRequestSessionTabRename,

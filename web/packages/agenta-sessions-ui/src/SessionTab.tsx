@@ -188,7 +188,8 @@ export const SessionTab = ({
                 connected ? CONNECTED : CHIP,
                 connected
                     ? active
-                        ? "max-w-[min(200px,var(--strip-tab-max,200px))] font-medium text-colorText"
+                        ? // One weight for open and closed tabs: a weight swap on switch resized the name mid-glide.
+                          "max-w-[min(200px,var(--strip-tab-max,200px))] text-colorText"
                         : "text-colorTextSecondary hover:bg-[var(--ag-surface-tab-hover)] hover:text-colorText"
                     : active
                       ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"

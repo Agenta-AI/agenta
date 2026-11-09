@@ -17,7 +17,6 @@ import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
-import {Reorder} from "motion/react"
 
 /** Left/right edge fade so tabs dissolve into the strip edges instead of a hard cut when they
  * overflow. Applied per-side ONLY where content is actually clipped (scrolled past) — a strip
@@ -113,11 +112,6 @@ export interface SessionTabStripProps {
      * content, so adding or removing a chip needs this to re-measure the fade.
      */
     remeasureKey?: unknown
-    /**
-     * Drag-to-reorder. `ids` must be the chips' order as rendered, and each child must be a
-     * `SessionTabDragItem` with a matching id. Omit for a fixed strip.
-     */
-    reorder?: {ids: string[]; onReorder: (ids: string[]) => void}
     /** Only the chips and extras, for a host bar that already draws the height and hairline. */
     bare?: boolean
     /** Settle on the nearest chip when a scroll stops, so none rests cut off at the start. */
@@ -166,7 +160,6 @@ export const SessionTabStrip = ({
     extra,
     leadingExtra,
     remeasureKey,
-    reorder,
     bare = false,
     snap = false,
     fitTabs,
@@ -181,7 +174,6 @@ export const SessionTabStrip = ({
     const [pinAdd, setPinAdd] = useState(false)
     const pinAddRef = useRef(false)
     const stripElRef = useRef<HTMLDivElement | null>(null)
-    const reorderable = Boolean(reorder)
     // Fit mode: ONE function owns the strip's width and scroll. A separate snap, fit and reveal
     // each moved the strip on their own timers and fought over it.
     const homeStartRef = useRef(0)
@@ -193,6 +185,9 @@ export const SessionTabStrip = ({
     // The open tab is pulled into view only when it CHANGES. Re-running that on every resize
     // undid a scroll by hand: the window's own width change fired the next refit.
     const shownActiveRef = useRef<Element | null>(null)
+    // Where the strip last scrolled itself. While the scroll still sits there, the user has not
+    // scrolled by hand, so a refit may move it again (e.g. when titles land and tabs change width).
+    const autoScrollRef = useRef<number | null>(0)
     const fitWindow = useCallback(
         (mode: "keep" | "nearest") => {
             const el = stripElRef.current
@@ -202,8 +197,12 @@ export const SessionTabStrip = ({
                 (child) => !child.dataset.curtain,
             )
             if (slots.length === 0) return
+            // Exact widths: tabs size to their names, and rounded `offsetWidth`s drift by a pixel
+            // per tab, which lands a rest a few pixels into the next tab.
             const sizes = slots.map(
-                (slot) => slot.offsetWidth + (parseFloat(getComputedStyle(slot).marginRight) || 0),
+                (slot) =>
+                    slot.getBoundingClientRect().width +
+                    (parseFloat(getComputedStyle(slot).marginRight) || 0),
             )
             // Flow positions from the sizes, not offsets: a docked tab reports where it is pinned.
             const starts = sizes.map((_, i) =>
@@ -255,6 +254,13 @@ export const SessionTabStrip = ({
                 if (Math.abs(el.scrollLeft - left) > 1) el.scrollTo({left: Math.max(0, left)})
             }
             if (mode === "nearest") {
+                // The strip's own scroll settling, not a hand scroll: nothing to rest.
+                if (
+                    autoScrollRef.current !== null &&
+                    Math.abs(el.scrollLeft - autoScrollRef.current) <= 1
+                ) {
+                    return
+                }
                 // A scroll by hand rests where no tab is cut at either edge. The width is the
                 // home window's, so a rest on a tab start can still cut the tab at the far edge;
                 // candidates aligned to a tab end cover that. A docked open tab takes its edge.
@@ -286,10 +292,20 @@ export const SessionTabStrip = ({
                 // when the tab at the far edge is then cut.
                 const fitting = [0, maxScroll, ...candidates.map(clamp).filter(whole)]
                 scrollTo(nearest(fitting))
+                // A hand scroll owns the view until the open tab or the tab set changes.
+                autoScrollRef.current = null
                 return
             }
-            // Only a new open tab or a changed tab set moves the view; a plain resize does not.
-            if (moved) scrollTo(starts[home])
+            // A new open tab or a changed tab set moves the view. Otherwise a refit moves it only
+            // while the user has not scrolled by hand since the strip last placed it.
+            const untouched =
+                autoScrollRef.current !== null &&
+                Math.abs(el.scrollLeft - autoScrollRef.current) <= 1
+            if (moved || untouched) {
+                const target = Math.max(0, Math.min(starts[home], el.scrollWidth - el.clientWidth))
+                scrollTo(target)
+                autoScrollRef.current = target
+            }
         },
         [fitTabs],
     )
@@ -379,8 +395,8 @@ export const SessionTabStrip = ({
         },
         [measureFade, fitWindow],
     )
-    // A scroll by hand settles on the nearest whole window once it rests. A held pointer is a
-    // drag or a pan in progress, so nothing moves under it.
+    // A scroll by hand settles on the nearest whole window once it rests. A held pointer is a pan
+    // or a scrollbar drag in progress, so nothing moves under it.
     useEffect(() => {
         const el = stripElRef.current
         if (!fitTabs || !el) return
@@ -408,14 +424,14 @@ export const SessionTabStrip = ({
             window.removeEventListener("pointerup", onUp)
             window.removeEventListener("pointercancel", onUp)
         }
-    }, [fitTabs, fitWindow, reorderable, showTabs])
+    }, [fitTabs, fitWindow, showTabs])
     // Remeasure when the tab set changes, and after the add button moves (it resizes the scroller).
     useEffect(() => {
         const el = stripElRef.current
         // Fit mode settles through its window instead.
         if (!snap || fitTabs || !el) return
         let timer: ReturnType<typeof setTimeout> | undefined
-        // A held pointer is a drag in progress: the chip under it must not move.
+        // A held pointer is a pan in progress: the chip under it must not move.
         let pressed = false
         const settle = () => {
             if (pressed) return
@@ -446,7 +462,7 @@ export const SessionTabStrip = ({
             window.removeEventListener("pointerup", onUp)
             window.removeEventListener("pointercancel", onUp)
         }
-    }, [bare, fitTabs, reorderable, showTabs, snap])
+    }, [bare, fitTabs, showTabs, snap])
 
     useEffect(() => {
         measureFade()
@@ -477,7 +493,7 @@ export const SessionTabStrip = ({
             </span>
         </SimpleTooltip>
     ) : null
-    // Scroller's last child, so it trails the last chip. Not a reorder value, so never a drag slot.
+    // Scroller's last child, so it trails the last chip.
     // It takes the same hairline the chips do, so the row ends the way every gap in it reads.
     const inlineAdd =
         canAdd && !pinAdd ? (
@@ -507,33 +523,12 @@ export const SessionTabStrip = ({
                 <div className="flex shrink-0 items-center gap-1">{leadingExtra}</div>
             ) : null}
             {showTabs ? (
-                reorder ? (
-                    // The scroller IS the group, so chips stay DIRECT children of the scroll box
-                    // (both the fade measuring and the desktop's reveal-on-enter read that box).
-                    // `layoutScroll` keeps motion's layout projection honest inside a scroller.
-                    <Reorder.Group
-                        as="div"
-                        axis="x"
-                        layoutScroll
-                        values={reorder.ids}
-                        onReorder={reorder.onReorder}
-                        ref={scrollStripRef}
-                        className={scrollerClass}
-                        style={maskStyle}
-                    >
-                        {startCurtain}
-                        {children}
-                        {inlineAdd}
-                        {endCurtain}
-                    </Reorder.Group>
-                ) : (
-                    <div ref={scrollStripRef} className={scrollerClass} style={maskStyle}>
-                        {startCurtain}
-                        {children}
-                        {inlineAdd}
-                        {endCurtain}
-                    </div>
-                )
+                <div ref={scrollStripRef} className={scrollerClass} style={maskStyle}>
+                    {startCurtain}
+                    {children}
+                    {inlineAdd}
+                    {endCurtain}
+                </div>
             ) : (
                 <div className="min-w-0 flex-1" />
             )}

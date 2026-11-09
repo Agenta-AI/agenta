@@ -6,14 +6,11 @@ import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
 /**
- * A hand-arranged session order, per project + scope (an agent, or the whole project).
+ * The tab rail's stable session order, per project + scope (an agent, or the whole project): each
+ * session keeps the slot it first appeared in. Local-only, like pins.
  *
- * Local-only, same call as [pins]: the server could hold this (`session_streams.tags`), but
- * reconciling one user's arrangement across devices is the part worth designing rather than
- * improvising. This module is the port — nothing outside it knows where the order lives.
- *
- * Only surfaces where the user can ARRANGE sessions write here (the tab rail). A list that is
- * sorted by something real — activity, status — has no business reading it.
+ * The rail's base order is the server's activity window, so without this every turn reshuffled
+ * the tabs (#6544). A list sorted by something real (activity, status) has no business reading it.
  */
 // getOnInit: same reason as the open-tab set — a pre-hydration `{}` lets the seed clobber it.
 const orderByScopeAtom = atomWithStorage<Record<string, string[]>>(
@@ -23,7 +20,7 @@ const orderByScopeAtom = atomWithStorage<Record<string, string[]>>(
     {getOnInit: true},
 )
 
-/** Scope key: an agent's rail is arranged separately from another agent's. */
+/** Scope key: each agent's rail keeps its own order. */
 const scopeKey = (projectId: string, scope: string) => `${projectId}:${scope}`
 
 export const sessionTabOrderAtomFamily = atomFamily((scope: string) =>
@@ -33,7 +30,7 @@ export const sessionTabOrderAtomFamily = atomFamily((scope: string) =>
     }),
 )
 
-export const setSessionTabOrderAtom = atom(
+const setSessionTabOrderAtom = atom(
     null,
     (get, set, {scope, ids}: {scope: string; ids: string[]}) => {
         const projectId = get(projectIdAtom)
@@ -43,9 +40,9 @@ export const setSessionTabOrderAtom = atom(
 )
 
 /**
- * Sorts rows by a hand-arranged order. Ids the order has never seen TRAIL: the base order is the
- * server's activity window, so leading them made a session jump to the head of the rail the moment
- * any turn touched it (#6544). `useSessionTabOrderSeed` appends them to the order for good.
+ * Sorts rows by the stable order. Ids the order has never seen TRAIL: leading them made a session
+ * jump to the head of the rail the moment any turn touched it (#6544). `useSessionTabOrderSeed`
+ * appends them to the order for good.
  */
 export const applySessionTabOrder = <T extends {id: string}>(rows: T[], order: string[]): T[] => {
     if (order.length === 0) return rows
@@ -58,13 +55,9 @@ export const applySessionTabOrder = <T extends {id: string}>(rows: T[], order: s
 }
 
 /**
- * Seeds the saved order from the first rows a rail observes, and appends every id it has not seen
- * since.
- *
- * Until this existed the order stayed empty until the user hand-dragged once, so nothing held the
- * rail still: its base order is `updated_at desc`, refetched on focus and on a 30s stale window,
- * and any turn in any session reshuffled the tabs (#6544). Placed ids keep their slot — this only
- * ever appends, so it can never undo an arrangement.
+ * Seeds the order from the first rows a rail observes, and appends every id it has not seen since.
+ * The base order is `updated_at desc`, refetched on focus and on a 30s stale window; placed ids
+ * keep their slot, because this only ever appends.
  */
 export const useSessionTabOrderSeed = (scope: string, ids: readonly string[]) => {
     const saved = useAtomValue(sessionTabOrderAtomFamily(scope))
