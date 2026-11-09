@@ -1,5 +1,7 @@
 """render module: fold-result -> capability-degraded vocabulary. Pure, no DB."""
 
+import pytest
+
 from oss.src.core.channels.dtos import ChannelCapabilities
 from oss.src.core.channels.render.render import render_indicator, render_turn_result
 
@@ -322,6 +324,34 @@ def test_split_ignores_backticks_inside_a_code_line():
     assert all(len(chunk) <= 2000 for chunk in chunks)
     assert all(chunk.startswith("```python\n") for chunk in chunks[1:])
     assert all(chunk.rstrip().endswith("```") for chunk in chunks)
+
+
+@pytest.mark.parametrize("limit", [2000, 3000, 4096])
+def test_split_never_reopens_with_the_content_of_a_long_fence_line(limit):
+    from oss.src.core.channels.render.render import _split_text
+
+    chunks = _split_text("```" + "x" * 5000 + "```", limit)
+
+    assert all(len(chunk) <= limit for chunk in chunks)
+    assert all(chunk.startswith("```\n") for chunk in chunks[1:])
+
+
+def test_split_keeps_the_indentation_of_code_lines():
+    from oss.src.core.channels.render.render import _split_text
+
+    lines = ["if True:"] + [f"    value_{i} = {i}" for i in range(300)]
+    text = "```python\n" + "\n".join(lines) + "\n```"
+
+    chunks = _split_text(text, 2000)
+
+    assert len(chunks) > 1
+    code = [
+        line
+        for chunk in chunks
+        for line in chunk.split("\n")
+        if line and not line.startswith("```")
+    ]
+    assert code == lines
 
 
 def test_split_still_reopens_a_code_block_longer_than_one_chunk():

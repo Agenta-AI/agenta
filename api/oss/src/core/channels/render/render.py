@@ -321,8 +321,17 @@ _FENCE = "```"
 _FENCE_LINE = re.compile(r"^[ \t]*```", re.MULTILINE)
 
 
+# The language tag a reopened fence repeats; never more of the fence line.
+_FENCE_INFO = re.compile(r"[ \t]*```([^\s`]{1,32})(?=\s|$)")
+
+
 def _fence_starts(text: str) -> List[int]:
     return [match.start() for match in _FENCE_LINE.finditer(text)]
+
+
+def _reopening(text: str, start: int) -> str:
+    match = _FENCE_INFO.match(text, start)
+    return _FENCE + (match.group(1) if match else "")
 
 
 def _split_text(text: str, max_chars: int) -> List[str]:
@@ -346,7 +355,11 @@ def _split_text(text: str, max_chars: int) -> List[str]:
         budget = max_chars - len(prefix) - (close_cost if fenced else 0)
         if budget < 1:
             # a limit too small to carry fence markers: plain fixed split
-            budget = max_chars - len(prefix)
+            rest = prefix + rest
+            chunks.extend(
+                rest[i : i + max_chars] for i in range(0, len(rest), max_chars)
+            )
+            break
         if len(prefix) + len(rest) <= max_chars:
             chunks.append(prefix + rest)
             break
@@ -360,14 +373,17 @@ def _split_text(text: str, max_chars: int) -> List[str]:
             cut = budget
         if not in_fence and len(_fence_starts(rest[:cut])) % 2 == 1:
             cut = _whole_block_cut(rest, cut=cut, max_chars=max_chars)
-        piece, rest = rest[:cut], rest[cut:].lstrip("\n ")
+        piece, rest = rest[:cut], rest[cut:]
         body = prefix + piece
         fences = _fence_starts(body)
         in_fence = len(fences) % 2 == 1
         if in_fence:
-            # the open block's fence line, so the next chunk reopens it as is
-            opening = body[fences[-1] :].split("\n", 1)[0].strip()
+            # inside code only the boundary newline goes: indentation is code
+            rest = rest[1:] if rest.startswith("\n") else rest
+            opening = _reopening(body, fences[-1])
             body = body.rstrip("\n") + "\n" + _FENCE
+        else:
+            rest = rest.lstrip("\n ")
         chunks.append(body)
     return chunks
 
