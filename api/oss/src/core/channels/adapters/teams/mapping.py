@@ -114,14 +114,31 @@ def mentions_bot(activity: Dict[str, Any], *, app_id: str) -> bool:
 
 def strip_bot_mentions(text: str, activity: Dict[str, Any], *, app_id: str) -> str:
     """The text without the bot's own mention, so a command after the mention
-    parses. Other mentions stay."""
+    parses. Other mentions stay. Entities carry no offsets, so the n-th
+    entity with a given mention text owns the n-th occurrence of that text:
+    a person who shares the bot's display name keeps their own mention."""
 
-    for entity in _bot_mentions(activity, app_id=app_id):
+    bot = bot_recipient_id(app_id)
+    owners: Dict[str, List[bool]] = {}
+    for entity in activity.get("entities") or []:
+        if not isinstance(entity, dict) or entity.get("type") != "mention":
+            continue
         mention_text = entity.get("text")
         if isinstance(mention_text, str) and mention_text:
-            # One entity is one mention, so a person who shares the bot's
-            # display name keeps their own mention.
-            text = text.replace(mention_text, "", 1)
+            mentioned = str((entity.get("mentioned") or {}).get("id") or "").lower()
+            owners.setdefault(mention_text, []).append(mentioned == bot)
+
+    spans: List[Tuple[int, int]] = []
+    for mention_text, is_bot in owners.items():
+        position = -1
+        for owned_by_bot in is_bot:
+            position = text.find(mention_text, position + 1)
+            if position < 0:
+                break
+            if owned_by_bot:
+                spans.append((position, position + len(mention_text)))
+    for begin, finish in sorted(spans, reverse=True):
+        text = text[:begin] + text[finish:]
     return text.strip()
 
 
