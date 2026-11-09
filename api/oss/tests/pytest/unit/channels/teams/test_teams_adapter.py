@@ -311,7 +311,9 @@ async def test_the_tenant_falls_back_to_the_conversation(adapter):
     assert event is not None and event.external_locator["tenant_id"] == p.TENANT_ID
 
 
-async def test_the_same_tenant_parses_and_keys_on_the_activity_id(adapter):
+async def test_the_same_tenant_parses_and_keys_on_the_conversation_and_activity_id(
+    adapter,
+):
     event = await adapter.parse_event(
         body=p.encode(p.message(text="hi", activity_id="1700000000999")),
         connection=p.connection(),

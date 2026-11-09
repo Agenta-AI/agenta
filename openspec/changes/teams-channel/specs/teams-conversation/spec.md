@@ -108,7 +108,7 @@ The adapter SHALL cache Microsoft's signing keys for the whole deployment, read 
 - **THEN** `parse_event` SHALL return `None`, and no inbox row SHALL be written
 
 ### Requirement: Mentions address the bot
-`parse_event` SHALL set `addressed` to true only when an `entities` entry of type `mention` has a `mentioned.id` that names the connection's `app_id`, and SHALL then remove one occurrence of that entry's `text` from the message text for each such entry.
+`parse_event` SHALL set `addressed` to true only when an `entities` entry of type `mention` has a `mentioned.id` that names the connection's `app_id`, and SHALL then remove that entry's `text` from the message text. Mention entities carry no offsets, so the n-th entity with a given `text` SHALL own the n-th occurrence of that text.
 
 #### Scenario: Bot mentioned
 - **WHEN** a channel message has the text `<at>Helper</at> what is the status?` and a mention entity for `28:<app_id>`
@@ -123,8 +123,8 @@ The adapter SHALL cache Microsoft's signing keys for the whole deployment, read 
 - **THEN** only the bot's mention text SHALL be removed, and the other mention SHALL stay in the text
 
 #### Scenario: Person with the bot's display name
-- **WHEN** a message mentions the bot and another person whose mention text is the same as the bot's
-- **THEN** only one occurrence SHALL be removed, and the other person's mention SHALL stay in the text
+- **WHEN** a message mentions the bot and another person whose mention text is the same as the bot's, in either order
+- **THEN** only the occurrence that matches the bot's entity SHALL be removed, and the other person's mention SHALL stay in the text
 
 #### Scenario: Tag or channel mention
 - **WHEN** a message mentions a tag or the whole channel, and not the bot

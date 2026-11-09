@@ -188,6 +188,22 @@ def test_a_person_with_the_bot_name_keeps_their_mention():
     assert event.processed.content[0]["text"] == "ask <at>Helper</at>"
 
 
+def test_a_namesake_mentioned_before_the_bot_keeps_their_mention():
+    namesake = {
+        "type": "mention",
+        "text": "<at>Helper</at>",
+        "mentioned": {"id": "29:1namesake", "name": "Helper"},
+    }
+    event = _parse(
+        p.channel_message(
+            text="ask <at>Helper</at> for approval, <at>Helper</at>",
+            entities=[namesake, p.bot_mention()],
+        )
+    )
+
+    assert event.processed.content[0]["text"] == "ask <at>Helper</at> for approval,"
+
+
 def test_one_activity_id_in_two_conversations_gives_two_keys():
     chat = _parse(p.message(text="hi", activity_id="1700000000777"))
     channel = _parse(
