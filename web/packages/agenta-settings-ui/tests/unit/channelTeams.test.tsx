@@ -56,6 +56,7 @@ import {
     CHANNEL_PLATFORMS,
     NOOP_ACTIONS,
     base64Bytes,
+    connectionRowText,
     summarizeConnection,
 } from "../../src/channels/helpers"
 import type {
@@ -376,6 +377,12 @@ describe("Teams actions", () => {
         // A team channel is a channel; a group chat stays a group.
         expect(chatTypeOf("topic", "teams")).toBe("channel")
         expect(chatTypeOf("group", "teams")).toBe("group")
+        // One team channel and one group chat count as two chats, not two channels.
+        const chats = [
+            {name: "General", type: chatTypeOf("topic", "teams")},
+            {name: "Launch", type: chatTypeOf("group", "teams")},
+        ]
+        expect(connectionRowText({...CONNECTED, dm: "off", chats}).detail).toContain("2 chats")
         expect(CHANNEL_PLATFORMS.at(-1)).toBe("teams")
         const out = connectionsForAgent([CONNECTED], "agent")
         expect(out.teams).toBe(CONNECTED)

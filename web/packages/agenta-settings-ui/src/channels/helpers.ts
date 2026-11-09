@@ -60,8 +60,14 @@ export const PLACES_LABELS: Record<ChannelPlatform, string> = {
 }
 
 /** The noun for one shared place. A Teams place is a team channel or a group chat. */
-export const placeNoun = (platform: ChannelPlatform): string =>
-    platform === "slack" ? "channel" : platform === "teams" ? "chat" : "group"
+const PLACE_NOUNS: Record<ChannelPlatform, string> = {
+    slack: "channel",
+    telegram: "group",
+    whatsapp: "group",
+    teams: "chat",
+}
+
+export const placeNoun = (platform: ChannelPlatform): string => PLACE_NOUNS[platform]
 
 /** The title of the connect flow when the agent already has a connection on the platform. */
 export const ADD_ANOTHER_TITLES: Record<ChannelPlatform, string> = {
@@ -71,7 +77,8 @@ export const ADD_ANOTHER_TITLES: Record<ChannelPlatform, string> = {
     teams: "Add a Teams bot",
 }
 
-/** Whether the platform's shared places are channels (Slack, Teams) rather than groups. */
+/** Whether the platform has channels (Slack, Teams) rather than only groups. Teams also has
+ *  group chats, so its place words come from `PLACES_LABELS` and `placeNoun`. */
 export const hasChannels = (platform: ChannelPlatform): boolean =>
     platform === "slack" || platform === "teams"
 

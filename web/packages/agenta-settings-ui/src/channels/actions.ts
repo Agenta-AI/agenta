@@ -193,7 +193,8 @@ export const nameSpacesFrom = (
     })
 }
 
-/** The card's chat type for a space kind: only "is it a DM" changes the row's copy. */
+/** The chat type of a space kind: a DM, a channel or a group. It picks the row's copy and
+ *  icon. On Teams, only a team channel is a channel. */
 export const chatTypeOf = (kind: ChannelSpaceKind, platform: ChannelPlatform): ChannelChatType => {
     if (kind === "private") return "dm"
     // A Teams group chat stays a group: only a team channel is a channel.

@@ -289,6 +289,10 @@ export const ChannelAdvancedSection = ({
         setDraft((keys) => (checked ? [...keys, key] : keys.filter((k) => k !== key)))
 
     const noun = placeNoun(platform)
+    // A Teams bot reads team channels and group chats; elsewhere the card says channels.
+    const readPlural = platform === "teams" ? "chats" : "channels"
+    const readTitle =
+        platform === "teams" ? "Chats it can search and read" : "Channels it can search and read"
 
     return (
         <div className="flex flex-col gap-2" data-testid="channels-advanced">
@@ -340,7 +344,7 @@ export const ChannelAdvancedSection = ({
                             <div className={`flex flex-col gap-2.5 px-3 py-3 ${DIVIDED}`}>
                                 <span className="flex flex-col gap-0.5">
                                     <span className="text-[13px] font-medium text-colorText">
-                                        Channels it can search and read
+                                        {readTitle}
                                     </span>
                                     {platform === "telegram" ? (
                                         <span
@@ -356,12 +360,12 @@ export const ChannelAdvancedSection = ({
                                     value={choice}
                                     onValueChange={choose}
                                     disabled={saving}
-                                    aria-label="Channels it can search and read"
+                                    aria-label={readTitle}
                                 >
                                     {(
                                         [
-                                            ["all", "All channels the bot is in"],
-                                            ["only", "Only these channels"],
+                                            ["all", `All ${readPlural} the bot is in`],
+                                            ["only", `Only these ${readPlural}`],
                                         ] as const
                                     ).map(([value, label]) => (
                                         <label
