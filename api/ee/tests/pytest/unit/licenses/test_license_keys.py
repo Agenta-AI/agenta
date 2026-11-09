@@ -74,6 +74,9 @@ def test_a_plan_outside_the_plan_table_is_refused(signing_key):
         "agenta_license_v2.abc.def",
         "agenta_license_v1.ab c.def",
         "agenta_license_v1.abc.de=f",
+        "agenta_license_v1.\u00e9.AA",
+        "agenta_license_v1.abc.\u00e9",
+        "agenta_license_v1.e30.AA",
     ],
 )
 def test_a_malformed_key_is_refused(signing_key, text):

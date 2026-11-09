@@ -118,6 +118,42 @@ export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =
 export const billingUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=billing`
 
+export const licenseUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=license`
+
+const PENDING_LICENSE_KEY = "agenta:mobile:pending-license-key"
+
+/**
+ * Keep the key of a license activation link out of the address bar, where analytics events
+ * would carry it, and across sign-in, which drops the URL. Session storage: the key stays in
+ * this tab only.
+ */
+export function rememberLicenseKey(key: string): void {
+    try {
+        sessionStorage.setItem(PENDING_LICENSE_KEY, key)
+    } catch {
+        // storage unavailable — the link must be opened again after sign-in
+    }
+}
+
+/** The remembered activation link key, or "" when none is kept. */
+export function peekLicenseKey(): string {
+    try {
+        return sessionStorage.getItem(PENDING_LICENSE_KEY)?.trim() ?? ""
+    } catch {
+        return ""
+    }
+}
+
+/** Forget the activation link key; the License page calls this once it holds the key. */
+export function forgetLicenseKey(): void {
+    try {
+        sessionStorage.removeItem(PENDING_LICENSE_KEY)
+    } catch {
+        // storage unavailable — nothing was kept
+    }
+}
+
 /**
  * The `/w/<segment>` a project routes under: its organization id. Workspace removal step 2
  * answers the organization id where a workspace id was, and during the rollout an older API

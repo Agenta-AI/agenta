@@ -609,9 +609,5 @@ class SubscriptionsService:
             namespace="entitlements:subscription",
             key={"organization_id": organization_id},
         )
-        await invalidate_cache(
-            namespace="entitlements:anchor",
-            key={"organization_id": organization_id},
-        )
 
         return subscription
