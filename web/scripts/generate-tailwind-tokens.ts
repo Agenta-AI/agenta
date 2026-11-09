@@ -305,6 +305,8 @@ const SURFACE_NAME: Record<string, string> = {
     chip: "chip",
     chipBorder: "chip-border",
     rowHover: "row-hover",
+    tabBar: "tab-bar",
+    tabHover: "tab-hover",
     accent: "accent",
     raisedShadow: "raised-shadow",
     cardShadow: "card-shadow",

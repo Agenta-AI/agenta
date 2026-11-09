@@ -28,6 +28,11 @@ export interface AgentPageHeaderProps {
     /** The agent's chip. Mobile passes a plain AgentGlyph; the desktop passes an interactive one
      * that opens the icon picker. Omitted, the bar draws the shared robot. */
     icon?: ReactNode
+    /**
+     * The bar holds page tabs in `center`: a darker tab-bar ground, and no bottom padding, so
+     * the open tab can reach down to the bar's page line.
+     */
+    tabbed?: boolean
     className?: string
 }
 
@@ -58,6 +63,7 @@ export const AgentPageHeader = ({
     actions,
     className,
     icon,
+    tabbed = false,
 }: AgentPageHeaderProps) => {
     return (
         <div
@@ -69,9 +75,11 @@ export const AgentPageHeader = ({
                 center
                     ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center"
                     : "flex items-center justify-between"
-            } min-h-[48px] shrink-0 gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-2.5 py-2 sm:min-h-0 sm:gap-4 ${
-                className ?? ""
-            }`}
+            } min-h-[48px] shrink-0 gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] px-2.5 sm:min-h-0 sm:gap-4 ${
+                tabbed
+                    ? "bg-[var(--ag-surface-tab-bar)] pt-2"
+                    : "bg-[var(--ag-surface-raised)] py-2"
+            } ${className ?? ""}`}
         >
             {/* min-w-0 + shrink (not shrink-0): on a phone the identity yields to the actions rather
             than pushing them off the bar; the name truncates instead. */}

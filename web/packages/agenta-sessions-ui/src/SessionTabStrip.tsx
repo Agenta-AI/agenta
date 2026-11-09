@@ -54,19 +54,21 @@ const chipsWidth = (el: HTMLElement): number => {
 const SNAP_IDLE_MS = 140
 
 /**
- * Where the scroller should rest: the chip start closest to `scrollLeft`, clear of the left fade.
- * Null at either end of the strip, where there is nothing to settle.
+ * Where the scroller should rest: the tab start closest to `scrollLeft`, `inset` in from the left
+ * edge. Null at either end of the strip, where there is nothing to settle. Sticky children (the
+ * edge covers, a docked tab) sit where they are pinned, not where they flow, so they are skipped.
  */
-const snapTarget = (el: HTMLElement): number | null => {
+const snapTarget = (el: HTMLElement, inset: number): number | null => {
     const max = el.scrollWidth - el.clientWidth
     if (el.scrollLeft <= 1 || el.scrollLeft >= max - 1) return null
-    const first = el.firstElementChild as HTMLElement | null
-    if (!first) return null
+    const origin = el.getBoundingClientRect().left
     let target: number | null = null
     for (const child of Array.from(el.children) as HTMLElement[]) {
-        const stop = Math.min(max, child.offsetLeft - first.offsetLeft - EDGE_FADE_START_PX)
+        if (getComputedStyle(child).position === "sticky") continue
+        const at = el.scrollLeft + child.getBoundingClientRect().left - origin - inset
+        const stop = Math.max(0, Math.min(max, at))
         if (target === null || Math.abs(stop - el.scrollLeft) < Math.abs(target - el.scrollLeft)) {
-            target = Math.max(0, stop)
+            target = stop
         }
     }
     return target
@@ -117,8 +119,18 @@ export const TAB_DIVIDER =
 const SCROLLER_CLASS =
     "flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 
-/** `safe`: a strip that overflows falls back to the start, so the first chip stays reachable. */
-const SCROLLER_CENTERED_CLASS = "[justify-content:safe_center]"
+/**
+ * The bare strip's room at each end: the open tab's flared corners need it, and a docked tab sits
+ * this far in. Cut-off tabs are never left at rest (the strip snaps), so the bare strip has no
+ * edge fade: a fade would also dim the open tab while it is docked at that edge.
+ */
+export const BARE_INSET_PX = 12
+const BARE_SCROLLER_CLASS =
+    "flex h-full min-w-0 flex-1 items-end overflow-x-auto overscroll-x-contain px-3 [justify-content:safe_center] motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+/** Covers the scroller's padding at each end, so tabs scrolling past never show in the gap beside
+ * a docked tab. Under the open tab (z-3), over the rest. Sticky offsets count from the content
+ * box, so -12px puts each cover on the padding. `mb-px` keeps the page line under it visible. */
+const CURTAIN = "sticky z-[2] mb-px w-3 shrink-0 self-stretch bg-[var(--ag-surface-tab-bar)]"
 
 export const SessionTabStrip = ({
     children,
@@ -224,7 +236,7 @@ export const SessionTabStrip = ({
         let pressed = false
         const settle = () => {
             if (pressed) return
-            const target = snapTarget(el)
+            const target = snapTarget(el, bare ? BARE_INSET_PX : EDGE_FADE_START_PX)
             // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced motion.
             if (target !== null && Math.abs(target - el.scrollLeft) > 1) el.scrollTo({left: target})
         }
@@ -251,16 +263,18 @@ export const SessionTabStrip = ({
             window.removeEventListener("pointerup", onUp)
             window.removeEventListener("pointercancel", onUp)
         }
-    }, [reorderable, showTabs, snap])
+    }, [bare, reorderable, showTabs, snap])
 
     useEffect(() => {
         measureFade()
     }, [remeasureKey, pinAdd, measureFade])
 
-    const maskStyle = {
-        maskImage: fadeMask(fade.left, fade.right),
-        WebkitMaskImage: fadeMask(fade.left, fade.right),
-    }
+    const maskStyle = bare
+        ? undefined
+        : {
+              maskImage: fadeMask(fade.left, fade.right),
+              WebkitMaskImage: fadeMask(fade.left, fade.right),
+          }
 
     const canAdd = Boolean(showTabs && onAdd)
     const addButton = canAdd ? (
@@ -287,13 +301,20 @@ export const SessionTabStrip = ({
             <div className={clsx("flex shrink-0 items-center", TAB_DIVIDER)}>{addButton}</div>
         ) : null
 
-    const scrollerClass = clsx(SCROLLER_CLASS, bare && SCROLLER_CENTERED_CLASS)
+    const scrollerClass = bare ? BARE_SCROLLER_CLASS : SCROLLER_CLASS
+    const startCurtain = bare ? (
+        <span aria-hidden className={clsx(CURTAIN, "-left-3 -ml-3")} />
+    ) : null
+    const endCurtain = bare ? (
+        <span aria-hidden className={clsx(CURTAIN, "-right-3 -mr-3")} />
+    ) : null
 
     return (
         <div
             role="tablist"
             className={clsx(
-                "flex w-full min-w-0 shrink-0 items-center gap-2 overflow-hidden",
+                "flex w-full min-w-0 shrink-0 gap-2 overflow-hidden",
+                bare ? "h-full items-stretch" : "items-center",
                 !bare &&
                     "h-[48px] border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
                 className,
@@ -317,13 +338,17 @@ export const SessionTabStrip = ({
                         className={scrollerClass}
                         style={maskStyle}
                     >
+                        {startCurtain}
                         {children}
                         {inlineAdd}
+                        {endCurtain}
                     </Reorder.Group>
                 ) : (
                     <div ref={scrollStripRef} className={scrollerClass} style={maskStyle}>
+                        {startCurtain}
                         {children}
                         {inlineAdd}
+                        {endCurtain}
                     </div>
                 )
             ) : (

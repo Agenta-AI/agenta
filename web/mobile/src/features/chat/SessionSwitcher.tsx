@@ -192,7 +192,9 @@ export const SessionSwitcher = ({
             <PageTitle title={stream?.name} />
             <Popover open={open} onOpenChange={onOpenChange}>
                 <PopoverAnchor asChild>
-                    <div className="w-[300px] min-w-0 lg:w-[440px] xl:w-[592px]">
+                    {/* Two tabs, three from `xl`: each is 180px plus a 2px gap, and 12px of room
+                        at each end. `-mb-px` lowers the tabs onto the bar's page line. */}
+                    <div className="-mb-px flex w-[388px] min-w-0 self-stretch xl:w-[570px]">
                         {agentId || !agentResolving ? (
                             <SessionTabRail
                                 bare
@@ -220,7 +222,6 @@ export const SessionSwitcher = ({
                                 onCloseMany={closeTabs}
                                 onSelect={(vm) => openSession(vm.id)}
                                 onSelectUnlisted={openSession}
-                                onNew={onNew}
                             />
                         ) : (
                             <SessionTabStrip bare />

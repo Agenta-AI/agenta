@@ -64,6 +64,7 @@ export const SessionMoreMenu = ({
     hasSessions,
     projectId,
     phone,
+    shareInMenu = false,
     onOpenShortcuts,
 }: {
     sessionId: string
@@ -75,6 +76,8 @@ export const SessionMoreMenu = ({
     hasSessions: boolean
     projectId: string
     phone: boolean
+    /** The bar dropped its Share and Publish buttons: offer them at the top of the menu. */
+    shareInMenu?: boolean
     onOpenShortcuts: () => void
 }) => {
     const [panel, setPanel] = useAtom(sessionBarPanelAtom)
@@ -195,12 +198,16 @@ export const SessionMoreMenu = ({
                   key: "share",
                   label: "Share",
                   icon: <UsersIcon size={15} aria-hidden />,
+                  // Opened once the menu has let go of focus, or its close dismisses the panel.
+                  afterClose: true,
                   onSelect: () => setPanel("share"),
               },
               {
                   key: "publish",
                   label: "Publish",
                   icon: <BroadcastIcon size={15} aria-hidden />,
+                  // Opened once the menu has let go of focus, or its close dismisses the panel.
+                  afterClose: true,
                   onSelect: () => setPanel("publish"),
               },
           ]
@@ -309,6 +316,8 @@ export const SessionMoreMenu = ({
                     className="w-[280px]"
                     onCloseAutoFocus={onCloseAutoFocus}
                 >
+                    {shareInMenu ? publish.map(item) : null}
+                    {shareInMenu && publish.length > 0 ? <DropdownMenuSeparator /> : null}
                     {session.map(item)}
                     {session.length > 0 ? <DropdownMenuSeparator /> : null}
                     {item({

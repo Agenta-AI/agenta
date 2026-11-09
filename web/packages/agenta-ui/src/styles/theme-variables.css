@@ -206,6 +206,8 @@
     --ag-surface-chip: #ebeaea;
     --ag-surface-chip-border: #e5e5e3;
     --ag-surface-row-hover: #f6f5f3;
+    --ag-surface-tab-bar: #f3f2ef;
+    --ag-surface-tab-hover: #eae9e6;
     --ag-surface-accent: #d9d92c;
     --ag-surface-raised-shadow: 0 1px 3px rgba(16, 18, 22, 0.05);
     --ag-surface-card-shadow: 0 1px 2px rgba(16, 18, 22, 0.06);
@@ -592,6 +594,8 @@
     --ag-surface-chip: #2a2a2e;
     --ag-surface-chip-border: #303035;
     --ag-surface-row-hover: #212327;
+    --ag-surface-tab-bar: #1a1b1e;
+    --ag-surface-tab-hover: #24262a;
     --ag-surface-accent: #c2d54a;
     --ag-surface-raised-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
     --ag-surface-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03);

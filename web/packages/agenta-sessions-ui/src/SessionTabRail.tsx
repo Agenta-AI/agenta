@@ -51,7 +51,13 @@ import {
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
-import {EDGE_FADE_END_PX, EDGE_FADE_START_PX, SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
+import {
+    BARE_INSET_PX,
+    EDGE_FADE_END_PX,
+    EDGE_FADE_START_PX,
+    SessionTabStrip,
+    TAB_DIVIDER,
+} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
@@ -120,7 +126,7 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
  * scrolling on every activation yanked the rail back when you clicked a chip you could see. A just-created
  * session always needs it: its chip is appended last, past the right edge of a full strip.
  */
-const useRevealWhenActive = (active: boolean) => {
+const useRevealWhenActive = (active: boolean, connected: boolean) => {
     const ref = useRef<HTMLDivElement>(null)
     useEffect(() => {
         if (!active) return
@@ -132,12 +138,17 @@ const useRevealWhenActive = (active: boolean) => {
                 scroller = scroller.parentElement
             }
             if (!scroller) return
+            // A docked tab reports where it is pinned, which is always in view. Measure where it
+            // flows instead, or a tab added past the edge never scrolls in.
+            const position = tab.style.position
+            tab.style.position = "static"
             const t = tab.getBoundingClientRect()
+            tab.style.position = position
             const s = scroller.getBoundingClientRect()
             // Clear of the edge fades too, or the chip lands in view but half dissolved. The
             // browser clamps the scroll, and at either end the strip drops that side's fade.
-            const end = s.right - EDGE_FADE_END_PX
-            const start = s.left + EDGE_FADE_START_PX
+            const end = s.right - (connected ? BARE_INSET_PX : EDGE_FADE_END_PX)
+            const start = s.left + (connected ? BARE_INSET_PX : EDGE_FADE_START_PX)
             const delta = t.right > end ? t.right - end : t.left < start ? t.left - start : 0
             if (delta === 0) return
             // Instant, like the wheel handler: `scroll-smooth` would leave the next frame
@@ -157,9 +168,20 @@ const useRevealWhenActive = (active: boolean) => {
         }
         tick()
         return () => cancelAnimationFrame(frame)
-    }, [active])
+    }, [active, connected])
     return ref
 }
+
+/** Only states that ask for a look earn a dot on a page tab; a quiet session shows its name alone. */
+const TAB_DOT_STATUSES = new Set(["waiting", "running"])
+
+/** The chip's slot in the strip. A connected open tab docks at the strip's edge when scrolled
+ * past, so it never leaves the page it opens. */
+const tabSlotClass = (connected: boolean, active: boolean, divided?: boolean) =>
+    connected
+        ? // Only the open tab sits on the page line; the rest stop above it, so hover never cuts it.
+          clsx("mr-0.5 shrink-0", active ? "sticky left-0 right-0 z-[3]" : "mb-px")
+        : clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)
 
 /**
  * A row as a chip: the shared `SessionTab`, with the status dot derived from the row view-model
@@ -175,9 +197,11 @@ const RailTab = ({
     divided,
     onClose,
     onRename,
+    connected,
 }: {
     vm: SessionRowVm
     active: boolean
+    connected: boolean
     onSelect: (vm: SessionRowVm) => void
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
@@ -190,7 +214,7 @@ const RailTab = ({
     /** Hairline before this tab — every tab but the first. */
     divided?: boolean
 }) => {
-    const ref = useRevealWhenActive(active)
+    const ref = useRevealWhenActive(active, connected)
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
     // The SAME rename machine the session rows use, so Enter/blur commit and Escape abandons here
     // exactly as they do in a list — and the commit lands on the host's one rename path.
@@ -218,6 +242,7 @@ const RailTab = ({
         <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={handleMenuSelect}>
             <SessionTab
                 active={active}
+                connected={connected}
                 maskLabel={!rename.renaming}
                 label={
                     rename.renaming ? (
@@ -249,7 +274,7 @@ const RailTab = ({
                         ? () =>
                               rename.renaming ? null : (
                                   <>
-                                      {onRename ? (
+                                      {onRename && !connected ? (
                                           <button
                                               type="button"
                                               aria-label={`Rename ${vm.title}`}
@@ -282,24 +307,26 @@ const RailTab = ({
                         : undefined
                 }
                 statusDot={
-                    <SimpleTooltip title={vm.status.label}>
-                        <span
-                            aria-label={vm.status.label}
-                            // No pulse: at 6px the fade to half read as a washed-out colour,
-                            // not as motion. The hue alone says running / waiting.
-                            className={clsx(
-                                "h-1.5 w-1.5 shrink-0 rounded-full",
-                                vm.status.dotClassName,
-                            )}
-                        />
-                    </SimpleTooltip>
+                    connected && !TAB_DOT_STATUSES.has(vm.status.status) ? undefined : (
+                        <SimpleTooltip title={vm.status.label}>
+                            <span
+                                aria-label={vm.status.label}
+                                // No pulse: at 6px the fade to half read as a washed-out colour,
+                                // not as motion. The hue alone says running / waiting.
+                                className={clsx(
+                                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                                    vm.status.dotClassName,
+                                )}
+                            />
+                        </SimpleTooltip>
+                    )
                 }
             />
         </SessionRowContextMenu>
     )
 
     // 9px = 4px + the 1px divider + 4px, so TAB_DIVIDER lands centred with clearance either side.
-    const wrapper = clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)
+    const wrapper = tabSlotClass(connected, active, divided)
     return draggable ? (
         <SessionTabDragItem ref={ref} id={vm.id} className={wrapper}>
             {chip}
@@ -341,34 +368,39 @@ const UnlistedTab = ({
     onClose,
     menu,
     onMenuSelect,
+    connected,
 }: {
     id: string
     title: string
     active: boolean
+    connected: boolean
     divided?: boolean
     onSelect?: (sessionId: string) => void
     onClose?: () => void
     menu?: SessionMenuEntry[]
     onMenuSelect?: (key: string) => void
 }) => {
-    const ref = useRevealWhenActive(active)
+    const ref = useRevealWhenActive(active, connected)
     return (
-        <div ref={ref} className={clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)}>
+        <div ref={ref} className={tabSlotClass(connected, active, divided)}>
             <SessionRowContextMenu entries={menu} onSelect={onMenuSelect}>
                 <SessionTab
                     active={active}
+                    connected={connected}
                     label={title}
                     onSelect={() => onSelect?.(id)}
                     statusDot={
-                        <SimpleTooltip title={IDLE_STATUS.label}>
-                            <span
-                                aria-label={IDLE_STATUS.label}
-                                className={clsx(
-                                    "h-1.5 w-1.5 shrink-0 rounded-full",
-                                    IDLE_STATUS.dotClassName,
-                                )}
-                            />
-                        </SimpleTooltip>
+                        connected ? undefined : (
+                            <SimpleTooltip title={IDLE_STATUS.label}>
+                                <span
+                                    aria-label={IDLE_STATUS.label}
+                                    className={clsx(
+                                        "h-1.5 w-1.5 shrink-0 rounded-full",
+                                        IDLE_STATUS.dotClassName,
+                                    )}
+                                />
+                            </SimpleTooltip>
+                        )
                     }
                     renderActions={
                         onClose
@@ -525,7 +557,13 @@ export const SessionTabRail = ({
                       <SkeletonBlock
                           key={width}
                           active
-                          className={clsx("mr-2.25 h-7 shrink-0 rounded", width)}
+                          className={clsx(
+                              "shrink-0",
+                              bare
+                                  ? "mb-1.5 mr-0.5 h-7 w-[180px] rounded-md"
+                                  : "mr-2.25 h-7 rounded",
+                              !bare && width,
+                          )}
                       />
                   ))
                 : rows.map((vm, index) => (
@@ -533,6 +571,7 @@ export const SessionTabRail = ({
                           key={vm.id}
                           vm={vm}
                           active={vm.id === activeSessionId}
+                          connected={Boolean(bare)}
                           divided={index > 0}
                           onSelect={onSelect}
                           draggable={reorderable}
@@ -580,6 +619,7 @@ export const SessionTabRail = ({
                           id={tab.id}
                           title={tab.title}
                           active={tab.id === activeSessionId}
+                          connected={Boolean(bare)}
                           divided={rows.length > 0 || index > 0}
                           onSelect={onSelectUnlisted}
                           // Only the tab verbs, and only when the host can land a close.

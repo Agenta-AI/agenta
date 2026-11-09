@@ -15,6 +15,7 @@ import {sessionShareSummary} from "@agenta/sessions-ui/sharing"
 import {
     Button,
     Popover,
+    PopoverAnchor,
     PopoverContent,
     PopoverTrigger,
     Sheet,
@@ -48,6 +49,7 @@ export const ShareMenu = ({
     workspaceId,
     projectId,
     phone,
+    buttons = true,
 }: {
     agentId: string
     sessionId: string
@@ -59,6 +61,11 @@ export const ShareMenu = ({
     workspaceId: string
     projectId: string
     phone: boolean
+    /**
+     * Off where the bar has no room for the buttons (the files pane is open): the ⋯ menu offers
+     * Share and Publish instead, and the Share panel opens from the bar's right end.
+     */
+    buttons?: boolean
 }) => {
     const store = useStore()
     const pending = useAtomValue(pendingTasksAtom)[sessionId] !== undefined
@@ -225,12 +232,18 @@ export const ShareMenu = ({
             ) : (
                 <div className="flex items-center">
                     <Popover open={open} onOpenChange={onOpenChange}>
-                        <PopoverTrigger asChild>
-                            <Button variant="ghost" size="sm" data-testid="share-menu-share">
-                                <UsersIcon data-icon="inline-start" />
-                                Share
-                            </Button>
-                        </PopoverTrigger>
+                        {buttons ? (
+                            <PopoverTrigger asChild>
+                                <Button variant="ghost" size="sm" data-testid="share-menu-share">
+                                    <UsersIcon data-icon="inline-start" />
+                                    Share
+                                </Button>
+                            </PopoverTrigger>
+                        ) : (
+                            <PopoverAnchor asChild>
+                                <span aria-hidden className="h-7 w-0" />
+                            </PopoverAnchor>
+                        )}
                         <PopoverContent
                             align="end"
                             aria-label="Share"
@@ -240,15 +253,17 @@ export const ShareMenu = ({
                             {panel}
                         </PopoverContent>
                     </Popover>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={publish.openHub}
-                        data-testid="share-menu-publish"
-                    >
-                        <Broadcast data-icon="inline-start" />
-                        Publish
-                    </Button>
+                    {buttons ? (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={publish.openHub}
+                            data-testid="share-menu-publish"
+                        >
+                            <Broadcast data-icon="inline-start" />
+                            Publish
+                        </Button>
+                    ) : null}
                 </div>
             )}
             <AgentPrivacyDialog

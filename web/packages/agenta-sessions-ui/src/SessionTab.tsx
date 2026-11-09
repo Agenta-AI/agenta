@@ -31,9 +31,30 @@ const LABEL_MASK_HOVER = maskStyle(
     "linear-gradient(to right, #000 calc(100% - 60px), transparent calc(100% - 38px))",
 )
 
+/** Label-sized between a floor (clickable zone left of the hover actions) and a ceiling. No
+ * border: plain labels separated by the host's hairline; selected reads by fill alone. */
+const CHIP = "h-7 w-fit min-w-20 max-w-32 gap-1.5 rounded px-2 text-xs"
+/** One width for every tab, so the strip shows a whole number of them. No bottom border: the
+ * open tab's bottom edge sits on the page line and hides it. */
+const CONNECTED =
+    "h-10 w-[180px] gap-2 rounded-t-[10px] border border-b-0 border-solid border-transparent px-3.5 text-[13px]"
+/** The open tab's lower corners curve outward into the page line, as browser tabs do. The
+ * shadow paints the page colour into the curve's outer side. */
+const FLARE =
+    "pointer-events-none absolute bottom-0 h-2.5 w-2.5 border-0 border-b border-solid border-[var(--ag-shell-line)]"
+const FLARE_LEFT =
+    "-left-2.5 rounded-br-[10px] border-r shadow-[5px_5px_0_5px_var(--ag-surface-canvas)]"
+const FLARE_RIGHT =
+    "-right-2.5 rounded-bl-[10px] border-l shadow-[-5px_5px_0_5px_var(--ag-surface-canvas)]"
+
 export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
     /** The session on screen: primary text on the `colorFill` chip. */
     active: boolean
+    /**
+     * A page tab instead of a chip: fixed width, and the open tab takes the canvas colour and
+     * flares into the page line below it, so it reads as the top of the chat pane.
+     */
+    connected?: boolean
     /** Text, or the host's own label element (inline rename on the desktop). */
     label: ReactNode
     /** Off while the label is an editor: the fade would dim the input's own right edge. */
@@ -52,6 +73,7 @@ export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" 
 
 export const SessionTab = ({
     active,
+    connected = false,
     label,
     maskLabel = true,
     statusDot,
@@ -96,21 +118,26 @@ export const SessionTab = ({
             onFocus={onEnter}
             onBlur={onBlurChip}
             className={clsx(
-                // Label-sized between a floor (clickable zone left of the hover actions) and a ceiling.
                 // `select-none`: a second click on the chip you are already on must not start
                 // painting its label — a tab is a control, not text (#6379).
-                "group relative flex h-7 w-fit min-w-20 max-w-32 shrink-0 cursor-pointer select-none items-center gap-1.5 rounded px-2 text-xs transition-colors",
-                // No card, no border — plain labels on the canvas, separated by the host's
-                // hairline divider. Selected reads by FILL alone: `colorFill` is the antd
-                // "pressed/active" step, ink-tinted in light and translucent white in dark,
-                // clearly stronger than the whisper-of-fill hover an unselected tag gets, held
-                // at 90% so the chip sits a touch lighter on the canvas.
-                active
-                    ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
-                    : "text-colorTextSecondary hover:bg-colorFillTertiary",
+                "group relative flex shrink-0 cursor-pointer select-none items-center transition-colors",
+                connected ? CONNECTED : CHIP,
+                connected
+                    ? active
+                        ? "border-[var(--ag-shell-line)] bg-[var(--ag-surface-canvas)] font-medium text-colorText"
+                        : "text-colorTextSecondary hover:bg-[var(--ag-surface-tab-hover)] hover:text-colorText"
+                    : active
+                      ? "bg-[color-mix(in_srgb,var(--ag-colorFill)_90%,transparent)] text-colorText"
+                      : "text-colorTextSecondary hover:bg-colorFillTertiary",
                 className,
             )}
         >
+            {connected && active ? (
+                <>
+                    <span aria-hidden className={clsx(FLARE, FLARE_LEFT)} />
+                    <span aria-hidden className={clsx(FLARE, FLARE_RIGHT)} />
+                </>
+            ) : null}
             {statusDot}
             {pinned && (
                 <PushPin
@@ -131,7 +158,12 @@ export const SessionTab = ({
                 tag's own fill. No backing: any painted patch reads as a mismatched box against
                 a chip whose only skin is that fill. */}
             {actions ? (
-                <div className="absolute inset-y-0 right-1 flex items-center gap-0.5">
+                <div
+                    className={clsx(
+                        "absolute inset-y-0 flex items-center gap-0.5",
+                        connected ? "right-2" : "right-1",
+                    )}
+                >
                     {actions}
                 </div>
             ) : null}

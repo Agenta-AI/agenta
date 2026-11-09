@@ -6,9 +6,9 @@ import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {sessionRowVm} from "@agenta/sessions/row"
-import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
-import {Button} from "@agenta/ui/ui"
-import {LockSimpleIcon, PlusIcon} from "@phosphor-icons/react"
+import {KeyboardShortcutsSheet, ShortcutKeys, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {LockSimpleIcon, NotePencilIcon, PlusIcon} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {sharingCopy} from "@/lib/sharingCopy"
@@ -120,6 +120,8 @@ export const SessionTopBar = ({
             hasSessions={hasSessions}
             projectId={projectId}
             phone={phone}
+            // The files pane takes the bar's room, so Share and Publish wait in the menu.
+            shareInMenu={!phone && filesOpen}
             onOpenShortcuts={() => setShortcutsOpen(true)}
         />
     )
@@ -136,6 +138,7 @@ export const SessionTopBar = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 phone={phone}
+                buttons={!filesOpen}
             />
         ) : hasSessions ? (
             <SessionSharingControl
@@ -181,6 +184,7 @@ export const SessionTopBar = ({
     return (
         <AgentPageHeader
             className="md:min-h-12"
+            tabbed={Boolean(switcher)}
             // Nav is the drawer below `lg`; it hides itself where the rail takes over.
             leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
             identity={
@@ -199,13 +203,28 @@ export const SessionTopBar = ({
             center={switcher}
             actions={
                 <>
+                    {hasSessions && agentId ? (
+                        <SimpleTooltip
+                            title={
+                                <span className="flex items-center gap-1.5">
+                                    New session <ShortcutKeys id="session.new" tone="inverse" />
+                                </span>
+                            }
+                        >
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="New session"
+                                onClick={() => startBlank(agentId)}
+                            >
+                                <NotePencilIcon />
+                            </Button>
+                        </SimpleTooltip>
+                    ) : null}
                     {hasSessions ? (
                         <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} />
                     ) : null}
                     {more}
-                    {agentId && !agentHidden ? (
-                        <span aria-hidden className="bg-border mx-1 h-[18px] w-px shrink-0" />
-                    ) : null}
                     {share}
                     {shortcuts}
                 </>
