@@ -54,3 +54,15 @@ export const resolveSessionPanes = ({
     // conversation, and the tab rail above it still reaches every session.
     return {showConfig, showPane: showConfig || (twoPane && chatMaximized), showFiles: filesOpen}
 }
+
+interface DockState {
+    files: boolean
+    browser: boolean
+}
+
+/**
+ * Files and the browser share the right-edge dock. Each has openers this screen does not own (a
+ * chat file link, the browser's ask card), so when both end up open the one opened last stays.
+ */
+export const dockToClose = (prev: DockState, next: DockState): "files" | "browser" | null =>
+    next.files && next.browser ? (prev.browser ? "browser" : "files") : null

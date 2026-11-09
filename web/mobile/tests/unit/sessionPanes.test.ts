@@ -6,7 +6,7 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {resolveSessionPanes} from "@/features/chat/sessionPanes"
+import {dockToClose, resolveSessionPanes} from "@/features/chat/sessionPanes"
 
 const phone = {
     twoPane: false,
@@ -137,5 +137,23 @@ describe("resolveSessionPanes with two panes", () => {
             showPane: true,
             showFiles: false,
         })
+    })
+})
+
+describe("dockToClose", () => {
+    const both = {files: true, browser: true}
+
+    it("keeps the pane opened last when both end up open", () => {
+        expect(dockToClose({files: true, browser: false}, both)).toBe("files")
+        expect(dockToClose({files: false, browser: true}, both)).toBe("browser")
+    })
+
+    it("lets the browser win when both open at once", () => {
+        expect(dockToClose({files: false, browser: false}, both)).toBe("files")
+    })
+
+    it("closes nothing while one pane or none is open", () => {
+        expect(dockToClose(both, {files: true, browser: false})).toBeNull()
+        expect(dockToClose(both, {files: false, browser: false})).toBeNull()
     })
 })

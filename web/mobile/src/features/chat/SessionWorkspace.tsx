@@ -46,7 +46,7 @@ import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
-import {resolveSessionPanes} from "./sessionPanes"
+import {dockToClose, resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
@@ -239,16 +239,14 @@ export const SessionWorkspace = ({
         closeFilesPane()
         setBrowserOpen(false)
     }, [closeFilesPane, setBrowserOpen])
-    const prevBrowserOpenRef = useRef(browserOpen)
+    const prevDockRef = useRef({files: filesOpen, browser: browserOpen})
     useEffect(() => {
-        if (browserOpen && !prevBrowserOpenRef.current) closeFilesPane()
-        prevBrowserOpenRef.current = browserOpen
-    }, [browserOpen, closeFilesPane])
-    const prevFilesOpenForBrowserRef = useRef(filesOpen)
-    useEffect(() => {
-        if (filesOpen && !prevFilesOpenForBrowserRef.current) setBrowserOpen(false)
-        prevFilesOpenForBrowserRef.current = filesOpen
-    }, [filesOpen, setBrowserOpen])
+        const next = {files: filesOpen, browser: browserOpen}
+        const close = dockToClose(prevDockRef.current, next)
+        prevDockRef.current = next
+        if (close === "files") closeFilesPane()
+        else if (close === "browser") setBrowserOpen(false)
+    }, [filesOpen, browserOpen, closeFilesPane, setBrowserOpen])
     const filesExpanded = filesLayout.expanded && !browserOpen
     // Never a config pane for a hidden agent: its configuration is exactly what the reader may not
     // see, and a pane mounted while it was visible is dropped below, not kept hidden.
@@ -292,10 +290,10 @@ export const SessionWorkspace = ({
     // Edge-triggered, so they cannot evict each other in a loop.
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const panesMustAlternate = twoPane && !canPanesCoexist
-    const prevFilesOpenRef = useRef(dockOpen)
+    const prevDockOpenRef = useRef(dockOpen)
     useEffect(() => {
-        if (dockOpen && !prevFilesOpenRef.current && panesMustAlternate) setConfigCollapsed(true)
-        prevFilesOpenRef.current = dockOpen
+        if (dockOpen && !prevDockOpenRef.current && panesMustAlternate) setConfigCollapsed(true)
+        prevDockOpenRef.current = dockOpen
     }, [dockOpen, panesMustAlternate, setConfigCollapsed])
     const prevConfigCollapsedRef = useRef(configCollapsed)
     useEffect(() => {
