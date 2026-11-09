@@ -41,6 +41,7 @@ class _Recorder:
 @pytest.fixture
 def self_hosted(monkeypatch):
     monkeypatch.setattr(env.stripe, "api_key", None)
+    monkeypatch.setattr(env.agenta, "license", "oss")
     monkeypatch.setattr(env.telemetry, "enabled", True)
     monkeypatch.setattr(env.telemetry, "enabled_set", False)
     monkeypatch.setattr(
