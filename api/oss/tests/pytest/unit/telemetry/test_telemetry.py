@@ -448,7 +448,7 @@ async def test_startup_log_names_the_reason_and_the_docs(
 
 @pytest.mark.asyncio
 async def test_docs_list_every_api_event_field(monkeypatch, self_hosted, queued):
-    from oss.tests.pytest.unit.telemetry.test_telemetry_docs import documented_fields
+    from oss.tests.pytest.unit.telemetry._docs import documented_fields
 
     monkeypatch.setattr(analytics, "get_cache", AsyncMock(return_value=None))
     monkeypatch.setattr(analytics, "set_cache", AsyncMock())

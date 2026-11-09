@@ -1,24 +1,14 @@
 """The telemetry docs page must list exactly what each instance event sends."""
 
-import re
-from pathlib import Path
+import ast
+import inspect
 from uuid import UUID
 
 import pytest
 
 from oss.src.core.telemetry import service as telemetry_service
-
-DOCS_PAGE = (
-    Path(__file__).resolve().parents[6]
-    / "docs/docs/self-host/reference/03-telemetry.mdx"
-)
-
-
-def documented_fields(heading: str) -> set[str]:
-    """The backticked names in the first column of the tables under `## <heading>`."""
-    text = DOCS_PAGE.read_text()
-    section = text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
-    return set(re.findall(r"^\| `([^`]+)` \|", section, flags=re.MULTILINE))
+from oss.src.middlewares import analytics
+from oss.tests.pytest.unit.telemetry._docs import documented_fields
 
 
 @pytest.mark.asyncio
@@ -44,3 +34,20 @@ async def test_install_ping_table_matches_the_payload_on_the_wire(monkeypatch):
     documented = documented_fields("Install ping")
     assert not sent - documented, f"not on the docs page: {sorted(sent - documented)}"
     assert not documented - sent, f"not in the payload: {sorted(documented - sent)}"
+
+
+def test_every_api_event_name_and_mark_is_documented():
+    """Reads every event name the middleware can return, so a new route fails here."""
+    tree = ast.parse(inspect.getsource(analytics._get_event_name_from_path))
+    events = {
+        node.value.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Return)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    }
+    marks = {mark for mark, _ in analytics.ACTIVATION_EVENTS.values()}
+    sent = events | set(analytics.ACTIVATION_EVENTS) | marks
+
+    documented = documented_fields("Product events from the API")
+    assert not sent - documented, f"not on the docs page: {sorted(sent - documented)}"

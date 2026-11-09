@@ -90,6 +90,8 @@ Each of these events has these properties:
 | `workspace_id` | The workspace id, when the route has one |
 | `organization_id` | The organization id, when the route has one |
 
+The PostHog library also adds to each of these events its own name and version (`$lib`, `$lib_version`), the Python version, the operating system, and `$geoip_disable` (`true`, so PostHog does not look up a location).
+
 `user_signed_up_v1` has these properties instead:
 
 | Property | Value |
