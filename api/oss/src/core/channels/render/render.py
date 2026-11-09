@@ -317,6 +317,21 @@ def _render_text(
 
 
 _FENCE = "```"
+# A fence counts only at the start of a line; "```" inside a code line is text.
+_FENCE_LINE = re.compile(r"^[ \t]*```", re.MULTILINE)
+
+
+# The language tag a reopened fence repeats; never more of the fence line.
+_FENCE_INFO = re.compile(r"[ \t]*```([^\s`]{1,32})(?=\s|$)")
+
+
+def _fence_starts(text: str) -> List[int]:
+    return [match.start() for match in _FENCE_LINE.finditer(text)]
+
+
+def _reopening(text: str, start: int) -> str:
+    match = _FENCE_INFO.match(text, start)
+    return _FENCE + (match.group(1) if match else "")
 
 
 def _split_text(text: str, max_chars: int) -> List[str]:
@@ -324,7 +339,7 @@ def _split_text(text: str, max_chars: int) -> List[str]:
     its own: break at a paragraph, line or word boundary (never mid-word, as
     the fixed-width split did: "The q" / "uick brown fox", QA 2026-09-23),
     and when a chunk ends inside a code fence, close it there and reopen it
-    at the start of the next chunk."""
+    at the start of the next chunk with the same info string (```python)."""
 
     if max_chars <= 0 or len(text) <= max_chars:
         return [text]
@@ -333,13 +348,18 @@ def _split_text(text: str, max_chars: int) -> List[str]:
     chunks: List[str] = []
     rest = text
     in_fence = False
+    opening = _FENCE
     while rest:
-        prefix = _FENCE + "\n" if in_fence else ""
-        fenced = in_fence or _FENCE in rest[:max_chars]
+        prefix = opening + "\n" if in_fence else ""
+        fenced = in_fence or bool(_fence_starts(rest[:max_chars]))
         budget = max_chars - len(prefix) - (close_cost if fenced else 0)
         if budget < 1:
             # a limit too small to carry fence markers: plain fixed split
-            budget = max_chars - len(prefix)
+            rest = prefix + rest
+            chunks.extend(
+                rest[i : i + max_chars] for i in range(0, len(rest), max_chars)
+            )
+            break
         if len(prefix) + len(rest) <= max_chars:
             chunks.append(prefix + rest)
             break
@@ -351,10 +371,33 @@ def _split_text(text: str, max_chars: int) -> List[str]:
             cut = max(window.rfind(" "), window.rfind("\t"))
         if cut <= 0:
             cut = budget
-        piece, rest = rest[:cut], rest[cut:].lstrip("\n ")
+        if not in_fence and len(_fence_starts(rest[:cut])) % 2 == 1:
+            cut = _whole_block_cut(rest, cut=cut, max_chars=max_chars)
+        piece, rest = rest[:cut], rest[cut:]
         body = prefix + piece
-        in_fence = body.count(_FENCE) % 2 == 1
+        fences = _fence_starts(body)
+        in_fence = len(fences) % 2 == 1
         if in_fence:
+            # inside code only the boundary newline goes: indentation is code
+            rest = rest[1:] if rest.startswith("\n") else rest
+            opening = _reopening(body, fences[-1])
             body = body.rstrip("\n") + "\n" + _FENCE
+        else:
+            rest = rest.lstrip("\n ")
         chunks.append(body)
     return chunks
+
+
+def _whole_block_cut(text: str, *, cut: int, max_chars: int) -> int:
+    """`cut` lands inside a code block. When the block fits in one chunk,
+    cut before it, or right after it when the chunk starts with it."""
+
+    fences = _fence_starts(text)
+    start = max(f for f in fences if f < cut)
+    after = [f for f in fences if f > start]
+    if not after:
+        return cut
+    end = text.find(_FENCE, after[0]) + len(_FENCE)
+    if end - start > max_chars:
+        return cut
+    return start if start > 0 else end
