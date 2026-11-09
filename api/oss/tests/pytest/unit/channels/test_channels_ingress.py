@@ -29,6 +29,7 @@ from oss.src.core.channels.dtos import (
     ChannelSpaceKind,
 )
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
+from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.utils import compose_external_key
 
 
@@ -118,6 +119,11 @@ class FakeChannelsService:
     resolve a connection, fetch it, and append to the log with the dedup
     contract (None on an already-recorded external_id)."""
 
+    # The shared store-and-enqueue step runs for real over this fake's
+    # record_inbox_event.
+    inbox_dispatch_task = None
+    record_and_enqueue_inbox_event = ChannelsService.record_and_enqueue_inbox_event
+
     def __init__(
         self,
         *,
@@ -178,10 +184,10 @@ def _make_app(
     *, service: FakeChannelsService, registry: FakeAdapterRegistry, dispatch_task=None
 ):
     app = FastAPI()
+    service.inbox_dispatch_task = dispatch_task
     router = ChannelsIngressRouter(
         channels_service=service,
         adapter_registry=registry,
-        dispatch_task=dispatch_task,
     )
     app.include_router(router.router, prefix="/channels")
     return app, router

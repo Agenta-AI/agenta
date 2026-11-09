@@ -1,4 +1,3 @@
-import asyncio
 import hmac
 import json
 import re
@@ -36,9 +35,6 @@ from oss.src.core.sessions.attachments.types import AttachmentNotFound
 from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelEventAck,
-    ChannelInboxEventCreate,
-    ChannelInboxEventData,
-    ChannelEventOrigin,
     ChannelKeyGrain,
     ChannelRequestContext,
     ChannelSpaceQuery,
@@ -46,6 +42,7 @@ from oss.src.core.channels.dtos import (
     ChannelThreadQuery,
 )
 from oss.src.core.channels.types import (
+    ChannelInboxEnqueueFailed,
     ChannelLocatorIncomplete,
     ChannelNotSupported,
     ChannelSignatureInvalid,
@@ -80,8 +77,6 @@ if TYPE_CHECKING:
 
 log = get_module_logger(__name__)
 
-_ENQUEUE_TIMEOUT_SECONDS = 5.0
-
 # The embed id is minted by token_urlsafe. Anything else is refused before it
 # reaches a throttle key or the database.
 _EMBED_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
@@ -98,7 +93,8 @@ _embed_live_streams: Counter = Counter()
 def handle_channel_adapter_exceptions():
     """Map adapter/registry failures to HTTP. Mirrors triggers'
     handle_adapter_exceptions: unregistered channel -> 404, bad signature ->
-    401 with no diagnostic detail (ChannelSignatureInvalid carries none)."""
+    401 with no diagnostic detail (ChannelSignatureInvalid carries none),
+    failed enqueue -> 503 so the platform retries the delivery."""
 
     def decorator(func):
         @wraps(func)
@@ -115,6 +111,11 @@ def handle_channel_adapter_exceptions():
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"status": "error"},
                 )
+            except ChannelInboxEnqueueFailed as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Failed to enqueue channel inbox event",
+                ) from e
 
         return wrapper
 
@@ -130,14 +131,12 @@ class ChannelsIngressRouter:
         *,
         channels_service: "ChannelsService",
         adapter_registry: "ChannelAdapterRegistry",
-        dispatch_task: Optional[Any] = None,
         telegram_binding_service: Optional["TelegramBindingService"] = None,
         records_service: Optional["RecordsService"] = None,
         attachments_service: Optional["SessionAttachmentsService"] = None,
     ):
         self.channels_service = channels_service
         self.adapter_registry = adapter_registry
-        self.dispatch_task = dispatch_task
         # Present only when the hosted (Agenta-owned) Telegram bot is configured
         # for this deployment. Absent means every telegram update takes the
         # custom-bot path.
@@ -737,7 +736,7 @@ class ChannelsIngressRouter:
         if inbound is None:
             inbound = []
         for event in inbound if isinstance(inbound, list) else [inbound]:
-            await self._record_and_enqueue(
+            await self.channels_service.record_and_enqueue_inbox_event(
                 project_id=project_id,
                 connection_id=connection_id,
                 channel=channel,
@@ -813,7 +812,7 @@ class ChannelsIngressRouter:
         if inbound is None:
             return ChannelEventAck(status="accepted")
 
-        await self._record_and_enqueue(
+        await self.channels_service.record_and_enqueue_inbox_event(
             project_id=binding.project_id,
             connection_id=binding.connection_id,
             channel="telegram_hosted",
@@ -876,46 +875,6 @@ class ChannelsIngressRouter:
             )
         except Exception as e:  # noqa: BLE001 - a greeting is never load-bearing
             log.info("[CHANNELS] hosted greeting failed: %s", e)
-
-    async def _record_and_enqueue(
-        self, *, project_id, connection_id, channel: str, inbound
-    ) -> None:
-        """Store the parsed event and enqueue the dispatch. Shared by the custom
-        and hosted telegram paths."""
-
-        event = ChannelInboxEventCreate(
-            connection_id=connection_id,
-            external_id=inbound.external_id,
-            kind=inbound.kind,
-            origin=ChannelEventOrigin.PUSHED,
-            data=ChannelInboxEventData(
-                external_locator=inbound.external_locator,
-                processed=inbound.processed,
-                space_kind=inbound.space_kind,
-                addressed=inbound.addressed,
-            ),
-        )
-        await self.channels_service.record_inbox_event(
-            project_id=project_id,
-            event=event,
-        )
-        if self.dispatch_task is not None:
-            try:
-                await asyncio.wait_for(
-                    self.dispatch_task.kiq(
-                        project_id=str(project_id),
-                        connection_id=str(connection_id),
-                        channel=channel,
-                        external_id=inbound.external_id,
-                    ),
-                    timeout=_ENQUEUE_TIMEOUT_SECONDS,
-                )
-            except Exception as e:
-                log.error("Failed to enqueue channel inbox event: %s", e)
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Failed to enqueue channel inbox event",
-                ) from e
 
 
 class _EmbedLiveResponse(StreamingResponse):

@@ -162,6 +162,18 @@ class ChannelDeliveryHeld(ChannelsError):
         super().__init__(f"{channel}: delivery held ({reason})")
 
 
+class ChannelInboxEnqueueFailed(ChannelsError):
+    """The event is stored, but its dispatch could not be enqueued. The HTTP
+    ingress answers 503 so the platform retries; the Discord socket loop
+    retries the same event itself. Either retry finds the stored row and
+    enqueues again."""
+
+    def __init__(self, *, channel: str, external_id: str):
+        self.channel = channel
+        self.external_id = external_id
+        super().__init__(f"Failed to enqueue channel inbox event: {channel}")
+
+
 class ChannelConnectionVerificationFailed(ChannelsError):
     """Raised by `verify_connection` when the platform rejects a credential.
     Nothing is written on this path — surfaced as the platform said it,
