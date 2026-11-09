@@ -979,7 +979,7 @@ export const LiveConversation = ({
                                 <ConnectionWarningStrip message={conversation.connectionWarning} />
                             </ContentRail>
                         ) : null}
-                        <BrowserAskDock sessionId={sessionId} />
+                        <BrowserAskDock sessionId={sessionId} working={showingTurnActivity} />
                         {approvalsOpen ? (
                             <ApprovalDock
                                 approvals={pendingApprovals}
