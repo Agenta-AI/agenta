@@ -106,6 +106,12 @@ export interface SessionTabStripProps {
     bare?: boolean
     /** Settle on the nearest chip when a scroll stops, so none rests cut off at the start. */
     snap?: boolean
+    /**
+     * Bare only: size the strip to show this many whole tabs, from the first one in view. Short
+     * names make it narrow, long ones wide; the host caps it with a max width. It updates once a
+     * scroll rests, so the bar never resizes under a moving scroll.
+     */
+    fitTabs?: number
     className?: string
 }
 
@@ -126,7 +132,7 @@ const SCROLLER_CLASS =
  */
 export const BARE_INSET_PX = 12
 const BARE_SCROLLER_CLASS =
-    "flex h-full min-w-0 flex-1 items-end overflow-x-auto overscroll-x-contain px-3 [justify-content:safe_center] motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    "flex h-full min-w-0 max-w-full flex-1 items-end overflow-x-auto overscroll-x-contain px-3 [justify-content:safe_center] transition-[width] duration-200 ease-out motion-safe:scroll-smooth motion-reduce:transition-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 /** Covers the scroller's padding at each end, so tabs scrolling past never show in the gap beside
  * a docked tab. Under the open tab (z-3), over the rest. Sticky offsets count from the content
  * box, so -12px puts each cover on the padding. */
@@ -144,6 +150,7 @@ export const SessionTabStrip = ({
     reorder,
     bare = false,
     snap = false,
+    fitTabs,
     className,
 }: SessionTabStripProps) => {
     // Edge fade is applied per side only where the strip is actually scrolled past its content, so
@@ -154,6 +161,32 @@ export const SessionTabStrip = ({
     const [pinAdd, setPinAdd] = useState(false)
     const pinAddRef = useRef(false)
     const stripElRef = useRef<HTMLDivElement | null>(null)
+    const reorderable = Boolean(reorder)
+    const [fitWidth, setFitWidth] = useState<number | null>(null)
+    const measureFit = useCallback(() => {
+        const el = stripElRef.current
+        if (!el || !fitTabs) return
+        // Tab slots only: the edge covers sit in the padding and take no room in the row.
+        const slots = (Array.from(el.children) as HTMLElement[]).filter((c) => !c.dataset.curtain)
+        if (slots.length === 0) return
+        const sizes = slots.map(
+            (slot) => slot.offsetWidth + (parseFloat(getComputedStyle(slot).marginRight) || 0),
+        )
+        // Flow positions from the sizes, not offsets: a docked tab reports where it is pinned.
+        let first = sizes.length
+        for (let i = 0, at = 0; i < sizes.length; at += sizes[i], i++) {
+            if (at >= el.scrollLeft - 1) {
+                first = i
+                break
+            }
+        }
+        first = Math.min(first, Math.max(0, sizes.length - fitTabs))
+        const last = Math.min(first + fitTabs, slots.length) - 1
+        const trailing = parseFloat(getComputedStyle(slots[last]).marginRight) || 0
+        const shown = sizes.slice(first, last + 1).reduce((sum, size) => sum + size, 0)
+        const width = Math.round(shown - trailing + 2 * BARE_INSET_PX)
+        setFitWidth((prev) => (prev === width ? prev : width))
+    }, [fitTabs])
     const measureFade = useCallback(() => {
         const el = stripElRef.current
         if (!el) return
@@ -204,7 +237,10 @@ export const SessionTabStrip = ({
             }
             el.addEventListener("wheel", onWheel, {passive: false})
             el.addEventListener("scroll", measureFade, {passive: true})
-            const ro = new ResizeObserver(() => measureFade())
+            const ro = new ResizeObserver(() => {
+                measureFade()
+                measureFit()
+            })
             ro.observe(el)
             // Watch the chips too: they animate their width, and a removed chip never resizes the box.
             const observeChildren = () => {
@@ -214,9 +250,11 @@ export const SessionTabStrip = ({
             const mo = new MutationObserver(() => {
                 observeChildren()
                 measureFade()
+                measureFit()
             })
             mo.observe(el, {childList: true})
             measureFade()
+            measureFit()
             stripCleanupRef.current = () => {
                 el.removeEventListener("wheel", onWheel)
                 el.removeEventListener("scroll", measureFade)
@@ -224,10 +262,24 @@ export const SessionTabStrip = ({
                 ro.disconnect()
             }
         },
-        [measureFade],
+        [measureFade, measureFit],
     )
+    // Resize only once a scroll rests, after the snap has settled on a tab.
+    useEffect(() => {
+        const el = stripElRef.current
+        if (!fitTabs || !el) return
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const onScroll = () => {
+            clearTimeout(timer)
+            timer = setTimeout(measureFit, SNAP_IDLE_MS + 60)
+        }
+        el.addEventListener("scroll", onScroll, {passive: true})
+        return () => {
+            clearTimeout(timer)
+            el.removeEventListener("scroll", onScroll)
+        }
+    }, [fitTabs, measureFit, reorderable, showTabs])
     // Remeasure when the tab set changes, and after the add button moves (it resizes the scroller).
-    const reorderable = Boolean(reorder)
     useEffect(() => {
         const el = stripElRef.current
         if (!snap || !el) return
@@ -270,7 +322,9 @@ export const SessionTabStrip = ({
     }, [remeasureKey, pinAdd, measureFade])
 
     const maskStyle = bare
-        ? undefined
+        ? fitTabs && fitWidth !== null
+            ? {width: fitWidth, flex: "none"}
+            : undefined
         : {
               maskImage: fadeMask(fade.left, fade.right),
               WebkitMaskImage: fadeMask(fade.left, fade.right),
@@ -303,18 +357,18 @@ export const SessionTabStrip = ({
 
     const scrollerClass = bare ? BARE_SCROLLER_CLASS : SCROLLER_CLASS
     const startCurtain = bare ? (
-        <span aria-hidden className={clsx(CURTAIN, "-left-3 -ml-3")} />
+        <span aria-hidden data-curtain className={clsx(CURTAIN, "-left-3 -ml-3")} />
     ) : null
     const endCurtain = bare ? (
-        <span aria-hidden className={clsx(CURTAIN, "-right-3 -mr-3")} />
+        <span aria-hidden data-curtain className={clsx(CURTAIN, "-right-3 -mr-3")} />
     ) : null
 
     return (
         <div
             role="tablist"
             className={clsx(
-                "flex w-full min-w-0 shrink-0 gap-2 overflow-hidden",
-                bare ? "h-full items-stretch" : "items-center",
+                "flex min-w-0 shrink-0 gap-2 overflow-hidden",
+                bare ? "h-full items-stretch" : "w-full items-center",
                 !bare &&
                     "h-[48px] border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
                 className,

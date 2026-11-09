@@ -192,9 +192,9 @@ export const SessionSwitcher = ({
             <PageTitle title={stream?.name} />
             <Popover open={open} onOpenChange={onOpenChange}>
                 <PopoverAnchor asChild>
-                    {/* Two tabs, three from `xl`: each is 180px plus a 2px gap, and 12px of room
-                        at each end. `pt-2` is the room above them. */}
-                    <div className="flex w-[388px] min-w-0 self-stretch pt-2 xl:w-[570px]">
+                    {/* The strip sizes itself to three tabs; this caps it on narrower screens.
+                        `pt-2` is the room above the tabs. */}
+                    <div className="flex min-w-0 max-w-[388px] self-stretch pt-2 xl:max-w-[570px]">
                         {agentId || !agentResolving ? (
                             <SessionTabRail
                                 bare

@@ -548,6 +548,7 @@ export const SessionTabRail = ({
             reorder={reorderable ? {ids: orderedIds, onReorder: handleReorder} : undefined}
             bare={bare}
             snap={bare}
+            fitTabs={bare ? 3 : undefined}
             className={className}
         >
             {tabs.isPending && rows.length === 0
