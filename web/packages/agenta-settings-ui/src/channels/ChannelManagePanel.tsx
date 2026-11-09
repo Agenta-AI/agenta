@@ -35,12 +35,14 @@ import {
     disconnectSubject,
     errorMessage,
     formatConnectedOn,
+    hasChannels,
     platformLabel,
     slackInviteHandle,
 } from "./helpers"
 import {platformLogo} from "./icons"
 import {PanelFooter} from "./PanelFooter"
 import {channelSharingCopy} from "./sharingCopy"
+import {TeamsAppSetup} from "./TeamsAppSetup"
 import type {
     ChannelBehaviorState,
     ChannelConnection,
@@ -96,15 +98,16 @@ const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
         {name: "bot_token", label: "Bot User OAuth Token", secret: true, required: true},
         {name: "signing_secret", label: "Signing Secret", secret: true, required: true},
     ],
+    teams: [{name: "client_secret", label: "Client secret value", secret: true, required: true}],
 }
 
 /** A discovered place's stable identity: its kind and platform address. */
 const candidateKey = (candidate: ChannelSpaceCandidate): string =>
     `${candidate.kind}:${JSON.stringify(candidate.externalLocator)}`
 
-const spaceIcon = (kind: ChannelSpaceKind, isSlack: boolean) => {
+const spaceIcon = (kind: ChannelSpaceKind, channels: boolean) => {
     if (kind === "private") return <ChatCircle size={15} />
-    return isSlack ? <Hash size={15} /> : <UsersThree size={15} />
+    return channels ? <Hash size={15} /> : <UsersThree size={15} />
 }
 
 const SECTION_TITLE = "pb-1 text-[13px] font-semibold text-foreground"
@@ -126,6 +129,8 @@ export const ChannelManagePanel = ({
     const isSlack = connection.platform === "slack"
     const isTelegram = connection.platform === "telegram"
     const isWhatsApp = connection.platform === "whatsapp"
+    const isTeams = connection.platform === "teams"
+    const channels = hasChannels(connection.platform)
     const name = platformLabel(connection.platform)
     const connectionId = connection.connectionId
     const handle = botHandle(connection, hostedHandle)
@@ -395,8 +400,8 @@ export const ChannelManagePanel = ({
         },
         {
             key: "group",
-            title: isSlack ? "Channels" : "Group chats",
-            help: isSlack
+            title: channels ? "Channels" : "Group chats",
+            help: channels
                 ? `Replies in a thread when someone mentions ${handle}.`
                 : "Groups the bot is added to, when it’s mentioned.",
         },
@@ -695,16 +700,20 @@ export const ChannelManagePanel = ({
                         <span className="text-[13px] font-medium text-foreground">
                             {isWhatsApp
                                 ? "Meta rejected the access token"
-                                : revokedOffersToken
-                                  ? "Telegram revoked the bot token"
-                                  : `${name} uninstalled the app`}
+                                : isTeams
+                                  ? "Microsoft rejected the client secret"
+                                  : revokedOffersToken
+                                    ? "Telegram revoked the bot token"
+                                    : `${name} uninstalled the app`}
                         </span>
                         <span className="text-[13px] text-muted-foreground">
                             {isWhatsApp
                                 ? `${agentName} cannot answer there until you paste a new access token.`
-                                : revokedOffersToken
-                                  ? `${agentName} cannot answer there until you paste a new token from @BotFather.`
-                                  : `${agentName} cannot answer there until the app is installed again.`}
+                                : isTeams
+                                  ? `${agentName} cannot answer there until you paste a new client secret.`
+                                  : revokedOffersToken
+                                    ? `${agentName} cannot answer there until you paste a new token from @BotFather.`
+                                    : `${agentName} cannot answer there until the app is installed again.`}
                         </span>
                         {revokedOffersToken ? (
                             tokenOpen ? null : (
@@ -755,7 +764,7 @@ export const ChannelManagePanel = ({
                 <div className="flex flex-col pt-5">
                     <div className="flex items-center justify-between pb-1">
                         <span className="text-[13px] font-semibold text-foreground">
-                            {isSlack ? "Channels it’s in" : isWhatsApp ? "Chats" : "Groups"}
+                            {channels ? "Channels it’s in" : isWhatsApp ? "Chats" : "Groups"}
                         </span>
                         {isSlack && !pickerOpen ? (
                             <Button
@@ -784,7 +793,7 @@ export const ChannelManagePanel = ({
                                 data-testid="channels-space"
                             >
                                 <span className="flex flex-none text-muted-foreground">
-                                    {spaceIcon(space.kind, isSlack)}
+                                    {spaceIcon(space.kind, channels)}
                                 </span>
                                 <span
                                     className={`flex-1 truncate text-sm ${
@@ -878,7 +887,7 @@ export const ChannelManagePanel = ({
                                                         aria-label={candidate.displayName}
                                                     />
                                                     <span className="flex flex-none text-muted-foreground">
-                                                        {spaceIcon(candidate.kind, isSlack)}
+                                                        {spaceIcon(candidate.kind, channels)}
                                                     </span>
                                                     <span className="flex-1 truncate text-[13px] text-foreground">
                                                         {candidate.displayName}
@@ -926,7 +935,9 @@ export const ChannelManagePanel = ({
                         <span className="py-3 text-[13px] text-muted-foreground">
                             {isSlack
                                 ? `Invite ${inviteHandle} to a channel to add it here.`
-                                : `Add ${handle} to a group and mention it once. The group appears here.`}
+                                : isTeams
+                                  ? `Mention ${handle} in a team channel or a group chat. The place appears here.`
+                                  : `Add ${handle} to a group and mention it once. The group appears here.`}
                         </span>
                     )}
                 </div>
@@ -937,6 +948,14 @@ export const ChannelManagePanel = ({
                 <div className="flex flex-col gap-2">
                     <span className={SECTION_TITLE}>Webhook</span>
                     <WhatsAppWebhook connection={connection} />
+                </div>
+            ) : null}
+
+            {/* --- where Teams delivers messages, and the app to install (Teams only) --- */}
+            {isTeams ? (
+                <div className="flex flex-col gap-2">
+                    <span className={SECTION_TITLE}>Teams app</span>
+                    <TeamsAppSetup connection={connection} actions={actions} />
                 </div>
             ) : null}
 
@@ -961,7 +980,9 @@ export const ChannelManagePanel = ({
                                         ? "App credentials"
                                         : isWhatsApp
                                           ? "Access token"
-                                          : "Bot token"}
+                                          : isTeams
+                                            ? "Client secret"
+                                            : "Bot token"}
                                 </span>
                                 <span className="tracking-widest text-[13px] text-muted-foreground">
                                     ••••••••••••

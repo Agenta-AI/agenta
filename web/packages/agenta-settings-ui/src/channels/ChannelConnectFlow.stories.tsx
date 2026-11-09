@@ -5,6 +5,7 @@ import {
     ConnectFlowHost,
     SLACK_SETUP,
     TELEGRAM_LINK,
+    TEAMS_SETUP,
     TELEGRAM_SETUP,
     WHATSAPP_SETUP,
 } from "./storyFixtures"
@@ -228,4 +229,9 @@ export const WhatsAppCustom: Story = {
     render: () => (
         <ConnectFlowHost platform="whatsapp" options={{setup: {whatsapp: WHATSAPP_SETUP}}} />
     ),
+}
+
+/** Teams: register a bot, paste the three values, then copy the endpoint and download the app. */
+export const TeamsCustom: Story = {
+    render: () => <ConnectFlowHost platform="teams" options={{setup: {teams: TEAMS_SETUP}}} />,
 }
