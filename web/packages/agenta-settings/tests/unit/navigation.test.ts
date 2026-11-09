@@ -38,6 +38,12 @@ describe("resolveSettingsTab", () => {
         )
     })
 
+    it("lists Access & Security and Audit Log on OSS, where they show a locked state", () => {
+        const oss = {...baseAccess, isEE: false}
+        expect(resolveSettingsTab("organization", oss)).toBe("organization")
+        expect(resolveSettingsTab("auditLog", oss)).toBe("auditLog")
+    })
+
     it("keeps the projects tab reachable", () => {
         expect(resolveSettingsTab("projects", baseAccess)).toBe("projects")
     })

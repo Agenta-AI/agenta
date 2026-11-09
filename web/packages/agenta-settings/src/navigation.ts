@@ -250,10 +250,11 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canShowTools
         case "mcpEndpoints":
             return access.canShowMcpEndpoints
+        // Listed on OSS too: without the plan feature the tab shows its locked state.
         case "organization":
-            return access.isEE && access.isOwner
+            return access.isOwner
         case "auditLog":
-            return access.isEE && access.canViewEvents
+            return access.canViewEvents
         case "billing":
             return access.isEE && (access.canViewBilling ?? access.isOwner)
         case "analytics":
