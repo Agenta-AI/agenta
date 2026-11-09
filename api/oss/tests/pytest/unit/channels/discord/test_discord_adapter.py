@@ -151,6 +151,69 @@ async def test_a_thread_message_reads_its_channels_once_per_connection(
     assert discord.channel_reads == [p.THREAD_ID, p.CHANNEL_ID]
 
 
+async def test_a_mention_of_the_bots_role_addresses_the_bot(adapter, discord):
+    connection = _connection()
+    event = await _parse(adapter, p.role_mention("hello"), connection)
+    again = await _parse(adapter, p.role_mention("again", message_id="13"), connection)
+
+    assert event.addressed is True
+    assert event.processed.content == [
+        {"type": "text", "text": f"@{p.BOT_USERNAME} hello"}
+    ]
+    assert again.addressed is True
+    assert discord.role_reads == [p.GUILD_ID]
+
+
+async def test_a_mention_of_another_role_does_not_address_the_bot(adapter, discord):
+    event = await _parse(adapter, p.role_mention(role_id=p.OTHER_ROLE_ID))
+
+    assert event.addressed is False
+    assert f"<@&{p.OTHER_ROLE_ID}>" in event.processed.content[0]["text"]
+
+
+async def test_a_direct_mention_does_not_wait_on_the_roles(adapter, discord):
+    discord.fail_role_reads = True
+    payload = p.mention("hello")
+    payload["d"]["mention_roles"] = [p.OTHER_ROLE_ID]
+
+    event = await _parse(adapter, payload)
+
+    assert event.addressed is True
+    assert discord.role_reads == []
+
+
+async def test_the_bots_role_is_read_again_after_it_expires(
+    adapter, discord, monkeypatch
+):
+    from oss.src.core.channels.adapters.discord import adapter as module
+
+    now = [1000.0]
+    monkeypatch.setattr(module.time, "monotonic", lambda: now[0])
+    connection = _connection()
+    await _parse(adapter, p.role_mention(), connection)
+
+    # The bot was removed and invited again, and Discord made a new role.
+    discord.roles[-1]["id"] = "1100000000000000099"
+    now[0] += 60
+    stale = await _parse(
+        adapter, p.role_mention(role_id="1100000000000000099"), connection
+    )
+    now[0] += module._BOT_ROLE_TTL_SECONDS
+    fresh = await _parse(
+        adapter, p.role_mention(role_id="1100000000000000099"), connection
+    )
+
+    assert stale.addressed is False
+    assert fresh.addressed is True
+    assert discord.role_reads == [p.GUILD_ID, p.GUILD_ID]
+
+
+async def test_a_message_without_role_mentions_reads_no_roles(adapter, discord):
+    await _parse(adapter, p.mention())
+
+    assert discord.role_reads == []
+
+
 async def test_a_dm_needs_no_channel_read(adapter, discord):
     event = await _parse(adapter, p.dm())
 
@@ -221,12 +284,53 @@ async def test_the_first_reply_starts_the_thread_from_the_mention(adapter, disco
     }
 
 
-async def test_a_reply_from_another_process_finds_the_existing_thread(adapter, discord):
-    await _post(adapter, _mention_locator(), "one")
-    await _post(adapter, _mention_locator(), "two")
+def _other_process(discord):
+    return DiscordAdapter(
+        http_client=httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=discord.app), base_url=BASE_URL
+        )
+    )
 
+
+async def test_a_reply_from_another_process_finds_the_existing_thread(adapter, discord):
+    connection = _connection()
+    await _post(adapter, _mention_locator(), "one", connection=connection)
+    await _post(
+        _other_process(discord), _mention_locator(), "two", connection=connection
+    )
+
+    # the second start is answered "already created", and the post goes on
+    assert discord.thread_start_attempts == [p.MESSAGE_ID, p.MESSAGE_ID]
     assert len(discord.threads_started) == 1
     assert discord.texts_in(p.MESSAGE_ID) == ["one", "two"]
+
+
+async def test_a_reply_after_the_starter_message_was_deleted(adapter, discord):
+    connection = _connection()
+    await _post(adapter, _mention_locator(), "one", connection=connection)
+    discord.deleted_messages.add(p.MESSAGE_ID)
+
+    await _post(
+        _other_process(discord), _mention_locator(), "two", connection=connection
+    )
+
+    assert discord.texts_in(p.MESSAGE_ID) == ["one", "two"]
+
+
+async def test_typing_from_another_process_shows_in_the_existing_thread(
+    adapter, discord
+):
+    connection = _connection()
+    await _post(adapter, _mention_locator(), connection=connection)
+
+    other = _other_process(discord)
+    for _ in range(2):
+        await other.signal_activity(connection=connection, locator=_mention_locator())
+    await _post(other, _mention_locator(), "two", connection=connection)
+
+    assert discord.typing == [p.MESSAGE_ID, p.MESSAGE_ID]
+    # the typing call proved the thread exists, so the post starts nothing
+    assert discord.thread_start_attempts == [p.MESSAGE_ID]
 
 
 async def test_a_dm_reply_goes_to_the_dm(adapter, discord):
@@ -270,7 +374,7 @@ async def test_a_later_reply_in_the_same_process_starts_no_thread(adapter, disco
     await _post(adapter, _mention_locator(), "one", connection=connection)
     await _post(adapter, _mention_locator(), "two", connection=connection)
 
-    assert len(discord.threads_started) == 1
+    assert discord.thread_start_attempts == [p.MESSAGE_ID]
     assert discord.texts_in(p.MESSAGE_ID) == ["one", "two"]
 
 

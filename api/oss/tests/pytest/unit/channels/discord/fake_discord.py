@@ -56,11 +56,26 @@ class FakeDiscord:
         self.sent: List[Dict[str, Any]] = []
         self.edits: List[Dict[str, Any]] = []
         self.threads_started: List[Dict[str, Any]] = []
+        # the message id of every thread start call, refused ones included
+        self.thread_start_attempts: List[str] = []
+        self.deleted_messages: set = set()
         self.typing: List[str] = []
         self.reactions: List[Dict[str, str]] = []
         self.callbacks: List[Dict[str, Any]] = []
         self.channel_reads: List[str] = []
         self.thread_start_failures: List[int] = []
+        self.roles: List[Dict[str, Any]] = [
+            {"id": p.GUILD_ID, "name": "@everyone"},
+            {"id": p.OTHER_ROLE_ID, "name": "Support"},
+            {
+                "id": p.BOT_ROLE_ID,
+                "name": p.APPLICATION_NAME,
+                "managed": True,
+                "tags": {"bot_id": p.BOT_USER_ID},
+            },
+        ]
+        self.role_reads: List[str] = []
+        self.fail_role_reads = False
         self._next_id = 1_500_000_000_000_000_000
         prefix = "/api/v10"
         self.app = Starlette(
@@ -93,6 +108,7 @@ class FakeDiscord:
                     methods=["POST"],
                 ),
                 Route(f"{prefix}/channels/{{channel_id}}", self._channel),
+                Route(f"{prefix}/guilds/{{guild_id}}/roles", self._roles),
                 Route(
                     f"{prefix}/interactions/{{interaction_id}}/{{token}}/callback",
                     self._callback,
@@ -158,6 +174,14 @@ class FakeDiscord:
         channel = self.channels.get(channel_id)
         return JSONResponse(channel) if channel else self._unknown_channel()
 
+    async def _roles(self, request: Request) -> Response:
+        if not self._authorized(request):
+            return self._unauthorized()
+        self.role_reads.append(request.path_params["guild_id"])
+        if self.fail_role_reads:
+            return self._error(0, "503: fake failure", 503)
+        return JSONResponse(self.roles)
+
     async def _messages(self, request: Request) -> Response:
         if not self._authorized(request):
             return self._unauthorized()
@@ -187,6 +211,9 @@ class FakeDiscord:
         message_id = request.path_params["message_id"]
         if channel_id not in self.channels:
             return self._unknown_channel()
+        self.thread_start_attempts.append(message_id)
+        if message_id in self.deleted_messages:
+            return self._error(10008, "Unknown Message", 404)
         if self.thread_start_failures:
             status = self.thread_start_failures.pop(0)
             return self._error(0, f"{status}: fake failure", status)

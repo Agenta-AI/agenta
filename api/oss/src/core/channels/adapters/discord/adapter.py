@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple
 from urllib.parse import quote
 from uuid import UUID
@@ -33,6 +34,8 @@ log = get_module_logger(__name__)
 
 _DISCORD_API_BASE = "https://discord.com/api/v10"
 
+_UNKNOWN_CHANNEL = 10003
+_UNKNOWN_MESSAGE = 10008
 _THREAD_ALREADY_CREATED = 160004
 
 _DEFERRED_UPDATE_MESSAGE = 6
@@ -41,6 +44,9 @@ _HISTORY_PAGE_MAX = 100
 # space created later, so entries never need refreshing; the cap only bounds
 # memory.
 _CACHE_MAX = 1024
+
+# Removing the bot and inviting it again can give it a new managed role.
+_BOT_ROLE_TTL_SECONDS = 600.0
 
 _RECEIVED_EMOJI = quote("👀")
 _COMPLETED_EMOJI = quote("✅")
@@ -78,6 +84,8 @@ class DiscordAdapter(ChannelAdapterInterface):
         self._channels: Dict[Tuple[UUID, str], Dict[str, Any]] = {}
         # (connection id, thread id) of threads known to exist
         self._threads: Set[Tuple[UUID, str]] = set()
+        # (connection id, guild id) -> (read at, the bot's managed role or None)
+        self._bot_roles: Dict[Tuple[UUID, str], Tuple[float, Optional[str]]] = {}
 
     # --- declaration --- #
 
@@ -201,12 +209,22 @@ class DiscordAdapter(ChannelAdapterInterface):
                 parent_id = str(channel["parent_id"])
                 channel = await self._channel(connection, parent_id)
             title = channel.get("name")
+        # The roles are read only when a role mention is the bot's only way
+        # to be addressed, so a failed read never drops a direct mention.
+        bot_role_id = (
+            await self._bot_role(connection, str(guild_id))
+            if guild_id
+            and data.get("mention_roles")
+            and not mapping.mentions_bot(data, bot_user_id=bot_user_id)
+            else None
+        )
 
         return mapping.parse_message(
             data,
             guild_id=guild_id,
             parent_id=parent_id,
             title=title,
+            bot_role_id=bot_role_id,
             bot_user_id=bot_user_id,
             bot_username=_data(connection).get("bot_username"),
         )
@@ -222,6 +240,35 @@ class DiscordAdapter(ChannelAdapterInterface):
                 _bot_token(connection), "GET", f"/channels/{channel_id}"
             )
         return self._channels[key]
+
+    async def _bot_role(
+        self, connection: ChannelConnection, guild_id: str
+    ) -> Optional[str]:
+        """The role Discord made for the bot in this server: the one whose
+        `tags.bot_id` is the bot. `MESSAGE_CREATE` gives only role ids."""
+
+        key = (connection.id, guild_id)
+        now = time.monotonic()
+        cached = self._bot_roles.get(key)
+        if cached is None or now - cached[0] > _BOT_ROLE_TTL_SECONDS:
+            roles = await self._request(
+                _bot_token(connection), "GET", f"/guilds/{guild_id}/roles"
+            )
+            bot_user_id = _bot_user_id(connection)
+            role_id = next(
+                (
+                    str(role["id"])
+                    for role in (roles if isinstance(roles, list) else [])
+                    if isinstance(role, dict)
+                    and bot_user_id
+                    and str((role.get("tags") or {}).get("bot_id")) == bot_user_id
+                ),
+                None,
+            )
+            if len(self._bot_roles) >= _CACHE_MAX:
+                self._bot_roles.clear()
+            self._bot_roles[key] = (now, role_id)
+        return self._bot_roles[key][1]
 
     async def _acknowledge(self, interaction: Dict[str, Any]) -> None:
         """Answer the click with a deferred update: nothing changes on the
@@ -291,7 +338,9 @@ class DiscordAdapter(ChannelAdapterInterface):
         self, connection: ChannelConnection, locator: Dict[str, Any]
     ) -> None:
         """Start the thread from the message the reply answers. Discord
-        refuses a second start, which also means the thread exists."""
+        refuses a second start, which means the thread exists. It answers
+        Unknown Message once the starter message is deleted, which leaves the
+        thread in place; if the thread is gone too, the post is refused."""
 
         try:
             await self._request(
@@ -306,13 +355,16 @@ class DiscordAdapter(ChannelAdapterInterface):
         except _DiscordApiError as e:
             if e.status_code >= 500:
                 raise _ThreadNotStarted(detail=str(e)) from e
-            if e.code != _THREAD_ALREADY_CREATED:
+            if e.code not in (_THREAD_ALREADY_CREATED, _UNKNOWN_MESSAGE):
                 raise
         except httpx.HTTPError as e:
             raise _ThreadNotStarted(detail=type(e).__name__) from e
+        self._remember_thread(connection, locator["thread_id"])
+
+    def _remember_thread(self, connection: ChannelConnection, thread_id: str) -> None:
         if len(self._threads) >= _CACHE_MAX:
             self._threads.clear()
-        self._threads.add((connection.id, locator["thread_id"]))
+        self._threads.add((connection.id, thread_id))
 
     async def edit_message(
         self,
@@ -350,14 +402,21 @@ class DiscordAdapter(ChannelAdapterInterface):
         starts the thread, it shows in the channel the message was posted
         in."""
 
-        target = (
-            locator["source_channel_id"]
-            if self._thread_missing(connection, locator)
-            else mapping.reply_channel_id(locator)
-        )
-        await self._request(
-            _bot_token(connection), "POST", f"/channels/{target}/typing"
-        )
+        token = _bot_token(connection)
+        target = mapping.reply_channel_id(locator)
+        try:
+            await self._request(token, "POST", f"/channels/{target}/typing")
+        except _DiscordApiError as e:
+            if e.code != _UNKNOWN_CHANNEL or not self._thread_missing(
+                connection, locator
+            ):
+                raise
+            await self._request(
+                token, "POST", f"/channels/{locator['source_channel_id']}/typing"
+            )
+            return
+        if mapping.opens_thread(locator):
+            self._remember_thread(connection, target)
 
     async def set_message_status(
         self,

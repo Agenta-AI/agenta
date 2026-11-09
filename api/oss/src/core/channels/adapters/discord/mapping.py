@@ -135,7 +135,19 @@ def is_bot_authored(message: Dict[str, Any], *, bot_user_id: Optional[str]) -> b
     return bool(bot_user_id) and str(author.get("id")) == bot_user_id
 
 
-def mentions_bot(message: Dict[str, Any], *, bot_user_id: Optional[str]) -> bool:
+def mentions_bot(
+    message: Dict[str, Any],
+    *,
+    bot_user_id: Optional[str],
+    bot_role_id: Optional[str] = None,
+) -> bool:
+    """A mention of the bot user, or of the bot's managed role, which
+    Discord's autocomplete often offers instead."""
+
+    if bot_role_id and bot_role_id in {
+        str(role) for role in message.get("mention_roles") or []
+    }:
+        return True
     if not bot_user_id:
         return False
     return any(
@@ -144,13 +156,21 @@ def mentions_bot(message: Dict[str, Any], *, bot_user_id: Optional[str]) -> bool
     )
 
 
-def _readable_text(text: str, *, bot_user_id: Optional[str], handle: str) -> str:
-    """The bot's own mention as a readable handle: `<@123…>` is noise to the
-    agent."""
+def _readable_text(
+    text: str,
+    *,
+    bot_user_id: Optional[str],
+    bot_role_id: Optional[str],
+    handle: str,
+) -> str:
+    """The bot's own mention as a readable handle: `<@123…>` and `<@&456…>`
+    are noise to the agent."""
 
-    if not bot_user_id:
-        return text
-    return re.sub(rf"<@!?{re.escape(bot_user_id)}>", handle, text)
+    if bot_user_id:
+        text = re.sub(rf"<@!?{re.escape(bot_user_id)}>", handle, text)
+    if bot_role_id:
+        text = re.sub(rf"<@&{re.escape(bot_role_id)}>", handle, text)
+    return text
 
 
 def _sender(message: Dict[str, Any]) -> Dict[str, Any]:
@@ -185,11 +205,12 @@ def parse_message(
     bot_user_id: Optional[str],
     bot_username: Optional[str],
     title: Optional[str] = None,
+    bot_role_id: Optional[str] = None,
 ) -> Optional[ChannelInboundEvent]:
     """A person's message as an event, or None for the bot's own posts,
     other bots and system notices. `parent_id` is the parent text channel
-    when the message was posted inside a thread, and `title` that text
-    channel's name."""
+    when the message was posted inside a thread, `title` that text
+    channel's name, and `bot_role_id` the bot's managed role in the server."""
 
     message_id = message.get("id")
     source_channel_id = message.get("channel_id")
@@ -208,7 +229,10 @@ def parse_message(
     )
     handle = f"@{bot_username}" if bot_username else "@Agenta"
     text = _readable_text(
-        message.get("content") or "", bot_user_id=bot_user_id, handle=handle
+        message.get("content") or "",
+        bot_user_id=bot_user_id,
+        bot_role_id=bot_role_id,
+        handle=handle,
     )
     if opens_thread(locator):
         locator["thread_name"] = _thread_name(text, fallback=handle)
@@ -226,7 +250,9 @@ def parse_message(
             sent_at=_sent_at(message.get("timestamp")),
             message_ref=str(message_id),
         ),
-        addressed=mentions_bot(message, bot_user_id=bot_user_id),
+        addressed=mentions_bot(
+            message, bot_user_id=bot_user_id, bot_role_id=bot_role_id
+        ),
     )
 
 
