@@ -34,6 +34,8 @@ export interface AgentPageHeaderProps {
      * actions centre on the whole bar.
      */
     tabbed?: boolean
+    /** `start`: `center` begins right after the identity and fills the room up to the actions. */
+    centerAlign?: "center" | "start"
     className?: string
 }
 
@@ -65,6 +67,7 @@ export const AgentPageHeader = ({
     className,
     icon,
     tabbed = false,
+    centerAlign = "center",
 }: AgentPageHeaderProps) => {
     return (
         <div
@@ -74,7 +77,9 @@ export const AgentPageHeader = ({
             // sizes to its content, as it always did.
             className={`${
                 center
-                    ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center"
+                    ? centerAlign === "start"
+                        ? "grid grid-cols-[auto_minmax(0,1fr)_max-content] items-center !gap-0"
+                        : "grid grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center"
                     : "flex items-center justify-between"
             } min-h-[48px] shrink-0 gap-2 px-2.5 sm:min-h-0 sm:gap-4 ${
                 tabbed
@@ -131,7 +136,11 @@ export const AgentPageHeader = ({
             leaves and its buttons spill left over the name. Below `sm` it keeps its content width
             and the name truncates instead; from `sm` up min-w-0 lets the desktop's evaluator-tag
             strip scroll inside it. */}
-            <div className="flex min-w-fit flex-1 items-center justify-end gap-2 sm:min-w-0">
+            <div
+                className={`flex min-w-fit flex-1 items-center justify-end gap-2 sm:min-w-0 ${
+                    center && centerAlign === "start" ? "pl-4" : ""
+                }`}
+            >
                 {actions}
             </div>
         </div>

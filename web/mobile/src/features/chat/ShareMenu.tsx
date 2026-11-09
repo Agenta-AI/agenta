@@ -49,7 +49,7 @@ export const ShareMenu = ({
     workspaceId,
     projectId,
     phone,
-    buttons = true,
+    folded = [],
 }: {
     agentId: string
     sessionId: string
@@ -62,10 +62,10 @@ export const ShareMenu = ({
     projectId: string
     phone: boolean
     /**
-     * Off where the bar has no room for the buttons (the files pane is open): the ⋯ menu offers
-     * Share and Publish instead, and the Share panel opens from the bar's right end.
+     * Buttons the bar has no room for: the ⋯ menu offers them instead, and a folded Share opens
+     * its panel from the bar's right end.
      */
-    buttons?: boolean
+    folded?: readonly ("share" | "publish")[]
 }) => {
     const store = useStore()
     const pending = useAtomValue(pendingTasksAtom)[sessionId] !== undefined
@@ -232,7 +232,7 @@ export const ShareMenu = ({
             ) : (
                 <div className="flex items-center">
                     <Popover open={open} onOpenChange={onOpenChange}>
-                        {buttons ? (
+                        {!folded.includes("share") ? (
                             <PopoverTrigger asChild>
                                 <Button variant="ghost" size="sm" data-testid="share-menu-share">
                                     <UsersIcon data-icon="inline-start" />
@@ -253,7 +253,7 @@ export const ShareMenu = ({
                             {panel}
                         </PopoverContent>
                     </Popover>
-                    {buttons ? (
+                    {!folded.includes("publish") ? (
                         <Button
                             variant="ghost"
                             size="sm"

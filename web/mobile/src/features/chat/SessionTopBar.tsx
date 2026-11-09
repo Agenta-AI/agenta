@@ -1,14 +1,13 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject} from "react"
 
 import {phoneViewportAtom} from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {sessionRowVm} from "@agenta/sessions/row"
 import {KeyboardShortcutsSheet, ShortcutKeys, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {LockSimpleIcon, NotePencilIcon, PlusIcon} from "@phosphor-icons/react"
+import {NotePencilIcon, PlusIcon} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {sharingCopy} from "@/lib/sharingCopy"
@@ -16,6 +15,7 @@ import {sharingCopy} from "@/lib/sharingCopy"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {heldCommitAtomFamily} from "./selectedRevision"
+import {SessionAgentIdentity} from "./SessionAgentIdentity"
 import {sessionBarPanelAtom} from "./sessionBarState"
 import {SessionMoreMenu} from "./SessionMoreMenu"
 import {SessionSharingControl} from "./SessionSharingControl"
@@ -24,9 +24,93 @@ import {ShareMenu} from "./ShareMenu"
 import {useSessionHeader} from "./useSessionHeader"
 import {useStartBlankSession} from "./useStartBlankSession"
 
+type FoldedShare = ("share" | "publish")[]
+const NONE: FoldedShare = []
+/** The order buttons leave the bar when the tabs need the room. */
+const FOLD_STEPS: FoldedShare[] = [NONE, ["publish"], ["publish", "share"]]
+/** Grid gap between the bar's columns (`sm:gap-4`). */
+const COLUMN_GAP = 16
+
+/** Span of an element's laid-out children: its content width, whatever its own box is. */
+const contentWidth = (el: Element | null | undefined): number => {
+    const boxes = Array.from(el?.children ?? [])
+        .map((child) => child.getBoundingClientRect())
+        .filter((box) => box.width > 0)
+    if (boxes.length === 0) return 0
+    return Math.max(...boxes.map((b) => b.right)) - Math.min(...boxes.map((b) => b.left))
+}
+
 /**
- * The session workspace's one bar: which agent, which session, and what you can do with them. It
- * spans both panes, so the identity belongs to the workspace and not to either pane.
+ * Which of Share and Publish the bar folds into ⋯, and whether the tabs centre or start left.
+ * Buttons fold one at a time and only when the tabs would otherwise meet them; with room to
+ * spare both stay. Measured against what the bar would need with every button in place, so a
+ * fold never feeds back into the next decision.
+ */
+const useBarFit = (
+    barRef: RefObject<HTMLDivElement | null>,
+    stripWidth: number,
+    preferCenter: boolean,
+) => {
+    const [fit, setFit] = useState<{folded: FoldedShare; center: boolean}>({
+        folded: NONE,
+        center: preferCenter,
+    })
+    // Widths of the buttons as last seen in the bar, so a folded one still counts.
+    const seen = useRef({share: 76, publish: 84, divider: 9})
+    useLayoutEffect(() => {
+        const bar = barRef.current
+        const grid = bar?.firstElementChild
+        if (!bar || !grid || stripWidth === 0) return
+        const measure = () => {
+            const shareButton = grid.querySelector('[data-testid="share-menu-share"]')
+            const publishButton = grid.querySelector('[data-testid="share-menu-publish"]')
+            if (shareButton) seen.current.share = shareButton.getBoundingClientRect().width
+            if (publishButton) seen.current.publish = publishButton.getBoundingClientRect().width
+            const room = grid.clientWidth - 20
+            const left = contentWidth(grid.firstElementChild)
+            const shown = contentWidth(grid.lastElementChild)
+            const full =
+                shown +
+                (publishButton ? 0 : seen.current.publish) +
+                (shareButton ? 0 : seen.current.share + seen.current.divider)
+            const rightFor = (folded: FoldedShare) =>
+                full -
+                (folded.includes("publish") ? seen.current.publish : 0) -
+                (folded.includes("share") ? seen.current.share + seen.current.divider : 0)
+            const fits = (folded: FoldedShare, center: boolean) => {
+                const right = rightFor(folded)
+                return center
+                    ? stripWidth + 2 * Math.max(left, right) + 2 * COLUMN_GAP <= room
+                    : left + stripWidth + right + COLUMN_GAP <= room
+            }
+            const tries = preferCenter ? [true, false] : [false]
+            for (const center of tries) {
+                const folded = FOLD_STEPS.find((step) => fits(step, center))
+                if (folded) return {folded, center}
+            }
+            // No room even with both folded: the strip itself shrinks to whole tabs.
+            return {folded: FOLD_STEPS[FOLD_STEPS.length - 1], center: false}
+        }
+        const apply = () => {
+            const next = measure()
+            setFit((prev) =>
+                prev.center === next.center && prev.folded.join() === next.folded.join()
+                    ? prev
+                    : next,
+            )
+        }
+        apply()
+        const ro = new ResizeObserver(apply)
+        ro.observe(bar)
+        return () => ro.disconnect()
+    }, [barRef, stripWidth, preferCenter])
+    return fit
+}
+
+/**
+ * The session workspace's bar: which session, and what you can do with it. On a desktop it spans
+ * the session column only; side panes run the full height beside it. The agent shows here unless
+ * the open config pane shows it at its own top.
  *
  * No Build/Chat switch: the config pane is shown or collapsed, and that is the whole model.
  */
@@ -41,6 +125,7 @@ export const SessionTopBar = ({
     hasSessions,
     workspaceId,
     projectId,
+    identityInPane = false,
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
     entityId: string | null
@@ -59,6 +144,8 @@ export const SessionTopBar = ({
     hasSessions: boolean
     workspaceId: string
     projectId: string
+    /** Desktop with the config pane open: the agent shows atop that pane, not in the bar. */
+    identityInPane?: boolean
 }) => {
     // Seeded at load, unlike a media query, so the first paint already has the right layout.
     const phone = useAtomValue(phoneViewportAtom)
@@ -85,6 +172,12 @@ export const SessionTopBar = ({
         agentId ?? sessionId,
         sessionId,
     )
+    // The bar's own width decides whether Share and Publish fit beside the tabs.
+    const barRef = useRef<HTMLDivElement>(null)
+    const [stripWidth, setStripWidth] = useState(0)
+    const fit = useBarFit(barRef, stripWidth, !identityInPane)
+    const foldedShare = phone ? NONE : fit.folded
+    const shareFolded = foldedShare.includes("share")
 
     const revision =
         entityId && !agentHidden ? (
@@ -107,6 +200,8 @@ export const SessionTopBar = ({
             workspaceId={workspaceId}
             projectId={projectId}
             phone={phone}
+            align={fit.center ? "center" : "start"}
+            onStripNaturalWidth={setStripWidth}
         />
     ) : null
 
@@ -120,8 +215,8 @@ export const SessionTopBar = ({
             hasSessions={hasSessions}
             projectId={projectId}
             phone={phone}
-            // The files pane takes the bar's room, so Share and Publish wait in the menu.
-            shareInMenu={!phone && filesOpen}
+            // Folded one by one, only when the tabs would meet them.
+            foldedShare={foldedShare}
             onOpenShortcuts={() => setShortcutsOpen(true)}
         />
     )
@@ -138,7 +233,7 @@ export const SessionTopBar = ({
                 workspaceId={workspaceId}
                 projectId={projectId}
                 phone={phone}
-                buttons={!filesOpen}
+                folded={foldedShare}
             />
         ) : hasSessions ? (
             <SessionSharingControl
@@ -182,66 +277,66 @@ export const SessionTopBar = ({
     }
 
     return (
-        <AgentPageHeader
-            // Tabs set the bar's height; without them it keeps the 48px row.
-            className={switcher ? undefined : "md:min-h-12"}
-            tabbed={Boolean(switcher)}
-            // Nav is the drawer below `lg`; it hides itself where the rail takes over.
-            leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
-            identity={
-                agentHidden ? (
-                    <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                        <LockSimpleIcon size={14} aria-hidden className="shrink-0" />
-                        {agentName}
-                    </span>
-                ) : (
-                    <>
-                        <AgentIdentity
-                            workflowId={agentId}
-                            name={agentName}
+        <div ref={barRef} className="min-w-0 shrink-0">
+            <AgentPageHeader
+                centerAlign={fit.center ? "center" : "start"}
+                // Tabs set the bar's height; without them it keeps the 48px row.
+                className={switcher ? undefined : "md:min-h-12"}
+                tabbed={Boolean(switcher)}
+                // Nav is the drawer below `lg`; it hides itself where the rail takes over.
+                leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
+                identity={
+                    // The open config pane shows the agent at its own top.
+                    identityInPane ? undefined : (
+                        <SessionAgentIdentity
+                            entityId={entityId}
+                            sessionId={sessionId}
+                            agentId={agentId}
+                            agentHidden={agentHidden}
+                            onUpdate={onUpdate}
                             // The Files pane takes the bar's room; the tabs keep it.
                             iconOnly={hasSessions && filesOpen}
                         />
-                        {revision}
-                    </>
-                )
-            }
-            center={switcher}
-            actions={
-                <>
-                    {/* The session tools sit tight as one group. */}
-                    <div className="flex items-center gap-0.5">
-                        {hasSessions && agentId ? (
-                            <SimpleTooltip
-                                title={
-                                    <span className="flex items-center gap-1.5">
-                                        New session <ShortcutKeys id="session.new" tone="inverse" />
-                                    </span>
-                                }
-                            >
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label="New session"
-                                    onClick={() => startBlank(agentId)}
+                    )
+                }
+                center={switcher}
+                actions={
+                    <>
+                        {/* The session tools sit tight as one group. */}
+                        <div className="flex items-center gap-0.5">
+                            {hasSessions && agentId ? (
+                                <SimpleTooltip
+                                    title={
+                                        <span className="flex items-center gap-1.5">
+                                            New session{" "}
+                                            <ShortcutKeys id="session.new" tone="inverse" />
+                                        </span>
+                                    }
                                 >
-                                    <NotePencilIcon />
-                                </Button>
-                            </SimpleTooltip>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="New session"
+                                        onClick={() => startBlank(agentId)}
+                                    >
+                                        <NotePencilIcon />
+                                    </Button>
+                                </SimpleTooltip>
+                            ) : null}
+                            {hasSessions ? (
+                                <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} />
+                            ) : null}
+                            {more}
+                        </div>
+                        {/* Separates the session's tools from the agent's sharing; gone with them. */}
+                        {agentId && !agentHidden && !shareFolded ? (
+                            <span aria-hidden className="bg-border mx-1 h-4 w-px shrink-0" />
                         ) : null}
-                        {hasSessions ? (
-                            <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} />
-                        ) : null}
-                        {more}
-                    </div>
-                    {/* Separates the session's tools from the agent's sharing; gone with them. */}
-                    {agentId && !agentHidden && !filesOpen ? (
-                        <span aria-hidden className="bg-border mx-1 h-4 w-px shrink-0" />
-                    ) : null}
-                    {share}
-                    {shortcuts}
-                </>
-            }
-        />
+                        {share}
+                        {shortcuts}
+                    </>
+                }
+            />
+        </div>
     )
 }

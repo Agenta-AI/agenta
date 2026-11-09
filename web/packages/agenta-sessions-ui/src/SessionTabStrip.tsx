@@ -57,6 +57,10 @@ const chipsWidth = (el: HTMLElement): number => {
 const hostRoom = (el: HTMLElement): number => {
     for (let node = el.parentElement; node; node = node.parentElement) {
         const max = parseFloat(getComputedStyle(node).maxWidth)
+        // A host that fills its row marks itself: its own width is the room, within its cap.
+        if (node.dataset.stripRoom === "fill") {
+            return Math.min(node.clientWidth, Number.isFinite(max) ? max : Infinity)
+        }
         if (Number.isFinite(max)) return max
     }
     return Number.POSITIVE_INFINITY
@@ -124,6 +128,9 @@ export interface SessionTabStripProps {
      * scroll by hand on the nearest window once it rests.
      */
     fitTabs?: number
+    /** Fit mode: the width the strip would take for `fitTabs` tabs with room to spare, so the
+     * host can make room before the strip has to shrink. */
+    onNaturalWidth?: (width: number) => void
     className?: string
 }
 
@@ -163,6 +170,7 @@ export const SessionTabStrip = ({
     bare = false,
     snap = false,
     fitTabs,
+    onNaturalWidth,
     className,
 }: SessionTabStripProps) => {
     // Edge fade is applied per side only where the strip is actually scrolled past its content, so
@@ -177,6 +185,9 @@ export const SessionTabStrip = ({
     // Fit mode: ONE function owns the strip's width and scroll. A separate snap, fit and reveal
     // each moved the strip on their own timers and fought over it.
     const homeStartRef = useRef(0)
+    const naturalRef = useRef(0)
+    const onNaturalWidthRef = useRef(onNaturalWidth)
+    onNaturalWidthRef.current = onNaturalWidth
     const tabCountRef = useRef(0)
     const pressedRef = useRef(false)
     // The open tab is pulled into view only when it CHANGES. Re-running that on every resize
@@ -217,6 +228,11 @@ export const SessionTabStrip = ({
             }
             let count = fitTabs
             let home = homeFor(count)
+            const natural = span(home, count)
+            if (natural !== naturalRef.current) {
+                naturalRef.current = natural
+                onNaturalWidthRef.current?.(natural)
+            }
             while (count > 1 && span(home, count) > room + 1) {
                 count -= 1
                 home = homeFor(count)
@@ -308,6 +324,9 @@ export const SessionTabStrip = ({
                 fitWindow("keep")
             })
             ro.observe(el)
+            // The host may fill its row (`data-strip-room="fill"`) and resize with the bar.
+            const roomHost = el.closest<HTMLElement>("[data-strip-host]")
+            if (roomHost) ro.observe(roomHost)
             // Watch the chips too: they animate their width, and a removed chip never resizes the box.
             const observeChildren = () => {
                 for (const child of Array.from(el.children)) ro.observe(child)

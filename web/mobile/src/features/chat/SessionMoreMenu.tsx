@@ -65,7 +65,7 @@ export const SessionMoreMenu = ({
     hasSessions,
     projectId,
     phone,
-    shareInMenu = false,
+    foldedShare = [],
     onOpenShortcuts,
 }: {
     sessionId: string
@@ -77,8 +77,8 @@ export const SessionMoreMenu = ({
     hasSessions: boolean
     projectId: string
     phone: boolean
-    /** The bar dropped its Share and Publish buttons: offer them at the top of the menu. */
-    shareInMenu?: boolean
+    /** Share and Publish buttons the bar has no room for: offered at the top of the menu. */
+    foldedShare?: readonly ("share" | "publish")[]
     onOpenShortcuts: () => void
 }) => {
     const [panel, setPanel] = useAtom(sessionBarPanelAtom)
@@ -214,6 +214,10 @@ export const SessionMoreMenu = ({
           ]
         : []
 
+    const folded = publish.filter((action) =>
+        foldedShare.includes(action.key as "share" | "publish"),
+    )
+
     const inspector = inspectorEnabled ? (
         <SessionInspectorSheet
             sessionId={sessionId}
@@ -320,8 +324,8 @@ export const SessionMoreMenu = ({
                     className="w-[280px]"
                     onCloseAutoFocus={onCloseAutoFocus}
                 >
-                    {shareInMenu ? publish.map(item) : null}
-                    {shareInMenu && publish.length > 0 ? <DropdownMenuSeparator /> : null}
+                    {folded.map(item)}
+                    {folded.length > 0 ? <DropdownMenuSeparator /> : null}
                     {session.map(item)}
                     {session.length > 0 ? <DropdownMenuSeparator /> : null}
                     {item({

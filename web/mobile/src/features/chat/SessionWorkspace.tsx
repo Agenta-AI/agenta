@@ -44,6 +44,7 @@ import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
+import {ConfigPaneHeader} from "./ConfigPaneHeader"
 import {PaneEdgeToggle} from "./PaneEdgeToggle"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {sessionBarPanelAtom, sessionRenameRequestAtom} from "./sessionBarState"
@@ -403,8 +404,11 @@ export const SessionWorkspace = ({
         </>
     )
 
+    // Desktop with the config pane up: the agent shows atop that pane, and the bar holds sessions.
+    const identityInPane = twoPane && showPane && paneKind === "config"
     const topBar = (
         <SessionTopBar
+            identityInPane={identityInPane}
             entityId={entityId}
             sessionId={sessionId}
             onUpdate={pinRevision}
@@ -478,7 +482,6 @@ export const SessionWorkspace = ({
                             }
                             fill={
                                 <div className="flex h-full min-h-0 min-w-0 flex-col">
-                                    {twoPane ? topBar : null}
                                     <div className="relative min-h-0 min-w-0 flex-1">
                                         {/* Up here because the panes clip, and a pill sits across their edge. */}
                                         {twoPane &&
@@ -530,27 +533,46 @@ export const SessionWorkspace = ({
                                             onResizeEnd={(size) => setStoredPaneWidth(size)}
                                             className="h-full"
                                             pane={
-                                                <div className="h-full min-h-0" inert={!showPane}>
-                                                    {pane}
+                                                <div
+                                                    className="flex h-full min-h-0 flex-col"
+                                                    inert={!showPane}
+                                                >
+                                                    {identityInPane ? (
+                                                        <ConfigPaneHeader
+                                                            entityId={entityId}
+                                                            sessionId={sessionId}
+                                                            agentId={agentId}
+                                                            agentHidden={agentHidden}
+                                                            onUpdate={pinRevision}
+                                                        />
+                                                    ) : null}
+                                                    <div className="min-h-0 flex-1">{pane}</div>
                                                 </div>
                                             }
                                             fill={
-                                                <div
-                                                    className="ag-canvas flex h-full min-h-0"
-                                                    inert={filesExpanded || (!twoPane && showFiles)}
-                                                >
-                                                    {/* Where the collapsed pane went, on a surface with no
+                                                // The bar sits over the session column only, so
+                                                // the open tab always meets the transcript.
+                                                <div className="flex h-full min-h-0 min-w-0 flex-col">
+                                                    {twoPane ? topBar : null}
+                                                    <div
+                                                        className="ag-canvas flex min-h-0 flex-1"
+                                                        inert={
+                                                            filesExpanded || (!twoPane && showFiles)
+                                                        }
+                                                    >
+                                                        {/* Where the collapsed pane went, on a surface with no
                                                         reveal in its bar: the empty column becomes the
                                                         pane's own edge instead of dead canvas. Needs the
                                                         width for a vertical label, so `md` up. */}
-                                                    {hideSessionSwitcher &&
-                                                    twoPane &&
-                                                    !chatMaximized &&
-                                                    configCollapsed ? (
-                                                        <CollapsedConfigRail />
-                                                    ) : null}
-                                                    <div className="min-h-0 min-w-0 flex-1">
-                                                        {chat}
+                                                        {hideSessionSwitcher &&
+                                                        twoPane &&
+                                                        !chatMaximized &&
+                                                        configCollapsed ? (
+                                                            <CollapsedConfigRail />
+                                                        ) : null}
+                                                        <div className="min-h-0 min-w-0 flex-1">
+                                                            {chat}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             }

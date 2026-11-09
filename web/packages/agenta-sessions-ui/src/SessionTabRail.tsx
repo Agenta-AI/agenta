@@ -110,6 +110,8 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      * users expect to arrange. Off leaves the rail in list order.
      */
     reorderable?: boolean
+    /** See `SessionTabStrip.onNaturalWidth`. */
+    onStripNaturalWidth?: (width: number) => void
     /** See `SessionTabStrip`: the host bar draws the chrome. */
     bare?: boolean
     className?: string
@@ -433,6 +435,7 @@ export const SessionTabRail = ({
     canRenameTab,
     reorderable = true,
     bare,
+    onStripNaturalWidth,
     className,
     ...listArgs
 }: SessionTabRailProps) => {
@@ -570,6 +573,7 @@ export const SessionTabRail = ({
             bare={bare}
             snap={bare}
             fitTabs={bare ? 3 : undefined}
+            onNaturalWidth={onStripNaturalWidth}
             className={className}
         >
             {tabs.isPending && rows.length === 0

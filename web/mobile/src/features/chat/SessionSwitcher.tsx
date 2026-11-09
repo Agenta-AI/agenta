@@ -18,6 +18,7 @@ import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
+import {cn} from "@/lib/utils"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
@@ -44,6 +45,8 @@ export const SessionSwitcher = ({
     workspaceId,
     projectId,
     phone,
+    align = "center",
+    onStripNaturalWidth,
 }: {
     sessionId: string
     agentId?: string | null
@@ -55,6 +58,10 @@ export const SessionSwitcher = ({
     workspaceId: string
     projectId: string
     phone: boolean
+    /** `start`: the strip fills the bar's room from the left (the config pane is open). */
+    align?: "center" | "start"
+    /** The width the tab strip wants, so the bar can fold its buttons before the tabs shrink. */
+    onStripNaturalWidth?: (width: number) => void
 }) => {
     const base = `/w/${workspaceId}/p/${projectId}`
     const me = useAtomValue(userAtom)
@@ -210,11 +217,17 @@ export const SessionSwitcher = ({
                     `pt-2` is the room above the tabs. */}
                 <div
                     ref={stripRef}
-                    className="flex min-w-0 max-w-[388px] self-stretch pt-2 xl:max-w-[570px]"
+                    data-strip-host=""
+                    data-strip-room={align === "start" ? "fill" : undefined}
+                    className={cn(
+                        "flex min-w-0 max-w-[388px] self-stretch pt-2 xl:max-w-[570px]",
+                        align === "start" && "-ml-0.5",
+                    )}
                 >
                     {agentId || !agentResolving ? (
                         <SessionTabRail
                             bare
+                            onStripNaturalWidth={onStripNaturalWidth}
                             agentId={agentId ?? undefined}
                             policy={{origin: "exclude-trigger", expansions: []}}
                             limit={12}
