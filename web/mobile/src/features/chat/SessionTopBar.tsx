@@ -135,6 +135,8 @@ const SessionTopBarView = ({
     workspaceId,
     projectId,
     identityInPane = false,
+    configOpen = false,
+    onToggleConfig,
     onShowConfig,
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
@@ -156,6 +158,10 @@ const SessionTopBarView = ({
     projectId: string
     /** Desktop with the config pane open: the agent shows atop that pane, not in the bar. */
     identityInPane?: boolean
+    /** Phone: the config pane is on screen in the chat's place. */
+    configOpen?: boolean
+    /** Phone: shows or hides the config pane; the bar's toggle is absent without it. */
+    onToggleConfig?: () => void
     /** Opens the closed config pane; its button leads the bar. */
     onShowConfig?: () => void
 }) => {
@@ -272,6 +278,9 @@ const SessionTopBarView = ({
                     </span>
                 )}
                 {revision}
+                {onToggleConfig ? (
+                    <ConfigPaneToggle open={configOpen} onToggle={onToggleConfig} size="icon" />
+                ) : null}
                 {hasSessions && agentId ? (
                     <Button
                         variant="ghost"

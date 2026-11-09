@@ -325,6 +325,10 @@ export const SessionWorkspace = ({
         (id: string) => closeTabs([id], openTabIds),
         [closeTabs, openTabIds],
     )
+    const toggleConfig = useCallback(
+        () => (showConfig ? setConfigCollapsed(true) : revealConfig()),
+        [revealConfig, setConfigCollapsed, showConfig],
+    )
     useSessionShortcuts({
         sessions: shortcutSessions,
         activeId: sessionId,
@@ -353,10 +357,7 @@ export const SessionWorkspace = ({
         // A phone shows no tabs, so there is nothing for Alt+W to close.
         onCloseSession: phoneViewport ? undefined : closeSession,
         onSearch: useCallback(() => setBarPanel("switcher"), [setBarPanel]),
-        onToggleConfigPanel: useCallback(
-            () => (showConfig ? setConfigCollapsed(true) : revealConfig()),
-            [revealConfig, setConfigCollapsed, showConfig],
-        ),
+        onToggleConfigPanel: toggleConfig,
         onToggleFilesPane: toggleFilesPane,
     })
 
@@ -408,6 +409,9 @@ export const SessionWorkspace = ({
     const topBar = (
         <SessionTopBar
             identityInPane={identityInPane}
+            // A phone shows the config in the chat's place, so its bar carries the way back.
+            configOpen={showConfig}
+            onToggleConfig={!twoPane && configEntityId && !filesOpen ? toggleConfig : undefined}
             // Closed, the pane's toggle waits at the bar's start.
             onShowConfig={
                 twoPane && configEntityId && !showConfig && !filesExpanded

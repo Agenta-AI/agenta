@@ -4,7 +4,16 @@ import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDoubleLeftIcon, CaretDoubleRightIcon} from "@phosphor-icons/react"
 
 /** Opens and closes the config pane: atop the pane while open, at the bar's start while closed. */
-export const ConfigPaneToggle = ({open, onToggle}: {open: boolean; onToggle: () => void}) => {
+export const ConfigPaneToggle = ({
+    open,
+    onToggle,
+    size = "icon-sm",
+}: {
+    open: boolean
+    onToggle: () => void
+    /** The phone bar's buttons are the larger touch size. */
+    size?: "icon" | "icon-sm"
+}) => {
     const label = open ? "Hide configuration" : "Show configuration"
     return (
         <SimpleTooltip
@@ -16,7 +25,7 @@ export const ConfigPaneToggle = ({open, onToggle}: {open: boolean; onToggle: () 
         >
             <Button
                 variant="ghost"
-                size="icon-sm"
+                size={size}
                 aria-label={label}
                 aria-expanded={open}
                 aria-keyshortcuts={shortcutAria("panel.config")}
