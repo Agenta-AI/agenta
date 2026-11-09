@@ -39,9 +39,9 @@ const CHIP = "h-7 w-fit min-w-20 max-w-32 gap-1.5 rounded px-2 text-xs"
 const CONNECTED = "h-8 w-[180px] gap-2 rounded-t-lg px-3 text-xs"
 /** The open tab's lower corners curve outward into the page, as browser tabs do. The shadow
  * paints the page colour into the curve's outer side. */
-const FLARE = "pointer-events-none absolute bottom-0 h-2 w-2"
-const FLARE_LEFT = "-left-2 rounded-br-lg shadow-[4px_4px_0_4px_var(--ag-surface-canvas)]"
-const FLARE_RIGHT = "-right-2 rounded-bl-lg shadow-[-4px_4px_0_4px_var(--ag-surface-canvas)]"
+const FLARE = "pointer-events-none absolute bottom-0 h-1.5 w-1.5"
+const FLARE_LEFT = "-left-1.5 rounded-br-md shadow-[3px_3px_0_3px_var(--ag-surface-canvas)]"
+const FLARE_RIGHT = "-right-1.5 rounded-bl-md shadow-[-3px_3px_0_3px_var(--ag-surface-canvas)]"
 
 export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
     /** The session on screen: primary text on the `colorFill` chip. */
