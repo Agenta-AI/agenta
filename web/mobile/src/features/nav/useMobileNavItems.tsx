@@ -13,7 +13,9 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
-    RELEASES,
+    newerReleases,
+    releaseListAtom,
+    runningVersionAtom,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     setSidebarSessionFilterDefaults,
@@ -22,7 +24,12 @@ import {
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {
+    buildReleaseNavItems,
+    noticeNavKey,
+    SessionFilterMenu,
+    SessionSearchButton,
+} from "@agenta/navigation-ui"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {
     SessionRowActions,
@@ -59,6 +66,7 @@ import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
+import {useReleaseNotices} from "@/features/education/useReleaseNotices"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
 import {useProjectPermission} from "../context/useProjectPermission"
@@ -400,12 +408,26 @@ export const useMobileHelpItem = ({
 }: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
     const version = useMobileVersion()
     const openWhatsNew = useSetAtom(whatsNewAtom)
+    const releases = useAtomValue(releaseListAtom)
+    const runningVersion = useAtomValue(runningVersionAtom)
+    const {notices, dismiss: dismissNotice} = useReleaseNotices()
+    const updateAvailable = newerReleases(releases, runningVersion).length > 0
 
     return useMemo(
         () =>
             buildHelpDocsNavItem({
                 icons: {
-                    help: createElement(QuestionIcon, {size: 16}),
+                    help: updateAvailable
+                        ? createElement(
+                              "span",
+                              {className: "relative flex", "aria-label": "Update available"},
+                              createElement(QuestionIcon, {size: 16}),
+                              createElement("span", {
+                                  className:
+                                      "absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-colorSuccess",
+                              }),
+                          )
+                        : createElement(QuestionIcon, {size: 16}),
                     docs: createElement(ScrollIcon, {size: 14}),
                     github: createElement(GithubLogoIcon, {size: 14}),
                     slack: createElement(SlackLogoIcon, {size: 14}),
@@ -420,18 +442,42 @@ export const useMobileHelpItem = ({
                         // The rule between the destinations and the release list.
                         divider: true,
                     },
-                    // Release rows reopen the what's-new dialog; "View all releases" links out.
-                    ...buildReleaseNavItems(version).map((item) =>
-                        RELEASES.some((release) => release.id === item.key)
-                            ? {
-                                  ...item,
-                                  link: undefined,
-                                  onClick: () => openWhatsNew({releaseId: item.key}),
-                              }
-                            : item,
+                    // Release rows reopen the what's-new dialog; a notice opens its link and
+                    // stays closed after; "View all releases" links out.
+                    ...buildReleaseNavItems(version, {releases, runningVersion, notices}).map(
+                        (item) => {
+                            const notice = notices.find(
+                                (entry) => noticeNavKey(entry.id) === item.key,
+                            )
+                            if (notice)
+                                return {
+                                    ...item,
+                                    link: undefined,
+                                    onClick: () => {
+                                        window.open(notice.link, "_blank", "noopener,noreferrer")
+                                        dismissNotice(notice.id)
+                                    },
+                                }
+                            return releases.some((release) => release.id === item.key)
+                                ? {
+                                      ...item,
+                                      link: undefined,
+                                      onClick: () => openWhatsNew({releaseId: item.key}),
+                                  }
+                                : item
+                        },
                     ),
                 ],
             }),
-        [onOpenShortcuts, openWhatsNew, version],
+        [
+            dismissNotice,
+            notices,
+            onOpenShortcuts,
+            openWhatsNew,
+            releases,
+            runningVersion,
+            updateAvailable,
+            version,
+        ],
     )
 }

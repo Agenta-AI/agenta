@@ -56,9 +56,7 @@ export const mergeReleases = (bundled: Release[], feed: readonly unknown[] = [])
 
 /** Releases newer than the running version. None when the version is unknown. */
 export const newerReleases = (releases: Release[], version: string | null): Release[] =>
-    isVersion(version)
-        ? releases.filter((release) => compareVersions(release.id, version) > 0)
-        : []
+    isVersion(version) ? releases.filter((release) => compareVersions(release.id, version) > 0) : []
 
 /** The newest release with a security fix that the running version does not have yet. */
 export const latestSecurityRelease = (
@@ -69,11 +67,7 @@ export const latestSecurityRelease = (
 /** Whether every filter the notice sets matches this instance. */
 export const noticeApplies = (
     notice: Notice,
-    {
-        version,
-        edition,
-        plan,
-    }: {version: string | null; edition: "oss" | "ee"; plan: string | null},
+    {version, edition, plan}: {version: string | null; edition: "oss" | "ee"; plan: string | null},
 ): boolean => {
     if (notice.editions && !notice.editions.includes(edition)) return false
     if (notice.plans && !(plan && notice.plans.includes(plan))) return false

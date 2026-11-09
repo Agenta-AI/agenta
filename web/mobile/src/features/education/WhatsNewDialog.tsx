@@ -5,13 +5,15 @@ import {
     ALL_RELEASES_LINK,
     isWhatsNewOptedOut,
     markAllReleasesSeen,
-    RELEASES,
+    newerReleases,
+    releaseListAtom,
+    runningVersionAtom,
     setWhatsNewOptedOut,
     type Release,
 } from "@agenta/navigation"
 import {Button, Checkbox, Dialog, DialogClose, DialogContent, DialogTitle} from "@agenta/ui/ui"
 import {ArrowUpRight, Sparkle, Wrench, X} from "@phosphor-icons/react"
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 
 import {cn} from "@/lib/utils"
 
@@ -35,8 +37,6 @@ const formatReleaseDate = (release: Release): string => {
     })
 }
 
-const RAIL_RELEASES = RELEASES.slice(0, RAIL_COUNT)
-
 /** Release timeline rail beside the picked release; closing it in any way marks everything seen. */
 export const WhatsNewDialog = () => {
     const [state, setState] = useAtom(whatsNewAtom)
@@ -46,10 +46,15 @@ export const WhatsNewDialog = () => {
     const [optOutDraft, setOptOutDraft] = useState<boolean | null>(null)
     const optOut = optOutDraft ?? isWhatsNewOptedOut()
     const optOutId = useId()
+    // The bundled list plus newer releases from the feed, which this instance does not run yet.
+    const releases = useAtomValue(releaseListAtom)
+    const runningVersion = useAtomValue(runningVersionAtom)
+    const notInstalled = new Set(newerReleases(releases, runningVersion).map((r) => r.id))
+    const railReleases = releases.slice(0, RAIL_COUNT)
 
     const selected =
-        RELEASES.find((release) => release.id === (selectedId ?? state?.releaseId)) ??
-        RAIL_RELEASES[0]
+        releases.find((release) => release.id === (selectedId ?? state?.releaseId)) ??
+        railReleases[0]
     if (!selected) return null
 
     const close = () => {
@@ -84,7 +89,7 @@ export const WhatsNewDialog = () => {
 
                     <div className="flex flex-col">
                         <div className="flex flex-col gap-2">
-                            {RAIL_RELEASES.map((release, index) => {
+                            {railReleases.map((release, index) => {
                                 const active = release.id === selected.id
                                 return (
                                     <button
@@ -99,7 +104,7 @@ export const WhatsNewDialog = () => {
                                                 className={cn(
                                                     "absolute left-1/2 w-px -translate-x-1/2 bg-border",
                                                     index === 0 ? "top-[17px]" : "top-0",
-                                                    index === RAIL_RELEASES.length - 1
+                                                    index === railReleases.length - 1
                                                         ? "h-[17px]"
                                                         : "-bottom-2",
                                                 )}
@@ -124,7 +129,11 @@ export const WhatsNewDialog = () => {
                                             <span className="flex items-center justify-between gap-2 text-[11.5px] text-colorTextTertiary">
                                                 <span className="flex items-center gap-1.5">
                                                     {release.id}
-                                                    {index === 0 ? (
+                                                    {notInstalled.has(release.id) ? (
+                                                        <span className="rounded bg-colorWarningBg px-1.5 text-[10.5px] font-medium leading-4 text-colorWarning">
+                                                            Not installed
+                                                        </span>
+                                                    ) : index === 0 ? (
                                                         <span className="rounded bg-colorSuccessBg px-1.5 text-[10.5px] font-medium leading-4 text-colorSuccessText">
                                                             Latest
                                                         </span>

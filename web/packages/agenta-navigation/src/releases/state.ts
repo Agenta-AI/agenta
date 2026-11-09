@@ -4,6 +4,7 @@ import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {isVersion, mergeReleases, parseNotices} from "./feed"
+
 import {RELEASES, type InstanceReleases, type Notice, type Release} from "./index"
 
 // The API refreshes the feed every 12 hours, so once per page load is plenty.

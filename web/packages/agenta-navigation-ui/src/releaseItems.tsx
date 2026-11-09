@@ -1,7 +1,21 @@
 import type {ReactNode} from "react"
 
-import {ALL_RELEASES_LINK, RELEASES, type SidebarConfig} from "@agenta/navigation"
-import {CircleIcon, PackageIcon} from "@phosphor-icons/react"
+import {
+    ALL_RELEASES_LINK,
+    newerReleases,
+    RELEASES,
+    UPGRADE_GUIDE_LINK,
+    type Notice,
+    type Release,
+    type SidebarConfig,
+} from "@agenta/navigation"
+import {
+    ArrowCircleUpIcon,
+    CircleIcon,
+    InfoIcon,
+    PackageIcon,
+    WarningIcon,
+} from "@phosphor-icons/react"
 
 /** Newest first, capped: the menu says what changed lately, not the whole changelog. */
 const RECENT_RELEASE_COUNT = 3
@@ -47,29 +61,74 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
     </span>
 )
 
+const RowNote = ({children}: {children: ReactNode}) => (
+    <span className="text-[11px] leading-none text-colorTextTertiary">{children}</span>
+)
+
+/** The key of a feed notice's row, so a host can tell it from a release row. */
+export const noticeNavKey = (id: string) => `notice:${id}`
+
+export interface ReleaseNavOptions {
+    /** The bundled list merged with the release feed. Defaults to the bundled list. */
+    releases?: Release[]
+    /** The version the API runs. Releases above it are marked as not installed. */
+    runningVersion?: string | null
+    /** Feed notices that already passed their filters. */
+    notices?: Notice[]
+}
+
 /**
- * The help menu's "What's new?" block: a heading, the recent releases, and the way to the rest.
+ * The help menu's "What's new?" block: a heading, the feed's notices, the way to upgrade when a
+ * newer release exists, the recent releases, and the way to the rest.
  *
  * Shared by both rails so one changelog reads the same in the desktop app and in `/m`. `version`
  * rides the last row — the running build belongs beside the list of what shipped.
  */
-export const buildReleaseNavItems = (version?: string): SidebarConfig[] => [
-    {key: "releases-heading", title: "What's new?", isGroupLabel: true},
-    ...RELEASES.slice(0, RECENT_RELEASE_COUNT).map((release, index) => ({
-        key: release.id,
-        title: release.features[0]?.title ?? release.id,
-        link: release.features[0]?.link ?? ALL_RELEASES_LINK,
-        icon: <ReleaseGlyph first={index === 0} />,
-        rowClassName: RELEASE_ROW,
-    })),
-    {
-        key: "all-releases",
-        title: "View all releases",
-        link: ALL_RELEASES_LINK,
-        icon: <ReleaseGlyph last />,
-        rowClassName: RELEASE_ROW,
-        suffix: version ? (
-            <span className="text-[11px] leading-none text-colorTextTertiary">v{version}</span>
-        ) : undefined,
-    },
-]
+export const buildReleaseNavItems = (
+    version?: string,
+    {releases = RELEASES, runningVersion = null, notices = []}: ReleaseNavOptions = {},
+): SidebarConfig[] => {
+    const newer = new Set(newerReleases(releases, runningVersion).map((release) => release.id))
+    return [
+        {key: "releases-heading", title: "What's new?", isGroupLabel: true},
+        ...notices.map((notice) => ({
+            key: noticeNavKey(notice.id),
+            title: notice.title,
+            tooltip: notice.body,
+            link: notice.link,
+            icon:
+                notice.severity === "warning" ? (
+                    <WarningIcon size={14} className="text-colorWarning" />
+                ) : (
+                    <InfoIcon size={14} className="text-colorTextSecondary" />
+                ),
+        })),
+        ...(newer.size > 0
+            ? [
+                  {
+                      key: "update-available",
+                      title: "Update available",
+                      link: UPGRADE_GUIDE_LINK,
+                      icon: <ArrowCircleUpIcon size={14} className="text-colorSuccessText" />,
+                      suffix: <RowNote>How to upgrade</RowNote>,
+                  },
+              ]
+            : []),
+        ...releases.slice(0, RECENT_RELEASE_COUNT).map((release, index) => ({
+            key: release.id,
+            title: release.features[0]?.title ?? release.id,
+            link: release.features[0]?.link ?? ALL_RELEASES_LINK,
+            icon: <ReleaseGlyph first={index === 0} />,
+            rowClassName: RELEASE_ROW,
+            suffix: newer.has(release.id) ? <RowNote>Not installed</RowNote> : undefined,
+        })),
+        {
+            key: "all-releases",
+            title: "View all releases",
+            link: ALL_RELEASES_LINK,
+            icon: <ReleaseGlyph last />,
+            rowClassName: RELEASE_ROW,
+            suffix: version ? <RowNote>v{version}</RowNote> : undefined,
+        },
+    ]
+}

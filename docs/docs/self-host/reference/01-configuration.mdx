@@ -1482,6 +1482,22 @@ The Helm chart has no values for these. Set them through each component's `extra
 | `REDIS_URI_DURABLE` | `redis.uri_durable` | `redis.uriDurable` |
 | `REDIS_URI_VOLATILE` | `redis.uri_volatile` | `redis.uriVolatile` |
 
+## releases
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_UPDATE_CHECK_ENABLED` | `releases.update_check_enabled` | `releases.updateCheckEnabled` |
+
+The update check is on by default. The API downloads the public release feed at
+`https://agenta.ai/releases.json` at most once every 12 hours, when someone uses Agenta. The request is a plain download. It sends no
+instance id, no version, and no other data about your instance. Agenta uses the feed to
+show newer releases in "What's new", an "Update available" mark in the help menu, and a
+warning to organization owners and admins when a newer release fixes a security issue.
+
+Set `AGENTA_UPDATE_CHECK_ENABLED=false` to stop the download. Agenta then shows only the
+releases that shipped with the version you run. This setting does not follow
+`AGENTA_TELEMETRY_ENABLED`.
+
 ## smtp
 
 SMTP is preferred for email delivery. It is enabled only when host, port, and
