@@ -36,12 +36,12 @@ const LABEL_MASK_HOVER = maskStyle(
 const CHIP = "h-7 w-fit min-w-20 max-w-32 gap-1.5 rounded px-2 text-xs"
 /** One width for every tab, so the strip shows a whole number of them. No outline: the open
  * tab is the page's own colour, and the bar's darker ground is its edge. */
-const CONNECTED = "h-8 w-[180px] gap-2 rounded-t-lg px-3 text-xs"
+const CONNECTED = "h-8 w-[180px] gap-2 rounded-t-[6px] px-3 text-xs"
 /** The open tab's lower corners curve outward into the page, as browser tabs do. The shadow
  * paints the page colour into the curve's outer side. */
-const FLARE = "pointer-events-none absolute bottom-0 h-1.5 w-1.5"
-const FLARE_LEFT = "-left-1.5 rounded-br-md shadow-[3px_3px_0_3px_var(--ag-surface-canvas)]"
-const FLARE_RIGHT = "-right-1.5 rounded-bl-md shadow-[-3px_3px_0_3px_var(--ag-surface-canvas)]"
+const FLARE = "pointer-events-none absolute bottom-0 h-1 w-1"
+const FLARE_LEFT = "-left-1 rounded-br-[4px] shadow-[2px_2px_0_2px_var(--ag-surface-canvas)]"
+const FLARE_RIGHT = "-right-1 rounded-bl-[4px] shadow-[-2px_2px_0_2px_var(--ag-surface-canvas)]"
 
 export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" | "onSelect"> {
     /** The session on screen: primary text on the `colorFill` chip. */
