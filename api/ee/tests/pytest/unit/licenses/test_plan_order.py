@@ -10,6 +10,7 @@ from oss.src.utils.env import env
 
 import ee.src.core.access.entitlements.service as entitlements_service
 import ee.src.core.subscriptions.service as subscriptions_service_module
+import ee.src.middlewares.throttling as throttling
 from ee.src.core.access.entitlements.controls import build_plan_controls
 from ee.src.core.access.entitlements.types import Flag, Tracker
 from ee.src.core.subscriptions.service import SubscriptionsService
@@ -95,6 +96,38 @@ async def test_without_stripe_entitlements_use_the_instance_plan(
     data = await entitlements_service._subscription_data(uuid4())
 
     assert data == {"plan": ENTERPRISE, "anchor": 7}
+
+
+@pytest.mark.asyncio
+async def test_without_stripe_a_cached_plan_gives_way_to_the_instance_plan(
+    self_hosted, monkeypatch
+):
+    cached = {"plan": COMMUNITY, "anchor": 7}
+    monkeypatch.setattr(
+        entitlements_service, "get_cache", AsyncMock(return_value=cached)
+    )
+    monkeypatch.setattr(throttling, "get_cache", AsyncMock(return_value=cached))
+    monkeypatch.setattr(
+        entitlements_service, "instance_plan", AsyncMock(return_value=ENTERPRISE)
+    )
+    monkeypatch.setattr(throttling, "instance_plan", AsyncMock(return_value=ENTERPRISE))
+
+    data = await entitlements_service._subscription_data(uuid4())
+
+    assert data == {"plan": ENTERPRISE, "anchor": 7}
+    assert await throttling._get_plan(str(uuid4())) == ENTERPRISE
+
+
+@pytest.mark.asyncio
+async def test_with_stripe_the_throttle_plan_is_the_cached_plan(cloud, monkeypatch):
+    instance_plan = AsyncMock(return_value=COMMUNITY)
+    monkeypatch.setattr(
+        throttling, "get_cache", AsyncMock(return_value={"plan": "cloud_v0_pro"})
+    )
+    monkeypatch.setattr(throttling, "instance_plan", instance_plan)
+
+    assert await throttling._get_plan(str(uuid4())) == "cloud_v0_pro"
+    instance_plan.assert_not_awaited()
 
 
 def _flags(plans, slug):
