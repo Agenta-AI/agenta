@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
     replace: vi.fn(),
     endOnboarding: vi.fn(),
     flow: null as Record<string, (...args: never[]) => unknown> | null,
+    offer: null as {open: boolean; largeCompany: boolean} | null,
+    license: {isInstanceAdmin: true, data: {license: null} as {license: unknown}},
     templates: [
         {key: "lead-qualifier", name: "Lead qualifier", category: "Sales"},
     ] as readonly unknown[],
@@ -26,6 +28,15 @@ vi.mock("@/features/onboarding/OnboardingFlow", () => ({
         state.flow = props
         return null
     },
+}))
+vi.mock("@/features/onboarding/RegistrationOffer", () => ({
+    RegistrationOffer: (props: {open: boolean; largeCompany: boolean}) => {
+        state.offer = props
+        return null
+    },
+}))
+vi.mock("@/features/settings/useInstanceLicense", () => ({
+    useInstanceLicense: () => state.license,
 }))
 vi.mock("@/features/onboarding/onboardingPending", () => ({
     endOnboarding: state.endOnboarding,
@@ -75,6 +86,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     }
 })
 vi.mock("@agenta/shared/api/env", () => ({
+    isBillingEnabled: () => false,
     isToolsEnabled: () => false,
     isWalletsEnabled: () => false,
 }))
@@ -128,6 +140,8 @@ beforeEach(() => {
     state.endOnboarding.mockClear()
     state.capture.mockClear()
     state.captureIntent.mockClear()
+    state.offer = null
+    state.license = {isInstanceAdmin: true, data: {license: null}}
 })
 
 afterEach(() => {
@@ -215,5 +229,30 @@ describe("the onboarding's PostHog events", () => {
         mount()
         flow().onSkip()
         expect(state.captureIntent).toHaveBeenCalledWith({source: "skipped"})
+    })
+})
+
+describe("the registration offer after the survey", () => {
+    it("opens for the instance admin with no key once the survey is done", () => {
+        mount()
+        act(() => flow().onStepCompleted("size", draft))
+        expect(state.offer?.open).toBe(false)
+
+        act(() => flow().onStepCompleted("source", draft))
+        expect(state.offer).toMatchObject({open: true, largeCompany: true})
+    })
+
+    it("stays closed when the instance already has a key", () => {
+        state.license = {isInstanceAdmin: true, data: {license: {key_id: "k"}}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(state.offer?.open).toBe(false)
+    })
+
+    it("stays closed for a user who is not the instance admin", () => {
+        state.license = {isInstanceAdmin: false, data: {license: null}}
+        mount()
+        act(() => flow().onStepCompleted("source", draft))
+        expect(state.offer?.open).toBe(false)
     })
 })

@@ -13,8 +13,8 @@ export type UpgradeScreen = "organization" | "auditLog"
 export type UpgradeAction = "get_free_key" | "add_license_key" | "upgrade_docs" | "talk_to_us"
 
 export const UPGRADE_DOCS_URL = "https://docs.agenta.ai/self-host/upgrades/oss-to-ee-switch"
-export const contactUrl = (feature: UpgradeFeature) =>
-    `https://agenta.ai/contact?feature=${feature}`
+export const CONTACT_URL = "https://agenta.ai/contact"
+export const contactUrl = (feature: UpgradeFeature) => `${CONTACT_URL}?feature=${feature}`
 
 const COMMUNITY_PLAN = "self_hosted_community"
 const REGISTERED_PLAN = "self_hosted_registered"

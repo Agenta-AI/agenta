@@ -44,3 +44,19 @@ export const activateInstanceLicense = async (
     )
     return data
 }
+
+/** The API could not reach Agenta's registration service. */
+export const isRegistrationUnreachable = (error: unknown) => status(error) === 502
+
+/** `POST /instance/license/registrations`: Agenta emails a free registration key. */
+export const createInstanceRegistration = async (
+    projectId: string,
+    email: string,
+): Promise<{email: string}> => {
+    const {data} = await axios.post(
+        `${getAgentaApiUrl()}/instance/license/registrations`,
+        {email, product_updates: true},
+        {params: {project_id: projectId}},
+    )
+    return data
+}
