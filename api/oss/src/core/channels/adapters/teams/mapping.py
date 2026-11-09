@@ -7,10 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlsplit
 
-from oss.src.core.channels.adapters.teams.capabilities import (
-    BUTTONS_MAX,
-    TEXT_MAX_CHARS,
-)
+from oss.src.core.channels.adapters.teams.capabilities import TEXT_MAX_CHARS
 from oss.src.core.channels.dtos import (
     ChannelEventKind,
     ChannelInboundEvent,
@@ -409,38 +406,23 @@ def card_attachment(
     return {"contentType": _CARD_CONTENT_TYPE, "content": card}
 
 
-def has_choices(content: List[Dict[str, Any]]) -> bool:
-    return any(part.get("type") == "button" for part in content)
-
-
-def _text(content: List[Dict[str, Any]]) -> str:
-    segments: List[str] = []
-    for part in content:
-        if part.get("type") == "text" and part.get("text"):
-            segments.append(part["text"])
-        elif part.get("type") == "card":
-            lines = [part[key] for key in ("title", "text") if part.get(key)]
-            lines.append(approval_details(part.get("arguments")))
-            segments.append("\n".join(lines))
-    return "\n".join(segments)
-
-
 def build_activities(
     content: List[Dict[str, Any]], *, thread_id: str = ""
 ) -> List[Dict[str, Any]]:
     """The `message` activities for core's content parts, in send order,
     without the conversation and tenant the adapter adds. Choices go out as
-    one card. Above BUTTONS_MAX they degrade to numbered text."""
+    one card. Core renders more choices than BUTTONS_MAX as numbered text,
+    so they never reach this point."""
 
-    options = _options(content)
-    if options and len(options) <= BUTTONS_MAX:
+    if _options(content):
         card = card_attachment(content, thread_id=thread_id)
         return [{"type": "message", "attachments": [card]}]
 
-    text = _text(content)
-    if options:
-        numbered = "\n".join(f"{i + 1}. {o['label']}" for i, o in enumerate(options))
-        text = f"{text}\n{numbered}" if text else numbered
+    text = "\n".join(
+        part["text"]
+        for part in content
+        if part.get("type") == "text" and part.get("text")
+    )
     if not text:
         return []
     return [

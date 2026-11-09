@@ -120,13 +120,16 @@ async def test_each_connection_gets_its_own_token(adapter, fake, clock):
     assert len({c["token"] for c in fake.calls}) == 2
 
 
-async def test_concurrent_sends_on_one_connection_request_one_token(
+async def test_concurrent_sends_on_a_cold_cache_all_deliver_then_share_a_token(
     adapter, fake, connection
 ):
     await asyncio.gather(*(_post(adapter, connection) for _ in range(5)))
+    requested = len(fake.token_requests)
 
-    assert len(fake.token_requests) == 1
-    assert len(fake.calls) == 5
+    await _post(adapter, connection)
+
+    assert len(fake.calls) == 6
+    assert len(fake.token_requests) == requested
 
 
 async def test_the_token_request_uses_the_connections_values(adapter, fake, connection):
@@ -369,38 +372,13 @@ async def test_dismiss_puts_the_same_card_without_buttons(adapter, fake, connect
     assert card["body"] == posted["body"]
 
 
-async def test_dismiss_without_a_receipt_or_buttons_does_nothing(
-    adapter, fake, connection
-):
+async def test_dismiss_without_a_receipt_does_nothing(adapter, fake, connection):
     await adapter.dismiss_choices(
         connection=connection,
         external_locator={**CHAT, "message_id": ""},
         content=APPROVAL,
     )
-    await adapter.dismiss_choices(
-        connection=connection,
-        external_locator=CHAT,
-        content=[{"type": "text", "text": "no buttons"}],
-    )
-
     assert fake.calls == []
-
-
-async def test_more_choices_than_the_maximum_go_out_as_numbered_text(
-    adapter, fake, connection
-):
-    content = [
-        {"type": "button", "id": str(i), "label": f"Option {i}", "value": f"x:{i}"}
-        for i in range(6)
-    ]
-
-    await adapter.post_message(
-        connection=connection, locator=CHAT, content=content, idempotency_key=uuid4()
-    )
-
-    (text,) = fake.texts()
-    assert text.splitlines()[0] == "1. Option 0"
-    assert "attachments" not in fake.calls[0]["body"]
 
 
 # --- errors -------------------------------------------------------------- #
@@ -427,9 +405,19 @@ async def test_a_second_401_revokes_the_credential(adapter, fake, connection):
     assert fake.texts() == []
 
 
-@pytest.mark.parametrize("code", [7000215, 7000222])
-async def test_a_refused_secret_revokes_the_credential(adapter, fake, connection, code):
-    fake.refuse_token(status=401, error="invalid_client", code=code)
+@pytest.mark.parametrize(
+    "status, error, code",
+    [
+        (401, "invalid_client", 7000215),
+        (401, "invalid_client", 7000222),
+        (400, "unauthorized_client", 700016),
+        (400, "invalid_request", 90002),
+    ],
+)
+async def test_a_refused_secret_revokes_the_credential(
+    adapter, fake, connection, status, error, code
+):
+    fake.refuse_token(status=status, error=error, code=code)
 
     with pytest.raises(ChannelCredentialRevoked) as caught:
         await _post(adapter, connection)
@@ -438,8 +426,18 @@ async def test_a_refused_secret_revokes_the_credential(adapter, fake, connection
     assert p.CLIENT_SECRET not in str(caught.value)
 
 
-async def test_a_busy_token_service_is_retried_not_revoked(adapter, fake, connection):
-    fake.refuse_token(status=503, error="temporarily_unavailable", code=50001)
+@pytest.mark.parametrize(
+    "status, error, code",
+    [
+        (503, "temporarily_unavailable", 50001),
+        (400, "temporarily_unavailable", 50001),
+        (400, "invalid_request", 90014),
+    ],
+)
+async def test_a_busy_token_service_is_retried_not_revoked(
+    adapter, fake, connection, status, error, code
+):
+    fake.refuse_token(status=status, error=error, code=code)
 
     with pytest.raises(Exception) as caught:
         await _post(adapter, connection)

@@ -1,4 +1,3 @@
-import asyncio
 from time import monotonic
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
@@ -51,6 +50,19 @@ _RECEIPT_FIELDS = ("tenant_id", "conversation_id", "thread_id", "service_url")
 _INVALID_CLIENT_SECRET = 7000215
 _APPLICATION_NOT_FOUND = 700016
 _TENANT_NOT_FOUND = 90002
+_EXPIRED_CLIENT_SECRET = 7000222
+_APPLICATION_DISABLED = 7000112
+# The codes that prove the stored values can never get a token again. Any
+# other refusal, such as a 400 `temporarily_unavailable`, is retried.
+_REVOKED_CODES = frozenset(
+    {
+        _INVALID_CLIENT_SECRET,
+        _EXPIRED_CLIENT_SECRET,
+        _APPLICATION_NOT_FOUND,
+        _APPLICATION_DISABLED,
+        _TENANT_NOT_FOUND,
+    }
+)
 
 _SECRET_REJECTED = (
     "Microsoft rejected this client secret. Copy the secret's Value, not its Secret ID."
@@ -136,7 +148,6 @@ class TeamsAdapter(ChannelAdapterInterface):
         self._keys = BotFrameworkKeys(http_client=self._client)
         # connection id -> (access token, monotonic time to stop using it)
         self._tokens: Dict[UUID, Tuple[str, float]] = {}
-        self._token_locks: Dict[UUID, asyncio.Lock] = {}
 
     # --- declaration --- #
 
@@ -300,7 +311,7 @@ class TeamsAdapter(ChannelAdapterInterface):
         cannot change a card in answer to an `Action.Submit` click."""
 
         message_id = external_locator.get("message_id")
-        if not message_id or not content or not mapping.has_choices(content):
+        if not message_id or not content:
             return
         url = f"{_activities_url(external_locator)}/{quote(message_id, safe='')}"
         activity = {
@@ -374,25 +385,20 @@ class TeamsAdapter(ChannelAdapterInterface):
     ) -> str:
         """The connection's cached access token, or a new one when it is
         within 5 minutes of expiry or is the token Microsoft just `refused`.
-        One token request at a time per connection."""
+        Two sends that both miss the cache each ask for a token; either one
+        works, and no connection waits on another's token request."""
 
-        if len(self._token_locks) >= _CACHE_MAX:
-            self._token_locks = {
-                key: lock for key, lock in self._token_locks.items() if lock.locked()
-            }
-        lock = self._token_locks.setdefault(connection.id, asyncio.Lock())
-        async with lock:
-            cached = self._tokens.get(connection.id)
-            if cached and cached[0] != refused and monotonic() < cached[1]:
-                return cached[0]
-            body = await self._connection_token(connection)
-            if len(self._tokens) >= _CACHE_MAX:
-                self._tokens.clear()
-            self._tokens[connection.id] = (
-                body["access_token"],
-                monotonic() + _expires_in(body) - _TOKEN_REFRESH_MARGIN_SECONDS,
-            )
-            return body["access_token"]
+        cached = self._tokens.get(connection.id)
+        if cached and cached[0] != refused and monotonic() < cached[1]:
+            return cached[0]
+        body = await self._connection_token(connection)
+        if len(self._tokens) >= _CACHE_MAX:
+            self._tokens.clear()
+        self._tokens[connection.id] = (
+            body["access_token"],
+            monotonic() + _expires_in(body) - _TOKEN_REFRESH_MARGIN_SECONDS,
+        )
+        return body["access_token"]
 
     async def _connection_token(self, connection: ChannelConnection) -> Dict[str, Any]:
         client_secret = _data(connection).get("client_secret")
@@ -407,9 +413,10 @@ class TeamsAdapter(ChannelAdapterInterface):
                 client_secret=client_secret,
             )
         except _TokenRequestRefused as e:
-            if e.status_code in (400, 401):
+            if e.revoked:
                 # Entra refused the values themselves: a wrong or expired
-                # secret, or a deleted app or tenant. No retry can pass.
+                # secret, or a deleted or disabled app or tenant. No retry
+                # can pass.
                 raise ChannelCredentialRevoked(
                     channel=self.channel, detail=str(e)
                 ) from e
@@ -460,6 +467,10 @@ class _TokenRequestRefused(Exception):
         )
 
     @property
+    def revoked(self) -> bool:
+        return self.error == "invalid_client" or bool(self.codes & _REVOKED_CODES)
+
+    @property
     def user_message(self) -> str:
         if _APPLICATION_NOT_FOUND in self.codes:
             return _APPLICATION_UNKNOWN
@@ -484,9 +495,8 @@ class _TeamsApiError(Exception):
             body = {}
         error = (body.get("error") if isinstance(body, dict) else None) or {}
         error = error if isinstance(error, dict) else {}
-        self.code = str(error.get("code") or "")
         super().__init__(
-            f"Teams API error {self.code or 'unknown'} ({self.status_code}): "
+            f"Teams API error {error.get('code') or 'unknown'} ({self.status_code}): "
             f"{str(error.get('message') or '')[:300]}"
         )
 
