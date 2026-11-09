@@ -33,7 +33,7 @@ const openIdsByScopeAtom = atomWithStorage<Record<string, string[]>>(
 /** Scope key: one agent's tabs open and close independently of another's. */
 const storageKey = (projectId: string, scope: string) => `${projectId}:${scope}`
 
-/** The scope a rail keys its tabs by. Membership and hand-arranged order must agree on it. */
+/** The scope a rail keys its tabs by. Membership and tab order must agree on it. */
 export const sessionTabScope = (agentId?: string | null): string => agentId ?? "__project__"
 
 /** Ceiling on one scope's persisted set, so ids of long-deleted sessions cannot grow without end. */

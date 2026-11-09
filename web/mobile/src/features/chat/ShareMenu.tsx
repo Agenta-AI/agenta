@@ -230,7 +230,7 @@ const ShareMenuView = ({
                     </SheetContent>
                 </Sheet>
             ) : (
-                <div className="flex items-center">
+                <div data-share-menu className="flex items-center">
                     <Popover open={open} onOpenChange={onOpenChange}>
                         {!folded.includes("share") ? (
                             <PopoverTrigger asChild>

@@ -11,9 +11,9 @@
  * capped or grouped result (a gate opening, a pin, a newer session) cannot blink its tab out.
  * Only the host's verbs arrive as props: how a chip opens, and what "new" means.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {sessionRowStatusMeta, type SessionRowVm} from "@agenta/sessions/row"
+import {type SessionRowVm} from "@agenta/sessions/row"
 import {
     applySessionTabOrder,
     closeSessionTabsAtom,
@@ -28,9 +28,8 @@ import {
     useSessionTabRows,
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
-import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
-import {PencilSimpleIcon, XIcon} from "@phosphor-icons/react"
+import {XIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -46,7 +45,7 @@ import {
 } from "./railTabMenu"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
-import {EDGE_FADE_END_PX, EDGE_FADE_START_PX, SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
+import {SessionTabStrip} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
@@ -66,8 +65,6 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
     activeSessionId: string
     /** Open a session (the host routes). */
     onSelect: (vm: SessionRowVm) => void
-    /** Start a new session. Omit where the surface has nothing to start one with. */
-    onNew?: () => void
     /**
      * Title for the active session when the capped list does not contain it (an old session opened
      * by URL) — without it the rail would show no active chip and the surface would not name the
@@ -102,56 +99,7 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
     onSelectUnlisted?: (sessionId: string) => void
     /** See `SessionTabStrip.onNaturalWidth`. */
     onStripNaturalWidth?: (width: number) => void
-    /** See `SessionTabStrip`: the host bar draws the chrome. */
-    bare?: boolean
     className?: string
-}
-
-/**
- * Keeps the active chip in view, scrolling ONLY when it is off-screen or under an edge fade —
- * scrolling on every activation yanked the rail back when you clicked a chip you could see. A just-created
- * session always needs it: its chip is appended last, past the right edge of a full strip.
- */
-const useRevealWhenActive = (active: boolean, connected: boolean) => {
-    const ref = useRef<HTMLDivElement>(null)
-    useEffect(() => {
-        // A connected strip scrolls its open tab into view itself.
-        if (!active || connected) return
-        const reveal = () => {
-            const tab = ref.current
-            if (!tab) return
-            let scroller: HTMLElement | null = tab.parentElement
-            while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowX)) {
-                scroller = scroller.parentElement
-            }
-            if (!scroller) return
-            const t = tab.getBoundingClientRect()
-            const s = scroller.getBoundingClientRect()
-            // Clear of the edge fades too, or the chip lands in view but half dissolved. The
-            // browser clamps the scroll, and at either end the strip drops that side's fade.
-            const end = s.right - EDGE_FADE_END_PX
-            const start = s.left + EDGE_FADE_START_PX
-            const delta = t.right > end ? t.right - end : t.left < start ? t.left - start : 0
-            if (delta === 0) return
-            // Instant, like the wheel handler: `scroll-smooth` would leave the next frame
-            // measuring a rect mid-flight, and the correction below would compound.
-            const previous = scroller.style.scrollBehavior
-            scroller.style.scrollBehavior = "auto"
-            scroller.scrollLeft += delta
-            scroller.style.scrollBehavior = previous
-        }
-        // The strip settles a frame late — the inline New session (+) pins itself once the chips
-        // overflow, moving them by its own footprint after the first measure.
-        let frame = 0
-        let left = 3
-        const tick = () => {
-            reveal()
-            if (--left > 0) frame = requestAnimationFrame(tick)
-        }
-        tick()
-        return () => cancelAnimationFrame(frame)
-    }, [active, connected])
-    return ref
 }
 
 /** Only states that ask for a look earn a dot on a page tab; a quiet session shows its name alone. */
@@ -161,28 +109,21 @@ const TAB_DOT_STATUSES = new Set(["waiting", "running"])
 const RUNNING_TITLE =
     "bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_50%,var(--ag-colorTextQuaternary)_100%)] bg-clip-text motion-safe:animate-text-shimmer motion-safe:bg-[length:200%_100%] motion-safe:text-transparent"
 
-/** The chip's slot in the strip. Every tab scrolls with the strip; none docks over the others. */
-const tabSlotClass = (connected: boolean, divided?: boolean) =>
-    connected ? "mr-0.5 shrink-0" : clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)
+/** A tab's slot in the strip; `data-tab-id` lets the strip tell a new open tab from a remount. */
+const TAB_SLOT = "mr-0.5 shrink-0"
 
-/**
- * A row as a chip: the shared `SessionTab`, with the status dot derived from the row view-model
- * (the desktop passes its own live-status dot instead). The wrapper keeps the active chip in view.
- */
+/** A row as a page tab: the shared `SessionTab`, with its status dot from the row view-model. */
 const RailTab = ({
     vm,
     active,
     onSelect,
     menuFor,
     onMenuSelect,
-    divided,
     onClose,
     onRename,
-    connected,
 }: {
     vm: SessionRowVm
     active: boolean
-    connected: boolean
     onSelect: (vm: SessionRowVm) => void
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
@@ -190,12 +131,9 @@ const RailTab = ({
     onClose?: () => void
     /** Omit where tabs are not renameable — then no pencil mounts and no editor opens. */
     onRename?: (name: string) => Promise<boolean>
-    /** Hairline before this tab — every tab but the first. */
-    divided?: boolean
 }) => {
-    const ref = useRevealWhenActive(active, connected)
     // A running tab beeps and its name shimmers, like the chat's live "Thinking" line.
-    const running = connected && vm.status.status === "running"
+    const running = vm.status.status === "running"
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
     // The SAME rename machine the session rows use, so Enter/blur commit and Escape abandons here
     // exactly as they do in a list — and the commit lands on the host's one rename path.
@@ -223,7 +161,7 @@ const RailTab = ({
         <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={handleMenuSelect}>
             <SessionTab
                 active={active}
-                connected={connected}
+                connected
                 maskLabel={!rename.renaming}
                 label={
                     rename.renaming ? (
@@ -254,44 +192,25 @@ const RailTab = ({
                 }
                 onSelect={handleSelect}
                 renderActions={
-                    onClose || onRename
+                    onClose
                         ? () =>
                               rename.renaming ? null : (
-                                  <>
-                                      {onRename && !connected ? (
-                                          <button
-                                              type="button"
-                                              aria-label={`Rename ${vm.title}`}
-                                              onClick={(event) => {
-                                                  event.stopPropagation()
-                                                  startRename()
-                                              }}
-                                              // Hover-revealed where there IS a hover; on touch the
-                                              // chip's actions are always mounted, so it stays visible.
-                                              className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
-                                          >
-                                              <PencilSimpleIcon size={12} />
-                                          </button>
-                                      ) : null}
-                                      {onClose ? (
-                                          <button
-                                              type="button"
-                                              aria-label={`Close ${vm.title}`}
-                                              onClick={(event) => {
-                                                  event.stopPropagation()
-                                                  onClose()
-                                              }}
-                                              className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                                          >
-                                              <XIcon size={12} />
-                                          </button>
-                                      ) : null}
-                                  </>
+                                  <button
+                                      type="button"
+                                      aria-label={`Close ${vm.title}`}
+                                      onClick={(event) => {
+                                          event.stopPropagation()
+                                          onClose()
+                                      }}
+                                      className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                  >
+                                      <XIcon size={12} />
+                                  </button>
                               )
                         : undefined
                 }
                 statusDot={
-                    connected && !TAB_DOT_STATUSES.has(vm.status.status) ? undefined : (
+                    !TAB_DOT_STATUSES.has(vm.status.status) ? undefined : (
                         <SimpleTooltip title={vm.status.label}>
                             {running ? (
                                 // A tab that is running beeps: an ink dot with a ring that fades out.
@@ -318,9 +237,8 @@ const RailTab = ({
         </SessionRowContextMenu>
     )
 
-    // 9px = 4px + the 1px divider + 4px, so TAB_DIVIDER lands centred with clearance either side.
     return (
-        <div ref={ref} className={tabSlotClass(connected, divided)}>
+        <div data-tab-id={vm.id} className={TAB_SLOT}>
             {chip}
         </div>
     )
@@ -329,16 +247,10 @@ const RailTab = ({
 /** How long a clicked tab may show as open before the route confirms it. */
 const PICK_TIMEOUT_MS = 3000
 
-/** Placeholder chips while the first rows load — a long, a short and a middling title. */
-const SKELETON_CHIP_WIDTHS = ["w-32", "w-24", "w-28"]
-
 /** A strip entry: a listed row, or a session open here whose row has not landed. */
 type StripItem = {id: string; vm: SessionRowVm} | {id: string; tab: {id: string; title: string}}
 /** Title-line widths for the page-tab skeleton, near what real session names measure. */
 const SKELETON_TAB_TITLES = ["w-24", "w-14", "w-20"]
-
-/** The pending tab has no stream yet, so it wears the same idle chrome every quiet row does. */
-const IDLE_STATUS = sessionRowStatusMeta("idle")
 
 /**
  * A session held open whose row has not landed yet — a session created here, before the by-id
@@ -350,45 +262,27 @@ const UnlistedTab = ({
     id,
     title,
     active,
-    divided,
     onSelect,
     onClose,
     menu,
     onMenuSelect,
-    connected,
 }: {
     id: string
     title: string
     active: boolean
-    connected: boolean
-    divided?: boolean
     onSelect?: (sessionId: string) => void
     onClose?: () => void
     menu?: SessionMenuEntry[]
     onMenuSelect?: (key: string) => void
 }) => {
-    const ref = useRevealWhenActive(active, connected)
     return (
-        <div ref={ref} className={tabSlotClass(connected, divided)}>
+        <div data-tab-id={id} className={TAB_SLOT}>
             <SessionRowContextMenu entries={menu} onSelect={onMenuSelect}>
                 <SessionTab
                     active={active}
-                    connected={connected}
+                    connected
                     label={title}
                     onSelect={() => onSelect?.(id)}
-                    statusDot={
-                        connected ? undefined : (
-                            <SimpleTooltip title={IDLE_STATUS.label}>
-                                <span
-                                    aria-label={IDLE_STATUS.label}
-                                    className={clsx(
-                                        "h-1.5 w-1.5 shrink-0 rounded-full",
-                                        IDLE_STATUS.dotClassName,
-                                    )}
-                                />
-                            </SimpleTooltip>
-                        )
-                    }
                     renderActions={
                         onClose
                             ? () => (
@@ -415,7 +309,6 @@ const UnlistedTab = ({
 export const SessionTabRail = ({
     activeSessionId,
     onSelect,
-    onNew,
     activeFallbackTitle,
     menuFor,
     onMenuSelect,
@@ -424,7 +317,6 @@ export const SessionTabRail = ({
     onSelectUnlisted,
     onRenameTab,
     canRenameTab,
-    bare,
     onStripNaturalWidth,
     className,
     ...listArgs
@@ -436,15 +328,12 @@ export const SessionTabRail = ({
         () => list.groups.flatMap((group) => group.rows.map((vm) => vm.id)),
         [list.groups],
     )
-    // Tabs keep the slot they first appeared in, so a turn never reshuffles them (#6544). Scoped to
-    // the agent whose sessions these are.
+    // Each tab keeps its first slot, so a turn never reshuffles them (#6544); per agent.
     const orderScope = sessionTabScope(listArgs.agentId)
     const savedOrder = useAtomValue(sessionTabOrderAtomFamily(orderScope))
     // Membership is the user's own: tabs are an explicit set here, not a view of the server list.
     const openIds = useOpenSessionTabs(orderScope, listedIds, activeSessionId)
-    // Rank every session the list carries, open or not, so reopening one restores its old slot,
-    // and every open tab too: a new session takes its slot when it opens, not when its first turn
-    // lists it, so it never jumps past the drafts opened before it.
+    // Listed and open ids alike, so a new session is ranked when it opens, not when it is listed.
     const seedIds = useMemo(() => {
         const listed = new Set(listedIds)
         return [...listedIds, ...(openIds ?? []).filter((id) => !listed.has(id))]
@@ -458,14 +347,10 @@ export const SessionTabRail = ({
         // The rail's own reads share the card's priority — its host decides (see the card list).
         lowPriority: listArgs.lowPriority,
     })
-    const ordered = useMemo(
-        () => applySessionTabOrder(tabs.rows, savedOrder),
-        [tabs.rows, savedOrder],
-    )
     // Still filtered: a by-id page can lag the open set by one fetch after a close.
     const rows = useMemo(
-        () => openSessionTabRows(ordered, openIds, activeSessionId),
-        [ordered, openIds, activeSessionId],
+        () => openSessionTabRows(tabs.rows, openIds, activeSessionId),
+        [tabs.rows, openIds, activeSessionId],
     )
     const fetchedIds = useMemo(() => tabs.rows.map((vm) => vm.id), [tabs.rows])
     const hasActive = rows.some((vm) => vm.id === activeSessionId)
@@ -530,9 +415,7 @@ export const SessionTabRail = ({
         },
         [onSelectUnlisted],
     )
-    // Everything on the strip in ONE order, listed rows and unlisted chips alike: rendering the
-    // unlisted ones after every row made a new session jump ahead of older drafts the moment its
-    // first turn listed it. This is also the order a close reads its survivor from.
+    // Listed rows and unlisted chips in ONE order; a close also reads its survivor from it.
     const stripItems = useMemo(
         () =>
             applySessionTabOrder<StripItem>(
@@ -560,46 +443,26 @@ export const SessionTabRail = ({
 
     return (
         <SessionTabStrip
-            onAdd={onNew}
-            addTooltip={
-                <span className="flex items-center gap-1.5">
-                    New session <ShortcutKeys id="session.new" tone="inverse" />
-                </span>
-            }
-            remeasureKey={rows.length}
-            bare={bare}
-            fitTabs={bare ? 3 : undefined}
+            bare
+            fitTabs={3}
             onNaturalWidth={onStripNaturalWidth}
             className={className}
         >
             {tabs.isPending && rows.length === 0
-                ? bare
-                    ? // Page tabs: the real tab's box (32px, top corners, name-sized) with a text line
-                      // at the widths titles land on, the first on the open tab's surface, so the
-                      // strip keeps its shape when the names arrive.
-                      SKELETON_TAB_TITLES.map((width, index) => (
-                          <div
-                              key={width}
-                              aria-hidden
-                              className={clsx(
-                                  "mr-0.5 flex h-8 shrink-0 items-center rounded-t-[6px] px-3",
-                                  index === 0 && "bg-background",
-                              )}
-                          >
-                              <SkeletonBlock active className={clsx("h-3 rounded", width)} />
-                          </div>
-                      ))
-                    : // Three chips at the widths real titles land on, so the strip does not jump
-                      // when they arrive. SkeletonBlock, not the composite: that one is a title plus
-                      // paragraph rows, and squeezed into 28px it read as a smear.
-                      SKELETON_CHIP_WIDTHS.map((width) => (
-                          <SkeletonBlock
-                              key={width}
-                              active
-                              className={clsx("mr-2.25 h-7 shrink-0 rounded", width)}
-                          />
-                      ))
-                : stripItems.map((item, index) => {
+                ? // The real tab's box with a title line, the first on the open tab's surface.
+                  SKELETON_TAB_TITLES.map((width, index) => (
+                      <div
+                          key={width}
+                          aria-hidden
+                          className={clsx(
+                              "mr-0.5 flex h-8 shrink-0 items-center rounded-t-[6px] px-3",
+                              index === 0 && "bg-background",
+                          )}
+                      >
+                          <SkeletonBlock active className={clsx("h-3 rounded", width)} />
+                      </div>
+                  ))
+                : stripItems.map((item) => {
                       if ("vm" in item) {
                           const vm = item.vm
                           return (
@@ -607,8 +470,6 @@ export const SessionTabRail = ({
                                   key={vm.id}
                                   vm={vm}
                                   active={vm.id === shownActiveId}
-                                  connected={Boolean(bare)}
-                                  divided={index > 0}
                                   onSelect={selectTab}
                                   onClose={
                                       onClose && closable
@@ -653,8 +514,6 @@ export const SessionTabRail = ({
                               id={tab.id}
                               title={tab.title}
                               active={tab.id === shownActiveId}
-                              connected={Boolean(bare)}
-                              divided={index > 0}
                               onSelect={selectUnlistedTab}
                               // Only the tab verbs, and only when the host can land a close.
                               menu={onCloseMany ? unlistedTabMenu(closeTabs, tab.id) : undefined}

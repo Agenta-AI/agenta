@@ -226,7 +226,6 @@ const SessionSwitcherView = ({
                 >
                     {agentId || !agentResolving ? (
                         <SessionTabRail
-                            bare
                             onStripNaturalWidth={onStripNaturalWidth}
                             agentId={agentId ?? undefined}
                             policy={{origin: "exclude-trigger", expansions: []}}

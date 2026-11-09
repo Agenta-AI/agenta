@@ -49,19 +49,22 @@ const contentWidth = (el: Element | null | undefined): number => {
     return Math.max(...boxes.map((b) => b.right)) - Math.min(...boxes.map((b) => b.left))
 }
 
-/** The content width with every truncated label at its full length. The laid-out width depends on
- * the layout this measure picks, so reading it made the choice flip on every render. */
+/** Content width with truncated labels at full length: the laid-out one depends on the choice. */
 const naturalWidth = (el: Element | null | undefined): number => {
-    let clipped = 0
+    const clipped: HTMLElement[] = []
     for (const node of Array.from(el?.querySelectorAll<HTMLElement>("*") ?? [])) {
+        if (clipped.some((outer) => outer.contains(node))) continue
         if (
             node.scrollWidth > node.clientWidth + 1 &&
             getComputedStyle(node).overflowX !== "visible"
         ) {
-            clipped += node.scrollWidth - node.clientWidth
+            clipped.push(node)
         }
     }
-    return contentWidth(el) + clipped
+    return clipped.reduce(
+        (sum, node) => sum + node.scrollWidth - node.clientWidth,
+        contentWidth(el),
+    )
 }
 
 /**
@@ -79,8 +82,7 @@ const useBarFit = (
         folded: NONE,
         center: preferCenter,
     })
-    // Footprints of the buttons as last seen in the bar, so a folded one still counts. Share's
-    // includes the divider and both gaps it brings, or a fold undercounted it and undid itself.
+    // Last-seen footprints, so a folded button still counts; Share's includes its divider and gaps.
     const seen = useRef({shareTail: 101, publish: 84})
     useLayoutEffect(() => {
         const bar = barRef.current
@@ -89,20 +91,22 @@ const useBarFit = (
         const measure = () => {
             const shareButton = grid.querySelector('[data-testid="share-menu-share"]')
             const publishButton = grid.querySelector('[data-testid="share-menu-publish"]')
-            const right = grid.lastElementChild
-            // The session tools never fold; Share, its divider and Publish trail them.
-            const tools = right?.firstElementChild?.getBoundingClientRect().width ?? 0
+            const tools = grid.querySelector("[data-bar-tools]")?.getBoundingClientRect().width ?? 0
+            // No share menu (no agent, or it is hidden): nothing to fold, so nothing to count.
+            const canShare = Boolean(grid.querySelector("[data-share-menu]"))
             if (publishButton) seen.current.publish = publishButton.getBoundingClientRect().width
             if (shareButton) {
                 seen.current.shareTail =
-                    contentWidth(right) - tools - (publishButton ? seen.current.publish : 0)
+                    contentWidth(grid.lastElementChild) -
+                    tools -
+                    (publishButton ? seen.current.publish : 0)
             }
             const room = grid.clientWidth - 20
             const left = naturalWidth(grid.firstElementChild)
             const rightFor = (folded: FoldedShare) =>
                 tools +
-                (folded.includes("share") ? 0 : seen.current.shareTail) +
-                (folded.includes("publish") ? 0 : seen.current.publish)
+                (!canShare || folded.includes("share") ? 0 : seen.current.shareTail) +
+                (!canShare || folded.includes("publish") ? 0 : seen.current.publish)
             const fits = (folded: FoldedShare, center: boolean) => {
                 const right = rightFor(folded)
                 return center
@@ -114,7 +118,7 @@ const useBarFit = (
                 const folded = FOLD_STEPS.find((step) => fits(step, center))
                 if (folded) return {folded, center}
             }
-            // No room even with both folded: the strip itself shrinks to whole tabs.
+            // No room even with both folded: the strip itself narrows and scrolls.
             return {folded: FOLD_STEPS[FOLD_STEPS.length - 1], center: false}
         }
         const apply = () => {
@@ -128,8 +132,7 @@ const useBarFit = (
         apply()
         const ro = new ResizeObserver(apply)
         ro.observe(bar)
-        // The side groups too: a button that lands after the first measure (Publish once the
-        // agent's state loads) widens them without resizing the bar.
+        // The side groups too: a button that lands late (Publish) widens them, not the bar.
         const observeSides = () => {
             for (const side of [grid.firstElementChild, grid.lastElementChild]) {
                 for (const child of Array.from(side?.children ?? [])) ro.observe(child)
@@ -370,7 +373,7 @@ const SessionTopBarView = ({
                 actions={
                     <>
                         {/* The session tools sit tight as one group. */}
-                        <div className="flex items-center gap-0.5">
+                        <div data-bar-tools className="flex items-center gap-0.5">
                             {hasSessions && agentId ? (
                                 <SimpleTooltip
                                     title={
