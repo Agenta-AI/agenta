@@ -174,10 +174,10 @@ export const SessionTabStrip = ({
     const pinAddRef = useRef(false)
     const stripElRef = useRef<HTMLDivElement | null>(null)
     const reorderable = Boolean(reorder)
-    // Fit mode keeps a window of `fitTabs` whole tabs on show. ONE function sets both the strip's
-    // width and its scroll from that window: a separate snap, fit and reveal each moved the strip
-    // on their own timers and fought over it.
-    const windowStartRef = useRef(0)
+    // Fit mode: ONE function owns the strip's width and scroll. A separate snap, fit and reveal
+    // each moved the strip on their own timers and fought over it.
+    const homeStartRef = useRef(0)
+    const tabCountRef = useRef(0)
     const pressedRef = useRef(false)
     // The open tab is pulled into view only when it CHANGES. Re-running that on every resize
     // undid a scroll by hand: the window's own width change fired the next refit.
@@ -201,55 +201,55 @@ export const SessionTabStrip = ({
             const active = slots.findIndex((slot) => slot.querySelector('[aria-selected="true"]'))
             const margin = (i: number) => parseFloat(getComputedStyle(slots[i]).marginRight) || 0
             const room = hostRoom(el)
-            // Where window `first` of `count` tabs puts the strip. An open tab outside the window
-            // docks at that side; it gets its own room there, so it never covers a window tab.
-            const layout = (first: number, count: number) => {
+            const span = (first: number, count: number) => {
                 const last = Math.min(first + count, slots.length) - 1
-                const before = active >= 0 && active < first
-                const after = active > last
-                let width = sizes.slice(first, last + 1).reduce((sum, size) => sum + size, 0)
-                if (before || after) width += sizes[active]
-                width -= margin(after ? active : last)
-                return {
-                    scroll: starts[first] - (before ? sizes[active] : 0),
-                    width: Math.round(width + 2 * BARE_INSET_PX),
-                }
+                const tabs = sizes.slice(first, last + 1).reduce((sum, size) => sum + size, 0)
+                return Math.round(tabs - margin(last) + 2 * BARE_INSET_PX)
             }
-            const clampFirst = (first: number, count: number) =>
-                Math.max(0, Math.min(first, slots.length - count))
-            const choose = (count: number) => {
-                let first = windowStartRef.current
-                if (mode === "nearest") {
-                    // Matched against each window's own resting scroll, so a settled strip is a
-                    // fixed point and the refit its own scroll fires changes nothing.
-                    for (let i = 0; i <= Math.max(0, slots.length - count); i++) {
-                        if (
-                            Math.abs(layout(i, count).scroll - el.scrollLeft) <
-                            Math.abs(layout(first, count).scroll - el.scrollLeft)
-                        ) {
-                            first = i
-                        }
-                    }
-                } else if (active >= 0 && slots[active] !== shownActiveRef.current) {
-                    if (active < first) first = active
-                    if (active > first + count - 1) first = active - count + 1
-                }
-                return clampFirst(first, count)
+            // The home window holds the open tab and moves only as far as it must to keep it.
+            // The strip's width comes from it alone, never from where a scroll rests: a width
+            // that followed the scroll resized the centred bar and slid every tab sideways.
+            const homeFor = (count: number) => {
+                let first = homeStartRef.current
+                if (active >= 0 && active < first) first = active
+                if (active >= 0 && active > first + count - 1) first = active - count + 1
+                return Math.max(0, Math.min(first, slots.length - count))
             }
-            // As many whole tabs as the room takes, up to `fitTabs`.
             let count = fitTabs
-            let first = choose(count)
-            while (count > 1 && layout(first, count).width > room + 1) {
+            let home = homeFor(count)
+            while (count > 1 && span(home, count) > room + 1) {
                 count -= 1
-                first = choose(count)
+                home = homeFor(count)
             }
-            shownActiveRef.current = active >= 0 ? slots[active] : null
-            const {scroll, width} = layout(first, count)
-            windowStartRef.current = first
-            el.style.width = `${Math.min(width, Math.floor(room))}px`
+            const activeSlot = active >= 0 ? slots[active] : null
+            const moved =
+                activeSlot !== shownActiveRef.current || slots.length !== tabCountRef.current
+            homeStartRef.current = home
+            shownActiveRef.current = activeSlot
+            tabCountRef.current = slots.length
+            el.style.width = `${Math.min(span(home, count), Math.floor(room))}px`
             el.style.flex = "none"
-            // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced motion.
-            if (Math.abs(el.scrollLeft - scroll) > 1) el.scrollTo({left: Math.max(0, scroll)})
+            const scrollTo = (left: number) => {
+                // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced
+                // motion.
+                if (Math.abs(el.scrollLeft - left) > 1) el.scrollTo({left: Math.max(0, left)})
+            }
+            if (mode === "nearest") {
+                // A scroll by hand rests on the nearest tab start. A docked open tab on the left
+                // takes the first slot, so the next tab starts after it, not under it.
+                const rest = (i: number) =>
+                    starts[i] - (active >= 0 && active < i ? sizes[active] : 0)
+                let best = 0
+                for (let i = 1; i < slots.length; i++) {
+                    if (Math.abs(rest(i) - el.scrollLeft) < Math.abs(rest(best) - el.scrollLeft)) {
+                        best = i
+                    }
+                }
+                scrollTo(rest(best))
+                return
+            }
+            // Only a new open tab or a changed tab set moves the view; a plain resize does not.
+            if (moved) scrollTo(starts[home])
         },
         [fitTabs],
     )
