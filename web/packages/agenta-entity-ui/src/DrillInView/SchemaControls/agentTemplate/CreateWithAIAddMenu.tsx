@@ -35,6 +35,8 @@ export interface CreateWithAIAddMenuProps {
     trigger?: ReactNode
     /** Which trigger edge the menu lines up with. */
     align?: "start" | "end"
+    /** Open as wide as the trigger, for a full-width trigger. */
+    matchTriggerWidth?: boolean
 }
 
 /** One row: an icon tile, a name, a one-line hint. Same shape as the header's Share menu. */
@@ -74,6 +76,7 @@ export function CreateWithAIAddMenu({
     manualIcon,
     trigger,
     align = "end",
+    matchTriggerWidth = false,
 }: CreateWithAIAddMenuProps) {
     const requestPrefill = useSetAtom(composerPrefillRequestAtom)
     // The menu hands focus back to its trigger as it closes. After "Create with AI" the composer
@@ -91,7 +94,9 @@ export function CreateWithAIAddMenu({
             </DropdownMenuTrigger>
             <DropdownMenuContent
                 align={align}
-                className="w-64"
+                className={
+                    matchTriggerWidth ? "w-[var(--radix-dropdown-menu-trigger-width)]" : "w-64"
+                }
                 onCloseAutoFocus={(event) => {
                     if (!choseAIRef.current) return
                     choseAIRef.current = false

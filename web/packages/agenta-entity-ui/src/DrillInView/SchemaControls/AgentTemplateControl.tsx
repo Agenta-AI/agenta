@@ -1215,6 +1215,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                     manualHint="Pick an app and its actions"
                                     manualIcon={<Wrench size={16} />}
                                     align="start"
+                                    matchTriggerWidth
                                     trigger={<EmptyAddButton label="Add integration" />}
                                 />
                             ) : undefined
@@ -1318,6 +1319,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                 manualHint="From your library, or write one"
                                 manualIcon={<GraduationCap size={16} />}
                                 align="start"
+                                matchTriggerWidth
                                 trigger={<EmptyAddButton label="Add skill" />}
                             />
                         }
