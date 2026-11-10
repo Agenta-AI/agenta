@@ -14,9 +14,10 @@
 import {useEffect, useMemo, useState, type Ref} from "react"
 
 import type {McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
+import {McpServerMark} from "@agenta/ui/agent-icon"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, EmptyState, IconTile, SearchInput, SkeletonRows} from "@agenta/ui/ui"
-import {Plugs, Plus} from "@phosphor-icons/react"
+import {Button, EmptyState, SearchInput, SkeletonRows} from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
 
 import {ScrollFadeArea} from "../shared/ScrollFadeArea"
 
@@ -143,11 +144,7 @@ export function McpAddServerDrawer({
                     <EmptyState
                         className="max-w-[320px] text-center"
                         // Bare glyph: the tile sets its own size and colour.
-                        image={
-                            <IconTile size={44} tone="muted">
-                                <Plugs />
-                            </IconTile>
-                        }
+                        image={<McpServerMark size={44} />}
                         title="No MCP servers in this project yet"
                         description="Connect an MCP server by URL. You'll sign in or add a key once, and every agent in the project can use it."
                     >

@@ -13,7 +13,7 @@ import {
 } from "@agenta/entity-ui/agent"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {LogoMarks} from "@agenta/ui/components/presentational"
-import {Cpu, FileText, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {Cpu, FileText, GraduationCap, HardDrives, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AgentOverviewCard} from "./AgentOverviewCard"
@@ -119,7 +119,7 @@ export const AgentConfigCard = ({
                         server" was missing on exactly the agents that have none — and the two
                         cards disagreed about which rows an agent has. */}
                     <AgentOverviewCardRow
-                        icon={<Plugs size={ICON} />}
+                        icon={<HardDrives size={ICON} />}
                         label={AGENT_CONFIG_ROW_TITLES.mcps}
                         // The shared card's rule, not this fork's own wording: it said
                         // "connected", which claims an authorized state no summary card

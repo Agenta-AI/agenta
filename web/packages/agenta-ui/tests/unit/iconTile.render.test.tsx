@@ -58,6 +58,16 @@ describe("IconTile", () => {
         expect(tile().className).toContain("text-colorTextTertiary")
     })
 
+    it("the neutral tone is the grey identity pair the MCP server mark uses", () => {
+        render(
+            <IconTile data-testid="tile" tone="neutral">
+                <Plugs />
+            </IconTile>,
+        )
+        expect(tile().className).toContain("bg-colorFillSecondary")
+        expect(tile().className).toContain("text-colorTextSecondary")
+    })
+
     it("defaults to the 28px info tile", () => {
         render(
             <IconTile data-testid="tile">

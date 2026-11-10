@@ -191,13 +191,13 @@ describe("D1 — the drawer at its default", () => {
     })
 
     it("leads the header with the generic server tile, since an MCP endpoint has no branding", async () => {
-        // One plugs glyph on the info tile for every server (decision 3). A per-server logo would
+        // One server glyph on the neutral tile for every server (decision 3). A per-server logo would
         // have to be guessed from a URL, and a header with nothing in that slot reads as a row
         // that failed to load an icon.
         await render()
 
         const tile = document.querySelector('[data-slot="icon-tile"]')
-        expect(tile?.getAttribute("data-tone")).toBe("info")
+        expect(tile?.getAttribute("data-tone")).toBe("neutral")
         expect(tile?.getAttribute("data-size")).toBe("24")
         expect(tile?.querySelector("svg")).not.toBeNull()
     })

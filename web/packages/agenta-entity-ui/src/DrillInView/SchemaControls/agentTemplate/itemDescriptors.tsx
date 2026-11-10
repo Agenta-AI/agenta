@@ -11,7 +11,7 @@ import {
     skillMarkText,
     type SkillMarkOrigin,
 } from "@agenta/ui/agent-icon"
-import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
+import {FileText, GraphIcon, HardDrives, Plugs, Robot} from "@phosphor-icons/react"
 
 import {SKILL_NAME_PATTERN} from "../skillName"
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
@@ -244,10 +244,14 @@ export function describeMcp(server: unknown): ItemDescriptor {
     const name = typeof s.name === "string" && s.name ? (s.name as string) : "MCP server"
     return {
         name,
+        // A server name is prose, not an identifier.
+        monoName: false,
         description: typeof connection.url === "string" ? connection.url : undefined,
         mono: "",
-        color: "#2563eb",
-        icon: <Plugs size={15} weight="fill" />,
+        color: "transparent",
+        icon: <HardDrives size={16} weight="light" />,
+        // The neutral MCP server mark, the same one `McpServerMark` draws elsewhere.
+        avatarClassName: "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
         // No type tag. Every MCP row carried "HTTP", which said the same thing on every
         // row and is not even true of a gateway-referenced connection: the transport is
         // the connection's business, not the agent item's.
