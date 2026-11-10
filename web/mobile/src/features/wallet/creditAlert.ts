@@ -26,6 +26,8 @@ export const creditAlert = (
     now = Date.now(),
 ): CreditAlert => {
     if (!wallet || wallet.mode !== "enforce") return {kind: "none"}
+    // A new organization has no credit rows until its first admission grants the day's credits.
+    if (wallet.credits.length === 0) return {kind: "none"}
 
     const active = wallet.credits.filter((credit) => isActive(credit, now))
     const durable = active.filter((credit) => credit.credit_kind !== DAILY_FREE_KIND)
