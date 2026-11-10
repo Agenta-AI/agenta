@@ -180,10 +180,7 @@ const FormViewToggle = () => {
     )
 }
 
-/**
- * Form view: each object and array node opens and closes with the shared collapse caret.
- * The code view's fold gutter uses the same caret.
- */
+/** Form view nodes and the code fold gutter, both with the shared collapse caret. */
 export const FormViewNodes: Story = {
     render: () => (
         <Frame label="language=json · form view nodes (NodeHeader) and code fold gutter">

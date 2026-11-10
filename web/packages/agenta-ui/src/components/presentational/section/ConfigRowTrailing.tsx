@@ -39,7 +39,7 @@ export function ConfigRowDrawerCaret({className}: {className?: string}) {
         <CaretRight
             aria-hidden
             size={AFFORDANCE_SIZE}
-            className={cn("shrink-0 text-[var(--ag-zinc-5)]", className)}
+            className={cn("shrink-0 text-colorTextTertiary", className)}
         />
     )
 }
