@@ -9,9 +9,9 @@
   </a>
   
 <div align="center">
-  <strong> <h1> The open-source workspace for your agents and your team </h1></strong>
+  <strong> <h1> The open source agent platform </h1></strong>
 
-  Build AI coworkers by chatting. Share them with your team. Talk to them in Slack, WhatsApp or Telegram.
+  Build agents and automations from natural language prompts. Work with them in the Agenta workspace, or deploy them to Slack, Teams, WhatsApp or your website for your team and your clients.
   
   ---
   
@@ -91,13 +91,15 @@
 
 ## What is Agenta?
 
-Agenta is an open-source workspace where you build specialized agents that automate and augment your work.
+Agenta is an open source platform for building agents and automations. It's made for builders: people who set up agents for their own team, for other teams in their company, or for their clients.
 
-You build agents by chatting with them. You describe the work, connect the apps they need, and improve them through feedback.
+You build an agent by describing the job in chat. Connect the apps it needs, run it on the AI subscription or model you choose, and improve it by correcting it.
 
-You can work with your agents in the web app, or talk to them where you already are: **Slack**, **Telegram** or **WhatsApp Business**.
+Then put it to work. Your team works with it in the Agenta workspace. You can also deploy it to Slack, Teams, WhatsApp, Telegram or a website, so colleagues, clients and their customers use it where they already are.
 
-For recurring work, you can create automations. Your agents run on a schedule or when an event occurs in a connected app, and you can see what every run did.
+For recurring work, turn it into an automation. The agent runs on a schedule or when something happens in a connected app, and you can see what every run did.
+
+Agenta is MIT licensed. Use Agenta Cloud, or self-host it on your own servers.
 
 ## Tutorials
 
@@ -129,47 +131,63 @@ More tutorials on our [YouTube channel](https://www.youtube.com/@agentaAI).
 
 Agenta is the wrong tool if you are looking for:
 
-- **an agentic development environment** for writing code, like ocra, Claude Code or OpenCode.
-  
-  *Agenta is built for the work around and beyond code: IT ops, GTM, HR, legal, finance, support...*
-- **a single-user personal assistant**, like openclaw or Hermes.
-  
-  *Agenta is built for teams: agents are shared, multi-user, and run where the team works (e.g. Slack).*
-- **a low-code workflow builder**, like n8n or Zapier.
-  
-  *In Agenta you do not draw workflows. You build autonomous agents that figure out the steps and solve problems on their own.*
+- **a coding agent** for writing software, like Claude Code or OpenCode.
 
-Agenta is built for work, with professionals in mind from day one. That means:
+  *Agenta is built for the work around and beyond code: operations, sales, marketing, HR, legal, finance and support.*
+- **a personal assistant for one person**, like OpenClaw or Hermes.
+
+  *Agenta is built for teams. Agents are shared, used by many people, and run where the team works, for example in Slack.*
+- **a workflow builder where you draw every step**, like n8n or Zapier.
+
+  *In Agenta you don't draw workflows. You build agents that work out the steps and handle the exceptions themselves.*
+
+Agenta is built for work, with professionals in mind from day one:
 
 1. **Multiplayer by default.** Give your team (or customers) access, set roles, and share agents and chat sessions.
-2. **Transparent.** You see each agent's configuration, its versions, and every change.
-3. **Controllable, with you in the loop.** You set exact permissions per agent: which tools it can use, and whether it can read or write with them. You decide what it does on its own and what goes through you first.
-4. **Secure.** Each session runs in its own sandbox, isolated from every other. Model credentials are never seen by the agent.
+2. **Transparent.** You see each agent's configuration, its versions and every change.
+3. **You stay in control.** Set exact permissions per agent: which tools it can use, and whether it can read or write with them. Decide what it does on its own and what waits for a person.
+4. **Secure.** Each session runs in its own sandbox, separate from every other. Agents never see model credentials.
 5. **Auditable.** Every run is traced. Every cost is tracked.
 6. **Yours.** Open source, self-hostable, on your models, with your data on your servers.
-7. **For technical and non-technical teammates.** You build agents by chatting, so anyone on the team can build them and work with them, not only engineers.
+7. **For builders, technical or non-technical.** You build agents by describing the job, so anyone who thinks like a builder can create them and maintain them, whether or not they write code.
 
 ## Features
 
-**Talk to your agents in Slack, Telegram or WhatsApp.** Your team and your clients use agents from the chat apps they already have, with no new tool to learn. The web app works on your phone too.
+### Everything you need to build an agent
 
-**Use your Claude or ChatGPT subscription.** Run agents on the subscription you already pay for, instead of metered API billing.
+**Use your Claude or ChatGPT subscription.** Run agents on the plan you already pay for, instead of metered API billing.
 
-**Use any model.** Hosted models through an API, or self-hosted models with Ollama. Pick a cheap model for routine jobs and a strong one where it matters, and see what each agent costs.
+**Use any model.** Any API key, through OpenRouter, Gemini or xAI. Or your own self-hosted models through Ollama or an OpenAI-compatible endpoint. Pick a cheap model for routine jobs and a strong one where it counts, and see what each agent costs.
 
-**Agents that learn.** Correct an agent once and it remembers. Agents keep memory, create and refine their own skills, and update their own instructions, so they need less supervision every week.
-
-**Automations.** Run agents on a schedule or when an event occurs in a connected app. See the history of every run, and continue a run's session to fix or improve it.
+**Integrations and an MCP gateway.** Connect more than 1,000 apps through Composio, including Gmail, Slack, Notion and GitHub. Connect an MCP server once and share it with your team, or connect one just for you.
 
 **Each agent has its own computer.** A browser and a file system, so agents can work on any website and any file, not only on apps that have an integration.
 
-**Integrations.** Connect your agents through MCP, or to more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub. Add your own secrets for the tools that need them.
+**Automations.** Run agents on a schedule or when an event happens in a connected app. See the history of every run, and continue a run's session to fix or improve it.
 
-**Workspaces for you and your agents.** Work together on files in a shared workspace: documents, research, a wiki, with comments and previews. Agents can also build small apps, like a board or a form, for your team to use.
+**Secret vault.** Store the credentials your tools need. The agent can use them but can't read them.
 
-**Teams of agents.** Agents can call other agents and hand work to each other, so one coworker can coordinate specialists.
+**Agents that learn.** Correct an agent once and it remembers. Agents keep memory, create and refine their own skills, and update their own instructions.
 
-**Skills and templates.** Start from templates, bring in skills from the agent ecosystem, and grow your own skill library over time.
+**Skills and templates.** Start from a template, bring in skills from the agent ecosystem, and grow your own skill library over time.
+
+### Work with your agents and share them
+
+**The Agenta workspace.** Work with your agents and your team on files in one place: documents, research and a wiki, with comments and previews. Agents can also build small apps, like a board or a form, for your team to use.
+
+**Work on it together.** Several people can work with the same agent in one shared session. For connections set to personal, each person's request runs on their own account.
+
+**Deploy where people already are.** Publish an agent to Slack, Teams, WhatsApp or Telegram, or embed it on a website. The web app works on your phone too.
+
+**Teams of agents.** Agents can call other agents and hand work to each other, so one agent can coordinate specialists.
+
+### Control
+
+**Permissions and approvals.** Choose which tools each agent can use and which actions wait for a person.
+
+**Access for your team.** Choose who can use each agent, with roles for your team.
+
+**Traces and costs.** Every run is traced, and you see what each agent spends.
 
 ## Get started
 
