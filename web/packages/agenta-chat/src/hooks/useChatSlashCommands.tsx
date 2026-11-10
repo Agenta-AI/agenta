@@ -393,6 +393,7 @@ export function useChatSlashCommands({
         sections,
         picker,
         closePicker: useCallback(() => setPicker(null), []),
+        openModelPicker: useCallback(() => openPicker("model"), [openPicker]),
         modelGroups,
         currentModel,
         currentModelKey,
