@@ -61,7 +61,17 @@ beforeEach(() => {
         mode: "enforce",
         spendable_musd: 2_000,
         active_credit_total_musd: 4_000,
-        credits: [],
+        credits: [
+            {
+                id: "c1",
+                credit_kind: "purchase",
+                amount_musd: 4_000,
+                remaining_musd: 2_000,
+                start_time: null,
+                end_time: null,
+                created_at: null,
+            },
+        ],
     })
 })
 afterEach(() => {

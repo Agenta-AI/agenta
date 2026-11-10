@@ -124,6 +124,10 @@ describe("creditAlert", () => {
         })
     })
 
+    it("says nothing before a new organization has any credit rows", () => {
+        expect(creditAlert(wallet([], 0), NOW)).toEqual({kind: "none"})
+    })
+
     it("is empty once today's daily grant is spent", () => {
         const credits = [credit({remaining_musd: 0}), daily("2026-11-08", 0)]
         expect(creditAlert(wallet(credits, 0), NOW)).toEqual({kind: "empty"})
