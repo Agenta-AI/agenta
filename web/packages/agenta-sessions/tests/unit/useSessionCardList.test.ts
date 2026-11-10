@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {pinnedSessionListArgs} from "../../src/state/useSessionCardList"
+import {pinnedSessionListArgs, sessionCardListIsStale} from "../../src/state/useSessionCardList"
 
 describe("pinnedSessionListArgs", () => {
     // A pin is an explicit user request and overrides the surface's origin filter — a pinned
@@ -33,5 +33,22 @@ describe("pinnedSessionListArgs", () => {
             enabled: false,
             lowPriority: false,
         })
+    })
+})
+
+describe("sessionCardListIsStale", () => {
+    it("is stale while a pinned or waiting query still shows the previous agent's rows", () => {
+        const list = {placeholder: false, used: true}
+        expect(sessionCardListIsStale([list, {placeholder: true, used: true}])).toBe(true)
+        expect(sessionCardListIsStale([list, {placeholder: false, used: true}])).toBe(false)
+    })
+
+    it("ignores a query the card does not use", () => {
+        expect(
+            sessionCardListIsStale([
+                {placeholder: false, used: true},
+                {placeholder: true, used: false},
+            ]),
+        ).toBe(false)
     })
 })

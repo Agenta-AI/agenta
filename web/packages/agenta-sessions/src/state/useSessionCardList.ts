@@ -28,6 +28,10 @@ import {
  * requests it, so a pinned automation row's name would otherwise never resolve and fall back to
  * "Missing schedule".
  */
+/** Stale while any query feeding the rows still shows the last request's data, pins included. */
+export const sessionCardListIsStale = (queries: {placeholder: boolean; used: boolean}[]): boolean =>
+    queries.some((query) => query.used && query.placeholder)
+
 export function pinnedSessionListArgs(
     policy: SessionListRequestPolicy,
     agentId: string | undefined,
@@ -239,7 +243,11 @@ export const useSessionCardList = ({
 
     return {
         /** The rows on show are the last search's: the new one is still on its way. */
-        isStale: listQuery.isPlaceholderData,
+        isStale: sessionCardListIsStale([
+            {placeholder: listQuery.isPlaceholderData, used: true},
+            {placeholder: pinnedQuery.isPlaceholderData, used: usePins},
+            {placeholder: waitingQuery.isPlaceholderData, used: useWaiting},
+        ]),
         groups,
         isPending: listQuery.isPending || awaitingTopUp,
         isEmpty: isEmpty && !awaitingTopUp,
