@@ -1,10 +1,11 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 
-import {dismissNotice, isNoticeDismissed} from "@agenta/shared/analytics"
+import {dismissNotice, isNoticeDismissed, type MaintenanceNotice} from "@agenta/shared/analytics"
 import {X} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {isAnalyticsAuthRoute} from "@/features/analytics/client"
+import {useSecurityWarning} from "@/features/education/useSecurityWarning"
 import {cn} from "@/lib/utils"
 
 import {useMaintenanceNotice} from "./useMaintenanceNotice"
@@ -22,19 +23,36 @@ const SCREEN_SAFE_TOP_VAR = "--ag-screen-safe-top"
  * flag. All its words come from the flag payload. It sits in the page flow and the message
  * wraps (a phone cannot show 240 characters on one line), so its height is measured and the
  * screen under it is shortened by exactly that, never covered.
+ *
+ * With no maintenance notice up, the same bar warns owners and admins of a security release
+ * newer than the running version (from the release feed). One bar at a time owns the height.
  */
 export const MaintenanceNoticeBar = () => {
-    const notice = useMaintenanceNotice()
+    const maintenance = useMaintenanceNotice()
+    const security = useSecurityWarning()
     const router = useRouter()
     const authRoute = isAnalyticsAuthRoute(router.asPath || router.pathname || "")
     // Start hidden: localStorage is not readable during the server render.
-    const [dismissed, setDismissed] = useState(true)
+    const [maintenanceDismissed, setMaintenanceDismissed] = useState(true)
 
     useEffect(() => {
-        setDismissed(notice ? isNoticeDismissed(notice) : true)
-    }, [notice])
+        setMaintenanceDismissed(maintenance ? isNoticeDismissed(maintenance) : true)
+    }, [maintenance])
 
-    const visible = Boolean(notice) && !dismissed && !authRoute
+    const showMaintenance = Boolean(maintenance) && !maintenanceDismissed
+    const notice: MaintenanceNotice | null = showMaintenance
+        ? maintenance
+        : security.release
+          ? {
+                id: `security-${security.release.id}`,
+                message: `Security update available. Upgrade to ${security.release.id} or later.`,
+                linkHref: security.release.features[0]?.link,
+                linkLabel: "Read the notes",
+                tone: "warning",
+            }
+          : null
+
+    const visible = Boolean(notice) && !authRoute
 
     const barRef = useRef<HTMLDivElement>(null)
 
@@ -55,10 +73,13 @@ export const MaintenanceNoticeBar = () => {
         }
     }, [visible])
 
+    const {snooze: snoozeSecurity} = security
     const handleDismiss = useCallback(() => {
-        if (notice) dismissNotice(notice)
-        setDismissed(true)
-    }, [notice])
+        if (showMaintenance && maintenance) {
+            dismissNotice(maintenance)
+            setMaintenanceDismissed(true)
+        } else snoozeSecurity()
+    }, [maintenance, showMaintenance, snoozeSecurity])
 
     if (!visible || !notice) return null
 

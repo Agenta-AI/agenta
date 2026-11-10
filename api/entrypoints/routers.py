@@ -158,6 +158,8 @@ from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
 from oss.src.apis.fastapi.sessions.router import SessionsRouter
 from oss.src.apis.fastapi.sharing.router import SharingRouter
+from oss.src.apis.fastapi.releases.router import ReleasesRouter
+from oss.src.core.releases.service import ReleasesService
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.core.annotations.service import AnnotationsService
@@ -1752,6 +1754,10 @@ sharing = SharingRouter(
     streams_service=session_streams_service,
 )
 
+releases = ReleasesRouter(
+    releases_service=ReleasesService(),
+)
+
 # PLATFORM ADMIN ---------------------------------------------------------------
 
 platform_admin_accounts_service = PlatformAdminAccountsService()
@@ -2335,6 +2341,12 @@ app.include_router(
 app.include_router(
     router=sharing.router,
     tags=["Sharing"],
+)
+
+app.include_router(
+    router=releases.router,
+    prefix="/instance",
+    tags=["Releases"],
 )
 
 

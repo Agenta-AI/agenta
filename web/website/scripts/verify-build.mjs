@@ -179,6 +179,25 @@ if (existsSync(specPath)) {
   }
 }
 
+// 5b. The release feed Agenta instances download (scripts/copy-releases.mjs).
+const feedPath = resolve(dist, "releases.json");
+check(existsSync(feedPath), "missing dist/releases.json.");
+if (existsSync(feedPath)) {
+  try {
+    const feed = JSON.parse(readFileSync(feedPath, "utf8"));
+    check(
+      Array.isArray(feed.releases) && feed.releases.length > 0,
+      "dist/releases.json has no releases.",
+    );
+    check(
+      Array.isArray(feed.notices),
+      "dist/releases.json has no notices list.",
+    );
+  } catch (error) {
+    failures.push(`dist/releases.json does not parse: ${error.message}`);
+  }
+}
+
 // 6. Sitemap entries must be final, self-canonical page URLs. The site root is
 //    the only URL whose path legitimately ends in a slash.
 const sitemap = resolve(dist, "sitemap-0.xml");
