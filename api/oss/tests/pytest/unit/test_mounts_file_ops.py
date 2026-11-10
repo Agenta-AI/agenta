@@ -474,6 +474,13 @@ class TestArchiveZipSlip:
         zip_paths = [zip_path for zip_path, *_rest in work]
         assert zip_paths == ["a/report.txt"]
 
+    async def test_browser_sign_ins_never_ship(self):
+        work = await self._work_for_keys(
+            ["plan.md", ".agenta-browser/state.json", ".agenta-browser/state.json.tmp"]
+        )
+
+        assert {zip_path for zip_path, *_rest in work} == {"plan.md"}
+
 
 @pytest.mark.asyncio
 class TestArchiveZipNamespace:
@@ -698,6 +705,34 @@ class TestMountFileOpsRoundtrip:
             "web/index.ts",
         }
         assert listing.total == 2
+
+    @pytest.mark.parametrize(
+        "view",
+        [
+            {},
+            {"git_aware": True},
+            {"order": "path", "limit": 100},
+            {"order": "recent", "limit": 100},
+            {"order": "path", "limit": 100, "git_aware": True},
+            {"depth": 1, "git_aware": True},
+            {"depth": 1},
+        ],
+    )
+    async def test_no_listing_shows_the_browser_sign_ins(self, view):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="notes.md", content=b"x"
+        )
+        # The sandbox writes the file through the mount, not through the drive API.
+        base = service._storage_key(mount=mount)
+        store = service.mounts_store._store.setdefault(_BUCKET, {})
+        store[f"{base}.agenta-browser/state.json"] = b"{}"
+
+        listing = await service.list_files(project_id=pid, mount_id=mid, **view)
+
+        assert not any(".agenta-browser" in f.path for f in listing.files)
+        assert any(f.path == "notes.md" for f in listing.files)
 
     async def test_git_aware_flat_listing_excludes_hidden_paths(self):
         # Dot-prefixed files and directories are plumbing, not user content: the curated flat view

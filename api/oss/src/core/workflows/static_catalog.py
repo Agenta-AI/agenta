@@ -41,6 +41,8 @@ from agenta.sdk.engines.running.utils import (
 )
 
 from oss.src.core.apps.assembly import AGENTA_APPS_SKILL, AGENTA_APPS_SLUG
+from oss.src.core.browser.assembly import BROWSER_SKILL, BROWSER_SLUG
+from oss.src.utils.env import env
 from oss.src.core.workflows.build_kit import (
     AGENTA_BUILTIN_AGENT_URI,
     BUILD_KIT_WORKFLOW_DESCRIPTION,
@@ -431,6 +433,17 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
             "v1": _skill_revision(CREATE_TEMPLATE_SKILL),
         },
     },
+    # Off by default: with the browser off nobody can find the skill to add it, but an agent that
+    # already embeds it still resolves.
+    BROWSER_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
+        "listed": env.browser.enabled,
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(BROWSER_SKILL),
+        },
+    },
 }
 
 
@@ -510,11 +523,14 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
                     )
 
     def list_slugs(self) -> List[str]:
-        """Every reserved slug in the catalogue, in declaration order.
+        """Every listed reserved slug in the catalogue, in declaration order.
 
         The public way to enumerate the catalogue (each slug resolves through
-        :meth:`retrieve_revision`); callers must not reach into the backing dict."""
-        return list(self._catalog)
+        :meth:`retrieve_revision`); callers must not reach into the backing dict. An entry
+        with ``"listed": False`` is left out here and still resolves."""
+        return [
+            slug for slug, entry in self._catalog.items() if entry.get("listed", True)
+        ]
 
     def is_static_slug(self, slug: Optional[str]) -> bool:
         return is_static_workflow_slug(slug)

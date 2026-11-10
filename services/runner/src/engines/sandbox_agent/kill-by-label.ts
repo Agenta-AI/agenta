@@ -17,19 +17,15 @@
 import type { Daytona } from "@daytonaio/sdk";
 
 import {
-  applyDaytonaSdkEnv,
   buildDaytonaClient,
+  daytonaLabelClient,
   deleteDaytonaSandbox,
 } from "./daytona-provider.ts";
 import {
   daytonaWithProcessLocalSecrets,
   holdsProcessLocalSecretAllocation,
 } from "./daytona-secret-provider.ts";
-import {
-  CONVERSATION_LABEL,
-  PROJECT_LABEL,
-  sessionSandboxLabels,
-} from "./sandbox-labels.ts";
+import { belongsToSession, sessionSandboxLabels } from "./sandbox-labels.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
 
 export interface LabelledSandbox {
@@ -112,14 +108,7 @@ export async function deleteLabelledSandboxes(
   // the next page; leaving the loop closes the iterator.
   for await (const sandbox of dependencies.list(labels)) {
     signal?.throwIfAborted();
-    // The list filter is the provider's. Check the labels here too, because the label pair is the
-    // whole authorization for a delete.
-    if (
-      sandbox.labels?.[PROJECT_LABEL] !== projectId ||
-      sandbox.labels?.[CONVERSATION_LABEL] !== sessionId
-    ) {
-      continue;
-    }
+    if (!belongsToSession(sandbox.labels, projectId, sessionId)) continue;
     if (GOING_AWAY.has(String(sandbox.state ?? "").toLowerCase())) continue;
     found.push(sandbox.id);
   }
@@ -149,8 +138,7 @@ export async function deleteLabelledSandboxes(
 
 /**
  * The Daytona calls behind `deleteLabelledSandboxes`, or undefined when this runner has no
- * Daytona: there is nothing to list. A runner with only `local` and `inprocess` still has the
- * Daytona key, and its command sandboxes carry the labels, so `inprocess` counts as Daytona here.
+ * Daytona (`daytonaLabelClient`).
  */
 export function daytonaKillDependencies(
   config = loadRunnerConfig(),
@@ -158,12 +146,8 @@ export function daytonaKillDependencies(
     process.stderr.write(`[daytona] ${message}\n`),
   buildClient: () => DaytonaKillClient = () => buildDaytonaClient(config.daytona),
 ): KillSandboxDependencies | undefined {
-  const { enabled } = config.providers;
-  if (!enabled.includes("daytona") && !enabled.includes("inprocess")) {
-    return undefined;
-  }
-  applyDaytonaSdkEnv(config.daytona);
-  const client = buildClient();
+  const client = daytonaLabelClient(config, buildClient);
+  if (!client) return undefined;
   const deletePlain = (sandboxId: string): Promise<void> =>
     deleteDaytonaSandbox(client, sandboxId);
   // The Secrets wrapper owns the order "sandbox gone, then Secrets released" and the retry of a

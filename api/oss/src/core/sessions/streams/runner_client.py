@@ -18,9 +18,11 @@ the runner's own orphan sweep / idle-TTL eviction is the fallback net for a miss
 """
 
 from typing import NamedTuple, Optional
+from uuid import UUID
 
 import httpx
 
+from oss.src.core.sessions.streams.dtos import BrowserLiveLink, BrowserPage
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -230,3 +232,59 @@ async def cancel_runner_execution(
             command_id,
         )
     return RunnerCancelResponse(RunnerCancelResult.accepted, replica_id)
+
+
+_BROWSER_LIVE_TIMEOUT_SECONDS = 15.0
+
+
+_BROWSER_PAGE_TEXT_MAX = 2048
+
+
+async def fetch_browser_live_link(
+    *, project_id: UUID, session_id: str
+) -> Optional[BrowserLiveLink]:
+    """POST the runner's `/browser/live`. None when no browser is live in the session, the runner
+    is not configured or unreachable, or it answers anything but a well-formed link."""
+    base_url = env.runner.internal_url
+    token = env.runner.token
+    if not base_url or not token:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_BROWSER_LIVE_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                base_url.rstrip("/") + "/browser/live",
+                json={"projectId": str(project_id), "sessionId": session_id},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if response.status_code != 200:
+            if response.status_code != 404:
+                log.warning(
+                    "browser.live", outcome="refused", status=response.status_code
+                )
+            return None
+        body = response.json()
+    except (httpx.HTTPError, ValueError) as e:
+        # A timeout has an empty message, so the type is what says what happened.
+        log.warning(
+            "browser.live",
+            outcome="runner_unreachable",
+            error=f"{type(e).__name__}: {e}",
+        )
+        return None
+    url = body.get("url") if isinstance(body, dict) else None
+    headers = body.get("headers") if isinstance(body, dict) else None
+    if not isinstance(url, str) or not isinstance(headers, dict):
+        return None
+    page = body.get("page")
+    page = page if isinstance(page, dict) else {}
+    return BrowserLiveLink(
+        url=url,
+        headers={str(k): str(v) for k, v in headers.items()},
+        page=BrowserPage(
+            **{
+                field: value[:_BROWSER_PAGE_TEXT_MAX]
+                for field in BrowserPage._fields
+                if isinstance(value := page.get(field), str)
+            }
+        ),
+    )

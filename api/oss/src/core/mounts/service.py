@@ -170,6 +170,21 @@ def validate_file_path(path: str) -> None:
     for segment in path.strip("/").split("/"):
         if segment in ("", ".", ".."):
             raise MountPathInvalid()
+    if _is_private_mount_path(path):
+        raise MountPathInvalid("File path is not available.")
+
+
+# The part of the internal paths (`_is_internal_mount_path`) the drive never serves at all: they
+# hold credentials (the browser skill's saved sign-ins). Hiding them from listings is not enough,
+# because a known path can be read directly. Signed mount credentials still reach them.
+_PRIVATE_MOUNT_SEGMENTS = frozenset({".agenta-browser"})
+
+
+def _is_private_mount_path(path: str) -> bool:
+    return any(
+        segment in _PRIVATE_MOUNT_SEGMENTS
+        for segment in path.replace("\\", "/").strip("/").split("/")
+    )
 
 
 def _zip_segments(path: str) -> List[str]:
@@ -1389,6 +1404,8 @@ class MountsService:
                 )
 
             def _keep(rel: str, is_dir: bool) -> bool:
+                if _is_private_mount_path(rel):
+                    return False
                 if not git_aware:
                     return True
                 if _is_git_plumbing(rel) or _is_internal_mount_path(rel):
@@ -1534,6 +1551,7 @@ class MountsService:
                     etag=o.etag,
                 )
                 for o in store_files
+                if not _is_private_mount_path(o.key)
             ]
             if git_aware:
                 # The descent already pruned these as whole DIRECTORIES. What is left to drop is the
@@ -1584,6 +1602,8 @@ class MountsService:
         for obj in objects:
             key = obj.key
             rel = key[len(mount_base) :] if key.startswith(mount_base) else key
+            if _is_private_mount_path(rel):
+                continue
             # Hide bare trailing-slash marker objects (empty-folder markers).
             if key.endswith("/"):
                 folder_rel = rel.rstrip("/")
@@ -1701,6 +1721,8 @@ class MountsService:
                 # store. A runner artifact, not user content (the runner unlinks anything else at
                 # that path), and the drive hides it — so it has no place in the zip either.
                 if is_session_cwd and rel.strip("/") == _AGENT_FILES_LINK_NAME:
+                    continue
+                if _is_private_mount_path(rel):
                     continue
                 rel_segments = _zip_segments(rel)
                 # Store keys come from signed-credential writers, so `rel` can carry `..` or a

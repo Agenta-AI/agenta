@@ -172,6 +172,8 @@ vi.mock("@agenta/entities/workflow", async () => {
         workflowBuildKitOverlayReadyAtomFamily: () => ready,
     }
 })
+vi.mock("@/features/chat/BrowserWaitDock", () => ({BrowserWaitDock: () => null}))
+vi.mock("@/features/chat/BrowserPreviewSlot", () => ({BrowserPreviewSlot: () => null}))
 vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
 vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,

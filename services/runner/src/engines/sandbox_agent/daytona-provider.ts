@@ -3,6 +3,7 @@ import { daytona, type DaytonaProviderOptions } from "sandbox-agent/daytona";
 
 import {
   DEFAULT_DAYTONA_SNAPSHOT,
+  type RunnerConfig,
   type RunnerDaytonaConfig,
 } from "../../config/runner-config.ts";
 import {
@@ -51,6 +52,25 @@ export function applyDaytonaSdkEnv(config: RunnerDaytonaConfig): void {
   if (config.apiUrl) process.env.DAYTONA_API_URL = config.apiUrl;
   if (config.target) process.env.DAYTONA_TARGET = config.target;
 }
+
+/**
+ * A Daytona client for a lookup by session labels (`sandbox-labels.ts`), or undefined when this
+ * runner has no Daytona: there is nothing to list. A runner with only `local` and `inprocess`
+ * still has the Daytona key, and its command sandboxes carry the labels, so `inprocess` counts as
+ * Daytona here.
+ */
+export function daytonaLabelClient<Client>(
+  config: RunnerConfig,
+  buildClient: () => Client,
+): Client | undefined {
+  const { enabled } = config.providers;
+  if (!enabled.includes("daytona") && !enabled.includes("inprocess")) {
+    return undefined;
+  }
+  applyDaytonaSdkEnv(config.daytona);
+  return buildClient();
+}
+
 type BaseProvider = ReturnType<typeof daytona>;
 
 interface DaytonaLifecycleDependencies {
@@ -62,7 +82,7 @@ interface DaytonaLifecycleDependencies {
 const RECONNECT_POLL_INTERVAL_MILLISECONDS = 250;
 const RECONNECT_DEADLINE_MILLISECONDS = 10_000;
 
-const RUNNING_STATES = new Set(["started", "running"]);
+export const RUNNING_STATES: ReadonlySet<string> = new Set(["started", "running"]);
 const STOPPED_STATES = new Set(["stopped", "archived"]);
 const TRANSITIONAL_STATES = new Set([
   "starting",

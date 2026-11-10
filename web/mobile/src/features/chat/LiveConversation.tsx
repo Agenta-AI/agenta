@@ -75,6 +75,8 @@ import {CreditAlertStrip} from "../wallet/CreditAlertStrip"
 import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {BrowserPreviewSlot} from "./BrowserPreviewSlot"
+import {BrowserWaitDock} from "./BrowserWaitDock"
 import {waitForBuildKit} from "./buildKitWait"
 import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
@@ -942,6 +944,7 @@ export const LiveConversation = ({
                     onClientToolOutput={locked ? undefined : conversation.sendToolOutput}
                     onRewind={locked ? undefined : handleRewind}
                 />
+                <BrowserPreviewSlot sessionId={sessionId} working={showingTurnActivity} />
             </ContentRail>
         )
     }
@@ -987,6 +990,7 @@ export const LiveConversation = ({
                                 <ConnectionWarningStrip message={conversation.connectionWarning} />
                             </ContentRail>
                         ) : null}
+                        <BrowserWaitDock sessionId={sessionId} working={showingTurnActivity} />
                         {approvalsOpen ? (
                             <ApprovalDock
                                 approvals={pendingApprovals}

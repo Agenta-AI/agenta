@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional
 from uuid import UUID
 
 from pydantic import (
@@ -355,3 +355,18 @@ class SessionHeartbeatResult(BaseModel):
     stream: Optional[SessionStream] = None
     replica_id: str
     is_current_turn: bool = True
+
+
+class BrowserPage(NamedTuple):
+    """The browser's open page, and the reason the agent gave `wait` (empty when not waiting)."""
+
+    wait_reason: str = ""
+    url: str = ""
+
+
+class BrowserLiveLink(NamedTuple):
+    """Where the session's browser serves its live view, and the headers the connection needs."""
+
+    url: str
+    headers: dict[str, str]
+    page: BrowserPage = BrowserPage()
