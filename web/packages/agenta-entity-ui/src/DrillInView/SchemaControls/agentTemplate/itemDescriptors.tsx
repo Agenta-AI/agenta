@@ -7,11 +7,12 @@ import {humanizeActionKey} from "@agenta/shared/utils"
 import {
     AGENT_ICON_CHIP_CLASS,
     agentIconChipStyle,
+    McpServerMark,
     SKILL_MARK_COLOR,
     skillMarkText,
     type SkillMarkOrigin,
 } from "@agenta/ui/agent-icon"
-import {FileText, GraphIcon, HardDrives, Plugs, Robot} from "@phosphor-icons/react"
+import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
 import {SKILL_NAME_PATTERN} from "../skillName"
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
@@ -249,9 +250,9 @@ export function describeMcp(server: unknown): ItemDescriptor {
         description: typeof connection.url === "string" ? connection.url : undefined,
         mono: "",
         color: "transparent",
-        icon: <HardDrives size={16} weight="light" />,
-        // The neutral MCP server mark, the same one `McpServerMark` draws elsewhere.
-        avatarClassName: "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
+        icon: <McpServerMark size={28} />,
+        // The mark paints itself; a chip class keeps ItemAvatar from adding its white text.
+        avatarClassName: "bg-transparent",
         // No type tag. Every MCP row carried "HTTP", which said the same thing on every
         // row and is not even true of a gateway-referenced connection: the transport is
         // the connection's business, not the agent item's.
