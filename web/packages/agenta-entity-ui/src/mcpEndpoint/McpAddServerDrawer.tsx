@@ -143,7 +143,6 @@ export function McpAddServerDrawer({
                 <div className="flex flex-1 items-center justify-center p-6">
                     <EmptyState
                         className="max-w-[320px] text-center"
-                        // Bare glyph: the tile sets its own size and colour.
                         image={<McpServerMark size={44} />}
                         title="No MCP servers in this project yet"
                         description="Connect an MCP server by URL. You'll sign in or add a key once, and every agent in the project can use it."
