@@ -89,7 +89,7 @@ Ops for the move to one image (task group 6). It runs as its own release, after 
 
 **Chosen: A.** The migration that creates the `instances` table also inserts its one row with `gen_random_uuid()`, so no container has to create the id and no start-up race exists. One database is one instance. There is no setting to override the id. The counts are installed, active and silent, and active instances split by `instance_kind` (production, development, CI).
 
-### 3. Anonymous identity for users
+### 3. Pseudonymous identity for users
 
 | Option | Trade-off |
 |---|---|
