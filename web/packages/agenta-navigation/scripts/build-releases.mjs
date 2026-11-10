@@ -178,8 +178,10 @@ const checkNotices = (notices) => {
                 throw new Error(`${where}: missing ${key}`)
         if (ids.has(notice.id)) throw new Error(`${where}: duplicate id`)
         ids.add(notice.id)
-        if (!/^https:\/\/[^\s]+$/.test(notice.link))
-            throw new Error(`${where}: link must be an https URL with no spaces`)
+        if (notice.link.length > 2_000 || !/^https:\/\/[^\s]+$/.test(notice.link))
+            throw new Error(
+                `${where}: link must be an https URL with no spaces, at most 2000 characters`,
+            )
         if (!NOTICE_SEVERITIES.includes(notice.severity))
             throw new Error(`${where}: severity must be one of ${NOTICE_SEVERITIES.join(", ")}`)
         if (
