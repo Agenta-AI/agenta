@@ -60,7 +60,7 @@ export const Showcase: Story = {
     ),
 }
 
-/** A header row as the config sections draw it: title on the left, caret in the 14px column. */
+/** A header row as the config sections draw it: the 12px caret right after the title. */
 export const HeaderRow: Story = {
     render: function HeaderRowStory() {
         const [open, setOpen] = useState(false)
@@ -70,12 +70,10 @@ export const HeaderRow: Story = {
                     type="button"
                     aria-expanded={open}
                     onClick={() => setOpen((v) => !v)}
-                    className="flex w-full cursor-pointer items-center justify-between border-0 bg-transparent px-4 py-3 text-left font-[inherit] text-sm font-medium text-colorText"
+                    className="flex w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent px-4 py-3 text-left font-[inherit] text-sm font-medium text-colorText"
                 >
                     <span>Instructions</span>
-                    <span className="flex size-[14px] items-center justify-center">
-                        <CollapseCaret open={open} size={14} />
-                    </span>
+                    <CollapseCaret open={open} size={12} />
                 </button>
                 {open ? (
                     <div className="border-0 border-t border-solid border-colorBorderSecondary px-4 py-3 text-xs text-colorTextSecondary">

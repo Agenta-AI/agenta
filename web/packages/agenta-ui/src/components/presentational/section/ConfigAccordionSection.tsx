@@ -36,17 +36,15 @@ import {
     useState,
 } from "react"
 
-import {Lock} from "@phosphor-icons/react"
+import {CaretRight, Lock} from "@phosphor-icons/react"
 import {motion} from "motion/react"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
+import {CollapseCaret} from "../../ui/collapse-caret"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
-import {ConfigRowCaret, ConfigRowDrawerCaret, ConfigRowTrailing} from "./ConfigRowTrailing"
-
-/** The header caret sits beside the title, so it takes the title-scale 12px glyph. */
-const SECTION_CARET_SIZE = 12
+import {ConfigRowTrailing} from "./ConfigRowTrailing"
 
 /**
  * Whether the enclosing accordion section is currently expanded. Because the body stays MOUNTED while
@@ -423,10 +421,15 @@ export function ConfigAccordionSection({
                                 </span>
                             ) : null}
                         </span>
+                        {/* Navigation keeps the outline caret; collapse uses the filled one. */}
                         {opensDrawer ? (
-                            <ConfigRowDrawerCaret size={SECTION_CARET_SIZE} />
+                            <CaretRight
+                                aria-hidden
+                                size={12}
+                                className="shrink-0 text-colorTextTertiary"
+                            />
                         ) : canToggle ? (
-                            <ConfigRowCaret open={isOpen} size={SECTION_CARET_SIZE} />
+                            <CollapseCaret open={isOpen} size={12} />
                         ) : null}
                     </span>
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
@@ -435,7 +438,6 @@ export function ConfigAccordionSection({
                 {/* Summary, then `extra` at the far right; only a locked section adds a column. */}
                 <ConfigRowTrailing
                     className={preserveTitle ? "min-w-0" : "shrink-0"}
-                    reserve={false}
                     affordance={
                         locked ? (
                             lockedReason ? (

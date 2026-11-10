@@ -9,16 +9,19 @@ import {SkeletonBlock} from "@agenta/ui/ui"
  * config sections — their loading shape is `AgentOperationsSkeleton` (sibling regions).
  */
 
-/** One pulsing section row (icon + title + caret, value + add) — shared with the ops skeleton. */
+/** One pulsing section row (icon + title + optional caret, value + add) — shared with the ops skeleton. */
 export const SkeletonSectionRow = ({
     title,
     value,
     withAdd,
+    withCaret,
     divider,
 }: {
     title: number
     value: number
     withAdd?: boolean
+    /** Config sections carry a caret after the title; operations rows do not. */
+    withCaret?: boolean
     divider?: boolean
 }) => (
     <div
@@ -37,7 +40,7 @@ export const SkeletonSectionRow = ({
         <SkeletonBlock active shape="square" className="h-4 w-4" />
         <div className="flex items-center gap-1.5">
             <SkeletonBlock active className="min-w-12" style={{width: title, height: 16}} />
-            <SkeletonBlock active shape="circle" className="h-3 w-3" />
+            {withCaret ? <SkeletonBlock active shape="circle" className="h-3 w-3" /> : null}
         </div>
         <div className="ml-auto flex items-center gap-2">
             {value ? (
@@ -74,6 +77,7 @@ const AgentConfigSkeleton = () => (
                 title={row.title}
                 value={row.value}
                 withAdd={row.withAdd}
+                withCaret
                 divider={i < ROWS.length - 1}
             />
         ))}

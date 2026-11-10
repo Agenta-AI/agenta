@@ -116,7 +116,7 @@ const FilesCount = () => {
     const [open, setOpen] = useState(false)
     return (
         <div className="flex items-center gap-1.5">
-            <ConfigRowTrailing reserve={false}>
+            <ConfigRowTrailing>
                 <span title="Total files">12 files</span>
             </ConfigRowTrailing>
             <FilesPaneToggle open={open} onToggle={() => setOpen(!open)} />
@@ -141,7 +141,7 @@ const Pane = () => {
                 />
             </div>
             <AgentRegionHeaderBar title="Triggers" sticky={false}>
-                <ConfigRowTrailing reserve={false}>
+                <ConfigRowTrailing>
                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">None</span>
                 </ConfigRowTrailing>
             </AgentRegionHeaderBar>

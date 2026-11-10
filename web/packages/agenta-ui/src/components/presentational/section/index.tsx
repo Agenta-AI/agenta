@@ -177,7 +177,6 @@ export {
 } from "./ConfigAccordionSection"
 export {
     CONFIG_REGION_BAR,
-    ConfigRowCaret,
     ConfigRowTrailing,
     type ConfigRowTrailingProps,
 } from "./ConfigRowTrailing"

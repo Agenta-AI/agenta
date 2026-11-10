@@ -132,19 +132,19 @@ export const AntdVsAgenta: Story = {
                 label="row · with add + divider"
                 expected="shimmer phase (see above); the caret now sits after the title"
                 a={<AntdSectionRow title={112} value={48} withAdd divider />}
-                s={<SkeletonSectionRow title={112} value={48} withAdd divider />}
+                s={<SkeletonSectionRow withCaret title={112} value={48} withAdd divider />}
             />
             <Row
                 label="row · no add, no divider"
                 expected="shimmer phase (see above); the caret now sits after the title"
                 a={<AntdSectionRow title={100} value={110} />}
-                s={<SkeletonSectionRow title={100} value={110} />}
+                s={<SkeletonSectionRow withCaret title={100} value={110} />}
             />
             <Row
                 label="row · value below antd's 48px min-width"
                 expected="shimmer phase (see above); the caret now sits after the title"
                 a={<AntdSectionRow title={56} value={44} withAdd divider />}
-                s={<SkeletonSectionRow title={56} value={44} withAdd divider />}
+                s={<SkeletonSectionRow withCaret title={56} value={44} withAdd divider />}
             />
         </div>
     ),

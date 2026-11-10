@@ -36,11 +36,11 @@ export default function StorageFilesHeader({
     return (
         <div className="flex items-center gap-1.5">
             {drive.isLoading ? (
-                <ConfigRowTrailing reserve={false}>
+                <ConfigRowTrailing>
                     <SkeletonBlock className="h-[14px] w-[44px]" />
                 </ConfigRowTrailing>
             ) : drive.errored ? null : (
-                <ConfigRowTrailing reserve={false}>
+                <ConfigRowTrailing>
                     {drive.isFetching ? (
                         <CircleNotch size={11} className="animate-spin" aria-label="Refreshing" />
                     ) : null}
