@@ -3,7 +3,11 @@ import {useState, type ReactNode} from "react"
 import {Button, Checkbox, Input} from "@agenta/ui/ui"
 import {useMutation} from "@tanstack/react-query"
 
-import {createInstanceRegistration, isRegistrationUnreachable} from "./licenseApi"
+import {
+    createInstanceRegistration,
+    isRegistrationRefused,
+    isRegistrationUnreachable,
+} from "./licenseApi"
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -28,6 +32,7 @@ export const RegistrationForm = ({
     })
     const trimmed = email.trim()
     const valid = EMAIL.test(trimmed)
+    const refused = register.isError && isRegistrationRefused(register.error)
 
     if (register.isSuccess) {
         return (
@@ -50,10 +55,19 @@ export const RegistrationForm = ({
                 <Input
                     type="email"
                     value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    onChange={(event) => {
+                        setEmail(event.target.value)
+                        if (register.isError) register.reset()
+                    }}
+                    aria-invalid={refused || undefined}
                     placeholder="name@company.com"
                     autoComplete="email"
                 />
+                {refused ? (
+                    <span role="alert" className="text-colorError text-sm">
+                        Enter a valid email address.
+                    </span>
+                ) : null}
             </label>
             <label className="flex items-center gap-2 text-[13px]">
                 <Checkbox
@@ -62,7 +76,7 @@ export const RegistrationForm = ({
                 />
                 <span>Send me product updates. The free key needs this.</span>
             </label>
-            {register.isError ? (
+            {register.isError && !refused ? (
                 <p role="alert" className="text-colorError m-0 text-sm">
                     {isRegistrationUnreachable(register.error)
                         ? "We could not reach Agenta. Try again later."

@@ -19,10 +19,10 @@ vi.mock("../../src/features/settings/licenseApi", async (importOriginal) => ({
     createInstanceRegistration: fixture.register,
 }))
 
+import {WithQueryClient} from "../support/queryClient"
+
 import {RegistrationOffer} from "@/features/onboarding/RegistrationOffer"
 import {isLargeCompany, shouldOfferRegistration} from "@/features/onboarding/registrationOfferRules"
-
-import {WithQueryClient} from "../support/queryClient"
 
 describe("registration offer rules", () => {
     it("adds the Enterprise line for 51 people or more", () => {
@@ -125,5 +125,25 @@ describe("RegistrationOffer", () => {
 
         expect(fixture.register).toHaveBeenCalledWith("proj-1", "ada@example.com", true)
         expect(document.body.textContent).toContain("We sent a key to ada@example.com.")
+    })
+
+    it("says the email is not valid when the API refuses it, with no retry prompt", async () => {
+        fixture.register.mockReset().mockRejectedValue({response: {status: 422}})
+        await mount(false)
+
+        act(() => document.querySelector<HTMLElement>("[role=checkbox]")!.click())
+        await act(async () => {
+            button("Send me a key")!.click()
+        })
+
+        await vi.waitFor(() =>
+            expect(document.querySelector("[role=alert]")?.textContent).toBe(
+                "Enter a valid email address.",
+            ),
+        )
+        expect(document.querySelector("input[type=email]")?.getAttribute("aria-invalid")).toBe(
+            "true",
+        )
+        expect(document.body.textContent).not.toContain("Try again")
     })
 })
