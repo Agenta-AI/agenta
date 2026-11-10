@@ -198,6 +198,11 @@ const describeManifest = (manifest: unknown): ApprovalPreviewItem[] => {
     return items
 }
 
+/** One row per ordered operation, worded as `commit_revision`'s card words it. Shared by the
+ * describers for `create_agent` and `edit_agent_config`, which send the same operations. */
+export const describeOperationItems = (operations: unknown): ApprovalPreviewItem[] =>
+    parseRevisionOperations({operations})?.map(describeOperation) ?? []
+
 export const describeCommitRevision = (
     input: unknown,
     manifest: unknown,

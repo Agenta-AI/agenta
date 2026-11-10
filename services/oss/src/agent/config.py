@@ -38,7 +38,10 @@ DEFAULT_AGENTS_MD = (
     '  placeholder like "Untitled agent" — also call the `rename_agent` tool in the\n'
     "  same turn, with a name that says what you are for.\n"
     "- After that, call `rename_agent` again only when your identity or purpose\n"
-    "  changes — for example, the user repurposes you."
+    "  changes — for example, the user repurposes you.\n"
+    "- If the user asks for an agent that does something and you can change your own\n"
+    "  configuration, they mean you: set yourself up for that job. Create a separate\n"
+    "  agent only when they ask for a separate one."
 )
 
 

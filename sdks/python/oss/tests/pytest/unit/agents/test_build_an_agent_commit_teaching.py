@@ -183,3 +183,32 @@ class TestOrderedModeTeachesTheOrderedShape:
         assert len(payloads) == 5
         for payload in payloads:
             jsonschema.validate(payload, schema)
+
+
+def test_the_subagent_operation_is_a_valid_commit_operation(ordered):
+    """After `create_agent`, the skill shows the operation that adds the new agent to the
+    caller's own tools. The `create_agent` answer carries the same operation, filled in."""
+    body = ordered["body"]
+    block = re.search(
+        r"as `subagent_operation`:\n\n```json\n(.*?)```", body, flags=re.DOTALL
+    ).group(1)
+    operation = json.loads(block)
+    items = ordered["commit_schema"]["properties"]["workflow_revision"]["properties"][
+        "delta"
+    ]["properties"]["operations"]["items"]
+
+    jsonschema.validate(operation, items)
+    assert operation["target"] == ["parameters", "agent", "tools"]
+    assert operation["value"]["type"] == "reference"
+    assert operation["value"]["input_schema"]["required"] == ["messages"]
+    assert "from your next turn, not this one" in " ".join(body.split())
+
+
+def test_the_skill_says_when_a_request_for_an_agent_means_the_agent_itself(ordered):
+    body = " ".join(ordered["body"].split())
+    assert "hello-world placeholder means you: set yourself up without asking" in body
+    assert "Once you have a job, do not silently rewrite yourself" in body
+    assert (
+        "When the person asks for a separate agent, create it without asking." in body
+    )
+    assert "Tell the person about an agent by its `name` and give its `url`." in body

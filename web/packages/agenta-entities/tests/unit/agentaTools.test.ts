@@ -65,3 +65,20 @@ describe("readAgentaTools and writeAgentaTools", () => {
         expect(writeAgentaTools(tools, {})).toEqual([{type: "agenta_tools", tools: {}}, other])
     })
 })
+
+describe("DEFAULT_AGENTA_TOOLS", () => {
+    it("mirrors the SDK default: the session tools and the four agent tools, on Allow", () => {
+        // `DEFAULT_AGENTA_TOOLS` in sdks/python/agenta/sdk/agents/tools/models.py. The agent
+        // tools are on by default and the self-edit pair is not, by product decision.
+        expect(DEFAULT_AGENTA_TOOLS).toEqual({
+            get_current_session: "allow",
+            rename_session: "allow",
+            list_agents: "allow",
+            read_agent_config: "allow",
+            create_agent: "allow",
+            edit_agent_config: "allow",
+        })
+        expect(DEFAULT_AGENTA_TOOLS).not.toHaveProperty("read_config")
+        expect(DEFAULT_AGENTA_TOOLS).not.toHaveProperty("commit_revision")
+    })
+})

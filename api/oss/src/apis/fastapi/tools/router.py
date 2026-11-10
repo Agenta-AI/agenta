@@ -92,9 +92,12 @@ from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
     COMMIT_REVISION_CALL_REF,
     CREATE_APP_CALL_REF,
+    EDIT_AGENT_CONFIG_CALL_REF,
     LIST_STARTERS_CALL_REF,
+    READ_AGENT_CONFIG_CALL_REF,
     READ_CONFIG_CALL_REF,
     required_agent_owner,
+    required_agent_read_scope,
     required_envelope,
     dispatch_platform_tool_handler,
     is_reserved_agenta_call_ref,
@@ -112,6 +115,7 @@ from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.sharing.utils import (
     agent_owner_for_request,
+    agent_read_scope_for_request,
     allow_agent,
     allow_resource,
     artifact_id_of,
@@ -317,6 +321,8 @@ _SESSION_TARGET_ACTIONS = {
 }
 # The reserved tools that read an agent's drive by its artifact id.
 _AGENT_ARTIFACT_TARGETS = {LIST_STARTERS_CALL_REF}
+# The reserved tools that act on ANOTHER agent, named by slug or id in `agent`.
+_OTHER_AGENT_TARGETS = {READ_AGENT_CONFIG_CALL_REF, EDIT_AGENT_CONFIG_CALL_REF}
 
 
 def _arguments_dict(arguments: Any) -> Optional[dict]:
@@ -383,6 +389,32 @@ async def _checked_reserved_arguments(
             return arguments
         # A hidden agent answers what an agent with no drive answers: the bundle only.
         parsed.pop("artifact_id", None)
+        return parsed
+
+    if call_ref in _OTHER_AGENT_TARGETS:
+        parsed = _arguments_dict(arguments)
+        raw = parsed.get("agent") if parsed is not None else None
+        if not isinstance(raw, str) or not raw.strip() or workflows_service is None:
+            return arguments
+        raw = raw.strip()
+        try:
+            reference = Reference(id=UUID(raw))
+        except ValueError:
+            try:
+                reference = Reference(slug=raw)
+            except ValueError:
+                return arguments
+        workflow = await workflows_service.fetch_workflow(
+            project_id=UUID(str(request.state.project_id)),
+            workflow_ref=reference,
+            include_archived=True,
+        )
+        if workflow is None or await allow_agent(
+            request, action=_Permission.VIEW_WORKFLOWS, artifact_id=workflow.id
+        ):
+            return arguments
+        # A hidden agent answers what an unknown agent answers.
+        parsed["agent"] = str(uuid4())
         return parsed
 
     if call_ref in _SESSION_TARGET_ACTIONS:
@@ -1688,6 +1720,12 @@ class ToolsRouter:
                     if required_agent_owner(call_ref=call_ref)
                     else None
                 ),
+                workspace_id=_workspace_id(request),
+                agent_read_scope=(
+                    await agent_read_scope_for_request(request)
+                    if required_agent_read_scope(call_ref=call_ref)
+                    else None
+                ),
             )
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=envelope, refusal=refusal)
@@ -1707,8 +1745,9 @@ class ToolsRouter:
         # session holding a stale configuration and the playground showing an old revision
         # until something else invalidated it. The handler says whether it wrote; this
         # reuses the emitter already here rather than growing a second one.
-        if response.committed_revision:
+        if response.committed_revision or response.wrote_revision:
             await invalidate_cache(project_id=request.state.project_id)
+        if response.committed_revision:
             await _emit_committed_revision_data_event_from_outputs(
                 request=request,
                 outputs=response.committed_revision,
@@ -2147,6 +2186,15 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _workspace_id(request: Request) -> Optional[UUID]:
+    """The caller's workspace, for links into the web app; None when the credential has none."""
+    workspace_id = getattr(request.state, "workspace_id", None)
+    try:
+        return UUID(str(workspace_id)) if workspace_id else None
+    except ValueError:
+        return None
 
 
 def _json_for_inline_script(value: Any) -> str:
