@@ -23,9 +23,15 @@ interface NodeHeaderProps {
  */
 const NodeHeader: FC<NodeHeaderProps> = ({depth, folded, onToggle, children, extra, className}) => (
     <TreeRow depth={depth} className={clsx(styles["node-header"], className)}>
-        <span className="mr-1 inline-flex cursor-pointer" onClick={onToggle}>
+        <button
+            type="button"
+            aria-expanded={!folded}
+            aria-label={folded ? "Expand" : "Collapse"}
+            onClick={onToggle}
+            className="mr-1 inline-flex cursor-pointer items-center rounded-sm border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-focus-ring"
+        >
             <CollapseCaret open={!folded} size={12} />
-        </span>
+        </button>
         {children}
         {extra && <span className="ml-1 flex items-center">{extra}</span>}
     </TreeRow>
