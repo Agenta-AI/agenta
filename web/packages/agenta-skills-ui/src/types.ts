@@ -10,6 +10,8 @@ export interface SkillListItem {
     /** The key a host adds, removes or opens by: the SKILL.md name in the registry, the
      * workflow slug (random suffix included) in the picker. Never shown as a title. */
     slug: string
+    /** The workflow slug (random suffix included): the identity an embed reference stores. */
+    workflowSlug?: string
     /** The SKILL.md name (`skill_name`), else the workflow name. `skillTitle` makes it readable,
      * and an embed stores it as its sibling `name`. */
     name: string

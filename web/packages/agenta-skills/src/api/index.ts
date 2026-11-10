@@ -25,6 +25,7 @@ import {
     type UpdateApplyResponse,
     type UpdateCheckResponse,
 } from "../core/schema"
+import {parseSkillEmbedEntry} from "../embed"
 
 export interface QuerySkillsParams {
     projectId: string
@@ -267,6 +268,13 @@ function embedEntrySlug(item: unknown): string | null {
     return null
 }
 
+/** Whether an embed entry references the skill workflow, by slug or by workflow id. */
+function embedEntryMatches(item: unknown, slug: string, workflowId?: string): boolean {
+    const parsed = parseSkillEmbedEntry(item)
+    if (!parsed) return false
+    return parsed.slug === slug || Boolean(workflowId && parsed.workflowId === workflowId)
+}
+
 export interface AddSkillToAgentsParams {
     projectId: string
     agentWorkflowIds: string[]
@@ -283,8 +291,10 @@ export interface AddSkillToAgentsResult {
 export interface RemoveSkillFromAgentsParams {
     projectId: string
     agentWorkflowIds: string[]
-    /** The registry slug the agents' embed entries reference. */
+    /** The workflow slug the agents' embed entries reference. */
     slug: string
+    /** The skill workflow's id: also matches entries whose slug differs. */
+    skillWorkflowId?: string
     message?: string
 }
 
@@ -382,6 +392,7 @@ export async function removeSkillFromAgents({
     projectId,
     agentWorkflowIds,
     slug,
+    skillWorkflowId,
     message,
 }: RemoveSkillFromAgentsParams): Promise<RemoveSkillFromAgentsResult> {
     const result: RemoveSkillFromAgentsResult = {removed: [], failed: []}
@@ -389,7 +400,9 @@ export async function removeSkillFromAgents({
     for (const workflowId of agentWorkflowIds) {
         try {
             await commitAgentSkills(projectId, workflowId, message, (skills) => {
-                const kept = skills.filter((item) => embedEntrySlug(item) !== slug)
+                const kept = skills.filter(
+                    (item) => !embedEntryMatches(item, slug, skillWorkflowId),
+                )
                 return kept.length === skills.length ? null : kept
             })
             result.removed.push(workflowId)

@@ -39,6 +39,11 @@ describe("toSkillListItem", () => {
         expect(item.origin).toBe("project")
     })
 
+    it("keeps the workflow slug for embed references", () => {
+        // An embed written with the skill name instead would not match the agent picker's entries.
+        expect(toSkillListItem(skill(), "project").workflowSlug).toBe("a-skill-ab12")
+    })
+
     it("strips the v prefix the API sends", () => {
         // Not rendered any more, but embeds still pin by this value.
         expect(toSkillListItem(skill({version: "v2"}), "project").version).toBe("2")
