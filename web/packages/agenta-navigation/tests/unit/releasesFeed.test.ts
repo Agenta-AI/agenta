@@ -75,22 +75,53 @@ describe("mergeReleases", () => {
         expect(merged).toBe(bundled)
     })
 
-    it("drops a release with a bad item, a link that is not https or an oversized body", () => {
+    it("drops a release with a bad item, a script link or an oversized body", () => {
         const feature = release("v0.129.0").features[0]
         const merged = mergeReleases(bundled, [
             release("v0.129.0", {fixes: [null as never]}),
             release("v0.129.1", {improvements: [{area: "x"} as never]}),
-            release("v0.129.2", {features: [{...feature, link: "javascript:alert(1)"}]}),
-            release("v0.129.3", {features: [{...feature, link: "http://agenta.ai"}]}),
             release("v0.129.4", {features: [{...feature, body: "x".repeat(20_001)}]}),
             release("v0.129.5", {features: [{...feature, streamVideoId: "../x"}]}),
-            release("v0.129.6", {features: [{...feature, body: "[More](http://agenta.ai)"}]}),
             release("v0.129.7", {fixes: [{area: "x", text: "[x](javascript:alert(1))"}]}),
             release("v0.129.8", {features: [{...feature, body: "[More](http&#58;//agenta.ai)"}]}),
             release("v0.129.9", {features: [{...feature, body: "[More](http&colon;//agenta.ai)"}]}),
             release("v0.130.0"),
         ])
         expect(merged.map((r) => r.id)).toEqual(["v0.130.0", "v0.127.3", "v0.127.2"])
+    })
+
+    it("keeps a release with an http link and drops only a link field that is not https", () => {
+        const feature = release("v0.129.0").features[0]
+        const body = "[More](http://agenta.ai) ![i](http://agenta.ai/i.png)"
+        const merged = mergeReleases(bundled, [
+            release("v0.129.3", {features: [{...feature, link: "http://agenta.ai"}]}),
+            release("v0.129.2", {features: [{...feature, link: "javascript:alert(1)"}]}),
+            release("v0.129.6", {features: [{...feature, body}]}),
+            release("v0.129.8", {fixes: [{area: "x", text: "See http://agenta.ai"}]}),
+        ])
+        expect(merged.map((r) => r.id)).toEqual([
+            "v0.129.8",
+            "v0.129.6",
+            "v0.129.3",
+            "v0.129.2",
+            "v0.127.3",
+            "v0.127.2",
+        ])
+        expect(merged[2].features[0]).not.toHaveProperty("link")
+        expect(merged[3].features[0]).not.toHaveProperty("link")
+        expect(merged[1].features[0]).toEqual({...feature, body})
+        expect(merged[0].fixes[0].text).toBe("See http://agenta.ai")
+    })
+
+    it("still raises the security warning for a security release with a bad link", () => {
+        const feature = release("v0.129.0").features[0]
+        const merged = mergeReleases(bundled, [
+            release("v0.129.0", {
+                securityFix: true,
+                features: [{...feature, body: "[Notes](http://agenta.ai)", link: "http://x"}],
+            }),
+        ])
+        expect(latestSecurityRelease(merged, "v0.127.3")?.id).toBe("v0.129.0")
     })
 })
 

@@ -62,8 +62,15 @@ const parseItems = (value, key, file) => {
     return value.map((entry) => {
         if (typeof entry?.area !== "string" || typeof entry?.text !== "string")
             throw new Error(`${file}: every ${key} item needs an area and a text`)
-        return {area: entry.area, text: entry.text}
+        return {area: entry.area, text: checkHttpsOnly(entry.text, `${file}: ${key}`)}
     })
+}
+
+// Instances show only https links and images; fail here so the feed never carries another one.
+const HTTP_LINK = /\bhttp:/i
+const checkHttpsOnly = (markdown, where) => {
+    if (HTTP_LINK.test(markdown)) throw new Error(`${where}: links and images must use https`)
+    return markdown
 }
 
 const absolutizeLinks = (markdown) => markdown.replace(/\]\(\/(?!\/)/g, `](${DOCS_ORIGIN}/`)
@@ -117,7 +124,7 @@ const entries = readdirSync(ENTRIES_DIR)
             feature: {
                 id: data.slug,
                 title: data.title,
-                body: absolutizeLinks(stripMdx(summary[1])),
+                body: checkHttpsOnly(absolutizeLinks(stripMdx(summary[1])), `${name}: <Summary>`),
                 link: `${DOCS_ORIGIN}/changelog/${data.slug}`,
                 ...(stream ? {streamVideoId: stream[1]} : {}),
             },

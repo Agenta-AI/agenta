@@ -32,15 +32,14 @@ const isText = (value: unknown, max: number): value is string =>
 const isHttpsLink = (value: unknown): value is string =>
     isText(value, 2_000) && /^https:\/\/[^\s]+$/.test(value)
 
-// Release bodies are Markdown. The dialog renders them with only https links and images; this
-// drops an obviously bad entry before that. The generated changelog has no character references.
-const NON_HTTPS_SCHEME = /\b(?:http|javascript|data|vbscript|file):/i
+// Release bodies are Markdown. The dialog renders them with only https links and images, so an
+// `http:` link shows as plain text; this drops an entry that only tampering would produce. The
+// generated changelog has no character references.
+const SCRIPT_SCHEME = /\b(?:javascript|data|vbscript|file):/i
 const CHARACTER_REFERENCE = /&(?:#|colon;)/i
 
 const isReleaseBody = (value: unknown): value is string =>
-    isText(value, MAX_BODY_LENGTH) &&
-    !NON_HTTPS_SCHEME.test(value) &&
-    !CHARACTER_REFERENCE.test(value)
+    isText(value, MAX_BODY_LENGTH) && !SCRIPT_SCHEME.test(value) && !CHARACTER_REFERENCE.test(value)
 
 const isReleaseItem = (value: unknown): boolean => {
     if (!value || typeof value !== "object") return false
@@ -62,7 +61,6 @@ const isRelease = (value: unknown): value is Release => {
                 isText(feature?.id, MAX_TITLE_LENGTH) &&
                 isText(feature.title, MAX_TITLE_LENGTH) &&
                 isReleaseBody(feature.body) &&
-                isHttpsLink(feature.link) &&
                 (feature.streamVideoId === undefined ||
                     (typeof feature.streamVideoId === "string" &&
                         /^[A-Za-z0-9]{1,64}$/.test(feature.streamVideoId))),
@@ -76,6 +74,14 @@ const isRelease = (value: unknown): value is Release => {
         (release.securityFix === undefined || release.securityFix === true)
     )
 }
+
+// A bad link must not hide the release (it may carry a security fix): only the link goes.
+const withHttpsLinks = (release: Release): Release => ({
+    ...release,
+    features: release.features.map(({link, ...feature}) =>
+        isHttpsLink(link) ? {...feature, link} : feature,
+    ),
+})
 
 /**
  * The bundled list plus the feed's releases it does not have, newest first. The bundled copy
@@ -91,6 +97,7 @@ export const mergeReleases = (bundled: Release[], feed: readonly unknown[] = [])
             known.add(release.id)
             return true
         })
+        .map(withHttpsLinks)
     if (added.length === 0) return bundled
     return [...bundled, ...added].sort((a, b) => compareVersions(b.id, a.id))
 }

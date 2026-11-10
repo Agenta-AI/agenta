@@ -11,7 +11,8 @@ export interface ReleaseFeature {
     title: string
     /** Markdown from the entry's `<Summary>`, with docs links made absolute. */
     body: string
-    link: string
+    /** Absent when a feed entry's link is not https. */
+    link?: string
     /** Cloudflare Stream demo clip (same account as the docs embeds). */
     streamVideoId?: string
 }
