@@ -39,7 +39,8 @@ async def test_install_ping_table_matches_the_payload_on_the_wire(monkeypatch):
 
 def test_heartbeat_table_matches_the_model():
     documented = documented_fields("Heartbeat")
-    sent = set(InstanceHeartbeat.model_fields) | {"$groups"}
+    # The PostHog client adds `$geoip_disable` to every event it sends.
+    sent = set(InstanceHeartbeat.model_fields) | {"$groups", "$geoip_disable"}
 
     assert not sent - documented, f"not on the docs page: {sorted(sent - documented)}"
     assert not documented - sent, f"not in the payload: {sorted(documented - sent)}"

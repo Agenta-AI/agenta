@@ -86,6 +86,7 @@ The distinct id is the instance id. The event has these properties and no others
 | `window_agent_turns` | The number of agent turns in the period |
 | `user_domains` | The 100 most common email domains of your users, each with its number of users, such as `{"domain": "example.com", "users": 3}`. Never a full email address |
 | `$groups` | `{"instance": "<instance id>"}` |
+| `$geoip_disable` | `true`. PostHog does not look up a location. |
 
 A `window_` count is null when it takes longer than 5 seconds on a large database.
 
