@@ -249,6 +249,34 @@ describe("handleRegistration", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("answers the JSON 503 when a rate limiter throws", async () => {
+    const { sender, sent } = fakeSender();
+    const failing = {
+      limit: async () => {
+        throw new Error("limiter down");
+      },
+    };
+
+    const response = await handleRegistration(
+      post(VALID),
+      withLimits({
+        LICENSE_SIGNING_KEY: privatePem,
+        REGISTRATION_IP_LIMIT: failing,
+      }),
+      sender,
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: {
+        code: "unavailable",
+        status: 503,
+        message: "Registration is not available.",
+      },
+    });
+    expect(sent).toHaveLength(0);
+  });
+
   it("refuses to run without the rate limit bindings", async () => {
     const { sender, sent } = fakeSender();
 

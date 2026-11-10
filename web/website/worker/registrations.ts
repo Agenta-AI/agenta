@@ -224,6 +224,19 @@ export async function handleRegistration(
   env: RegistrationEnv,
   mailSender?: MailSender,
 ): Promise<Response> {
+  // A limiter or body read that throws must still answer the JSON error, not a platform page.
+  try {
+    return await register(request, env, mailSender);
+  } catch {
+    return error(503, "unavailable", "Registration is not available.");
+  }
+}
+
+async function register(
+  request: Request,
+  env: RegistrationEnv,
+  mailSender?: MailSender,
+): Promise<Response> {
   if (request.method !== "POST") {
     return new Response(null, { status: 405, headers: { Allow: "POST" } });
   }
