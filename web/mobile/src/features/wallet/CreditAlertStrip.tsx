@@ -4,10 +4,10 @@ import {RevealCollapse} from "@agenta/chat/components"
 import {providerConnectionsAtom, useVaultSecret} from "@agenta/entities/secret"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
 import {isBillingEnabled} from "@agenta/shared/api"
+import {useHasOpened} from "@agenta/ui/hooks"
 import {atom, useAtom, useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
-import {RunErrorBuyCreditsDialog} from "../chat/RunErrorBuyCreditsDialog"
-import {RunErrorPlansDialog} from "../chat/RunErrorPlansDialog"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 
 import {creditAlert, type CreditAlert} from "./creditAlert"
@@ -21,6 +21,16 @@ import {isCreditFunded, type CreditFunding} from "./modelFunding"
 import {useModelFunding} from "./useModelFunding"
 import {useWalletSummary} from "./useWalletSummary"
 
+// The billing dialogs open only from a click, so their code loads with the first one.
+const RunErrorBuyCreditsDialog = dynamic(
+    () => import("../chat/RunErrorBuyCreditsDialog").then((m) => m.RunErrorBuyCreditsDialog),
+    {ssr: false},
+)
+const RunErrorPlansDialog = dynamic(
+    () => import("../chat/RunErrorPlansDialog").then((m) => m.RunErrorPlansDialog),
+    {ssr: false},
+)
+
 /** In memory only, per project: a dismissed alert comes back on reload or when its kind changes. */
 const dismissedCreditAlertsAtom = atom<Record<string, CreditAlert["kind"]>>({})
 
@@ -29,11 +39,14 @@ export const CreditAlertStrip = ({
     projectId,
     entityId,
     hidden,
+    dockOpen,
     onSwitchModel,
 }: {
     projectId: string
     entityId: string
     hidden: boolean
+    /** A dock above the composer (approval, question, connection, secret) asks the user first. */
+    dockOpen: boolean
     onSwitchModel: () => void
 }) => {
     // On its own key or subscription the agent's model spends no credits, so nothing shows or polls.
@@ -57,6 +70,7 @@ export const CreditAlertStrip = ({
     const [open, setOpen] = useState<"providers" | "buy-credits" | "plans" | null>(null)
     // Mounted on first use, so the top-up offer is not fetched on every chat load.
     const [billingUsed, setBillingUsed] = useState(false)
+    const providersOpened = useHasOpened(open === "providers")
     const connections = useAtomValue(providerConnectionsAtom)
     const {mutate} = useVaultSecret()
 
@@ -68,6 +82,7 @@ export const CreditAlertStrip = ({
     const current = alert.kind !== "none" && isCreditFunded(funding) ? {alert, funding} : shown
     // A model key does not fund agent runtime, so being out of credits shows even beside another strip.
     const visible =
+        !dockOpen &&
         creditFunded &&
         (!hidden || alert.kind === "empty") &&
         alert.kind !== "none" &&
@@ -99,13 +114,15 @@ export const CreditAlertStrip = ({
                     </div>
                 ) : null}
             </RevealCollapse>
-            <ProviderDrawer
-                open={open === "providers"}
-                onClose={() => setOpen(null)}
-                context="playground"
-                connections={connections}
-                onSaved={mutate}
-            />
+            {providersOpened ? (
+                <ProviderDrawer
+                    open={open === "providers"}
+                    onClose={() => setOpen(null)}
+                    context="playground"
+                    connections={connections}
+                    onSaved={mutate}
+                />
+            ) : null}
             {canBuy && billingUsed ? (
                 <>
                     <RunErrorBuyCreditsDialog

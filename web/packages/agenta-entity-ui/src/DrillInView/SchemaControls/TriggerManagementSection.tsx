@@ -31,6 +31,7 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
+import {useHasOpened} from "@agenta/ui/hooks"
 import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
@@ -41,13 +42,18 @@ import {
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
-
-import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"
+import {useAtom, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
+
+// Carries the virtual table. Rendered from its first open, since rendering starts the download.
+const TriggerDeliveriesDrawer = dynamic(
+    () => import("../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"),
+    {ssr: false},
+)
 
 export {AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
 export {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
@@ -92,7 +98,8 @@ export function TriggerManagementSection({
 
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
-    const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
+    const [deliveries, openDeliveries] = useAtom(triggerDeliveriesDrawerAtom)
+    const deliveriesOpened = useHasOpened(Boolean(deliveries))
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId ?? ""))
 
     const openRunHistory = useCallback(
@@ -364,7 +371,7 @@ export function TriggerManagementSection({
                 drawer (no separate catalog drawer in the playground). When a
                 subscription/schedule is created here it default-binds to this agent. */}
             {automationDrawer}
-            <TriggerDeliveriesDrawer />
+            {deliveriesOpened ? <TriggerDeliveriesDrawer /> : null}
         </div>
     )
 }

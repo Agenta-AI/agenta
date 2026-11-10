@@ -1883,6 +1883,12 @@ class WorkflowsRouter:
             count=len(workflow_revisions),
         )
 
+        if workflow_revision_query_request.include_data is False:
+            workflow_revisions = [
+                workflow_revision.model_copy(update={"data": None})
+                for workflow_revision in workflow_revisions
+            ]
+
         workflow_revisions_response = WorkflowRevisionsResponse(
             count=len(workflow_revisions),
             workflow_revisions=workflow_revisions,

@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
-import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
+import {revalidateAgentRevisionReads, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentAutoCommitErrorAtomFamily,
     agentAutoCommitScheduledAtomFamily,
@@ -75,7 +75,7 @@ export const AgentRevisionStatus = ({
     // observers ARE active. It lives here, in the shared chip, because every host that shows a
     // revision has the problem — putting it in one app's wrapper fixed only that app.
     useEffect(() => {
-        invalidateAgentCommittedRevisionCache(historyWorkflowId)
+        revalidateAgentRevisionReads(historyWorkflowId)
     }, [historyWorkflowId])
 
     const data = useAtomValue(workflowMolecule.selectors.data(revisionId || ""))
