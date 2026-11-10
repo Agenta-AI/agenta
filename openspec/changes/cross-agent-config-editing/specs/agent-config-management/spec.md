@@ -57,6 +57,16 @@ The four agent tools SHALL be on by default in the build kit, each set to allow.
 - **WHEN** the id or slug does not name a non-archived agent in the caller's project, or names a static platform workflow
 - **THEN** the call fails with a clear error and no data from any other workflow
 
+#### Scenario: A private agent the caller cannot see
+
+- **WHEN** the id or slug names another person's private agent
+- **THEN** the call fails with exactly the answer an unknown id or slug gets (`agent_not_found`, naming the reference the model sent), for `read_agent_config` and `edit_agent_config` alike
+
+#### Scenario: An archived oldest variant
+
+- **WHEN** the agent is not archived but its oldest variant is
+- **THEN** the call acts on the oldest variant that is not archived, the head `list_agents` reports
+
 #### Scenario: Self as target
 
 - **WHEN** an agent names itself
@@ -85,6 +95,7 @@ The four agent tools SHALL be on by default in the build kit, each set to allow.
 
 - **WHEN** a `create_agent` call stops after some of its writes, and the agent sends the same arguments again in the same session
 - **THEN** the second call finishes the same agent and returns its id, slug and `base_revision_id`; no second agent is created
+- **AND** the owner the calling run gives the agent was saved with its first write, so the agent is never ownerless
 
 #### Scenario: Unknown field
 
@@ -154,6 +165,7 @@ The four agent tools SHALL be on by default in the build kit, each set to allow.
 
 - **WHEN** the operations leave a configuration the runtime would refuse, for example a skill without `body`
 - **THEN** nothing is saved, and the refusal is `invalid_agent_configuration` with the field in `details.issues`, for example `parameters.agent.skills[0].body is required`
+- **AND** its `message` is plain text a person can read, with no field path
 
 #### Scenario: Self as target
 
@@ -178,6 +190,11 @@ Every revision written by `create_agent` or `edit_agent_config` SHALL have a com
 
 - **WHEN** the model's arguments include a message, agent name or session id
 - **THEN** those values are ignored or refused, and the suffix still shows the bound values
+
+#### Scenario: A bound caller the read scope hides
+
+- **WHEN** a direct `/tools/call` binds a `caller_agent_id` that the caller's read scope does not show
+- **THEN** the write is refused, and the hidden agent's name appears in no answer and no commit message
 
 ### Requirement: Change previews name the target agent
 

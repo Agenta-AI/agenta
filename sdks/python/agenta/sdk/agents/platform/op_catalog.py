@@ -906,12 +906,9 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # variant — "update myself". ``workflow_revision.workflow_variant_id`` is bound from run context
 # and stripped from the model-visible schema, so the agent can only ever target itself, never a
 # different variant in the project. Defaults to approval.
-# The normative tool description, contracts/change-set.md section 15. About 1.5 KB and 400
-# tokens; the 3.2 KB version measured the same success rate and cost 11-13 percent more.
-# It works BECAUSE three things hold: the wrapper normalizes the repeated-list mistake,
-# every error names a next step, and the selector key is `list`. So it stays this size:
-# the only lines added since that measurement are the `agenta_tools` key, a selector fix it
-# shares with `edit_agent_config`, and the ask-before-repurposing sentence (bench S10c). The longer reference (Agenta tool names, skill fields)
+# The normative tool description, contracts/change-set.md section 15. It stays short: it
+# works because the wrapper normalizes the repeated-list mistake, every error names a next
+# step, and the selector key is `list`. The longer reference (Agenta tool names, skill fields)
 # lives in `edit_agent_config` and in the build-an-agent skill, not here.
 _TARGET_AND_OPERATIONS = """TARGET: an array of segments from the configuration root. A string segment names an
 object field. An object segment {"list": L, "key": K} names one entry of list L and
@@ -1467,6 +1464,7 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
         "name": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 120,
             "pattern": r"\S",
         },
         "description": {
@@ -1503,6 +1501,7 @@ _RENAME_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
         "name": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 120,
             "pattern": r"\S",
         },
         "description": {
@@ -1838,14 +1837,14 @@ CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
 # run's credential, never from an argument. The caller and its session are bound from run
 # context, so the attribution the server writes into every commit message is the run's, never
 # the model's. Self-edits keep their own tools (`read_config`, `commit_revision`).
-_LIST_AGENTS_DESCRIPTION = """List the agents in this project, newest first.
+_LIST_AGENTS_DESCRIPTION = """List the agents in this project.
 
 Each agent has `name`, `id`, `slug`, `url`, `description`, `version` and `updated_at`. The
 list includes you. Pass an agent's `slug` or `id` to `read_agent_config` or
 `edit_agent_config`. To the person, name an agent by its `name`, never its slug or id, and
 link it: [Invoice helper](url).
 
-When the answer has a `next_cursor`, call again with `cursor` set to it for the next page."""
+When the answer has a `cursor`, call again with that `cursor` for the next page."""
 
 # Shared with the API handler, so the default the model reads is the one it gets.
 LIST_AGENTS_DEFAULT_LIMIT = 50
@@ -1858,7 +1857,7 @@ _LIST_AGENTS_INPUT_SCHEMA: Dict[str, Any] = {
         "cursor": {
             "type": "string",
             "maxLength": 64,
-            "description": "The `next_cursor` of the previous page. Omit it for the first page.",
+            "description": "The `cursor` of the previous page. Omit it for the first page.",
         },
         "limit": {
             "type": "integer",
@@ -2049,7 +2048,7 @@ _CALLER_BINDINGS: Dict[str, str] = {
     "caller_session_id": "$ctx.session.id",
 }
 
-_AGENT_DIRECTORY_OPS: tuple = (
+_OTHER_AGENT_OPS: tuple = (
     PlatformOp(
         op="list_agents",
         description=_LIST_AGENTS_DESCRIPTION,
@@ -2093,7 +2092,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in _READ_CONFIG_OPS
     + _CHANNEL_TOOL_OPS
-    + _AGENT_DIRECTORY_OPS
+    + _OTHER_AGENT_OPS
     + (
         PlatformOp(
             op="create_app",

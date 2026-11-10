@@ -24,7 +24,7 @@ import pytest
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.tools import platform_handlers
-from oss.src.core.sharing.dtos import AgentReadScope
+from oss.src.core.sharing.dtos import AccessPolicy, AgentReadScope, Visibility
 from oss.src.core.tools.platform_handlers import (
     CREATE_AGENT_CALL_REF,
     EDIT_AGENT_CONFIG_CALL_REF,
@@ -112,15 +112,32 @@ def workflows():
 
 
 @pytest.fixture
-def service(workflows):
+def hidden():
+    """The agents the caller's read scope hides."""
+    return set()
+
+
+@pytest.fixture
+def service(workflows, hidden):
     """A real service over a mocked store: every read returns the target's head."""
     service = WorkflowsService(workflows_dao=AsyncMock())
 
+    def by_ref(ref):
+        if ref.id is not None:
+            return workflows.get(ref.id)
+        return next((w for w in workflows.values() if w.slug == ref.slug), None)
+
     async def fetch_workflow(*, project_id, workflow_ref, include_archived=True):
         assert project_id == PROJECT
-        return workflows.get(workflow_ref.id)
+        return by_ref(workflow_ref)
+
+    async def query_workflows(*, project_id, read_scope, workflow_refs, **_):
+        assert project_id == PROJECT
+        found = [by_ref(ref) for ref in workflow_refs]
+        return [w for w in found if w is not None and w.id not in hidden]
 
     service.fetch_workflow = AsyncMock(side_effect=fetch_workflow)
+    service.query_workflows = AsyncMock(side_effect=query_workflows)
     service.fetch_workflow_revision = AsyncMock(return_value=_head())
     # `commit_revision` takes its agent from the checked variant.
     service.fetch_workflow_variant = AsyncMock(
@@ -213,6 +230,18 @@ class TestRegistration:
     )
     def test_the_agent_tools_take_the_workspace_for_their_links(self, ref):
         assert PLATFORM_TOOL_HANDLERS[ref].needs_workspace is True
+
+    @pytest.mark.parametrize(
+        "ref",
+        [
+            LIST_AGENTS_CALL_REF,
+            READ_AGENT_CONFIG_CALL_REF,
+            CREATE_AGENT_CALL_REF,
+            EDIT_AGENT_CONFIG_CALL_REF,
+        ],
+    )
+    def test_the_agent_tools_take_the_caller_read_scope(self, ref):
+        assert PLATFORM_TOOL_HANDLERS[ref].needs_agent_read_scope is True
 
 
 class TestTheCallerBindingFailsClosed:
@@ -326,7 +355,7 @@ class TestListAgents:
             "updated_at",
         }
         assert agents[0]["version"] == "3"
-        assert result.content["next_cursor"] is None
+        assert result.content["cursor"] is None
 
     async def test_each_row_links_its_agent(self, listing, monkeypatch):
         monkeypatch.setattr(env.agenta, "web_url", "https://cloud.agenta.ai")
@@ -351,6 +380,36 @@ class TestListAgents:
         listing.query_workflow_variants.assert_awaited_once()
         listing.query_workflow_revisions.assert_awaited_once()
 
+    @pytest.mark.parametrize("include_archived", [False, True])
+    async def test_an_archived_oldest_variant_is_never_the_default(
+        self, listing, include_archived
+    ):
+        # The rule read and edit apply: the oldest variant that is not archived.
+        archived = WorkflowVariant(
+            id=uuid4(),
+            workflow_id=TARGET,
+            created_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            deleted_at=datetime(2026, 9, 2, tzinfo=timezone.utc),
+        )
+        query_variants = listing.query_workflow_variants.side_effect
+
+        async def with_archived(*, include_archived, **kwargs):
+            rows = await query_variants(include_archived=include_archived, **kwargs)
+            return [archived, *rows] if include_archived else rows
+
+        listing.query_workflow_variants.side_effect = with_archived
+
+        result = await _call(
+            handle_list_agents, listing, include_archived=include_archived
+        )
+
+        assert result.ok
+        refs = listing.query_workflow_revisions.await_args.kwargs[
+            "workflow_variant_refs"
+        ]
+        assert uuid5(TARGET, "default") in {ref.id for ref in refs}
+        assert archived.id not in {ref.id for ref in refs}
+
     async def test_pages_run_over_applications_in_the_credential_project(self, listing):
         # A project in the arguments is not a parameter; the credential decides.
         await _call(handle_list_agents, listing, project_id=str(uuid4()))
@@ -367,12 +426,12 @@ class TestListAgents:
         assert [agent["name"] for agent in first.content["agents"]] == [
             "Invoice helper"
         ]
-        assert first.content["next_cursor"] == str(TARGET)
+        assert first.content["cursor"] == str(TARGET)
 
         # Skipping the application that is not an agent, the page still holds `limit`.
         second = await _call(handle_list_agents, listing, limit=2)
         assert len(second.content["agents"]) == 2
-        assert second.content["next_cursor"] is None
+        assert second.content["cursor"] is None
 
     async def test_the_scan_continues_from_the_cursor(self, listing, workflows):
         batches = [
@@ -389,7 +448,7 @@ class TestListAgents:
         ]
         windowing = listing.query_workflows.await_args.kwargs["windowing"]
         assert windowing.next == OTHER
-        assert result.content["next_cursor"] is None
+        assert result.content["cursor"] is None
 
     async def test_archived_agents_only_on_request_and_marked(self, listing, workflows):
         archived = _workflow(TARGET, "Old", "old", archived=True)
@@ -478,14 +537,12 @@ class TestTheTargetIsAnotherAgentInThisProject:
             (_head(is_static=True), STATIC_ID, "agent_is_static"),
             # A reserved slug the static catalog does not hold is simply unknown.
             (None, "__ag__nothing", "agent_not_found"),
-            (_head(archived=True), "invoice-helper-k3x9", "agent_archived"),
-            (_head(is_agent=False), "invoice-helper-k3x9", "not_an_agent"),
+            (_head(is_agent=False), "invoice-helper-k3x9", "workflow_is_not_agent"),
         ],
         ids=[
             "static-slug",
             "static-id",
             "unknown-reserved",
-            "archived",
             "not-an-agent",
         ],
     )
@@ -511,7 +568,55 @@ class TestTheTargetIsAnotherAgentInThisProject:
 
         result = await _call(handle_edit_agent_config, service, **_edit_args())
 
-        assert result.content.code == "agent_archived"
+        assert result.content.code == "agent_is_archived"
+
+    async def test_an_archived_agent_without_a_live_head_is_archived_not_unknown(
+        self, service, workflows
+    ):
+        workflows[TARGET] = _workflow(TARGET, "Invoice helper", "x", archived=True)
+        service.fetch_workflow_revision.return_value = None
+
+        result = await _call(handle_edit_agent_config, service, **_edit_args(agent="x"))
+
+        assert result.content.code == "agent_is_archived"
+
+    async def test_the_head_comes_from_rows_that_are_not_archived(self, service):
+        # The oldest variant that is not archived is the default, as for `list_agents`.
+        await _call(handle_edit_agent_config, service, **_edit_args())
+
+        kwargs = service.fetch_workflow_revision.await_args.kwargs
+        assert kwargs["include_archived"] is False
+
+    @pytest.mark.parametrize(
+        "handler", [handle_read_agent_config, handle_edit_agent_config]
+    )
+    async def test_a_hidden_agent_answers_exactly_what_an_unknown_one_answers(
+        self, service, hidden, handler
+    ):
+        hidden.add(TARGET)
+        hidden_answer = await _call(handler, service, **_edit_args())
+        service.fetch_workflow_revision.return_value = None
+        unknown_answer = await _call(
+            handler, service, **_edit_args(agent="invoice-helper-k3x9")
+        )
+
+        assert hidden_answer.content == unknown_answer.content
+        assert hidden_answer.content.code == "agent_not_found"
+        service.commit_workflow_revision.assert_not_awaited()
+
+    async def test_visibility_is_checked_with_the_caller_read_scope(self, service):
+        scope = AgentReadScope(owner_user_id=USER)
+
+        result = await handle_read_agent_config(
+            arguments={"agent": "invoice-helper-k3x9", "caller_agent_id": str(CALLER)},
+            project_id=PROJECT,
+            user_id=USER,
+            workflows_service=service,
+            agent_read_scope=scope,
+        )
+
+        assert result.ok, result.content
+        assert service.query_workflows.await_args.kwargs["read_scope"] == scope
 
 
 # --------------------------------------------------------------------------------------
@@ -583,7 +688,7 @@ class TestEditAgentConfig:
         assert result.content["message"] == commit.message
         # Another agent's write: the caches are cleared, and no self-commit signal goes
         # to the caller's playground.
-        assert result.wrote_revision is True
+        assert result.wrote_other_agent_revision is True
         assert result.committed_revision is None
 
     async def test_never_deploys(self, service):
@@ -803,6 +908,31 @@ class TestEditAgentConfig:
         )
 
     @pytest.mark.parametrize("handler", [handle_edit_agent_config, handle_create_agent])
+    @pytest.mark.parametrize("caller", ["hidden", "unknown"])
+    async def test_a_caller_the_read_scope_does_not_show_is_refused(
+        self, service, hidden, handler, caller
+    ):
+        # A direct /tools/call sets `caller_agent_id`; a private agent's name must not
+        # reach the answer or another agent's history.
+        arguments = (
+            _edit_args()
+            if handler is handle_edit_agent_config
+            else {
+                "name": "Invoice helper",
+                "caller_agent_id": str(CALLER),
+                "caller_session_id": SESSION,
+            }
+        )
+        if caller == "hidden":
+            hidden.add(CALLER)
+        else:
+            arguments["caller_agent_id"] = str(uuid4())
+
+        with pytest.raises(PlatformToolHandlerRefused):
+            await _call(handler, service, **arguments)
+        service.commit_workflow_revision.assert_not_awaited()
+
+    @pytest.mark.parametrize("handler", [handle_edit_agent_config, handle_create_agent])
     async def test_a_missing_session_is_refused_not_written_as_unknown(
         self, service, handler
     ):
@@ -870,7 +1000,7 @@ class TestCreateAgent:
         assert content["agent"]["name"] == "Invoice helper"
         assert content["agent"]["slug"] == "invoice-helper-0a1b2c3d"
         assert content["base_revision_id"]
-        assert result.wrote_revision is True
+        assert result.wrote_other_agent_revision is True
         # Without operations the agent keeps placeholder instructions; the answer says so.
         assert [w["code"] for w in content["warnings"]] == ["template_instructions"]
 
@@ -1058,13 +1188,8 @@ class TestTheCreateAnswerOffersAFirstMessage:
                 "ref_by": "variant",
                 "slug": self.SLUG,
                 "description": "Answers questions about invoices.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "messages": {"x-ag-type-ref": "messages", "type": "array"}
-                    },
-                    "required": ["messages"],
-                },
+                # The inputs the template declares, as the web copies a target's.
+                "input_schema": new_agent_revision_data()["schemas"]["inputs"],
             },
         }
 
@@ -1103,8 +1228,6 @@ class TestTheCreateAnswerOffersAFirstMessage:
             {"messages": [{"role": "user", "content": "Hi, who are you?"}]},
             spec.input_schema,
         )
-        with pytest.raises(jsonschema.ValidationError):
-            jsonschema.validate({}, spec.input_schema)
         assert message
 
 
@@ -1191,11 +1314,18 @@ class TestCreateAgentRetry:
             return workflows.get(workflow_ref.id)
 
         async def create_workflow(
-            *, project_id, user_id, workflow_create, workflow_id, platform_meta, **_
+            *,
+            project_id,
+            user_id,
+            workflow_create,
+            workflow_id,
+            platform_meta,
+            access=None,
         ):
             workflows[workflow_id] = Workflow(
                 id=workflow_id,
                 **workflow_create.model_dump(exclude={"flags"}),
+                access=access,
             )
             return workflows[workflow_id]
 
@@ -1248,7 +1378,9 @@ class TestCreateAgentRetry:
         )
         return revisions
 
-    async def test_the_calling_run_owner_owns_the_new_agent(self, service, store):
+    async def test_the_calling_run_owner_owns_the_new_agent(
+        self, service, store, workflows
+    ):
         owner = uuid4()
 
         async def create():
@@ -1270,11 +1402,14 @@ class TestCreateAgentRetry:
         result = await create()
 
         assert result.ok, result.content
-        owners = {
-            call.kwargs.get("first_agent_owner_user_id")
-            for call in service.commit_workflow_revision.await_args_list
-        }
-        assert owners == {owner}
+        # The owner was saved with the artifact, before the write that failed.
+        assert service.create_workflow.await_args.kwargs["access"] == AccessPolicy(
+            visibility=Visibility.PROJECT, owner_user_id=owner
+        )
+        service.create_workflow.assert_awaited_once()
+        assert workflows[UUID(result.content["agent"]["id"])].access.owner_user_id == (
+            owner
+        )
 
     async def test_the_same_call_after_a_partial_failure_finishes_the_same_agent(
         self, service, store

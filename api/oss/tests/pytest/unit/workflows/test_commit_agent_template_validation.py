@@ -95,7 +95,8 @@ class TestTheRuleNamesTheField:
         assert detail["retryable"] is False
         assert detail["next_step"]
         assert detail["details"] == {"issues": [NO_BODY_ISSUE]}
-        assert NO_BODY_ISSUE in detail["message"]
+        # The message is for a person: the field paths stay in `details.issues`.
+        assert "parameters." not in detail["message"]
         JSONResponse(detail)
 
 

@@ -1385,30 +1385,6 @@ async def test_reserved_tool_on_a_private_agent(world, monkeypatch, call_ref, ke
     assert (named == variant_id) is (who == "alice")
 
 
-@pytest.mark.parametrize(
-    "call_ref", ["tools.agenta.read_agent_config", "tools.agenta.edit_agent_config"]
-)
-@pytest.mark.parametrize("who", ["alice", "bob"])
-async def test_other_agent_tool_on_a_private_agent(world, call_ref, who):
-    """Bob names Alice's private agent by slug in an agent tool: the handler runs with an
-    agent that names nothing (the unknown-agent answer). Alice, the owner, runs on it."""
-    import oss.src.apis.fastapi.tools.router as tools_module  # noqa: PLC0415
-
-    workflows = AsyncMock()
-    workflows.fetch_workflow.return_value = SimpleNamespace(id=world.private_agent)
-    user = world.alice if who == "alice" else world.bob
-    access = world.request_access(user, "secret")
-    request = _write_request(world, access)
-    with _as(access):
-        arguments = await tools_module._checked_reserved_arguments(
-            request,
-            call_ref=call_ref,
-            arguments={"agent": "alice-private-agent"},
-            workflows_service=workflows,
-        )
-    assert (arguments["agent"] == "alice-private-agent") is (who == "alice")
-
-
 @pytest.mark.parametrize("call_ref", ["tools.agenta.create_app"])
 async def test_reserved_tool_on_a_private_session_is_not_found(world, call_ref):
     import oss.src.apis.fastapi.tools.router as tools_module  # noqa: PLC0415

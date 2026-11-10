@@ -1205,27 +1205,47 @@ def _agent_reference(arguments: Dict[str, Any]) -> tuple[str, Reference]:
         raise _not_found(raw) from e
 
 
+async def _visible(
+    *,
+    workflows_service: WorkflowsService,
+    project_id: UUID,
+    read_scope: AgentReadScope,
+    workflow_id: UUID,
+) -> bool:
+    """Whether the caller's read scope shows this agent: the rule `list_agents` applies."""
+    return bool(
+        await workflows_service.query_workflows(
+            project_id=project_id,
+            read_scope=read_scope,
+            workflow_refs=[Reference(id=workflow_id)],
+            include_archived=True,
+        )
+    )
+
+
 async def _resolve_other_agent(
     *,
     workflows_service: WorkflowsService,
     project_id: UUID,
+    read_scope: AgentReadScope,
     arguments: Dict[str, Any],
     caller_id: UUID,
     self_step: str,
 ) -> tuple[Any, Any]:
-    """The named agent and its latest revision, or a refusal the model can act on.
+    """The named agent and its head, or a refusal the model can act on.
 
-    Refused: an unknown name, a static platform workflow, the caller itself, an archived
-    agent, and a workflow that is not an agent. The lookup is scoped to the caller's
-    project, so an agent from another project is simply unknown. A static workflow is
-    served from code with `is_static` set; a reserved slug the catalog does not hold is
-    simply unknown.
+    The head is the latest revision of the oldest variant that is not archived, the rule
+    `list_agents` applies. Refused: an unknown agent, a static platform workflow, the caller
+    itself, an archived agent, and a workflow that is not an agent. The lookup is scoped to
+    the caller's project, so an agent from another project is unknown. An agent the caller's
+    read scope hides is unknown too, with the same answer. A static workflow is served from
+    code with `is_static` set; a reserved slug the catalog does not hold is unknown.
     """
     raw, reference = _agent_reference(arguments)
     head = await workflows_service.fetch_workflow_revision(
         project_id=project_id,
         workflow_ref=reference,
-        include_archived=True,
+        include_archived=False,
     )
     if head is not None and head.flags is not None and head.flags.is_static:
         raise _agent_refusal(
@@ -1233,31 +1253,41 @@ async def _resolve_other_agent(
             f"'{raw}' is a built-in Agenta workflow, not an agent you can read or change.",
             _FIND_AGENT_STEP,
         )
-    if head is None or head.workflow_id is None:
+    # An archived agent has no head, so the artifact is read with archived rows.
+    workflow = await workflows_service.fetch_workflow(
+        project_id=project_id,
+        workflow_ref=(
+            Reference(id=head.workflow_id)
+            if head is not None and head.workflow_id is not None
+            else reference
+        ),
+        include_archived=True,
+    )
+    if workflow is None or not await _visible(
+        workflows_service=workflows_service,
+        project_id=project_id,
+        read_scope=read_scope,
+        workflow_id=workflow.id,
+    ):
         raise _not_found(raw)
-    if head.workflow_id == caller_id:
+    if workflow.id == caller_id:
         raise _agent_refusal(
             "agent_is_self",
             f"'{raw}' is you. This tool works on other agents only.",
             self_step,
         )
-    workflow = await workflows_service.fetch_workflow(
-        project_id=project_id,
-        workflow_ref=Reference(id=head.workflow_id),
-        include_archived=True,
-    )
-    if workflow is None:
-        raise _not_found(raw)
-    if workflow.deleted_at is not None or head.deleted_at is not None:
+    if workflow.deleted_at is not None:
         raise _agent_refusal(
-            "agent_archived",
+            "agent_is_archived",
             f"'{workflow.name or raw}' is archived. An archived agent cannot be read or "
             "changed.",
             "Pick an agent that is not archived: call list_agents.",
         )
+    if head is None:
+        raise _not_found(raw)
     if head.flags is None or not head.flags.is_agent:
         raise _agent_refusal(
-            "not_an_agent",
+            "workflow_is_not_agent",
             f"'{workflow.name or raw}' is a workflow, not an agent.",
             _FIND_AGENT_STEP,
         )
@@ -1286,18 +1316,34 @@ async def _attribution(
     *,
     workflows_service: WorkflowsService,
     project_id: UUID,
+    read_scope: AgentReadScope,
     caller_id: UUID,
     session_id: str,
 ) -> str:
+    """The "by agent ..., session ..." clause of a write's commit message.
+
+    The run binds the caller, but a direct `/tools/call` sets it, so the caller must be an
+    agent the caller's read scope shows: a private agent's name never reaches the answer or
+    the history of another agent.
+    """
     from oss.src.core.workflows.commit_support import agent_attribution
 
     caller = await workflows_service.fetch_workflow(
         project_id=project_id,
         workflow_ref=Reference(id=caller_id),
     )
+    if caller is None or not await _visible(
+        workflows_service=workflows_service,
+        project_id=project_id,
+        read_scope=read_scope,
+        workflow_id=caller_id,
+    ):
+        raise PlatformToolHandlerRefused(
+            "caller_agent_id is bound from the run and names no agent you can see."
+        )
     return agent_attribution(
         agent_id=str(caller_id),
-        agent_name=caller.name if caller else None,
+        agent_name=caller.name,
         session_id=session_id,
     )
 
@@ -1350,8 +1396,9 @@ async def _default_heads(
 ) -> Dict[UUID, Any]:
     """Each workflow's default-variant head, the revision read and edit act on, in two queries.
 
-    The default variant is the oldest one, the rule `fetch_workflow_revision` applies when it
-    is given only the workflow.
+    The default variant is the oldest one that is not archived, the rule
+    `fetch_workflow_revision` applies when it is given only the workflow and no archived rows.
+    An archived agent's variants are not archived with it, so the rule holds for it too.
     """
     from oss.src.core.git.dtos import RevisionGrouping
 
@@ -1359,7 +1406,7 @@ async def _default_heads(
         project_id=project_id,
         read_scope=read_scope,
         workflow_refs=[Reference(id=workflow.id) for workflow in workflows],
-        include_archived=include_archived,
+        include_archived=False,
     )
     default_variants: Dict[UUID, Any] = {}
     for variant in sorted(variants, key=lambda v: (v.created_at, v.id)):
@@ -1390,7 +1437,7 @@ async def handle_list_agents(
     workspace_id: Optional[UUID] = None,
     agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
-    """The agents in the caller's project, newest first, one page at a time.
+    """The agents in the caller's project, one page at a time, in a fixed order.
 
     `agent_read_scope` is the caller's read scope: the project-visible agents and, for a
     person, their own private agents. Without one, the list holds the project-visible
@@ -1399,9 +1446,8 @@ async def handle_list_agents(
     One row per agent, from the head `read_agent_config` and `edit_agent_config` act on: the
     default variant's latest revision. The scan runs over the project's applications, in
     batches, and keeps the ones whose head is flagged `is_agent` today, until the page holds
-    `limit` agents or the applications run out. `next_cursor` is the last application
-    scanned. Static platform workflows are served from code and never stored, so they never
-    appear.
+    `limit` agents or the applications run out. `cursor` is the last application scanned.
+    Static platform workflows are served from code and never stored, so they never appear.
     """
     from oss.src.core.workflows.dtos import WorkflowArtifactQueryFlags, WorkflowQuery
 
@@ -1429,7 +1475,7 @@ async def handle_list_agents(
         except ValueError as e:
             raise _ArgumentsRefused(
                 "`cursor` is not a cursor this tool returned.",
-                next_step="Pass the `next_cursor` of the previous page, or omit `cursor`.",
+                next_step="Pass the `cursor` of the previous page, or omit `cursor`.",
             ) from e
         include_archived = parsed.get("include_archived") is True
     except _Refusal as e:
@@ -1481,7 +1527,7 @@ async def handle_list_agents(
                 break
 
     return PlatformHandlerResult(
-        content={"agents": agents, "next_cursor": str(cursor) if more else None}
+        content={"agents": agents, "cursor": str(cursor) if more else None}
     )
 
 
@@ -1495,6 +1541,7 @@ async def handle_read_agent_config(
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
     workspace_id: Optional[UUID] = None,
+    agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """Another agent's latest saved configuration, with the same answer `read_config` gives.
 
@@ -1507,6 +1554,7 @@ async def handle_read_agent_config(
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("read_agent_config is unavailable.")
+    read_scope = agent_read_scope or AgentReadScope(owner_user_id=None)
 
     try:
         parsed = _parse_arguments(arguments)
@@ -1514,6 +1562,7 @@ async def handle_read_agent_config(
         workflow, head = await _resolve_other_agent(
             workflows_service=workflows_service,
             project_id=project_id,
+            read_scope=read_scope,
             arguments=parsed,
             caller_id=caller_id,
             self_step="To read your own configuration, use read_config.",
@@ -1550,6 +1599,7 @@ async def handle_edit_agent_config(
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
     workspace_id: Optional[UUID] = None,
+    agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """Commit ordered operations to another agent's latest revision. Never deploys.
 
@@ -1561,6 +1611,7 @@ async def handle_edit_agent_config(
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("edit_agent_config is unavailable.")
+    read_scope = agent_read_scope or AgentReadScope(owner_user_id=None)
 
     try:
         parsed = _parse_arguments(arguments)
@@ -1584,6 +1635,7 @@ async def handle_edit_agent_config(
         workflow, head = await _resolve_other_agent(
             workflows_service=workflows_service,
             project_id=project_id,
+            read_scope=read_scope,
             arguments=parsed,
             caller_id=caller_id,
             self_step="To change your own configuration, use commit_revision.",
@@ -1604,6 +1656,7 @@ async def handle_edit_agent_config(
             attribution=await _attribution(
                 workflows_service=workflows_service,
                 project_id=project_id,
+                read_scope=read_scope,
                 caller_id=caller_id,
                 session_id=session_id,
             ),
@@ -1625,23 +1678,18 @@ async def handle_edit_agent_config(
         },
         # Not `committed_revision`: that signal tells the CALLER's playground it committed
         # itself, and this is another agent.
-        wrote_revision=outcome.status == "committed",
+        wrote_other_agent_revision=outcome.status == "committed",
     )
-
-
-# A new agent's inputs, as the "New agent" template declares them. The web copies the target's
-# declared inputs into a subagent's `input_schema` the same way (`handleAddWorkflowReference`).
-_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
-    "type": "object",
-    "properties": {"messages": {"x-ag-type-ref": "messages", "type": "array"}},
-    "required": ["messages"],
-}
 
 
 def _subagent_operation(agent: Any) -> Dict[str, Any]:
     """The operation that adds `agent` to the caller's own tools, so the caller can talk to
     it: a `reference` tool that runs the agent's latest version, the shape the web writes
-    when a person adds a subagent (`normalizeSubagentReference`)."""
+    when a person adds a subagent (`normalizeSubagentReference`). Its `input_schema` is the
+    inputs schema the "New agent" template declares, which the web copies from the target
+    the same way (`handleAddWorkflowReference`)."""
+    from oss.src.core.workflows.new_agent import new_agent_revision_data
+
     return {
         "operation": "add_item",
         "target": ["parameters", "agent", "tools"],
@@ -1650,7 +1698,9 @@ def _subagent_operation(agent: Any) -> Dict[str, Any]:
             "ref_by": "variant",
             "slug": agent.slug,
             "description": agent.description or agent.name,
-            "input_schema": _AGENT_INPUT_SCHEMA,
+            "input_schema": (new_agent_revision_data().get("schemas") or {}).get(
+                "inputs"
+            ),
         },
     }
 
@@ -1684,6 +1734,7 @@ async def handle_create_agent(
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
     workspace_id: Optional[UUID] = None,
     first_agent_owner_user_id: Optional[UUID] = None,
+    agent_read_scope: Optional[AgentReadScope] = None,
 ) -> PlatformHandlerResult:
     """A new agent from the "New agent" template, with the caller's operations applied.
 
@@ -1708,6 +1759,7 @@ async def handle_create_agent(
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("create_agent is unavailable.")
+    read_scope = agent_read_scope or AgentReadScope(owner_user_id=None)
 
     try:
         parsed = _parse_arguments(arguments)
@@ -1732,6 +1784,7 @@ async def handle_create_agent(
         attribution = await _attribution(
             workflows_service=workflows_service,
             project_id=project_id,
+            read_scope=read_scope,
             caller_id=caller_id,
             session_id=session_id,
         )
@@ -1805,7 +1858,7 @@ async def handle_create_agent(
             ),
             "subagent_operation": _subagent_operation(created),
         },
-        wrote_revision=True,
+        wrote_other_agent_revision=True,
     )
 
 
@@ -1845,7 +1898,8 @@ class PlatformToolHandlerRegistration:
     needs_agent_owner: bool = False
     # Handlers that link to a page of the web app take the caller's `workspace_id`.
     needs_workspace: bool = False
-    # Handlers that list agents take the caller's `agent_read_scope`.
+    # Handlers that show or name an agent take the caller's `agent_read_scope`: they answer
+    # only about agents it shows.
     needs_agent_read_scope: bool = False
 
 
@@ -1896,6 +1950,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_read_agent_config,
         elevated_permission=Permission.VIEW_WORKFLOWS,
         needs_workspace=True,
+        needs_agent_read_scope=True,
     ),
     CREATE_AGENT_CALL_REF: PlatformToolHandlerRegistration(
         call_ref=CREATE_AGENT_CALL_REF,
@@ -1903,6 +1958,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_create_agent,
         elevated_permission=Permission.EDIT_WORKFLOWS,
         needs_workspace=True,
+        needs_agent_read_scope=True,
         needs_agent_owner=True,
     ),
     EDIT_AGENT_CONFIG_CALL_REF: PlatformToolHandlerRegistration(
@@ -1911,6 +1967,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_edit_agent_config,
         elevated_permission=Permission.EDIT_WORKFLOWS,
         needs_workspace=True,
+        needs_agent_read_scope=True,
     ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
     # demand for the same act: writing a file needs EDIT_MOUNTS, reading one VIEW_MOUNTS.
@@ -1955,7 +2012,7 @@ def required_agent_owner(*, call_ref: str) -> bool:
 
 
 def required_agent_read_scope(*, call_ref: str) -> bool:
-    """Whether this handler lists agents (and so takes the caller's read scope)."""
+    """Whether this handler shows or names agents (and so takes the caller's read scope)."""
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     return bool(registration and registration.needs_agent_read_scope)
 

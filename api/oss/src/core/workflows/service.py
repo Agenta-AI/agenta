@@ -495,15 +495,16 @@ def _reject_unrunnable_agent(data: Any) -> None:
     # The parse's refusals. Anything else is a defect in the parser, not in the
     # configuration, and must not reach the caller as "correct your fields".
     except (ConfigEntryError, AgentTemplateShapeError, ValueError) as e:
+        issues = [str(e)]
         for name, error_type in _AGENT_TEMPLATE_LISTS:
             if not isinstance(e, error_type) or e.index is None:
                 continue
             entry_paths = paths.get(name, [])
             if 0 <= e.index < len(entry_paths):
-                raise InvalidAgentConfigurationError(
-                    issues=e.describe(entry_paths[e.index])
-                ) from e
-        raise InvalidAgentConfigurationError(issues=[str(e)]) from e
+                issues = e.describe(entry_paths[e.index])
+                break
+        log.info("[workflows] agent configuration refused", issues=issues)
+        raise InvalidAgentConfigurationError(issues=issues) from e
 
 
 def read_revision_config(
@@ -4934,6 +4935,16 @@ class SimpleWorkflowsService:
                 data=SimpleWorkflowData(**data),
             ),
             message=message,
+            # The owner is saved with the artifact, in its transaction, so a create that
+            # stops after the artifact never leaves an ownerless agent for the retry.
+            access=(
+                AccessPolicy(
+                    visibility=Visibility.PROJECT,
+                    owner_user_id=first_agent_owner_user_id,
+                )
+                if first_agent_owner_user_id is not None
+                else None
+            ),
             first_agent_owner_user_id=first_agent_owner_user_id,
         )
         return outcome.workflow, message, warnings

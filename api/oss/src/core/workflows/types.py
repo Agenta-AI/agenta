@@ -197,12 +197,15 @@ class InvalidAgentConfigurationError(Exception):
     The rule reads the RESULT, not the change. An agent stored before this rule existed can
     hold such a field, and then a change to any other field is refused too, until the same
     change corrects it. The issues name the field, so the caller knows what to correct.
+
+    ``message`` is plain text for a person and names no field path; the paths are in
+    ``details.issues``.
     """
 
     code = "invalid_agent_configuration"
 
     def __init__(self, *, issues: List[str]) -> None:
-        message = f"The agent configuration cannot run: {'; '.join(issues)}."
+        message = "This agent's setup is not valid, so it cannot run."
         super().__init__(message)
         self.issues = list(issues)
         self.message = message
