@@ -3,7 +3,7 @@
  * instructions file) to an {@link ItemDescriptor} (avatar, name, description, tags). Kept beside the
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
-import {humanizeActionKey, skillDisplayName} from "@agenta/shared/utils"
+import {humanizeActionKey, skillDisplayName, stripStaticSkillPrefix} from "@agenta/shared/utils"
 import {McpServerMark, SkillMark} from "@agenta/ui/agent-icon"
 import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
@@ -345,13 +345,7 @@ const SKILL_MARK = {
 
 /** The title for a skill whose name is missing: its slug, without the reserved `__ag__` prefix. */
 const slugTitle = (slug: string | undefined) =>
-    slug
-        ? skillDisplayName(
-              slug.startsWith(STATIC_SKILL_SLUG_PREFIX)
-                  ? slug.slice(STATIC_SKILL_SLUG_PREFIX.length)
-                  : slug,
-          )
-        : undefined
+    slug ? skillDisplayName(stripStaticSkillPrefix(slug)) : undefined
 
 /** Classify a skill into its row avatar / name / description / type tags. */
 export function describeSkill(skill: unknown): ItemDescriptor {

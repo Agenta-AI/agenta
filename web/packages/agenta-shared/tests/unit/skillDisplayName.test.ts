@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {skillDisplayName} from "../../src/utils/skillDisplayName"
+import {skillDisplayName, stripStaticSkillPrefix} from "../../src/utils/skillDisplayName"
 
 describe("skillDisplayName", () => {
     it.each([
@@ -29,5 +29,16 @@ describe("skillDisplayName", () => {
 
     it("returns a name made only of separators unchanged", () => {
         expect(skillDisplayName("--")).toBe("--")
+    })
+})
+
+describe("stripStaticSkillPrefix", () => {
+    it("drops the reserved prefix of a built-in storage slug", () => {
+        expect(stripStaticSkillPrefix("__ag__web-search")).toBe("web-search")
+    })
+
+    it("leaves any other slug as is", () => {
+        expect(stripStaticSkillPrefix("web-search")).toBe("web-search")
+        expect(stripStaticSkillPrefix("my__ag__skill")).toBe("my__ag__skill")
     })
 })

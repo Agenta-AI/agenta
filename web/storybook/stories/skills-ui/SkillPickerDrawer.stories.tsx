@@ -31,8 +31,7 @@ const OPTIONS: SkillListItem[] = [
         // The picker keys by the suffixed workflow slug; the row titles the SKILL.md name.
         id: "s0",
         slug: "laptop-replacement-policy-3f2a",
-        name: "laptop-replacement-policy-3f2a",
-        skillName: "laptop-replacement-policy",
+        name: "laptop-replacement-policy",
         description: "When and how an employee gets a new laptop.",
         origin: "project",
         version: "2",

@@ -47,7 +47,6 @@ export const isDefaultSkillFilters = (view: SkillListView): boolean =>
 /** What both views need of a skill, resolved once by the screen. */
 export interface SkillListRow {
     id: string
-    slug: string
     /** The readable title from the SKILL.md name ("Laptop Replacement Policy"). */
     title: string
     description: string | null
@@ -97,7 +96,6 @@ export const toSkillListRow = (item: SkillListItem, creatorName = ""): SkillList
     const repository = item.origin === "imported" ? (item.source?.label ?? "") : ""
     return {
         id: item.id,
-        slug: item.slug,
         title: skillTitle(item),
         description: item.description ?? null,
         origin: item.origin,

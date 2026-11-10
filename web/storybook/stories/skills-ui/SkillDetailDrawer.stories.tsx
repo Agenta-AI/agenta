@@ -38,8 +38,7 @@ const projectSkill: AgentaDataParameters = {
         skill: {
             id: scope.id("skill"),
             slug: "laptop-replacement-policy",
-            name: "laptop-replacement-policy-3f2a",
-            skillName: "laptop-replacement-policy",
+            name: "laptop-replacement-policy",
             description: "When and how an employee gets a new laptop, and who approves it.",
             origin: "project",
             version: "2",

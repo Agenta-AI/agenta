@@ -1,3 +1,5 @@
+import {INTERNAL_SLUG_PREFIX} from "../clientTools"
+
 /** Short words that read as acronyms in a skill title. */
 const SKILL_ACRONYMS = new Set([
     "AI",
@@ -39,3 +41,7 @@ export function skillDisplayName(name: string): string {
         })
         .join(" ")
 }
+
+/** A built-in skill's storage slug without its reserved `__ag__` prefix; any other slug as is. */
+export const stripStaticSkillPrefix = (slug: string): string =>
+    slug.startsWith(INTERNAL_SLUG_PREFIX) ? slug.slice(INTERNAL_SLUG_PREFIX.length) : slug
