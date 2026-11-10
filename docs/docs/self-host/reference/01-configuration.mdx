@@ -1399,6 +1399,9 @@ is deleted when a key expires. `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLAN
 
 Do not confuse it with `AGENTA_LICENSE`, which selects the edition (`oss` or `ee`).
 
+The Helm chart has no value for it. Set it on the `api`, `worker-queues` and `worker-streams`
+containers with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
+
 ## llm (provider API keys)
 
 | Env var | env.py path | values.yaml path |
