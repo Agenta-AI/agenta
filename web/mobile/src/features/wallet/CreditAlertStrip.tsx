@@ -39,11 +39,14 @@ export const CreditAlertStrip = ({
     projectId,
     entityId,
     hidden,
+    dockOpen,
     onSwitchModel,
 }: {
     projectId: string
     entityId: string
     hidden: boolean
+    /** A dock above the composer (approval, question, connection, secret) asks the user first. */
+    dockOpen: boolean
     onSwitchModel: () => void
 }) => {
     // On its own key or subscription the agent's model spends no credits, so nothing shows or polls.
@@ -79,6 +82,7 @@ export const CreditAlertStrip = ({
     const current = alert.kind !== "none" && isCreditFunded(funding) ? {alert, funding} : shown
     // A model key does not fund agent runtime, so being out of credits shows even beside another strip.
     const visible =
+        !dockOpen &&
         creditFunded &&
         (!hidden || alert.kind === "empty") &&
         alert.kind !== "none" &&

@@ -1066,6 +1066,13 @@ export const LiveConversation = ({
                                         projectId={projectId}
                                         entityId={entityId}
                                         hidden={modelBlocked || setupBlocked}
+                                        dockOpen={
+                                            approvalsOpen ||
+                                            Boolean(secrets.front) ||
+                                            elicits.open ||
+                                            connects.open ||
+                                            (personalSetup.open && !readOnly && !accessPending)
+                                        }
                                         onSwitchModel={() => modelPickerRef.current?.()}
                                     />
                                 </ContentRail>
