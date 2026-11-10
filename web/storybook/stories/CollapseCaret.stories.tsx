@@ -12,7 +12,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The one collapse and expand caret. A filled right caret that turns 90° to point down when open. Pass `open`, or leave it undefined under a parent that rotates `[data-slot=collapse-caret]` from its own `data-state` (the accordion does this).\n\n**Used in:** the accordion, config sections, table group headers, list group headings, tree select, checkbox tree, expandable table rows, drill-in field headers, form view nodes, code folding and chat activity steps.",
+                    "The one collapse and expand caret. A filled right caret that turns 90° to point down when open. Pass `open`, or leave it undefined under a parent that rotates `[data-slot=collapse-caret]` from its own `data-state` (the accordion does this).\n\n**Used in:** every shared collapse and expand control in `@agenta/ui` and `@agenta/chat`.",
             },
         },
     },

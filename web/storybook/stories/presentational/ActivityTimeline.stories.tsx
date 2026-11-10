@@ -3,7 +3,7 @@ import {useState} from "react"
 import {ActivityTimeline} from "@agenta/chat/components"
 import type {ActivityStep} from "@agenta/chat/model"
 import {activityFoldKey, setExpandedAtom} from "@agenta/chat/state"
-import type {Meta, StoryObj} from "@storybook/react"
+import type {Meta, StoryObj} from "@storybook/nextjs"
 import {createStore, Provider} from "jotai"
 
 const meta: Meta<typeof ActivityTimeline> = {

@@ -99,10 +99,6 @@ export interface DrillInFieldHeaderProps {
     showMessage?: (content: string, type?: "success" | "error" | "info") => void
 
     // Icon slots - allow custom icons to be passed in
-    /** Caret down icon */
-    caretDownIcon?: ReactNode
-    /** Caret right icon */
-    caretRightIcon?: ReactNode
     /** Check icon */
     checkIcon?: ReactNode
     /** Copy icon */
@@ -205,8 +201,6 @@ const DefaultTooltip = ({children}: {title?: string; children: ReactNode}) => <>
  * Default icons using Phosphor icons
  */
 const defaultIcons = {
-    caretDown: <CollapseCaret open size={14} />,
-    caretRight: <CollapseCaret size={14} />,
     drillIn: <CaretRight size={14} />,
     check: <Check size={14} />,
     copy: <Copy size={14} />,
@@ -383,8 +377,6 @@ const DrillInFieldHeader = memo(
         showMessage,
         typeChip,
         // Icons
-        caretDownIcon = defaultIcons.caretDown,
-        caretRightIcon = defaultIcons.caretRight,
         checkIcon = defaultIcons.check,
         copyIcon = defaultIcons.copy,
         codeIcon = defaultIcons.code,
@@ -465,7 +457,7 @@ const DrillInFieldHeader = memo(
                     {shouldShowCollapse ? (
                         <>
                             <span className="flex items-center text-gray-500">
-                                {isCollapsed ? caretRightIcon : caretDownIcon}
+                                <CollapseCaret open={!isCollapsed} size={14} />
                             </span>
                             <span className="text-gray-700 font-medium">{name}</span>
                             {typeChip}
