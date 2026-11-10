@@ -7,6 +7,8 @@ import {useExtensionDependency} from "@lexical/react/useExtensionComponent"
 import {configExtension, defineExtension} from "lexical"
 import {createPortal} from "react-dom"
 
+import {CollapseCaret} from "../../../../components/ui/collapse-caret"
+
 import {CodeFoldingCoreExtension} from "./codeFoldingCore"
 
 function CodeFoldingOverlay() {
@@ -34,13 +36,16 @@ function CodeFoldingOverlay() {
                     <button
                         key={line.key}
                         className="fold-toggle"
+                        aria-label={line.collapsed ? "Expand" : "Collapse"}
+                        aria-expanded={!line.collapsed}
                         style={{
                             top: line.top,
                             height: line.height,
                         }}
                         onClick={() => core.toggleLineByKey(line.key)}
                     >
-                        {line.collapsed ? "▸" : "▾"}
+                        {/* text-current keeps the gutter's own line-number color. */}
+                        <CollapseCaret open={!line.collapsed} size={10} className="text-current" />
                     </button>
                 )
             })}

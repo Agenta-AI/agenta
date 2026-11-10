@@ -35,9 +35,10 @@ import {
 import {parseGatewayTool} from "@agenta/entity-ui/tool-utils"
 import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
+import {skillDisplayName} from "@agenta/shared/utils"
 import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 // Same icons the config panel gives these sections (AgentTemplateControl / itemKinds).
-import {ChatCircleDots, Cpu, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {ChatCircleDots, Cpu, Compass, HardDrives, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 /** Which picker the palette drilled into, or null when the palette is just a list. */
@@ -257,19 +258,21 @@ export function useChatSlashCommands({
             return {
                 key: `${prefix}-${token}-${index}`,
                 label: `/${token}`,
-                // The descriptor's prose name is worth showing when it differs from the token.
+                // The descriptor's prose name is worth showing when it says more than the token.
                 description:
                     descriptor.description ??
-                    (descriptor.name === token ? undefined : descriptor.name),
+                    (descriptor.name === token || descriptor.name === skillDisplayName(token)
+                        ? undefined
+                        : descriptor.name),
                 tail:
                     typeof descriptor.tags[0] === "string"
                         ? descriptor.tags[0]
                         : descriptor.tags[0]?.label,
                 icon:
                     prefix === "skill" ? (
-                        <GraduationCap size={14} />
+                        <Compass size={14} />
                     ) : prefix === "mcp" ? (
-                        <Plugs size={14} />
+                        <HardDrives size={14} />
                     ) : (
                         <Wrench size={14} />
                     ),

@@ -4,7 +4,7 @@
  */
 import {useCallback} from "react"
 
-import {formatCount} from "@agenta/shared/utils"
+import {formatCount, skillDisplayName} from "@agenta/shared/utils"
 import {importSkillSource, scanSkillSource} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {RepoImportDrawer, type RepoScanResult} from "@agenta/ui/create-menu"
@@ -36,7 +36,7 @@ export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillI
                     const imported = already.has(c.path_in_repo)
                     return {
                         path: c.path_in_repo,
-                        name: c.skill?.name ?? c.path_in_repo,
+                        name: c.skill?.name ? skillDisplayName(c.skill.name) : c.path_in_repo,
                         description: c.skill?.description,
                         // Already-linked skills are Refresh's job, not a re-import.
                         unavailable: imported
@@ -85,8 +85,8 @@ export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillI
                         Imported {formatCount(imported.length, "skill")}
                     </span>
                     {imported.map((item) => (
-                        <span key={item.path_in_repo} className="pl-5 font-mono">
-                            {item.name ?? item.path_in_repo}
+                        <span key={item.path_in_repo} className="pl-5">
+                            {item.name ? skillDisplayName(item.name) : item.path_in_repo}
                         </span>
                     ))}
                     {skipped.length ? (

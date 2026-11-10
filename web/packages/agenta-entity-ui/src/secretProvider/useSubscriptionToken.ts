@@ -52,7 +52,9 @@ export const useSubscriptionToken = ({
     const name = connection?.name || subscriptionProviderName(provider)
     // A failed replacement keeps the old token, so the steps stay open on its error.
     const connected = subscriptionIsReady(connection?.subscription) && !replacing
-    const token = value.trim()
+    // A setup-token never contains whitespace. A terminal that wraps the long token can add
+    // spaces where the lines break, and the password field hides them, so they are removed.
+    const token = value.replace(/\s/g, "")
     const canSubmit = token.startsWith(SETUP_TOKEN_PREFIX) && !checking
 
     const submit = useCallback(async () => {

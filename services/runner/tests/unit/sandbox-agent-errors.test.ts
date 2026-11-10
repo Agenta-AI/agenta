@@ -1027,3 +1027,60 @@ describe("a run limit that ended the turn (EU 2026-10-06, reference a50dcb81)", 
     }
   });
 });
+
+describe("classifyRunError: ChatGPT subscription refusals", () => {
+  const hidden = { unknownText: "hidden" as const };
+
+  it("names the usage limit and the wait OpenAI gives", () => {
+    const result = classifyRunError(
+      new Error(
+        "Internal error: You have hit your ChatGPT usage limit (plus plan). Try again in ~2075 min.",
+      ),
+      "pi",
+      "openai-codex",
+      hidden,
+    );
+    expect(result.code).toBe("upstream_rejected");
+    expect(result.message).toBe(
+      "Your ChatGPT plan has reached its usage limit, so OpenAI refused this request. Signing in again does not change this. Try again in about 35 hours, or pick a model that does not use your ChatGPT subscription.",
+    );
+  });
+
+  it("names the usage limit when OpenAI gives no wait", () => {
+    const result = classifyRunError(
+      new Error("Internal error: Codex error: The usage limit has been reached"),
+      "pi",
+      "openai-codex",
+      hidden,
+    );
+    expect(result.code).toBe("upstream_rejected");
+    expect(result.message).toContain("Your ChatGPT plan has reached its usage limit");
+    expect(result.message).toContain("Try again later, or pick a model");
+  });
+
+  it("says minutes for a short wait", () => {
+    const result = classifyRunError(
+      new Error("You have hit your ChatGPT usage limit (plus plan). Try again in ~12 min."),
+      "pi",
+      "openai-codex",
+      hidden,
+    );
+    expect(result.message).toContain("Try again in about 12 minutes,");
+  });
+
+  it("names a model the ChatGPT account cannot use", () => {
+    const result = classifyRunError(
+      new Error(
+        "Internal error: Codex error: The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.",
+      ),
+      "pi",
+      "openai-codex",
+      hidden,
+    );
+    expect(result).toEqual({
+      message:
+        "Your ChatGPT subscription cannot use the model gpt-6.1-sol. Pick another model for this agent.",
+      code: "model_unavailable",
+    });
+  });
+});

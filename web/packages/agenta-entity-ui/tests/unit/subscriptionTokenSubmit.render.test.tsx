@@ -109,4 +109,31 @@ describe("a stored Claude token", () => {
         await act(async () => button("Replace token").click())
         expect(input().value).toBe("")
     })
+
+    it("joins a token a terminal line wrap split with spaces", async () => {
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        await act(async () => {
+            root.render(
+                <Provider store={store}>
+                    <Page />
+                </Provider>,
+            )
+        })
+
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
+        await act(async () => {
+            setter.call(input(), ` ${TOKEN.slice(0, 10)}  ${TOKEN.slice(10)}\u00a0`)
+            input().dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await act(async () => button("Connect").click())
+
+        await act(() =>
+            vi.waitFor(() => expect(document.body.textContent).not.toContain("Checking…")),
+        )
+        expect(client.setSubscriptionToken).toHaveBeenCalledWith(
+            {secret_id: "claude-1", token: TOKEN},
+            {queryParams: {project_id: "project-1"}},
+        )
+    })
 })
