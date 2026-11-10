@@ -197,6 +197,23 @@ const SURVEY_EMAIL_QUESTION_ID = "d6c2d8aa-d624-4736-a71b-25fe0b74d0e9"
 
 const surveyResponseKey = (questionId: string) => `$survey_response_${questionId}`
 
+/** The answers with each typed line dropped, so a write-in reads as its bare choice label. */
+export const withoutWriteIns = (answers: OnboardingAnswers): OnboardingAnswers =>
+    Object.fromEntries(
+        Object.entries(answers).map(([id, value]) => {
+            const question = onboardingQuestion(id)
+            if (!question || value === undefined) return [id, value]
+            const labels = answerLabels(value).map(
+                (label) =>
+                    question.choices.find(
+                        (choice) =>
+                            choice.text === true && writeInText(choice.label, label) !== null,
+                    )?.label ?? label,
+            )
+            return [id, typeof value === "string" ? labels[0] : labels]
+        }),
+    )
+
 /** A write-in reads as the typed line in the survey, not as `Other: line`. */
 const surveyLabel = (question: OnboardingQuestionDef, label: string) => {
     for (const choice of question.choices) {

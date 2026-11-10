@@ -10,6 +10,8 @@ A self-hosted Agenta instance sends a small set of events to Agenta's PostHog pr
 
 No event carries an email address, a user name, an organization or project name, the address of your instance, or any content (prompts, traces, test sets).
 
+PostHog receives each event over the network, from your server or from the user's browser. Like any server, it sees the network address the request comes from.
+
 ## What is sent
 
 | Event | When | Stopped by `AGENTA_TELEMETRY_ENABLED=false` |
@@ -33,7 +35,7 @@ Telemetry is off (AGENTA_TELEMETRY_ENABLED=false). The install ping still runs o
 
 With the switch off:
 
-- The API sends no product events and reads no feature flags from PostHog. Sign-up blocklists then come only from `AGENTA_ACCESS_BLOCKED_DOMAINS` and `AGENTA_ACCESS_BLOCKED_EMAILS`.
+- The API sends no product events and reads no feature flags from PostHog. Sign-up blocklists then come only from `AGENTA_ACCESS_BLOCKED_DOMAINS` and `AGENTA_ACCESS_BLOCKED_EMAILS`. A blocklist the API read from PostHog before the restart stays in its cache until the cache entry expires (60 seconds by default).
 - The browser does not load the analytics script and sends nothing.
 - The install ping still runs once. It carries only the instance id.
 - A browser tab that was open before the restart keeps sending until it reloads.
@@ -51,7 +53,7 @@ The distinct id is the instance id. The event has these properties and no others
 | Property | Value |
 |---|---|
 | `$geoip_disable` | `true`. PostHog does not look up a location. |
-| `$ip` | Empty. PostHog does not store an IP address. |
+| `$ip` | Empty. The event itself carries no IP address. |
 
 The API removes the properties the PostHog library adds on its own (its name and version, the Python version and the operating system).
 
@@ -123,8 +125,8 @@ The browser asks the API whether telemetry is on before it loads the analytics s
 | `$pageview` | opens a page |
 | `user_device_theme` | opens the app for the first time on a device (property: light or dark theme) |
 | `onboarding_started` | starts the setup questions |
-| `onboarding_step_completed` | answers a setup question (properties: the step and the chosen answers) |
-| `survey sent` | finishes the setup questions (properties: the chosen answers) |
+| `onboarding_step_completed` | answers a setup question (properties: the step and the chosen answers; a typed "Other" answer is sent as `Other`, without the text) |
+| `survey sent` | finishes the setup questions (properties: the chosen answers, in the same form) |
 | `onboarding_create_clicked`, `onboarding_agent_created`, `onboarding_skipped` | creates the first agent or skips that step |
 | `first_agent_intent` | picks a template or writes a first message (property: a category, never the text) |
 | `agent_create_failed` | fails to create an agent (properties: the reason, the kind of item and the time it took) |
@@ -133,7 +135,7 @@ The PostHog browser library adds the page path, the browser, the operating syste
 
 ## Update check
 
-The update check downloads `https://agenta.ai/releases.json` at most every 12 hours. It sends no instance id, no version and no other data. Turn it off with `AGENTA_UPDATE_CHECK_ENABLED=false`.
+The update check downloads `https://agenta.ai/releases.json` at most every 12 hours. It sends no instance id, no version and no other data. Like any download, the feed server sees the network address the request comes from. Turn it off with `AGENTA_UPDATE_CHECK_ENABLED=false`.
 
 ## Settings
 

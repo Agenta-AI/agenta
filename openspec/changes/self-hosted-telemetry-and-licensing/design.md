@@ -93,7 +93,7 @@ Ops for the move to one image (task group 6). It runs as its own release, after 
 
 | Option | Trade-off |
 |---|---|
-| **A. `<instance_id>:<user_id>`.** | No personal data. Cannot match a self-hosted user with the same person on cloud. |
+| **A. `<instance_id>:<user_id>`.** | No email or name in the event. The id is pseudonymous: the instance's own database can map it back to a user. Cannot match a self-hosted user with the same person on cloud. |
 | B. Hash of the email. | Matches across instances and cloud. Common emails can be guessed back, so it is still personal data under GDPR. |
 
 **Chosen: A.** Domains give the company signal. The registration email gives a real contact when the person chooses to share it. The API computes the distinct id in one place and gives it to the browser, so both always send the same id.
