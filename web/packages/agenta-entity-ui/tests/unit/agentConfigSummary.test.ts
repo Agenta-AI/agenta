@@ -113,11 +113,20 @@ describe("skillNames", () => {
                     {"@ag.embed": {"@ag.references": {workflow_revision: {slug: "csv-checker"}}}},
                     {name: "inline-skill", body: "..."},
                     {"@ag.embed": {}},
+                    {
+                        "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+                        name: "__ag__web-search",
+                    },
                 ],
             },
         })
-        expect(summary.skills).toBe(4)
-        expect(summary.skillNames).toEqual(["PDF tools", "CSV Checker", "Inline Skill"])
+        expect(summary.skills).toBe(5)
+        expect(summary.skillNames).toEqual([
+            "PDF tools",
+            "CSV Checker",
+            "Inline Skill",
+            "Web Search",
+        ])
     })
 })
 

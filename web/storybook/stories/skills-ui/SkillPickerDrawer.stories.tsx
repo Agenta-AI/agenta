@@ -65,7 +65,8 @@ const OPTIONS: SkillListItem[] = [
     },
     {
         id: "s4",
-        slug: "web-search",
+        // A built-in keys by its `__ag__` storage slug; the row titles its name.
+        slug: "__ag__web-search",
         name: "web-search",
         description: "Search the web and cite sources.",
         origin: "builtin",
