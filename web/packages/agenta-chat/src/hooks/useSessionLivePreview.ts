@@ -13,7 +13,7 @@ import type {UIMessage} from "ai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {liveCommittedRevisions, type CommittedRevision} from "../assets/committedRevisions"
-import type {SessionTranscript} from "../assets/loadSession"
+import {rewoundSequenceForRecords, type SessionTranscript} from "../assets/loadSession"
 import {transcriptToMessages} from "../assets/transcriptToMessages"
 import {
     completeSessionDurableEventReplay,
@@ -188,6 +188,7 @@ export const useSessionLivePreview = ({
                     messages: transcriptToMessages(records, {interactionRowStates}) ?? [],
                     recordCount: records.length,
                     sequenceCursor: throughSequence,
+                    rewoundSequence: rewoundSequenceForRecords(records),
                     interactionRows: interactionRowStates,
                 },
                 coveredEntityIds,

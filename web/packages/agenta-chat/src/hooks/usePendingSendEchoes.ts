@@ -58,6 +58,9 @@ export interface PendingSendEchoes {
     markFailed: (id: string, recreate?: PendingSendEchoInput) => void
     /** The caller will restore the text itself, so the row can go. */
     drop: (id: string) => void
+    /** The transcript was just cut to `userCount` user rows, ahead of the render that shows it.
+     *  The next send counts from there, or its echo would wait for a row that never comes. */
+    rebase: (userCount: number) => void
 }
 
 /**
@@ -149,6 +152,10 @@ export const usePendingSendEchoes = ({
         },
         [setEchoes],
     )
+
+    const rebase = useCallback((userCount: number) => {
+        committedUserCount.current = userCount
+    }, [])
 
     const mark = useCallback(
         (id: string, patch: Partial<PendingSendEcho>) => {
@@ -244,5 +251,6 @@ export const usePendingSendEchoes = ({
         markParked,
         markFailed,
         drop,
+        rebase,
     }
 }

@@ -25,6 +25,7 @@ const calls = vi.hoisted(() => ({
     rewind: vi.fn(),
 }))
 const dialog = vi.hoisted(() => ({confirm: vi.fn()}))
+const appMessage = vi.hoisted(() => ({warning: vi.fn(), error: vi.fn()}))
 const modelSetup = vi.hoisted(() => ({blocked: false, loading: false, canFix: false}))
 const personalSetup = vi.hoisted(() => ({open: false}))
 
@@ -178,7 +179,7 @@ vi.mock("@/features/chat/usePersonalSetupStep", () => ({
 }))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 vi.mock("@agenta/ui/app-message", () => ({
-    message: {warning: vi.fn()},
+    message: appMessage,
     modal: dialog,
 }))
 vi.mock("@agenta/ui/components/presentational", () => ({ChatBubble: () => null}))
@@ -318,6 +319,7 @@ beforeEach(() => {
     for (const fn of Object.values(calls)) fn.mockReset()
     Object.assign(modelSetup, {blocked: false, loading: false, canFix: false})
     dialog.confirm.mockReset()
+    appMessage.error.mockReset()
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -488,7 +490,7 @@ describe("a rewind confirmation open when access goes", () => {
     })
 
     it("with access kept, its OK re-runs the turn", async () => {
-        const confirm = vi.fn()
+        const confirm = vi.fn().mockResolvedValue(true)
         calls.rewind.mockReturnValue({confirm, sideEffects: ["send_email"], restoreText: undefined})
         await render({readOnly: null, canSend: true})
         await click("rewind")
@@ -496,6 +498,18 @@ describe("a rewind confirmation open when access goes", () => {
         await act(async () => onOk())
 
         expect(confirm).toHaveBeenCalledTimes(1)
+        expect(appMessage.error).not.toHaveBeenCalled()
+    })
+
+    it("a rewind the server refuses says so", async () => {
+        const confirm = vi.fn().mockResolvedValue(false)
+        calls.rewind.mockReturnValue({confirm, sideEffects: ["send_email"], restoreText: undefined})
+        await render({readOnly: null, canSend: true})
+        await click("rewind")
+        const {onOk} = dialog.confirm.mock.calls[0][0] as {onOk: () => void}
+        await act(async () => onOk())
+
+        expect(appMessage.error).toHaveBeenCalledWith("Could not rewind this turn. Try again.")
     })
 })
 

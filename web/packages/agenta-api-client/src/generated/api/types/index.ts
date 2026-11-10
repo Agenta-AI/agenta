@@ -658,6 +658,7 @@ export * from "./SessionRecordsQueryResponse.js";
 export * from "./SessionRecordsReadState.js";
 export * from "./SessionReference.js";
 export * from "./SessionResponse.js";
+export * from "./SessionRewindResponse.js";
 export * from "./SessionRole.js";
 export * from "./SessionSharingResponse.js";
 export * from "./SessionSharingState.js";

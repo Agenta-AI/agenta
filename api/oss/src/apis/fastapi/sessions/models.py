@@ -662,3 +662,11 @@ class SessionContinuationResumeResponse(BaseModel):
 
 class PendingInputUpdateRequest(PendingInputUpdate):
     pass
+
+
+class SessionRewindRequest(BaseModel):
+    turn_id: str
+
+
+class SessionRewindResponse(BaseModel):
+    removed: int

@@ -107,6 +107,7 @@ export {
 export {
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
+    rewindSessionAtom,
     sendPendingSessionInputNowAtom,
     updatePendingSessionInputAtom,
 } from "./state/pendingInputs"

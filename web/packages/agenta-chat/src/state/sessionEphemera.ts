@@ -11,6 +11,14 @@ import {clearPendingSendEchoes} from "./pendingSendEchoStore"
  * in-progress message. */
 export const composerDraftBySession = new Map<string, string>()
 
+/** A sent message the composer is editing, and the draft that edit displaced. Same lifetime as
+ * the drafts: the composer draft holds the edited text, so the two survive a remount together. */
+export interface SentEdit {
+    messageId: string
+    draft: string
+}
+export const sentEditBySession = new Map<string, SentEdit>()
+
 /** Pending (not yet sent) attachments per session — same lifetime as the drafts. */
 export const attachmentsBySession = new Map<string, StagedUpload<unknown>[]>()
 
@@ -61,6 +69,7 @@ export {clearSessionFresh, isSessionFresh, markSessionFresh} from "@agenta/entit
 /** Drop every ephemeral trace of a permanently deleted session. */
 export const clearSessionEphemera = (sessionId: string) => {
     composerDraftBySession.delete(sessionId)
+    sentEditBySession.delete(sessionId)
     attachmentsBySession.delete(sessionId)
     turnIdBySession.delete(sessionId)
     supersededTurnIdsBySession.delete(sessionId)

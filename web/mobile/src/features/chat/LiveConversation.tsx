@@ -83,6 +83,7 @@ import {ConnectModelStrip} from "./ConnectModelStrip"
 import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
+import {RewindEditStrip} from "./RewindEditStrip"
 import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
 import type {SessionReadOnly} from "./sessionReadOnly"
 import {refreshOnSetupFailure} from "./setupFailureRefresh"
@@ -321,7 +322,8 @@ export const LiveConversation = ({
         return () => clearTimeout(timer)
     }, [modelKeyLoading])
 
-    // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
+    // Editing borrows the composer: the message's text goes in, the draft it displaces is stashed.
+    // The hook keeps one edit open at a time, held or sent, with one stash.
     const {beginEdit, cancelEdit} = conversation
     const editQueued = useCallback(
         (message: QueuedMessage) => {
@@ -332,7 +334,7 @@ export const LiveConversation = ({
         },
         [beginEdit],
     )
-    const cancelQueuedEdit = useCallback(() => {
+    const cancelComposerEdit = useCallback(() => {
         const input = composerRef.current
         input?.setMarkdown(cancelEdit())
         input?.focus()
@@ -812,22 +814,33 @@ export const LiveConversation = ({
         (turn: TurnViewModel) => {
             const plan = rewind(turn.message)
             if (!plan) return
-            const run = () => {
+            const editing = plan.restoreText !== undefined
+            const run = async () => {
                 // Access can go while the confirmation is open: the OK then writes nothing.
                 if (lockedRef.current) return
-                plan.confirm()
-                if (plan.restoreText === undefined) return
-                composerRef.current?.setMarkdown(plan.restoreText)
+                const input = composerRef.current
+                if (plan.restoreText === undefined) {
+                    if (!(await plan.confirm()))
+                        message.error("Could not rewind this turn. Try again.")
+                    return
+                }
+                // Opens the edit only; the turn goes when the edited message is sent.
+                if (!(await plan.confirm(input?.getMarkdown() ?? ""))) return
+                input?.setMarkdown(plan.restoreText)
                 requestAnimationFrame(() => composerRef.current?.focus())
             }
             if (plan.sideEffects.length === 0) {
-                run()
+                void run()
                 return
             }
             modal.confirm({
-                title: "Rewind past a tool that already ran?",
-                content: `${plan.sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
-                okText: "Rewind anyway",
+                title: editing
+                    ? "Edit past a tool that already ran?"
+                    : "Rewind past a tool that already ran?",
+                content: `${plan.sideEffects.join(", ")} already executed. ${
+                    editing ? "Sending the edit re-runs" : "Rewinding re-runs"
+                } the conversation from here but will NOT undo it.`,
+                okText: editing ? "Edit anyway" : "Rewind anyway",
                 okButtonProps: {danger: true},
                 cancelText: "Cancel",
                 centered: true,
@@ -946,6 +959,21 @@ export const LiveConversation = ({
         )
     }
 
+    const editingAny = Boolean(conversation.editingId || conversation.editingSentId)
+    // The input clears on submit, so the draft the edit displaced goes back after.
+    const commitComposerEdit = async ({
+        text,
+        parts,
+        stagedFiles,
+    }: {
+        text: string
+        parts?: FileUIPart[]
+        stagedFiles?: Parameters<typeof conversation.commitEdit>[0]["stagedFiles"]
+    }) => {
+        const draft = await conversation.commitEdit({text, fileParts: parts, stagedFiles})
+        if (draft) requestAnimationFrame(() => composerRef.current?.setMarkdown(draft))
+    }
+
     // Wraps transcript AND dock: a parked "Connect to X below" row taps through to X's card.
     const scaffold = (
         <ConnectionFocusProvider connects={connects}>
@@ -975,10 +1003,17 @@ export const LiveConversation = ({
                                         onSendNow={conversation.sendQueuedNow}
                                         sendNowBlocked={conversation.sendNowPending}
                                         onEdit={editQueued}
-                                        onCancelEdit={cancelQueuedEdit}
+                                        onCancelEdit={cancelComposerEdit}
                                         editingId={conversation.editingId}
                                         touch
                                     />
+                                </ContentRail>
+                            </div>
+                        ) : null}
+                        {!locked && conversation.editingSentId ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <RewindEditStrip onCancel={cancelComposerEdit} />
                                 </ContentRail>
                             </div>
                         ) : null}
@@ -1117,24 +1152,21 @@ export const LiveConversation = ({
                                 onSend={async ({text, parts, stagedFiles}) => {
                                     if (locked) return
                                     setStoppingHere(false)
-                                    // An open edit rewrites its held message instead of sending. The
-                                    // input clears on submit, so the displaced draft goes back after.
-                                    if (!conversation.editingId) {
-                                        if (await steerOverDocks({text, parts, stagedFiles})) return
-                                        await send({text, parts, stagedFiles})
+                                    // An open edit rewrites its message instead of sending.
+                                    if (editingAny) {
+                                        await commitComposerEdit({text, parts, stagedFiles})
                                         return
                                     }
-                                    const draft = await conversation.commitEdit({
-                                        text,
-                                        fileParts: parts,
-                                    })
-                                    if (draft)
-                                        requestAnimationFrame(() =>
-                                            composerRef.current?.setMarkdown(draft),
-                                        )
+                                    if (await steerOverDocks({text, parts, stagedFiles})) return
+                                    await send({text, parts, stagedFiles})
                                 }}
                                 onSteer={async ({text, parts, stagedFiles}) => {
                                     if (locked) return
+                                    // A sent-message edit replaces turns; it is never steered.
+                                    if (conversation.editingSentId) {
+                                        await commitComposerEdit({text, parts, stagedFiles})
+                                        return
+                                    }
                                     if (await steerOverDocks({text, parts, stagedFiles})) return
                                     await conversation.steer({text, parts, stagedFiles})
                                 }}

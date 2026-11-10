@@ -1,7 +1,12 @@
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {messageText, sideEffectingToolsInRange} from "../../../src/assets/rewind"
+import {
+    messageText,
+    rewindTurnId,
+    rewindTurnIdInTranscript,
+    sideEffectingToolsInRange,
+} from "../../../src/assets/rewind"
 
 const textMessage = (id: string, text: string): UIMessage =>
     ({id, role: "user", parts: [{type: "text", text}]}) as unknown as UIMessage
@@ -83,5 +88,48 @@ describe("sideEffectingToolsInRange", () => {
             toolMessage("m2", "send_email", "output-available"),
         ]
         expect(sideEffectingToolsInRange(messages)).toEqual(["send_email"])
+    })
+})
+
+describe("rewindTurnId", () => {
+    const user = (id: string, turnId?: string): UIMessage =>
+        ({id, role: "user", parts: [], metadata: turnId ? {turnId} : undefined}) as UIMessage
+    const assistant = (id: string): UIMessage =>
+        ({id, role: "assistant", parts: []}) as unknown as UIMessage
+    const transcript = [user("u1", "t1"), assistant("a1"), user("u2", "t2"), assistant("a2")]
+
+    it("names the turn of a rewound user message", () => {
+        expect(rewindTurnId(transcript, 2)).toBe("t2")
+    })
+
+    it("names the turn that holds a re-run assistant message", () => {
+        expect(rewindTurnId(transcript, 3)).toBe("t2")
+    })
+
+    it("returns null when the user message has no durable turn yet", () => {
+        expect(rewindTurnId([user("u1"), assistant("a1")], 1)).toBeNull()
+    })
+
+    it("returns null when no user message comes first", () => {
+        expect(rewindTurnId([assistant("a1")], 0)).toBeNull()
+    })
+})
+
+describe("rewindTurnIdInTranscript", () => {
+    const local = [textMessage("local-1", "mine")]
+    const server = (text: string): UIMessage[] => [
+        {...textMessage("s1", text), metadata: {turnId: "t1"}} as UIMessage,
+    ]
+
+    it("names the server turn at the same position with the same words", () => {
+        expect(rewindTurnIdInTranscript(local, 0, server("mine"))).toBe("t1")
+    })
+
+    it("refuses another client's message at that position", () => {
+        expect(rewindTurnIdInTranscript(local, 0, server("theirs"))).toBeNull()
+    })
+
+    it("returns null when the server has no message there", () => {
+        expect(rewindTurnIdInTranscript(local, 0, [])).toBeNull()
     })
 })

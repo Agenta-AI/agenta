@@ -23,6 +23,8 @@ export interface TranscriptAdoptionInput {
     watermark: number | undefined
     /** This client is streaming the turn, so it — not the log — is the authority. */
     busy: boolean
+    /** Sequence of the log's newest rewind. A rewind newer than the watermark shrank the log. */
+    rewoundSequence?: number
     /**
      * A card ON SCREEN is still awaiting THIS user (#5942).
      *
@@ -43,10 +45,13 @@ export const shouldAdoptServerTranscript = ({
     localMessageCount,
     watermark,
     busy,
+    rewoundSequence,
     awaitingUser,
 }: TranscriptAdoptionInput): boolean => {
+    // A shorter log after a rewind is the truth, not ingest lag, so neither floor below applies.
+    const rewound = (rewoundSequence ?? 0) > (watermark ?? 0)
     // Nothing to adopt.
-    if (serverMessageCount === 0) return false
+    if (serverMessageCount === 0 && !rewound) return false
     // A live local stream outranks the log until it settles.
     if (busy) return false
     // A card still waiting on the user outranks it too — but only a card that EXISTS. The guard
@@ -62,6 +67,6 @@ export const shouldAdoptServerTranscript = ({
     // Floor, never a trigger: ingest lag can serve a snapshot shorter than what we render, and
     // trading down would drop the tail. Equal length is fine — that is the #5530 case, where the
     // same messages carry far more content.
-    if (serverMessageCount < localMessageCount) return false
+    if (serverMessageCount < localMessageCount && !rewound) return false
     return true
 }

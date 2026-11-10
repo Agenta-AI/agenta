@@ -2,8 +2,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
+import uuid_utils.compat as uuid
+
 from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
+    REWIND_RECORD_TYPE,
     SETTLED_BY_WATCHDOG,
     TERMINAL_RECORD_TYPE,
     SessionDurableEventsReplay,
@@ -81,10 +84,49 @@ class RecordsService:
             return []
 
         guarded = await self._handle_late_events(events=events)
+        guarded = await self._quarantine_rewound_turns(events=guarded)
         records = await self.records_dao.append_many(events=guarded)
         await self._settle_ended_continuations(records=records)
         await self._mark_endings_written(events=guarded)
         return records
+
+    async def _quarantine_rewound_turns(
+        self,
+        *,
+        events: List[SessionRecordEvent],
+    ) -> List[SessionRecordEvent]:
+        """A turn's tail can still be in the ingest stream when a rewind removes the turn.
+
+        Landing it live would restore part of the removed turn. A failed lookup appends the
+        batch unguarded, for the same reason `_handle_late_events` does."""
+        keys_by_project: Dict[UUID, Set[Tuple[str, str]]] = {}
+        for event in events:
+            if event.turn_id:
+                keys_by_project.setdefault(event.project_id, set()).add(
+                    (event.session_id, event.turn_id)
+                )
+        rewound: Set[Tuple[UUID, str, str]] = set()
+        try:
+            for project_id, keys in keys_by_project.items():
+                turns = await self.records_dao.rewound_turns(
+                    project_id=project_id, keys=sorted(keys)
+                )
+                rewound.update((project_id, *turn) for turn in turns)
+        except Exception:
+            log.warning(
+                "[RECORDS] Rewound turn lookup failed; appending the batch unguarded",
+                exc_info=True,
+            )
+            return events
+        if not rewound:
+            return events
+        now = datetime.now(timezone.utc)
+        return [
+            event.model_copy(update={"quarantined_at": now})
+            if (event.project_id, event.session_id, event.turn_id) in rewound
+            else event
+            for event in events
+        ]
 
     async def _mark_endings_written(
         self,
@@ -355,6 +397,56 @@ class RecordsService:
         return await self.records_dao.get_records(
             project_id=project_id,
             session_id=session_id,
+        )
+
+    async def has_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+    ) -> bool:
+        return await self.records_dao.has_turn(
+            project_id=project_id, session_id=session_id, turn_id=turn_id
+        )
+
+    async def has_active_continuation(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        if self.executions_dao is None:
+            return False
+        return await self.executions_dao.has_active_continuation(
+            project_id=project_id, session_id=session_id
+        )
+
+    async def rewind_from_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        user_id: Optional[UUID],
+    ) -> int:
+        """Remove `turn_id` and everything after it, then log that the history shrank.
+
+        The `rewind` record moves the sequence cursor forward, so a reader holding a longer
+        transcript can tell a shorter log from one that lags behind."""
+        return await self.records_dao.rewind_from_turn(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            user_id=user_id,
+            marker=SessionRecordEvent(
+                project_id=project_id,
+                session_id=session_id,
+                record_id=uuid.uuid7(),
+                record_type=REWIND_RECORD_TYPE,
+                record_source="agent",
+                attributes={"type": REWIND_RECORD_TYPE, "turnId": turn_id},
+            ),
         )
 
     async def get_event(
