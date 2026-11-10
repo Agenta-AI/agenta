@@ -58,7 +58,7 @@ import {
     Cpu,
     FileText,
     GraduationCap,
-    Plugs,
+    HardDrives,
     Robot,
     ShieldCheck,
     SlidersHorizontal,
@@ -1217,7 +1217,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             },
         hasMcp && {
             key: "mcp",
-            icon: <Plugs size={16} />,
+            icon: <HardDrives size={16} />,
             title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
             indicator: sectionIndicator("mcp"),

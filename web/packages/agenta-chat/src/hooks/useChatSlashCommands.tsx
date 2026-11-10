@@ -37,7 +37,14 @@ import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 // Same icons the config panel gives these sections (AgentTemplateControl / itemKinds).
-import {ChatCircleDots, Cpu, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {
+    ChatCircleDots,
+    Cpu,
+    GraduationCap,
+    HardDrives,
+    ShieldCheck,
+    Wrench,
+} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 /** Which picker the palette drilled into, or null when the palette is just a list. */
@@ -269,7 +276,7 @@ export function useChatSlashCommands({
                     prefix === "skill" ? (
                         <GraduationCap size={14} />
                     ) : prefix === "mcp" ? (
-                        <Plugs size={14} />
+                        <HardDrives size={14} />
                     ) : (
                         <Wrench size={14} />
                     ),

@@ -10,7 +10,7 @@ import {
     CpuIcon,
     FileTextIcon,
     GraduationCapIcon,
-    PlugsIcon,
+    HardDrivesIcon,
     ShieldCheckIcon,
     WrenchIcon,
 } from "@phosphor-icons/react"
@@ -122,7 +122,7 @@ export const AgentConfigSummaryCard = ({
         },
         {
             key: "mcps",
-            icon: <PlugsIcon size={16} />,
+            icon: <HardDrivesIcon size={16} />,
             title: AGENT_CONFIG_ROW_TITLES.mcps,
             ...(summary.mcps
                 ? stated(mcpSummaryDetail(summary.mcps))

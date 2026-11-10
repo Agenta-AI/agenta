@@ -6,10 +6,11 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {usePersonalMcpSignIn, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
+import {McpServerMark} from "@agenta/ui/agent-icon"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
-import {Plugs, SignOut} from "@phosphor-icons/react"
+import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
+import {SignOut} from "@phosphor-icons/react"
 
 import type {ConfirmDestructive} from "../confirm"
 import {SettingsGroupHeading} from "../shared/SettingsGroupHeading"
@@ -113,14 +114,7 @@ export const McpYoursTable = ({
                             return (
                                 <>
                                     <span className="flex min-w-0 items-center gap-2.5">
-                                        <IconTile
-                                            size={28}
-                                            tone="muted"
-                                            aria-hidden="true"
-                                            className="border border-solid border-border bg-muted text-muted-foreground"
-                                        >
-                                            <Plugs />
-                                        </IconTile>
+                                        <McpServerMark size={28} />
                                         <span
                                             className="truncate font-medium text-foreground"
                                             title={record.name || record.slug || undefined}
@@ -130,7 +124,7 @@ export const McpYoursTable = ({
                                     </span>
                                     {shows("url") ? (
                                         <span
-                                            className="truncate font-mono text-[13px] text-muted-foreground"
+                                            className="truncate text-[13px] text-muted-foreground"
                                             title={record.data.route.base_url ?? undefined}
                                         >
                                             {record.data.route.base_url}

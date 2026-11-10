@@ -37,9 +37,10 @@ import {
 } from "@agenta/entities/mcpEndpoint"
 import {projectIdAtom} from "@agenta/shared/state"
 import {formatCount} from "@agenta/shared/utils"
+import {McpServerMark} from "@agenta/ui/agent-icon"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Alert, Button, IconTile, InlineConfirm} from "@agenta/ui/ui"
-import {ArrowClockwise, CaretLeft, Plugs, Trash, WarningCircle} from "@phosphor-icons/react"
+import {Alert, Button, InlineConfirm} from "@agenta/ui/ui"
+import {ArrowClockwise, CaretLeft, Trash, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {
@@ -233,13 +234,11 @@ function DrawerTitle({
             ) : null}
             {/* One generic glyph for every server: an MCP endpoint has no branding to show, and a
                 per-server logo would have to be guessed from a URL (decision 3). */}
-            <IconTile size={24}>
-                <Plugs />
-            </IconTile>
+            <McpServerMark size={24} />
             <div className="flex min-w-0 flex-1 items-baseline gap-2">
                 <span className="truncate text-[15px] font-semibold">{connectionName}</span>
                 {toolPrefix ? (
-                    <span className="shrink-0 font-mono text-xs font-normal text-colorTextTertiary">
+                    <span className="shrink-0 text-xs font-normal text-colorTextTertiary">
                         {toolPrefix}
                     </span>
                 ) : null}
