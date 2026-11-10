@@ -5,6 +5,7 @@ Plan order: Stripe (cloud, handled by the callers), then a valid license key, th
 in the app.
 """
 
+from functools import lru_cache
 from typing import Optional
 from uuid import UUID
 
@@ -34,11 +35,16 @@ class LicensesService:
         self.licenses_dao = licenses_dao
 
     async def read_state(self) -> LicenseState:
+        # The environment key belongs to this process, so it never goes in the shared
+        # cache: a cached state would outlive a restart with another key.
+        if env.license.key:
+            return _environment_state(env.license.key)
+
         cached = await get_cache(namespace=CACHE_NAMESPACE, key=CACHE_KEY)
         if cached is not None:
             return LicenseState.model_validate(cached)
 
-        state = await self._load_state()
+        state = await self._load_stored_state()
         await set_cache(
             namespace=CACHE_NAMESPACE,
             key=CACHE_KEY,
@@ -72,13 +78,7 @@ class LicensesService:
 
         return LicenseState(source="database", license=license_key)
 
-    async def _load_state(self) -> LicenseState:
-        if env.license.key:
-            return LicenseState(
-                source="environment",
-                license=_parse_or_none(env.license.key, origin="AGENTA_LICENSE_KEY"),
-            )
-
+    async def _load_stored_state(self) -> LicenseState:
         stored = await self.licenses_dao.read()
         if stored is None:
             return LicenseState()
@@ -87,6 +87,14 @@ class LicensesService:
             source="database",
             license=_parse_or_none(stored.key, origin="the stored key"),
         )
+
+
+@lru_cache(maxsize=1)
+def _environment_state(key: str) -> LicenseState:
+    return LicenseState(
+        source="environment",
+        license=_parse_or_none(key, origin="AGENTA_LICENSE_KEY"),
+    )
 
 
 def _parse_or_none(key: str, *, origin: str) -> Optional[LicenseKey]:

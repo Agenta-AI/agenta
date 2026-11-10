@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from oss.src.utils.env import env
 
-from ee.src.core.licenses import keys
+from ee.src.core.licenses import keys, types
 from ee.src.core.licenses.service import LicensesService
 from ee.src.core.licenses.types import (
     InvalidLicenseKey,
@@ -153,3 +153,92 @@ async def test_activate_refuses_when_the_key_is_set_in_the_environment(
     with pytest.raises(LicenseKeyInEnvironment):
         await service.activate(key=sign_key(signing_key), user_id=uuid4())
     service.licenses_dao.replace.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_changed_environment_key_applies_at_once_after_a_restart(
+    self_hosted, signing_key, monkeypatch, shared_cache
+):
+    stored = sign_key(signing_key, plan="self_hosted_registered")
+    assert (await _service(stored).read_state()).source == "database"
+    assert shared_cache
+
+    first = sign_key(signing_key, plan=ENTERPRISE, customer="First")
+    monkeypatch.setattr(env.license, "key", first)
+    state = await _service(stored).read_state()
+    assert state.source == "environment"
+    assert state.license.customer == "First"
+    assert state.plan == ENTERPRISE
+
+    second = sign_key(signing_key, plan="self_hosted_registered", customer="Second")
+    monkeypatch.setattr(env.license, "key", second)
+    state = await _service(stored).read_state()
+    assert state.license.customer == "Second"
+    assert state.plan == "self_hosted_registered"
+
+
+@pytest.mark.asyncio
+async def test_a_removed_environment_key_falls_back_to_the_stored_key(
+    self_hosted, signing_key, monkeypatch, shared_cache
+):
+    monkeypatch.setattr(env.license, "key", sign_key(signing_key, plan=ENTERPRISE))
+    assert (await _service().read_state()).source == "environment"
+
+    monkeypatch.setattr(env.license, "key", None)
+    stored = sign_key(signing_key, plan="self_hosted_registered", customer="Stored")
+    state = await _service(stored).read_state()
+    assert state.source == "database"
+    assert state.license.customer == "Stored"
+    assert state.plan == "self_hosted_registered"
+
+
+@pytest.mark.asyncio
+async def test_a_removed_environment_key_falls_back_to_community(
+    self_hosted, signing_key, monkeypatch, shared_cache
+):
+    monkeypatch.setattr(env.license, "key", sign_key(signing_key, plan=ENTERPRISE))
+    assert await _service().instance_plan() == ENTERPRISE
+
+    monkeypatch.setattr(env.license, "key", None)
+    state = await _service().read_state()
+    assert state.source is None
+    assert state.plan == COMMUNITY
+
+
+@pytest.mark.asyncio
+async def test_activate_clears_the_cached_state(self_hosted, signing_key, shared_cache):
+    service = _service()
+    assert await service.instance_plan() == COMMUNITY
+
+    text = sign_key(signing_key, plan=ENTERPRISE)
+    await service.activate(key=text, user_id=uuid4())
+    service.licenses_dao.read.return_value = StoredLicense(
+        key_id=uuid4(),
+        key=text,
+        created_at=datetime.now(timezone.utc),
+        created_by_id=uuid4(),
+    )
+
+    assert await service.instance_plan() == ENTERPRISE
+
+
+@pytest.mark.asyncio
+async def test_a_cached_key_stops_unlocking_once_it_expires(
+    self_hosted, signing_key, monkeypatch, shared_cache
+):
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    service = _service(
+        sign_key(signing_key, plan=ENTERPRISE, expires_at=expires_at.isoformat())
+    )
+    assert await service.instance_plan() == ENTERPRISE
+    assert shared_cache
+
+    class _Later(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return expires_at + timedelta(seconds=1)
+
+    monkeypatch.setattr(types, "datetime", _Later)
+
+    assert await service.instance_plan() == COMMUNITY
+    service.licenses_dao.read.assert_awaited_once()
