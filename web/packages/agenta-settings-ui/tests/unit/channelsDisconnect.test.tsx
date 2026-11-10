@@ -11,6 +11,7 @@ vi.mock("@agenta/ui/ui", () => {
         AccordionContent: Wrap,
         AccordionItem: Wrap,
         AccordionTrigger: Wrap,
+        CollapseCaret: () => null,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
         SheetFooter: ({children}: {children?: React.ReactNode}) => <div>{children}</div>,
         Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
