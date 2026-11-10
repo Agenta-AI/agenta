@@ -53,7 +53,12 @@ export const SELF_HOSTED_CONFIG = {
     capture_heatmaps: false,
     capture_performance: false,
     disable_session_recording: true,
+    // Stack frames carry the instance address, and before_send does not clean them.
+    capture_exceptions: false,
     save_referrer: false,
+    // Flag requests carry the first page address and referrer as person properties,
+    // which before_send never sees. This also stops the remote config request.
+    advanced_disable_flags: true,
     before_send: stripInstanceUrl,
 }
 
