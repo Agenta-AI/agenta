@@ -38,7 +38,7 @@ vi.mock("../../src/secret/OwnSecretDialog", () => ({
     },
 }))
 
-import {newSecretOwners} from "../../src/secret/AgentSecretAttachmentModal"
+import {newSecretOwners} from "../../src/secret/agentSecretRules"
 import {YourSecretLine} from "../../src/secret/YourSecretLine"
 
 let host: HTMLDivElement
