@@ -13,14 +13,18 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const RELEASES_DIR = resolve(here, "../../packages/agenta-navigation/src/releases");
+const RELEASES_DIR = resolve(
+  here,
+  "../../packages/agenta-navigation/src/releases",
+);
 const CHANGELOG = resolve(RELEASES_DIR, "changelog.json");
 const NOTICES = resolve(RELEASES_DIR, "notices.json");
 const TARGET = resolve(here, "../public/releases.json");
 
 /** The feed: `{releases, notices}`. Exported for the unit test. */
 export function buildFeed(releases, notices) {
-  if (!Array.isArray(releases)) throw new Error("changelog.json must be a list");
+  if (!Array.isArray(releases))
+    throw new Error("changelog.json must be a list");
   if (!Array.isArray(notices)) throw new Error("notices.json must be a list");
   return { releases, notices };
 }

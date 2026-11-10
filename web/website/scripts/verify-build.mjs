@@ -189,7 +189,10 @@ if (existsSync(feedPath)) {
       Array.isArray(feed.releases) && feed.releases.length > 0,
       "dist/releases.json has no releases.",
     );
-    check(Array.isArray(feed.notices), "dist/releases.json has no notices list.");
+    check(
+      Array.isArray(feed.notices),
+      "dist/releases.json has no notices list.",
+    );
   } catch (error) {
     failures.push(`dist/releases.json does not parse: ${error.message}`);
   }

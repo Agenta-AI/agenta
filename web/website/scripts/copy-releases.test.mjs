@@ -8,7 +8,8 @@ const RELEASES_DIR = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../packages/agenta-navigation/src/releases",
 );
-const read = (name) => JSON.parse(readFileSync(resolve(RELEASES_DIR, name), "utf8"));
+const read = (name) =>
+  JSON.parse(readFileSync(resolve(RELEASES_DIR, name), "utf8"));
 
 describe("buildFeed", () => {
   it("publishes the bundled releases and the notices unchanged", () => {
