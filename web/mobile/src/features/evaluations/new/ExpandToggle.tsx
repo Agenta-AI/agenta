@@ -29,7 +29,7 @@ export const ExpandToggle = ({
             onKeyDown={(event) => event.stopPropagation()}
             className="-m-1 inline-flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-1 text-muted-foreground hover:text-foreground"
         >
-            <CollapseCaret open={expanded} />
+            <CollapseCaret open={expanded} className="text-current" />
         </button>
     ) : (
         <span aria-hidden className="inline-block w-3 shrink-0" />

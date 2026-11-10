@@ -112,7 +112,7 @@ export const TreeRow = ({
                         }}
                         className={`flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextQuaternary hover:text-colorText ${FOCUS_RING}`}
                     >
-                        <CollapseCaret open={isOpen} size={10} />
+                        <CollapseCaret open={isOpen} size={10} className="text-current" />
                     </button>
                 ) : null}
                 {/* Keyboard focus stop only — the click (mouse and Enter/Space) bubbles to the row

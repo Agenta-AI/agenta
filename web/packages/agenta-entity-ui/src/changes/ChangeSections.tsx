@@ -376,9 +376,7 @@ export function SectionCard({
                     {section.scalarChanges ? null : (
                         <StatusTags tags={section.tags} small={small} />
                     )}
-                    <span className="inline-flex shrink-0 items-center leading-none">
-                        <CollapseCaret open={open} size={14} />
-                    </span>
+                    <CollapseCaret open={open} size={14} />
                 </button>
             </div>
             <HeightCollapse open={open}>

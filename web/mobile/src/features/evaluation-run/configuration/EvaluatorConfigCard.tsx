@@ -73,7 +73,7 @@ export const EvaluatorConfigCard = ({
                     onClick={() => setOpen((current) => !current)}
                     className="m-0 mt-0.5 flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
                 >
-                    <CollapseCaret open={open} size={14} />
+                    <CollapseCaret open={open} size={14} className="text-current" />
                 </button>
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">

@@ -175,9 +175,7 @@ export function useFieldSlots({
                     onClick={() => toggleSection(fieldKey)}
                 >
                     <div className="flex items-center gap-1">
-                        <span className="flex items-center">
-                            <CollapseCaret open={!isCollapsed} size={14} />
-                        </span>
+                        <CollapseCaret open={!isCollapsed} size={14} />
                         <span className="capitalize font-medium text-sm">{displayLabel}</span>
                     </div>
 
