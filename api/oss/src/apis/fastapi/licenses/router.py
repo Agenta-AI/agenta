@@ -152,7 +152,7 @@ class LicensesRouter:
         body: InstanceRegistrationRequest,
     ) -> InstanceRegistrationResponse:
         if env.stripe.enabled:
-            raise _NOT_AVAILABLE
+            raise _not_available()
         await require_instance_admin()
 
         if not body.product_updates:
