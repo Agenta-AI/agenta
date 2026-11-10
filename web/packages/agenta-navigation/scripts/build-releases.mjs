@@ -176,6 +176,9 @@ const checkNotices = (notices) => {
         for (const key of ["id", "title", "body", "link"])
             if (typeof notice?.[key] !== "string" || !notice[key])
                 throw new Error(`${where}: missing ${key}`)
+        // The same limits as the client (`MAX_TITLE_LENGTH` and `MAX_BODY_LENGTH` in src/releases/feed.ts).
+        if (notice.id.length > 300 || notice.title.length > 300 || notice.body.length > 20_000)
+            throw new Error(`${where}: id and title take at most 300 characters, body 20000`)
         if (ids.has(notice.id)) throw new Error(`${where}: duplicate id`)
         ids.add(notice.id)
         if (notice.link.length > 2_000 || !/^https:\/\/[^\s]+$/.test(notice.link))
