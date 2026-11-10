@@ -107,7 +107,7 @@ export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
     return (
         <span
             className={cn(
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none",
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] text-[12px] font-semibold leading-none",
                 chipped ? descriptor.avatarClassName : "text-white",
             )}
             style={chipped ? descriptor.avatarStyle : {background: descriptor.color}}

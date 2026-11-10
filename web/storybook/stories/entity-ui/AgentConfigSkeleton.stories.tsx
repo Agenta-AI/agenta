@@ -24,7 +24,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Six pulsing section rows mirroring the real ConfigAccordionSection headers (16px leading icon, title, value summary, optional add affordance, chevron, 44px min height, divider between rows).",
+                    "Six pulsing section rows mirroring the real ConfigAccordionSection headers (16px leading icon, title with a 12px caret right after it, value summary, optional add affordance at the far right, 44px min height, divider between rows). The antd cells keep the old layout, with the caret at the right edge.",
             },
         },
     },
@@ -33,7 +33,7 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-// The pre-migration row, verbatim (antd baseline).
+// The pre-migration row, verbatim (antd baseline, with the old right-edge caret).
 const AntdSectionRow = ({
     title,
     value,
@@ -124,25 +124,25 @@ export const AntdVsAgenta: Story = {
         <div className="flex max-w-[1000px] flex-col">
             <Row
                 label="full placeholder"
-                expected="antd's `active` shimmer is a 1.4s sweep; the two halves are screenshotted at independent animation phases, so a residual gradient offset is expected"
+                expected="antd's `active` shimmer is a 1.4s sweep; the two halves are screenshotted at independent animation phases, so a residual gradient offset is expected. The caret now sits after the title, and Instructions has no value bar"
                 a={<AntdAgentConfigSkeleton />}
                 s={<AgentConfigSkeleton />}
             />
             <Row
                 label="row · with add + divider"
-                expected="shimmer phase (see above)"
+                expected="shimmer phase (see above); the caret now sits after the title"
                 a={<AntdSectionRow title={112} value={48} withAdd divider />}
                 s={<SkeletonSectionRow title={112} value={48} withAdd divider />}
             />
             <Row
                 label="row · no add, no divider"
-                expected="shimmer phase (see above)"
+                expected="shimmer phase (see above); the caret now sits after the title"
                 a={<AntdSectionRow title={100} value={110} />}
                 s={<SkeletonSectionRow title={100} value={110} />}
             />
             <Row
                 label="row · value below antd's 48px min-width"
-                expected="shimmer phase (see above)"
+                expected="shimmer phase (see above); the caret now sits after the title"
                 a={<AntdSectionRow title={56} value={44} withAdd divider />}
                 s={<SkeletonSectionRow title={56} value={44} withAdd divider />}
             />

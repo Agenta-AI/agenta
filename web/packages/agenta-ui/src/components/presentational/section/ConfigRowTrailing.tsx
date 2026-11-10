@@ -28,17 +28,27 @@ function ConfigRowAffordance({children, className}: {children?: ReactNode; class
     )
 }
 
+interface ConfigRowCaretProps {
+    /** Glyph size in px; the affordance-column size by default. */
+    size?: number
+    className?: string
+}
+
 /** A collapsible row's caret: the shared filled caret, turned down when open. */
-export function ConfigRowCaret({open = false, className}: {open?: boolean; className?: string}) {
-    return <CollapseCaret open={open} size={AFFORDANCE_SIZE} className={className} />
+export function ConfigRowCaret({
+    open = false,
+    size = AFFORDANCE_SIZE,
+    className,
+}: ConfigRowCaretProps & {open?: boolean}) {
+    return <CollapseCaret open={open} size={size} className={className} />
 }
 
 /** A row that opens a drawer: an outline caret, since navigation is not collapse. */
-export function ConfigRowDrawerCaret({className}: {className?: string}) {
+export function ConfigRowDrawerCaret({size = AFFORDANCE_SIZE, className}: ConfigRowCaretProps) {
     return (
         <CaretRight
             aria-hidden
-            size={AFFORDANCE_SIZE}
+            size={size}
             className={cn("shrink-0 text-[var(--ag-zinc-5)]", className)}
         />
     )
