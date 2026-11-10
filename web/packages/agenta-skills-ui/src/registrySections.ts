@@ -25,7 +25,8 @@ export const toSkillListItem = (
     // Registry identity is the SKILL name; workflow_slug is the storage slug (__ag__… builtins).
     slug: item.skill_name ?? item.name ?? item.workflow_slug ?? "",
     workflowSlug: item.workflow_slug ?? undefined,
-    name: item.name ?? item.skill_name ?? item.workflow_slug ?? "",
+    // The SKILL.md name: the title, and the sibling `name` an embed stores (the command token).
+    name: item.skill_name ?? item.name ?? item.workflow_slug ?? "",
     description: item.description ?? item.skill_description ?? undefined,
     origin,
     // API sends "v1"; the stored form drops the prefix.

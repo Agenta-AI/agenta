@@ -11,6 +11,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    describeSkill,
     describeTool,
     skillCommandName,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"
@@ -97,5 +98,46 @@ describe("skillCommandName", () => {
         expect(skillCommandName({name: "weather", description: "d", body: "b"})).toBe("weather")
         expect(skillCommandName({name: "not valid"})).toBeUndefined()
         expect(skillCommandName(null)).toBeUndefined()
+    })
+})
+
+describe("describeSkill", () => {
+    it("titles an inline skill from its kebab name, in the sans font", () => {
+        const d = describeSkill({name: "laptop-replacement-policy", body: "..."})
+        expect(d.name).toBe("Laptop Replacement Policy")
+        expect(d.monoName).toBe(false)
+        expect(d.tags).toEqual([])
+    })
+
+    it('tags a built-in skill "Agenta"', () => {
+        const d = describeSkill({
+            "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+            name: "web-search",
+        })
+        expect(d.name).toBe("Web Search")
+        expect(d.tags).toEqual(["Agenta"])
+    })
+
+    it("titles a registry reference from its sibling name, not the suffixed slug", () => {
+        const d = describeSkill({
+            "@ag.embed": {"@ag.references": {workflow: {slug: "pr-review-9c1d"}}},
+            name: "pr-review",
+        })
+        expect(d.name).toBe("PR Review")
+    })
+
+    it("strips the built-in prefix from a sibling name that carries it", () => {
+        const d = describeSkill({
+            "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+            name: "__ag__web-search",
+        })
+        expect(d.name).toBe("Web Search")
+    })
+
+    it("titles a built-in known only by its storage slug without the prefix", () => {
+        const d = describeSkill({
+            "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+        })
+        expect(d.name).toBe("Web Search")
     })
 })

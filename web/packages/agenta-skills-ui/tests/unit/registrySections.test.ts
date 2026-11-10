@@ -12,6 +12,8 @@ const skill = (over: Record<string, unknown> = {}) => ({
     files_count: 3,
     used_by_count: 1,
     ...over,
+    // A fixture that names only `name` stands for a skill whose SKILL.md name matches it.
+    skill_name: over.skill_name ?? over.name ?? "a-skill",
 })
 
 const origin = (over: Record<string, unknown> = {}) => ({
@@ -32,6 +34,8 @@ describe("toSkillListItem", () => {
         )
         // The storage slug (name-ab12) is plumbing; the registry shows the skill's own name.
         expect(item.slug).toBe("skill-name")
+        // The stored name is the SKILL.md name too: an embed writes it as the command token.
+        expect(item.name).toBe("skill-name")
         expect(item.origin).toBe("project")
     })
 
