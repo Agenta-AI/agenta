@@ -64,7 +64,7 @@ import {
     reloadSessionMessages,
     type SessionTranscript,
 } from "../assets/loadSession"
-import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
+import {countUserMessages, mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
 import {rewindTurnId, rewindTurnIdInTranscript, sideEffectingToolsInRange} from "../assets/rewind"
 import {submitServerOwnedApproval} from "../assets/serverOwnedApproval"
 import {startupPhaseFromDataPart} from "../assets/startupPhases"
@@ -101,9 +101,11 @@ import {
     clearSessionTurnId,
     composerDraftBySession,
     isSessionFresh,
+    sentEditBySession,
     setSessionTurnId,
     setAcceptedSessionTurnId,
     turnDeliverySourceBySession,
+    type SentEdit,
     type TurnDeliverySource,
 } from "../state/sessionEphemera"
 import {
@@ -151,10 +153,10 @@ export interface RewindPlan {
     sideEffects: string[]
     /** For a user-message rewind: the message text to put back into the composer. */
     restoreText?: string
-    /** A reply: remove the turn on the server, then here, and run it again. A user message: open
-     * the edit only; the turn is removed when the edited message is sent (`send`). Resolves false
-     * when nothing changed. */
-    confirm: () => Promise<boolean>
+    /** A reply: remove the turn on the server, then here, and run it again. Resolves false when
+     * nothing changed. A user message: open the edit (see `editingSentId`) and stash `draft`, the
+     * composer text the edit displaces; nothing is removed until `commitEdit`. */
+    confirm: (draft?: string) => Promise<boolean>
 }
 
 /** Settle a parked client tool (#4920) through the server response endpoint (success or
@@ -219,12 +221,11 @@ export interface AgentConversation {
     stop: () => void
     /** Adopt a newly committed workflow revision for subsequent sends in this session. */
     adoptRevision: (revisionId: string) => void
-    /** Scan a rewind target; null while busy or for an unknown message. */
+    /** Scan a rewind target; null while busy, parked on the user, or for an unknown message. */
     rewind: (message: UIMessage) => RewindPlan | null
-    /** Id of the sent message the composer is editing, or null. Nothing is removed yet. */
-    rewindEditId: string | null
-    /** Close that edit; every turn stays. */
-    cancelRewindEdit: () => void
+    /** Id of the sent message the composer is editing, or null. Nothing is removed until
+     * `commitEdit`; `cancelEdit` keeps every turn. Never set together with `editingId`. */
+    editingSentId: string | null
     /** Server hydration for an uncached session is in flight — show a transcript skeleton. */
     isHydrating: boolean
     /** No messages at all (skins combine with `isHydrating`/`historyUnavailable` for the hero). */
@@ -257,11 +258,16 @@ export interface AgentConversation {
     editingId: string | null
     /** Borrow the composer for `id`, stashing the draft it currently holds. */
     beginEdit: (id: string, draft?: string) => void
-    /** Drop the edit and hand the stashed draft back. */
+    /** Drop the edit (held or sent) and hand the stashed draft back. */
     cancelEdit: () => string
     /** Rewrite the edited message with the composer's content (or queue it anew if it drained).
+     *  A sent message is replaced: its turn and every later one are removed, then it is sent.
      *  Returns the draft the session displaced, for the host to put back. */
-    commitEdit: (item: {text: string; fileParts?: FileUIPart[]}) => string | Promise<string>
+    commitEdit: (item: {
+        text: string
+        fileParts?: FileUIPart[]
+        stagedFiles?: ComposerAttachment[]
+    }) => string | Promise<string>
     /** Keep a refused send as a flagged row when the composer already holds a newer draft. */
     keepRefusedSend: (item: {text: string; fileParts?: FileUIPart[]}) => void
     /** Headless approval-dock state wired to the live-gate-aware response path. */
@@ -327,14 +333,18 @@ export const useAgentConversation = ({
         rewindInFlightRef.current = run
         return run
     }, [])
-    // An open edit of a sent message: the rewind it will run when the edited message is sent.
-    const rewindEditRef = useRef<{messageId: string; execute: () => Promise<boolean>} | null>(null)
-    const [rewindEditId, setRewindEditId] = useState<string | null>(null)
-    const cancelRewindEdit = useCallback(() => {
-        rewindEditRef.current = null
-        setRewindEditId(null)
-    }, [])
-    useEffect(() => cancelRewindEdit, [sessionId, cancelRewindEdit])
+    // An open edit of a sent message. The map is the truth (a remount restores it beside the
+    // composer draft that holds the edited text); the state only re-renders.
+    const [sentEdit, setSentEditView] = useState(() => sentEditBySession.get(sessionId) ?? null)
+    const setSentEdit = useCallback(
+        (next: SentEdit | null) => {
+            if (next) sentEditBySession.set(sessionId, next)
+            else sentEditBySession.delete(sessionId)
+            setSentEditView(next)
+        },
+        [sessionId],
+    )
+    useEffect(() => setSentEditView(sentEditBySession.get(sessionId) ?? null), [sessionId])
     // A live turn clears the watermark, so an old rewind must not bypass the length floor again.
     const adoptedRewindRef = useRef(-1)
     // Once the server has rewound, only a read that carries that rewind may replace the screen.
@@ -439,6 +449,7 @@ export const useAgentConversation = ({
     )
     // Tracks `busy` for callbacks that outlive a render.
     const busyRef = useRef(false)
+    const parkedRef = useRef(false)
     // Only an open stream outlives the mount; an accepted run whose stream closed has nothing live.
     const streamOpenRef = useRef(false)
     // Only a stream THIS client renders. A shared-delivered turn renders from the live frames,
@@ -592,12 +603,6 @@ export const useAgentConversation = ({
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
-    // Resolves when a cut reaches a committed render: the echo of the next send counts its users.
-    const cutCommittedRef = useRef<(() => void) | null>(null)
-    useEffect(() => {
-        cutCommittedRef.current?.()
-        cutCommittedRef.current = null
-    }, [messages])
     // `busyRef` is assigned after the queue hook below: `sendInFlight` is part of it.
     localRenderBusyRef.current = busy && !acceptedRunPending
 
@@ -862,12 +867,13 @@ export const useAgentConversation = ({
         serverBusy,
         hitlPending,
         editingId,
-        beginEdit,
-        cancelEdit,
-        commitEdit,
+        beginEdit: beginQueuedEdit,
+        cancelEdit: cancelQueuedEdit,
+        commitEdit: commitQueuedEdit,
         keepRefusedSend,
         pendingSendRows,
         sendInFlight,
+        rebasePendingSends,
     } = useAgentChatQueue({
         sessionId,
         messages,
@@ -884,6 +890,10 @@ export const useAgentConversation = ({
     // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
     // the window between the message leaving and the turn being accepted.
     busyRef.current = busy || acceptedRunPending || sendInFlight
+    // A rewind under a parked gate would remove the turn the dock is answering.
+    parkedRef.current = hitlPending
+    const editingQueuedRef = useRef(editingId)
+    editingQueuedRef.current = editingId
     // A durable send in flight is not a chat stream, so it does not keep the chat either.
     streamOpenRef.current = busy
 
@@ -1301,16 +1311,6 @@ export const useAgentConversation = ({
             const refParts = parts ?? []
             if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
             await rewindInFlightRef.current
-            const edit = rewindEditRef.current
-            // The edited message's turn may already be gone (another browser rewound it).
-            if (edit && messagesRef.current.some((m) => m.id === edit.messageId)) {
-                cancelRewindEdit()
-                if (!(await runRewind(edit.execute))) {
-                    rewindEditRef.current = edit
-                    setRewindEditId(edit.messageId)
-                    throw new Error("Could not replace the edited message. Try again.")
-                }
-            } else if (edit) cancelRewindEdit()
             // Send what encoded. A file that cannot be read no longer takes the text and the
             // other attachments down with it (`filesToParts` settles each file separately).
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
@@ -1335,7 +1335,7 @@ export const useAgentConversation = ({
             // The message left the composer — drop its persisted draft (per-session store).
             composerDraftBySession.delete(sessionId)
         },
-        [submit, sessionId, cancelRewindEdit, runRewind],
+        [submit, sessionId],
     )
 
     const sendQueuedNowAfterRewind = useMemo(
@@ -1368,75 +1368,124 @@ export const useAgentConversation = ({
         [sessionId, steer],
     )
 
+    // Remove `messageId`'s turn and every later one, on the server first, then here. A user
+    // message is cut out and its text becomes the edit's source; a reply runs again.
+    const cutFrom = useCallback(
+        async (messageId: string): Promise<boolean> => {
+            const current = messagesRef.current
+            const at = current.findIndex((m) => m.id === messageId)
+            if (at < 0) return false
+            const isUser = current[at].role === "user"
+            let turnId = rewindTurnId(current, at)
+            if (!turnId) {
+                const server = {messages: [] as UIMessage[]}
+                await reloadSessionMessages(sessionId, (transcript) => {
+                    server.messages = transcript.messages
+                })
+                turnId = rewindTurnIdInTranscript(current, at, server.messages)
+            }
+            // No turn in the log means the send never reached it, so only this screen holds it.
+            if (turnId) {
+                const removed = await rewindSession({sessionId, turnId})
+                if (removed === null) return false
+                awaitingRewindRef.current = removed > 0
+                revalidateSessionRecords(sessionId)
+            }
+            if (isUser) {
+                const latest = messagesRef.current
+                const cut = latest.findIndex((m) => m.id === messageId)
+                if (cut < 0) return true
+                editedSourceRef.current = latest[cut]
+                saveDisplayEdit(sessionId, latest[cut])
+                const kept = latest.slice(0, cut)
+                // Sends after the rewind point belong to a history that no longer exists, and the
+                // next one is counted against the cut transcript, not the last render.
+                clearPendingSendEchoes(sessionId)
+                rebasePendingSends(countUserMessages(kept))
+                setMessages(kept)
+            } else {
+                clearSessionTurnId(sessionId)
+                regenerate({messageId}).catch(ignoreStreamRejection)
+            }
+            return true
+        },
+        [
+            rebasePendingSends,
+            regenerate,
+            revalidateSessionRecords,
+            rewindSession,
+            sessionId,
+            setMessages,
+        ],
+    )
+
+    // One edit at a time: opening one closes the other and keeps the draft the first displaced.
+    const closeSentEdit = useCallback((): string | undefined => {
+        const open = sentEditBySession.get(sessionId)
+        if (!open) return undefined
+        setSentEdit(null)
+        return open.draft
+    }, [sessionId, setSentEdit])
+
+    const beginEdit = useCallback(
+        (id: string, draft = "") => beginQueuedEdit(id, closeSentEdit() ?? draft),
+        [beginQueuedEdit, closeSentEdit],
+    )
+
+    const cancelEdit = useCallback(
+        () => closeSentEdit() ?? cancelQueuedEdit(),
+        [cancelQueuedEdit, closeSentEdit],
+    )
+
+    const commitEdit = useCallback(
+        async (item: {
+            text: string
+            fileParts?: FileUIPart[]
+            stagedFiles?: ComposerAttachment[]
+        }) => {
+            const open = sentEditBySession.get(sessionId)
+            if (!open) return commitQueuedEdit(item)
+            // The busy check at Edit is stale by now: a run may have started since.
+            if (busyRef.current || parkedRef.current || rewindInFlightRef.current)
+                throw new Error("Wait for the agent to finish, then send the edit.")
+            // Gone already (another browser rewound it): the edit is a plain new message.
+            if (messagesRef.current.some((m) => m.id === open.messageId)) {
+                const removed = await runRewind(() => cutFrom(open.messageId))
+                if (!removed) throw new Error("Could not replace the edited message. Try again.")
+            }
+            setSentEdit(null)
+            await send({text: item.text, parts: item.fileParts, stagedFiles: item.stagedFiles})
+            return open.draft
+        },
+        [commitQueuedEdit, cutFrom, runRewind, send, sessionId, setSentEdit],
+    )
+
     // Rewind scan: pure side-effect detection + a deferred `confirm()`. The skin owns the
     // warning dialog (when `sideEffects` is non-empty) and the composer refill (`restoreText`).
     const rewind = useCallback(
         (message: UIMessage): RewindPlan | null => {
             const msgs = messagesRef.current
-            if (busyRef.current || rewindInFlightRef.current) return null
+            if (busyRef.current || parkedRef.current || rewindInFlightRef.current) return null
             const idx = msgs.findIndex((m) => m.id === message.id)
             if (idx < 0) return null
             const isUser = message.role === "user"
-            const sideEffects = sideEffectingToolsInRange(msgs.slice(idx))
-            const execute = async (): Promise<boolean> => {
-                // The skin calls this after its warning dialog, so `msgs`/`idx` are a snapshot
-                // from scan time. Re-resolve against the live transcript.
-                const current = messagesRef.current
-                const at = current.findIndex((m) => m.id === message.id)
-                if (at < 0) return false
-                let turnId = rewindTurnId(current, at)
-                if (!turnId) {
-                    const server = {messages: [] as UIMessage[]}
-                    await reloadSessionMessages(sessionId, (transcript) => {
-                        server.messages = transcript.messages
-                    })
-                    turnId = rewindTurnIdInTranscript(current, at, server.messages)
-                }
-                // No turn in the log means the send never reached it, so only this screen holds it.
-                if (turnId) {
-                    const removed = await rewindSession({sessionId, turnId})
-                    if (removed === null) return false
-                    awaitingRewindRef.current = removed > 0
-                    revalidateSessionRecords(sessionId)
-                }
-                if (isUser) {
-                    const latest = messagesRef.current
-                    const cut = latest.findIndex((m) => m.id === message.id)
-                    if (cut < 0) return true
-                    editedSourceRef.current = latest[cut]
-                    saveDisplayEdit(sessionId, latest[cut])
-                    // Sends after the rewind point belong to a history that no longer exists.
-                    clearPendingSendEchoes(sessionId)
-                    const committed = new Promise<void>((resolve) => {
-                        cutCommittedRef.current = resolve
-                    })
-                    messagesRef.current = latest.slice(0, cut)
-                    setMessages(messagesRef.current)
-                    // The edited message goes out next, and its echo must count the cut transcript.
-                    await Promise.race([
-                        committed,
-                        new Promise((resolve) => setTimeout(resolve, 500)),
-                    ])
-                } else {
-                    clearSessionTurnId(sessionId)
-                    regenerate({messageId: message.id}).catch(ignoreStreamRejection)
-                }
-                return true
-            }
-            const confirm = async () => {
-                if (!isUser) return runRewind(execute)
-                // Opening an edit removes nothing: closing it must leave every turn in place.
-                rewindEditRef.current = {messageId: message.id, execute}
-                setRewindEditId(message.id)
+            const confirm = async (draft = "") => {
+                if (!isUser) return runRewind(() => cutFrom(message.id))
+                // The skin calls this after its warning dialog; the message may be gone by then.
+                if (!messagesRef.current.some((m) => m.id === message.id)) return false
+                // Opening the edit removes nothing, so closing it leaves every turn in place.
+                const displaced =
+                    closeSentEdit() ?? (editingQueuedRef.current ? cancelQueuedEdit() : draft)
+                setSentEdit({messageId: message.id, draft: displaced})
                 return true
             }
             return {
-                sideEffects,
+                sideEffects: sideEffectingToolsInRange(msgs.slice(idx)),
                 restoreText: isUser ? displayMessageText(msgs[idx]) : undefined,
                 confirm,
             }
         },
-        [regenerate, revalidateSessionRecords, rewindSession, runRewind, sessionId, setMessages],
+        [cancelQueuedEdit, closeSentEdit, cutFrom, runRewind, setSentEdit],
     )
 
     // Per-mount executed-identity cache, so the identity JSON.stringify doesn't re-run per streamed token.
@@ -1481,11 +1530,7 @@ export const useAgentConversation = ({
         voidPendingResume,
         stop: handleStop,
         rewind,
-        rewindEditId:
-            rewindEditId && displayMessages.some((m) => m.id === rewindEditId)
-                ? rewindEditId
-                : null,
-        cancelRewindEdit,
+        editingSentId: sentEdit?.messageId ?? null,
         isHydrating,
         isEmpty: displayMessages.length === 0,
         historyUnavailable,

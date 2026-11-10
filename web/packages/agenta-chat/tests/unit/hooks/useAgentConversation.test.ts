@@ -479,7 +479,7 @@ describe("useAgentConversation", () => {
             await new Promise((resolve) => setTimeout(resolve, 400))
         })
         expect(result.current.messages).toHaveLength(2)
-        expect(result.current.rewindEditId).toBe(result.current.messages[0].id)
+        expect(result.current.editingSentId).toBe(result.current.messages[0].id)
     })
 
     // The skin holds the plan open across its warning dialog, so the transcript can move
@@ -510,7 +510,7 @@ describe("useAgentConversation", () => {
         })
 
         await act(async () => {
-            await result.current.send({text: "second"})
+            await result.current.commitEdit({text: "second"})
         })
         await waitFor(() => expect(result.current.messages).toHaveLength(2), {timeout: 5000})
         expect(displayText(result.current.messages[0])).toBe("second")
@@ -521,7 +521,7 @@ describe("useAgentConversation", () => {
             await new Promise((resolve) => setTimeout(resolve, 400))
         })
         expect(result.current.messages).toHaveLength(2)
-        expect(result.current.rewindEditId).toBeNull()
+        expect(result.current.editingSentId).toBeNull()
     })
 
     it("seeds from the persisted store and skips hydration for cached sessions", async () => {

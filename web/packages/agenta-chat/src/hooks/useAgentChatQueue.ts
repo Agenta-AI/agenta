@@ -677,11 +677,12 @@ export const useAgentChatQueue = ({
         (id: string, draft = "") => {
             const op = opsRef.current[id]
             if (op?.kind === "edit" && op.settledSeq === null) return
+            // Moving to another row keeps the draft the first edit displaced, not the row's text.
+            if (!editSessionRef.current) stashRef.current = draft
             editSessionRef.current = {
                 id,
                 server: server.queued.some((message) => message.id === id),
             }
-            stashRef.current = draft
             setRowError(id, null)
             setEditingId(id)
         },
@@ -810,5 +811,6 @@ export const useAgentChatQueue = ({
         cancelEdit,
         commitEdit,
         keepRefusedSend,
+        rebasePendingSends: echoes.rebase,
     }
 }

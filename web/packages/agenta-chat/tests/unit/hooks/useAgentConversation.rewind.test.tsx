@@ -113,20 +113,24 @@ const openSession = async (opened: UIMessage[] = THREE_TURNS) => {
 
 type View = Awaited<ReturnType<typeof openSession>>["view"]
 
-/** Edit a sent message, then send the edited text: the user path that removes a turn. */
-const editAndSend = async (view: View, message: UIMessage, text = "edited") => {
+const openEdit = async (view: View, message: UIMessage, draft = "my draft") => {
     const plan = view.result.current.rewind(message)
     await act(async () => {
-        await plan?.confirm()
+        await plan?.confirm(draft)
     })
-    return startSend(view, text)
 }
 
-/** The run itself never settles here (no request is built), so only the start is awaited. */
-const startSend = async (view: View, text: string) => {
-    let sent: Promise<void> = Promise.resolve()
+/** Edit a sent message, then send the edited text: the user path that removes a turn. */
+const editAndSend = async (view: View, message: UIMessage, text = "edited") => {
+    await openEdit(view, message)
+    return commit(view, text)
+}
+
+/** The run itself is refused here, so only the commit's own outcome is awaited. */
+const commit = async (view: View, text: string) => {
+    let sent: Promise<string> = Promise.resolve("")
     await act(async () => {
-        sent = view.result.current.send({text})
+        sent = Promise.resolve(view.result.current.commitEdit({text}))
         sent.catch(() => undefined)
         await new Promise((resolve) => setTimeout(resolve, 20))
     })
@@ -156,27 +160,88 @@ describe("rewinding a turn", () => {
 
         const plan = view.result.current.rewind(THREE_TURNS[2])
         await act(async () => {
-            await expect(plan?.confirm()).resolves.toBe(true)
+            await expect(plan?.confirm("my draft")).resolves.toBe(true)
         })
 
         expect(rewindRequests).not.toHaveBeenCalled()
         expect(view.result.current.messages).toHaveLength(6)
-        expect(view.result.current.rewindEditId).toBe("u2")
+        expect(view.result.current.editingSentId).toBe("u2")
     })
 
-    it("a cancelled edit keeps every turn, and the next send removes nothing", async () => {
+    it("a cancelled edit keeps every turn and hands back the displaced draft", async () => {
         const {view} = await openSession()
-        const edit = view.result.current.rewind(THREE_TURNS[2])
+        await openEdit(view, THREE_TURNS[2])
+
+        let draft = ""
+        act(() => {
+            draft = view.result.current.cancelEdit()
+        })
         await act(async () => {
-            await edit?.confirm()
+            await view.result.current.send({text: "four"}).catch(() => undefined)
         })
 
-        act(() => view.result.current.cancelRewindEdit())
-        await startSend(view, "four")
+        expect(draft).toBe("my draft")
+        expect(rewindRequests).not.toHaveBeenCalled()
+        expect(view.result.current.editingSentId).toBeNull()
+        expect(texts(view.result.current.messages).slice(0, 6)).toEqual(texts(THREE_TURNS))
+    })
+
+    it("a plain send never consumes an open edit", async () => {
+        const {view} = await openSession()
+        await openEdit(view, THREE_TURNS[2])
+
+        await act(async () => {
+            await view.result.current.send({text: "retry task"}).catch(() => undefined)
+        })
 
         expect(rewindRequests).not.toHaveBeenCalled()
-        expect(view.result.current.rewindEditId).toBeNull()
-        expect(texts(view.result.current.messages).slice(0, 6)).toEqual(texts(THREE_TURNS))
+        expect(view.result.current.editingSentId).toBe("u2")
+    })
+
+    it("the edit survives a remount of the same session", async () => {
+        const {sessionId, view} = await openSession()
+        await openEdit(view, THREE_TURNS[2])
+        view.unmount()
+
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const again = renderHook(() => useAgentConversation({entityId: "rev-1", sessionId}), {
+            wrapper: ({children}: {children: ReactNode}) =>
+                createElement(Provider, {store}, children),
+        })
+
+        expect(again.result.current.editingSentId).toBe("u2")
+        let draft = ""
+        act(() => {
+            draft = again.result.current.cancelEdit()
+        })
+        expect(draft).toBe("my draft")
+    })
+
+    it("a rewind that throws keeps the edit open", async () => {
+        rewindAnswer.current = Promise.reject(new Error("network"))
+        rewindAnswer.current.catch(() => undefined)
+        const {view} = await openSession()
+
+        const {sent} = await editAndSend(view, THREE_TURNS[2])
+
+        await expect(sent).rejects.toThrow("network")
+        expect(view.result.current.messages).toHaveLength(6)
+        expect(view.result.current.editingSentId).toBe("u2")
+    })
+
+    it("an edit of a queued message keeps the draft the sent edit displaced", async () => {
+        const {view} = await openSession()
+        await openEdit(view, THREE_TURNS[2])
+
+        act(() => view.result.current.beginEdit("queued-1", "two"))
+        let draft = ""
+        act(() => {
+            draft = view.result.current.cancelEdit()
+        })
+
+        expect(view.result.current.editingSentId).toBeNull()
+        expect(draft).toBe("my draft")
     })
 
     it("sending the edit tells the server which turn to remove, then truncates", async () => {
@@ -187,7 +252,7 @@ describe("rewinding a turn", () => {
         expect(rewindRequests).toHaveBeenCalledWith({sessionId, turnId: "t2"})
         expect(texts(view.result.current.messages).slice(0, 2)).toEqual(["one", "ALPHA"])
         expect(texts(view.result.current.messages)).not.toContain("BRAVO")
-        expect(view.result.current.rewindEditId).toBeNull()
+        expect(view.result.current.editingSentId).toBeNull()
     })
 
     it("rewinding the first turn empties the transcript", async () => {
@@ -196,7 +261,7 @@ describe("rewinding a turn", () => {
         await editAndSend(view, THREE_TURNS[0])
 
         expect(rewindRequests).toHaveBeenCalledWith(expect.objectContaining({turnId: "t1"}))
-        expect(texts(view.result.current.messages)).not.toContain("ALPHA")
+        expect(view.result.current.messages.filter((m) => !m.metadata?.pendingSend)).toEqual([])
     })
 
     it("keeps every turn when the server refuses", async () => {
@@ -207,7 +272,7 @@ describe("rewinding a turn", () => {
 
         await expect(sent).rejects.toThrow("Could not replace the edited message")
         expect(view.result.current.messages).toHaveLength(6)
-        expect(view.result.current.rewindEditId).toBe("u2")
+        expect(view.result.current.editingSentId).toBe("u2")
     })
 
     it("removes a send that never reached the log from this screen alone", async () => {
