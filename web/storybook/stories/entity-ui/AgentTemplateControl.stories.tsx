@@ -11,7 +11,7 @@ import {
 import {
     Cpu,
     FileText,
-    GraduationCap,
+    Compass,
     HardDrives,
     Plus,
     PuzzlePiece,
@@ -146,7 +146,14 @@ const AGENT_VALUE = {
             policy: {tools: {mode: "all"}},
         },
     ],
-    skills: [{name: "release-notes", description: "Draft release notes from a changelog"}],
+    skills: [
+        {name: "release-notes", description: "Draft release notes from a changelog"},
+        // A built-in skill: the same mark, the "Agenta" tag, read-only.
+        {
+            "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+            name: "web-search",
+        },
+    ],
     sandbox: {kind: "local"},
 }
 
@@ -348,7 +355,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "skills",
-        icon: <GraduationCap size={16} />,
+        icon: <Compass size={16} />,
         title: "Skills",
         summary: "1 skill",
         indicator: {tone: "agent", tooltip: "Updated by the agent in v4"},

@@ -9,6 +9,7 @@ import {Tag as AntTag, Tooltip as AntTooltip, Typography as AntTypography} from 
 import {
     describeInstruction,
     describeMcp,
+    describeSkill,
     type ItemDescriptor,
 } from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"
 import {
@@ -99,6 +100,22 @@ const MCP_SIGN_IN_EXPIRED: ItemRowStatus = {
     reason: needsSetupReasonLabel("needs_sign_in") ?? undefined,
     needsSetup: true,
 }
+
+// Skills through the real classifier: an inline package, a registry reference and a built-in.
+const SKILL = describeSkill({
+    name: "laptop-replacement-policy",
+    description: "When and how an employee gets a new laptop",
+    body: "...",
+})
+const SKILL_PINNED = describeSkill({
+    "@ag.embed": {"@ag.references": {workflow_revision: {slug: "pr-review-9c1d", version: "3"}}},
+    name: "pr-review",
+    description: "Review a pull request against the team checklist",
+})
+const SKILL_BUILTIN = describeSkill({
+    "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+    name: "web-search",
+})
 
 const NO_DESC: ItemDescriptor = {
     name: "list_files",
@@ -528,6 +545,19 @@ export const McpServerRows: Story = {
             <ItemRow descriptor={MCP_WITH_URL} onEdit={noop} onRemove={noop} />
             <ItemRow descriptor={MCP} onEdit={noop} status={MCP_SIGN_IN_EXPIRED} />
             <ItemRow descriptor={MCP} onEdit={noop} status={STATUSES.new} />
+        </div>
+    ),
+}
+
+/** Skill rows: the one skill mark, the readable title, and the "Agenta" tag on a built-in. */
+export const SkillRows: Story = {
+    args: {descriptor: SKILL},
+    render: () => (
+        <div className="flex max-w-[560px] flex-col gap-2">
+            <ItemRow descriptor={SKILL} onEdit={noop} onRemove={noop} />
+            <ItemRow descriptor={SKILL_PINNED} onEdit={noop} onRemove={noop} />
+            <ItemRow descriptor={SKILL_BUILTIN} onEdit={noop} disabled />
+            <ItemRow descriptor={MCP} onEdit={noop} onRemove={noop} />
         </div>
     ),
 }

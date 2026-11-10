@@ -8,7 +8,8 @@ import {cn} from "./utils"
  * IconTile — the rounded square that leads a server row, a sheet header or an empty state.
  *
  * `info` is the identity tile (a tinted fill with the glyph in the info foreground); `muted` is
- * the empty-state tile; `neutral` is the identity tile of an MCP server (`McpServerMark`).
+ * the empty-state tile; `neutral` is the identity tile of an MCP server (`McpServerMark`) and of a
+ * skill (`SkillMark`).
  *
  * The spec draws the `info` fill with `--info`, the system's info FOREGROUND, and a white glyph
  * on top; this uses `--info-bg` with an `--info` glyph, which is the same reading in both themes
