@@ -20,17 +20,36 @@ export const currentQuery = (router: NextRouter, search: string): NextRouter["qu
 }
 
 /**
+ * Set when the address cleared the span (Back to an address with no span). The drawer then
+ * shows its first span and writes it: that write replaces the current entry instead of pushing
+ * one, so the Forward entry stays.
+ */
+let replaceNextSpanWrite = false
+export const replaceNextTraceDrawerSpanWrite = () => {
+    replaceNextSpanWrite = true
+}
+
+const sameQuery = (a: NextRouter["query"], b: NextRouter["query"]) => {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+    return [...keys].every((key) => String(a[key] ?? "") === String(b[key] ?? ""))
+}
+
+/**
  * Points the packaged trace drawer at `/m`'s router.
  *
  * The drawer keeps its open trace in `?trace`/`?span` and links out to evaluators; both are the
- * host's job, which is why they are seams rather than imports.
+ * host's job, which is why they are seams rather than imports. `openTraceId` reads the trace the
+ * drawer shows, which the address carries next to the span.
  *
  * The data slots are filled by `registerTraceDrawerSlots`; the reference/action slots stay on
  * their fallbacks (a plain label, no button), which are enough on `/m`. The span header's
  * Playground button exists only while the `playground` developer view is on: its code
  * loads on the first click.
  */
-export const bindTraceDrawerSeams = (router: NextRouter, {playground}: {playground: boolean}) => {
+export const bindTraceDrawerSeams = (
+    router: NextRouter,
+    {playground, openTraceId}: {playground: boolean; openTraceId: () => string | null},
+) => {
     bindTraceDrawerPlaygroundActions(
         playground
             ? {
@@ -47,10 +66,24 @@ export const bindTraceDrawerSeams = (router: NextRouter, {playground}: {playgrou
     })
 
     bindTraceDrawerSetQueryParam((name, value) => {
-        const query = currentQuery(router, window.location.search)
-        if (value == null) delete query[name]
-        else query[name] = value
-        void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
+        const before = currentQuery(router, window.location.search)
+        const query = {...before}
+        // The drawer writes only the span. The trace goes with it, so a reload can reopen the
+        // drawer (`useTraceDrawerFromUrl`): a span id alone does not name its trace. While the
+        // trace loads the drawer writes no span; the address keeps the span it asked for, but
+        // only when that span belongs to this trace.
+        const traceId = name === "span" ? openTraceId() : null
+        const sameTrace = Boolean(traceId) && before.trace === traceId
+        if (traceId) query.trace = traceId
+        if (value != null) query[name] = value
+        else if (!sameTrace) delete query[name]
+        // Nothing changed, as when Back restored a span and the drawer writes it again: a push
+        // would add a history entry and drop the Forward one.
+        const replace = name === "span" && replaceNextSpanWrite
+        if (name === "span") replaceNextSpanWrite = false
+        if (sameQuery(before, query)) return
+        const navigate = replace ? router.replace : router.push
+        void navigate({pathname: router.pathname, query}, undefined, {shallow: true})
     })
 
     bindTraceDrawerClearParams(() => {

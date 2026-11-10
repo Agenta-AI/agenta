@@ -15,7 +15,11 @@ from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.tracing.dtos import (
+    ComparisonOperator,
+    Condition,
+    Fields,
     Filtering,
+    TraceType,
     Windowing,
     Formatting,
     Format,
@@ -28,6 +32,25 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
+def _only_invocations(filtering: Filtering) -> Filtering:
+    """The live query filter under an outer AND on invocation traces.
+
+    A live run must never read evaluator (annotation) traces back, also when the
+    user's filter has an OR that matches them.
+    """
+    return Filtering(
+        operator=LogicalOperator.AND,
+        conditions=[
+            Condition(
+                field=Fields.TRACE_TYPE.value,
+                operator=ComparisonOperator.IS,
+                value=TraceType.INVOCATION.value,
+            ),
+            filtering,
+        ],
+    )
+
+
 def _extract_root_span(trace: Any) -> Optional[Any]:
     spans = (
         trace.get("spans") if isinstance(trace, dict) else getattr(trace, "spans", None)
@@ -35,11 +58,12 @@ def _extract_root_span(trace: Any) -> Optional[Any]:
     if not isinstance(spans, dict) or not spans:
         return None
 
-    for span in spans.values():
-        if isinstance(span, list):
-            continue
-        if _extract_span_id(span):
-            return span
+    # Same-name sibling roots arrive as a list. Any root carries the link that
+    # types the evaluator trace `annotation`, so a list must not leave it unlinked.
+    for entry in spans.values():
+        for span in entry if isinstance(entry, list) else [entry]:
+            if _extract_span_id(span):
+                return span
 
     return None
 
@@ -517,6 +541,9 @@ class SourceResolution:
                     )
                 elif query_windowing:
                     windowing.rate = query_windowing.rate
+
+            if not use_windowing:
+                filtering = _only_invocations(filtering)
 
             query_traces[query_step_key] = (
                 await self.tracing_service.query_traces(

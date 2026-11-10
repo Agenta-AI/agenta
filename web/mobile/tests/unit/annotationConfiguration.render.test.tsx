@@ -2,11 +2,13 @@
 /**
  * The Configuration tab: read-only general fields, the evaluator cards, the collaborators and the
  * delete card. The queue and evaluator stores are atoms keyed by id and the editor is a stub, so
- * no request is sent.
+ * no request is sent. In beta developer mode the name and description become fields; the save
+ * itself is covered in annotationQueueDetails.render.test.tsx.
  */
 import {act, lazy, Suspense} from "react"
 
-import {Provider} from "jotai"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {Provider, type PrimitiveAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -20,6 +22,13 @@ const fixture = vi.hoisted(() => ({
     names: {} as Record<string, string>,
 }))
 
+vi.mock("@agenta/shared/state", async (importOriginal) => {
+    const {atom} = await import("jotai")
+    return {
+        ...(await importOriginal<typeof import("@agenta/shared/state")>()),
+        betaDeveloperModeActiveAtom: atom(false),
+    }
+})
 vi.mock("@agenta/annotation", async (importOriginal) => {
     const fake = await import("../support/annotationSessionFake")
     return {
@@ -35,7 +44,10 @@ vi.mock("@agenta/entities/simpleQueue", async () => {
     return {
         simpleQueueMolecule: {
             selectors: {data: () => queueAtom},
-            actions: {deleteQueue: atom(null, (_get, _set, id: string) => fixture.deleteQueue(id))},
+            actions: {
+                deleteQueue: atom(null, (_get, _set, id: string) => fixture.deleteQueue(id)),
+                edit: atom(null, async () => true),
+            },
         },
     }
 })
@@ -117,7 +129,7 @@ const render = async (canDelete = true) => {
             <Provider store={fakeStore}>
                 <QueueConfigurationTab
                     queueId="queue-1"
-                    canDelete={canDelete}
+                    canEdit={canDelete}
                     listHref="/w/ws-1/p/proj-1/annotations"
                 />
             </Provider>,
@@ -129,8 +141,12 @@ const render = async (canDelete = true) => {
 const button = (scope: ParentNode, label: string) =>
     Array.from(scope.querySelectorAll("button")).find((b) => b.textContent === label)
 
+const setBeta = (on: boolean) =>
+    fakeStore.set(betaDeveloperModeActiveAtom as PrimitiveAtom<boolean>, on)
+
 beforeEach(() => {
     vi.clearAllMocks()
+    setBeta(false)
     // The session knows the workflow id and the revision id; only the revision holds the data.
     resetSession({evaluatorIds: ["wf-1"], evaluatorRevisionIds: ["ev-1"]})
     fixture.queue = {
@@ -168,6 +184,25 @@ describe("the Configuration tab", () => {
         expect(host.querySelector("input, textarea")).toBeNull()
         expect(button(host, "Save")).toBeUndefined()
         expect(host.textContent).toContain("Number of reviews per run")
+    })
+
+    it("In beta developer mode an editor sees the name and description as fields", async () => {
+        setBeta(true)
+        await render()
+        expect((host.querySelector("input") as HTMLInputElement | null)?.value).toBe(
+            "Support replies",
+        )
+        expect(host.querySelector("textarea")?.value).toBe("Rate each **reply**.")
+        expect(host.querySelector("pre[data-language=markdown]")).toBeNull()
+        // Nothing changed yet, so there is nothing to save.
+        expect(button(host, "Save")).toBeUndefined()
+    })
+
+    it("In beta developer mode a user without edit rights reads the name and description", async () => {
+        setBeta(true)
+        await render(false)
+        expect(host.querySelector("input, textarea")).toBeNull()
+        expect(host.textContent).toContain("Support replies")
     })
 
     it("An evaluator card switches between Details and JSON", async () => {

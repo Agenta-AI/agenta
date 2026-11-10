@@ -1,4 +1,4 @@
-import {useBindWorkspaceMembers} from "./useBindWorkspaceMembers"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 /**
  * Binds the workspace members while the trace drawer is open, so the drawer names annotation

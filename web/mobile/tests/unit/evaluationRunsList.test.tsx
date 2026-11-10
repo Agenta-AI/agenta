@@ -6,10 +6,12 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {
+    EMPTY_RUN_FILTERS,
     parseKindTab,
     parseStatuses,
     useEvaluationRunsFilters,
     type EvaluationKindTab,
+    type RunFilterValues,
 } from "@/features/evaluations/list/useEvaluationRunsFilters"
 import {useEvaluationRunsList} from "@/features/evaluations/list/useEvaluationRunsList"
 
@@ -44,13 +46,21 @@ const Probe = ({
     appId = null,
     search = "",
     statuses = [],
+    panel = {},
 }: {
     kind?: EvaluationKindTab
     appId?: string | null
     search?: string
     statuses?: string[]
+    panel?: Partial<RunFilterValues>
 }) => {
-    latest = useEvaluationRunsList({projectId: "pr", kind, appId, search, statuses})
+    latest = useEvaluationRunsList({
+        projectId: "pr",
+        kind,
+        appId,
+        search,
+        panel: {...EMPTY_RUN_FILTERS, statuses, ...panel},
+    })
     return null
 }
 
@@ -120,13 +130,140 @@ describe("evaluation runs filters", () => {
     })
 })
 
+describe("the filter panel in the URL", () => {
+    let filters!: ReturnType<typeof useEvaluationRunsFilters>
+    const Host = () => {
+        filters = useEvaluationRunsFilters()
+        return null
+    }
+    const lastQuery = () => router.replace.mock.calls.at(-1)?.[0].query
+
+    it("Every field is read from the URL, unknown values dropped", async () => {
+        router.query = {
+            app: "app-1",
+            status: "success",
+            types: "human,bogus,auto",
+            evaluator: "ev-1,ev-2",
+            testset: "ts-1",
+            query: "q-1",
+            variant: "var-1",
+            range: "7 days",
+        }
+        await act(async () => root.render(createElement(Host)))
+        expect(filters.panel).toEqual({
+            statuses: ["success"],
+            types: ["auto", "human"],
+            references: {
+                evaluator: ["ev-1", "ev-2"],
+                testset: ["ts-1"],
+                query: ["q-1"],
+                variant: ["var-1"],
+            },
+            range: "7 days",
+        })
+    })
+
+    it("Variants need an app: without one they filter nothing", async () => {
+        router.query = {variant: "var-1", range: "forever"}
+        await act(async () => root.render(createElement(Host)))
+        expect(filters.panel.references.variant).toEqual([])
+        expect(filters.panel.range).toBeNull()
+    })
+
+    it("Apply writes every field and an empty field removes its parameter", async () => {
+        router.query = {q: "alpha", testset: "ts-old"}
+        await act(async () => root.render(createElement(Host)))
+        act(() =>
+            filters.setPanel({
+                ...EMPTY_RUN_FILTERS,
+                statuses: ["failure"],
+                references: {...EMPTY_RUN_FILTERS.references, evaluator: ["ev-1", "ev-2"]},
+                range: "24 hours",
+            }),
+        )
+        expect(lastQuery()).toEqual({
+            q: "alpha",
+            status: "failure",
+            evaluator: "ev-1,ev-2",
+            range: "24 hours",
+        })
+    })
+
+    it("Another app drops the variants of the old one", async () => {
+        router.query = {app: "app-1", variant: "var-1", evaluator: "ev-1"}
+        await act(async () => root.render(createElement(Host)))
+        act(() => filters.setAppId("app-2"))
+        expect(lastQuery()).toEqual({app: "app-2", evaluator: "ev-1"})
+    })
+
+    it("Clear removes the search and every panel filter, and keeps the app and tab", async () => {
+        router.query = {app: "app-1", kind: "auto", q: "x", status: "success", evaluator: "e"}
+        await act(async () => root.render(createElement(Host)))
+        act(() => filters.clearFilters())
+        expect(lastQuery()).toEqual({app: "app-1", kind: "auto"})
+    })
+})
+
 describe("evaluation runs list", () => {
+    it("Evaluators, test sets, queries and variants are sent as references with the app", async () => {
+        http.post.mockResolvedValue(page([]))
+        await mount({
+            appId: "app-1",
+            panel: {
+                references: {
+                    evaluator: ["ev-1"],
+                    testset: ["ts-1", "ts-2"],
+                    query: ["q-1"],
+                    variant: ["var-1"],
+                },
+            },
+        })
+        expect(bodies()[0].run).toEqual({
+            references: [
+                {application: {id: "app-1"}},
+                {evaluator: {id: "ev-1"}},
+                {testset: {id: "ts-1"}},
+                {testset: {id: "ts-2"}},
+                {query: {id: "q-1"}},
+                {application_variant: {id: "var-1"}},
+            ],
+            flags: {has_testcases: false, has_traces: false},
+        })
+    })
+
+    it("A date range is sent as the oldest creation time", async () => {
+        http.post.mockResolvedValue(page([]))
+        await mount({panel: {range: "7 days"}})
+        const oldest = (bodies()[0].windowing as {oldest?: string}).oldest
+        const days = (Date.now() - Date.parse(oldest ?? "")) / 86_400_000
+        expect(days).toBeGreaterThan(6.9)
+        expect(days).toBeLessThan(7.1)
+    })
+
+    it("The Type filter keeps runs of the picked kinds on the All tab", async () => {
+        http.post.mockResolvedValue(
+            page([makeRun("a"), makeRun("h", {kind: "human"}), makeRun("c", {kind: "custom"})]),
+        )
+        await mount({panel: {types: ["human", "custom"]}})
+        expect(latest.runs.map((run) => run.id)).toEqual(["h", "c"])
+    })
+
+    it("A kind tab wins over the Type filter", async () => {
+        http.post.mockResolvedValue(page([makeRun("a"), makeRun("h", {kind: "human"})]))
+        await mount({kind: "auto", panel: {types: ["human"]}})
+        expect(latest.runs.map((run) => run.id)).toEqual(["a"])
+    })
+
     it("The first page request carries the search as run.name and the statuses", async () => {
         http.post.mockResolvedValue(page([makeRun("a")]))
         await mount({search: " alpha ", statuses: ["running", "queued"]})
         const [body] = bodies()
         expect(http.post.mock.calls[0][0]).toBe("https://api.test/evaluations/runs/query")
-        expect(body.run).toEqual({name: "alpha", statuses: ["running", "queued"]})
+        expect(body.run).toEqual({
+            name: "alpha",
+            statuses: ["running", "queued"],
+            flags: {has_testcases: false, has_traces: false},
+        })
         expect((body.windowing as {limit: number}).limit).toBe(30)
         expect(latest.runs.map((run) => run.id)).toEqual(["a"])
     })
@@ -143,7 +280,10 @@ describe("evaluation runs list", () => {
     it("The app filter is sent as the application reference", async () => {
         http.post.mockResolvedValue(page([]))
         await mount({appId: "app-1"})
-        expect(bodies()[0].run).toEqual({references: [{application: {id: "app-1"}}]})
+        expect(bodies()[0].run).toEqual({
+            references: [{application: {id: "app-1"}}],
+            flags: {has_testcases: false, has_traces: false},
+        })
     })
 
     it("Load more sends the cursor of the last page", async () => {

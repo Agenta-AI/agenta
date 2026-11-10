@@ -95,3 +95,76 @@ export function selectLiveEvaluators<
         (revision) => revision.flags?.is_feedback !== true && isOnlineCapableEvaluator(revision),
     )
 }
+
+/** A stored query's filtering, as the API returns it: conditions or nested groups. */
+export interface QueryFilteringText {
+    operator?: string | null
+    conditions?: readonly (QueryConditionText | QueryFilteringText)[] | null
+}
+
+interface QueryConditionText {
+    field?: string | null
+    key?: string | null
+    operator?: string | null
+    value?: unknown
+}
+
+const valueText = (value: unknown): string => {
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    try {
+        return JSON.stringify(value)
+    } catch {
+        return String(value)
+    }
+}
+
+/**
+ * A query's filtering as one line, as the old app's overview prints it:
+ * `trace_type is invocation AND references in [...]`. Groups are in parentheses. "—" for none.
+ */
+export function formatQueryFiltering(filtering: QueryFilteringText | null | undefined): string {
+    const parts = (filtering?.conditions ?? []).map((condition) =>
+        "conditions" in condition && condition.conditions
+            ? `(${formatQueryFiltering(condition as QueryFilteringText)})`
+            : (() => {
+                  const c = condition as QueryConditionText
+                  return `${c.field || c.key || "field"} ${c.operator || "=="} ${valueText(c.value)}`
+              })(),
+    )
+    return parts.length ? parts.join(` ${(filtering?.operator || "and").toUpperCase()} `) : "—"
+}
+
+/** A query's sampling rate (a fraction) as a percent, "—" when it has none. */
+export function formatQuerySampleRate(rate: unknown): string {
+    if (typeof rate !== "number" || Number.isNaN(rate) || rate < 0 || rate > 1) return "—"
+    return `${Math.round(rate * 10000) / 100}%`
+}
+
+/** One stored query condition, as the API returns it. */
+export interface StoredQueryCondition {
+    field: string
+    key?: string
+    operator: string
+    value: unknown
+}
+
+const isConditionNode = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
+
+/**
+ * The conditions of a stored query, depth first: nested condition groups flatten into one list,
+ * the way the old app's query preview reads them. A condition with neither field nor key is
+ * skipped; an empty operator reads as "is".
+ */
+export function flattenQueryConditions(filtering: unknown): StoredQueryCondition[] {
+    if (!isConditionNode(filtering)) return []
+    if (Array.isArray(filtering.conditions)) {
+        return filtering.conditions.flatMap((child) => flattenQueryConditions(child))
+    }
+    const field = typeof filtering.field === "string" ? filtering.field : ""
+    const key = typeof filtering.key === "string" && filtering.key ? filtering.key : undefined
+    if (!field && !key) return []
+    const operator = typeof filtering.operator === "string" ? filtering.operator.trim() : ""
+    return [{field: field || key || "", key, operator: operator || "is", value: filtering.value}]
+}

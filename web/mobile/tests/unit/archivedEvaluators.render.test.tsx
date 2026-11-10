@@ -22,6 +22,10 @@ const api = vi.hoisted(() => ({
     success: vi.fn(),
     error: vi.fn(),
 }))
+// Member names have their own test; this screen test needs no member query.
+vi.mock("@/features/members/useBindWorkspaceMembers", () => ({
+    useBindWorkspaceMembers: () => undefined,
+}))
 vi.mock("@agenta/entities/workflow", async (original) => {
     const {atom} = await import("jotai")
     // One atom for every row: a fresh atom per render would re-subscribe forever.
@@ -169,6 +173,22 @@ describe("ArchivedEvaluatorsScreen", () => {
         expect(api.queryWorkflows).toHaveBeenCalledWith(
             expect.objectContaining({includeArchived: true}),
         )
+    })
+
+    it("The automatic archived list has a Commit message column and the row menu copies", async () => {
+        await mount()
+        const headers = [...host.querySelectorAll('[role="columnheader"]')].map(
+            (h) => h.textContent,
+        )
+        expect(headers).toContain("Commit message")
+        expect(text()).toContain("Commit 2")
+        await act(async () => {
+            host.querySelector('[aria-label="Evaluator actions"]')?.dispatchEvent(
+                new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+            )
+        })
+        const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        expect(items).toEqual(["Open details", "Copy ID", "Copy Slug", "Restore"])
     })
 
     it("A row with no tags still fills every column", async () => {

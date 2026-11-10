@@ -156,6 +156,36 @@ const followAutoName = (previous: NewEvaluationDraft, next: NewEvaluationDraft) 
     return {...next, autoName, name: follows ? autoName : previous.name}
 }
 
+/**
+ * Whether the reader put anything into the draft beyond what the sheet opened with: a name, a
+ * test set, an evaluator, changed settings, or other app or revision picks. Closing such a draft
+ * asks first; an untouched one closes at once.
+ */
+export const draftHasInput = (
+    draft: NewEvaluationDraft,
+    initial: Pick<InitialDraftOptions, "app" | "revisions"> = {},
+): boolean => {
+    const initialRevisionIds = new Set((initial.revisions ?? []).map((revision) => revision.id))
+    const revisionsChanged =
+        draft.revisions.length !== initialRevisionIds.size ||
+        draft.revisions.some((revision) => !initialRevisionIds.has(revision.id))
+    return (
+        draft.name.trim() !== "" ||
+        draft.testset !== null ||
+        draft.evaluators.length > 0 ||
+        !isDefaultConcurrency(draft.concurrency) ||
+        (draft.app?.id ?? null) !== (initial.app?.id ?? null) ||
+        revisionsChanged
+    )
+}
+
+/**
+ * The name the reader typed, which a new app keeps. A name the draft made itself, or none,
+ * gives way to the auto name of the new picks.
+ */
+const typedName = (state: NewEvaluationDraft): string =>
+    state.name !== state.autoName ? state.name : ""
+
 export const newEvaluationReducer = (
     state: NewEvaluationDraft,
     action: NewEvaluationAction,
@@ -165,11 +195,15 @@ export const newEvaluationReducer = (
             if (state.app?.id === action.app.id) return state
             return {
                 ...createInitialDraft(state.kind, {app: action.app, suffix: state.suffix}),
+                name: typedName(state),
                 section: "revision",
             }
         }
         case "clearApp":
-            return createInitialDraft(state.kind, {suffix: state.suffix})
+            return {
+                ...createInitialDraft(state.kind, {suffix: state.suffix}),
+                name: typedName(state),
+            }
         case "hydrateApp":
             return state.app?.id === action.app.id ? {...state, app: action.app} : state
         case "pickRevision": {

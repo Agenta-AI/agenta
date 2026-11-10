@@ -23,6 +23,12 @@ const fixture = vi.hoisted(() => ({
         refetch: vi.fn(),
     },
     permissions: {} as Record<string, boolean>,
+    beta: false,
+}))
+
+vi.mock("@agenta/shared/state", async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    betaDeveloperModeActiveAtom: {id: "beta"},
 }))
 
 vi.mock("next/router", () => ({
@@ -46,15 +52,17 @@ vi.mock("@agenta/entities/workflow", () => ({
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: (atom: {id: string}) =>
-        atom.id === "apps"
-            ? fixture.apps
-            : atom.id === "variants"
-              ? []
-              : atom.id === "variantsQuery"
-                ? {data: {workflow_variants: []}, isPending: false}
-                : atom.id === "latest"
-                  ? "rev-3"
-                  : null,
+        atom.id === "beta"
+            ? fixture.beta
+            : atom.id === "apps"
+              ? fixture.apps
+              : atom.id === "variants"
+                ? []
+                : atom.id === "variantsQuery"
+                  ? {data: {workflow_variants: []}, isPending: false}
+                  : atom.id === "latest"
+                    ? "rev-3"
+                    : null,
 }))
 vi.mock("@agenta/ui/hooks", () => ({useMediaQuery: () => true}))
 vi.mock("@agenta/entities/shared", () => ({UserAuthorLabel: () => createElement("span")}))
@@ -125,6 +133,7 @@ beforeEach(() => {
     document.body.appendChild(host)
     root = createRoot(host)
     fixture.query = {}
+    fixture.beta = false
     fixture.permissions = {}
     fixture.revisions.rows = []
     fixture.revisions.isPending = false
@@ -145,6 +154,21 @@ describe("VariantsScreen", () => {
         expect(text()).toContain("Pick an app")
         expect(text()).toContain("Choose an app to see its variants.")
         expect(text()).toContain("Registry")
+    })
+
+    it("The app page takes the app from the path and drops the picker and Overview link", () => {
+        fixture.query = {app_id: "app-1"}
+        mount()
+        expect(document.querySelector("[data-testid=not-found]")).toBeNull()
+        expect(text()).not.toContain("Pick an app")
+        expect(document.querySelector("[aria-label=App]")).toBeNull()
+        expect(text()).not.toContain("Overview")
+    })
+
+    it("The project page keeps its picker", () => {
+        fixture.query = {app: "app-1"}
+        mount()
+        expect(document.querySelector("[aria-label=App]")).not.toBeNull()
     })
 
     it("An unknown app id shows not found", () => {
@@ -208,6 +232,32 @@ describe("VariantsScreen", () => {
             undefined,
             {shallow: true},
         )
+    })
+
+    it("Beta developer mode shows one row per variant with a checkbox, like the old app", () => {
+        fixture.beta = true
+        fixture.query = {app_id: "app-1"}
+        localStorage.setItem("agenta:registry:display-mode", "variants")
+        fixture.revisions.rows = [
+            revision("r2", 2, "va", "Support"),
+            revision("r1", 1, "va", "Support"),
+        ]
+        mount()
+        const boxes = [...document.querySelectorAll("[role=checkbox]")].map((box) =>
+            box.getAttribute("aria-label"),
+        )
+        expect(boxes).toContain("Select Support v2")
+        expect(boxes).not.toContain("Select Support v1")
+        expect(
+            document.querySelector("[aria-label='Show older revisions of Support']"),
+        ).not.toBeNull()
+    })
+
+    it("Without beta developer mode the Registry has no checkboxes", () => {
+        fixture.query = {app: "app-1"}
+        fixture.revisions.rows = [revision("r1", 1, "va", "Support")]
+        mount()
+        expect(document.querySelector("[role=checkbox]")).toBeNull()
     })
 
     it("A failed revisions load shows a retry", () => {

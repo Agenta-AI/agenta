@@ -82,6 +82,7 @@ from oss.src.core.evaluations.types import EvaluationClosedConflict
 from oss.src.core.tracing.dtos import (
     TracingQuery,
     Filtering,
+    FilteringException,
     Condition,
     ListOperator,
     MetricSpec,
@@ -297,7 +298,7 @@ class EvaluationsService:
                     run=run,
                 ):
                     log.warning(
-                        "[LIVE] Closing invalid live run (null data or non-invocation trace_type).",
+                        "[LIVE] Closing invalid live run (null data, non-invocation trace_type, or a filter that cannot be applied).",
                         project_id=project_id,
                         run_id=run.id,
                     )
@@ -381,7 +382,8 @@ class EvaluationsService:
         project_id: UUID,
         run: EvaluationRun,
     ) -> bool:
-        """Every query step must reference a revision with data targeting invocation traces."""
+        """Every query step must reference a revision with data targeting invocation
+        traces and a filter that the tracing query can apply."""
         if not run.data or not run.data.steps:
             return False
 
@@ -405,6 +407,18 @@ class EvaluationsService:
                 return False
 
             if not _is_invocation_query(query_revision.data):
+                return False
+
+            try:
+                QueriesService.validate_query_revision_filtering(query_revision.data)
+            except FilteringException as e:
+                log.warning(
+                    "[LIVE] Live query filter cannot be applied.",
+                    project_id=project_id,
+                    run_id=run.id,
+                    query_revision_id=query_revision_id,
+                    error=str(e),
+                )
                 return False
 
         return True

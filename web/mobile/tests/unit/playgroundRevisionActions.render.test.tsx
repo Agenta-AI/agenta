@@ -400,7 +400,7 @@ describe("The revision bar", () => {
         expect(writes()).toHaveLength(0)
     })
 
-    it("Leaving unsaved edits asks first, and Cancel keeps them", async () => {
+    it("Switching with unsaved edits switches at once and keeps the edits", async () => {
         await mount()
         await edit("Changed")
         await click("Switch revision")
@@ -412,28 +412,10 @@ describe("The revision bar", () => {
         await act(async () => row!.click())
         await settle()
 
-        expect(text()).toContain("Discard unsaved changes?")
-        expect(shown()).toEqual(["rev-2"])
-        await click("Cancel")
-        expect(isDirty("rev-2")).toBe(true)
-        expect(shown()).toEqual(["rev-2"])
-    })
-
-    it("Confirming discards the edits and switches", async () => {
-        await mount()
-        await edit("Changed")
-        await click("Switch revision")
-        const row = [
-            ...document.querySelectorAll<HTMLElement>("[role=treeitem], li, [role=option]"),
-        ]
-            .filter((item) => label(item).startsWith("v1"))
-            .at(-1)
-        await act(async () => row!.click())
-        await settle()
-        await click("Discard")
-
+        expect(text()).not.toContain("Discard unsaved changes?")
         expect(shown()).toEqual(["rev-1"])
-        expect(isDirty("rev-2")).toBe(false)
+        // The edits of the revision left stay, and show again when it is opened.
+        expect(isDirty("rev-2")).toBe(true)
         expect(writes()).toHaveLength(0)
     })
 })

@@ -1,7 +1,9 @@
 import {describe, expect, it} from "vitest"
 
+import {filterApps} from "@/features/evaluations/new/appTypeFilter"
 import {
     createInitialDraft,
+    draftHasInput,
     expectedInputVariables,
     newEvaluationReducer,
     validateDraft,
@@ -13,6 +15,7 @@ import {
     type NewEvaluationDraft,
     type NewEvaluationKind,
 } from "@/features/evaluations/new/newEvaluationDraft"
+import {flattenTree, toggleKey} from "@/features/evaluations/new/treeRows"
 
 const app: DraftApp = {id: "app-1", name: "Support bot"}
 const otherApp: DraftApp = {id: "app-2", name: "Search bot"}
@@ -37,6 +40,37 @@ const run = (draft: NewEvaluationDraft, ...actions: NewEvaluationAction[]) =>
 const start = (kind: NewEvaluationKind = "auto") => createInitialDraft(kind, {suffix: "abc12"})
 
 describe("new evaluation draft", () => {
+    it("A typed name stays when an app is picked, changed or cleared, and later picks keep it", () => {
+        const typed = run(start(), {type: "setName", name: "my run"})
+        const picked = run(typed, {type: "pickApp", app})
+        expect(picked.name).toBe("my run")
+        expect(run(picked, {type: "pickApp", app: otherApp}).name).toBe("my run")
+        expect(run(picked, {type: "clearApp"}).name).toBe("my run")
+        const later = run(
+            picked,
+            {type: "pickRevision", revision: revisionA},
+            {type: "pickTestset", testset},
+        )
+        expect(later.name).toBe("my run")
+    })
+
+    it("An auto name gives way to the next app, and a cleared name auto-fills again", () => {
+        const named = run(
+            start(),
+            {type: "pickApp", app},
+            {type: "pickRevision", revision: revisionA},
+            {type: "pickTestset", testset},
+        )
+        expect(named.name).toBe("default-v3-greetings-abc12")
+        expect(run(named, {type: "pickApp", app: otherApp}).name).toBe("")
+        const cleared = run(
+            {...named, name: "mine"},
+            {type: "setName", name: ""},
+            {type: "blurName"},
+        )
+        expect(cleared.name).toBe("default-v3-greetings-abc12")
+    })
+
     it("Picking another app clears revisions, test set, evaluators, name and settings", () => {
         const filled = run(
             start(),
@@ -240,5 +274,94 @@ describe("new evaluation draft", () => {
             {data: null},
         ])
         expect(names).toEqual(["country", "topic", "city", "language"])
+    })
+})
+
+describe("whether a draft holds input", () => {
+    it("An empty draft holds none, so it closes without a question", () => {
+        expect(draftHasInput(start())).toBe(false)
+    })
+
+    it("Picks the sheet opened with are not input", () => {
+        const opening = {app, revisions: [revisionA]}
+        expect(draftHasInput(createInitialDraft("auto", opening), opening)).toBe(false)
+    })
+
+    it("A name, an app, a revision, a test set, an evaluator or a setting is input", () => {
+        expect(draftHasInput(run(start(), {type: "setName", name: "run"}))).toBe(true)
+        expect(draftHasInput(run(start(), {type: "pickApp", app}))).toBe(true)
+        const scoped = {app}
+        const withApp = createInitialDraft("auto", scoped)
+        expect(
+            draftHasInput(run(withApp, {type: "pickRevision", revision: revisionA}), scoped),
+        ).toBe(true)
+        expect(draftHasInput(run(withApp, {type: "pickTestset", testset}), scoped)).toBe(true)
+        expect(draftHasInput(run(withApp, {type: "pickEvaluator", evaluator}), scoped)).toBe(true)
+        expect(
+            draftHasInput(
+                run(withApp, {type: "setConcurrency", field: "batch_size", value: 4}),
+                scoped,
+            ),
+        ).toBe(true)
+    })
+
+    it("Removing a revision the sheet opened with is input", () => {
+        const opening = {app, revisions: [revisionA, revisionB]}
+        const draft = run(createInitialDraft("auto", opening), {
+            type: "removeRevision",
+            revisionId: revisionB.id,
+        })
+        expect(draftHasInput(draft, opening)).toBe(true)
+    })
+})
+
+describe("step table rows", () => {
+    const rows = [
+        {id: "v5", group: "verbose"},
+        {id: "d3", group: "default"},
+        {id: "d2", group: "default"},
+        {id: "d1", group: "default"},
+    ]
+
+    it("Shows the newest row of each group with the count of its older rows", () => {
+        const tree = flattenTree(rows, (row) => row.group, new Set())
+        expect(tree.map(({row, depth, olderCount}) => [row.id, depth, olderCount])).toEqual([
+            ["v5", 0, 0],
+            ["d3", 0, 2],
+        ])
+    })
+
+    it("An expanded group shows its older rows right under its newest one", () => {
+        const tree = flattenTree(rows, (row) => row.group, toggleKey(new Set(), "default"))
+        expect(tree.map(({row, depth}) => [row.id, depth])).toEqual([
+            ["v5", 0],
+            ["d3", 0],
+            ["d2", 1],
+            ["d1", 1],
+        ])
+        expect(toggleKey(new Set(["default"]), "default").has("default")).toBe(false)
+    })
+})
+
+describe("the app type filter", () => {
+    const apps = [
+        {id: "a", name: "Capital finder"},
+        {id: "b", name: "Support bot"},
+        {id: "c", name: "Translator"},
+    ]
+    const types = new Map([
+        ["a", "completion" as const],
+        ["b", "chat" as const],
+        ["c", null],
+    ])
+
+    it("Keeps the apps of the picked type, and an app of unknown type only under All types", () => {
+        expect(filterApps(apps, types, "", "chat").map((app) => app.id)).toEqual(["b"])
+        expect(filterApps(apps, types, "", "completion").map((app) => app.id)).toEqual(["a"])
+        expect(filterApps(apps, types, "", "all").map((app) => app.id)).toEqual(["a", "b", "c"])
+    })
+
+    it("Matches the search on the name, ignoring case", () => {
+        expect(filterApps(apps, types, "  SUPPORT ", "all").map((app) => app.id)).toEqual(["b"])
     })
 })

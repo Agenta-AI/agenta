@@ -55,6 +55,7 @@ export const Composer = ({
     onStop,
     inputBusy = streaming,
     inputRef,
+    modelPickerRef,
     placeholder,
     hasTurns,
     onNewSession,
@@ -91,6 +92,8 @@ export const Composer = ({
     inputBusy?: boolean
     /** Lets the host write into the input — a rewind puts the rewound message back to edit. */
     inputRef?: MutableRefObject<RichChatInputHandle | null>
+    /** Lets the host open the `/model` picker, as the low-credit strip's "Switch model" does. */
+    modelPickerRef?: MutableRefObject<(() => void) | null>
     /** Full placeholder override — used when the composer is gated (no model key). */
     placeholder?: string
     /** The session already has turns: the key hints move from chips into the placeholder. */
@@ -120,6 +123,14 @@ export const Composer = ({
             richInputRef.current?.blur()
         }, [richInputRef]),
     })
+    const openModelPicker = slash.openModelPicker
+    useEffect(() => {
+        if (!modelPickerRef) return
+        modelPickerRef.current = openModelPicker
+        return () => {
+            modelPickerRef.current = null
+        }
+    }, [modelPickerRef, openModelPicker])
     // Focus can only return AFTER the picker unmounts — a focus() in the handler is undone when
     // the still-focused panel leaves the DOM.
     const hadPickerRef = useRef(slash.picker)

@@ -19,6 +19,7 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.utils.filtering import (
     parse_condition,
     parse_filtering,
+    validate_filtering,
     parse_ingest,
     parse_query,
 )
@@ -187,11 +188,327 @@ def test_parse_condition_for_enum_timestamp_uuid_and_string_fields():
 
 
 def test_parse_condition_ignores_unknown_field_instead_of_raising():
+    # Tracing queries and analytics keep ignoring an unknown field.
     condition = Condition(field="unknown", operator=ComparisonOperator.IS, value="x")
 
     parse_condition(condition)
 
     assert condition.value == "x"
+
+
+def test_validate_filtering_raises_for_unknown_field_also_when_nested():
+    # A saved query must not widen its filter: a live evaluation would score every trace.
+    filtering = Filtering(
+        conditions=[
+            Condition(
+                field="trace_type", operator=ComparisonOperator.IS, value="invocation"
+            ),
+            Filtering(
+                operator="or",
+                conditions=[
+                    Condition(
+                        field="unknown", operator=ComparisonOperator.IS, value="x"
+                    )
+                ],
+            ),
+        ]
+    )
+
+    with pytest.raises(
+        FilteringException, match=escape("Unsupported condition field 'unknown'.")
+    ):
+        validate_filtering(filtering)
+
+
+def test_validate_filtering_accepts_picker_fields_and_leaves_them_unchanged():
+    filtering = Filtering(
+        conditions=[
+            Condition(
+                field="attributes.ag.session.id",
+                operator=ComparisonOperator.IS,
+                value="s-1",
+            ),
+            Condition(
+                field="is_annotation",
+                operator="in",
+                value=[{"evaluator": "exact-match"}],
+            ),
+            Condition(field="has_annotation", operator="not_in", value=[]),
+        ]
+    )
+    before = filtering.model_dump()
+
+    validate_filtering(filtering)
+
+    assert filtering.model_dump() == before
+
+
+# The trace filter picker stores these field names in saved queries. Each case is the
+# picker row and the condition the traces page sends for it (`buildTraceQueryParams`).
+@pytest.mark.parametrize(
+    "row,expected",
+    [
+        (
+            {
+                "field": "attributes.ag.session.id",
+                "operator": "is",
+                "value": "s-1",
+            },
+            {"key": "ag.session.id", "operator": ComparisonOperator.IS, "value": "s-1"},
+        ),
+        (
+            {
+                "field": "attributes.ag.metrics.costs.cumulative.total",
+                "operator": "gt",
+                "value": 0.5,
+            },
+            {
+                "key": "ag.metrics.costs.cumulative.total",
+                "operator": NumericOperator.GT,
+                "value": 0.5,
+            },
+        ),
+        (
+            {
+                "field": "input_keys",
+                "key": "attributes.ag.data.inputs.country",
+                "operator": "is",
+                "value": "Peru",
+            },
+            {
+                "key": "ag.data.inputs.country",
+                "operator": ComparisonOperator.IS,
+                "value": "Peru",
+            },
+        ),
+        (
+            {
+                "field": "output_keys",
+                "key": "attributes.ag.data.outputs.answer",
+                "operator": "contains",
+                "value": "Lima",
+            },
+            {
+                "key": "ag.data.outputs.answer",
+                "operator": StringOperator.CONTAINS,
+                "value": "Lima",
+            },
+        ),
+        (
+            {
+                "field": "custom",
+                "key": "attributes.ag.tags.env",
+                "operator": "is_not",
+                "value": "prod",
+            },
+            {
+                "key": "ag.tags.env",
+                "operator": ComparisonOperator.IS_NOT,
+                "value": "prod",
+            },
+        ),
+        (
+            {"field": "custom", "key": "ag.tags.env", "operator": "is", "value": "x"},
+            {"key": "ag.tags.env", "operator": ComparisonOperator.IS, "value": "x"},
+        ),
+    ],
+)
+def test_parse_condition_maps_picker_attribute_fields(row, expected):
+    condition = Condition(**row)
+
+    assert parse_condition(condition) is condition
+    assert condition.field == Fields.ATTRIBUTES
+    assert condition.key == expected["key"]
+    assert condition.operator == expected["operator"]
+    assert condition.value == expected["value"]
+
+
+@pytest.mark.parametrize("field", ["custom", "input_keys", "output_keys"])
+def test_parse_condition_raises_for_picker_key_field_without_key(field):
+    with pytest.raises(FilteringException, match=escape(f"'{field}' key is required")):
+        parse_condition(Condition(field=field, operator="is", value="x"))
+
+
+def test_parse_condition_maps_is_annotation_to_evaluator_and_feedback_conditions():
+    condition = Condition(
+        field="is_annotation",
+        operator="in",
+        value=[
+            {
+                "evaluator": "exact-match",
+                "feedback": {
+                    "field": "score",
+                    "operator": "gte",
+                    "value": 0.5,
+                    "valueType": "number",
+                },
+            }
+        ],
+    )
+
+    parsed = parse_condition(condition)
+
+    assert isinstance(parsed, Filtering)
+    assert parsed.operator == LogicalOperator.AND
+    references, feedback = parsed.conditions
+    assert references.field == Fields.REFERENCES
+    assert references.operator == ListOperator.IN
+    assert references.value == [{"slug": "exact-match"}]
+    assert feedback.field == Fields.ATTRIBUTES
+    assert feedback.key == "ag.data.outputs.score"
+    assert feedback.operator == NumericOperator.GTE
+    assert feedback.value == 0.5
+
+
+def test_parse_filtering_replaces_is_annotation_with_its_conditions():
+    filtering = Filtering(
+        operator=LogicalOperator.OR,
+        conditions=[
+            Condition(field="trace_type", operator="is", value="invocation"),
+            Condition(
+                field="is_annotation",
+                operator="not_in",
+                value={"evaluator": "exact-match"},
+            ),
+        ],
+    )
+
+    parse_filtering(filtering)
+
+    nested = filtering.conditions[1]
+    assert isinstance(nested, Filtering)
+    assert nested.conditions[0].field == Fields.REFERENCES
+    assert nested.conditions[0].operator == ListOperator.NOT_IN
+
+
+def test_parse_condition_normalizes_has_annotation_value():
+    condition = Condition(
+        field="has_annotation",
+        operator="in",
+        value=[
+            {
+                "evaluator": "exact-match",
+                "feedback": {
+                    "field": "success",
+                    "operator": "is",
+                    "value": True,
+                    "valueType": "boolean",
+                },
+            }
+        ],
+    )
+
+    assert parse_condition(condition) is condition
+    assert condition.field == Fields.HAS_ANNOTATION
+    normalized = [
+        {"evaluator": "exact-match"},
+        {"feedback": {"field": "success", "operator": "is", "value": True}},
+    ]
+    assert condition.value == normalized
+
+    # A reused query is parsed again on its next page.
+    assert parse_condition(condition) is condition
+    assert condition.value == normalized
+
+
+def test_parse_condition_reads_a_feedback_field_list_as_one_filter_per_field():
+    # The "any evaluator" picker saves the field as a list, also for one field.
+    condition = Condition(
+        field="has_annotation",
+        operator="not_in",
+        value=[{"feedback": {"field": ["score"], "operator": "gte", "value": 1}}],
+    )
+
+    parse_condition(condition)
+
+    assert condition.value == [
+        {"feedback": {"field": "score", "operator": "gte", "value": 1}}
+    ]
+
+    several = Condition(
+        field="is_annotation",
+        operator="in",
+        value=[{"feedback": {"field": ["quality", "safe"], "value": True}}],
+    )
+    keys = [c.key for c in parse_condition(several).conditions]
+    assert keys == ["ag.data.outputs.quality", "ag.data.outputs.safe"]
+
+
+def test_parse_filtering_joins_has_annotation_rows_into_one_annotation():
+    # The traces page reads all has_annotation rows in one annotation query.
+    filtering = Filtering(
+        conditions=[
+            Condition(
+                field="has_annotation",
+                operator="in",
+                value=[{"feedback": {"field": "quality", "value": True}}],
+            ),
+            Condition(field="trace_type", operator="is", value="invocation"),
+            Condition(
+                field="has_annotation",
+                operator="in",
+                value=[{"feedback": {"field": "safe", "value": True}}],
+            ),
+        ]
+    )
+
+    parse_filtering(filtering)
+
+    [has_annotation, trace_type] = filtering.conditions
+    assert trace_type.field == Fields.TRACE_TYPE
+    assert has_annotation.value == [
+        {"feedback": {"field": "quality", "operator": "is", "value": True}},
+        {"feedback": {"field": "safe", "operator": "is", "value": True}},
+    ]
+
+
+def test_parse_condition_accepts_has_annotation_without_evaluator_or_feedback():
+    # "Has any annotation", as on the traces page.
+    condition = Condition(field="has_annotation", operator="not_in", value=[])
+
+    parse_condition(condition)
+
+    assert condition.value == []
+
+
+@pytest.mark.parametrize(
+    "condition,expected_message",
+    [
+        (
+            Condition(field="has_annotation", operator="is", value=[]),
+            "'has_annotation' only supports list operators.",
+        ),
+        (
+            Condition(field="has_annotation", operator="in", value="exact-match"),
+            "'has_annotation' value must be objects",
+        ),
+        (
+            Condition(
+                field="has_annotation",
+                operator="in",
+                value=[{"feedback": {"operator": "is", "value": 1}}],
+            ),
+            "'has_annotation' feedback must name one or more output fields.",
+        ),
+        (
+            Condition(
+                field="has_annotation",
+                operator="in",
+                value=[{"feedback": {"field": "score", "operator": "nope"}}],
+            ),
+            "'has_annotation' feedback operator or value is not supported.",
+        ),
+        (
+            Condition(field="is_annotation", operator="in", value=[]),
+            "'is_annotation' needs an evaluator or a feedback.",
+        ),
+    ],
+)
+def test_parse_condition_raises_for_invalid_annotation_rows(
+    condition, expected_message
+):
+    with pytest.raises(FilteringException, match=escape(expected_message)):
+        parse_condition(condition)
 
 
 def test_parse_filtering_recurses_nested_filters_and_parse_query_delegates():
@@ -304,3 +621,30 @@ def test_parse_filtering_raises_for_unknown_nested_condition_type():
 
     with pytest.raises(FilteringException, match="Unsupported condition type"):
         parse_filtering(filtering)
+
+
+def test_parse_filtering_of_picker_fields_is_idempotent():
+    filtering = Filtering(
+        conditions=[
+            Condition(field="attributes.ag.session.id", operator="is", value="s-1"),
+            Condition(
+                field="custom", key="attributes.ag.tags.env", operator="is", value="x"
+            ),
+            Condition(
+                field="is_annotation",
+                operator="in",
+                value=[{"evaluator": "e", "feedback": {"field": "score", "value": 1}}],
+            ),
+            Condition(
+                field="has_annotation",
+                operator="not_in",
+                value=[{"evaluator": "e", "feedback": {"field": "score", "value": 1}}],
+            ),
+        ]
+    )
+
+    parse_filtering(filtering)
+    once = filtering.model_dump(mode="json")
+    parse_filtering(filtering)
+
+    assert filtering.model_dump(mode="json") == once

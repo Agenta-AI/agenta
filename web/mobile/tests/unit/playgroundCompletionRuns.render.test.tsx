@@ -6,9 +6,12 @@
  */
 import {act} from "react"
 
+import {loadableController} from "@agenta/entities/loadable"
 import {playgroundController} from "@agenta/playground"
+import {PromptTokenPathProvider} from "@agenta/playground-ui/panels/config"
 import {RunsPanel} from "@agenta/playground-ui/panels/runs"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {useTokenPathSuggestions} from "@agenta/ui/editor"
 import {QueryClient} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -78,10 +81,27 @@ const store = getDefaultStore()
 let root: Root
 let host: HTMLDivElement
 
+/** What the prompt editor's `{{$.inputs.` typeahead would offer. */
+const Suggestions = () => {
+    const getSuggestions = useTokenPathSuggestions()
+    if (!getSuggestions) return null
+    const labels = (path: string[]) => getSuggestions(path, "").map((item) => item.label)
+    return (
+        <output data-testid="token-paths">
+            {JSON.stringify({roots: labels(["inputs"]), meta: labels(["inputs", "meta"])})}
+        </output>
+    )
+}
+
 const Harness = () => {
     const {status, primaryRevisionId} = usePlaygroundSelection({appId: "app-1"})
     return status === "ready" && primaryRevisionId ? (
-        <RunsPanel revisionId={primaryRevisionId} />
+        <>
+            <PromptTokenPathProvider revisionId={primaryRevisionId}>
+                <Suggestions />
+            </PromptTokenPathProvider>
+            <RunsPanel revisionId={primaryRevisionId} />
+        </>
     ) : null
 }
 
@@ -147,8 +167,30 @@ afterEach(() => {
 describe("The completion run pane", () => {
     it("Lists the variables the prompt references as input cards", () => {
         expect(rows()).toHaveLength(1)
-        expect(host.textContent).toContain("test case 1")
+        expect(host.textContent).toContain("testcase 1")
         expect(host.querySelector('[data-testid="input-variable-country"]')).not.toBeNull()
+    })
+
+    it("The prompt typeahead offers the prompt's variables and the test case columns", async () => {
+        const paths = () =>
+            JSON.parse(host.querySelector('[data-testid="token-paths"]')!.textContent!) as {
+                roots: string[]
+                meta: string[]
+            }
+        expect(paths().roots).toEqual(["country"])
+
+        // A column the prompt does not use yet, with an object value.
+        const loadableId = store.get(playgroundController.selectors.loadableId())!
+        await act(async () =>
+            store.set(loadableController.actions.addRow, loadableId, {
+                country: "Peru",
+                meta: {region: "Andes"},
+            }),
+        )
+        await settle()
+
+        expect(paths().roots).toEqual(["country", "meta"])
+        expect(paths().meta).toEqual(["region"])
     })
 
     it("Run sends the row inputs and shows the output", async () => {
@@ -158,6 +200,25 @@ describe("The completion run pane", () => {
         expect(runs).toHaveLength(1)
         expect(JSON.stringify(runs[0].body)).toContain("France")
         expect(host.textContent).toContain("Paris")
+    })
+
+    it("The output sits in a card labelled with the revision and its version", async () => {
+        const card = () => host.querySelector('[data-testid="revision-result-card"]')
+        expect(card()?.textContent).toContain("defaultv3")
+        expect(card()?.textContent).toContain("No output yet")
+
+        await click("Run")
+
+        expect(card()?.textContent).toContain("defaultv3")
+        expect(card()?.textContent).toContain("Paris")
+    })
+
+    it("The row actions come in the old playground's order: details, remove, duplicate", () => {
+        const row = rows()[0]
+        const labels = [...row.querySelectorAll("button")]
+            .map((item) => item.getAttribute("aria-label"))
+            .filter((label) => ["Open details", "Remove", "Duplicate"].includes(label ?? ""))
+        expect(labels).toEqual(["Open details", "Remove", "Duplicate"])
     })
 
     it("A failed run shows the error text", async () => {
@@ -171,7 +232,7 @@ describe("The completion run pane", () => {
         await click("Test case")
 
         expect(rows()).toHaveLength(2)
-        expect(host.textContent).toContain("test case 2")
+        expect(host.textContent).toContain("testcase 2")
     })
 
     it("Remove is disabled on the last row and removes a row otherwise", async () => {
@@ -233,7 +294,7 @@ describe("The completion run pane", () => {
         await click("Clear")
 
         expect(host.textContent).not.toContain("Paris")
-        expect(host.textContent).toContain("Click run")
+        expect(host.textContent).toContain("No output yet")
     })
 
     it("Collapse all hides every row body", async () => {

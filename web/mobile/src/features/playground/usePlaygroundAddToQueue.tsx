@@ -19,18 +19,16 @@ export const usePlaygroundAddToQueue = (
     const mode = useAtomValue(loadableController.selectors.mode(loadableId))
     const source = useAtomValue(loadableController.selectors.connectedSource(loadableId))
     const render = useCallback(
-        (itemIds: string[]) => (
-            <AddToQueuePicker
-                itemType="testcases"
-                itemIds={itemIds}
-                disabled={itemIds.length === 0}
-            >
-                <Button size="sm" variant="outline" disabled={itemIds.length === 0}>
-                    <ListChecks aria-hidden size={14} />
-                    Add to queue
-                </Button>
-            </AddToQueuePicker>
-        ),
+        // A row added in the drawer is not saved yet, so it has no id to queue.
+        (itemIds: string[]) =>
+            itemIds.length === 0 ? null : (
+                <AddToQueuePicker itemType="testcases" itemIds={itemIds}>
+                    <Button size="sm" variant="outline">
+                        <ListChecks aria-hidden size={14} />
+                        Add to queue
+                    </Button>
+                </AddToQueuePicker>
+            ),
         [],
     )
     return mode === "connected" && source.type === "testcase" ? render : undefined

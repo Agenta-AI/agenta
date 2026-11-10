@@ -5,7 +5,7 @@ import {
     getFilterColumns,
     useObservability,
 } from "@agenta/observability"
-import {FilterDialog} from "@agenta/observability-ui"
+import {FILTER_COLUMN_ICONS, FilterDialog} from "@agenta/observability-ui"
 
 import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
 
@@ -21,7 +21,10 @@ export const TracesFilters = () => {
     const annotated = useDeveloperViewEnabled(TRACE_ACTIONS_VIEW_ID) === true
     const Dialog = annotated ? AnnotatedTracesFilter : FilterDialog
 
-    const columns = useMemo(() => getFilterColumns(buildAttributeKeyTreeOptions(traces)), [traces])
+    const columns = useMemo(
+        () => getFilterColumns(buildAttributeKeyTreeOptions(traces), FILTER_COLUMN_ICONS),
+        [traces],
+    )
 
     return (
         <Dialog

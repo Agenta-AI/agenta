@@ -75,12 +75,16 @@ function stubWidth(wide: boolean) {
     })) as unknown as typeof window.matchMedia
 }
 
-async function mount(patch: Partial<ScenarioServerState> = {}, wide = true) {
+async function mount(
+    patch: Partial<ScenarioServerState> = {},
+    wide = true,
+    answer: typeof answerRequest = answerRequest,
+) {
     const runId = `run-${++counter}`
     state = newServerState(patch)
     stubWidth(wide)
     http.post.mockImplementation(async (url: string, body: Record<string, unknown>) =>
-        answerRequest(runId, state, url, body),
+        answer(runId, state, url, body),
     )
     client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     store.set(queryClientAtom, client)
@@ -139,9 +143,18 @@ afterEach(() => {
 })
 
 describe("scenarios tab", () => {
-    it("Each row shows its index, status and one column group per run step", async () => {
+    it("Each row shows its index, status, the test set values, each evaluator metric and the app metrics", async () => {
         await mount()
-        expect(headers()).toEqual(["#", "Status", "Test set capitals", "Exact Match"])
+        expect(headers()).toEqual([
+            "#",
+            "Status",
+            "Test set capitals",
+            "Exact Match · success",
+            "Cost",
+            "Duration",
+            "Tokens",
+            "Errors",
+        ])
         const rows = host.querySelectorAll('[role="button"]')
         expect(rows).toHaveLength(3)
         expect(rows[0].textContent).toContain("1")
@@ -161,7 +174,7 @@ describe("scenarios tab", () => {
         primeWorkflowArtifactCacheImperative([{id: "ev-1", name: "Capital match"}] as never)
         await settle()
         await settle()
-        expect(headers().slice(2)).toEqual(["World capitals", "Capital match"])
+        expect(headers().slice(2, 4)).toEqual(["World capitals", "Capital match · success"])
     })
 
     it("A missing value shows a dash", async () => {
@@ -171,6 +184,62 @@ describe("scenarios tab", () => {
         expect(row?.textContent).toContain("Pending")
         expect(row?.textContent).toContain("France")
         expect(row?.textContent).toContain("—")
+    })
+
+    it("An evaluator that failed shows its error in its column and on the phone card", async () => {
+        const failed: typeof answerRequest = (runId, serverState, url, body) => {
+            const answer = answerRequest(runId, serverState, url, body)
+            if (url.endsWith("/evaluations/results/query")) {
+                const results = answer.data?.results ?? []
+                for (const result of [...results]) {
+                    results.push({
+                        ...result,
+                        step_key: "ev",
+                        status: "failure",
+                        error: {message: "Invalid regex pattern"},
+                    } as never)
+                }
+            }
+            return answer
+        }
+        const patch = {ids: ["sc-1"], statuses: {"sc-1": "errors"}, scored: false}
+        await mount(patch, true, failed)
+        expect(host.querySelector('[role="button"] [role="alert"]')?.textContent).toBe(
+            "Invalid regex pattern",
+        )
+        act(() => root.unmount())
+        root = createRoot(host)
+        await mount(patch, false, failed)
+        // The card names the evaluator, so two failed evaluators can be told apart.
+        expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+            "Exact Match: Invalid regex pattern",
+        )
+    })
+
+    it("A failed evaluator's error shows even when the scenario's traces did not load", async () => {
+        const failed: typeof answerRequest = (runId, serverState, url, body) => {
+            const answer = answerRequest(runId, serverState, url, body)
+            if (url.endsWith("/evaluations/results/query")) {
+                const results = answer.data?.results ?? []
+                for (const result of [...results]) {
+                    results.push({
+                        ...result,
+                        step_key: "ev",
+                        status: "failure",
+                        error: {message: "Invalid regex pattern"},
+                    } as never)
+                }
+            }
+            return answer
+        }
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => new Response("{}", {status: 400})),
+        )
+        await mount({ids: ["sc-1"], scored: false, failTraces: true}, true, failed)
+        // The step's own error is known without its trace, so it takes the retry's place.
+        const row = host.querySelector('[role="button"]')
+        expect(row?.textContent).toContain("Invalid regex pattern")
     })
 
     it("Clicking a row writes focusScenarioId and focusRunId to the URL", async () => {

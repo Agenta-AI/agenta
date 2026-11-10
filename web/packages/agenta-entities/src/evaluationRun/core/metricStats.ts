@@ -295,10 +295,13 @@ export function formatCost(value: number): string {
     }).format(value)
 }
 
-/** `seconds` under 1 s as "N ms", else "N.NN s". */
-export function formatDuration(seconds: number): string {
-    if (Math.abs(seconds) < 1) return `${Math.round(seconds * 1000)} ms`
-    return `${seconds.toFixed(2)} s`
+/**
+ * `milliseconds` under 1 s as "N ms", else "N.NN s". Milliseconds, the unit of the duration
+ * metric (`attributes.ag.metrics.duration.cumulative`) and of the trace durations.
+ */
+export function formatDuration(milliseconds: number): string {
+    if (Math.abs(milliseconds) < 1000) return `${Math.round(milliseconds)} ms`
+    return `${(milliseconds / 1000).toFixed(2)} s`
 }
 
 /** "950", "12.3K", "4.5M". */

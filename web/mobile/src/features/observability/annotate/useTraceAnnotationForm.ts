@@ -10,7 +10,8 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {axios, getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useStore} from "jotai"
+import {atomFamily} from "jotai-family"
 
 import {
     buildTraceAnnotationSections,
@@ -25,12 +26,22 @@ import {useHumanEvaluators} from "./useHumanEvaluators"
 /** The one failure text a reader sees; the cause goes to the console. */
 export const SAVE_FAILURE_TEXT = "Failed to update annotations"
 const SAVE_SUCCESS_TEXT = "Annotations updated successfully"
+const SAVE_PENDING_TEXT = "Annotations saved. They can take a moment to show."
 const REQUIRED_TEXT = "Required"
 
 // The drawer annotations, the drawer trace and the traces table annotations.
 const REFRESHED_KEYS = [["trace-drawer-annotations"], ["trace-drawer"], ["annotations"]]
 
 const EMPTY_REVISIONS = atom(() => [])
+
+/**
+ * Writes on one span that the API took but no read showed yet, by annotation trace id. They
+ * outlive the sheet: a sheet opened again before the drawer shows them starts from them, so it
+ * updates them rather than creating them a second time. Cleared once a read shows them.
+ */
+const unconfirmedWritesAtomFamily = atomFamily((_spanKey: string) =>
+    atom<Record<string, AnnotationDto>>({}),
+)
 
 /**
  * Reads the annotations linked to one span as stored, with a retry. A plain effect, not a react
@@ -71,6 +82,8 @@ const useStoredAnnotations = ({
     return {...state, refetch: () => setAttempt((count) => count + 1)}
 }
 
+const STORED_READ_TIMEOUT_MS = 5_000
+
 /** The annotations linked to one span, as stored: the drawer's request, without its grouping. */
 const readStoredAnnotations = async ({
     projectId,
@@ -84,9 +97,58 @@ const readStoredAnnotations = async ({
     const response = await axios.post<{traces?: AnnotationDto[] | null}>(
         `${getAgentaApiUrl()}/simple/traces/query`,
         {trace: {links: [{trace_id: traceId, span_id: spanId}]}},
-        {params: {project_id: projectId}},
+        // A read that never answers would keep a save waiting forever: give up and read again.
+        {params: {project_id: projectId}, timeout: STORED_READ_TIMEOUT_MS},
     )
     return response.data?.traces ?? []
+}
+
+/** A key-order independent compare of two annotation outputs. */
+const sameOutputs = (a: unknown, b: unknown): boolean => {
+    const sorted = (value: unknown): unknown =>
+        value && typeof value === "object" && !Array.isArray(value)
+            ? Object.fromEntries(
+                  Object.entries(value as Record<string, unknown>)
+                      .sort(([x], [y]) => x.localeCompare(y))
+                      .map(([key, item]) => [key, sorted(item)]),
+              )
+            : Array.isArray(value)
+              ? value.map(sorted)
+              : value
+    return JSON.stringify(sorted(a)) === JSON.stringify(sorted(b))
+}
+
+const STORED_READ_ATTEMPTS = 10
+const STORED_READ_DELAY_MS = 300
+
+/**
+ * Waits until the span's stored annotations show the writes that landed. The API answers a
+ * write before it stores it (202), so a refresh right after the save reads the old annotations
+ * and the drawer and the table keep them until a reload. Gives up after about three seconds (or
+ * longer when reads time out), and says whether the writes showed.
+ */
+const waitUntilStored = async ({
+    projectId,
+    traceId,
+    spanId,
+    landed,
+}: {
+    projectId: string
+    traceId: string
+    spanId: string
+    landed: Record<string, AnnotationDto>
+}): Promise<boolean> => {
+    for (let attempt = 0; attempt < STORED_READ_ATTEMPTS; attempt++) {
+        const stored = await readStoredAnnotations({projectId, traceId, spanId}).catch(() => null)
+        const byId = new Map((stored ?? []).map((item) => [item.trace_id, item]))
+        const done = Object.entries(landed).every(([id, item]) => {
+            const read = byId.get(id)
+            return read !== undefined && sameOutputs(read.data?.outputs, item.data?.outputs)
+        })
+        if (done) return true
+        await new Promise((resolve) => setTimeout(resolve, STORED_READ_DELAY_MS))
+    }
+    return false
 }
 
 /**
@@ -116,7 +178,11 @@ export const useTraceAnnotationForm = ({
     // What this sheet saved, by annotation trace id. It stands in for the drawer's copy for the
     // life of the sheet, so a retry after a partly failed save updates a landed create instead of
     // creating it again, and compares with the values just sent.
-    const [savedHere, setSavedHere] = useState<Record<string, AnnotationDto>>({})
+    const store = useStore()
+    const unconfirmedAtom = unconfirmedWritesAtomFamily(`${traceId}:${spanId}`)
+    const [savedHere, setSavedHere] = useState<Record<string, AnnotationDto>>(() =>
+        store.get(unconfirmedAtom),
+    )
 
     // The drawer drops `null` outputs when it groups them, so an update read from it would erase
     // a saved "none of the above". The user's own annotations are read again as the API stores them.
@@ -334,7 +400,21 @@ export const useTraceAnnotationForm = ({
             if (result.status !== "fulfilled" || !own) return
             landed[update.traceId] = {...own, data: update.annotation.data} as AnnotationDto
         })
-        if (Object.keys(landed).length > 0) setSavedHere((previous) => ({...previous, ...landed}))
+        // The landed writes are kept for this span until a read shows them, from now on: a sheet
+        // that closes while the read waits, or after a partly failed save, still knows them. An
+        // entry is dropped only when the read showed that same value, not a newer one.
+        const forgetShown = () =>
+            store.set(unconfirmedAtom, (previous) =>
+                Object.fromEntries(
+                    Object.entries(previous).filter(([id, item]) => item !== landed[id]),
+                ),
+            )
+        let stored = true
+        if (Object.keys(landed).length > 0) {
+            setSavedHere((previous) => ({...previous, ...landed}))
+            store.set(unconfirmedAtom, (previous) => ({...previous, ...landed}))
+            stored = await waitUntilStored({projectId, traceId, spanId, landed})
+        }
         const results = [...created, ...updated]
         // Refresh even after a failure: the writes that did land become the user's own
         // annotations, so a retry updates them instead of creating them again.
@@ -344,6 +424,17 @@ export const useTraceAnnotationForm = ({
         )
         savingRef.current = false
         setIsSaving(false)
+        if (stored) forgetShown()
+        else {
+            // Keep reading after the sheet closes; refresh the drawer once the writes show.
+            void waitUntilStored({projectId, traceId, spanId, landed}).then(async (shown) => {
+                if (!shown) return
+                forgetShown()
+                await Promise.allSettled(
+                    REFRESHED_KEYS.map((queryKey) => queryClient.invalidateQueries({queryKey})),
+                )
+            })
+        }
 
         const failures = results.flatMap((result) =>
             result.status === "rejected" ? [result.reason] : [],
@@ -353,9 +444,22 @@ export const useTraceAnnotationForm = ({
             message.error(SAVE_FAILURE_TEXT)
             return
         }
-        message.success(SAVE_SUCCESS_TEXT)
+        // The API took the writes, but no read showed them yet: say so rather than success.
+        if (stored) message.success(SAVE_SUCCESS_TEXT)
+        else message.info(SAVE_PENDING_TEXT)
         onSaved()
-    }, [writes, projectId, storedBlocked, userId, picked, onSaved])
+    }, [
+        writes,
+        projectId,
+        storedBlocked,
+        userId,
+        picked,
+        onSaved,
+        traceId,
+        spanId,
+        store,
+        unconfirmedAtom,
+    ])
 
     return {
         sections: shownSections,

@@ -5,6 +5,7 @@ import {
     humanizeRunStatus,
     isRunInProgress,
     isTerminalRunStatus,
+    runDisplayStatus,
     runStatusTone,
 } from "../../src/evaluationRun/core/runKind"
 
@@ -83,5 +84,33 @@ describe("run status rules", () => {
     it("Status words are readable", () => {
         expect(humanizeRunStatus("errors")).toBe("Errors")
         expect(humanizeRunStatus("evaluation_finished")).toBe("Evaluation Finished")
+    })
+})
+
+describe("runDisplayStatus", () => {
+    const live = (flags: Record<string, boolean>, status = "running") => ({
+        status,
+        flags: {is_live: true, ...flags},
+    })
+
+    it("A live run that is not active and not closed reads Stopped", () => {
+        expect(runDisplayStatus(live({is_active: false, is_closed: false}))).toBe("stopped")
+        expect(humanizeRunStatus(runDisplayStatus(live({is_active: false})) ?? "")).toBe("Stopped")
+        expect(runStatusTone("stopped")).toBe("default")
+    })
+
+    it("An active or closed live run keeps its own status", () => {
+        expect(runDisplayStatus(live({is_active: true}))).toBe("running")
+        expect(runDisplayStatus(live({is_active: false, is_closed: true}))).toBe("running")
+        expect(runDisplayStatus(live({is_active: false}, "success"))).toBe("success")
+    })
+
+    it("A live run with no activity flag keeps its own status", () => {
+        expect(runDisplayStatus({status: "running", flags: {is_live: true}})).toBe("running")
+    })
+
+    it("A run that is not live keeps its own status", () => {
+        expect(runDisplayStatus({status: "running", flags: {is_active: false}})).toBe("running")
+        expect(runDisplayStatus({status: null, flags: {is_live: true}})).toBeNull()
     })
 })

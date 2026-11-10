@@ -50,6 +50,7 @@ export {
     buildCustomTreeNode,
     buildKeyTreeData,
     extractAnnotationValue,
+    findIncompleteIsAnnotationFilter,
     collapseAnnotationAnyEvaluatorRowsFromProps,
     explodeAnnotationAnyEvaluatorRows,
     buildFieldMenuItems,

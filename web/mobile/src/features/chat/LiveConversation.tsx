@@ -71,7 +71,8 @@ import {
 } from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
-import {useWalletSummary} from "../wallet/useWalletSummary"
+import {CreditAlertStrip} from "../wallet/CreditAlertStrip"
+import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
@@ -167,6 +168,7 @@ export const LiveConversation = ({
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
     const composerRef = useRef<RichChatInputHandle | null>(null)
+    const modelPickerRef = useRef<(() => void) | null>(null)
     // Quote-to-reply anchors its pill and note box inside the transcript rail.
     const quoteRootRef = useRef<HTMLDivElement>(null)
     // The composer's tray, owned here for the same reason: a refusal that arrives after the send
@@ -252,7 +254,7 @@ export const LiveConversation = ({
     // it replaced. A durable send learns it from the records reader; a `useChat` stream carries a
     // `data-committed-revision` part. The follower acts once per commit, and holds a commit that
     // lands while the tab is hidden until the tab is visible again. Commits made elsewhere (another
-    // user, another session) never come through here: the version pill offers those.
+    // user, another session) never come through here: the top bar applies those.
     const applyCommitRef = useRef<(revisionId: string) => void>(() => undefined)
     applyCommitRef.current = (revisionId: string) => {
         invalidateAgentCommittedRevisionCache(agentId)
@@ -457,9 +459,19 @@ export const LiveConversation = ({
     useEffect(() => {
         if (conversation.sharedSettledAt) {
             void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
+            // A turn from another device can settle between polls without `inputBusy` flipping.
+            void queryClient.invalidateQueries({queryKey: walletSummaryKey(projectId)})
         }
     }, [conversation.sharedSettledAt, projectId, queryClient])
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    // The chat reads the wallet unpolled, so a finished turn is what refreshes its balance.
+    const turnRunning = streamingHere || conversation.inputBusy
+    const turnWasRunningRef = useRef(turnRunning)
+    useEffect(() => {
+        if (turnWasRunningRef.current && !turnRunning)
+            void queryClient.invalidateQueries({queryKey: walletSummaryKey(projectId)})
+        turnWasRunningRef.current = turnRunning
+    }, [turnRunning, projectId, queryClient])
     const remoteTurn = deriveMobileRemoteTurnPresentation({
         livenessRunning: running,
         livenessUpdatedAt,
@@ -1047,6 +1059,18 @@ export const LiveConversation = ({
                                 <ModelSetupBanner revisionId={entityId} onSetUp={openModelSetup} />
                             )}
                         </ContentRail>
+                        {readOnly ? null : (
+                            <div className="bg-background shrink-0 px-3">
+                                <ContentRail>
+                                    <CreditAlertStrip
+                                        projectId={projectId}
+                                        entityId={entityId}
+                                        hidden={modelBlocked || setupBlocked}
+                                        onSwitchModel={() => modelPickerRef.current?.()}
+                                    />
+                                </ContentRail>
+                            </div>
+                        )}
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
                             <PendingTaskError
@@ -1124,6 +1148,7 @@ export const LiveConversation = ({
                                 onStop={stopHere}
                                 inputBusy={conversation.inputBusy}
                                 inputRef={composerRef}
+                                modelPickerRef={modelPickerRef}
                                 // Same gate the rail's `+` uses: starting one needs an agent.
                                 onNewSession={
                                     agentId ? () => startBlankSession(agentId) : undefined

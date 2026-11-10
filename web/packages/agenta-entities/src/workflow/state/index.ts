@@ -312,6 +312,7 @@ export {
     type CreateHumanEvaluatorParams,
     type UpdateHumanEvaluatorParams,
     type HumanEvaluatorMetric,
+    type CreatedHumanEvaluator,
     // Selection config
     evaluatorSelectionConfig,
     type EvaluatorSelectionConfig,

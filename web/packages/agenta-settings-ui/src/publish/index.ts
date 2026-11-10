@@ -13,9 +13,12 @@ export {buildAgentSnippets, type AgentSnippetLang} from "./snippets/snippets"
 export {
     buildAppEndpointParams,
     buildFetchConfigSnippets,
+    buildFetchVariantConfigSnippets,
     buildInvokeAppSnippets,
     type AppEndpointLang,
     type AppEndpointParamsInput,
+    type AppEndpointVariant,
+    type FetchVariantConfigSnippetInput,
     type AppEndpointSnippets,
     type FetchConfigSnippetInput,
     type InvokeAppSnippetInput,

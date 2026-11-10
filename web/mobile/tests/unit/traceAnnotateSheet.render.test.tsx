@@ -129,7 +129,15 @@ beforeEach(() => {
             url.endsWith("/simple/traces/query") ? {data: {traces: stored}} : {data: {trace: null}},
         ),
     )
-    http.patch.mockResolvedValue({data: {trace: null}})
+    // An update is stored, so the read after the save shows it.
+    http.patch.mockImplementation((url: string, body: {trace: {data: {outputs: unknown}}}) => {
+        const id = url.split("/").pop()
+        stored = stored.map((item) => {
+            const row = item as {trace_id?: string}
+            return row.trace_id === id ? {...row, data: body.trace.data} : item
+        })
+        return Promise.resolve({data: {trace: null}})
+    })
     http.success.mockReset()
     http.error.mockReset()
     onClose = vi.fn<() => void>()

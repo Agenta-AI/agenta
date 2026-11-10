@@ -92,11 +92,27 @@ describe("Testcase drawer", () => {
         expect(host.textContent).toBe("")
     })
 
+    it("The drawer shows the fields in row order, with no per-field add or delete", () => {
+        content()
+        expect(seen.editor).toMatchObject({fieldOrder: "data", fieldControls: false})
+    })
+
     it("A reader opens the drawer in view only mode", () => {
         drawer(true)
         expect(seen.drawer).toMatchObject({viewOnly: true, onOpenCommitModal: undefined})
         content({viewOnly: true})
         expect(seen.editor).toMatchObject({mode: "view", onChange: undefined})
+    })
+
+    it("An editor gets Add to queue for a saved row; a reader and a new row get none", () => {
+        drawer(false)
+        const render = seen.drawer?.renderAddToQueue as (ids: string[]) => unknown
+        expect(render(["case-1"])).not.toBeNull()
+        // The drawer hands no ids for a row that is not saved yet.
+        expect(render([])).toBeNull()
+
+        drawer(true)
+        expect(seen.drawer?.renderAddToQueue).toBeUndefined()
     })
 
     it("An editor opens the commit step from the drawer menu", () => {
@@ -143,5 +159,82 @@ describe("Testcase drawer", () => {
         act(() => (seen.drawer?.onRestoreSessionStart as (data: unknown) => void)(start))
 
         expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({question: "Q"})
+    })
+
+    it("Cancel on a row just added removes the row from the grid", () => {
+        const id = store.set(testcaseMolecule.actions.add, {data: {question: ""}})?.id ?? ""
+        const start = store.get(testcaseMolecule.atoms.data(id))
+        act(() =>
+            root.render(
+                <TestcaseEditorDrawer
+                    testcaseId={id}
+                    testcaseNumber={1}
+                    viewOnly={false}
+                    hasPrevious={false}
+                    hasNext={false}
+                    onPrevious={vi.fn()}
+                    onNext={vi.fn()}
+                    onClose={vi.fn()}
+                    onOpenCommit={vi.fn()}
+                    discardOnCancel
+                />,
+            ),
+        )
+        expect(store.get(testcaseMolecule.atoms.newIds)).toContain(id)
+
+        act(() => (seen.drawer?.onRestoreSessionStart as (data: unknown) => void)(start))
+
+        expect(store.get(testcaseMolecule.atoms.newIds)).not.toContain(id)
+        expect(store.get(testcaseMolecule.atoms.data(id))).toBeNull()
+    })
+
+    it("The internal dedup id is not an editable field, and an edit keeps it", () => {
+        const id =
+            store.set(testcaseMolecule.actions.add, {
+                data: {question: "Q", testcase_dedup_id: "dedup-1"},
+            })?.id ?? ""
+        content({isNewRow: true, testcaseId: id})
+        expect(seen.editor?.value).toEqual({question: "Q"})
+
+        act(() => (seen.editor?.onChange as (value: unknown) => void)({question: "Q2"}))
+
+        expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({
+            question: "Q2",
+            testcase_dedup_id: "dedup-1",
+        })
+    })
+
+    it("A dedup id typed in the JSON view does not replace the saved one", () => {
+        const id =
+            store.set(testcaseMolecule.actions.add, {
+                data: {question: "Q", testcase_dedup_id: "dedup-1"},
+            })?.id ?? ""
+        content({isNewRow: true, testcaseId: id})
+
+        act(() =>
+            (seen.editor?.onChange as (value: unknown) => void)({
+                question: "Q",
+                testcase_dedup_id: "typed",
+                __dedup_id__: "typed too",
+            }),
+        )
+
+        expect(store.get(testcaseMolecule.atoms.data(id))?.data).toEqual({
+            question: "Q",
+            testcase_dedup_id: "dedup-1",
+        })
+    })
+
+    it("A __proto__ field typed in the JSON view is kept as data", () => {
+        const id = store.set(testcaseMolecule.actions.add, {data: {question: "Q"}})?.id ?? ""
+        content({isNewRow: true, testcaseId: id})
+
+        const typed = JSON.parse('{"question": "Q", "__proto__": {"polluted": true}}')
+        act(() => (seen.editor?.onChange as (value: unknown) => void)(typed))
+
+        const data = store.get(testcaseMolecule.atoms.data(id))?.data ?? {}
+        expect(Object.hasOwn(data, "__proto__")).toBe(true)
+        expect(Object.getOwnPropertyDescriptor(data, "__proto__")?.value).toEqual({polluted: true})
+        expect(({} as Record<string, unknown>).polluted).toBeUndefined()
     })
 })

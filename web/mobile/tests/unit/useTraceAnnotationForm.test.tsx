@@ -18,8 +18,12 @@ const http = vi.hoisted(() => ({
     patch: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
     client: null as unknown,
     stored: null as unknown[] | null,
+    /** What the writes stored, by annotation trace id; reads show it after `lag` reads. */
+    written: new Map<string, unknown>(),
+    lag: 0,
 }))
 
 vi.mock("@agenta/shared/api", async (importOriginal) => {
@@ -33,7 +37,7 @@ vi.mock("@agenta/shared/api", async (importOriginal) => {
 })
 
 vi.mock("@agenta/ui/app-message", () => ({
-    message: {success: http.success, error: http.error},
+    message: {success: http.success, error: http.error, info: http.info},
 }))
 
 import {useHumanEvaluators} from "@/features/observability/annotate/useHumanEvaluators"
@@ -112,6 +116,30 @@ const storedCopy = (annotation: AnnotationDto) => {
     }
 }
 
+interface WriteBody {
+    trace: {data: unknown}
+}
+
+/** The API stores a write after it answers (202): a read shows it only `lag` reads later. */
+const read = () => {
+    if (http.lag > 0) {
+        http.lag -= 1
+        return http.stored ?? []
+    }
+    const byId = new Map(
+        (http.stored ?? []).map((item) => [(item as {trace_id: string}).trace_id, item]),
+    )
+    http.written.forEach((item, id) => byId.set(id, item))
+    return [...byId.values()]
+}
+const write = (id: string, body: WriteBody) =>
+    http.written.set(id, {trace_id: id, data: body.trace.data})
+/** A create that lands: the API answers with the new annotation and stores it. */
+const created = (_url: string, body: WriteBody) => {
+    write(saved.trace.trace_id, body)
+    return Promise.resolve({data: saved})
+}
+
 const CREATE_URL = "http://api.test/simple/traces/"
 /** The create requests; the form also reads the user's stored annotations with a query. */
 const creates = () => http.post.mock.calls.filter(([url]) => url === CREATE_URL)
@@ -123,10 +151,14 @@ describe("trace annotation form", () => {
     let onSaved: Mock<() => void>
     let client: QueryClient
 
-    const Probe = (props: {annotations: AnnotationDto[]; selectedSlugs: string[]}) => {
+    const Probe = (props: {
+        annotations: AnnotationDto[]
+        selectedSlugs: string[]
+        spanId?: string
+    }) => {
         latest = useTraceAnnotationForm({
             traceId: "trace-1",
-            spanId: "span-1",
+            spanId: props.spanId ?? "span-1",
             annotations: props.annotations,
             selectedSlugs: props.selectedSlugs,
             onSaved,
@@ -137,12 +169,17 @@ describe("trace annotation form", () => {
     const mount = async ({
         annotations = [],
         selectedSlugs = [],
-    }: {annotations?: AnnotationDto[]; selectedSlugs?: string[]} = {}) => {
+        spanId,
+    }: {annotations?: AnnotationDto[]; selectedSlugs?: string[]; spanId?: string} = {}) => {
         http.stored ??= annotations.map(storedCopy)
         await act(async () => {
             root.render(
                 <QueryClientProvider client={client}>
-                    <Probe annotations={annotations} selectedSlugs={selectedSlugs} />
+                    <Probe
+                        annotations={annotations}
+                        selectedSlugs={selectedSlugs}
+                        spanId={spanId}
+                    />
                 </QueryClientProvider>,
             )
         })
@@ -158,16 +195,20 @@ describe("trace annotation form", () => {
         http.post.mockReset()
         http.patch.mockReset()
         http.stored = null
-        http.post.mockImplementation((url: string) =>
-            Promise.resolve(
-                url.endsWith("/simple/traces/query")
-                    ? {data: {traces: http.stored ?? []}}
-                    : {data: saved},
-            ),
+        http.written = new Map()
+        http.lag = 0
+        http.post.mockImplementation((url: string, body: WriteBody) =>
+            url.endsWith("/simple/traces/query")
+                ? Promise.resolve({data: {traces: read()}})
+                : created(url, body),
         )
-        http.patch.mockResolvedValue({data: saved})
+        http.patch.mockImplementation((url: string, body: {trace: {data: unknown}}) => {
+            write(String(url).split("/").pop() as string, body)
+            return Promise.resolve({data: saved})
+        })
         http.success.mockReset()
         http.error.mockReset()
+        http.info.mockReset()
         onSaved = vi.fn<() => void>()
         client = new QueryClient({
             defaultOptions: {queries: {retry: false, gcTime: Infinity, staleTime: Infinity}},
@@ -301,6 +342,213 @@ describe("trace annotation form", () => {
         )
     })
 
+    it("Save refreshes the drawer only once the API shows the saved annotation", async () => {
+        const invalidate = vi.spyOn(client, "invalidateQueries")
+        await mount({selectedSlugs: ["tone"]})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        // The first two reads after the write still answer the old annotations.
+        http.lag = 2
+        const readsBefore = http.post.mock.calls.filter(([url]) =>
+            String(url).endsWith("/simple/traces/query"),
+        ).length
+        await save()
+
+        const reads = http.post.mock.calls.filter(([url]) =>
+            String(url).endsWith("/simple/traces/query"),
+        ).length
+        // Two stale reads, then the one that shows the annotation; the refresh comes after it.
+        expect(reads - readsBefore).toBe(3)
+        expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual(
+            expect.arrayContaining([["trace-drawer-annotations"], ["annotations"]]),
+        )
+        expect(http.success).toHaveBeenCalledWith("Annotations updated successfully")
+    })
+
+    it("A stored read that never answers times out, and the save still ends", async () => {
+        await mount({selectedSlugs: ["tone"]})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        // The first read after the write hangs, as a stuck request does. axios gives up after
+        // its `timeout`; with no timeout the read would wait forever and the form keep saving.
+        let hung = false
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation(
+            (url: string, body: WriteBody, config?: {timeout?: number}) => {
+                if (!hung && String(url).endsWith("/simple/traces/query")) {
+                    hung = true
+                    return new Promise((_resolve, reject) => {
+                        if (config?.timeout) {
+                            setTimeout(() => reject(new Error("timeout")), config.timeout)
+                        }
+                    })
+                }
+                return answer?.(url, body)
+            },
+        )
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            let done = false
+            await act(async () => {
+                void latest.save().then(() => (done = true))
+                await vi.advanceTimersByTimeAsync(6_000)
+            })
+            expect(done).toBe(true)
+            expect(latest.isSaving).toBe(false)
+            expect(http.success).toHaveBeenCalledWith("Annotations updated successfully")
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("A save whose writes no read shows says so, not success", async () => {
+        // Its own span: the writes it leaves unconfirmed are kept for that span.
+        await mount({selectedSlugs: ["tone"], spanId: "span-unconfirmed"})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        // Every read after the write hangs until axios gives up.
+        const answer = http.post.getMockImplementation()
+        let writes = 0
+        http.post.mockImplementation(
+            (url: string, body: WriteBody, config?: {timeout?: number}) => {
+                if (String(url).endsWith("/simple/traces/query") && writes > 0) {
+                    return new Promise((_resolve, reject) => {
+                        if (config?.timeout) {
+                            setTimeout(() => reject(new Error("timeout")), config.timeout)
+                        }
+                    })
+                }
+                if (!String(url).endsWith("/simple/traces/query")) writes += 1
+                return answer?.(url, body)
+            },
+        )
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            expect(latest.isSaving).toBe(false)
+            expect(http.success).not.toHaveBeenCalled()
+            expect(http.info).toHaveBeenCalledWith(
+                "Annotations saved. They can take a moment to show.",
+            )
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("A sheet opened again before the API shows a save updates it, not a new one", async () => {
+        // Its own span, so the writes kept for it do not reach the other cases.
+        await mount({selectedSlugs: ["tone"], spanId: "span-pending"})
+        await act(async () => latest.setValue("tone", "friendly", true))
+        const answer = http.post.getMockImplementation()
+        let writes = 0
+        http.post.mockImplementation(
+            (url: string, body: WriteBody, config?: {timeout?: number}) => {
+                if (String(url).endsWith("/simple/traces/query") && writes > 0) {
+                    return new Promise((_resolve, reject) => {
+                        if (config?.timeout) {
+                            setTimeout(() => reject(new Error("timeout")), config.timeout)
+                        }
+                    })
+                }
+                if (!String(url).endsWith("/simple/traces/query")) writes += 1
+                return answer?.(url, body)
+            },
+        )
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            expect(http.info).toHaveBeenCalled()
+            expect(creates()).toHaveLength(1)
+
+            // The sheet closes, and opens again while the drawer still shows no annotation.
+            await act(async () => root.unmount())
+            root = createRoot(host)
+            await mount({selectedSlugs: ["tone"], spanId: "span-pending"})
+            expect(latest.ownSlugs).toEqual(["tone"])
+            await act(async () => latest.setValue("tone", "friendly", false))
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            expect(creates()).toHaveLength(1)
+            expect(http.patch).toHaveBeenCalledTimes(1)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("Kept writes follow the reads: early, newest value, and gone once shown", async () => {
+        // Reads after a write either hang, or answer with the value of the first write.
+        let reads: "hang" | "first" | "latest" = "hang"
+        let firstOutputs: unknown = null
+        const answer = http.post.getMockImplementation()
+        http.post.mockImplementation(
+            (url: string, body: WriteBody, config?: {timeout?: number}) => {
+                if (!String(url).endsWith("/simple/traces/query")) {
+                    firstOutputs ??= body.trace.data
+                    return answer?.(url, body)
+                }
+                if (reads === "hang") {
+                    return new Promise((_resolve, reject) => {
+                        if (config?.timeout) {
+                            setTimeout(() => reject(new Error("timeout")), config.timeout)
+                        }
+                    })
+                }
+                if (reads === "first") {
+                    const stale = {trace_id: saved.trace.trace_id, data: firstOutputs}
+                    return Promise.resolve({data: {traces: [stale]}})
+                }
+                return answer?.(url, body)
+            },
+        )
+        const reopen = async () => {
+            await act(async () => root.unmount())
+            root = createRoot(host)
+            await mount({selectedSlugs: ["tone"], spanId: "span-kept"})
+        }
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            await mount({selectedSlugs: ["tone"], spanId: "span-kept"})
+            await act(async () => latest.setValue("tone", "friendly", true))
+            // Closed while the save still waits for a read: the write is already kept.
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(100)
+            })
+            await reopen()
+            expect(latest.ownSlugs).toEqual(["tone"])
+
+            // A second save of the same annotation, still not shown by any read.
+            await act(async () => latest.setValue("tone", "friendly", false))
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            // The API then answers the first value: the first poll must not drop the newer one.
+            reads = "first"
+            await act(async () => vi.advanceTimersByTimeAsync(60_000))
+            await reopen()
+            expect(latest.sections[0].fields.friendly.value).toBe(false)
+
+            // A read finally shows the newest value: the kept write goes away.
+            reads = "latest"
+            await act(async () => latest.setValue("tone", "friendly", true))
+            await act(async () => {
+                void latest.save()
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            await reopen()
+            expect(latest.ownSlugs).toEqual([])
+            expect(creates()).toHaveLength(1)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it("A failed save shows Failed to update annotations and keeps the values", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
         http.post.mockRejectedValueOnce(new Error("Network down"))
@@ -331,6 +579,7 @@ describe("trace annotation form", () => {
             await latest.save()
         })
         await act(async () => {
+            write(saved.trace.trace_id, creates()[0][1] as WriteBody)
             release({data: saved})
             await first
         })
@@ -352,7 +601,7 @@ describe("trace annotation form", () => {
     it("A partly failed save still refreshes the drawer so a retry does not post twice", async () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         const invalidate = vi.spyOn(client, "invalidateQueries")
-        http.post.mockResolvedValueOnce({data: saved}).mockRejectedValueOnce(new Error("Timeout"))
+        http.post.mockImplementationOnce(created).mockRejectedValueOnce(new Error("Timeout"))
         await mount({selectedSlugs: ["tone", "score"]})
         await act(async () => latest.setValue("tone", "friendly", true))
         await act(async () => latest.setValue("score", "rating", 4))
@@ -367,7 +616,7 @@ describe("trace annotation form", () => {
 
     it("A retry after a partly failed save does not post the landed annotation again", async () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
-        http.post.mockResolvedValueOnce({data: saved}).mockRejectedValueOnce(new Error("Timeout"))
+        http.post.mockImplementationOnce(created).mockRejectedValueOnce(new Error("Timeout"))
         await mount({selectedSlugs: ["tone", "score"]})
         await act(async () => latest.setValue("tone", "friendly", true))
         await act(async () => latest.setValue("score", "rating", 4))
@@ -446,11 +695,11 @@ describe("trace annotation form", () => {
 
     it("A later edit of a landed annotation updates it with the values just saved", async () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
-        http.post.mockImplementation((url: string) =>
+        http.post.mockImplementation((url: string, body: WriteBody) =>
             url.endsWith("/simple/traces/query")
-                ? Promise.resolve({data: {traces: []}})
+                ? Promise.resolve({data: {traces: read()}})
                 : creates().length === 1
-                  ? Promise.resolve({data: saved})
+                  ? created(url, body)
                   : Promise.reject(new Error("Timeout")),
         )
         await mount({selectedSlugs: ["tone", "score"]})

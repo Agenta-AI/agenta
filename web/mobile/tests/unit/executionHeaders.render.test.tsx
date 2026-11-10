@@ -30,7 +30,7 @@ const {http, router} = vi.hoisted(() => ({
         pathname: "/w/[workspace_id]/p/[project_id]/evaluators/playground",
         query: {} as Record<string, string>,
         basePath: "/m",
-        replace: vi.fn(),
+        replace: vi.fn(async () => true),
         push: vi.fn(),
         events: {on: vi.fn(), off: vi.fn()},
     },
