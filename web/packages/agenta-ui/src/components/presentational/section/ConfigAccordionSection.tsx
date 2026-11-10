@@ -43,7 +43,7 @@ import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
-import {ConfigRowCaret, ConfigRowTrailing} from "./ConfigRowTrailing"
+import {ConfigRowCaret, ConfigRowDrawerCaret, ConfigRowTrailing} from "./ConfigRowTrailing"
 
 /**
  * Whether the enclosing accordion section is currently expanded. Because the body stays MOUNTED while
@@ -439,7 +439,7 @@ export function ConfigAccordionSection({
                                 <Lock size={14} className="text-[var(--ag-zinc-5)]" />
                             )
                         ) : opensDrawer ? (
-                            <ConfigRowCaret />
+                            <ConfigRowDrawerCaret />
                         ) : collapsible ? (
                             <ConfigRowCaret open={isOpen} />
                         ) : null
