@@ -310,7 +310,7 @@ describe("running seconds are metered for the newest holder", () => {
     const leases: string[] = [];
     const startLease = (authorization: string) => {
       leases.push(`lease ${authorization}`);
-      return { credential: () => `${authorization} (fresh)`, release: () => leases.push(`release ${authorization}`) };
+      return { credential: () => `${authorization} (fresh)`, seed: authorization, release: () => leases.push(`release ${authorization}`) };
     };
     return { started, events, leases, settings: { ...sandboxSettings(), startMeter, startLease } };
   }

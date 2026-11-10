@@ -20,6 +20,7 @@ import {
   thrownFields,
 } from "../../subscription-events.ts";
 import { startPlatformCredentialLease } from "../../sessions/auth.ts";
+import { startToolCallbackRuntime } from "../../tools/run-credential.ts";
 import {
   ApprovalResponder,
   ApprovedExecutionGrants,
@@ -229,17 +230,18 @@ export async function runTurn(
   // exposure. Do NOT add unconditional I/O anywhere above that call; hand pre-turn reads in
   // through `opts` instead (see `opts.seededDecisions`).
   const { plan, logger, deps } = env;
-  const initialCredential = opts.credential ?? (() => runCredential(request));
+  const initialCredential =
+    opts.credentialLease?.credential ?? (() => runCredential(request));
   const initialOtlpTarget = resolveRunOtlpTarget(request, initialCredential);
-  // Session-owned turns receive the watchdog's lease through opts.credential. A standalone
+  // Session-owned turns receive the watchdog's lease through opts.credentialLease. A standalone
   // Agenta run owns the same reusable lease here so even a single 12-hour turn exports with a
   // current credential. External collector headers stay static and never enter this exchange.
   const platformCredentialLease =
-    !opts.credential && initialOtlpTarget.authorizationSource === "platform"
+    !opts.credentialLease && initialOtlpTarget.authorizationSource === "platform"
       ? startPlatformCredentialLease(apiBase(), runCredential(request))
       : undefined;
-  const credential =
-    opts.credential ?? platformCredentialLease?.credential ?? initialCredential;
+  const platformLease = opts.credentialLease ?? platformCredentialLease;
+  const credential = platformLease?.credential ?? initialCredential;
   const otlpTarget = resolveRunOtlpTarget(request, credential);
   const sessionId = env.sessionId;
   const toolRunContext = env.sessionId
@@ -557,6 +559,20 @@ export async function runTurn(
       "[sandbox-liveness] no health URL on this sandbox; polling disabled " +
         "(the transport's own sandbox-gone report still ends the turn)",
     );
+  }
+
+  // Built per turn, never kept on the pooled environment, so a warm turn reads its own credential.
+  let toolCallback: ReturnType<typeof startToolCallbackRuntime>;
+  try {
+    toolCallback = startToolCallbackRuntime(
+      request.toolCallback as ToolCallbackContext | undefined,
+      platformLease,
+      logger,
+    );
+  } catch (err) {
+    // The `finally` below is not reached yet, so stop the standalone lease here.
+    platformCredentialLease?.release();
+    throw err;
   }
 
   // Declared outside the `try` so the failure path can see it: an approval reply is never
@@ -1316,7 +1332,7 @@ export async function runTurn(
       isDaytona: plan.isDaytona,
       workspaceCwd: plan.workspace.cwd,
       sandbox: env.sandbox,
-      callback: request.toolCallback as ToolCallbackContext | undefined,
+      callback: toolCallback.runtime,
       runContext: request.runContext,
       permissionPlan,
       toolSpecs: plan.tools.toolSpecs,
@@ -1501,7 +1517,7 @@ export async function runTurn(
           : (deps.localRelayHost ?? localRelayHost)(),
         plan.workspace.relayDir,
         plan.tools.toolSpecs,
-        request.toolCallback as ToolCallbackContext | undefined,
+        toolCallback.runtime,
         toolRunContext,
         env.clientToolRelayRef.current,
         relayGuard,
@@ -2240,6 +2256,7 @@ export async function runTurn(
     };
   } finally {
     platformCredentialLease?.release();
+    toolCallback.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
     // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and
     // never throws — a row whose gate is gone is unanswerable however the turn ended.

@@ -39,6 +39,24 @@ Two details bite. The LLM cannot put dots in a function name, so the slug travel
 separators and the router normalizes them back to dots. And `arguments` may arrive as a JSON
 string (from the model) or an object; the router normalizes to a dict before executing.
 
+## The credential
+
+`toolCallback.authorization` is the run credential (a `Secret` that lives 15 minutes) as it was
+when the turn started. A turn can run longer, so the runner does not send that value as is. It
+builds one runner-only `ToolCallbackRuntime` per turn (`tools/run-credential.ts`) and reads
+`credential()` immediately before each request: `/tools/call`, a direct `call`, and the
+approval card's config read. The value behind it is a refreshed platform lease
+(`/access/permissions/check`, every 5 minutes). A session-owned turn reuses the alive
+watchdog's lease when that lease started from the same credential. Any other turn owns a lease
+for the callback credential, refreshed against the base of `toolCallback.endpoint`, and releases
+it at turn end. An external collector key from the OTLP headers never rides a tool call and
+never enters the refresh.
+
+If the platform still answers HTTP 401 with `{"detail": {"reason": "expired_signature"}}`, the
+runner returns `{code: "run_credential_expired", retryable: false, next_step}` to the model.
+`search_tools` returns it instead of `tool_search_unavailable`, and a commit's approval read
+does not turn it into `source_base_unavailable`.
+
 ## Three call_ref grammars on one endpoint
 
 The same `POST /tools/call` serves three kinds of callback tool, routed by the `call_ref` prefix:
@@ -80,7 +98,7 @@ resolver put on it. Only the router's prefix dispatch is aware of the grammars.
 A resolved callback spec can carry an optional `call` descriptor instead of a `call_ref`
 (`ResolvedToolSpec.call` in `protocol.ts`; `CallbackToolSpec.call` in the SDK `tools/models.py`;
 mirrored in `wire_models.py` and pinned by the golden `/run` fixtures). When present it tells the
-runner to call an Agenta endpoint **directly** — reusing the run's `toolCallback.authorization`,
+runner to call an Agenta endpoint **directly** — reusing the run's credential (see above),
 with `path` an absolute path from the Agenta origin (derived from `toolCallback.endpoint`) — rather
 than posting back through `/tools/call`. Shape: `{ method: "GET"|"POST"|"PUT"|"DELETE", path,
 body?, context?, args_into? }` (the runner's explicit method allowlist; `POST` and `PUT` carry
