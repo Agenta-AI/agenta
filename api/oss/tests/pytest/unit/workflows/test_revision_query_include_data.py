@@ -42,17 +42,12 @@ def client(monkeypatch) -> TestClient:
     async def _read_scope(_request):
         return None
 
-    monkeypatch.setattr(
-        workflows_router_module, "check_action_access", _allow, raising=False
-    )
-    monkeypatch.setattr(
-        workflows_router_module, "publish_revision_event", _publish, raising=False
-    )
+    monkeypatch.setattr(workflows_router_module, "check_action_access", _allow)
+    monkeypatch.setattr(workflows_router_module, "publish_revision_event", _publish)
     monkeypatch.setattr(
         workflows_router_module,
         "agent_read_scope_for_request",
         _read_scope,
-        raising=False,
     )
 
     app = FastAPI()
