@@ -62,9 +62,9 @@ import {$getLineCount} from "./plugins/code/utils/segmentUtils"
 import {
     $convertToMarkdownStringCustom,
     PLAYGROUND_TRANSFORMERS,
+    stripUnneededEscapes,
 } from "./plugins/markdown/assets/transformers"
 import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
-import {stripBackslashEscapes} from "./plugins/markdown/utils/textCleanup"
 import {
     TokenBehaviorExtension,
     TokenBehaviorCoreExtension,
@@ -300,7 +300,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                 const tokens: unknown[] = [] // Extract tokens if needed
                                 const result = {
                                     value: "", // Omit this for now
-                                    textContent: stripBackslashEscapes(markdown),
+                                    textContent: stripUnneededEscapes(markdown),
                                     tokens,
                                 }
 

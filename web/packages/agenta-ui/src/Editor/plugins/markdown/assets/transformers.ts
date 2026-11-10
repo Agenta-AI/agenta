@@ -1,5 +1,6 @@
 import {
     CHECK_LIST,
+    CODE,
     ELEMENT_TRANSFORMERS,
     MULTILINE_ELEMENT_TRANSFORMERS,
     TEXT_FORMAT_TRANSFORMERS,
@@ -26,9 +27,17 @@ import {
     TableNode,
     TableRowNode,
 } from "@lexical/table"
-import {$isParagraphNode, $isTextNode, ElementNode, LexicalNode} from "lexical"
+import {$dfs} from "@lexical/utils"
+import {
+    $isParagraphNode,
+    $isTextNode,
+    createEditor,
+    ElementNode,
+    LexicalEditor,
+    LexicalNode,
+} from "lexical"
 
-import {unescapeTemplateDelimiters} from "../utils/textCleanup"
+import {findBackslashEscapes, unescapeTemplateDelimiters} from "../utils/textCleanup"
 
 // Stores the original markdown divider patterns (e.g. ":---", "---:", ":---:")
 // keyed by table node key so we can reproduce them exactly on export.
@@ -90,6 +99,7 @@ export const TABLE: ElementTransformer = {
                     rowOutput.push(
                         $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, cell)
                             .replace(/\n/g, "\\n")
+                            .replace(/\|/g, "\\|")
                             .trim(),
                     )
                     if (cell.__headerState === TableCellHeaderStates.ROW) {
@@ -212,8 +222,10 @@ function getTableColumnsSize(table: TableNode) {
     return $isTableRowNode(row) ? row.getChildrenSize() : 0
 }
 
+// "\n" and "|" count only when an even number of backslashes comes before them, so a cell
+// can hold a literal "\n" (saved as "\\n") or a pipe (saved as "\|").
 const $createTableCell = (textContent: string): TableCellNode => {
-    textContent = textContent.replace(/\\n/g, "\n")
+    textContent = textContent.replace(/(?<=(?<!\\)(?:\\\\)*)\\n/g, "\n")
     const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS)
     $convertFromMarkdownString(textContent, PLAYGROUND_TRANSFORMERS, cell)
     return cell
@@ -224,7 +236,7 @@ const mapToTableCells = (textContent: string): TableCellNode[] | null => {
     if (!match || !match[1]) {
         return null
     }
-    return match[1].split("|").map((text) => $createTableCell(text))
+    return match[1].split(/(?<=(?<!\\)(?:\\\\)*)\|/).map((text) => $createTableCell(text))
 }
 
 export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
@@ -236,3 +248,98 @@ export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
     ...TEXT_FORMAT_TRANSFORMERS,
     ...TEXT_MATCH_TRANSFORMERS,
 ]
+
+// Lexical's CODE_SINGLE_LINE_REGEX, which it does not export: a ```code``` line opens no fence.
+const CODE_SINGLE_LINE_REG_EXP = /^[ \t]*```[^`]+(?:(?:`{1,2}|`{4,})[^`]+)*```(?:[^`]|$)/
+
+const strippedChunkCache = new Map<string, string>()
+
+/**
+ * The markdown export escapes every *, _, ` and ~ (and \ inside table cells), whether or not
+ * reading the text back needs it. A prompt is saved without the escapes that change nothing on
+ * reload, so the model reads `user_id` rather than `user\_id`, while the escapes a reload does
+ * need (asterisks typed as text, a backslash in a code block) stay.
+ *
+ * Lines import one at a time, except for a code fence, so a line (or a whole fence) reloads the
+ * same on its own as inside the prompt. Each one is cached, so a keystroke re-checks only the
+ * line it changed.
+ */
+export function stripUnneededEscapes(markdown: string): string {
+    let scratchEditor: LexicalEditor | undefined
+    const reload = (text: string) => {
+        scratchEditor ??= createEditor({
+            nodes: [
+                ...new Set(
+                    PLAYGROUND_TRANSFORMERS.flatMap((transformer) =>
+                        "dependencies" in transformer ? transformer.dependencies : [],
+                    ),
+                ),
+            ],
+            onError: console.error,
+        })
+        let reloaded = ""
+        scratchEditor.update(
+            () => {
+                $convertFromMarkdownString(text, PLAYGROUND_TRANSFORMERS, undefined, true)
+                reloaded = $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, undefined, true)
+                for (const {node} of $dfs()) {
+                    if ($isTableNode(node)) tableDividerMap.delete(node.getKey())
+                }
+            },
+            {discrete: true},
+        )
+        return reloaded
+    }
+
+    const stripChunk = (chunk: string) => {
+        const cached = strippedChunkCache.get(chunk)
+        if (cached !== undefined) {
+            return cached
+        }
+        const escapes = findBackslashEscapes(chunk)
+        if (escapes.length === 0) {
+            return chunk
+        }
+
+        const without = (dropped: Set<number>) =>
+            chunk
+                .split("")
+                .filter((_, index) => !dropped.has(index))
+                .join("")
+        const expected = reload(chunk)
+        const dropped = new Set<number>()
+        // Drop a whole run of escapes at once and split the run only when that changes the
+        // reload, so a chunk that needs no escapes costs a single extra reload.
+        const tryDropping = (run: number[]) => {
+            if (reload(without(new Set([...dropped, ...run]))) === expected) {
+                run.forEach((index) => dropped.add(index))
+            } else if (run.length > 1) {
+                const middle = Math.floor(run.length / 2)
+                tryDropping(run.slice(0, middle))
+                tryDropping(run.slice(middle))
+            }
+        }
+        tryDropping(escapes)
+
+        const stripped = without(dropped)
+        if (strippedChunkCache.size >= 1000) strippedChunkCache.clear()
+        strippedChunkCache.set(chunk, stripped)
+        return stripped
+    }
+
+    const chunks: string[] = []
+    let chunkLines: string[] = []
+    let inCodeFence = false
+    for (const line of markdown.split("\n")) {
+        if (CODE.regExpStart.test(line) && !CODE_SINGLE_LINE_REG_EXP.test(line)) {
+            inCodeFence = !inCodeFence
+        }
+        chunkLines.push(line)
+        if (!inCodeFence) {
+            chunks.push(chunkLines.join("\n"))
+            chunkLines = []
+        }
+    }
+    if (chunkLines.length > 0) chunks.push(chunkLines.join("\n"))
+    return chunks.map(stripChunk).join("\n")
+}

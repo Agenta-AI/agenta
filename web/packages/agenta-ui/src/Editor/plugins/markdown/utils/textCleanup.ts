@@ -146,43 +146,20 @@ export function unescapeTemplateDelimiters(markdown: string): string {
 // https://spec.commonmark.org/0.31.2/#backslash-escapes
 const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/
 
-export function stripBackslashEscapes(value: string): string {
-    const firstEscapeIndex = value.indexOf("\\")
-    if (firstEscapeIndex === -1) {
-        return value
-    }
-
-    const parts: string[] = []
-    let lastSliceStart = 0
-
-    for (let i = firstEscapeIndex; i < value.length; i += 1) {
-        if (value.charCodeAt(i) !== 92 || i + 1 >= value.length) {
-            continue
+/**
+ * Indices of the backslashes that escape the character after them. CommonMark escapes only
+ * ASCII punctuation; a backslash before anything else (the "\n" a table cell exports for its
+ * line breaks, "\d" in a regex) is literal.
+ */
+export function findBackslashEscapes(value: string): number[] {
+    const escapes: number[] = []
+    for (let i = value.indexOf("\\"); i !== -1 && i + 1 < value.length; ) {
+        if (ASCII_PUNCTUATION.test(value[i + 1])) {
+            escapes.push(i)
+            i = value.indexOf("\\", i + 2)
+        } else {
+            i = value.indexOf("\\", i + 1)
         }
-
-        const nextChar = value[i + 1]
-        // CommonMark escapes only ASCII punctuation; a backslash before anything else
-        // (the "\n" a table cell exports for its line breaks, "\d" in a regex) is literal.
-        if (!ASCII_PUNCTUATION.test(nextChar)) {
-            continue
-        }
-
-        if (lastSliceStart < i) {
-            parts.push(value.slice(lastSliceStart, i))
-        }
-
-        parts.push(nextChar)
-        i += 1
-        lastSliceStart = i + 1
     }
-
-    if (parts.length === 0) {
-        return value
-    }
-
-    if (lastSliceStart < value.length) {
-        parts.push(value.slice(lastSliceStart))
-    }
-
-    return parts.join("")
+    return escapes
 }
