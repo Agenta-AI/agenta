@@ -120,6 +120,8 @@ export const useAgentEntity = (
     return {
         agentId: revisionQuery.data?.workflowId ?? boundId,
         entityId: revisionQuery.data?.revisionId ?? null,
+        /** The session names the agent itself. One bound to a variant or revision stays there. */
+        followsAgent: Boolean(boundId) && revisionQuery.data?.workflowId === boundId,
         resolving: awaitingHeader || (Boolean(boundId) && revisionQuery.isPending),
         /** Ask the server for the latest revision now; the cached answer may be 30 s old. */
         refetchLatest: revisionQuery.refetch,

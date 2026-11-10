@@ -106,6 +106,7 @@ export const SessionWorkspace = ({
     agentResolving = false,
     linkEntityId = entityId,
     linkAgentId = agentId,
+    autoUpdateRevision = false,
     agentHidden = false,
     canSend = true,
     sessionId,
@@ -128,6 +129,8 @@ export const SessionWorkspace = ({
      */
     linkEntityId?: string | null
     linkAgentId?: string | null
+    /** The top bar moves to a newer version with no click. Default: it offers the version pill. */
+    autoUpdateRevision?: boolean
     /** The session's agent is one the reader cannot see (a private agent). */
     agentHidden?: boolean
     /** False when the reader may not send here: the top bar drops what only a sender uses. */
@@ -416,6 +419,7 @@ export const SessionWorkspace = ({
                         entityId={entityId}
                         sessionId={sessionId}
                         onUpdate={pinRevision}
+                        autoUpdate={autoUpdateRevision}
                         agentId={agentId}
                         agentHidden={agentHidden}
                         canSend={canSend}
