@@ -17,6 +17,7 @@ PostHog receives each event over the network, from your server or from the user'
 | Event | When | Stopped by `AGENTA_TELEMETRY_ENABLED=false` |
 |---|---|---|
 | [Install ping](#install-ping) | Once per instance, after the first organization exists | No |
+| [Heartbeat](#heartbeat) | At most once every 12 hours | Yes |
 | [Product events from the API](#product-events-from-the-api) | When a user uses a feature | Yes |
 | [Product events from the browser](#product-events-from-the-browser) | Page views and named actions in the app | Yes |
 
@@ -40,6 +41,8 @@ With the switch off:
 - The install ping still runs once. It carries only the instance id.
 - A browser tab that was open before the restart keeps sending until it reloads.
 
+A paid license key keeps telemetry on, and the switch then has no effect. The startup line then says `Telemetry is on (required by the license key)`. The switch works as usual with no key, with the free key you get when you register, and with a paid key whose contract exempts the instance from telemetry.
+
 ## Instance id
 
 Each instance has one random id (a UUID). The database migration creates it, and every API container that uses the same database uses the same id. It is not made from a host name, an address, an email, or a secret. A new, empty database gets a new id.
@@ -56,6 +59,38 @@ The distinct id is the instance id. The event has these properties and no others
 | `$ip` | Empty. The event itself carries no IP address. |
 
 The API removes the properties the PostHog library adds on its own (its name and version, the Python version and the operating system).
+
+## Heartbeat
+
+Event name: `instance_heartbeat`. It holds counts and settings, never content. A cron job in the API container asks the API every hour, and the API sends the event when 12 hours have passed since the last one. When several API containers share one database, only one of them sends. If the send fails, the next hourly run sends the same period again. One event covers the whole time since the last heartbeat, so an instance that was off for three days sends one event, not six.
+
+The distinct id is the instance id. The event has these properties and no others:
+
+| Property | Value |
+|---|---|
+| `instance_id` | The instance id |
+| `instance_kind` | `production`, `development` (the app runs on `localhost` or a private address) or `ci` (the `CI` variable is set) |
+| `agenta_version` | The Agenta version, such as `v0.128.11` |
+| `edition` | `oss` or `ee` |
+| `deployment_method` | The value of `AGENTA_DEPLOYMENT_METHOD`, or null |
+| `plan` | The instance plan. `self_hosted_community` when there is no license key |
+| `license_key_id` | The id of the active license key, or null. Never the key itself |
+| `total_organizations` | The number of organizations |
+| `total_projects` | The number of projects |
+| `total_users` | The number of users |
+| `total_workflows` | The number of workflows (applications, agents, evaluators and snippets) that are not archived |
+| `window_start` | The start of the period the counts below cover: the time of the last heartbeat, or the time the instance was created |
+| `window_end` | The end of that period: the time of this heartbeat |
+| `window_spans` | The number of trace spans that started in the period |
+| `window_evaluation_runs` | The number of evaluations started in the period |
+| `window_agent_turns` | The number of agent turns in the period |
+| `user_domains` | The 100 most common email domains of your users, each with its number of users, such as `{"domain": "example.com", "users": 3}`. Never a full email address |
+| `$groups` | `{"instance": "<instance id>"}` |
+| `$geoip_disable` | `true`. PostHog does not look up a location. |
+
+A `window_` count is null when it takes longer than 5 seconds on a large database.
+
+After each heartbeat, the API also sets these properties on the PostHog group of the instance: `instance_kind`, `agenta_version`, `edition`, `deployment_method`, `plan` and the four `total_` counts.
 
 ## Product events from the API
 
@@ -92,6 +127,7 @@ Each of these events has these properties:
 | `project_id` | The project id, when the route has one |
 | `workspace_id` | The workspace id, when the route has one |
 | `organization_id` | The organization id, when the route has one |
+| `$groups` | `{"instance": "<instance id>"}` |
 
 The PostHog library also adds to each of these events its own name and version (`$lib`, `$lib_version`), the Python version, the operating system, and `$geoip_disable` (`true`, so PostHog does not look up a location).
 
@@ -102,6 +138,7 @@ The PostHog library also adds to each of these events its own name and version (
 | `source` | `auth` |
 | `is_ee` | `true` on the enterprise edition |
 | `cloud_region` | `Other` on a self-hosted instance |
+| `$groups` | `{"instance": "<instance id>"}` |
 
 The first time a user reaches a feature, the API also marks it on the user with an `$identify` event. Each mark is set to `true`:
 
@@ -141,7 +178,7 @@ The update check downloads `https://agenta.ai/releases.json` at most every 12 ho
 
 | Variable | Default | Effect |
 |---|---|---|
-| `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops every event except the install ping. |
+| `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops every event except the install ping, the heartbeat included. A paid license key keeps telemetry on. |
 | `AGENTA_DEPLOYMENT_METHOD` | unset | `compose`, `helm` or `railway`. The example env files and the templates set it. |
 | `AGENTA_UPDATE_CHECK_ENABLED` | `true` | `false` stops the update check. It does not follow `AGENTA_TELEMETRY_ENABLED`. |
 | `POSTHOG_API_KEY` | Agenta's project key | The PostHog project the events go to. |

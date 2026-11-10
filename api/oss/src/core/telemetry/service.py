@@ -7,6 +7,7 @@ from posthog import Posthog
 
 from oss.src.core.instances.service import get_instance_id, instances_dao
 from oss.src.core.telemetry.dtos import InstanceTelemetry, TelemetryStatus
+from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -18,6 +19,9 @@ INSTANCE_INSTALLED_EVENT = "instance_installed"
 # Exactly what the install ping sends besides the instance id. The docs page lists it.
 INSTANCE_INSTALLED_PROPERTIES = {"$geoip_disable": True, "$ip": ""}
 INSTALL_PING_TIMEOUT_SECONDS = 5
+
+# The free key from registration. It does not turn telemetry on.
+REGISTERED_PLAN = "self_hosted_registered"
 
 # What the PostHog library adds to every event. Instance events send only their own
 # properties, so these are dropped before the send.
@@ -33,9 +37,33 @@ _LIBRARY_PROPERTIES = (
 )
 
 
+async def _license_requires_telemetry() -> bool:
+    """True when a paid license key is in force and its contract does not exempt the
+    instance. The registration key is free and does not count."""
+
+    if not is_ee():
+        return False
+
+    try:
+        from ee.src.core.licenses.service import active_license  # noqa: PLC0415
+    except ImportError:
+        # An EE image without the license module has no key.
+        return False
+
+    # Cached by the license service, so a request reads no database row here.
+    license_key = await active_license()
+    return (
+        license_key is not None
+        and license_key.plan != REGISTERED_PLAN
+        and license_key.telemetry == "required"
+    )
+
+
 async def telemetry_status() -> TelemetryStatus:
     if env.stripe.enabled:
         return TelemetryStatus(enabled=True, reason="cloud")
+    if not env.telemetry.enabled and await _license_requires_telemetry():
+        return TelemetryStatus(enabled=True, reason="license")
     if env.telemetry.enabled_set:
         return TelemetryStatus(enabled=env.telemetry.enabled, reason="switch")
     return TelemetryStatus(enabled=env.telemetry.enabled, reason="default")
@@ -112,6 +140,33 @@ async def capture(
         raise RuntimeError(f"PostHog did not accept {event}")
 
 
+async def group_identify(
+    group_type: str,
+    group_key: str,
+    properties: Dict[str, Any],
+    *,
+    timeout: int,
+) -> None:
+    """Set a PostHog group's properties and return once PostHog accepted them; raise
+    when it did not."""
+
+    sent = await asyncio.to_thread(
+        _sync_client(timeout).group_identify,
+        group_type,
+        group_key,
+        properties,
+    )
+    # The client catches its own send errors and returns None instead of the event uuid.
+    if sent is None:
+        raise RuntimeError(f"PostHog did not accept the {group_type} group properties")
+
+
+async def instance_groups() -> Dict[str, str]:
+    """The PostHog groups of a self-hosted event. Cloud events carry none."""
+
+    return {"instance": str(await get_instance_id())}
+
+
 async def send_install_ping() -> None:
     """Send `instance_installed` once per instance, whatever the switch says.
 
@@ -153,6 +208,7 @@ def schedule_install_ping() -> None:
 _STATUS_REASONS = {
     "cloud": "Agenta Cloud",
     "default": "on by default",
+    "license": "required by the license key",
     "switch": "AGENTA_TELEMETRY_ENABLED",
 }
 
