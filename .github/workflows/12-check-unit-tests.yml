@@ -39,36 +39,79 @@ env:
 
 jobs:
 
-  run-web-unit-tests:
+  detect-web-changes:
+    # Web unit tests take minutes of runner time; skip them on PRs that change no web code.
     if: |
       github.event_name == 'workflow_dispatch' ||
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
-      checks: write
-      pull-requests: write
+      contents: read
+      pull-requests: read
+    outputs:
+      web: ${{ steps.decide.outputs.web }}
+    steps:
+      - name: Find changed web files
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            web:
+              - 'web/**'
+              - '.github/workflows/12-check-unit-tests.yml'
+
+      - name: Decide whether web tests run
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            case "${{ inputs.packages }}" in all|web-only) web=true ;; *) web=false ;; esac
+          else
+            web="${{ steps.filter.outputs.web }}"
+          fi
+          echo "web=${web}" >> "$GITHUB_OUTPUT"
+
+  web-unit-tests:
+    # Runs the package vitest suites in parallel shards. Each shard still runs its packages one
+    # at a time: running them together on one runner starved the CPU and caused timeouts.
+    # The old /w app (web/oss, web/ee) is not tested here.
+    needs: detect-web-changes
+    if: needs.detect-web-changes.outputs.web == 'true'
+    name: run-web-unit-tests (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    permissions:
       contents: read
     env:
       AGENTA_LICENSE: oss
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: mobile 1/3
+            command: pnpm --filter @agenta/mobile exec vitest run --shard=1/3 --outputFile.junit=./test-results/junit-1.xml
+          - shard: mobile 2/3
+            command: pnpm --filter @agenta/mobile exec vitest run --shard=2/3 --outputFile.junit=./test-results/junit-2.xml
+          - shard: mobile 3/3
+            command: pnpm --filter @agenta/mobile exec vitest run --shard=3/3 --outputFile.junit=./test-results/junit-3.xml
+          - shard: entity-ui
+            command: pnpm --filter @agenta/entity-ui run test:unit
+          - shard: other packages
+            command: >-
+              pnpm -r --workspace-concurrency=1 --no-bail --if-present
+              --filter "./packages/**" --filter "!@agenta/entity-ui"
+              run test:unit
     steps:
       - uses: actions/checkout@v6
 
-      - name: Skip when package selection excludes web
-        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
-        run: exit 0
-
       - name: Set up Node.js
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
         uses: actions/setup-node@v4
         with:
           node-version: '24'
 
       - name: Enable Corepack
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
         run: corepack enable
 
       - name: Cache pnpm store
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
         uses: actions/cache@v4
         with:
           path: |
@@ -78,68 +121,59 @@ jobs:
             ${{ runner.os }}-pnpm-
 
       - name: Set up pnpm store
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
         run: pnpm config set store-dir ~/.pnpm-store
 
       - name: Install dependencies
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
         working-directory: web
         run: pnpm install
 
-      - name: Cache Playwright binaries
-        id: restore-playwright-cache
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-browsers-${{ hashFiles('web/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-browsers-
-
-      # System deps for chromium only (not the full webkit/firefox apt set,
-      # which pulls in the gstreamer/audio/video stack and takes ~14m). Runs
-      # every time since apt packages aren't covered by the browser cache.
-      - name: Install Playwright system deps
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
-        working-directory: web/tests
-        run: pnpm exec playwright install-deps chromium
-
-      - name: Install Playwright browser
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
-        working-directory: web/tests
-        run: |
-          for attempt in 1 2 3; do
-            echo "::group::playwright install chromium (attempt ${attempt}/3)"
-            if timeout 180 pnpm exec playwright install chromium; then
-              echo "::endgroup::"
-              echo "browser install succeeded on attempt ${attempt}"
-              exit 0
-            fi
-            echo "::endgroup::"
-            echo "attempt ${attempt} stalled or failed; retrying after 5s..."
-            sleep 5
-          done
-          echo "playwright browser install failed after 3 attempts" >&2
-          exit 1
-
       - name: Run web unit tests
-        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
-        working-directory: web/tests
-        run: pnpm tsx playwright/scripts/run-tests.ts --layer unit
+        working-directory: web
+        run: ${{ matrix.command }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-unit-junit-${{ strategy.job-index }}
+          path: |
+            web/mobile/test-results/*.xml
+            web/packages/*/test-results/junit.xml
+          if-no-files-found: ignore
+
+  run-web-unit-tests:
+    # One stable check for the shards above, so branch rules and agents wait on one name.
+    needs: [detect-web-changes, web-unit-tests]
+    if: always() && needs.detect-web-changes.result != 'skipped'
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Download test results
+        if: needs.web-unit-tests.result != 'skipped'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: web-unit-junit-*
+          path: results
 
       - name: Publish web unit test results
-        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages))
+        if: needs.web-unit-tests.result != 'skipped'
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          # Playwright layer report + per-package vitest unit reports
-          # (run-tests.ts runs both vitest and playwright for the layer).
-          files: |
-            web/tests/results/oss/junit.xml
-            web/oss/test-results/junit.xml
-            web/mobile/test-results/junit.xml
-            web/packages/*/test-results/junit.xml
+          files: results/**/*.xml
           check_name: Application Web Unit Test Results
           comment_mode: off
+
+      - name: Report the shard result
+        run: |
+          echo "changes detection: ${{ needs.detect-web-changes.result }}, web changed: ${{ needs.detect-web-changes.outputs.web }}"
+          echo "shards: ${{ needs.web-unit-tests.result }}"
+          case "${{ needs.detect-web-changes.result }}/${{ needs.web-unit-tests.result }}" in
+            success/success|success/skipped) exit 0 ;;
+            *) exit 1 ;;
+          esac
 
   run-storybook-build:
     # web/storybook sits outside the turbo build graph: it has ~200 stories and its own
