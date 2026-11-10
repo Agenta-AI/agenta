@@ -211,9 +211,9 @@ def _request_secret_revision() -> WorkflowRevision:
                         "chat, and never inspect or print the value of a configured "
                         "credential. Choose `name` and `env_var` yourself: the user can "
                         "change both in the setup, so do not ask for them first. If a "
-                        "configured value fails (expired, revoked, or refused), call this "
-                        "tool with the same `env_var` and `rejected: true` so the user can "
-                        "enter a new value. If the "
+                        "service refuses a saved value (expired, revoked, or wrong), call "
+                        "this tool with the same `env_var` and `rejected: true` so the user "
+                        "can enter a new value. If the "
                         "user cancels the setup, stop the affected "
                         "operation and do not ask for that secret again unless the user "
                         "asks to retry."
@@ -236,7 +236,7 @@ def _request_secret_revision() -> WorkflowRevision:
                             "rejected": {
                                 "type": "boolean",
                                 "description": (
-                                    "True when the configured value was tried and failed."
+                                    "True when a service refused the saved value."
                                 ),
                             },
                         },

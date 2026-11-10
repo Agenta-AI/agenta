@@ -63,7 +63,7 @@ The request can contain plaintext inside the protected SDK-to-runner transport. 
 
 ## `request_secret`
 
-The reserved client tool uses `client:tool:request_secret:v0`. `name`, `env_var`, and `reason` are required, `rejected` is optional, and additional fields are rejected:
+The reserved client tool uses `client:tool:request_secret:v0`. `name`, `env_var`, and `reason` are required, `rejected` is optional, and unknown fields are refused:
 
 ```json
 {
@@ -73,7 +73,7 @@ The reserved client tool uses `client:tool:request_secret:v0`. `name`, `env_var`
 }
 ```
 
-`name` and `reason` are display text. `env_var` is the requested binding suggestion. `rejected: true` means the agent tried the configured value and it failed, so the dock asks for a new value first. The authenticated paused interaction supplies project, agent, session, and tool-call identity.
+`name` and `reason` are display text. `env_var` is the requested binding suggestion. `rejected: true` means a service refused the saved value, so the dock asks for a new value first and does not offer to resend the old one. The authenticated paused interaction supplies project, agent, session, and tool-call identity.
 
 A successful transaction creates or selects a vault secret, commits the binding to a variant revision, adopts that revision in the host, then settles the tool:
 
