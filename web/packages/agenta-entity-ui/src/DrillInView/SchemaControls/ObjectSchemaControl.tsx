@@ -44,8 +44,6 @@ export interface ObjectSchemaControlProps {
     path?: string[]
     /** Whether to show header with label (default: true) */
     showHeader?: boolean
-    /** Whether object is initially collapsed (default: false) */
-    defaultCollapsed?: boolean
     /** Callback to update a specific property within the object */
     onPropertyChange?: (propertyPath: string[], value: unknown) => void
     /** SchemaPropertyRenderer component (passed to avoid circular imports) */
