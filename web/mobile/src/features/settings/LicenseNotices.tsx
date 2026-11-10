@@ -20,8 +20,9 @@ export const licenseNotices = (license: InstanceLicense, now = Date.now()): stri
         notices.push(`This license expires on ${formatDate(key.expires_at)}.`)
     }
     if (key.seats !== null && license.usage.users > key.seats) {
+        const users = license.usage.users
         notices.push(
-            `This instance has ${license.usage.users} users, more than the ${key.seats} seats of the license.`,
+            `This instance has ${users} ${users === 1 ? "user" : "users"}, more than the license allows (${key.seats} ${key.seats === 1 ? "seat" : "seats"}).`,
         )
     }
     return notices

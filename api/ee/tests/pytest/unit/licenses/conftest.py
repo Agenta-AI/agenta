@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from oss.src.utils.env import env
 
+import ee.src.core.licenses.service as licenses_service_module
 from ee.src.core.licenses import keys
 
 
@@ -62,3 +63,23 @@ def self_hosted(monkeypatch):
 @pytest.fixture
 def cloud(monkeypatch):
     monkeypatch.setattr(env.stripe, "api_key", "sk_test_unit")
+
+
+@pytest.fixture
+def shared_cache(monkeypatch) -> dict:
+    """An in-memory stand-in for the Redis cache, which outlives API restarts."""
+    store: dict = {}
+
+    async def get_cache(*, namespace, key, **_):
+        return store.get((namespace, key))
+
+    async def set_cache(*, namespace, key, value, **_):
+        store[(namespace, key)] = value
+
+    async def invalidate_cache(*, namespace, key, **_):
+        store.pop((namespace, key), None)
+
+    monkeypatch.setattr(licenses_service_module, "get_cache", get_cache)
+    monkeypatch.setattr(licenses_service_module, "set_cache", set_cache)
+    monkeypatch.setattr(licenses_service_module, "invalidate_cache", invalidate_cache)
+    return store

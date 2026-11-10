@@ -45,7 +45,10 @@ describe("license notices for the instance admin", () => {
 
     it("warn when users exceed the seats", () => {
         expect(licenseNotices(license(60, 12), NOW)).toEqual([
-            "This instance has 12 users, more than the 10 seats of the license.",
+            "This instance has 12 users, more than the license allows (10 seats).",
+        ])
+        expect(licenseNotices(license(60, 2, 1), NOW)).toEqual([
+            "This instance has 2 users, more than the license allows (1 seat).",
         ])
         expect(licenseNotices(license(60, 12, null), NOW)).toEqual([])
     })

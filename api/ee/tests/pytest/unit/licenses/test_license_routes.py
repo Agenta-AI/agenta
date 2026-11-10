@@ -97,6 +97,31 @@ async def test_put_answers_409_when_the_key_is_in_the_environment(
 
 
 @pytest.mark.asyncio
+async def test_get_and_put_agree_on_the_environment_key(
+    wired, signing_key, monkeypatch, shared_cache
+):
+    monkeypatch.setattr(licenses_router, "is_ee", lambda: True)
+    router = licenses_router.LicensesRouter()
+    stored = sign_key(signing_key, customer="Stored")
+    wired.dao.read.return_value = SimpleNamespace(key=stored)
+    assert (await router.fetch_instance_license(request=None)).source == "database"
+
+    monkeypatch.setattr(
+        licenses_router.env.license, "key", sign_key(signing_key, customer="Env")
+    )
+
+    response = await router.fetch_instance_license(request=None)
+    assert response.source == "environment"
+    assert response.license.customer == "Env"
+    with pytest.raises(HTTPException) as error:
+        await router.activate_instance_license(
+            request=None,
+            body=InstanceLicenseActivateRequest(key=sign_key(signing_key)),
+        )
+    assert error.value.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_a_user_who_is_not_the_instance_admin_gets_403(wired):
     wired.is_admin.return_value = False
 
