@@ -3,7 +3,8 @@ import {memo, useEffect, useState, type ReactNode} from "react"
 import {executionItemController} from "@agenta/playground"
 import {HeightCollapse} from "@agenta/ui/components"
 import {RunButton} from "@agenta/ui/components/presentational"
-import {CaretDown, CaretRight, Rows} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
+import {Rows} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useExecutionRow} from "../../hooks/useExecutionRow"
@@ -75,7 +76,7 @@ export const CompletionRow = memo(
                         }}
                         className="flex shrink-0 items-center rounded-md border-0 bg-transparent p-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                        {collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
+                        <CollapseCaret open={!collapsed} />
                     </button>
                     <button
                         type="button"

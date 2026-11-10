@@ -3,6 +3,7 @@ import {Fragment, memo, useRef, type KeyboardEvent, type MouseEvent, type ReactN
 import type {SidebarConfig, SidebarDragItem, SidebarMenuMode} from "@agenta/navigation"
 import {HeightCollapse} from "@agenta/ui/components/presentational"
 import {
+    CollapseCaret,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -263,13 +264,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 aria-label={`${item.isCollapsed ? "Expand" : "Collapse"} ${item.title}`}
                 className="flex shrink-0 items-center justify-center"
             >
-                <CaretRight
-                    size={11}
-                    className={clsx(
-                        "transition-transform duration-200 ease-in-out",
-                        !item.isCollapsed && "rotate-90",
-                    )}
-                />
+                <CollapseCaret open={!item.isCollapsed} size={11} />
             </span>
             {/* A real link, so a long-press / middle-click can open it in another tab. */}
             {item.groupAdd ? (
@@ -655,13 +650,7 @@ const NavMenuImpl = ({
                                     onToggleOpenKey?.(item.key)
                                 }}
                             >
-                                <CaretRight
-                                    size={12}
-                                    className={clsx(
-                                        "transition-transform duration-200 ease-in-out",
-                                        open && "rotate-90",
-                                    )}
-                                />
+                                <CollapseCaret open={open} />
                             </span>
                         )}
                     </div>

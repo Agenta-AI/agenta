@@ -14,8 +14,8 @@ import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
-import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
+import {AutosizeTextarea, Button, Checkbox, CollapseCaret, LoadingButton} from "@agenta/ui/ui"
+import {ShieldCheck} from "@phosphor-icons/react"
 
 import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
@@ -241,11 +241,7 @@ export const ApprovalCard = ({
                         aria-expanded={detailsOpen}
                         className="flex cursor-pointer items-center gap-1.5 self-start border-0 bg-transparent p-0 text-xs text-colorTextSecondary transition-colors hover:text-colorText"
                     >
-                        <CaretRight
-                            size={11}
-                            weight="bold"
-                            className={`shrink-0 transition-transform ${detailsOpen ? "rotate-90" : ""}`}
-                        />
+                        <CollapseCaret open={detailsOpen} size={11} />
                         {/* The count sits in the label so the size is known before opening. */}
                         {detailsOpen
                             ? "Hide the details"

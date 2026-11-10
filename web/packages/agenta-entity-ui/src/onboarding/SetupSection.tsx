@@ -5,7 +5,8 @@
 import type {ReactNode} from "react"
 
 import {HeightCollapse} from "@agenta/ui/height-collapse"
-import {CaretDown, CheckCircle, Circle} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
+import {CheckCircle, Circle} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 export interface SetupSectionProps {
@@ -94,15 +95,7 @@ export const SetupSection = ({
                 </span>
             ) : null}
             <span className="flex-1" />
-            {onToggle ? (
-                <CaretDown
-                    size={13}
-                    className={clsx(
-                        "shrink-0 text-[var(--ag-colorTextTertiary)] transition-transform",
-                        open && "rotate-180",
-                    )}
-                />
-            ) : null}
+            {onToggle ? <CollapseCaret open={open} size={13} /> : null}
         </button>
         {children ? (
             <HeightCollapse open={open} fade>

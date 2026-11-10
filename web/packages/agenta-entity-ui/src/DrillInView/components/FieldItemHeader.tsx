@@ -10,7 +10,7 @@
 import {useCallback} from "react"
 
 import type {PathItem, DataPath} from "@agenta/shared/utils"
-import {ChevronRight, ChevronDown} from "lucide-react"
+import {CollapseCaret} from "@agenta/ui/ui"
 
 // ============================================================================
 // TYPES
@@ -123,7 +123,7 @@ export function FieldItemHeader({
                     className="mr-1 p-0.5 hover:bg-gray-100 rounded border-0 bg-transparent cursor-pointer"
                     aria-label={isCollapsed ? "Expand" : "Collapse"}
                 >
-                    {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                    <CollapseCaret open={!isCollapsed} size={14} />
                 </button>
             )}
 

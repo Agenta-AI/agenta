@@ -6,8 +6,8 @@ import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {AutosizeTextarea, Badge, SkeletonBlock} from "@agenta/ui/ui"
-import {CaretDown, CaretUp, Cube, FileText, Info, Lock} from "@phosphor-icons/react"
+import {AutosizeTextarea, Badge, CollapseCaret, SkeletonBlock} from "@agenta/ui/ui"
+import {Cube, FileText, Info, Lock} from "@phosphor-icons/react"
 
 import {normalizeSubagentReference} from "./agentTemplate/subagentReference"
 import {useIntegrationLogos} from "./hooks/useIntegrationLogos"
@@ -69,7 +69,7 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
                 className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13px] text-colorInfo"
             >
                 {open ? "Hide instructions" : "Show full instructions"}
-                {open ? <CaretUp size={12} /> : <CaretDown size={12} />}
+                <CollapseCaret open={open} className="text-current" />
             </button>
         </div>
     )

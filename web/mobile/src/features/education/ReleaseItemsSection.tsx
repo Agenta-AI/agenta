@@ -1,5 +1,6 @@
 import type {ReleaseItem} from "@agenta/navigation"
-import {CaretDown, type Icon} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
+import type {Icon} from "@phosphor-icons/react"
 
 const AREA_DOTS = ["bg-colorSuccess", "bg-colorInfo", "bg-colorWarning", "bg-colorPrimary"]
 
@@ -29,11 +30,7 @@ export const ReleaseItemsSection = ({
                 </span>
                 {title}
                 <span className="-ml-1 font-normal text-muted-foreground">{items.length}</span>
-                <CaretDown
-                    size={14}
-                    aria-hidden
-                    className="ml-auto text-muted-foreground group-open:rotate-180"
-                />
+                <CollapseCaret size={14} className="ml-auto group-open:rotate-90" />
             </summary>
             <ul className="m-0 grid list-none grid-cols-[max-content_1fr] items-start gap-x-4 gap-y-3 px-3 pb-2 pt-3">
                 {items.map((item, index) => (

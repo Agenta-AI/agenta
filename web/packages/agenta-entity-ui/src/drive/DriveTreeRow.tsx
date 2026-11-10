@@ -3,7 +3,8 @@ import {useEffect, useRef} from "react"
 import {isHiddenPath, type DriveTreeNode} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
-import {CaretDown, CaretRight, CircleNotch} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
+import {CircleNotch} from "@phosphor-icons/react"
 
 import {FOCUS_RING} from "./DriveFileRow"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
@@ -111,7 +112,7 @@ export const TreeRow = ({
                         }}
                         className={`flex w-4 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-colorTextQuaternary hover:text-colorText ${FOCUS_RING}`}
                     >
-                        {isOpen ? <CaretDown size={10} /> : <CaretRight size={10} />}
+                        <CollapseCaret open={isOpen} size={10} />
                     </button>
                 ) : null}
                 {/* Keyboard focus stop only — the click (mouse and Enter/Space) bubbles to the row

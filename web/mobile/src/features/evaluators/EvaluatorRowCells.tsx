@@ -3,8 +3,7 @@ import {evaluatorTemplatesDataAtom} from "@agenta/entities/workflow"
 import type {EvaluatorCategory} from "@agenta/entities/workflow"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {cn} from "@agenta/ui/styles"
-import {Spinner} from "@agenta/ui/ui"
-import {CaretRight} from "@phosphor-icons/react"
+import {CollapseCaret, Spinner} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {formatDay} from "../archived-apps/archivedAppsView"
@@ -74,11 +73,7 @@ export const EvaluatorRowCells = ({
                         {loadingOlder ? (
                             <Spinner size="small" />
                         ) : (
-                            <CaretRight
-                                size={12}
-                                aria-hidden
-                                className={cn("transition-transform", expanded && "rotate-90")}
-                            />
+                            <CollapseCaret open={expanded} />
                         )}
                     </button>
                 ) : (

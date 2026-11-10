@@ -28,6 +28,7 @@ vi.mock("@agenta/ui/ui", async () => {
                 {children}
             </button>
         ),
+        CollapseCaret: () => null,
         Spinner: () => <span />,
         Switch: ({onCheckedChange, checked, disabled, ...props}: Toggle) => (
             <button

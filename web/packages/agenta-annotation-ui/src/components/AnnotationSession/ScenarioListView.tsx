@@ -42,15 +42,8 @@ import {
     type TableScopeConfig,
     type TableExportColumnContext,
 } from "@agenta/ui/table"
-import {
-    ArrowSquareOut,
-    CaretDown,
-    CaretRight,
-    Check,
-    NotePencil,
-    Eye,
-    Plus,
-} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
+import {ArrowSquareOut, Check, NotePencil, Eye, Plus} from "@phosphor-icons/react"
 import {Button, Drawer, Input, Skeleton, Tag, Tooltip, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -445,11 +438,7 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
                 className="inline-flex items-center gap-1 cursor-pointer select-none truncate"
                 onClick={handleClick}
             >
-                {isCollapsed ? (
-                    <CaretRight size={12} weight="bold" />
-                ) : (
-                    <CaretDown size={12} weight="bold" />
-                )}
+                <CollapseCaret open={!isCollapsed} />
                 <span className="truncate">{displayName}</span>
                 <span className="text-[var(--ant-color-text-quaternary)] text-xs font-normal">
                     ({childCount})
@@ -684,11 +673,7 @@ const GroupHeaderTitle = memo(function GroupHeaderTitle({
             className="inline-flex items-center gap-1 cursor-pointer select-none"
             onClick={handleClick}
         >
-            {isCollapsed ? (
-                <CaretRight size={12} weight="bold" />
-            ) : (
-                <CaretDown size={12} weight="bold" />
-            )}
+            <CollapseCaret open={!isCollapsed} />
             <span>{title}</span>
             <span className="text-[var(--ant-color-text-quaternary)] text-xs font-normal">
                 ({childCount})

@@ -7,8 +7,7 @@ import {
     PANEL_ACTION_CLASS,
     PanelSection,
 } from "@agenta/ui/components/presentational"
-import {SkeletonBlock} from "@agenta/ui/ui"
-import {CaretDown, CaretUp} from "@phosphor-icons/react"
+import {CollapseCaret, SkeletonBlock} from "@agenta/ui/ui"
 
 import {AnalyticsRangePicker} from "./AnalyticsRangePicker"
 
@@ -99,7 +98,7 @@ export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
                     className={PANEL_ACTION_CLASS}
                 >
                     {expanded ? "Collapse" : "Expand"}
-                    {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
+                    <CollapseCaret open={expanded} size={14} />
                 </button>
             }
         >

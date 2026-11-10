@@ -31,8 +31,7 @@ import {
 import {formatCount, humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Badge, Button, SearchInput, SkeletonRows} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {Badge, Button, CollapseCaret, SearchInput, SkeletonRows} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -412,14 +411,7 @@ function ToolGroup({
                 }}
                 className="flex cursor-pointer items-center gap-2 bg-[var(--ag-colorFillQuaternary)] px-3 py-2 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
             >
-                {open ? (
-                    <CaretDown size={11} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
-                ) : (
-                    <CaretRight
-                        size={11}
-                        className="shrink-0 text-[var(--ag-colorTextSecondary)]"
-                    />
-                )}
+                <CollapseCaret open={open} size={11} />
                 {/* Sentence case, not the board's uppercase: the house style wins over the spec's
                     typography, and "Read-only · 22" is how every other count reads in the app. */}
                 <span className="flex-1 text-[12px] font-medium tracking-wide text-[var(--ag-colorTextSecondary)]">

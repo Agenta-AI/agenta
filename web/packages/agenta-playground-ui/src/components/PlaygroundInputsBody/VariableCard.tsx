@@ -41,7 +41,8 @@ import type {SimpleChatMessage} from "@agenta/ui/chat-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
-import {CaretDown, CaretRight, CopySimple, Database, Info, Warning} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
+import {CopySimple, Database, Info, Warning} from "@phosphor-icons/react"
 import {Alert, Button, Input, InputNumber, Switch, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
@@ -475,7 +476,7 @@ function StashedPathsFooter({variableName, paths}: StashedPathsFooterProps) {
             <Button
                 type="text"
                 size="small"
-                icon={expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                icon={<CollapseCaret open={expanded} />}
                 onClick={() => setExpanded((prev) => !prev)}
                 aria-expanded={expanded}
                 className="self-start max-w-full !h-auto !px-1 !whitespace-normal text-left text-[12px] !text-[var(--ag-rgba-051729-55)]"

@@ -1,7 +1,7 @@
 import {useState} from "react"
 
-import {SimpleTooltip} from "@agenta/ui/ui"
-import {CaretDown, CaretRight, Info} from "@phosphor-icons/react"
+import {CollapseCaret, SimpleTooltip} from "@agenta/ui/ui"
+import {Info} from "@phosphor-icons/react"
 
 /**
  * One collapsible group of the embed settings. A closed group shows its current value, and its
@@ -44,7 +44,7 @@ export const EmbedSection = ({
                     className="flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left text-[13px] font-semibold text-foreground"
                     data-testid={`${testId}-toggle`}
                 >
-                    {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                    <CollapseCaret open={open} />
                     {title}
                 </button>
                 {info ? (

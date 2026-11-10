@@ -13,16 +13,8 @@ import React, {useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 
 import {DropdownButton, ScrollSentinel, ScrollToTopButton, Tag} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Divider, EmptyState, InputAffix, Spinner} from "@agenta/ui/ui"
-import {
-    ArrowLeft,
-    CaretDown,
-    CaretRight,
-    Check,
-    Lightning,
-    MagnifyingGlass,
-    Plus,
-} from "@phosphor-icons/react"
+import {Button, CollapseCaret, Divider, EmptyState, InputAffix, Spinner} from "@agenta/ui/ui"
+import {ArrowLeft, CaretDown, Check, Lightning, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import Image from "next/image"
 
 import {AppCard, AppLogo} from "./CatalogAppCard"
@@ -283,17 +275,7 @@ function IntegrationsView<I, T, C>({
                                         onClick={() => setExpanded(isOpen ? null : cid)}
                                         className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.5 py-2 text-left hover:bg-[var(--ag-colorFillSecondary)]"
                                     >
-                                        {isOpen ? (
-                                            <CaretDown
-                                                size={12}
-                                                className="shrink-0 text-[var(--ag-colorTextTertiary)]"
-                                            />
-                                        ) : (
-                                            <CaretRight
-                                                size={12}
-                                                className="shrink-0 text-[var(--ag-colorTextTertiary)]"
-                                            />
-                                        )}
+                                        <CollapseCaret open={isOpen} />
                                         <AppLogo
                                             logo={logoByKey.get(
                                                 adapter.connection.integrationKey(conn),

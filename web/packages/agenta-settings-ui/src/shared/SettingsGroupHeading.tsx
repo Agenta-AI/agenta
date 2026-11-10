@@ -1,7 +1,6 @@
 import type {ReactNode} from "react"
 
-import {cn} from "@agenta/ui/ui"
-import {CaretRight} from "@phosphor-icons/react"
+import {cn, CollapseCaret} from "@agenta/ui/ui"
 
 const HEADING = "m-0 text-[13px] font-medium leading-[18px] text-muted-foreground"
 
@@ -47,10 +46,7 @@ export const SettingsGroupHeading = ({
                 >
                     {label}
                     <Count count={count} />
-                    <CaretRight
-                        size={12}
-                        className={cn("transition-transform", !collapsed && "rotate-90")}
-                    />
+                    <CollapseCaret open={!collapsed} />
                 </button>
             </h2>
         ) : (

@@ -28,7 +28,8 @@ import {
     parseSecretRefusal,
 } from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
-import {CaretRight, CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
+import {CheckCircle, Prohibit, Question, Warning, XCircle} from "@phosphor-icons/react"
 
 /** Settled/parked single-line chip — one chrome for every terminal state (design: settled chip). */
 const Chip = ({
@@ -73,11 +74,7 @@ const SubmittedAnswers = ({
                 aria-expanded={open}
                 className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left"
             >
-                <CaretRight
-                    size={11}
-                    weight="bold"
-                    className={`shrink-0 text-colorTextTertiary transition-transform ${open ? "rotate-90" : ""}`}
-                />
+                <CollapseCaret open={open} size={11} />
                 <CheckCircle size={13} weight="fill" className="shrink-0 text-colorSuccess" />
                 <span className="truncate text-xs text-colorTextSecondary">{message}</span>
             </button>

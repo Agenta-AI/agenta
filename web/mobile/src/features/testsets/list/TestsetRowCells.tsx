@@ -1,7 +1,6 @@
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {formatListDateTime} from "@agenta/ui/list-table"
-import {Button, Spinner} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {Button, CollapseCaret, Spinner} from "@agenta/ui/ui"
 
 import {formatTestsetDate} from "./formatTestsetDate"
 import {TestsetRowMenu} from "./TestsetRowMenu"
@@ -64,7 +63,7 @@ export const TestsetRowCells = ({
                         }}
                         onKeyDown={(event) => event.stopPropagation()}
                     >
-                        {expanded ? <CaretDown aria-hidden /> : <CaretRight aria-hidden />}
+                        <CollapseCaret open={expanded} />
                     </Button>
                 ) : null}
                 <span

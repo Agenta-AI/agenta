@@ -1,8 +1,7 @@
 /** A description that clamps, and toggles open on click only when clamping really hid something. */
 import {useId, useLayoutEffect, useState} from "react"
 
-import {touchTargetExpansion} from "@agenta/ui/ui"
-import {CaretDown} from "@phosphor-icons/react"
+import {CollapseCaret, touchTargetExpansion} from "@agenta/ui/ui"
 
 import {isDescriptionTruncatable} from "../integrationPolicy"
 
@@ -103,12 +102,10 @@ export function ExpandableDescription({
             >
                 {text}
             </span>
-            <CaretDown
-                aria-hidden
+            <CollapseCaret
+                open={expanded}
                 size={10}
-                className={`shrink-0 text-[var(--ag-colorTextTertiary)] transition-transform ${
-                    expanded ? "mt-[3px] rotate-180" : ""
-                }`}
+                className={expanded ? "mt-[3px]" : undefined}
             />
         </button>
     )

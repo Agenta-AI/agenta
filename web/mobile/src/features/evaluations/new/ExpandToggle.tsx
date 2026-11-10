@@ -1,4 +1,4 @@
-import {CaretDownIcon, CaretRightIcon} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
 
 /**
  * The button on a newest row that shows or hides the older items of its group. A row with no
@@ -29,7 +29,7 @@ export const ExpandToggle = ({
             onKeyDown={(event) => event.stopPropagation()}
             className="-m-1 inline-flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-1 text-muted-foreground hover:text-foreground"
         >
-            {expanded ? <CaretDownIcon size={12} /> : <CaretRightIcon size={12} />}
+            <CollapseCaret open={expanded} />
         </button>
     ) : (
         <span aria-hidden className="inline-block w-3 shrink-0" />

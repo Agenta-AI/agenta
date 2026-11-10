@@ -19,9 +19,8 @@ import {memo, useEffect, useMemo, useRef, useState} from "react"
 import {splitQuotedMessage, truncateQuoteText, type QuotedExcerpt} from "@agenta/shared/quotes"
 import {getCollapseLabel} from "@agenta/ui/components/presentational"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
-import {Button} from "@agenta/ui/ui"
+import {Button, CollapseCaret} from "@agenta/ui/ui"
 import {
-    CaretUp,
     File as FileIcon,
     PencilSimple,
     Quotes,
@@ -309,12 +308,7 @@ const QueuedMessagesDock = ({
                     className={`text-colorTextTertiary hover:text-colorText ${touchCls}`}
                     onClick={() => setCollapsed((c) => !c)}
                 >
-                    <CaretUp
-                        size={12}
-                        className={`transition-transform duration-200 ease-out motion-reduce:transition-none ${
-                            collapsed ? "rotate-180" : ""
-                        }`}
-                    />
+                    <CollapseCaret open={!collapsed} />
                 </Button>
             </div>
             {editingMissingRow ? (
