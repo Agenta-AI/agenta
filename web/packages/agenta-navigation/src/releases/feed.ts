@@ -32,14 +32,9 @@ const isText = (value: unknown, max: number): value is string =>
 const isHttpsLink = (value: unknown): value is string =>
     isText(value, 2_000) && /^https:\/\/[^\s]+$/.test(value)
 
-// Release bodies are Markdown. The dialog renders them with only https links and images, so an
-// `http:` link shows as plain text; this drops an entry that only tampering would produce. The
-// generated changelog has no character references.
-const SCRIPT_SCHEME = /\b(?:javascript|data|vbscript|file):/i
-const CHARACTER_REFERENCE = /&(?:#|colon;)/i
-
-const isReleaseBody = (value: unknown): value is string =>
-    isText(value, MAX_BODY_LENGTH) && !SCRIPT_SCHEME.test(value) && !CHARACTER_REFERENCE.test(value)
+// Release bodies are Markdown. The dialog renders them with only https links and images, and item
+// text renders as plain text, so the text itself is never a reason to drop a release.
+const isReleaseBody = (value: unknown): value is string => isText(value, MAX_BODY_LENGTH)
 
 const isReleaseItem = (value: unknown): boolean => {
     if (!value || typeof value !== "object") return false

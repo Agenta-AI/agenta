@@ -42,6 +42,14 @@ describe("ChatMarkdown httpsOnly", () => {
         expect(html).toContain("i [blocked]")
     })
 
+    it("blocks an image inside a blocked link", () => {
+        const html = render("[![pixel](http://evil.example/p.png)](http://evil.example)")
+        expect(html).not.toContain("<a")
+        expect(html).not.toContain("<img")
+        expect(html).not.toContain("<link")
+        expect(html).toContain("pixel [blocked]")
+    })
+
     it("keeps an https link", () => {
         expect(render("[More](https://agenta.ai/docs)")).toContain('href="https://agenta.ai/docs"')
     })

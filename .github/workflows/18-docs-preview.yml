@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'docs/**'
+      - 'web/packages/agenta-navigation/src/releases/**'
       - '.github/workflows/18-docs-preview.yml'
   workflow_dispatch:
     inputs:
@@ -100,6 +101,9 @@ jobs:
           node-version: 22
           cache: 'pnpm'
           cache-dependency-path: docs/pnpm-lock.yaml
+
+      - name: Check the release list generated from the changelog
+        run: node web/packages/agenta-navigation/scripts/build-releases.mjs --check
 
       - name: Install dependencies
         run: cd docs && pnpm install --frozen-lockfile

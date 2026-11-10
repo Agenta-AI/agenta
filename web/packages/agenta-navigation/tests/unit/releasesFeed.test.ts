@@ -75,16 +75,13 @@ describe("mergeReleases", () => {
         expect(merged).toBe(bundled)
     })
 
-    it("drops a release with a bad item, a script link or an oversized body", () => {
+    it("drops a release with a bad item or an oversized body", () => {
         const feature = release("v0.129.0").features[0]
         const merged = mergeReleases(bundled, [
             release("v0.129.0", {fixes: [null as never]}),
             release("v0.129.1", {improvements: [{area: "x"} as never]}),
             release("v0.129.4", {features: [{...feature, body: "x".repeat(20_001)}]}),
             release("v0.129.5", {features: [{...feature, streamVideoId: "../x"}]}),
-            release("v0.129.7", {fixes: [{area: "x", text: "[x](javascript:alert(1))"}]}),
-            release("v0.129.8", {features: [{...feature, body: "[More](http&#58;//agenta.ai)"}]}),
-            release("v0.129.9", {features: [{...feature, body: "[More](http&colon;//agenta.ai)"}]}),
             release("v0.130.0"),
         ])
         expect(merged.map((r) => r.id)).toEqual(["v0.130.0", "v0.127.3", "v0.127.2"])
@@ -111,6 +108,22 @@ describe("mergeReleases", () => {
         expect(merged[3].features[0]).not.toHaveProperty("link")
         expect(merged[1].features[0]).toEqual({...feature, body})
         expect(merged[0].fixes[0].text).toBe("See http://agenta.ai")
+    })
+
+    it("keeps a release whose text names a script scheme or has a character reference", () => {
+        const feature = release("v0.129.0").features[0]
+        const merged = mergeReleases(bundled, [
+            release("v0.129.7", {fixes: [{area: "x", text: "[x](javascript:alert(1))"}]}),
+            release("v0.129.8", {features: [{...feature, body: "[More](http&#58;//agenta.ai)"}]}),
+            release("v0.129.9", {features: [{...feature, body: "Read the file: it&#39;s short"}]}),
+        ])
+        expect(merged.map((r) => r.id)).toEqual([
+            "v0.129.9",
+            "v0.129.8",
+            "v0.129.7",
+            "v0.127.3",
+            "v0.127.2",
+        ])
     })
 
     it("still raises the security warning for a security release with a bad link", () => {

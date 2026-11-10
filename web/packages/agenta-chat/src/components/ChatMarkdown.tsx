@@ -415,7 +415,7 @@ const rehypeHttpsOnly = () => (tree: HttpsOnlyNode) => {
                 className: ["text-gray-500"],
             }
             node.children = [...label, {type: "text", value: " [blocked]"}]
-            return
+            // A blocked link keeps its children, and one of them may be an image.
         }
         for (const child of node.children ?? []) walk(child)
     }

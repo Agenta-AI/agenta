@@ -168,6 +168,8 @@ const NOTICE_EDITIONS = ["oss", "ee"]
 // notices.json is hand-written, so a bad edit fails here rather than in the published feed.
 const checkNotices = (notices) => {
     if (!Array.isArray(notices)) throw new Error(`${NOTICES_FILE}: must be a list`)
+    // Instances read only the first 10 notices (`MAX_FEED_NOTICES` in src/releases/feed.ts).
+    if (notices.length > 10) throw new Error(`${NOTICES_FILE}: at most 10 notices`)
     const ids = new Set()
     for (const notice of notices) {
         const where = `${NOTICES_FILE}: notice ${JSON.stringify(notice?.id)}`
@@ -176,7 +178,8 @@ const checkNotices = (notices) => {
                 throw new Error(`${where}: missing ${key}`)
         if (ids.has(notice.id)) throw new Error(`${where}: duplicate id`)
         ids.add(notice.id)
-        if (!/^https:\/\//.test(notice.link)) throw new Error(`${where}: link must be https`)
+        if (!/^https:\/\/[^\s]+$/.test(notice.link))
+            throw new Error(`${where}: link must be an https URL with no spaces`)
         if (!NOTICE_SEVERITIES.includes(notice.severity))
             throw new Error(`${where}: severity must be one of ${NOTICE_SEVERITIES.join(", ")}`)
         if (
