@@ -26,9 +26,9 @@ describe("NodeHeader fold toggle", () => {
                 <span>config</span>
             </NodeHeader>,
         )
-        expect(
-            screen.getByRole("button", {name: "Collapse"}).getAttribute("aria-expanded"),
-        ).toBe("true")
+        expect(screen.getByRole("button", {name: "Collapse"}).getAttribute("aria-expanded")).toBe(
+            "true",
+        )
     })
 
     it("calls onToggle on click and is focusable", () => {

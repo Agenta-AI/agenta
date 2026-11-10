@@ -19,7 +19,7 @@ function CollapseCaret({open, size = 12, className}: CollapseCaretProps) {
             weight="fill"
             size={size}
             className={cn(
-                "shrink-0 text-[var(--ag-zinc-5)] transition-transform duration-150 motion-reduce:transition-none",
+                "shrink-0 text-colorTextTertiary transition-transform duration-150 motion-reduce:transition-none",
                 open && "rotate-90",
                 className,
             )}
