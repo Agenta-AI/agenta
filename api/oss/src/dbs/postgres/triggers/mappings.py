@@ -15,6 +15,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionData,
     TriggerSubscriptionEdit,
     TriggerSubscriptionFlags,
+    UnsettledTriggerDelivery,
 )
 
 from oss.src.dbs.postgres.access.mappings import map_principal_columns
@@ -251,4 +252,14 @@ def map_delivery_dbe_to_dto(
         schedule_id=delivery_dbe.schedule_id,
         #
         event_id=delivery_dbe.event_id,
+    )
+
+
+def map_unsettled_delivery_dbe_to_dto(
+    *,
+    delivery_dbe: TriggerDeliveryDBE,
+) -> UnsettledTriggerDelivery:
+    return UnsettledTriggerDelivery(
+        **dict(map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)),
+        project_id=delivery_dbe.project_id,
     )

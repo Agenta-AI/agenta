@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -11,6 +12,7 @@ from oss.src.core.triggers.dtos import (
     TriggerDelivery,
     TriggerDeliveryCreate,
     TriggerDeliveryData,
+    TriggerDeliveryOutcome,
     TriggerDeliveryQuery,
     TriggerSchedule,
     TriggerScheduleCreate,
@@ -21,6 +23,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionEdit,
     TriggerSubscriptionQuery,
     TriggerWebhookRegistration,
+    UnsettledTriggerDelivery,
 )
 
 
@@ -220,8 +223,8 @@ class TriggersDAOInterface(ABC):
         provider ``ti_*`` and no tenant scope, so this lookup *recovers* the
         project from the project-scoped partial-unique ``trigger_id`` column. Returns
         no match when multiple live projects share the id, rather than selecting a
-        tenant. The only sanctioned unscoped DAO read — every other read/write takes
-        ``project_id``.
+        tenant. It is unscoped like `query_unsettled_deliveries` and the active-schedule
+        reads called without ``project_id``; every other read and write takes ``project_id``.
         """
         ...
 
@@ -310,6 +313,31 @@ class TriggersDAOInterface(ABC):
         #
         delivery_id: UUID,
     ) -> Optional[TriggerDelivery]: ...
+
+    @abstractmethod
+    async def query_unsettled_deliveries(
+        self,
+        *,
+        before: Optional[Tuple[datetime, UUID]],
+        limit: int,
+    ) -> List[UnsettledTriggerDelivery]:
+        """Deliveries of the last 24 hours with no outcome, newest first. `before` is the
+        `(created_at, id)` of the last row of the previous page. Unscoped because the settle
+        pass is an admin job across projects; every later write filters by `project_id`."""
+        ...
+
+    @abstractmethod
+    async def settle_delivery(
+        self,
+        *,
+        project_id: UUID,
+        delivery_id: UUID,
+        status_code: str,
+        outcome: TriggerDeliveryOutcome,
+        reason_code: Optional[str],
+    ) -> bool:
+        """Write the outcome if the delivery still has `status_code` and no outcome."""
+        ...
 
     @abstractmethod
     async def query_deliveries(

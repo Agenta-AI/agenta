@@ -40,6 +40,13 @@ TRIGGER_MAX_RETRIES = 5
 # they can never disagree on what counts as retryable.
 TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE = "500"
 
+# A `403` refusal pauses the trigger. Its reason is `paused_<error code>`, the cause of
+# the pause.
+PAUSED_REASON_PREFIX = "paused_"
+
+# The delivery status codes the outcomes pass settles.
+SETTLEABLE_STATUS_CODES = ("202", "400", "403", "422", "500")
+
 
 # ---------------------------------------------------------------------------
 # Trigger Enums
@@ -379,6 +386,17 @@ class TriggerScheduleQuery(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class TriggerDeliveryOutcome(str, Enum):
+    """How a delivery's run ended. `status` keeps how its dispatch went.
+    `needed_approval` means the run stopped to ask a person for approval."""
+
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    NEEDED_APPROVAL = "needed_approval"
+    SKIPPED = "skipped"
+
+
 class TriggerDeliveryData(BaseModel):
     event_key: Optional[str] = None
     # The session this delivery produced. Minted by the dispatcher rather than read back from the
@@ -399,6 +417,9 @@ class TriggerDeliveryData(BaseModel):
     # Self-describing test marker: a capture-and-skip delivery from an is_test
     # subscription, so the playground can filter without loading the subscription.
     is_test: Optional[bool] = None
+    #
+    outcome: Optional[TriggerDeliveryOutcome] = None
+    reason_code: Optional[str] = None
 
 
 class TriggerDelivery(Identifier, Lifecycle):
@@ -410,6 +431,21 @@ class TriggerDelivery(Identifier, Lifecycle):
     subscription_id: Optional[UUID] = None
     schedule_id: Optional[UUID] = None
     event_id: str
+
+
+class TriggerDeliverySettlement(BaseModel):
+    """A row of the settle table. `ended_at` is set for `failed` and `skipped`."""
+
+    outcome: TriggerDeliveryOutcome
+    reason_code: Optional[str] = None
+    error_message: Optional[str] = None
+    ended_at: Optional[datetime] = None
+
+
+class UnsettledTriggerDelivery(TriggerDelivery):
+    """A delivery read across projects by the settle pass."""
+
+    project_id: UUID
 
 
 class TriggerDeliveryCreate(Identifier):

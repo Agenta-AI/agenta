@@ -280,6 +280,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
             request=request,
             envelope=envelope,
             run_id=run_id,
+            strict_start=True,
         )
         return result.run_id
 
@@ -288,9 +289,8 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     # is empty — and the delivery was written 500/failed with a blank error while the runner
     # carried on and finished the work. Every scheduled run of a real agent read as a failure.
     #
-    # The delivery now settles at 202/dispatched. That is honest but incomplete: nothing writes
-    # the run's terminal outcome afterwards, so a delivery stays "dispatched" for good. The
-    # durable completion callback that would close it is still to come.
+    # The delivery status stays 202/dispatched. The settle pass
+    # (`core/triggers/outcomes.py`) writes the run's ending to `data.outcome`.
     triggers_dispatcher = TriggersDispatcher(
         triggers_dao=triggers_dao,
         session_claims_dao=session_streams_dao,

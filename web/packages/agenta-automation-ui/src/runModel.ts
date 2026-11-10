@@ -162,6 +162,10 @@ export function runDotClass(delivery: TriggerDelivery): string {
             return "bg-destructive"
         case "skipped":
             return "bg-colorWarning"
+        case "cancelled":
+            return "bg-muted-foreground"
+        case "needed_approval":
+            return "bg-colorInfo"
         default:
             return "bg-muted-foreground/50"
     }
@@ -177,6 +181,10 @@ export function runOutcomeLabel(delivery: TriggerDelivery): string {
         // The dispatcher skips a fire only when the agent's model needs setup.
         case "skipped":
             return SKIPPED_NEEDS_SETUP_LABEL
+        case "cancelled":
+            return "Cancelled"
+        case "needed_approval":
+            return "Asked for approval"
         default:
             // "Running", not "Pending": a delivery that is neither succeeded nor failed has
             // been handed to the runner, which has it in flight rather than queued.

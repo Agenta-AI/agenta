@@ -52,6 +52,7 @@ def _service(*, secret, claim_result=True):
         triggers_dao=MagicMock(),
         connections_service=MagicMock(),
         workflows_service=MagicMock(),
+        notifications_service=MagicMock(),
     )
     service.webhook_secret_resolver.resolve = AsyncMock(return_value=secret)
     return service, _fake_cache_engine(claim_result=claim_result)

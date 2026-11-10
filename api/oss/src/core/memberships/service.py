@@ -13,7 +13,7 @@ fails, or a read that started before the mutation committed refills the old entr
 the invalidation.
 """
 
-from typing import Any, List, Optional, Protocol, Sequence
+from typing import Any, Dict, List, Optional, Protocol, Sequence
 from uuid import UUID
 
 from oss.src.core.memberships.dtos import (
@@ -26,6 +26,7 @@ from oss.src.core.memberships.dtos import (
     ProjectMemberProfile,
     ProjectMembership,
     ProjectScope,
+    ProjectSummary,
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
 from oss.src.core.memberships.types import MembershipsServiceNotRegistered
@@ -347,6 +348,20 @@ class MembershipsService:
             search=search,
             windowing=windowing,
         )
+
+    async def fetch_project_summary(
+        self,
+        *,
+        project_id: UUID,
+    ) -> Optional[ProjectSummary]:
+        return await self._dao.fetch_project_summary(project_id=project_id)
+
+    async def fetch_member_emails(
+        self,
+        *,
+        user_ids: Sequence[UUID],
+    ) -> Dict[UUID, str]:
+        return await self._dao.fetch_member_emails(user_ids=user_ids)
 
     # -- writers: DAO write, then invalidation, then the audit event -------------------
 

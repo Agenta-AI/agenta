@@ -9,7 +9,7 @@ interleave. "Oldest" orders by `created_at ASC NULLS LAST, id ASC` everywhere.
 `gen_random_uuid()` per row, and every single-row insert passes `uuid7()`.
 """
 
-from typing import List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 from uuid import UUID
 
 import uuid_utils.compat as uuid_compat
@@ -24,6 +24,7 @@ from oss.src.core.memberships.dtos import (
     OrganizationMember,
     ProjectMemberProfile,
     ProjectScope,
+    ProjectSummary,
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
 from oss.src.core.memberships.types import (
@@ -36,6 +37,7 @@ from oss.src.dbs.postgres.memberships.mappings import (
     map_organization_member_dbe_to_dto,
     map_project_member_profile_to_dto,
     map_project_scope_dbe_to_dto,
+    map_project_summary_dbe_to_dto,
 )
 from oss.src.core.shared.dtos import Windowing
 from oss.src.models.db_models import (  # noqa: F401  (the tables this DAO owns)
@@ -105,6 +107,18 @@ LEFT JOIN LATERAL (
     {_OLDEST}
 ) pm ON true
 ORDER BY om.organization_id, p.created_at ASC NULLS LAST, p.id ASC
+"""
+
+_FETCH_PROJECT_SUMMARY_SQL = f"""
+SELECT {_SUMMARY_COLUMNS}
+FROM projects p
+JOIN organizations o ON o.id = p.organization_id
+WHERE p.id = :project_id
+"""
+
+_FETCH_MEMBER_EMAILS_SQL = """
+SELECT id, email FROM users
+WHERE id = ANY(CAST(:user_ids AS uuid[])) AND email IS NOT NULL AND email <> ''
 """
 
 _FETCH_ORGANIZATION_MEMBER_SQL = f"""
@@ -452,6 +466,34 @@ class MembershipsDAO(MembershipsDAOInterface):
                 )
             ).all()
         return [map_project_member_profile_to_dto(row) for row in rows]
+
+    async def fetch_project_summary(
+        self,
+        *,
+        project_id: UUID,
+    ) -> Optional[ProjectSummary]:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    text(_FETCH_PROJECT_SUMMARY_SQL), {"project_id": project_id}
+                )
+            ).first()
+        return map_project_summary_dbe_to_dto(row) if row is not None else None
+
+    async def fetch_member_emails(
+        self,
+        *,
+        user_ids: Sequence[UUID],
+    ) -> Dict[UUID, str]:
+        if not user_ids:
+            return {}
+        async with self.engine.session() as session:
+            rows = (
+                await session.execute(
+                    text(_FETCH_MEMBER_EMAILS_SQL), {"user_ids": list(user_ids)}
+                )
+            ).all()
+        return {row.id: row.email for row in rows}
 
     # -- writers -----------------------------------------------------------------------
 

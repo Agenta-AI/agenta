@@ -94,6 +94,7 @@ def _service(*, schedule=None, subscription=None):
         triggers_dao=dao,
         connections_service=connections,
         workflows_service=MagicMock(),
+        notifications_service=AsyncMock(),
     )
     service._validate_references = AsyncMock(return_value=uuid4())
     service._require_connection = AsyncMock(return_value=connection)
@@ -225,7 +226,11 @@ async def test_edit_routes_pass_the_request_principal(editor):
     service = MagicMock()
     service.edit_schedule = AsyncMock(return_value=schedule)
     service.edit_subscription = AsyncMock(return_value=subscription)
-    router = TriggersRouter(triggers_service=service)
+    router = TriggersRouter(
+        triggers_service=service,
+        outcomes_service=MagicMock(),
+        notifications_service=MagicMock(),
+    )
     router._check = AsyncMock()
 
     await router.edit_schedule(
@@ -279,7 +284,11 @@ async def test_a_channel_installation_cannot_edit():
     service = MagicMock()
     service.edit_schedule = AsyncMock()
     service.edit_subscription = AsyncMock()
-    router = TriggersRouter(triggers_service=service)
+    router = TriggersRouter(
+        triggers_service=service,
+        outcomes_service=MagicMock(),
+        notifications_service=MagicMock(),
+    )
     router._check = AsyncMock()
     installation = PrincipalRef(kind=PrincipalKind.INSTALLATION, id=uuid4())
 

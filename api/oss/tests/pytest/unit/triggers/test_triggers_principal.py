@@ -26,7 +26,7 @@ def _service(*, revision_artifact_id=None):
     dao = MagicMock()
     dao.create_schedule = AsyncMock(side_effect=lambda **kw: kw)
     dao.fetch_schedule = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
-    dao.edit_schedule = AsyncMock(side_effect=lambda **kw: kw)
+    dao.edit_schedule = AsyncMock(return_value=MagicMock())
     workflows = MagicMock()
     workflows.retrieve_workflow_revision = AsyncMock(
         return_value=(
@@ -41,6 +41,7 @@ def _service(*, revision_artifact_id=None):
         triggers_dao=dao,
         connections_service=MagicMock(),
         workflows_service=workflows,
+        notifications_service=AsyncMock(),
     )
     return service, dao
 
@@ -461,6 +462,7 @@ def _resume_service(schedule):
         triggers_dao=dao,
         connections_service=MagicMock(),
         workflows_service=MagicMock(),
+        notifications_service=AsyncMock(),
     )
     return service, dao
 

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import datetime, timedelta
 from functools import wraps
 from json import JSONDecodeError, loads
@@ -19,6 +20,7 @@ from oss.src.core.tools.dtos import AgentError
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.locking import acquire_lock, release_lock
 
 from oss.src.apis.fastapi.triggers.models import (
     TriggerCatalogEventResponse,
@@ -47,6 +49,8 @@ from oss.src.apis.fastapi.triggers.models import (
     TriggerSubscriptionResponse,
     TriggerSubscriptionsResponse,
 )
+from oss.src.core.notifications.service import NotificationsService
+from oss.src.core.triggers.outcomes import OutcomesService
 from oss.src.core.triggers.exceptions import (
     AdapterError,
     ConnectionNotFoundError,
@@ -174,14 +178,23 @@ def _resume_refused(refusal, *, project_id) -> HTTPException:
     )
 
 
+SETTLE_LOCK_NAMESPACE = "triggers"
+SETTLE_LOCK_KEY = "settle-pass"
+SETTLE_LOCK_TTL_SECONDS = 600
+
+
 class TriggersRouter:
     def __init__(
         self,
         *,
         triggers_service: TriggersService,
+        outcomes_service: OutcomesService,
+        notifications_service: NotificationsService,
         dispatch_task: Optional[Any] = None,
     ):
         self.triggers_service = triggers_service
+        self.outcomes_service = outcomes_service
+        self.notifications_service = notifications_service
         self.dispatch_task = dispatch_task
 
         self.router = APIRouter()
@@ -484,6 +497,12 @@ class TriggersRouter:
             self.refresh_schedules,
             methods=["POST"],
             operation_id="refresh_trigger_schedules",
+        )
+        self.admin_router.add_api_route(
+            "/deliveries/settle",
+            self.settle_deliveries,
+            methods=["POST"],
+            operation_id="settle_trigger_deliveries",
         )
 
         # --- Trigger Deliveries ---
@@ -1578,6 +1597,44 @@ class TriggersRouter:
             return {"status": "failure"}
 
         return {"status": "success"}
+
+    @intercept_exceptions()
+    async def settle_deliveries(self) -> Any:
+        # ----------------------------------------------------------------------
+        # THIS IS AN ADMIN ENDPOINT
+        # NO CHECK FOR PERMISSIONS / ENTITLEMENTS
+        # ----------------------------------------------------------------------
+
+        request_started_at = time.monotonic()
+        owner = await acquire_lock(
+            namespace=SETTLE_LOCK_NAMESPACE,
+            key=SETTLE_LOCK_KEY,
+            ttl=SETTLE_LOCK_TTL_SECONDS,
+        )
+        if not owner:
+            return {"status": "skipped"}
+
+        status_text = "success"
+        try:
+            try:
+                await self.outcomes_service.settle_pass()
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                status_text = "failure"
+                log.error(
+                    "[triggers] settle pass failed",
+                    error_type=type(error).__name__,
+                )
+            await self.notifications_service.send_created(
+                request_started_at=request_started_at
+            )
+        finally:
+            await release_lock(
+                namespace=SETTLE_LOCK_NAMESPACE,
+                key=SETTLE_LOCK_KEY,
+                owner=owner,
+            )
+
+        return {"status": status_text}
 
     # -----------------------------------------------------------------------
     # Trigger Deliveries

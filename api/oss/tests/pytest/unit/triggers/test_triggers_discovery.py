@@ -55,6 +55,7 @@ def _service(*, connections=None, integration=None):
         triggers_dao=MagicMock(),
         connections_service=connections_service,
         workflows_service=MagicMock(),
+        notifications_service=MagicMock(),
     )
 
 
@@ -168,7 +169,9 @@ def _request():
 
 def _router_with_discover(discover_fn):
     return TriggersRouter(
-        triggers_service=SimpleNamespace(discover_triggers=discover_fn)
+        triggers_service=SimpleNamespace(discover_triggers=discover_fn),
+        outcomes_service=MagicMock(),
+        notifications_service=MagicMock(),
     )
 
 

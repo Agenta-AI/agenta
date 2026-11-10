@@ -19,6 +19,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecordsPage,
     SessionRecordsReplay,
     SessionRecordsReadState,
+    TurnSignals,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.dbs.postgres.sessions.records.dbes import (
@@ -485,6 +486,48 @@ class RecordsDAO(RecordsDAOInterface):
                 timestamp=row.timestamp or row.created_at,
             )
         return previews
+
+    async def turn_signals(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Dict[Tuple[str, str], TurnSignals]:
+        if not keys:
+            return {}
+        stmt = (
+            select(
+                RecordDBE.session_id,
+                RecordDBE.turn_id,
+                RecordDBE.record_type,
+                RecordDBE.attributes["stopReason"].astext,
+                RecordDBE.attributes["code"].astext,
+                RecordDBE.attributes["message"].astext,
+            )
+            .where(
+                RecordDBE.project_id == project_id,
+                tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(keys),
+                RecordDBE.record_type.in_((TERMINAL_RECORD_TYPE, "error")),
+                RecordDBE.deleted_at.is_(None),
+                RecordDBE.quarantined_at.is_(None),
+            )
+            .order_by(*self._send_order())
+        )
+        async with self.engine.session() as session:
+            rows = (await session.execute(stmt)).all()
+
+        signals: Dict[Tuple[str, str], TurnSignals] = {}
+        for session_id, turn_id, record_type, stop_reason, code, message in rows:
+            turn = signals.setdefault((session_id, turn_id), TurnSignals())
+            if record_type == TERMINAL_RECORD_TYPE:
+                turn.stop_reason = stop_reason
+            elif code:
+                turn.error_code = code
+                turn.error_message = message
+            elif turn.error_code is None:
+                # The runner's fallback adds a codeless error after a coded one.
+                turn.error_message = message or turn.error_message
+        return signals
 
     async def settled_turns(
         self,

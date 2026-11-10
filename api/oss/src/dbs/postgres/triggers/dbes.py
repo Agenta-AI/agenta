@@ -6,6 +6,7 @@ from sqlalchemy import (
     text,
 )
 
+from oss.src.core.triggers.dtos import SETTLEABLE_STATUS_CODES
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.triggers.dbas import (
     TriggerDeliveryDBA,
@@ -131,5 +132,15 @@ class TriggerDeliveryDBE(Base, TriggerDeliveryDBA):
             "event_id",
             unique=True,
             postgresql_where=text("schedule_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_trigger_deliveries_unsettled_created_at_id",
+            "created_at",
+            "id",
+            postgresql_where=text(
+                "(data->>'outcome') IS NULL "
+                "AND (status->>'code') IN "
+                f"({','.join(repr(code) for code in SETTLEABLE_STATUS_CODES)})"
+            ),
         ),
     )

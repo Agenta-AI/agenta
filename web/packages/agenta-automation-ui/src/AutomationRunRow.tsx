@@ -26,8 +26,10 @@ export const AutomationRunRow = ({
 }) => {
     const label = runLabel(delivery)
     const time = runTimeOfDay(delivery)
-    // A skipped run says why on the row: the dot alone reads as one more run in flight.
-    const skipped = deliveryOutcome(delivery) === "skipped"
+    // These say what happened on the row: the dot alone reads as one more run in flight.
+    const outcome = deliveryOutcome(delivery)
+    const explained =
+        outcome === "skipped" || outcome === "cancelled" || outcome === "needed_approval"
 
     return (
         <button
@@ -48,7 +50,7 @@ export const AutomationRunRow = ({
             />
             <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-[13px] text-foreground">{label}</span>
-                {skipped ? (
+                {explained ? (
                     <span className="truncate text-xs text-muted-foreground">
                         {runOutcomeLabel(delivery)}
                     </span>

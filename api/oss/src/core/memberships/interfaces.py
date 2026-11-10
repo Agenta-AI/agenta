@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 from uuid import UUID
 
 from oss.src.core.memberships.dtos import (
@@ -10,6 +10,7 @@ from oss.src.core.memberships.dtos import (
     OrganizationMember,
     ProjectMemberProfile,
     ProjectScope,
+    ProjectSummary,
 )
 from oss.src.core.shared.dtos import Windowing
 
@@ -69,6 +70,22 @@ class MembershipsDAOInterface(ABC):
         never read. `search` is a case-insensitive prefix of the email or the name.
         Ordered by email; `windowing.next` is the last `user_id` of the previous page,
         `windowing.limit` defaults to 50. One statement."""
+
+    @abstractmethod
+    async def fetch_project_summary(
+        self,
+        *,
+        project_id: UUID,
+    ) -> Optional[ProjectSummary]:
+        """The project with its organization. One statement."""
+
+    @abstractmethod
+    async def fetch_member_emails(
+        self,
+        *,
+        user_ids: Sequence[UUID],
+    ) -> Dict[UUID, str]:
+        """The email of each user that exists and has one. One statement."""
 
     # writers: one transaction each, under the organization lock
 

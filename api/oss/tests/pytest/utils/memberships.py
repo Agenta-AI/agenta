@@ -110,6 +110,14 @@ class InMemoryMembershipsDAO(MembershipsDAOInterface):
             project_role=project_row.role if project_row else None,
         )
 
+    async def fetch_project_summary(
+        self, *, project_id: UUID
+    ) -> Optional[ProjectSummary]:
+        return self.projects.get(project_id)
+
+    async def fetch_member_emails(self, *, user_ids: Sequence[UUID]) -> Dict[UUID, str]:
+        return {}
+
     async def fetch_membership_row(
         self, *, user_id: UUID, project_id: UUID
     ) -> Optional[MembershipRow]:
