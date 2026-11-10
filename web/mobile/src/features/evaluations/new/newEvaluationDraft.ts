@@ -179,6 +179,13 @@ export const draftHasInput = (
     )
 }
 
+/**
+ * The name the reader typed, which a new app keeps. A name the draft made itself, or none,
+ * gives way to the auto name of the new picks.
+ */
+const typedName = (state: NewEvaluationDraft): string =>
+    state.name !== state.autoName ? state.name : ""
+
 export const newEvaluationReducer = (
     state: NewEvaluationDraft,
     action: NewEvaluationAction,
@@ -188,11 +195,15 @@ export const newEvaluationReducer = (
             if (state.app?.id === action.app.id) return state
             return {
                 ...createInitialDraft(state.kind, {app: action.app, suffix: state.suffix}),
+                name: typedName(state),
                 section: "revision",
             }
         }
         case "clearApp":
-            return createInitialDraft(state.kind, {suffix: state.suffix})
+            return {
+                ...createInitialDraft(state.kind, {suffix: state.suffix}),
+                name: typedName(state),
+            }
         case "hydrateApp":
             return state.app?.id === action.app.id ? {...state, app: action.app} : state
         case "pickRevision": {

@@ -54,7 +54,7 @@ export const QueueSessionBody = ({
         return (
             <QueueConfigurationTab
                 queueId={queueId}
-                canDelete={canEdit}
+                canEdit={canEdit}
                 listHref={`${base}/annotations`}
             />
         )

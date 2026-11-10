@@ -55,6 +55,17 @@ export interface TestcaseDataEditorProps {
      */
     rootViewMode?: RootDrawerViewMode
     /**
+     * The order of the fields when no `columns` are given: "sorted" (A to Z, the default) or
+     * "data", the order of the keys in the row, which is the test set column order.
+     */
+    fieldOrder?: "sorted" | "data"
+    /**
+     * Whether the form offers to add and delete fields when no `columns` are given. Default
+     * true. A test set editor turns it off: a field belongs to every row, so it changes through
+     * the column actions.
+     */
+    fieldControls?: boolean
+    /**
      * Controlled collapse-all signal. Increment to trigger collapse-all in the
      * Form rendering. Only meaningful when `rootViewMode === "form"`.
      */

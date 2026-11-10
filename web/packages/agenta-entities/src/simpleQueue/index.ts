@@ -79,6 +79,8 @@ export {
     type CreateSimpleQueuePayload,
     querySimpleQueues,
     fetchSimpleQueue,
+    editSimpleQueue,
+    type EditSimpleQueuePayload,
     deleteSimpleQueue,
     deleteSimpleQueues,
     querySimpleQueueScenarios,
@@ -104,6 +106,7 @@ export {
     discardSimpleQueueDraftAtom,
     // Server mutations
     createSimpleQueueAtom,
+    editSimpleQueueAtom,
     deleteSimpleQueueAtom,
     deleteSimpleQueuesAtom,
     addTracesToQueueAtom,

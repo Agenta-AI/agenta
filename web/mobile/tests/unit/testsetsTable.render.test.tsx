@@ -141,6 +141,56 @@ describe("Testsets table", () => {
         expect(onLoadMore).toHaveBeenCalled()
     })
 
+    it("Developer mode loads the next page on view, and stops after a failed one", async () => {
+        // The row is always in view here: each new observer reports it at once.
+        const original = globalThis.IntersectionObserver
+        globalThis.IntersectionObserver = class {
+            constructor(callback: IntersectionObserverCallback) {
+                queueMicrotask(() =>
+                    callback(
+                        [{isIntersecting: true} as IntersectionObserverEntry],
+                        this as unknown as IntersectionObserver,
+                    ),
+                )
+            }
+            observe() {
+                return undefined
+            }
+            disconnect() {
+                return undefined
+            }
+        } as unknown as typeof IntersectionObserver
+        try {
+            const onLoadMore = vi.fn()
+            await mount(
+                <TestsetsTable
+                    {...props({
+                        hasMore: true,
+                        developerMode: true,
+                        onLoadMore,
+                        loadMoreFailed: true,
+                    })}
+                />,
+            )
+            await act(async () => undefined)
+            expect(onLoadMore).not.toHaveBeenCalled()
+            await mount(
+                <TestsetsTable
+                    {...props({
+                        hasMore: true,
+                        developerMode: true,
+                        onLoadMore,
+                        loadMoreFailed: false,
+                    })}
+                />,
+            )
+            await act(async () => undefined)
+            expect(onLoadMore).toHaveBeenCalledTimes(1)
+        } finally {
+            globalThis.IntersectionObserver = original
+        }
+    })
+
     it("Load more is gone when there is no next page", async () => {
         await mount(<TestsetsTable {...props()} />)
         expect(host.textContent).not.toContain("Load more")

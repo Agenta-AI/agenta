@@ -104,9 +104,13 @@ describe("overview charts", () => {
     it("Fewer than three radar axes shows the insufficient metrics empty state, not a loader", () => {
         render(
             createElement(RunRadarCard, {
-                runId: RUN_ID,
-                runName: "Capitals check",
-                metrics: [invocationMetric("duration", {mean: 1, max: 2})],
+                runs: [
+                    {
+                        id: RUN_ID,
+                        name: "Capitals check",
+                        metrics: [invocationMetric("duration", {mean: 1, max: 2})],
+                    },
+                ],
                 pending: false,
             }),
         )
@@ -115,12 +119,16 @@ describe("overview charts", () => {
 
         render(
             createElement(RunRadarCard, {
-                runId: RUN_ID,
-                runName: "Capitals check",
-                metrics: [
-                    evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
-                    invocationMetric("duration", {mean: 1, max: 2}),
-                    invocationMetric("cost", {mean: 0.001, max: 0.002}),
+                runs: [
+                    {
+                        id: RUN_ID,
+                        name: "Capitals check",
+                        metrics: [
+                            evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
+                            invocationMetric("duration", {mean: 1, max: 2}),
+                            invocationMetric("cost", {mean: 0.001, max: 0.002}),
+                        ],
+                    },
                 ],
                 pending: false,
             }),
@@ -304,6 +312,35 @@ describe("overview charts", () => {
             }),
         )
         expect(host.textContent).toContain("Capitals check: 95.45%")
+        expect(host.textContent).not.toContain("0.00%")
+    })
+
+    it("An online run with no run-wide value shows no value, not the newest minute", () => {
+        const latest = {
+            type: "binary",
+            frequency: [
+                {value: true, count: 0},
+                {value: false, count: 2},
+            ],
+        }
+        render(
+            createElement(MetricCardsSection, {
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: true,
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.score", latest, {
+                        statsAreRunWide: false,
+                        temporal: [{timestamp: Date.UTC(2026, 9, 30, 9, 0), stats: latest}],
+                    }),
+                ],
+                hasEvaluators: true,
+                pending: false,
+                error: null,
+            }),
+        )
+        expect(charts.line).toHaveLength(1)
+        expect(host.textContent).not.toContain("Capitals check:")
         expect(host.textContent).not.toContain("0.00%")
     })
 

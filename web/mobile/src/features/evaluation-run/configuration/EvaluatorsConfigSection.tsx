@@ -1,13 +1,30 @@
-import {SkeletonBlock} from "@agenta/ui/ui"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {PlusIcon} from "@phosphor-icons/react"
 
 import {ConfigSection} from "./ConfigSection"
 import {EvaluatorConfigCard} from "./EvaluatorConfigCard"
 import type {EvaluatorConfig} from "./useEvaluatorConfigs"
 
-/** The Evaluators section: one collapsible card per evaluator, the first one open. */
-export const EvaluatorsConfigSection = ({evaluators}: {evaluators: readonly EvaluatorConfig[]}) => (
+/**
+ * The Evaluators section: one collapsible card per evaluator, the first one open, and "Add
+ * evaluator" when the run can be edited.
+ */
+export const EvaluatorsConfigSection = ({
+    evaluators,
+    onAdd,
+    idSuffix = "",
+    diff,
+}: {
+    evaluators: readonly EvaluatorConfig[]
+    onAdd?: () => void
+    /** Keeps the section id unique when several runs show side by side. */
+    idSuffix?: string
+    /** Compare mode: the evaluators that differ from the base run's, and whether one is missing. */
+    diff?: {evaluators: Record<string, boolean>; missing: boolean}
+}) => (
     <ConfigSection
-        id="config-evaluators"
+        id={`config-evaluators${idSuffix}`}
+        differs={diff?.missing}
         title="Evaluators"
         subtitle={
             evaluators.length > 0
@@ -33,10 +50,23 @@ export const EvaluatorsConfigSection = ({evaluators}: {evaluators: readonly Eval
                             key={evaluator.key}
                             evaluator={evaluator}
                             defaultOpen={index === 0}
+                            differs={diff?.evaluators[evaluator.evaluatorId]}
                         />
                     ),
                 )}
             </div>
         )}
+        {onAdd ? (
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={onAdd}
+            >
+                <PlusIcon aria-hidden size={14} />
+                Add evaluator
+            </Button>
+        ) : null}
     </ConfigSection>
 )

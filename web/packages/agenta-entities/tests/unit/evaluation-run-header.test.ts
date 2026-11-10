@@ -116,7 +116,14 @@ describe("run header and references", () => {
             variantId: app.application_variant.id,
             revisionId: app.application_revision.id,
             revisionVersion: 1,
-            testsets: [{testsetId: testset.testset.id, revisionId: testset.testset_revision.id}],
+            testsets: [
+                {
+                    testsetId: testset.testset.id,
+                    revisionId: testset.testset_revision.id,
+                    // The API sends the version as a string; the run schema reads it as a number.
+                    version: 1,
+                },
+            ],
             evaluators: steps.slice(2).map((step) => {
                 const refs = step.references as {
                     evaluator: {id: string; slug: string}

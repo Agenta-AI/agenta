@@ -6,6 +6,8 @@
  * @packageDocumentation
  */
 
+import {runStatusTone} from "./runKind"
+
 /** The old app compares a run with at most 4 others. */
 export const MAX_COMPARISON_RUNS = 4
 
@@ -142,4 +144,244 @@ export function compareCandidates<T extends CompareRunInput>(
             structure.evaluatorIds.some((id) => evaluators.has(id))
         )
     })
+}
+
+/**
+ * The runs compared with `baseId`, from the `?compare=` value: without the base run, without
+ * repeats, and at most `MAX_COMPARISON_RUNS`.
+ */
+export function compareRunIds(
+    value: string | readonly string[] | null | undefined,
+    baseId: string,
+): string[] {
+    const ids = [...new Set(parseCompareParam(value))].filter((id) => id !== baseId)
+    return ids.slice(0, MAX_COMPARISON_RUNS)
+}
+
+/** The old picker's status filters, in its order. */
+export const COMPARE_STATUS_FILTERS = [
+    {key: "all", label: "All"},
+    {key: "success", label: "Success"},
+    {key: "running", label: "Running"},
+    {key: "error", label: "Errors"},
+    {key: "other", label: "Other"},
+] as const
+
+export type CompareStatusFilter = (typeof COMPARE_STATUS_FILTERS)[number]["key"]
+type CompareStatusGroup = Exclude<CompareStatusFilter, "all">
+
+/** The picker's status group of a run: the tone its status tag shows. */
+export function compareStatusGroup(status: string | null | undefined): CompareStatusGroup {
+    const tone = status ? runStatusTone(status) : "default"
+    if (tone === "success" || tone === "error") return tone
+    return tone === "processing" ? "running" : "other"
+}
+
+/** How many runs each status filter keeps. */
+export function compareStatusCounts(
+    runs: readonly {status?: string | null}[],
+): Record<CompareStatusFilter, number> {
+    const counts: Record<CompareStatusFilter, number> = {
+        all: runs.length,
+        success: 0,
+        running: 0,
+        error: 0,
+        other: 0,
+    }
+    for (const run of runs) counts[compareStatusGroup(run.status)] += 1
+    return counts
+}
+
+/** The runs whose name holds `search` (any case) and whose status is in `status`. */
+export function filterCompareRuns<T extends {name?: string | null; status?: string | null}>(
+    runs: readonly T[],
+    {search, status}: {search: string; status: CompareStatusFilter},
+): T[] {
+    const query = search.trim().toLowerCase()
+    return runs.filter(
+        (run) =>
+            (!query || (run.name ?? "").toLowerCase().includes(query)) &&
+            (status === "all" || compareStatusGroup(run.status) === status),
+    )
+}
+
+/**
+ * The key that finds one metric in every compared run: the invocation metric's id, or the
+ * evaluator (id, else slug, else step key) with the metric key. Step keys can differ between runs.
+ */
+export function compareMetricKey(metric: {
+    id: string
+    kind: "evaluator" | "invocation"
+    stepKey: string | null
+    metricKey: string
+    evaluatorId: string | null
+    evaluatorSlug: string | null
+}): string {
+    if (metric.kind === "invocation") return metric.id
+    const evaluator = metric.evaluatorId ?? metric.evaluatorSlug ?? metric.stepKey
+    return evaluator ? `${evaluator}:${metric.metricKey}` : metric.id
+}
+
+export type CompareDeltaTone = "positive" | "negative" | "neutral"
+
+/**
+ * A compared run's value against the base run's, in percent, as the old metric cards print it:
+ * "+12%", "-100%", "0%", or "-" when either value is missing or the base is 0.
+ */
+export function compareDelta(
+    value: number | null | undefined,
+    base: number | null | undefined,
+): {text: string; tone: CompareDeltaTone} {
+    if (
+        typeof value !== "number" ||
+        typeof base !== "number" ||
+        !Number.isFinite(value) ||
+        !Number.isFinite(base) ||
+        base === 0
+    ) {
+        return {text: "-", tone: "neutral"}
+    }
+    const rounded = Math.round(((value - base) / base) * 100)
+    if (rounded > 0) return {text: `+${rounded}%`, tone: "positive"}
+    if (rounded < 0) return {text: `${rounded}%`, tone: "negative"}
+    return {text: "0%", tone: "neutral"}
+}
+
+/** One bar group of a chart: its category and the value of each series. */
+export interface CompareBarDatum {
+    category: string
+    values: Readonly<Record<string, number | null>>
+}
+
+/**
+ * The bars of several runs in one chart: each category once, with the value of every run that has
+ * it. Categories keep the order they first appear in, base run first; when every category is a
+ * number or a numeric range ("0.5–1"), they are sorted by their first number.
+ */
+export function mergeCompareBars(
+    series: readonly (readonly CompareBarDatum[])[],
+): CompareBarDatum[] {
+    const merged = new Map<string, CompareBarDatum>()
+    for (const data of series) {
+        for (const datum of data) {
+            const entry = merged.get(datum.category) ?? {category: datum.category, values: {}}
+            entry.values = {...entry.values, ...datum.values}
+            merged.set(datum.category, entry)
+        }
+    }
+    const rows = [...merged.values()]
+    const start = (category: string) => Number.parseFloat(category)
+    const numeric = rows.every(({category}) => /^-?\d/.test(category))
+    return numeric ? rows.sort((a, b) => start(a.category) - start(b.category)) : rows
+}
+
+/**
+ * Each base row followed by the matching row of every compared run, as the old scenarios table
+ * lays them out. A row matches on its test case, else on its position. `row` is null when the
+ * compared run has no match among the rows it has loaded.
+ */
+export function matchCompareRows<T>(
+    base: readonly T[],
+    compared: readonly {runId: string; rows: readonly T[]}[],
+    {testcaseOf, indexOf}: {testcaseOf: (row: T) => string | null; indexOf: (row: T) => number},
+): {base: T; runId: string | null; slot: number; row: T | null}[] {
+    const lookups = compared.map(({runId, rows}) => {
+        const byTestcase = new Map<string, T>()
+        const byIndex = new Map<number, T>()
+        for (const row of rows) {
+            const testcase = testcaseOf(row)
+            if (testcase && !byTestcase.has(testcase)) byTestcase.set(testcase, row)
+            byIndex.set(indexOf(row), row)
+        }
+        return {runId, byTestcase, byIndex}
+    })
+    return base.flatMap((row) => {
+        const testcase = testcaseOf(row)
+        return [
+            {base: row, runId: null, slot: 0, row},
+            ...lookups.map(({runId, byTestcase, byIndex}, index) => ({
+                base: row,
+                runId,
+                slot: index + 1,
+                row:
+                    (testcase ? byTestcase.get(testcase) : undefined) ??
+                    byIndex.get(indexOf(row)) ??
+                    null,
+            })),
+        ]
+    })
+}
+
+/**
+ * The key of the compared run's group that stands for the base run's group: the same key (the
+ * same test set, app or evaluator), else the only group of the same kind (another app) when the
+ * base run also has only one group of that kind. Otherwise two base groups could show the values
+ * of one compared group.
+ */
+export function matchCompareGroupKey(
+    base: {kind: string; key: string},
+    groups: readonly {kind: string; key: string}[],
+    baseGroups: readonly {kind: string; key: string}[],
+): string | null {
+    if (groups.some((group) => group.key === base.key)) return base.key
+    const sameKind = groups.filter((group) => group.kind === base.kind)
+    const baseSameKind = baseGroups.filter((group) => group.kind === base.kind)
+    return sameKind.length === 1 && baseSameKind.length === 1 ? sameKind[0].key : null
+}
+
+/** What identifies a run's configuration, as the old app compares it. */
+export interface RunConfigIdentity {
+    testsets: readonly {testsetId: string; revisionId: string | null}[]
+    applicationId: string | null
+    /** The app revision the run called; it carries the prompt. */
+    revisionId: string | null
+    revisionVersion: number | null
+    /** Each evaluator with the version the run used (null: none named). */
+    evaluators: readonly {id: string; version: number | null}[]
+}
+
+/** Which parts of a compared run's configuration differ from the base run's. */
+export interface RunConfigDiff {
+    testset: boolean
+    app: boolean
+    /** The app revision (and so the prompt) differs. */
+    variant: boolean
+    /** By evaluator id: true when the base run lacks it or used another version. */
+    evaluators: Record<string, boolean>
+    /** The base run has an evaluator this run lacks; there is no row of it to mark. */
+    evaluatorsMissing: boolean
+}
+
+/**
+ * The old app's compare rule for the Configuration tab: only what identifies the configuration
+ * counts, never names or descriptions. Test sets compare as a set of ids, and a test set revision
+ * only when both runs name one. The app compares by id, the variant by revision id and version (a
+ * changed prompt is a new revision). Evaluators compare by id and version, in any order.
+ */
+export function runConfigDiff(current: RunConfigIdentity, base: RunConfigIdentity): RunConfigDiff {
+    const idsKey = (identity: RunConfigIdentity) =>
+        [...new Set(identity.testsets.map((testset) => testset.testsetId))].sort().join("|")
+    const baseRevisions = new Map(
+        base.testsets.map((testset) => [testset.testsetId, testset.revisionId]),
+    )
+    const revisionDiffers = current.testsets.some(({testsetId, revisionId}) => {
+        const baseRevisionId = baseRevisions.get(testsetId)
+        return Boolean(revisionId && baseRevisionId && revisionId !== baseRevisionId)
+    })
+    const baseEvaluators = new Map(base.evaluators.map(({id, version}) => [id, version]))
+    const currentIds = new Set(current.evaluators.map(({id}) => id))
+    return {
+        testset: idsKey(current) !== idsKey(base) || revisionDiffers,
+        app: current.applicationId !== base.applicationId,
+        variant:
+            current.revisionId !== base.revisionId ||
+            current.revisionVersion !== base.revisionVersion,
+        evaluators: Object.fromEntries(
+            current.evaluators.map(({id, version}) => [
+                id,
+                !baseEvaluators.has(id) || baseEvaluators.get(id) !== version,
+            ]),
+        ),
+        evaluatorsMissing: base.evaluators.some(({id}) => !currentIds.has(id)),
+    }
 }

@@ -14,8 +14,8 @@ import {RunDetailsBody} from "./RunDetailsBody"
 import {RunDetailsHeader} from "./RunDetailsHeader"
 
 /**
- * One evaluation run: its title, a Stop or Resume action for a live run, and its tabs. Opening
- * the page only reads the run; nothing is written.
+ * One evaluation run: its title with the run menu, a Stop or Resume action for a live run, the
+ * run chips with Compare, and its tabs. Opening the page only reads the run; nothing is written.
  */
 export const RunDetailsScreen = ({
     workspaceId,

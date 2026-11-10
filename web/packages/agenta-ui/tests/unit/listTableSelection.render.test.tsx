@@ -97,6 +97,37 @@ describe("ListTable selection", () => {
         expect(screen.getByText("Name")).toBeTruthy()
     })
 
+    it("on a wide table the bar still shows its action and runs it with the selection", () => {
+        const onArchive = vi.fn()
+        const Bar = () => {
+            const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set(["1"]))
+            return (
+                <ListTable<Row>
+                    columns={[{key: "name", label: "Name", width: "1fr"}]}
+                    groups={GROUPS}
+                    rowKey={(row) => row.id}
+                    renderRow={(row) => <span>{row.name}</span>}
+                    minWidth={3000}
+                    selection={{
+                        selectedKeys: selected,
+                        onChange: setSelected,
+                        rowLabel: (row) => `Select ${row.name}`,
+                        bulkActions: (keys) => (
+                            <button type="button" onClick={() => onArchive([...keys])}>
+                                Archive
+                            </button>
+                        ),
+                    }}
+                />
+            )
+        }
+        render(<Bar />)
+        fireEvent.click(box("Select Beta"))
+        expect(screen.getByRole("status").textContent).toContain("2 selected")
+        fireEvent.click(screen.getByRole("button", {name: "Archive"}))
+        expect(onArchive).toHaveBeenCalledWith(["1", "2"])
+    })
+
     it("Clear in the bar empties the selection", () => {
         render(<Harness initial={["1", "2"]} />)
         fireEvent.click(screen.getByRole("button", {name: "Clear"}))

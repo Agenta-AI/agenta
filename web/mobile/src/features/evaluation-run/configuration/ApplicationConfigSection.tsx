@@ -1,21 +1,41 @@
-import {Badge, Button} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
+import {GitCommit, SquaresFour} from "@phosphor-icons/react"
+import dynamic from "next/dynamic"
 
-import {useRevisionParam} from "../../revisions/useRevisionParam"
+import {RunReferenceChip} from "../overview/RunReferenceChip"
+import {useRunReferenceLinks} from "../overview/useRunReferenceLinks"
 
 import {ConfigJsonDisclosure} from "./ConfigJsonDisclosure"
 import {ConfigRows, type ConfigRowData} from "./ConfigRows"
 import {ConfigSection} from "./ConfigSection"
 import type {ApplicationConfig} from "./useApplicationConfig"
 
+// The prompt view carries the editors: it loads only with this section.
+const RevisionConfigView = dynamic(
+    () => import("@agenta/entity-ui/variant/config").then((m) => m.RevisionConfigView),
+    {ssr: false, loading: () => <SkeletonBlock className="h-40 w-full rounded-md" />},
+)
+
 const MISSING = "—"
 const NO_SCHEMA_NOTE = "No playground schema — snapshot available as JSON"
 
 /**
- * The Application section: the app, its variant and version, and its configuration. "Open
- * variant" opens the revision in the revision drawer; the JSON shows the stored revision as it is.
+ * The Application section: the app and its variant as chips (the variant links to its revision
+ * when the variants page is on), and the prompt template the run used, read only, as a form, JSON
+ * or YAML. A custom workflow without a schema shows its stored JSON.
  */
-export const ApplicationConfigSection = ({application}: {application: ApplicationConfig}) => {
-    const [, setRevisionId] = useRevisionParam()
+export const ApplicationConfigSection = ({
+    application,
+    idSuffix = "",
+    diff,
+}: {
+    application: ApplicationConfig
+    /** Compare mode: which fields differ from the base run's. */
+    diff?: {app: boolean; variant: boolean}
+    /** Keeps the section id unique when several runs show side by side. */
+    idSuffix?: string
+}) => {
+    const links = useRunReferenceLinks()
     const {appName, variantName, version, customWithoutSchema} = application
 
     const subtitle = [appName, variantName, version === null ? null : `v${version}`]
@@ -24,7 +44,7 @@ export const ApplicationConfigSection = ({application}: {application: Applicatio
 
     if (application.appFailed && !appName) {
         return (
-            <ConfigSection id="config-application" title="Application">
+            <ConfigSection id={`config-application${idSuffix}`} title="Application">
                 <p className="m-0 text-sm text-muted-foreground">
                     Application metadata unavailable.
                 </p>
@@ -33,15 +53,27 @@ export const ApplicationConfigSection = ({application}: {application: Applicatio
     }
 
     const rows: ConfigRowData[] = [
-        {key: "application", label: "Application", value: appName ?? MISSING},
+        {
+            key: "application",
+            label: "Application",
+            differs: diff?.app,
+            value: appName ? (
+                <RunReferenceChip icon={<SquaresFour size={14} />} label={appName} />
+            ) : (
+                MISSING
+            ),
+        },
         {
             key: "variant",
             label: "Variant",
+            differs: diff?.variant,
             value: variantName ? (
-                <span className="inline-flex flex-wrap items-center gap-1">
-                    {variantName}
-                    {version === null ? null : <Badge variant="outlined">v{version}</Badge>}
-                </span>
+                <RunReferenceChip
+                    icon={<GitCommit size={14} />}
+                    label={variantName}
+                    version={version}
+                    href={links.variant(application.applicationId, application.revisionId)}
+                />
             ) : (
                 MISSING
             ),
@@ -61,32 +93,23 @@ export const ApplicationConfigSection = ({application}: {application: Applicatio
     ]
 
     return (
-        <ConfigSection id="config-application" title="Application" subtitle={subtitle || null}>
+        <ConfigSection
+            id={`config-application${idSuffix}`}
+            title="Application"
+            subtitle={subtitle || null}
+        >
             <ConfigRows rows={rows} />
             {application.configFailed ? (
                 <p className="m-0 text-sm text-muted-foreground">
                     Variant configuration unavailable.
                 </p>
+            ) : customWithoutSchema ? (
+                <ConfigJsonDisclosure value={application.snapshot} defaultOpen />
             ) : (
-                <div className="flex min-w-0 flex-col gap-3">
-                    {customWithoutSchema ? null : (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="self-start"
-                            onClick={() => setRevisionId(application.revisionId)}
-                        >
-                            Open variant
-                        </Button>
-                    )}
-                    <ConfigJsonDisclosure
-                        // defaultOpen is read once, so a custom workflow found after the first
-                        // render needs a fresh disclosure to start open.
-                        key={customWithoutSchema ? "open" : "closed"}
-                        value={application.snapshot}
-                        defaultOpen={customWithoutSchema}
-                    />
-                </div>
+                <section aria-label="Prompt Template" className="flex min-w-0 flex-col gap-2">
+                    <h3 className="m-0 text-sm font-semibold text-foreground">Prompt Template</h3>
+                    <RevisionConfigView revisionId={application.revisionId} kind="variant" />
+                </section>
             )}
         </ConfigSection>
     )

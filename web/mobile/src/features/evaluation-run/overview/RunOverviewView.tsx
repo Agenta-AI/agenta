@@ -7,6 +7,7 @@ import {RunRadarCard} from "./RunRadarCard"
 import {buildRunSummaryRows} from "./runSummaryRows"
 import {RunSummaryTable} from "./RunSummaryTable"
 import type {OverviewMetric, OverviewNames} from "./useRunOverview"
+import type {RunReferenceLinks} from "./useRunReferenceLinks"
 
 export interface RunOverviewViewProps {
     runId: string
@@ -16,6 +17,7 @@ export interface RunOverviewViewProps {
     metricsPending: boolean
     metricsError: Error | null
     names: OverviewNames
+    links?: RunReferenceLinks
     /** A live run's query; undefined while it loads. */
     query?: RunQueryConfig | null
     onRetryMetrics?: () => void
@@ -30,12 +32,19 @@ export const RunOverviewView = ({
     metricsPending,
     metricsError,
     names,
+    links,
     query,
     onRetryMetrics,
 }: RunOverviewViewProps) => {
     const rows = useMemo(
-        () => buildRunSummaryRows({header, references, metrics, metricsPending, names, query}),
-        [header, references, metrics, metricsPending, names, query],
+        () =>
+            buildRunSummaryRows({header, references, metrics, metricsPending, names, links, query}),
+        [header, references, metrics, metricsPending, names, links, query],
+    )
+
+    const radarRuns = useMemo(
+        () => [{id: runId, name: header.name, metrics}],
+        [runId, header.name, metrics],
     )
 
     return (
@@ -57,12 +66,7 @@ export const RunOverviewView = ({
                 </header>
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <RunSummaryTable rows={rows} />
-                    <RunRadarCard
-                        runId={runId}
-                        runName={header.name}
-                        metrics={metrics}
-                        pending={metricsPending}
-                    />
+                    <RunRadarCard runs={radarRuns} pending={metricsPending} />
                 </div>
             </section>
             <MetricCardsSection

@@ -73,6 +73,7 @@ describe("run metric catalog", () => {
             stepKey: "evaluator-129eebd77337",
             evaluatorSlug: auto.run.data.steps[2].references.evaluator?.slug,
             stats: {type: "binary"},
+            statsAreRunWide: true,
         })
         // Duration comes from the invocation step, not from the evaluators' own timing.
         const duration = catalog.find((entry) => entry.id === "duration")
@@ -124,6 +125,7 @@ describe("run metric catalog", () => {
             {value: true, count: 3},
             {value: false, count: 1},
         ])
+        expect(success?.statsAreRunWide).toBe(false)
     })
 })
 
