@@ -4,7 +4,7 @@ import asyncio
 import zlib
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -278,7 +278,9 @@ def test_a_long_message_is_cut():
 def test_the_tool_call_names_the_failed_tool(
     name, tool_input, kind, integration, action
 ):
-    failure = with_turn_context(_tool_failure(), [_tool_call(name, tool_input)])
+    failure = with_turn_context(
+        _tool_failure(), tool_calls=[_tool_call(name, tool_input)]
+    )
 
     assert failure.tool_name == name
     assert failure.tool_kind == kind
@@ -289,42 +291,27 @@ def test_the_tool_call_names_the_failed_tool(
 def test_another_call_in_the_turn_is_not_the_failed_tool():
     failure = with_turn_context(
         _tool_failure(),
-        [_tool_call("bash", call_id="call-2"), _tool_call("grep", call_id="call-1")],
+        tool_calls=[
+            _tool_call("bash", call_id="call-2"),
+            _tool_call("grep", call_id="call-1"),
+        ],
     )
 
     assert failure.tool_name == "grep"
 
 
-def test_the_prompt_comes_from_the_same_turn():
+def test_the_prompt_is_the_given_user_message():
     failure = with_turn_context(
-        _tool_failure(),
-        [
-            _user_message("older", turn_id="turn-0", timestamp=AT - timedelta(hours=1)),
-            _user_message("this one"),
-            _user_message("later", turn_id="turn-2", timestamp=AT + timedelta(hours=1)),
-        ],
+        _tool_failure(), tool_calls=[], prompt=_user_message("this one")
     )
 
     assert failure.prompt == "this one"
 
 
-def test_a_continuation_takes_the_latest_earlier_prompt():
-    failure = with_turn_context(
-        _tool_failure(turn_id="resumed-turn"),
-        [
-            _user_message("first", turn_id="turn-0", timestamp=AT - timedelta(hours=2)),
-            _user_message(
-                "second", turn_id="turn-1", timestamp=AT - timedelta(hours=1)
-            ),
-            _user_message("after", turn_id="turn-2", timestamp=AT + timedelta(hours=1)),
-        ],
-    )
-
-    assert failure.prompt == "second"
-
-
 def test_a_long_prompt_is_cut():
-    failure = with_turn_context(_tool_failure(), [_user_message("p" * 5000)])
+    failure = with_turn_context(
+        _tool_failure(), tool_calls=[], prompt=_user_message("p" * 5000)
+    )
 
     assert failure.prompt == "p" * 4000
 
@@ -354,9 +341,10 @@ def posthog(monkeypatch):
     return fake
 
 
-def _reporter(*, context=(), owner_user_id=OWNER):
+def _reporter(*, tool_calls=(), prompt=None, owner_user_id=OWNER):
     records_dao = MagicMock()
-    records_dao.get_failure_context = AsyncMock(return_value=list(context))
+    records_dao.get_turn_tool_calls = AsyncMock(return_value=list(tool_calls))
+    records_dao.get_latest_user_message = AsyncMock(return_value=prompt)
     streams_dao = MagicMock()
     streams_dao.get_by_session_id_including_archived = AsyncMock(
         return_value=SimpleNamespace(owner_user_id=owner_user_id)
@@ -365,31 +353,34 @@ def _reporter(*, context=(), owner_user_id=OWNER):
 
 
 async def _report(reporter, records):
-    await reporter.report(
-        organization_id=ORGANIZATION, project_id=PROJECT, records=records
-    )
+    await reporter.report(records=records, organization_ids={PROJECT: ORGANIZATION})
 
 
 _FAILED_TOOL = _record(
     "tool_result", {"id": "call-1", "isError": True, "output": "secret stack trace"}
 )
-_CONTEXT = (_user_message("my private prompt"), _tool_call("bash"))
+_PROMPT = _user_message("my private prompt")
+_CALLS = (_tool_call("bash"),)
+
+
+def _with_context(**overrides):
+    return _reporter(tool_calls=_CALLS, prompt=_PROMPT, **overrides)
 
 
 @pytest.mark.asyncio
 async def test_oss_sends_nothing_and_ee_sends_the_same_records(posthog, monkeypatch):
     monkeypatch.setattr(reporter_module, "is_ee", lambda: False)
-    await _report(_reporter(context=_CONTEXT), [_FAILED_TOOL])
+    await _report(_with_context(), [_FAILED_TOOL])
     assert posthog.events == []
 
     monkeypatch.setattr(reporter_module, "is_ee", lambda: True)
-    await _report(_reporter(context=_CONTEXT), [_FAILED_TOOL])
+    await _report(_with_context(), [_FAILED_TOOL])
     assert [event["uuid"] for event in posthog.events] == [str(RECORD)]
 
 
 @pytest.mark.asyncio
 async def test_ee_sends_the_event_without_text_by_default(posthog):
-    await _report(_reporter(context=_CONTEXT), [_FAILED_TOOL])
+    await _report(_with_context(), [_FAILED_TOOL])
 
     assert posthog.events == [
         {
@@ -414,7 +405,7 @@ async def test_ee_sends_the_event_without_text_by_default(posthog):
 async def test_the_detail_flag_adds_the_message_and_the_prompt(posthog, monkeypatch):
     monkeypatch.setattr(env.posthog, "agent_failure_details", True)
 
-    await _report(_reporter(context=_CONTEXT), [_FAILED_TOOL])
+    await _report(_with_context(), [_FAILED_TOOL])
 
     properties = posthog.events[0]["properties"]
     assert properties["message"] == "secret stack trace"
@@ -425,7 +416,10 @@ async def test_the_detail_flag_adds_the_message_and_the_prompt(posthog, monkeypa
 async def test_the_reported_prompt_is_cut(posthog, monkeypatch):
     monkeypatch.setattr(env.posthog, "agent_failure_details", True)
 
-    await _report(_reporter(context=[_user_message("p" * 5000)]), [_FAILED_TOOL])
+    await _report(
+        _reporter(tool_calls=_CALLS, prompt=_user_message("p" * 5000)),
+        [_FAILED_TOOL],
+    )
 
     assert posthog.events[0]["properties"]["prompt"] == "p" * 4000
 
@@ -440,8 +434,9 @@ async def test_an_error_code_reaches_the_failure_code_property(posthog):
     assert properties["failure_source"] == "model"
     assert properties["failure_code"] == "rate_limited"
     assert "code" not in properties
-    # No tool name to find and no text allowed out, so the read is not worth its cost.
-    reporter.records_dao.get_failure_context.assert_not_awaited()
+    # No tool name to find and no text allowed out, so nothing is read.
+    reporter.records_dao.get_turn_tool_calls.assert_not_awaited()
+    reporter.records_dao.get_latest_user_message.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -467,32 +462,46 @@ async def test_a_removed_owner_still_sends_the_event(posthog, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_one_read_serves_a_turn_and_one_lookup_serves_a_session(posthog):
-    reporter = _reporter(context=_CONTEXT)
-    second_failure = _record(
-        "tool_result", {"id": "call-2", "isError": True}, record_id=uuid4()
-    )
-    other_turn = _record(
-        "tool_result",
-        {"id": "call-3", "isError": True},
-        record_id=uuid4(),
-        turn_id="turn-2",
-    )
+async def test_a_tool_call_in_the_batch_names_the_tool_without_a_read(posthog):
+    reporter = _reporter()
 
-    await _report(reporter, [_FAILED_TOOL, second_failure, other_turn])
+    await _report(reporter, [_tool_call("grep"), _FAILED_TOOL])
 
-    assert len(posthog.events) == 3
-    assert reporter.records_dao.get_failure_context.await_count == 2
-    streams = reporter.streams_dao.get_by_session_id_including_archived
-    assert streams.await_count == 1
+    assert posthog.events[0]["properties"]["tool_name"] == "grep"
+    reporter.records_dao.get_turn_tool_calls.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_a_dao_failure_loses_only_its_own_turn(posthog):
-    reporter = _reporter()
-    reporter.records_dao.get_failure_context = AsyncMock(
-        side_effect=[RuntimeError("db down"), [_tool_call("bash", call_id="call-3")]]
+async def test_a_tool_call_from_an_earlier_batch_is_read_from_the_turn(posthog):
+    reporter = _with_context()
+
+    await _report(reporter, [_FAILED_TOOL])
+
+    assert posthog.events[0]["properties"]["tool_name"] == "bash"
+    reporter.records_dao.get_turn_tool_calls.assert_awaited_once_with(
+        project_id=PROJECT, session_id=SESSION, turn_id=TURN
     )
+    # Without the detail flag the prompt is never sent, so it is never read.
+    reporter.records_dao.get_latest_user_message.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_the_prompt_is_read_as_one_message_at_the_failure_time(
+    posthog, monkeypatch
+):
+    monkeypatch.setattr(env.posthog, "agent_failure_details", True)
+    reporter = _reporter()
+
+    await _report(reporter, [_record("error", {"code": "x"})])
+
+    reporter.records_dao.get_latest_user_message.assert_awaited_once_with(
+        project_id=PROJECT, session_id=SESSION, at_or_before=AT
+    )
+
+
+@pytest.mark.asyncio
+async def test_one_owner_lookup_serves_a_session(posthog):
+    reporter = _with_context()
     other_turn = _record(
         "tool_result",
         {"id": "call-3", "isError": True},
@@ -502,7 +511,9 @@ async def test_a_dao_failure_loses_only_its_own_turn(posthog):
 
     await _report(reporter, [_FAILED_TOOL, other_turn])
 
-    assert [event["properties"]["turn_id"] for event in posthog.events] == ["turn-2"]
+    assert len(posthog.events) == 2
+    streams = reporter.streams_dao.get_by_session_id_including_archived
+    assert streams.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -511,9 +522,11 @@ async def test_a_failing_posthog_never_raises(posthog, monkeypatch):
 
     await _report(_reporter(), [_record("error", {"code": "x"})])
     await _reporter().report_trigger_start(
+        organization_id=ORGANIZATION,
         project_id=PROJECT,
         session_id=SESSION,
         user_id=OWNER,
+        delivery_key="trigger-1:event-1",
         failure_code="start_unconfirmed",
     )
 
@@ -534,9 +547,11 @@ async def test_a_stalled_lookup_ends_at_the_timeout(posthog, monkeypatch):
     )
     await asyncio.wait_for(
         _reporter().report_trigger_start(
+            organization_id=ORGANIZATION,
             project_id=PROJECT,
             session_id=SESSION,
             user_id=OWNER,
+            delivery_key="trigger-1:event-1",
             failure_code="start_unconfirmed",
         ),
         timeout=1,
@@ -545,27 +560,44 @@ async def test_a_stalled_lookup_ends_at_the_timeout(posthog, monkeypatch):
     assert posthog.events == []
 
 
+async def _report_trigger_start(*, session_id=SESSION):
+    await _reporter().report_trigger_start(
+        organization_id=ORGANIZATION,
+        project_id=PROJECT,
+        session_id=session_id,
+        user_id=OWNER,
+        delivery_key="trigger-1:event-1",
+        failure_code="agent_run_failed",
+    )
+
+
 @pytest.mark.asyncio
 async def test_a_trigger_start_is_reported_for_the_trigger_owner(posthog, monkeypatch):
     monkeypatch.setattr(env.posthog, "agent_failure_details", True)
 
-    await _reporter().report_trigger_start(
-        project_id=PROJECT,
-        session_id=SESSION,
-        user_id=OWNER,
-        failure_code="agent_run_failed",
-    )
+    await _report_trigger_start()
 
     event = posthog.events[0]
     assert event["distinct_id"] == "owner@example.com"
-    assert UUID(event["uuid"]).version == 4
     assert event["properties"] == {
         "project_id": str(PROJECT),
         "session_id": SESSION,
         "failure_source": "trigger",
         "failure_code": "agent_run_failed",
+        "organization_id": str(ORGANIZATION),
     }
     reporter_module.db_manager.get_user_with_id.assert_awaited_once_with(str(OWNER))
+
+
+@pytest.mark.asyncio
+async def test_retries_of_one_trigger_event_are_one_posthog_event(posthog):
+    # Each retry claims a new session, so only the delivery key ties them together.
+    await _report_trigger_start(session_id="session-try-1")
+    await _report_trigger_start(session_id="session-try-2")
+
+    first, second = posthog.events
+    assert first["uuid"] == second["uuid"]
+    assert UUID(first["uuid"]).version == 5
 
 
 @pytest.mark.asyncio
@@ -573,9 +605,11 @@ async def test_oss_reports_no_trigger_start(posthog, monkeypatch):
     monkeypatch.setattr(reporter_module, "is_ee", lambda: False)
 
     await _reporter().report_trigger_start(
+        organization_id=None,
         project_id=PROJECT,
         session_id=SESSION,
         user_id=None,
+        delivery_key="trigger-1:event-1",
         failure_code="start_unconfirmed",
     )
 
@@ -621,34 +655,19 @@ def community_edition(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_a_committed_error_reaches_the_reporter(community_edition):
-    visible = _record("error", {"code": "sandbox_gone"})
-    late = _record("error", {"code": "x"}, record_id=uuid4(), quarantined_at=AT)
+async def test_the_committed_batch_reaches_the_reporter_once(community_edition):
+    committed = _record("error", {"code": "sandbox_gone"})
     failure_reporter = MagicMock()
     failure_reporter.report = AsyncMock()
 
     appended, acked = await _worker(
-        committed=[visible, late], failure_reporter=failure_reporter
-    ).process_batch(_batch())
-
-    assert (appended, acked) == (2, [b"1-1"])
-    failure_reporter.report.assert_awaited_once_with(
-        organization_id=ORGANIZATION, project_id=PROJECT, records=[visible]
-    )
-
-
-@pytest.mark.asyncio
-async def test_a_raising_reporter_leaves_the_acked_ids_alone(community_edition):
-    failure_reporter = MagicMock()
-    failure_reporter.report = AsyncMock(side_effect=RuntimeError("posthog down"))
-
-    appended, acked = await _worker(
-        committed=[_record("error", {"code": "sandbox_gone"})],
-        failure_reporter=failure_reporter,
+        committed=[committed], failure_reporter=failure_reporter
     ).process_batch(_batch())
 
     assert (appended, acked) == (1, [b"1-1"])
-    failure_reporter.report.assert_awaited_once()
+    failure_reporter.report.assert_awaited_once_with(
+        records=[committed], organization_ids={PROJECT: ORGANIZATION}
+    )
 
 
 # ---------------------------------------------------------------------- the dispatcher
@@ -734,12 +753,17 @@ async def test_a_failed_start_is_reported_and_still_raises(
             event={"metadata": {"trigger_slug": "cron.tick", "id": "e"}, "payload": {}},
         )
 
+    schedule_id = dao.claim_trigger_delivery.await_args.kwargs["attribution"]
     failure_reporter.report_trigger_start.assert_awaited_once_with(
+        organization_id=ANY,
         project_id=PROJECT,
         session_id=dao.claim_trigger_delivery.await_args.kwargs["session_id"],
         user_id=OWNER,
+        delivery_key=f"{schedule_id.configuration_id}:sched-1:2026-07-13T00:00:00",
         failure_code=failure_code,
     )
+    reported = failure_reporter.report_trigger_start.await_args.kwargs
+    assert reported["organization_id"] is not None
 
 
 def test_failure_keeps_the_gateway_refusal_code():

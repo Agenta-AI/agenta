@@ -436,10 +436,12 @@ class TriggersDispatcher:
             return
 
         envelope = None
+        organization_id = None
         if failure is None:
+            organization_id = await self._organization_id(project_id=project_id)
             envelope = stored_work_envelope(
                 principal=entity.principal,
-                organization_id=await self._organization_id(project_id=project_id),
+                organization_id=organization_id,
                 project_id=project_id,
                 origin=(
                     RunOrigin.SUBSCRIPTION if is_subscription else RunOrigin.SCHEDULE
@@ -555,9 +557,11 @@ class TriggersDispatcher:
                 )
                 if self.failure_reporter is not None:
                     await self.failure_reporter.report_trigger_start(
+                        organization_id=organization_id,
                         project_id=project_id,
                         session_id=session_id,
                         user_id=user_id,
+                        delivery_key=f"{entity.id}:{event_id}",
                         failure_code=_start_failure_code(e),
                     )
                 raise

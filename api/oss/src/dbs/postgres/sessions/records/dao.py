@@ -1,7 +1,8 @@
+from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import and_, case, func, or_, select, tuple_, update
+from sqlalchemy import case, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -251,12 +252,12 @@ class RecordsDAO(RecordsDAOInterface):
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
 
-    async def get_failure_context(
+    async def get_turn_tool_calls(
         self,
         *,
         project_id: UUID,
         session_id: str,
-        turn_id: Optional[str],
+        turn_id: str,
     ) -> List[SessionRecord]:
         async with self.engine.session() as session:
             stmt = (
@@ -264,24 +265,43 @@ class RecordsDAO(RecordsDAOInterface):
                 .where(
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
+                    RecordDBE.turn_id == turn_id,
+                    RecordDBE.record_type == "tool_call",
                     RecordDBE.deleted_at.is_(None),
                     RecordDBE.quarantined_at.is_(None),
-                    or_(
-                        and_(
-                            RecordDBE.record_type == "message",
-                            RecordDBE.record_source == "user",
-                        ),
-                        and_(
-                            RecordDBE.record_type == "tool_call",
-                            RecordDBE.turn_id == turn_id,
-                        ),
-                    ),
                 )
                 .order_by(*self._send_order())
             )
 
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    async def get_latest_user_message(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        at_or_before: Optional[datetime],
+    ) -> Optional[SessionRecord]:
+        async with self.engine.session() as session:
+            stmt = select(RecordDBE).where(
+                RecordDBE.project_id == project_id,
+                RecordDBE.session_id == session_id,
+                RecordDBE.record_type == "message",
+                RecordDBE.record_source == "user",
+                RecordDBE.deleted_at.is_(None),
+                RecordDBE.quarantined_at.is_(None),
+            )
+            if at_or_before is not None:
+                stmt = stmt.where(RecordDBE.timestamp <= at_or_before)
+            stmt = stmt.order_by(
+                RecordDBE.timestamp.desc().nullslast(),
+                RecordDBE.record_index.desc().nullslast(),
+                RecordDBE.created_at.desc(),
+            ).limit(1)
+
+            dbe = (await session.execute(stmt)).scalars().first()
+            return map_record_dbe_to_dto(dbe=dbe) if dbe is not None else None
 
     @staticmethod
     def _send_order():

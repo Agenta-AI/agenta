@@ -202,40 +202,19 @@ def _tool_fields(tool_call: SessionRecord) -> Dict[str, Optional[str]]:
     return fields
 
 
-def _prompt(failure: AgentFailure, context: List[SessionRecord]) -> Optional[str]:
-    messages = [
-        (record, text)
-        for record in context
-        if record.record_type == "message"
-        and record.record_source == "user"
-        and (text := _text((record.attributes or {}).get("text")))
-    ]
-    same_turn = [
-        text
-        for record, text in messages
-        if failure.turn_id is not None and record.turn_id == failure.turn_id
-    ]
-    if same_turn:
-        return same_turn[-1][:AGENT_FAILURE_PROMPT_LIMIT]
-
-    # A continuation turn holds no user message of its own.
-    if failure.occurred_at is None:
-        return None
-    earlier = [
-        text
-        for record, text in messages
-        if record.timestamp is not None and record.timestamp <= failure.occurred_at
-    ]
-    return earlier[-1][:AGENT_FAILURE_PROMPT_LIMIT] if earlier else None
-
-
 def with_turn_context(
-    failure: AgentFailure, context: List[SessionRecord]
+    failure: AgentFailure,
+    *,
+    tool_calls: List[SessionRecord],
+    prompt: Optional[SessionRecord] = None,
 ) -> AgentFailure:
-    """`context` is in send order, so the last match is the latest record."""
-    update: Dict[str, Optional[str]] = {"prompt": _prompt(failure, context)}
+    """`tool_calls` is in send order, so the last match is the latest call."""
+    update: Dict[str, Optional[str]] = {}
+    if prompt is not None:
+        text = _text((prompt.attributes or {}).get("text"))
+        update["prompt"] = text[:AGENT_FAILURE_PROMPT_LIMIT] if text else None
     if failure.tool_call_id is not None:
-        for record in reversed(context):
+        for record in reversed(tool_calls):
             if (
                 record.record_type == "tool_call"
                 and (record.attributes or {}).get("id") == failure.tool_call_id

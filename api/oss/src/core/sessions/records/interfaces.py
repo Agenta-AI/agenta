@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
@@ -36,14 +37,22 @@ class RecordsDAOInterface:
     ) -> List[SessionRecord]:
         raise NotImplementedError
 
-    async def get_failure_context(
+    async def get_turn_tool_calls(
         self,
         *,
         project_id: UUID,
         session_id: str,
-        turn_id: Optional[str],
+        turn_id: str,
     ) -> List[SessionRecord]:
-        """The session's user messages and this turn's tool calls, in send order."""
+        raise NotImplementedError
+
+    async def get_latest_user_message(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        at_or_before: Optional[datetime],
+    ) -> Optional[SessionRecord]:
         raise NotImplementedError
 
     async def get_records_page(

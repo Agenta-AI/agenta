@@ -84,13 +84,16 @@ new runner code still reaches PostHog.
 
 ## Flow
 
-1. `process_batch` commits the batch.
-2. After the watch publish, the worker calls `AgentFailureReporter.report(...)` with the visible
+1. `process_batch` commits every project batch.
+2. After the loop, the worker calls `AgentFailureReporter.report(...)` once with all committed
    records. The call never raises, so it cannot re-drive the append.
 3. `failure_from_record` picks the failures. Most batches have none and stop here.
-4. For each failing turn, one DAO read returns the turn's `tool_call` records and the session's
-   user messages. The tool name and the prompt come from that read.
-5. The reporter reads `session_streams.owner_user_id`, then the user's email, and calls
+4. The tool name comes from a `tool_call` in the same batch. Only when the batch does not hold it,
+   `get_turn_tool_calls` reads the failed turn's tool calls. Another worker can commit a
+   `tool_call` after its `tool_result`, so the batch is checked first.
+5. Only with the detail flag on, `get_latest_user_message` reads one user message at or before the
+   failure. That is the prompt, also for a continuation turn.
+6. The reporter reads `session_streams.owner_user_id`, then the user's email, and calls
    `posthog.capture`.
 
 ## Decisions from the self-review
@@ -103,15 +106,20 @@ new runner code still reaches PostHog.
 - **Secrets.** The runner redacts records at the persist sink, so the capture reads redacted text.
   `prompt` is cut to 4000 characters and `message` to 1000.
 - **Redelivery.** The worker can see a record twice. The event `uuid` is the `record_id` and the
-  `timestamp` is the record time, so PostHog treats a repeat as the same event. This also needs the same `distinct_id`. A session
-  whose owner changes between deliveries counts twice, and this case is rare enough to accept.
+  `timestamp` is the record time, so PostHog treats a repeat as the same event. This also needs
+  the same `distinct_id`. A session whose owner changes between deliveries counts twice, and this
+  case is rare enough to accept.
 - **Prompt on a resumed turn.** Locally 772 of 864 failing turns hold their own user message. The
   other 92 are continuations. The prompt then falls back to the latest user message before the
   failure.
 - **Bounded wait.** The worker waits on the report before it acknowledges a batch, and the reads have
-  no timeout of their own. Each report stops after 5 seconds and loses its unsent events.
-- **Read cost.** `get_records` loads the whole session, with tool output. A new narrow DAO read
-  loads only what the event needs.
+  no timeout of their own. One report covers the whole batch and stops after 5 seconds, so a
+  batch waits 5 seconds at most and loses its unsent events.
+- **Read cost.** Each read is bounded: the turn's tool calls, and one user message with `LIMIT 1`.
+  Neither grows with the length of the session.
+- **Trigger retries.** A failed start re-raises, and TaskIQ retries it up to 5 times with a new
+  session each time. The event uuid comes from the trigger and its event id, so the retries are one
+  PostHog event. The event also carries the organization.
 - **Identity.** The middleware uses the email as `distinct_id`, so this does too. Local data has
   3185 of 3206 sessions with an owner. Without one, `distinct_id` is `project:<id>` and the event
   sets `$process_person_profile: false`.
@@ -132,8 +140,9 @@ new runner code still reaches PostHog.
 
 - `api/oss/src/core/sessions/records/failures.py`: shape, table, pure functions.
 - `api/oss/src/tasks/asyncio/sessions/failure_reporter.py`: reads context, sends the event.
-- `api/oss/src/core/sessions/records/interfaces.py`, `api/oss/src/dbs/postgres/sessions/records/dao.py`: narrow read.
+- `api/oss/src/core/sessions/records/interfaces.py`, `api/oss/src/dbs/postgres/sessions/records/dao.py`: the two bounded reads.
 - `api/oss/src/tasks/asyncio/sessions/records_worker.py`, `api/entrypoints/worker_streams.py`: wiring.
 - `api/oss/src/tasks/asyncio/triggers/dispatcher.py`, `api/entrypoints/routers.py`, `api/entrypoints/worker_queues.py`: the `trigger` capture.
 - `api/oss/src/utils/env.py`, `hosting/docker-compose/ee/env.ee.*.example`: the detail flag.
 - `api/oss/tests/pytest/unit/sessions/test_agent_failures.py`: tests.
+- `api/oss/tests/pytest/unit/sessions/test_agent_failure_reads_dao.py`: the two reads against Postgres.

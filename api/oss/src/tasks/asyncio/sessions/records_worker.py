@@ -141,7 +141,7 @@ class RecordsWorker(StreamConsumer):
     4. EE: L2 quota check per org (Counter.RECORDS_INGESTED)
     5. Append record events to DB
     6. Reconcile HITL gates orphaned by a finished turn
-    7. Report agent failures in the committed records to PostHog
+    7. Report agent failures in the committed records to PostHog, once per batch
     8. ACK + DEL only the messages whose Postgres write committed — StreamConsumer
 
     A message id leaves this worker in the acknowledged list for exactly three reasons: its
@@ -397,6 +397,8 @@ class RecordsWorker(StreamConsumer):
 
         batches = list(groups.values())
         total_appended = 0
+        reported_records: List[SessionRecord] = []
+        organization_ids: Dict[UUID, Optional[UUID]] = {}
 
         org_allowed: Dict[UUID, bool] = {}
         # Orgs whose quota question could not be answered. Their records are not over quota,
@@ -466,6 +468,10 @@ class RecordsWorker(StreamConsumer):
             )
             total_appended += len(results)
             acked_ids.extend(committed_ids)
+            reported_records.extend(
+                result for result in results if isinstance(result, SessionRecord)
+            )
+            organization_ids[project_batch["project_id"]] = org_id
 
             if not committed_ids:
                 continue
@@ -552,23 +558,10 @@ class RecordsWorker(StreamConsumer):
                             session_id=session_id,
                         )
 
-            if self.failure_reporter is not None:
-                try:
-                    await self.failure_reporter.report(
-                        organization_id=project_batch["organization_id"],
-                        project_id=project_batch["project_id"],
-                        records=[
-                            result
-                            for result in results
-                            if isinstance(result, SessionRecord)
-                            and result.quarantined_at is None
-                        ],
-                    )
-                except Exception:
-                    log.warning(
-                        "[RECORDS] Failure report failed",
-                        project_id=str(project_batch["project_id"]),
-                        exc_info=True,
-                    )
+        if self.failure_reporter is not None and reported_records:
+            await self.failure_reporter.report(
+                records=reported_records,
+                organization_ids=organization_ids,
+            )
 
         return total_appended, acked_ids

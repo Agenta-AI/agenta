@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple, Union
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.records.failures import (
@@ -69,7 +69,7 @@ def _send(
         timestamp=failure.occurred_at,
         properties=_properties(failure, organization_id=organization_id, email=email),
     )
-    log.info(
+    log.debug(
         "[AGENT FAILURE] Sent",
         source=failure.source.value,
         code=failure.code,
@@ -90,85 +90,83 @@ class AgentFailureReporter:
     async def report(
         self,
         *,
-        organization_id: Optional[UUID],
-        project_id: UUID,
         records: List[SessionRecord],
+        organization_ids: Dict[UUID, Optional[UUID]],
     ) -> None:
+        """One call per worker batch, so the whole batch waits on one timeout."""
         if not _reporting_enabled():
             return
 
         try:
             await asyncio.wait_for(
-                self._report(
-                    organization_id=organization_id,
-                    project_id=project_id,
-                    records=records,
-                ),
+                self._report(records=records, organization_ids=organization_ids),
                 timeout=REPORT_TIMEOUT_SECONDS,
             )
         except Exception:
-            log.warning(
-                "[AGENT FAILURE] Report failed",
-                project_id=str(project_id),
-                exc_info=True,
-            )
+            log.warning("[AGENT FAILURE] Report failed", exc_info=True)
 
     async def _report(
         self,
         *,
-        organization_id: Optional[UUID],
-        project_id: UUID,
         records: List[SessionRecord],
+        organization_ids: Dict[UUID, Optional[UUID]],
     ) -> None:
-        groups: Dict[Tuple[str, Optional[str]], List[AgentFailure]] = {}
+        groups: Dict[Tuple[UUID, str, Optional[str]], List[AgentFailure]] = {}
         for record in records:
             failure = failure_from_record(record)
             if failure is not None:
-                groups.setdefault((failure.session_id, failure.turn_id), []).append(
-                    failure
-                )
+                key = (failure.project_id, failure.session_id, failure.turn_id)
+                groups.setdefault(key, []).append(failure)
+        if not groups:
+            return
 
-        emails: Dict[str, Optional[str]] = {}
-        for (session_id, turn_id), failures in groups.items():
-            try:
-                if session_id not in emails:
-                    emails[session_id] = await self._session_owner_email(
-                        project_id=project_id,
-                        session_id=session_id,
-                    )
-                for failure in await self._with_context(
+        # Another worker can commit a tool_call after its tool_result, so the batch's own
+        # calls are read before the database.
+        batch_tool_calls = [
+            record for record in records if record.record_type == "tool_call"
+        ]
+        emails: Dict[Tuple[UUID, str], Optional[str]] = {}
+        for (project_id, session_id, turn_id), failures in groups.items():
+            if (project_id, session_id) not in emails:
+                emails[(project_id, session_id)] = await self._session_owner_email(
                     project_id=project_id,
                     session_id=session_id,
-                    turn_id=turn_id,
-                    failures=failures,
-                ):
-                    _send(
-                        failure,
-                        organization_id=organization_id,
-                        email=emails[session_id],
-                    )
-            except Exception:
-                log.warning(
-                    "[AGENT FAILURE] Report failed for a turn",
-                    project_id=str(project_id),
-                    session_id=session_id,
-                    exc_info=True,
+                )
+            tool_calls = [
+                record
+                for record in batch_tool_calls
+                if record.project_id == project_id and record.session_id == session_id
+            ]
+            for failure in await self._with_context(
+                project_id=project_id,
+                session_id=session_id,
+                turn_id=turn_id,
+                failures=failures,
+                tool_calls=tool_calls,
+            ):
+                _send(
+                    failure,
+                    organization_id=organization_ids.get(project_id),
+                    email=emails[(project_id, session_id)],
                 )
 
     async def report_trigger_start(
         self,
         *,
+        organization_id: Optional[UUID],
         project_id: UUID,
         session_id: str,
         user_id: Optional[Union[UUID, str]],
+        delivery_key: str,
         failure_code: str,
     ) -> None:
+        """`delivery_key` names the trigger event, so its retries are one PostHog event."""
         if not _reporting_enabled():
             return
 
         try:
             failure = AgentFailure(
-                record_id=uuid4(),
+                record_id=uuid5(NAMESPACE_URL, f"agenta:trigger-start:{delivery_key}"),
                 project_id=project_id,
                 session_id=session_id,
                 occurred_at=datetime.now(timezone.utc),
@@ -179,7 +177,7 @@ class AgentFailureReporter:
                 self._user_email(user_id=user_id),
                 timeout=REPORT_TIMEOUT_SECONDS,
             )
-            _send(failure, organization_id=None, email=email)
+            _send(failure, organization_id=organization_id, email=email)
         except Exception:
             log.warning(
                 "[AGENT FAILURE] Trigger report failed",
@@ -195,19 +193,34 @@ class AgentFailureReporter:
         session_id: str,
         turn_id: Optional[str],
         failures: List[AgentFailure],
+        tool_calls: List[SessionRecord],
     ) -> List[AgentFailure]:
-        needs_context = env.posthog.agent_failure_details or any(
-            failure.source is AgentFailureSource.TOOL for failure in failures
-        )
-        if not needs_context:
-            return failures
+        known_calls = {(call.attributes or {}).get("id") for call in tool_calls}
+        if turn_id is not None and any(
+            failure.tool_call_id is not None and failure.tool_call_id not in known_calls
+            for failure in failures
+        ):
+            tool_calls = [
+                *await self.records_dao.get_turn_tool_calls(
+                    project_id=project_id,
+                    session_id=session_id,
+                    turn_id=turn_id,
+                ),
+                *tool_calls,
+            ]
 
-        context = await self.records_dao.get_failure_context(
-            project_id=project_id,
-            session_id=session_id,
-            turn_id=turn_id,
-        )
-        return [with_turn_context(failure, context) for failure in failures]
+        prompt = None
+        if env.posthog.agent_failure_details:
+            times = [f.occurred_at for f in failures if f.occurred_at is not None]
+            prompt = await self.records_dao.get_latest_user_message(
+                project_id=project_id,
+                session_id=session_id,
+                at_or_before=max(times) if times else None,
+            )
+        return [
+            with_turn_context(failure, tool_calls=tool_calls, prompt=prompt)
+            for failure in failures
+        ]
 
     async def _session_owner_email(
         self, *, project_id: UUID, session_id: str
