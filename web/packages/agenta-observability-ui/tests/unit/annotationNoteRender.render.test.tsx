@@ -21,7 +21,9 @@ vi.mock("@agenta/entities/workflow", async () => {
                 data: {},
             },
         ]),
-        resolveOutputSchemaProperties: () => ({}),
+        resolveOutputSchemaProperties: () => ({
+            complex_note: {type: "string"},
+        }),
         workflowLatestRevisionQueryAtomFamily: () => dummyQueryAtom,
     }
 })
