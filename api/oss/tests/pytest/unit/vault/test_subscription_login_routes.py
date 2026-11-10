@@ -1533,6 +1533,17 @@ class TestClaudeSubscriptionToken:
         assert "sk-ant-api03" not in response.text
         assert harness.anthropic.requests == []
 
+    def test_a_token_with_a_non_ascii_character_is_refused_unchecked(self, harness):
+        secret_id = _create_claude(harness.client)
+
+        response = _put_token(
+            harness, secret_id, f"{CLAUDE_TOKEN[:20]}\u200b{CLAUDE_TOKEN[20:]}"
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == "subscription_token_rejected"
+        assert harness.anthropic.requests == []
+
     def test_a_token_broken_by_a_line_wrap_is_joined_and_stored(self, harness):
         """A terminal that wraps the long token adds spaces or line breaks on copy."""
         secret_id = _create_claude(harness.client)

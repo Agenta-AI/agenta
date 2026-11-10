@@ -591,12 +591,19 @@ class SubscriptionLoginService:
         # A setup-token never contains whitespace. A terminal that wraps the long token can
         # add spaces where the lines break when it is copied, so the pieces are joined.
         token = "".join(token.split())
-        if not token.startswith(_CLAUDE_TOKEN_PREFIX):
+        # A setup-token is ASCII. Another character, such as a zero-width space, cannot go
+        # in the Authorization header, so the check with Anthropic would fail with an error.
+        reason = None
+        if not token.isascii():
+            reason = "non_ascii"
+        elif not token.startswith(_CLAUDE_TOKEN_PREFIX):
+            reason = "wrong_prefix"
+        if reason:
             log.warning(
                 "subscription.token",
                 connection=str(secret_id),
                 outcome="rejected",
-                reason="wrong_prefix",
+                reason=reason,
             )
             raise SubscriptionTokenRejected(message="This is not a Claude setup-token.")
 
