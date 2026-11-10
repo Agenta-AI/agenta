@@ -11,7 +11,6 @@
 import {memo, useCallback, useState, type ReactNode} from "react"
 
 import {
-    CaretDown,
     CaretRight,
     Check,
     Code,
@@ -23,6 +22,7 @@ import {
     X,
 } from "@phosphor-icons/react"
 
+import {CollapseCaret} from "../../components/ui/collapse-caret"
 import type {FieldHeaderVariant, FieldViewModeOption, ViewMode} from "../coreTypes"
 
 import {ViewModeDropdown} from "./ViewModeDropdown"
@@ -205,8 +205,9 @@ const DefaultTooltip = ({children}: {title?: string; children: ReactNode}) => <>
  * Default icons using Phosphor icons
  */
 const defaultIcons = {
-    caretDown: <CaretDown size={14} />,
-    caretRight: <CaretRight size={14} />,
+    caretDown: <CollapseCaret open size={14} />,
+    caretRight: <CollapseCaret size={14} />,
+    drillIn: <CaretRight size={14} />,
     check: <Check size={14} />,
     copy: <Copy size={14} />,
     code: <Code size={14} />,
@@ -547,7 +548,7 @@ const DrillInFieldHeader = memo(
                             onClick={onDrillIn}
                             className="!px-2 !h-6 text-xs text-gray-500"
                         >
-                            {caretRightIcon}
+                            {defaultIcons.drillIn}
                             <span className="ml-1">Drill In</span>
                         </Button>
                     )}

@@ -1,8 +1,8 @@
-import {type FC, type ReactNode, createElement} from "react"
+import {type FC, type ReactNode} from "react"
 
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import {CollapseCaret} from "../../../components/ui/collapse-caret"
 import styles from "../FormView.module.css"
 
 import TreeRow from "./TreeRow"
@@ -23,11 +23,9 @@ interface NodeHeaderProps {
  */
 const NodeHeader: FC<NodeHeaderProps> = ({depth, folded, onToggle, children, extra, className}) => (
     <TreeRow depth={depth} className={clsx(styles["node-header"], className)}>
-        {createElement(folded ? CaretRight : CaretDown, {
-            size: 12,
-            className: "mr-1 cursor-pointer",
-            onClick: onToggle,
-        })}
+        <span className="mr-1 inline-flex cursor-pointer" onClick={onToggle}>
+            <CollapseCaret open={!folded} size={12} />
+        </span>
         {children}
         {extra && <span className="ml-1 flex items-center">{extra}</span>}
     </TreeRow>

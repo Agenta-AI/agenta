@@ -5,9 +5,10 @@
  */
 import type {ReactNode} from "react"
 
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {cn} from "../../../utils/styles"
+import {CollapseCaret} from "../../ui/collapse-caret"
 
 /** Side of the affordance column, in px — the phosphor caret box every config row ends with. */
 const AFFORDANCE_SIZE = 14
@@ -27,13 +28,19 @@ function ConfigRowAffordance({children, className}: {children?: ReactNode; class
     )
 }
 
-/** Both phosphor carets inset their ink differently, so a bare glyph sits off-axis and MOVES on toggle. */
+/** A collapsible row's caret: the shared filled caret, turned down when open. */
 export function ConfigRowCaret({open = false, className}: {open?: boolean; className?: string}) {
-    const cls = cn("text-[var(--ag-zinc-5)]", className)
-    return open ? (
-        <CaretDown size={AFFORDANCE_SIZE} className={cn("translate-x-[2.2px]", cls)} />
-    ) : (
-        <CaretRight size={AFFORDANCE_SIZE} className={cn("translate-x-[3.9px]", cls)} />
+    return <CollapseCaret open={open} size={AFFORDANCE_SIZE} className={className} />
+}
+
+/** A row that opens a drawer: an outline caret, since navigation is not collapse. */
+export function ConfigRowDrawerCaret({className}: {className?: string}) {
+    return (
+        <CaretRight
+            aria-hidden
+            size={AFFORDANCE_SIZE}
+            className={cn("shrink-0 text-[var(--ag-zinc-5)]", className)}
+        />
     )
 }
 
