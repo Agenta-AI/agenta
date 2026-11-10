@@ -7,9 +7,13 @@ export type SkillOrigin = "project" | "imported" | "builtin"
 export interface SkillListItem {
     /** Workflow id — the key callers add/remove/open by. */
     id: string
-    /** The SKILL.md name (kebab-case registry identity); `skillTitle` makes it readable. */
+    /** The key a host adds, removes or opens by: the SKILL.md name in the registry, the
+     * workflow slug (random suffix included) in the picker. Never shown as a title. */
     slug: string
+    /** The workflow name. The title falls back to it when the skill has no SKILL.md name. */
     name: string
+    /** The SKILL.md name (`skill_name`), the source of the title `skillTitle` makes. */
+    skillName?: string
     description?: string
     origin: SkillOrigin
     /** Head version tag, e.g. "3" (rendered v3). Builtin entries have none. */

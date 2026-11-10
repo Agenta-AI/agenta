@@ -42,6 +42,7 @@ const toPickerItem = (
         id: item.workflow_id ?? item.id ?? slug,
         slug,
         name: item.name ?? item.skill_name ?? slug,
+        skillName: item.skill_name ?? undefined,
         description: item.description ?? item.skill_description ?? undefined,
         origin,
         version: item.version?.replace(/^v/, "") ?? undefined,
