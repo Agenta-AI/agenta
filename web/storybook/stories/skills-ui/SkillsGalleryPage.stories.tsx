@@ -29,11 +29,10 @@ const noop = () => undefined
 
 const PROJECT_SKILLS: SkillListItem[] = [
     {
-        // The workflow name carries the random suffix; the card titles the SKILL.md name.
+        // The card titles the SKILL.md name, not the suffixed workflow name.
         id: "s0",
         slug: "laptop-replacement-policy",
-        name: "laptop-replacement-policy-3f2a",
-        skillName: "laptop-replacement-policy",
+        name: "laptop-replacement-policy",
         description: "When and how an employee gets a new laptop, and who approves it.",
         origin: "project",
         version: "2",

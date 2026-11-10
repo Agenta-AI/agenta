@@ -7,6 +7,7 @@ import {cn} from "@agenta/ui/styles"
 import {Button, EmptyState, SearchInput} from "@agenta/ui/ui"
 import {Check, Plus} from "@phosphor-icons/react"
 
+import {filterSkillOptions} from "./pickerOptions"
 import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
@@ -118,16 +119,7 @@ export function SkillPickerDrawer({
         }
     }, [open])
 
-    const visible = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        if (!q) return options
-        return options.filter(
-            (o) =>
-                o.slug.toLowerCase().includes(q) ||
-                o.name.toLowerCase().includes(q) ||
-                (o.description ?? "").toLowerCase().includes(q),
-        )
-    }, [options, search])
+    const visible = useMemo(() => filterSkillOptions(options, search), [options, search])
 
     return (
         <EnhancedDrawer

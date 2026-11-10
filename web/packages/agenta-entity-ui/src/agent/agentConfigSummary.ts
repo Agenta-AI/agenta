@@ -8,7 +8,7 @@
  * Everything is optional on purpose: a revision written before a field existed, or an agent that
  * never set one, yields `null` and the row says so rather than the card failing to render.
  */
-import {skillDisplayName} from "@agenta/shared/utils"
+import {skillDisplayName, stripStaticSkillPrefix} from "@agenta/shared/utils"
 
 export interface AgentConfigSummary {
     model: string | null
@@ -47,7 +47,7 @@ const skillName = (entry: unknown): string | null => {
     if (name) return skillDisplayName(name)
     const refs = nested(nested(entry, "@ag.embed"), "@ag.references")
     const slug = str(nested(refs, "workflow")?.slug) ?? str(nested(refs, "workflow_revision")?.slug)
-    return slug ? skillDisplayName(slug.replace(/^__ag__/, "")) : null
+    return slug ? skillDisplayName(stripStaticSkillPrefix(slug)) : null
 }
 
 /** A gateway-connection tool's integration key; null for a custom or builtin tool. */
