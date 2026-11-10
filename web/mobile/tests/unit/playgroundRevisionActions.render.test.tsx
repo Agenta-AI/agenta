@@ -17,12 +17,18 @@ import {playgroundController} from "@agenta/playground"
 import {queryClient as hostQueryClient} from "@agenta/shared/api"
 import {idbQueryStorage} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
-import {QueryClientProvider, type QueryClient} from "@tanstack/react-query"
+import {
+    defaultScheduler,
+    notifyManager,
+    QueryClientProvider,
+    type QueryClient,
+} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, onTestFinished, vi} from "vitest"
 
+import {playgroundLatestRevisionKey} from "@/features/playground/playgroundLatestRevision"
 import {PlaygroundScreen} from "@/features/playground/PlaygroundScreen"
 
 const {http, router} = vi.hoisted(() => ({
@@ -241,6 +247,8 @@ beforeEach(async () => {
     store.set(projectIdAtom, projectId)
     store.set(sessionAtom, true)
     router.query = {workspace_id: "ws-1", project_id: projectId, app_id: "app-1"}
+    // Each test opens on the latest revision, not the one the test before showed last.
+    window.localStorage.clear()
     router.replace.mockReset()
     router.replace.mockResolvedValue(true)
     calls.length = 0
@@ -319,15 +327,23 @@ const find = (name: string) => {
         ),
     ].find((item) => label(item) === name || item.getAttribute("aria-label") === name)
 }
+/**
+ * Waits for a control to show. The compare view loads its code the first time two revisions
+ * show, which can take longer than one settle.
+ */
+const findSoon = async (name: string) => {
+    for (let i = 0; i < 40 && !find(name); i++) await settle()
+    return find(name)
+}
 const click = async (name: string) => {
-    const target = find(name)
+    const target = await findSoon(name)
     expect(target, `a control named ${name}`).toBeDefined()
     await act(async () => target!.click())
     await settle()
 }
 /** Radix opens a menu on pointer down, not on click. */
 const openMenu = async (name: string) => {
-    const trigger = find(name)
+    const trigger = await findSoon(name)
     expect(trigger, `a menu named ${name}`).toBeDefined()
     await act(async () => {
         trigger!.dispatchEvent(
@@ -384,7 +400,7 @@ describe("The revision bar", () => {
         expect(writes()).toHaveLength(0)
     })
 
-    it("Leaving unsaved edits asks first, and Cancel keeps them", async () => {
+    it("Switching with unsaved edits switches at once and keeps the edits", async () => {
         await mount()
         await edit("Changed")
         await click("Switch revision")
@@ -396,28 +412,10 @@ describe("The revision bar", () => {
         await act(async () => row!.click())
         await settle()
 
-        expect(text()).toContain("Discard unsaved changes?")
-        expect(shown()).toEqual(["rev-2"])
-        await click("Cancel")
-        expect(isDirty("rev-2")).toBe(true)
-        expect(shown()).toEqual(["rev-2"])
-    })
-
-    it("Confirming discards the edits and switches", async () => {
-        await mount()
-        await edit("Changed")
-        await click("Switch revision")
-        const row = [
-            ...document.querySelectorAll<HTMLElement>("[role=treeitem], li, [role=option]"),
-        ]
-            .filter((item) => label(item).startsWith("v1"))
-            .at(-1)
-        await act(async () => row!.click())
-        await settle()
-        await click("Discard")
-
+        expect(text()).not.toContain("Discard unsaved changes?")
         expect(shown()).toEqual(["rev-1"])
-        expect(isDirty("rev-2")).toBe(false)
+        // The edits of the revision left stay, and show again when it is opened.
+        expect(isDirty("rev-2")).toBe(true)
         expect(writes()).toHaveLength(0)
     })
 })
@@ -740,6 +738,29 @@ describe("Delete", () => {
         expect(onDisk("revision", "rev-2")).toBeUndefined()
         const latestOnDisk = onDisk("latestRevision", "app-1")?.state.data as {id: string} | null
         expect(latestOnDisk?.id ?? null).not.toBe("rev-2")
+    })
+
+    it("After a delete, the selection takes the newest revision the reload answered, before the screen hears of it", async () => {
+        await mount()
+        expect(shown()).toEqual(["rev-2"])
+        // The server deletes rev-2. The latest-revision reload answers rev-1, but the screen
+        // hears of it later: the query library tells its observers on a later task. After a
+        // delete, the page takes the revision out in that gap.
+        world.revisions = world.revisions.filter((revision) => revision.id !== "rev-2")
+        const held: (() => void)[] = []
+        notifyManager.setScheduler((callback) => held.push(callback))
+        onTestFinished(() => notifyManager.setScheduler(defaultScheduler))
+        const latestKey = playgroundLatestRevisionKey("app-1", projectId)
+        await client.refetchQueries({queryKey: latestKey})
+        expect(client.getQueryData(latestKey)).toBe("rev-1")
+
+        act(() => store.set(playgroundController.actions.setEntityIds, []))
+
+        // The deleted revision must not come back.
+        expect(shown()).toEqual(["rev-1"])
+        notifyManager.setScheduler(defaultScheduler)
+        act(() => held.splice(0).forEach((callback) => callback()))
+        await expectShown(["rev-1"])
     })
 
     it("The dialog closes once the delete succeeds; a revision picked meanwhile stays with its edits", async () => {

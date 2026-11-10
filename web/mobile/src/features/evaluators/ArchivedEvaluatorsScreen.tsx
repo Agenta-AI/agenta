@@ -2,7 +2,6 @@ import {useLayoutEffect, useMemo, useState} from "react"
 
 import {workflowIncludeArchivedAtom} from "@agenta/entities/workflow"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -12,9 +11,11 @@ import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission, useProjectPermissionState} from "../context/useProjectPermission"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {useRevisionParam} from "../revisions/useRevisionParam"
@@ -30,8 +31,6 @@ import {useEvaluatorCategory} from "./useEvaluatorCategory"
 import {useRestoreEvaluator} from "./useRestoreEvaluator"
 
 /** The page column, shared with the other list pages, so the pages line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /** The archived evaluators, with Restore. A row opens the evaluator in the read-only drawer. */
 export const ArchivedEvaluatorsScreen = ({
     workspaceId,
@@ -40,6 +39,8 @@ export const ArchivedEvaluatorsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const [category, setCategory] = useEvaluatorCategory()
     const [term, setTerm] = useState("")

@@ -1,20 +1,24 @@
 import {useState} from "react"
 
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 import Link from "next/link"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../../context/useBindProjectContext"
 import {useProjectPermission} from "../../context/useProjectPermission"
+import {useDeveloperPageFrame} from "../../developer/developerPageFrame"
 import {AppShell} from "../../nav/AppShell"
 import {NavDrawer} from "../../nav/NavDrawer"
+import {copyTestsetId} from "../list/copyTestsetId"
 import {TestsetsNoMatch} from "../list/states/TestsetsNoMatch"
 import {useTestsetRowActions} from "../list/useTestsetRowActions"
 
@@ -23,8 +27,6 @@ import {ArchivedTestsetsEmpty} from "./states/ArchivedTestsetsEmpty"
 import {useArchivedTestsets} from "./useArchivedTestsets"
 
 /** The page column, shared with the other lists, so the nav entries line up. */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 /**
  * The archived test sets with Restore. Archiving happens on the Test sets list; this page is
  * where a reader brings one back.
@@ -36,6 +38,8 @@ export const ArchivedTestsetsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const [term, setTerm] = useState("")
@@ -45,6 +49,8 @@ export const ArchivedTestsetsScreen = ({
     const archived = useArchivedTestsets({projectId, search: trimmed})
     const actions = useTestsetRowActions({projectId, base, includeArchived: true})
     const canRestore = useProjectPermission(projectId, "edit_testsets")
+    // Copy ID is a developer-mode addition, as on the Test sets list.
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
 
     return (
         <>
@@ -96,6 +102,9 @@ export const ArchivedTestsetsScreen = ({
                                 projectId={projectId}
                                 isLoading={archived.isPending}
                                 canRestore={canRestore}
+                                onCopyId={
+                                    developerMode ? (row) => void copyTestsetId(row.id) : undefined
+                                }
                                 isBusy={actions.isBusy}
                                 onOpen={(row) => void actions.openLatest(row)}
                                 empty={

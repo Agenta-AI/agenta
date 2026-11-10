@@ -9,7 +9,9 @@ import {useProjectPermission} from "@/features/context/useProjectPermission"
 
 import type {ScenarioRow} from "../scenarios/scenarioColumns"
 
+import {RunInvocationPanel} from "./RunInvocationPanel"
 import {ScenarioFocusBody} from "./ScenarioFocusBody"
+import type {ScenarioInvocationState} from "./useScenarioInvocation"
 
 /** The scenario's own values; the evaluator scores are what the form edits. */
 const CONTENT_KINDS = new Set(["testset", "application"])
@@ -17,7 +19,8 @@ const CONTENT_KINDS = new Set(["testset", "application"])
 /**
  * One scenario to annotate: its inputs and the app output, beside the "Annotations" form with its
  * Annotate button. The form needs the app output to link the annotation to, and the
- * `edit_annotations` permission to save; without it the values show read only.
+ * `edit_annotations` permission to save; without it the values show read only. A human run has no
+ * output until a person runs its app: Run takes the place of the form until then.
  */
 export const RunAnnotateBody = ({
     runId,
@@ -26,6 +29,7 @@ export const RunAnnotateBody = ({
     labels,
     onRetry,
     onSaved,
+    invocation,
 }: {
     runId: string
     row: ScenarioRow
@@ -33,11 +37,13 @@ export const RunAnnotateBody = ({
     labels: Record<string, string>
     onRetry: () => void
     onSaved: OnAnnotationsSaved
+    invocation: ScenarioInvocationState
 }) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const canAnnotate = useProjectPermission(projectId, "edit_annotations")
     const contentGroups = groups.filter(({group}) => CONTENT_KINDS.has(group.kind))
-    const hasOutput = Boolean(row.invocation?.traceId)
+    const hasOutput = Boolean(row.invocation?.traceId) && !invocation.pending
+    const canRun = invocation.pending && invocation.canRun
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-3 md:flex-row md:gap-4">
@@ -64,7 +70,11 @@ export const RunAnnotateBody = ({
                         <h2 className="m-0 border-0 border-b border-solid border-border px-3 py-2.5 text-sm font-medium">
                             Annotations
                         </h2>
-                        <ScenarioMessage title="Run the invocation to generate output before annotating." />
+                        {canRun ? (
+                            <RunInvocationPanel invocation={invocation} />
+                        ) : (
+                            <ScenarioMessage title="Run the invocation to generate output before annotating." />
+                        )}
                     </>
                 )}
             </div>

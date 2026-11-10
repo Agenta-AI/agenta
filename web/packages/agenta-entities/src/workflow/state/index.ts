@@ -85,6 +85,7 @@ export {
     workflowVariantsCachedListAtomFamily,
     workflowRevisionsQueryAtomFamily,
     workflowRevisionRefsByVariantAtomFamily,
+    workflowVariantNewestVersionAtomFamily,
     workflowRevisionsListDataAtomFamily,
     // Revision by workflow (for 2-level hierarchy)
     workflowRevisionsByWorkflowQueryAtomFamily,
@@ -120,6 +121,7 @@ export {
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateAgentCommittedRevisionCache,
+    revalidateAgentRevisionReads,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,
@@ -310,6 +312,7 @@ export {
     type CreateHumanEvaluatorParams,
     type UpdateHumanEvaluatorParams,
     type HumanEvaluatorMetric,
+    type CreatedHumanEvaluator,
     // Selection config
     evaluatorSelectionConfig,
     type EvaluatorSelectionConfig,

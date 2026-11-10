@@ -389,12 +389,15 @@ export async function fetchAgentaToolsAccess(
  * @param variantId - The workflow variant ID
  * @param projectId - Project ID
  * @param flags - Optional query flags for filtering
+ * @param opts.includeArchived - Also return archived revisions
+ * @param opts.windowing - Page the revisions, newest first
  * @returns Revisions response with workflow_revisions array
  */
 export async function queryWorkflowRevisions(
     variantId: string,
     projectId: string,
     flags?: WorkflowQueryFlags,
+    opts?: {includeArchived?: boolean; windowing?: WorkflowRevisionWindowing},
 ): Promise<WorkflowRevisionsResponse> {
     if (!projectId || !variantId) {
         return {count: 0, workflow_revisions: []}
@@ -405,6 +408,8 @@ export async function queryWorkflowRevisions(
         {
             workflow_variant_refs: [{id: variantId}],
             workflow_revision: flags ? {flags} : undefined,
+            ...(opts?.includeArchived ? {include_archived: true} : {}),
+            ...(opts?.windowing ? {windowing: opts.windowing} : {}),
         },
         {params: {project_id: projectId}},
     )
@@ -979,12 +984,14 @@ export interface UpdateWorkflowPayload {
  *
  * @param projectId - Project ID
  * @param payload - Workflow update data (must include `id` = workflow ID)
- * @returns The updated workflow (revision with data)
+ * @returns The updated revision, or `null` when a write succeeded but the revision could not be
+ * read back. A failed read-back after a successful write is not an error: the caller must refresh
+ * its own caches.
  */
 export async function updateWorkflow(
     projectId: string,
     payload: UpdateWorkflowPayload,
-): Promise<Workflow> {
+): Promise<Workflow | null> {
     // Update workflow metadata if non-data fields changed. Description and tags are checked for
     // presence, not truth: an empty string clears a description, `null` clears the tags.
     const hasMetadataChanges =
@@ -992,6 +999,7 @@ export async function updateWorkflow(
         payload.description !== undefined ||
         payload.flags ||
         payload.tags !== undefined
+    let wrote = false
     if (hasMetadataChanges) {
         await axios.put(
             `${getAgentaApiUrl()}/workflows/${payload.id}`,
@@ -1007,6 +1015,7 @@ export async function updateWorkflow(
             },
             {params: {project_id: projectId}},
         )
+        wrote = true
     }
 
     // Commit a new revision if data changed
@@ -1027,6 +1036,7 @@ export async function updateWorkflow(
             },
             {params: {project_id: projectId}},
         )
+        wrote = true
 
         const validatedRevision = safeParseWithLogging(
             workflowRevisionResponseSchema,
@@ -1038,8 +1048,15 @@ export async function updateWorkflow(
         }
     }
 
-    // Fall back to fetching the latest revision
-    return fetchWorkflow({id: payload.id, projectId})
+    // Fall back to fetching the latest revision. The write is already saved at this point, so a
+    // failed read must not turn it into an error.
+    if (!wrote) return fetchWorkflow({id: payload.id, projectId})
+    try {
+        return await fetchWorkflow({id: payload.id, projectId})
+    } catch (error) {
+        console.warn("[updateWorkflow] Saved, but reading the revision back failed", error)
+        return null
+    }
 }
 
 // ============================================================================
@@ -1304,6 +1321,8 @@ export async function fetchWorkflowAgentFlags(
             // Archived workflows are classified too: the archived Agents tab needs them split the
             // same way, and their revisions are not themselves archived.
             include_archived: true,
+            // Only the flags are read, and `data` is most of each row.
+            include_data: false,
         },
         {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )

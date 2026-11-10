@@ -14,6 +14,7 @@ import {
     Textarea,
 } from "@agenta/ui/ui"
 
+import {HistoricalDataControl} from "./HistoricalDataControl"
 import {LiveEvaluatorSection} from "./LiveEvaluatorSection"
 import {LiveSection} from "./LiveSection"
 import {LiveTraceFilter} from "./LiveTraceFilter"
@@ -22,9 +23,10 @@ import type {CreateLiveEvaluationResult} from "./useCreateLiveEvaluation"
 import {useLiveEvaluationForm, type LiveEvaluationDraft} from "./useLiveEvaluationForm"
 import {useLiveEvaluators} from "./useLiveEvaluators"
 
-const querySummary = (filterCount: number, samplingRate: number | null) =>
+/** The Query section's one line. The locked invocation filter counts: the filter button shows it. */
+export const querySummary = (userFilterCount: number, samplingRate: number | null) =>
     [
-        filterCount === 0 ? "No filters" : `${filterCount} filter${filterCount === 1 ? "" : "s"}`,
+        `${userFilterCount + 1} filter${userFilterCount === 0 ? "" : "s"}`,
         samplingRate === null ? null : `Sampling ${samplingRate}%`,
         "Live traffic",
     ]
@@ -126,6 +128,7 @@ export const LiveEvaluationForm = ({
                             onChange={(samplingRate) => update({samplingRate})}
                         />
                     </Field>
+                    <HistoricalDataControl />
                 </LiveSection>
                 <LiveSection
                     title="Evaluator"

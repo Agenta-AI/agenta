@@ -11,7 +11,6 @@ import {
     moveFolder,
     moveWorkflowToFolder,
     renameFolder,
-    renameWorkflow,
     type Folder,
     type FoldersById,
 } from "@agenta/entities/workflow"
@@ -172,7 +171,6 @@ export const usePromptFolderActions = ({
             run(
                 canEditPrompts,
                 async () => {
-                    if (!destinationId) return fail(promptsCopy.guard.noDestination)
                     if (
                         !isValidMoveTarget({
                             foldersById,
@@ -195,16 +193,6 @@ export const usePromptFolderActions = ({
                     message.success(promptsCopy.toast.appMoved)
                 },
                 promptsCopy.failure.movePrompt,
-            ),
-
-        renamePrompt: (prompt: {id: string}, fields: {name: string; description: string}) =>
-            run(
-                canEditPrompts,
-                async () => {
-                    await renameWorkflow({projectId, workflowId: prompt.id, ...fields})
-                    await refetchPrompts()
-                },
-                promptsCopy.failure.renamePrompt,
             ),
 
         archivePrompt: (prompt: PromptRef) =>

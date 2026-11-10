@@ -114,6 +114,7 @@ const Host = ({
         canEditPrompts: !readOnly,
         rowActions: {
             openFolder: (row) => setFolderId(row.folder.id),
+            openPrompt: noop,
             rename: noop,
             move: noop,
             remove: noop,

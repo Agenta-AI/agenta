@@ -414,6 +414,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     multiSelect = false,
     selectedChildIds,
     selectionSummary,
+    popupClassName,
     childItemLabelMode = "full",
     // Parent multi-select props
     showParentCheckboxes = false,
@@ -949,7 +950,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 <PopoverContent
                     side={PLACEMENT_MAP[placement].side}
                     align={PLACEMENT_MAP[placement].align}
-                    className="p-0"
+                    className={popupClassName ? `p-0 ${popupClassName}` : "p-0"}
                 >
                     {content}
                 </PopoverContent>

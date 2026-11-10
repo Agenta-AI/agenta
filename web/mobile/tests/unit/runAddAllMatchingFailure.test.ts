@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * A scan that fails for a reason other than a queue add. The HTTP layer cannot produce this (the
- * trace page read returns an empty page on an error), so the scan pipeline is replaced here.
+ * A scan that fails for a reason other than a queue add, with an error text the user must not see.
+ * The scan pipeline is replaced here; `runAddAllMatching.test.ts` covers a failed page read over HTTP.
  */
 import type {ReactElement} from "react"
 

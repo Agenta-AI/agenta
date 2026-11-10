@@ -85,6 +85,13 @@ const ShareMenuView = ({
     )
 
     const agentName = agent?.name || agent?.slug || "Agent"
+    const [barPanel, setBarPanel] = useAtom(sessionBarPanelAtom)
+    const open = barPanel === "share"
+    // Nothing is read until Share first opens; the dialog outlives the panel that opened it.
+    const [engaged, setEngaged] = useState(false)
+    const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false)
+    // Channels show only in Publish and the Share panel, and this menu mounts per session.
+    const [publishEngaged, setPublishEngaged] = useState(false)
     const publish = useAgentPublishPanel({
         agentId,
         agentName: agent?.name || agent?.slug || undefined,
@@ -93,21 +100,21 @@ const ShareMenuView = ({
         projectId,
         workspaceId,
         side: "right",
+        channelsEnabled: engaged || privacyDialogOpen || publishEngaged,
     })
-    const {reload} = publish
+    const {reload, openHub} = publish
+    const openPublish = useCallback(() => {
+        setPublishEngaged(true)
+        openHub()
+    }, [openHub])
     // A privacy write can change the agent's channel connections: read them again after it.
     const reloadChannels = useCallback(() => void reload().catch(() => null), [reload])
 
-    const [barPanel, setBarPanel] = useAtom(sessionBarPanelAtom)
-    const open = barPanel === "share"
     const close = () => setBarPanel(null)
     // Only ever closes this panel: another may have opened on the same press.
     const onOpenChange = (next: boolean) =>
         setBarPanel((current) => (next ? "share" : current === "share" ? null : current))
 
-    // Nothing is read until Share first opens; the dialog outlives the panel that opened it.
-    const [engaged, setEngaged] = useState(false)
-    const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false)
     useEffect(() => {
         if (open) setEngaged(true)
     }, [open])
@@ -118,7 +125,7 @@ const ShareMenuView = ({
         workspaceId,
         projectId,
         connections: publish.connections,
-        onOpenChannels: publish.openHub,
+        onOpenChannels: openPublish,
         onChanged: reloadChannels,
         engaged: engaged || privacyDialogOpen,
     })
@@ -126,12 +133,11 @@ const ShareMenuView = ({
     const {sharing} = useSessionSharing(sessionId, projectId)
 
     // The phone's ⋯ sheet asks for the hub here, where the panel lives.
-    const {openHub} = publish
     useEffect(() => {
         if (barPanel !== "publish") return
         setBarPanel(null)
-        openHub()
-    }, [barPanel, openHub, setBarPanel])
+        openPublish()
+    }, [barPanel, openPublish, setBarPanel])
 
     const sendTemplateRequest = (text: string) => {
         // Read the store, not the render: a double tap lands before the re-render.
@@ -257,7 +263,7 @@ const ShareMenuView = ({
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={publish.openHub}
+                            onClick={openPublish}
                             data-testid="share-menu-publish"
                         >
                             <Broadcast data-icon="inline-start" />

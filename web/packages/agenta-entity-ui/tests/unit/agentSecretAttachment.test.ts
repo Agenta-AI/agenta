@@ -3,7 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     preserveAgentSecretEnvOverride,
     suggestedAgentSecretEnv,
-} from "../../src/secret/AgentSecretAttachmentModal"
+} from "../../src/secret/agentSecretRules"
 
 describe("agent secret environment suggestions", () => {
     it("prefers the request, then secret metadata, then a derived name", () => {

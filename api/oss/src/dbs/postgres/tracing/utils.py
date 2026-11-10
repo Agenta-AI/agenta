@@ -4,10 +4,11 @@ from datetime import datetime, timedelta, time, timezone
 from uuid import UUID
 from math import ceil, floor
 
-from sqlalchemy import case, cast, literal, text
+from sqlalchemy import case, cast, literal, literal_column, text
 from sqlalchemy import and_, or_, not_, Column, bindparam, Text
 from sqlalchemy import values, column, true
 from sqlalchemy import Float
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql import func, Select, ClauseElement
 from sqlalchemy.types import Numeric, Boolean, Integer, String, BigInteger
 from sqlalchemy.future import select
@@ -19,6 +20,7 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
+from oss.src.core.tracing.utils.filtering import annotation_feedback_condition
 
 from oss.src.core.tracing.dtos import (
     Filtering,
@@ -37,6 +39,7 @@ from oss.src.core.tracing.dtos import (
     FilteringException,
     Fields,
     Focus,
+    TraceType,
     Windowing,
     #
     MetricType,
@@ -361,6 +364,7 @@ def _handle_existence_operator(
 
 def _handle_attributes_field(
     condition: Condition,
+    entity: Any = SpanDBE,
 ) -> List[ClauseElement]:
     # ------------------------- #
     field = condition.field
@@ -368,7 +372,7 @@ def _handle_attributes_field(
     value = condition.value
     options = condition.options
     operator = condition.operator
-    attribute: Column = getattr(SpanDBE, field)
+    attribute: Column = getattr(entity, field)
     # ------------------------- #
 
     clauses = []
@@ -705,6 +709,61 @@ def _handle_fts_field(
     return [or_(*conditions)]
 
 
+def _handle_has_annotation_field(
+    condition: Condition,
+) -> List[ClauseElement]:
+    """Match spans that an annotation trace links to (`in`), or traces that no
+    annotation trace links to (`not_in`). Every evaluator and feedback filter of
+    the condition must hold on that same annotation."""
+    # ------------------------- #
+    filters = condition.value or []
+    operator = condition.operator
+    # ------------------------- #
+
+    annotation = aliased(SpanDBE, name="annotation")
+
+    linked = [text("'trace_id'"), cast(SpanDBE.trace_id, Text)]
+    if operator == ListOperator.IN:
+        linked += [text("'span_id'"), cast(SpanDBE.span_id, Text)]
+
+    clauses: List[ClauseElement] = [
+        annotation.project_id == SpanDBE.project_id,
+        annotation.trace_type == TraceType.ANNOTATION,
+        annotation.links.contains(
+            func.jsonb_build_array(func.jsonb_build_object(*linked))
+        ),
+    ]
+
+    for item in filters:
+        if item.get("evaluator"):
+            clauses.append(
+                annotation.references.contains(
+                    cast(
+                        bindparam(
+                            None, dumps([{"slug": item["evaluator"]}]), type_=Text
+                        ),
+                        JSONB,
+                    )
+                )
+            )
+        if item.get("feedback"):
+            clauses.extend(
+                _handle_attributes_field(
+                    annotation_feedback_condition(item["feedback"]),
+                    entity=annotation,
+                )
+            )
+
+    exists = (
+        select(literal_column("1"))
+        .select_from(annotation)
+        .where(and_(*clauses))
+        .exists()
+    )
+
+    return [exists] if operator == ListOperator.IN else [not_(exists)]
+
+
 # COMBINE / FILTER
 
 
@@ -800,6 +859,8 @@ def filter(  # pylint:disable=redefined-builtin
                 clauses.extend(_handle_string_field(condition))
             elif field == Fields.AGENT_ID:
                 clauses.extend(_handle_string_field(condition))
+            elif field == Fields.HAS_ANNOTATION:
+                clauses.extend(_handle_has_annotation_field(condition))
             else:
                 # raise FilteringException(
                 #     f"Unsupported condition field: {field}",

@@ -101,8 +101,9 @@ const Harness = ({appId}: {appId: string}) => {
     return null
 }
 
+// Long enough for the address write, which waits for the edits to stop.
 const settle = async () => {
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
         await act(async () => {
             await new Promise((resolve) => setTimeout(resolve, 15))
         })
@@ -127,6 +128,8 @@ beforeEach(() => {
     failRevisions = false
     holdApp = null
     added = []
+    // Each test opens with no remembered selection.
+    window.localStorage.clear()
     router.replace.mockReset()
     router.replace.mockImplementation(async ({query}: {query: Record<string, string>}) => {
         router.query = query
@@ -139,6 +142,8 @@ beforeEach(() => {
 
 afterEach(() => {
     act(() => root.unmount())
+    // Leaving keeps the edits of a saved revision; the next test starts without them.
+    store.set(workflowMolecule.actions.discard, "rev-1")
     host.remove()
 })
 
@@ -229,13 +234,16 @@ describe("usePlaygroundSelection", () => {
         await mount("app-1")
 
         expect(router.replace).toHaveBeenCalledWith(
-            {pathname: router.pathname, query: expect.objectContaining({revisions: "rev-2"})},
+            expect.objectContaining({
+                pathname: router.pathname,
+                query: expect.objectContaining({revisions: "rev-2"}),
+            }),
             undefined,
-            {shallow: true},
+            {shallow: true, scroll: false},
         )
     })
 
-    it("Local draft ids are not written to the URL", async () => {
+    it("A local draft is named by its revision in the URL and kept in the hash", async () => {
         await mount("app-1", "rev-1")
         const localId = createLocalDraftFromWorkflowRevision("rev-1")!
         router.replace.mockClear()
@@ -244,8 +252,12 @@ describe("usePlaygroundSelection", () => {
         await settle()
 
         expect(selection.revisionIds).toEqual(["rev-1", localId])
-        expect(router.replace).not.toHaveBeenCalled()
         expect(router.query.revisions).toBe("rev-1")
+        expect(router.replace).toHaveBeenLastCalledWith(
+            expect.objectContaining({hash: expect.stringMatching(/^pgSnapshot=/)}),
+            undefined,
+            {shallow: true, scroll: false},
+        )
     })
 
     it("A local draft id with no draft behind it is dropped", async () => {
@@ -294,7 +306,7 @@ describe("usePlaygroundSelection", () => {
         expect(nodes()).toEqual([])
     })
 
-    it("Leaving discards the drafts it asked about", async () => {
+    it("Leaving keeps the edits of a saved revision and drops a local copy", async () => {
         await mount("app-1", "rev-1")
         const localId = createLocalDraftFromWorkflowRevision("rev-1")!
         act(() => {
@@ -308,8 +320,26 @@ describe("usePlaygroundSelection", () => {
 
         act(() => root.render(null))
 
-        expect(store.get(workflowMolecule.selectors.isDirty("rev-1"))).toBe(false)
+        expect(store.get(workflowMolecule.selectors.isDirty("rev-1"))).toBe(true)
         expect(store.get(workflowMolecule.selectors.data(localId))).toBeNull()
+    })
+
+    it("Coming back shows the kept edit as a draft of the same revision", async () => {
+        await mount("app-1", "rev-1")
+        act(() => {
+            workflowMolecule.set.update("rev-1", {
+                data: {uri: "agenta:builtin:completion:v0", parameters: {temperature: 0.9}},
+            })
+        })
+        await settle()
+        act(() => root.render(null))
+
+        await mount("app-1", "rev-1")
+
+        expect(selection.revisionIds).toEqual(["rev-1"])
+        expect(store.get(workflowMolecule.selectors.isDirty("rev-1"))).toBe(true)
+        const parameters = store.get(workflowMolecule.selectors.data("rev-1"))?.data?.parameters
+        expect(parameters).toMatchObject({temperature: 0.9})
     })
 
     it("Changing the app clears the previous app's selection", async () => {

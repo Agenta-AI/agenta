@@ -1,7 +1,6 @@
 import {useMemo} from "react"
 
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Skeleton, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {CloudArrowUp, Lightning} from "@phosphor-icons/react"
@@ -11,10 +10,13 @@ import {useAtomValue} from "jotai"
 import {PageNotFound} from "@/components/PageNotFound"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {AppOverviewLink} from "../app-overview/AppOverviewLink"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {DeveloperAppPicker} from "../developer/DeveloperAppPicker"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
+import {useRouteAppId} from "../developer/useRouteAppId"
 import {useUrlParams} from "../developer/useUrlParams"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -23,13 +25,11 @@ import {DeploymentsTab} from "./DeploymentsTab"
 import {PickAppState} from "./states/PickAppState"
 import {VariantsTab} from "./VariantsTab"
 
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
 type TabId = "variants" | "deployments"
 
 /**
- * The variants of one app and where each is deployed. The app is a query parameter, so the
- * nav link needs no id; the tab and the open revision live in the URL too.
+ * The variants of one app and where each is deployed. The app comes from the path, or from
+ * `?app=` on the project page; the tab and the open revision live in the URL too.
  */
 export const VariantsScreen = ({
     workspaceId,
@@ -38,11 +38,13 @@ export const VariantsScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const {read, write} = useUrlParams()
     const queryClient = useQueryClient()
     const apps = useAtomValue(appWorkflowsListQueryStateAtom)
-    const appId = read("app")
+    const {appId, fromPath} = useRouteAppId()
     const tab: TabId = read("tab") === "deployments" ? "deployments" : "variants"
     const app = useMemo(
         () => apps.data.find((entry) => entry.id === appId) ?? null,
@@ -75,11 +77,17 @@ export const VariantsScreen = ({
                     </TabsTrigger>
                 </TabsList>
                 <TabsContent value="variants" className="pt-3">
-                    <VariantsTab key={app.id} projectId={projectId} app={app} />
+                    <VariantsTab
+                        key={app.id}
+                        base={`/w/${workspaceId}/p/${projectId}`}
+                        projectId={projectId}
+                        app={app}
+                    />
                 </TabsContent>
                 <TabsContent value="deployments" className="pt-3">
                     <DeploymentsTab
                         key={app.id}
+                        workspaceId={workspaceId}
                         projectId={projectId}
                         app={app}
                         base={`/w/${workspaceId}/p/${projectId}`}
@@ -103,18 +111,22 @@ export const VariantsScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px]">
                                     Registry
                                 </h1>
-                                <AppOverviewLink
-                                    base={`/w/${workspaceId}/p/${projectId}`}
-                                    appId={app?.id ?? null}
-                                />
-                                <DeveloperAppPicker
-                                    apps={apps.data}
-                                    value={appId}
-                                    loading={apps.isPending}
-                                    onChange={(next) =>
-                                        write({app: next, revisionId: null, env: null})
-                                    }
-                                />
+                                {fromPath ? null : (
+                                    <>
+                                        <AppOverviewLink
+                                            base={`/w/${workspaceId}/p/${projectId}`}
+                                            appId={app?.id ?? null}
+                                        />
+                                        <DeveloperAppPicker
+                                            apps={apps.data}
+                                            value={appId}
+                                            loading={apps.isPending}
+                                            onChange={(next) =>
+                                                write({app: next, revisionId: null, env: null})
+                                            }
+                                        />
+                                    </>
+                                )}
                             </div>
                         </div>
                     }

@@ -161,9 +161,16 @@ class ApplicationsService:
         #
         application_edit: ApplicationEdit,
     ) -> Optional[Application]:
+        # Only a folder_id the caller sent may reach the workflow edit, where a null
+        # moves the application to the top level.
         workflow_edit = WorkflowEdit(
             **application_edit.model_dump(
                 mode="json",
+                exclude=(
+                    None
+                    if "folder_id" in application_edit.model_fields_set
+                    else {"folder_id"}
+                ),
             ),
         )
 

@@ -113,15 +113,16 @@ describe("useTestsetEditor", () => {
         mount("new", "Greeting checks")
 
         expect(await act(() => editor().addColumn("   "))).toEqual({ok: false, reason: "empty"})
-        expect(await act(() => editor().addColumn(" country "))).toEqual({
-            ok: true,
-            revisionId: null,
-        })
+        expect(await act(() => editor().addColumn(" country "))).toEqual({ok: true})
         expect(await act(() => editor().addColumn("country"))).toEqual({
             ok: false,
             reason: "duplicate",
         })
-        expect(store.get(revisionMolecule.atoms.pendingColumnOps("new")).add).toEqual(["country"])
+        expect(store.get(revisionMolecule.atoms.pendingColumnOps("new")).add).toEqual([
+            "input",
+            "correct_answer",
+            "country",
+        ])
         expect(saves.saved).not.toHaveBeenCalled()
     })
 
@@ -180,11 +181,27 @@ describe("useTestsetEditor", () => {
         expect(store.get(revisionMolecule.atoms.draft(REVISION))).toBeNull()
     })
 
+    it("A new row has a field for each column, so the row drawer has fields to fill in", async () => {
+        mount("new", "Greeting checks")
+        await act(() => editor().addColumn("country"))
+        await act(() => editor().addColumn("capital"))
+        const rowId = run(() => editor().addRow())
+
+        // The starter columns of a new test set come first.
+        expect(store.get(testcaseMolecule.atoms.data(rowId as string))?.data).toEqual({
+            input: "",
+            correct_answer: "",
+            country: "",
+            capital: "",
+        })
+    })
+
     it("Discard on a new test set clears its rows and columns", async () => {
         mount("new", "Greeting checks")
         run(() => editor().addRow())
         await act(() => editor().addColumn("country"))
-        expect(editor().changesSummary.addedColumns).toBe(1)
+        // The two starter columns and "country".
+        expect(editor().changesSummary.addedColumns).toBe(3)
 
         act(() => editor().discard())
 

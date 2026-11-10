@@ -11,6 +11,7 @@ import {useAtomValue} from "jotai"
 import {DrillInBridgeProvider} from "../chat/DrillInBridgeProvider"
 
 import {EvaluatorPlaygroundHeader} from "./EvaluatorPlaygroundHeader"
+import {EvaluatorTypeTag} from "./EvaluatorTypeTag"
 import {LoadPresetAction} from "./LoadPresetAction"
 import {PlaygroundFocusDrawerHost} from "./PlaygroundFocusDrawerHost"
 import {PlaygroundRunPane} from "./PlaygroundRunPane"
@@ -49,18 +50,29 @@ export const EvaluatorPlaygroundWorkspace = ({
     onWorkflowRevisionCommitted: (revisionId: string) => void
 }) => {
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
-    const {switchTo, modal: switchDialog} = useSwitchRevision()
+    const switchTo = useSwitchRevision()
     const evaluator = useAtomValue(workflowMolecule.selectors.data(evaluatorRevisionId))
     const nodes = useAtomValue(playgroundController.selectors.nodes())
-    const appLabel = appRevisionId ? (nodes[0]?.label ?? null) : null
+    const appName = useAtomValue(workflowMolecule.selectors.artifactName(appRevisionId ?? ""))
+    const appData = useAtomValue(workflowMolecule.selectors.data(appRevisionId ?? ""))
+    // A link restores the app with its id as the label: name it from its data instead.
+    const nodeLabel = nodes[0]?.label
+    const appLabel = !appRevisionId
+        ? null
+        : nodeLabel && nodeLabel !== appRevisionId
+          ? nodeLabel
+          : appName
+            ? `${appName}${appData?.version != null ? ` v${appData.version}` : ""}`
+            : null
     const evaluatorId = evaluator?.workflow_id ?? ""
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-background">
+        <div data-playground className="flex h-full min-h-0 flex-col bg-background">
             <EvaluatorPlaygroundHeader
                 workspaceId={workspaceId}
                 projectId={projectId}
                 evaluatorName={evaluatorName}
+                typeTag={<EvaluatorTypeTag revisionId={evaluatorRevisionId} />}
                 runOn={runOn}
                 appLabel={appLabel}
                 onRunOnChange={onRunOnChange}
@@ -111,7 +123,6 @@ export const EvaluatorPlaygroundWorkspace = ({
                     )
                 }
             />
-            {switchDialog}
             <PlaygroundFocusDrawerHost />
         </div>
     )

@@ -25,7 +25,8 @@ const usePublish = () => {
 const toPayload = (target: DeployTarget, environmentSlug: string, note: string) => ({
     revisionId: target.revisionId,
     environmentSlug,
-    note: note.trim() || undefined,
+    // An empty note stays empty, as in /w. Undefined makes the package write `Deploy <app key>`.
+    note: note.trim(),
     applicationId: target.appId,
     applicationSlug: target.appSlug ?? undefined,
     workflowVariantId: target.variantId ?? undefined,

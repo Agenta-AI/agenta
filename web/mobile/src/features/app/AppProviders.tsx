@@ -18,7 +18,7 @@ import {queryClient} from "@/lib/queryClient"
 
 import {AuthGate} from "./AuthGate"
 import {ContextSync} from "./ContextSync"
-import {ExecutionHeaders} from "./ExecutionHeaders"
+import {registerExecutionHeaders} from "./executionHeaders"
 import {PostAuthLoader} from "./PostAuthLoader"
 
 // Module scope, like the desktop _app: __env.js is beforeInteractive, so
@@ -31,6 +31,8 @@ configureAgentaSdk({host: getApiUrl()})
 if (typeof window === "undefined" || !isEmbedPath(window.location.pathname)) ensureAuthInit()
 // Without it, expired and stale-buster IndexedDB entries are never swept.
 schedulePersistedQueryGc()
+// Before any page renders, so the first run after a cold load already sends the header.
+registerExecutionHeaders()
 
 const HydrateAtoms = ({children}: PropsWithChildren) => {
     useHydrateAtoms([[queryClientAtom, queryClient]])
@@ -48,7 +50,6 @@ export const AppProviders = ({children}: PropsWithChildren) => (
                     here waits out its stale time and a remount. */}
                 <ProjectWatch refreshSession={tryRefreshSession} />
                 <AuthGate />
-                <ExecutionHeaders />
                 {/* useEntityActionDispatch throws without this; the modals stay unmounted
                     until something dispatches, so nothing renders differently today. */}
                 <EntityModalsProvider>{children}</EntityModalsProvider>

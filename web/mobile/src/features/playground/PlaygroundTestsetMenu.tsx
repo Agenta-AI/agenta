@@ -5,13 +5,16 @@ import {useTestsetMenuModel} from "@agenta/playground-ui/hooks"
 import {TestsetMenu} from "@agenta/playground-ui/panels/runs"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {useProjectPermission} from "../context/useProjectPermission"
 import type {CreatedTestset} from "../testsets/create/useUploadTestset"
 
 import {createdTestsetPayload} from "./createdTestsetLoad"
+import {runTraceIds} from "./playgroundRunTraces"
+import {PlaygroundTestsetDrop} from "./PlaygroundTestsetDrop"
 
 // Each dialog downloads when it first opens: the menu button is all the run pane loads.
 const LoadTestsetDialog = dynamic(
@@ -38,6 +41,8 @@ const CreateTestsetDialog = dynamic(
     () => import("../testsets/create/CreateTestsetDialog").then((m) => m.CreateTestsetDialog),
     {ssr: false},
 )
+// "Add to test set" opens the traces page's sheet with the runs of this page.
+const PlaygroundAddToTestset = dynamic(() => import("./PlaygroundAddToTestset"), {ssr: false})
 const EntityCommitModal = dynamic(
     () => import("@agenta/entity-ui/modals").then((module) => module.EntityCommitModal),
     {ssr: false},
@@ -62,9 +67,14 @@ export const PlaygroundTestsetMenu = () => {
     const model = useTestsetMenuModel()
     const {dialog, loadableId} = model
     const [syncMode, setSyncMode] = useState("commit")
-    const [creating, setCreating] = useState(false)
+    // The create dialog is open; with the file dropped in the load dialog, if there was one.
+    const [creating, setCreating] = useState<{file?: File} | null>(null)
+    // The traces of the runs to add, read when the user picks "Add to test set".
+    const [adding, setAdding] = useState<string[] | null>(null)
+    const store = useStore()
     const router = useRouter()
     const projectId = useAtomValue(projectIdAtom) as string | null
+    const canAddToTestset = useProjectPermission(projectId ?? "", "edit_testsets")
     // Leaving the page while the rows load must not connect a playground that is gone.
     const mounted = useRef(true)
     useEffect(() => {
@@ -92,7 +102,17 @@ export const PlaygroundTestsetMenu = () => {
 
     return (
         <>
-            <TestsetMenu model={model} />
+            <TestsetMenu
+                model={model}
+                onAddToTestset={
+                    canAddToTestset
+                        ? () => setAdding(runTraceIds(store.get, loadableId))
+                        : undefined
+                }
+            />
+            {adding ? (
+                <PlaygroundAddToTestset traceIds={adding} onClose={() => setAdding(null)} />
+            ) : null}
             {dialog?.kind === "load" || dialog?.kind === "edit" ? (
                 <LoadTestsetDialog
                     loadableId={loadableId}
@@ -102,15 +122,16 @@ export const PlaygroundTestsetMenu = () => {
                     singleSelect={model.isChat}
                     onConfirm={dialog.kind === "edit" ? model.confirmEdit : model.confirmLoad}
                     onCancel={model.close}
-                    onCreate={() => setCreating(true)}
+                    create={<PlaygroundTestsetDrop onFile={(file) => setCreating({file})} />}
                 />
             ) : null}
             {creating && projectId ? (
                 <CreateTestsetDialog
                     projectId={projectId}
                     base={`/w/${router.query.workspace_id}/p/${projectId}`}
-                    onClose={() => setCreating(false)}
+                    onClose={() => setCreating(null)}
                     onCreated={loadCreated}
+                    initialFile={creating.file}
                 />
             ) : null}
             {dialog?.kind === "keep-drafts" ? (

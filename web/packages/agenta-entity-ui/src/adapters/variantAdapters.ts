@@ -12,6 +12,7 @@ import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/en
 import {
     workflowMolecule,
     workflowRevisionRefsByVariantAtomFamily,
+    workflowVariantNewestVersionAtomFamily,
     type Workflow,
 } from "@agenta/entities/workflow"
 import {classifyAgentChanges, buildCommitSummaryMessage} from "@agenta/entities/workflow/commitDiff"
@@ -144,8 +145,12 @@ const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string,
         if (!localData) return null
 
         const variantId = localData.workflow_variant_id ?? localData.variant_id ?? null
+        // The revision list hides archived revisions; the server still numbers after them.
         const newestVersion = variantId
-            ? (get(workflowRevisionRefsByVariantAtomFamily(variantId))[0]?.version ?? undefined)
+            ? Math.max(
+                  get(workflowRevisionRefsByVariantAtomFamily(variantId))[0]?.version ?? 0,
+                  get(workflowVariantNewestVersionAtomFamily(variantId)) ?? 0,
+              )
             : undefined
 
         return buildGenericCommitContext(

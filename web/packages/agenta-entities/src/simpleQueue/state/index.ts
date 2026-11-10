@@ -28,6 +28,7 @@ export {
     discardSimpleQueueDraftAtom,
     // Server mutations
     createSimpleQueueAtom,
+    editSimpleQueueAtom,
     deleteSimpleQueueAtom,
     deleteSimpleQueuesAtom,
     addTracesToQueueAtom,

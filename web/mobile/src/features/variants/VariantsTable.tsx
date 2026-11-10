@@ -22,6 +22,15 @@ const WIDE_COLUMNS: ListTableColumn[] = [
     {key: "notes", label: "Commit notes", width: "minmax(120px,2fr)"},
     ACTIONS,
 ]
+// Room for the full model name and the time, as the Registry table gives them.
+const DETAILED_COLUMNS: ListTableColumn[] = [
+    NAME,
+    {key: "model", label: "Model", width: "minmax(180px,1.5fr)"},
+    CREATED_ON("170px"),
+    {key: "createdBy", label: "Created by", width: "minmax(100px,1fr)"},
+    {key: "notes", label: "Commit notes", width: "minmax(120px,2fr)"},
+    ACTIONS,
+]
 const NARROW_COLUMNS: ListTableColumn[] = [NAME, CREATED_ON("104px"), ACTIONS]
 
 const NO_COLLAPSED: ReadonlySet<string> = new Set()
@@ -37,18 +46,22 @@ export const VariantsTable = ({
     latestRevisionId,
     canDeploy,
     canDelete,
+    playgroundHref = null,
     collapsed = NO_COLLAPSED,
     onCollapsedChange,
     onOpen,
     onDeploy,
     onDelete,
     empty,
+    detailed = false,
 }: {
     groups: ListTableGroup<AppRevisionRow>[]
     isLoading: boolean
     latestRevisionId: string | null
     canDeploy: boolean
     canDelete: boolean
+    /** Absent or null: the menu has no "Open in playground". */
+    playgroundHref?: ((row: AppRevisionRow) => string) | null
     /** Absent: every group is open and none can fold. */
     collapsed?: ReadonlySet<string>
     onCollapsedChange?: (next: Set<string>) => void
@@ -57,6 +70,8 @@ export const VariantsTable = ({
     /** Absent with `canDelete` false: the menu has no Delete. */
     onDelete?: (row: AppRevisionRow) => void
     empty: ReactNode
+    /** The full model name and the time, as the Registry table shows them. */
+    detailed?: boolean
 }) => {
     const narrow = !useMediaQuery(WIDE_QUERY)
     const toggleGroup = useCallback(
@@ -70,7 +85,7 @@ export const VariantsTable = ({
 
     return (
         <ListTable
-            columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+            columns={narrow ? NARROW_COLUMNS : detailed ? DETAILED_COLUMNS : WIDE_COLUMNS}
             minWidth={narrow ? 300 : 760}
             stickyHeader
             loading={isLoading}
@@ -87,9 +102,11 @@ export const VariantsTable = ({
                     isLatest={row.revisionId === latestRevisionId}
                     canDeploy={canDeploy}
                     canDelete={canDelete}
+                    playgroundHref={playgroundHref}
                     onOpen={onOpen}
                     onDeploy={onDeploy}
                     onDelete={onDelete ?? NO_DELETE}
+                    detailed={detailed}
                 />
             )}
         />

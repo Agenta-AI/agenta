@@ -363,9 +363,9 @@ describe("live evaluation sheet", () => {
         })
     })
 
-    it("The query summary counts only the user's filters", async () => {
+    it("The query summary counts the locked invocation filter, like the filter button", async () => {
         await mount()
-        expect(text()).toContain("No filters • Sampling 100% • Live traffic")
+        expect(text()).toContain("1 filter • Sampling 100% • Live traffic")
         await act(async () => root.unmount())
         root = createRoot(host)
         await mount({
@@ -375,7 +375,20 @@ describe("live evaluation sheet", () => {
             ],
             samplingRate: 25,
         })
-        expect(text()).toContain("2 filters • Sampling 25% • Live traffic")
+        expect(text()).toContain("3 filters • Sampling 25% • Live traffic")
+    })
+
+    it("Run on historical data is shown off and disabled, with its dates, as in the old app", async () => {
+        await mount()
+        const toggle = host.ownerDocument.querySelector("[aria-label='Run on historical data']")
+        expect(toggle?.getAttribute("aria-checked")).toBe("false")
+        expect(toggle?.hasAttribute("disabled")).toBe(true)
+        for (const label of ["Start date", "End date"]) {
+            expect(
+                host.ownerDocument.querySelector<HTMLInputElement>(`[aria-label='${label}']`)
+                    ?.disabled,
+            ).toBe(true)
+        }
     })
 
     it("Opening the trace filter does not submit the form", async () => {
@@ -390,6 +403,25 @@ describe("live evaluation sheet", () => {
 
         expect(createRequests()).toEqual([])
         expect(text()).toContain("Apply")
+    })
+
+    it("The trace filter offers no annotation field, which the live query cannot apply", async () => {
+        await mount()
+        await act(async () =>
+            document.querySelector<HTMLButtonElement>("button[aria-label=Filter]")?.click(),
+        )
+        await act(async () => button(/^Add$/)?.click())
+        const field = button(/^Field$/)
+        await act(async () => {
+            field?.focus()
+            field?.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
+        })
+
+        const entries = [...document.querySelectorAll("[role=menuitem]")].map((node) =>
+            node.textContent?.trim(),
+        )
+        expect(entries).toContain("Status")
+        expect(entries).not.toContain("Annotation")
     })
 
     it("Empty name shows Enter a name and sends nothing", async () => {

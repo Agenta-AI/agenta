@@ -23,6 +23,9 @@ const fixture = vi.hoisted(() => ({
     error: vi.fn(),
     permissions: {deploy_environments: true} as Record<string, boolean>,
     pickable: [] as unknown[],
+    members: [] as {user: {id: string; username?: string; email?: string}}[],
+    beta: false,
+    csv: vi.fn(),
 }))
 
 vi.mock("next/router", () => ({
@@ -32,18 +35,32 @@ vi.mock("next/dynamic", () => ({default: () => () => createElement("div")}))
 vi.mock("next/link", () => ({
     default: ({children}: {children?: ReactNode}) => createElement("a", null, children),
 }))
+vi.mock("@agenta/shared/utils", async (original) => ({
+    ...(await original<object>()),
+    downloadCsv: fixture.csv,
+}))
+vi.mock("@agenta/shared/state", async (original) => ({
+    ...(await original<object>()),
+    betaDeveloperModeActiveAtom: {id: "beta"},
+}))
 vi.mock("@agenta/entities/environment", () => ({
     appEnvironmentsLoadableAtomFamily: () => ({id: "environments"}),
     environmentsListQueryAtomFamily: () => ({id: "list"}),
+    environmentMolecule: {atoms: {revisionDeployment: () => ({id: "deployedIn"})}},
 }))
 vi.mock("@agenta/entities/workflow", () => ({
     workflowVariantsListDataAtomFamily: () => ({id: "variants"}),
 }))
 vi.mock("@agenta/entities/runnable", () => ({publishMutationAtom: {id: "publish"}}))
-vi.mock("@agenta/entities/shared", () => ({UserAuthorLabel: () => createElement("span")}))
+vi.mock("@agenta/entities/shared", () => ({
+    UserAuthorLabel: ({name, fallback}: {name?: string | null; fallback?: string}) =>
+        createElement("span", null, name || fallback),
+}))
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: (atom: {id: string}) => {
+        if (atom.id === "beta") return fixture.beta
+        if (atom.id === "deployedIn") return []
         if (atom.id === "environments") return fixture.environments
         if (atom.id === "variants") return [{id: "var-1", name: "Renamed"}]
         if (atom.id === "list")
@@ -70,6 +87,9 @@ vi.mock("../../src/features/context/useProjectPermission", () => ({
 vi.mock("../../src/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => false,
 }))
+vi.mock("../../src/features/settings/useSettingsOrg", () => ({
+    useSettingsOrg: () => ({org: {data: {default_workspace: {members: fixture.members}}}}),
+}))
 vi.mock("../../src/features/variants/useAppDeploymentHistory", () => ({
     useAppDeploymentHistory: () => fixture.history,
 }))
@@ -85,6 +105,7 @@ vi.mock("../../src/features/variants/useAppRevisions", () => ({
 }))
 
 import {DeploymentsTab} from "@/features/variants/DeploymentsTab"
+import {DeployRevisionDialog} from "@/features/variants/DeployRevisionDialog"
 import {DeployToEnvironmentDialog} from "@/features/variants/DeployToEnvironmentDialog"
 import {RevertDeploymentDialog} from "@/features/variants/RevertDeploymentDialog"
 
@@ -124,6 +145,7 @@ const mount = (element: ReactNode) =>
 const mountTab = () =>
     mount(
         createElement(DeploymentsTab, {
+            workspaceId: "ws",
             projectId: "p-1",
             app: app as never,
             base: "/w/ws/p/p-1",
@@ -149,6 +171,8 @@ beforeEach(() => {
     ]
     fixture.history.data = []
     fixture.pickable = []
+    fixture.members = []
+    fixture.beta = false
 })
 
 afterEach(() => {
@@ -183,6 +207,22 @@ describe("DeploymentsTab", () => {
         fixture.history.data = [historyRow("e1", 1, "rev-1")]
         mountTab()
         expect(text()).toContain("Renamed v1")
+    })
+
+    it("Modified by shows the member's username, as in /w", () => {
+        fixture.members = [
+            {user: {id: "user-1", username: "sam.lee", email: "sam@example.com"}},
+            {user: {id: "user-2", email: "alex@example.com"}},
+        ]
+        fixture.history.data = [
+            {...historyRow("e1", 1, "rev-1"), authorId: "user-1"},
+            {...historyRow("e2", 2, "rev-2"), authorId: "user-2"},
+            {...historyRow("e3", 3, "rev-3"), authorId: "gone-user"},
+        ]
+        mountTab()
+        expect(text()).toContain("sam.lee")
+        expect(text()).toContain("alex@example.com")
+        expect(text()).toContain("—")
     })
 
     it("Environment cards and the deploy dialog show the variant's current name", () => {
@@ -328,5 +368,150 @@ describe("DeployToEnvironmentDialog", () => {
         act(() => (radios[1] as HTMLElement).click())
         expect(text()).toContain("This will deploy the following revision to development.")
         expect(deploy.disabled).toBe(false)
+    })
+})
+
+describe("DeploymentsTab in beta developer mode", () => {
+    const productionCard = () =>
+        [...document.querySelectorAll("button[aria-pressed]")].find((el) =>
+            el.textContent?.toLowerCase().includes("production"),
+        )
+
+    it("An environment with nothing deployed shows a dash for Last modified, as /w does", () => {
+        fixture.beta = true
+        fixture.environments.data = [
+            environment("development", "rev-2", "First"),
+            {...environment("production", null, null), updatedAt: "2026-03-04T10:15:00Z"},
+        ]
+        mountTab()
+        expect(productionCard()?.textContent).toContain("Last modified-")
+        expect(productionCard()?.textContent).not.toContain("2026")
+    })
+
+    it("Without beta developer mode that card keeps its date", () => {
+        fixture.environments.data = [
+            {...environment("production", null, null), updatedAt: "2026-03-04T10:15:00Z"},
+        ]
+        mountTab()
+        expect(productionCard()?.textContent).toContain("2026")
+    })
+
+    const menuItems = (menu: Element) => {
+        act(() => {
+            menu.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true, cancelable: true}),
+            )
+        })
+        const items = [...document.querySelectorAll("[role=menuitem]")].map((el) => ({
+            text: el.textContent,
+            disabled: el.hasAttribute("data-disabled"),
+        }))
+        act(() => {
+            document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
+        })
+        return items
+    }
+    const toolbarButtons = () =>
+        [...document.querySelectorAll("button")]
+            .map((el) => el.textContent?.trim())
+            .filter((label) => ["Export CSV", "Deploy", "Use API"].includes(label ?? ""))
+
+    it("The toolbar reads Export CSV, Deploy, then Use API as the main button, as in /w", () => {
+        fixture.beta = true
+        fixture.history.data = [historyRow("e1", 1, "rev-2")]
+        mountTab()
+        expect(toolbarButtons()).toEqual(["Export CSV", "Deploy", "Use API"])
+    })
+
+    it("Without beta developer mode the toolbar keeps only Deploy", () => {
+        fixture.history.data = [historyRow("e1", 1, "rev-2")]
+        mountTab()
+        expect(toolbarButtons()).toEqual(["Deploy"])
+    })
+
+    it("The row menu adds Use API and Copy ID, and Revert shows disabled with its reason on the live row", () => {
+        fixture.beta = true
+        fixture.history.data = [historyRow("e2", 2, "rev-2"), historyRow("e1", 1, "rev-1")]
+        mountTab()
+        const menus = [...document.querySelectorAll("[aria-label='Deployment actions']")]
+        const live = menuItems(menus[0])
+        expect(
+            live.map((item) => item.text?.replace("Already live in this environment", "")),
+        ).toEqual(["Open details", "Use API", "Copy ID", "Revert"])
+        expect(live.at(-1)).toEqual({
+            text: "RevertAlready live in this environment",
+            disabled: true,
+        })
+        expect(menuItems(menus[1]).at(-1)).toEqual({text: "Revert", disabled: false})
+    })
+
+    it("Export CSV downloads the history rows", () => {
+        fixture.beta = true
+        fixture.history.data = [{...historyRow("e1", 1, "rev-1"), message: "=cmd"}]
+        mountTab()
+        act(() => button("Export CSV")?.click())
+        expect(fixture.csv).toHaveBeenCalledTimes(1)
+        const [content, filename] = fixture.csv.mock.calls[0]
+        expect(filename).toBe("alpha-development-deployments.csv")
+        expect(content).toBe(
+            [
+                '"Revision","Variant","Version","Notes","Date modified","Modified by"',
+                '"v1","Renamed","v1","\'=cmd","",""',
+            ].join("\n"),
+        )
+    })
+
+    it("The deploy dialog capitalizes the environment and shows each revision's model", () => {
+        fixture.beta = true
+        fixture.pickable = [
+            {
+                revisionId: "rev-3",
+                variantId: "var-1",
+                variantName: "Renamed",
+                variantSlug: null,
+                version: 3,
+                model: "gpt-4o-mini",
+                createdAt: null,
+            },
+        ]
+        mountTab()
+        act(() => button("Deploy")?.click())
+        expect(text()).toContain("Deploy Development")
+        expect(text()).toContain("gpt-4o-mini")
+    })
+})
+
+describe("DeployRevisionDialog current variant", () => {
+    const dialog = () =>
+        mount(
+            createElement(DeployRevisionDialog, {
+                row: {
+                    revisionId: "rev-9",
+                    version: 9,
+                    variantId: "var-1",
+                    variantSlug: null,
+                    variantName: "Renamed",
+                },
+                appId: "app-1",
+                appSlug: "alpha",
+                onClose: vi.fn(),
+            }),
+        )
+    const versionTags = () =>
+        [...document.querySelectorAll("[role=dialog] *")].filter(
+            (el) => el.children.length === 0 && el.textContent === "v2",
+        )
+
+    it("shows the current variant as a name and a version tag in beta developer mode", () => {
+        fixture.beta = true
+        dialog()
+        expect(versionTags().length).toBeGreaterThan(0)
+        expect(text()).not.toContain("First v2")
+    })
+
+    it("keeps the plain text without beta developer mode", () => {
+        dialog()
+        expect(text()).toContain("First v2")
+        expect(versionTags()).toHaveLength(0)
     })
 })

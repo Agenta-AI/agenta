@@ -40,8 +40,13 @@ export function isManagedEvaluator(revision: Workflow | null | undefined): boole
     return Boolean(revision.flags?.is_managed)
 }
 
+/** When an evaluator last changed: its latest revision, else the workflow itself. */
+const lastChange = ({workflow, latestRevision}: EvaluatorEntry): string =>
+    latestRevision.created_at ?? latestRevision.updated_at ?? workflow.created_at ?? ""
+
 /**
- * Pick the evaluators of one category and mode.
+ * Pick the evaluators of one category and mode. Live evaluators come newest change first, as in
+ * /w; archived ones newest archive first.
  *
  * @param workflows - Evaluator workflows from the workflow query.
  * @param latestRevisions - The latest revision of each workflow, by workflow id.
@@ -61,11 +66,11 @@ export function selectEvaluators(
         entries.push({workflow, latestRevision})
     }
 
-    if (mode === "archived") {
-        // `entries` is a fresh array, so the sort does not reorder the caller's list.
-        entries.sort((a, b) =>
-            (b.workflow.deleted_at ?? "").localeCompare(a.workflow.deleted_at ?? ""),
-        )
-    }
+    // `entries` is a fresh array, so the sort does not reorder the caller's list.
+    entries.sort(
+        mode === "archived"
+            ? (a, b) => (b.workflow.deleted_at ?? "").localeCompare(a.workflow.deleted_at ?? "")
+            : (a, b) => lastChange(b).localeCompare(lastChange(a)),
+    )
     return entries
 }

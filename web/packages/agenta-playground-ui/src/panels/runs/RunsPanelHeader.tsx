@@ -48,7 +48,8 @@ export const RunsPanelHeader = ({
     useRunAllShortcut({isRunning: running, canRun, onRun: run})
 
     return (
-        <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center justify-between gap-4 border-0 border-b border-solid border-border bg-background px-4">
+        // A narrow pane (a phone) wraps the controls under the label instead of cutting them off.
+        <div className="sticky top-0 z-10 flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-0 border-b border-solid border-border bg-background px-4 py-2">
             {entityId ? (
                 <CollapsibleGroupHeader
                     label={label}
@@ -62,12 +63,14 @@ export const RunsPanelHeader = ({
                             <ArrowsInLineVertical size={size} />
                         )
                     }
-                    className="items-center text-base font-semibold text-nowrap"
+                    // On a phone the pane switch above already says "Generations": the label hides
+                    // there and the fold icon stays.
+                    className="items-center text-base font-semibold text-nowrap max-sm:[&>span:last-child]:sr-only"
                 />
             ) : (
                 <span className="text-base font-semibold text-nowrap">{label}</span>
             )}
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
                 {testsetMenu}
                 <SimpleTooltip title="Clear all" side="bottom">
                     <Button
@@ -86,7 +89,12 @@ export const RunsPanelHeader = ({
                         title="Run the prompt on all test cases. (Ctrl+Enter / ⌘+Enter)"
                         side="bottom"
                     >
-                        <RunButton mode="runAll" onClick={run} disabled={!canRun} />
+                        <RunButton
+                            mode="runAll"
+                            variant="default"
+                            onClick={run}
+                            disabled={!canRun}
+                        />
                     </SimpleTooltip>
                 )}
             </div>

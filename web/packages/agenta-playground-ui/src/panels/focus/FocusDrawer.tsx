@@ -26,13 +26,15 @@ const getRowId = (id: string) => id
 
 export interface FocusDrawerProps {
     renderTraceFooter?: (traceId: string) => ReactNode
+    /** The header's "Add to queue" control for the open test case; none when absent. */
+    renderAddToQueue?: (itemIds: string[]) => ReactNode
 }
 
 /**
  * One test case in a drawer: its inputs as a form, JSON or YAML, previous and next to move through
  * the rows, and its output under the form. Form edits write to the test case at once.
  */
-export const FocusDrawer = ({renderTraceFooter}: FocusDrawerProps) => {
+export const FocusDrawer = ({renderTraceFooter, renderAddToQueue}: FocusDrawerProps) => {
     const [{isOpen, rowId, entityId}, setDrawer] = useAtom(playgroundFocusDrawerAtom)
     const close = useSetAtom(closePlaygroundFocusDrawerAtom)
     const updateTestcase = useSetAtom(testcaseMolecule.actions.update)
@@ -109,21 +111,25 @@ export const FocusDrawer = ({renderTraceFooter}: FocusDrawerProps) => {
             collapseSignal,
         }: TestcaseDrawerContentRenderProps): ReactNode => {
             if (!rowId) return null
+            // The drawer renders outside the page: `data-playground` gives it the playground's
+            // editor style (see the app's globals.css).
             if (rootViewMode !== "form") {
                 return (
-                    <TestcaseDataEditor
-                        key={rowId}
-                        value={payload}
-                        onChange={handlePayloadChange}
-                        mode="edit"
-                        surface="drawer"
-                        features={{typeChips: true, rootViewMode: false, columnMapping: false}}
-                        rootViewMode={rootViewMode}
-                    />
+                    <div data-playground>
+                        <TestcaseDataEditor
+                            key={rowId}
+                            value={payload}
+                            onChange={handlePayloadChange}
+                            mode="edit"
+                            surface="drawer"
+                            features={{typeChips: true, rootViewMode: false, columnMapping: false}}
+                            rootViewMode={rootViewMode}
+                        />
+                    </div>
                 )
             }
             return (
-                <div className="flex flex-col gap-4">
+                <div data-playground className="flex flex-col gap-4">
                     <TestcaseDataEditor
                         key={rowId}
                         value={editorValue}
@@ -178,6 +184,7 @@ export const FocusDrawer = ({renderTraceFooter}: FocusDrawerProps) => {
             isError={false}
             isDirty={false}
             renderContent={renderContent}
+            renderAddToQueue={renderAddToQueue}
             enableRootViewMode
         />
     )

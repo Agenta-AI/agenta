@@ -10,7 +10,7 @@ import {useRouter} from "next/router"
 
 import {liveChatOpenAtom} from "../support/crispChat"
 
-import {useMobileNavScope} from "./mobileNavScope"
+import {useRailScope} from "./railScope"
 
 /**
  * The drawer is never collapsed. `sidebarCollapsedAtom` is persisted per origin, which `/m`
@@ -46,8 +46,7 @@ const NavDrawerView = ({
     useEffect(() => {
         if (liveChatOpen) setOpen(false)
     }, [liveChatOpen])
-    const mainScope = useMobileNavScope(workspaceId, projectId)
-    const scope = scopeOverride ?? mainScope
+    const scope = useRailScope(workspaceId, projectId, scopeOverride)
     const router = useRouter()
     // A pick in a rail flyout navigates from a button, which the shell's link-click close misses.
     useEffect(() => {

@@ -22,6 +22,10 @@ const state = vi.hoisted(() => ({
     allowed: new Set<string>(),
 }))
 
+// Member names have their own test; this screen test needs no member query.
+vi.mock("@/features/members/useBindWorkspaceMembers", () => ({
+    useBindWorkspaceMembers: () => undefined,
+}))
 vi.mock("next/router", () => ({
     useRouter: () => ({
         query: state.query,

@@ -165,6 +165,7 @@ const SessionTopBarView = ({
     entityId,
     sessionId,
     onUpdate,
+    autoUpdate = false,
     agentId,
     agentResolving = false,
     agentHidden = false,
@@ -183,6 +184,8 @@ const SessionTopBarView = ({
     sessionId: string
     /** Pin this session to a newer version the user asked for. */
     onUpdate: (revisionId: string) => void
+    /** Move to a newer version with no click; false keeps the version pill. */
+    autoUpdate?: boolean
     agentId?: string | null
     /** A null `agentId` is not yet the answer. */
     agentResolving?: boolean
@@ -242,6 +245,7 @@ const SessionTopBarView = ({
                 revisionId={entityId}
                 historyWorkflowId={agentId}
                 onUpdate={onUpdate}
+                autoUpdate={autoUpdate}
                 checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
                 hideWhenSettled
             />
@@ -364,6 +368,7 @@ const SessionTopBarView = ({
                                 agentId={agentId}
                                 agentHidden={agentHidden}
                                 onUpdate={onUpdate}
+                                autoUpdate={autoUpdate}
                                 // The Files pane takes the bar's room; the tabs keep it.
                                 iconOnly={hasSessions && filesOpen}
                             />

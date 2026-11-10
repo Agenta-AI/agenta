@@ -1,4 +1,4 @@
-import type {CSSProperties} from "react"
+import {useRef, type CSSProperties} from "react"
 
 import {createQueueDrawerDefaultKindAtom, createQueueDrawerOpenAtom} from "@agenta/annotation"
 import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
@@ -16,7 +16,8 @@ const SHEET_WIDTH = {"--ag-sheet-responsive-width": "560px"} as CSSProperties
 export const CreateQueueSheet = () => {
     const open = useAtomValue(createQueueDrawerOpenAtom)
     const defaultKind = useAtomValue(createQueueDrawerDefaultKindAtom)
-    const {submit, close, isSubmitting, selection} = useCreateQueue()
+    const {submit, close, isSubmitting, selection, followUp} = useCreateQueue()
+    const contentRef = useRef<HTMLDivElement>(null)
 
     return (
         <Sheet open={open} onOpenChange={(next) => !next && close()}>
@@ -24,8 +25,14 @@ export const CreateQueueSheet = () => {
                 side="right"
                 style={SHEET_WIDTH}
                 className="overflow-hidden"
+                ref={contentRef}
                 // Close, Escape and a click on the overlay do nothing while the request runs.
-                onEscapeKeyDown={(event) => isSubmitting && event.preventDefault()}
+                // Escape pressed in a panel portaled out of the sheet (the evaluator picker)
+                // belongs to that panel: it must not close the sheet and lose the form.
+                onEscapeKeyDown={(event) => {
+                    const fromSheet = contentRef.current?.contains(event.target as Node) ?? false
+                    if (isSubmitting || !fromSheet) event.preventDefault()
+                }}
                 onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}
                 onInteractOutside={(event) => isSubmitting && event.preventDefault()}
             >
@@ -37,8 +44,8 @@ export const CreateQueueSheet = () => {
                 </SheetHeader>
                 {open ? (
                     <CreateQueueForm
-                        defaultKind={selection?.itemType ?? defaultKind}
-                        kindLocked={Boolean(selection)}
+                        defaultKind={selection?.itemType ?? followUp?.itemType ?? defaultKind}
+                        kindLocked={Boolean(selection || followUp)}
                         isSubmitting={isSubmitting}
                         onSubmit={(values) => void submit(values)}
                         onCancel={close}

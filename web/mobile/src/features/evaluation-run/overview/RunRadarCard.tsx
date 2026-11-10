@@ -36,35 +36,48 @@ const axisFormatter =
         return format3Sig(raw)
     }
 
-/** The radar of a run's evaluator scores, with Duration and Cost added when there are few. */
-export const RunRadarCard = ({
-    runId,
-    runName,
-    metrics,
-    pending,
-}: {
-    runId: string
-    runName: string
+/** One run on the radar: a series in the run's color. */
+export interface RadarRun {
+    id: string
+    name: string
     metrics: readonly OverviewMetric[]
-    pending: boolean
-}) => {
+}
+
+const radarInputs = (metrics: readonly OverviewMetric[]): RadarMetricInput[] =>
+    metrics.map((metric) => ({
+        id: metric.id,
+        kind: metric.kind,
+        name:
+            metric.kind === "evaluator"
+                ? `${metric.evaluatorName ?? "--"}: ${metric.label}`
+                : metric.label,
+        stats: metric.stats,
+    }))
+
+/**
+ * The radar of the evaluator scores of one run, or of a run and the runs compared with it (one
+ * series each), with Duration and Cost added when there are few. A metric has the same id in
+ * every run.
+ */
+export const RunRadarCard = ({runs, pending}: {runs: readonly RadarRun[]; pending: boolean}) => {
     const narrow = useIsNarrowScreen()
     const {axes, formatAxisValue} = useMemo(() => {
-        const inputs: RadarMetricInput[] = metrics.map((metric) => ({
-            id: metric.id,
-            kind: metric.kind,
-            name:
-                metric.kind === "evaluator"
-                    ? `${metric.evaluatorName ?? "--"}: ${metric.label}`
-                    : metric.label,
-            stats: metric.stats,
-        }))
-        const unitByName = new Map(inputs.map((input) => [input.name, unitOf(input)] as const))
+        const inputsByRun = Object.fromEntries(
+            runs.map((run) => [run.id, radarInputs(run.metrics)]),
+        )
+        const unitByName = new Map(
+            Object.values(inputsByRun)
+                .flat()
+                .map((input) => [input.name, unitOf(input)] as const),
+        )
         return {
-            axes: radarAxes({[runId]: inputs}, [runId]),
+            axes: radarAxes(
+                inputsByRun,
+                runs.map((run) => run.id),
+            ),
             formatAxisValue: axisFormatter(unitByName),
         }
-    }, [metrics, runId])
+    }, [runs])
 
     if (pending && axes.length === 0) {
         return <ChartSkeleton label="Preparing run overview" height={narrow ? 220 : 300} />
@@ -87,9 +100,9 @@ export const RunRadarCard = ({
     }
     return (
         <RadarChart
-            title={`Evaluator scores of ${runName}`}
+            title={runs.length === 1 ? `Evaluator scores of ${runs[0].name}` : "Evaluator scores"}
             height={narrow ? 260 : 320}
-            series={[{key: runId, name: runName}]}
+            series={runs.map((run) => ({key: run.id, name: run.name}))}
             axes={axes}
             formatAxisValue={formatAxisValue}
         />

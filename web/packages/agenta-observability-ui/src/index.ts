@@ -71,7 +71,9 @@ export {
     useDropFilterField,
     useToolbarFilterSync,
     type FilterUpdate,
+    useAutoRefresh,
 } from "./toolbar"
+export {FILTER_COLUMN_ICONS} from "./filters/filterColumnIcons"
 
 // ============================================================================
 // RANGE PICKER

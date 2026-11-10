@@ -7,18 +7,22 @@ import {
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
-import {CloudArrowUp, Copy, DotsThreeVertical, Eye, Trash} from "@phosphor-icons/react"
+import {CloudArrowUp, Copy, DotsThreeVertical, Eye, Play, Trash} from "@phosphor-icons/react"
+import Link from "next/link"
 
 import type {AppRevisionRow} from "./useAppRevisions"
 
 /**
  * A revision's own actions. Deploy and Delete show only to a reader who may do them, so a menu
- * never offers a verb that the server then refuses.
+ * never offers a verb that the server then refuses. "Open in playground" shows only while the
+ * playground view is on (`playgroundHref` is null otherwise).
  */
 export const VariantRowMenu = ({
     row,
     canDeploy,
     canDelete,
+    deleteLabel = "Delete",
+    playgroundHref,
     onOpen,
     onDeploy,
     onDelete,
@@ -26,6 +30,9 @@ export const VariantRowMenu = ({
     row: AppRevisionRow
     canDeploy: boolean
     canDelete: boolean
+    /** The Delete item's text; the Registry says "Delete variant" on a variant row. */
+    deleteLabel?: string
+    playgroundHref: ((row: AppRevisionRow) => string) | null
     onOpen: (row: AppRevisionRow) => void
     onDeploy: (row: AppRevisionRow) => void
     onDelete: (row: AppRevisionRow) => void
@@ -47,6 +54,18 @@ export const VariantRowMenu = ({
                 <Eye aria-hidden size={14} />
                 View details
             </DropdownMenuItem>
+            {playgroundHref ? (
+                <DropdownMenuItem asChild>
+                    <Link
+                        href={playgroundHref(row)}
+                        prefetch={false}
+                        className="text-foreground no-underline"
+                    >
+                        <Play aria-hidden size={14} />
+                        Open in playground
+                    </Link>
+                </DropdownMenuItem>
+            ) : null}
             {canDeploy ? (
                 <DropdownMenuItem onSelect={() => onDeploy(row)}>
                     <CloudArrowUp aria-hidden size={14} />
@@ -58,7 +77,7 @@ export const VariantRowMenu = ({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onSelect={() => onDelete(row)}>
                         <Trash aria-hidden size={14} />
-                        Delete
+                        {deleteLabel}
                     </DropdownMenuItem>
                 </>
             ) : null}

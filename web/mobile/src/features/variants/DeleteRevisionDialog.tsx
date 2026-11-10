@@ -61,7 +61,7 @@ export const DeleteRevisionDialog = ({
         }
         // The revision is gone: the dialog closes, and the screens that showed it load again.
         onArchived?.(row.revisionId)
-        message.success("Deleted workflow successfully")
+        message.success("Deleted revision successfully")
         onClose()
         // The deleted revision itself is not loaded again: that load would write it back to
         // the persisted cache a reload paints from.
@@ -89,9 +89,17 @@ export const DeleteRevisionDialog = ({
                 <AlertDialogHeader>
                     <AlertDialogTitle>Delete revision</AlertDialogTitle>
                     <AlertDialogDescription>
-                        {only
-                            ? "Cannot delete the only revision. Delete the app instead."
-                            : `You are about to delete ${row.variantName} v${row.version}.`}
+                        {only ? (
+                            "Cannot delete the only revision. Delete the app instead."
+                        ) : (
+                            <>
+                                You are about to delete{" "}
+                                <span className="font-semibold text-foreground">
+                                    {row.variantName} v{row.version}
+                                </span>
+                                .
+                            </>
+                        )}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 {failed ? (
@@ -123,6 +131,8 @@ export const DeleteRevisionDialog = ({
                             <AlertDialogAction asChild>
                                 <Button
                                     variant="destructive"
+                                    // A solid red button, as /w's delete confirm.
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     disabled={pending || checking || failed}
                                     onClick={(event) => {
                                         event.preventDefault()

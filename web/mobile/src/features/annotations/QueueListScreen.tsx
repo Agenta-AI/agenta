@@ -3,16 +3,17 @@ import {
     createQueueDrawerOpenAtom,
     createQueueDrawerSelectionAtom,
 } from "@agenta/annotation"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import {Plus} from "lucide-react"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useBindWorkspaceMembers} from "@/features/members/useBindWorkspaceMembers"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermission} from "../context/useProjectPermission"
+import {useDeveloperPageFrame} from "../developer/developerPageFrame"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -20,8 +21,6 @@ import {QueueDeleteDialog} from "./QueueDeleteDialog"
 import {QueueListContent} from "./QueueListContent"
 import {useQueueDelete} from "./useQueueDelete"
 import {useQueueList} from "./useQueueList"
-
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /** The annotation queues of the project: search, type filter, the list and the delete confirm. */
 export const QueueListScreen = ({
@@ -31,6 +30,8 @@ export const QueueListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const PAGE_FRAME = useDeveloperPageFrame()
+    useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const list = useQueueList()

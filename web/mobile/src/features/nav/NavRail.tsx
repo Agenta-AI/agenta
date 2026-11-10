@@ -3,7 +3,7 @@ import {sidebarCollapsedAtom, sidebarOpenGroupsAtomFamily} from "@agenta/navigat
 import {SidebarShell} from "@agenta/navigation-ui"
 import {useRouter} from "next/router"
 
-import {useMobileNavScope} from "./mobileNavScope"
+import {useRailScope} from "./railScope"
 
 /**
  * The persistent lg+ sidebar — the DESKTOP rail component, docked. Hidden below lg, where the
@@ -22,8 +22,7 @@ export const NavRail = ({
     projectId: string
     scope?: SidebarScope
 }) => {
-    const mainScope = useMobileNavScope(workspaceId, projectId)
-    const scope = scopeOverride ?? mainScope
+    const scope = useRailScope(workspaceId, projectId, scopeOverride)
     const router = useRouter()
 
     return (

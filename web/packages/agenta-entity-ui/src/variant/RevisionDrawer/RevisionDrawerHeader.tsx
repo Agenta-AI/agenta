@@ -6,7 +6,7 @@ import {CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
 import type {RevisionDrawerKind} from "./types"
 
 const TITLES: Record<RevisionDrawerKind, string> = {
-    variant: "Workflow Revision",
+    variant: "Revision",
     deployment: "Deployment",
     evaluator: "Evaluator",
 }

@@ -233,6 +233,46 @@ describe("The test set menu in a chat playground", () => {
         ).toBe("Alex")
     })
 
+    it("Discard and disconnect drops the edited conversation", async () => {
+        await act(async () => {
+            await fetchTestcasesPage({projectId, revisionId: REVISION})
+        })
+        await act(async () =>
+            model!.confirmLoad({
+                revisionId: REVISION,
+                testcaseIds: [LISBON],
+                testsetName: "Trips",
+                testsetId: TESTSET,
+                revisionVersion: 2,
+            }),
+        )
+        await settle()
+        const [turnId] = store.get(executionItemController.selectors.messageIds) as string[]
+        await act(async () => {
+            store.set(executionItemController.actions.patchMessage, {
+                target: {turnId, kind: "user"},
+                updater: (message) =>
+                    message ? {...message, content: "Two weeks in Lisbon?"} : null,
+            })
+            store.set(executionItemController.actions.setTestcaseCellValue, {
+                testcaseId: LISBON,
+                column: "name",
+                value: "Riley",
+            })
+        })
+        await settle()
+        expect(userMessages()).toEqual(["Two weeks in Lisbon?"])
+
+        act(() => model!.disconnect())
+        expect(model!.dialog).toMatchObject({kind: "unsaved", intent: "disconnect"})
+        await act(async () => model!.resolveUnsaved("discard"))
+        await settle()
+
+        expect(model!.connectedRevisionId).toBeNull()
+        expect(userMessages()).toEqual([])
+        expect(http.post.mock.calls.some(([url]) => String(url).endsWith("/commit"))).toBe(false)
+    })
+
     it("Importing a test case from another revision replaces the chat test case", async () => {
         await act(async () => {
             await fetchTestcasesPage({projectId, revisionId: REVISION})

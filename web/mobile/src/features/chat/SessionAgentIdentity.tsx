@@ -17,6 +17,7 @@ const SessionAgentIdentityView = ({
     agentId,
     agentHidden = false,
     onUpdate,
+    autoUpdate = false,
     iconOnly = false,
 }: {
     entityId: string | null
@@ -24,6 +25,7 @@ const SessionAgentIdentityView = ({
     agentId?: string | null
     agentHidden?: boolean
     onUpdate: (revisionId: string) => void
+    autoUpdate?: boolean
     iconOnly?: boolean
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
@@ -49,6 +51,7 @@ const SessionAgentIdentityView = ({
                     revisionId={entityId}
                     historyWorkflowId={agentId}
                     onUpdate={onUpdate}
+                    autoUpdate={autoUpdate}
                     checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
                     hideWhenSettled
                 />

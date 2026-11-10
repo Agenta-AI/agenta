@@ -36,7 +36,10 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import {workflowDraftAtomFamily} from "@agenta/entities/workflow"
 import {getDefaultStore} from "jotai/vanilla"
 
-import {executeStepForSessionWithExecutionItems} from "./state/execution/executionRunner"
+// The runner is reached through the controller, not imported from `executionRunner`: the /m app
+// shell already holds the controller, and a direct import from an on-demand chunk makes the
+// bundler split the runner modules it had merged, which grows the shell by about 1.2 KB.
+import {executionItemController} from "./state/controllers/executionItemController"
 import type {ExecutionSession} from "./state/execution/types"
 
 // ============================================================================
@@ -128,7 +131,7 @@ export async function executeWorkflowRevision(
     }
 
     return new Promise<ExecuteWorkflowRevisionResult>((resolve) => {
-        executeStepForSessionWithExecutionItems({
+        executionItemController.helpers.executeStepForSession({
             get: store.get,
             set: store.set,
             loadableId,
