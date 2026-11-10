@@ -409,6 +409,11 @@ class TestListAgents:
         ]
         assert uuid5(TARGET, "default") in {ref.id for ref in refs}
         assert archived.id not in {ref.id for ref in refs}
+        # The head is the latest revision that is not archived, as for read and edit.
+        assert (
+            listing.query_workflow_revisions.await_args.kwargs["include_archived"]
+            is False
+        )
 
     async def test_pages_run_over_applications_in_the_credential_project(self, listing):
         # A project in the arguments is not a parameter; the credential decides.
@@ -505,6 +510,21 @@ class TestTheTargetIsAnotherAgentInThisProject:
 
         assert result.content.code == "agent_is_self"
         assert tool in result.content.next_step
+        service.commit_workflow_revision.assert_not_awaited()
+
+    async def test_a_caller_hidden_from_its_own_read_scope_is_still_itself(
+        self, service, hidden
+    ):
+        # A private agent on its owner's channel: the read scope has no owner.
+        hidden.add(CALLER)
+        service.fetch_workflow_revision.return_value = _head(workflow_id=CALLER)
+
+        result = await _call(
+            handle_edit_agent_config, service, **_edit_args(agent="support-triage")
+        )
+
+        assert result.content.code == "agent_is_self"
+        assert "Support Triage" not in result.content.message
         service.commit_workflow_revision.assert_not_awaited()
 
     async def test_an_agent_of_another_project_is_unknown(self, service):
@@ -907,30 +927,25 @@ class TestEditAgentConfig:
             f"(by agent {CALLER}, session {SESSION})"
         )
 
-    @pytest.mark.parametrize("handler", [handle_edit_agent_config, handle_create_agent])
     @pytest.mark.parametrize("caller", ["hidden", "unknown"])
-    async def test_a_caller_the_read_scope_does_not_show_is_refused(
-        self, service, hidden, handler, caller
+    async def test_a_caller_the_read_scope_does_not_show_is_named_by_its_id(
+        self, service, hidden, caller
     ):
-        # A direct /tools/call sets `caller_agent_id`; a private agent's name must not
-        # reach the answer or another agent's history.
-        arguments = (
-            _edit_args()
-            if handler is handle_edit_agent_config
-            else {
-                "name": "Invoice helper",
-                "caller_agent_id": str(CALLER),
-                "caller_session_id": SESSION,
-            }
-        )
-        if caller == "hidden":
-            hidden.add(CALLER)
-        else:
-            arguments["caller_agent_id"] = str(uuid4())
+        # A private agent on its owner's channel, or a `caller_agent_id` a direct
+        # /tools/call set: the write goes through, and no private name reaches the history.
+        caller_id = CALLER if caller == "hidden" else uuid4()
+        hidden.add(CALLER)
 
-        with pytest.raises(PlatformToolHandlerRefused):
-            await _call(handler, service, **arguments)
-        service.commit_workflow_revision.assert_not_awaited()
+        result = await _call(
+            handle_edit_agent_config,
+            service,
+            **_edit_args(caller_agent_id=str(caller_id)),
+        )
+
+        assert result.ok, result.content
+        message = _committed(service).message
+        assert message.endswith(f"(by agent {caller_id}, session {SESSION})")
+        assert "Support Triage" not in message
 
     @pytest.mark.parametrize("handler", [handle_edit_agent_config, handle_create_agent])
     async def test_a_missing_session_is_refused_not_written_as_unknown(
@@ -1003,6 +1018,18 @@ class TestCreateAgent:
         assert result.wrote_other_agent_revision is True
         # Without operations the agent keeps placeholder instructions; the answer says so.
         assert [w["code"] for w in content["warnings"]] == ["template_instructions"]
+
+    async def test_a_caller_the_read_scope_hides_is_named_by_its_id(
+        self, service, hidden, create
+    ):
+        hidden.add(CALLER)
+
+        result = await _call(handle_create_agent, service, **self._args())
+
+        assert result.ok, result.content
+        assert create.await_args.kwargs["message"] == (
+            f"Created by agent {CALLER}, session {SESSION}"
+        )
 
     async def test_operations_land_in_the_first_revision(self, service, create):
         operations = [
@@ -1445,3 +1472,42 @@ class TestCreateAgentRetry:
         assert again.content["agent"] == content["agent"]
         assert again.content["base_revision_id"] == content["base_revision_id"]
         service.create_workflow.assert_awaited_once()
+
+    async def test_a_retry_that_finds_a_now_hidden_agent_reads_and_writes_nothing(
+        self, service, store, workflows, hidden
+    ):
+        # The owner made the agent private between the failed call and the retry.
+        arguments = {
+            "name": "Invoice helper",
+            "description": "Answers invoice questions.",
+            "caller_agent_id": str(CALLER),
+            "caller_session_id": SESSION,
+        }
+        scope = AgentReadScope(owner_user_id=USER)
+        with pytest.raises(RuntimeError):
+            await _call(handle_create_agent, service, **arguments)
+        created_id = service.create_workflow.await_args.kwargs["workflow_id"]
+        workflows[created_id] = workflows[created_id].model_copy(
+            update={"name": "Private payroll agent"}
+        )
+        hidden.add(created_id)
+        commits = service.commit_workflow_revision.await_count
+
+        result = await handle_create_agent(
+            arguments=arguments,
+            project_id=PROJECT,
+            user_id=USER,
+            workflows_service=service,
+            agent_read_scope=scope,
+        )
+
+        assert not result.ok
+        assert result.content.code == "agent_not_found"
+        assert result.content.next_step
+        answer = result.content.model_dump_json()
+        assert "Private payroll agent" not in answer
+        assert str(created_id) not in answer
+        assert service.query_workflows.await_args.kwargs["read_scope"] == scope
+        assert service.commit_workflow_revision.await_count == commits
+        service.create_workflow.assert_awaited_once()
+        service.create_workflow_variant.assert_awaited_once()

@@ -33,8 +33,9 @@ class WorkflowError(Exception):
 
 class AgentReferenceUnresolved(WorkflowError):
     """A reference names an agent (a key of `AGENT_REFERENCE_KEYS`) and nothing
-    resolves: the agent is unknown, deleted, archived, or in another project. Callers
-    answer it as an unknown id (404 `not_found`)."""
+    resolves: the agent is unknown, deleted, archived, or in another project. Also raised
+    when an idempotent create's retry finds an agent the caller's read scope hides. Callers
+    answer it as an unknown agent."""
 
     def __init__(self, message: str = "Not found."):
         super().__init__(message)

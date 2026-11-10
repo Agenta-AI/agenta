@@ -97,6 +97,11 @@ The four agent tools SHALL be on by default in the build kit, each set to allow.
 - **THEN** the second call finishes the same agent and returns its id, slug and `base_revision_id`; no second agent is created
 - **AND** the owner the calling run gives the agent was saved with its first write, so the agent is never ownerless
 
+#### Scenario: Retry after the agent became private
+
+- **WHEN** a `create_agent` retry finds the agent of its first call, and the caller's read scope no longer shows that agent
+- **THEN** nothing is written, and the answer is `agent_not_found` with no name or description of that agent
+
 #### Scenario: Unknown field
 
 - **WHEN** the call sends a field other than `name`, `description` and `operations`, for example `instructions`
@@ -193,8 +198,9 @@ Every revision written by `create_agent` or `edit_agent_config` SHALL have a com
 
 #### Scenario: A bound caller the read scope hides
 
-- **WHEN** a direct `/tools/call` binds a `caller_agent_id` that the caller's read scope does not show
-- **THEN** the write is refused, and the hidden agent's name appears in no answer and no commit message
+- **WHEN** the bound `caller_agent_id` names an agent the caller's read scope does not show, for example a private agent on its owner's channel or an id a direct `/tools/call` sets
+- **THEN** the write goes through, the attribution names the caller by its id only, and the hidden agent's name appears in no answer and no commit message
+- **AND** if that caller names itself as the target, it is refused with `agent_is_self`
 
 ### Requirement: Change previews name the target agent
 

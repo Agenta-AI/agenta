@@ -4465,12 +4465,17 @@ class SimpleWorkflowsService:
         access: Optional[AccessPolicy] = None,
         first_agent_owner_user_id: Optional[UUID] = None,
         message: Optional[str] = None,
+        read_scope: Optional[AgentReadScope] = None,
     ) -> SimpleWorkflowCreateResult:
         """Create a workflow whose every write is keyed by ``request_key``, so a retry of a
         create that stopped part of the way finishes it instead of starting another one.
 
         ``message`` is the commit message of the revision that holds ``data``: the first
         revision a person sees in history.
+
+        With ``read_scope``, a retry that finds a workflow this scope does not show raises
+        ``AgentReferenceUnresolved`` before any write, so a retry never reads or changes a
+        workflow its caller cannot see.
         """
         if not namespace.strip() or not request_key.strip() or not component.strip():
             raise ValueError("namespace, request_key, and component must not be empty")
@@ -4545,6 +4550,17 @@ class SimpleWorkflowsService:
                     )
             if workflow is None:
                 raise EntityCreationConflict("Workflow")
+            if (
+                replayed
+                and read_scope is not None
+                and not await self.workflows_service.query_workflows(
+                    project_id=project_id,
+                    read_scope=read_scope,
+                    workflow_refs=[Reference(id=workflow_id)],
+                    include_archived=True,
+                )
+            ):
+                raise AgentReferenceUnresolved()
             commit_owner = _commit_owner(
                 workflow=workflow, first_agent_owner_user_id=first_agent_owner_user_id
             )
@@ -4886,6 +4902,7 @@ class SimpleWorkflowsService:
         #
         message: str,
         idempotency_scope: str,
+        read_scope: AgentReadScope,
         first_agent_owner_user_id: Optional[UUID] = None,
     ) -> tuple[SimpleWorkflow, str, List[CommitWarning]]:
         """A new agent from the "New agent" template, with an agent's operations applied.
@@ -4898,7 +4915,8 @@ class SimpleWorkflowsService:
         The writes are the idempotent create, keyed by ``idempotency_scope`` and the
         arguments: the same arguments in the same scope make one agent. A create that stops
         part of the way is finished by the next call with the same arguments, not left
-        behind beside a second agent.
+        behind beside a second agent. A retry that finds an agent ``read_scope`` does not
+        show (its owner made it private) raises ``AgentReferenceUnresolved``.
 
         The fingerprint covers the name, the description and the operations, not the
         template data. A retry across a deploy that changed the "New agent" template
@@ -4946,6 +4964,7 @@ class SimpleWorkflowsService:
                 else None
             ),
             first_agent_owner_user_id=first_agent_owner_user_id,
+            read_scope=read_scope,
         )
         return outcome.workflow, message, warnings
 

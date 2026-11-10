@@ -1263,19 +1263,23 @@ async def _resolve_other_agent(
         ),
         include_archived=True,
     )
-    if workflow is None or not await _visible(
-        workflows_service=workflows_service,
-        project_id=project_id,
-        read_scope=read_scope,
-        workflow_id=workflow.id,
-    ):
+    if workflow is None:
         raise _not_found(raw)
+    # Before the visibility check: a private agent on its owner's channel cannot see itself.
+    # The answer names only what the model sent.
     if workflow.id == caller_id:
         raise _agent_refusal(
             "agent_is_self",
             f"'{raw}' is you. This tool works on other agents only.",
             self_step,
         )
+    if not await _visible(
+        workflows_service=workflows_service,
+        project_id=project_id,
+        read_scope=read_scope,
+        workflow_id=workflow.id,
+    ):
+        raise _not_found(raw)
     if workflow.deleted_at is not None:
         raise _agent_refusal(
             "agent_is_archived",
@@ -1322,9 +1326,10 @@ async def _attribution(
 ) -> str:
     """The "by agent ..., session ..." clause of a write's commit message.
 
-    The run binds the caller, but a direct `/tools/call` sets it, so the caller must be an
-    agent the caller's read scope shows: a private agent's name never reaches the answer or
-    the history of another agent.
+    The run binds the caller, but a direct `/tools/call` sets it, so the caller's name is
+    written only when the caller's read scope shows that agent: a private agent's name never
+    reaches the answer or the history of another agent. A caller the scope hides (a private
+    agent on its owner's channel, whose read scope has no owner) is named by id only.
     """
     from oss.src.core.workflows.commit_support import agent_attribution
 
@@ -1332,18 +1337,15 @@ async def _attribution(
         project_id=project_id,
         workflow_ref=Reference(id=caller_id),
     )
-    if caller is None or not await _visible(
+    visible = caller is not None and await _visible(
         workflows_service=workflows_service,
         project_id=project_id,
         read_scope=read_scope,
         workflow_id=caller_id,
-    ):
-        raise PlatformToolHandlerRefused(
-            "caller_agent_id is bound from the run and names no agent you can see."
-        )
+    )
     return agent_attribution(
         agent_id=str(caller_id),
-        agent_name=caller.name,
+        agent_name=caller.name if visible else None,
         session_id=session_id,
     )
 
@@ -1392,13 +1394,13 @@ async def _default_heads(
     project_id: UUID,
     read_scope: AgentReadScope,
     workflows: Sequence[Any],
-    include_archived: bool,
 ) -> Dict[UUID, Any]:
     """Each workflow's default-variant head, the revision read and edit act on, in two queries.
 
-    The default variant is the oldest one that is not archived, the rule
-    `fetch_workflow_revision` applies when it is given only the workflow and no archived rows.
-    An archived agent's variants are not archived with it, so the rule holds for it too.
+    The default variant is the oldest one that is not archived, and the head is its latest
+    revision that is not archived: the rule `fetch_workflow_revision` applies when it is given
+    only the workflow and no archived rows. An archived agent's variants and revisions are not
+    archived with it, so the rule holds for it too.
     """
     from oss.src.core.git.dtos import RevisionGrouping
 
@@ -1419,7 +1421,7 @@ async def _default_heads(
         workflow_variant_refs=[
             Reference(id=variant.id) for variant in default_variants.values()
         ],
-        include_archived=include_archived,
+        include_archived=False,
         grouping=RevisionGrouping(by="variant", get="latest"),
     )
     return {head.workflow_id: head for head in heads}
@@ -1500,7 +1502,6 @@ async def handle_list_agents(
                 project_id=project_id,
                 read_scope=read_scope,
                 workflows=batch,
-                include_archived=include_archived,
             )
             if batch
             else {}
@@ -1751,6 +1752,7 @@ async def handle_create_agent(
     from oss.src.core.workflows.change_set import ChangeSetError
     from oss.src.core.workflows.service import SimpleWorkflowsService
     from oss.src.core.workflows.types import (
+        AgentReferenceUnresolved,
         InvalidAgentConfigurationError,
         InvalidAgentConnectionError,
         InvalidAgentHarnessError,
@@ -1799,8 +1801,17 @@ async def handle_create_agent(
                 operations=operations,
                 message=f"Created {attribution}",
                 idempotency_scope=session_id,
+                read_scope=read_scope,
                 first_agent_owner_user_id=first_agent_owner_user_id,
             )
+        except AgentReferenceUnresolved as e:
+            # The retry key names an agent the caller cannot see: answered as if it were not
+            # there, and nothing about it is read or written.
+            raise _agent_refusal(
+                "agent_not_found",
+                "No agent was created.",
+                "Call create_agent again with a different name.",
+            ) from e
         except ValidationError as e:
             raise _Refusal(_create_refusal(_commit_payload_refusal(e))) from e
         except (

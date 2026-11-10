@@ -45,10 +45,48 @@ def _create(authed_api, name, caller_id, **arguments):
     return content
 
 
+def _create_caller(authed_api, name):
+    """The calling agent, created the way a person creates one: through the ordinary
+    create API, as a project-visible agent application."""
+    response = authed_api(
+        "POST",
+        "/simple/workflows/",
+        json={
+            "workflow": {
+                "slug": f"ops-manager-{uuid4().hex[:8]}",
+                "name": name,
+                "flags": {"is_application": True, "is_agent": True},
+                "visibility": "project",
+                "data": {
+                    "uri": "agenta:builtin:agent:v0",
+                    "parameters": {
+                        "agent": {
+                            "harness": {
+                                "kind": "mock",
+                                "extras": {
+                                    "behavior": "reply",
+                                    "kwargs": {"text": "ok"},
+                                },
+                            },
+                            "sandbox": {"kind": "local"},
+                            "llm": {
+                                "provider": "mock",
+                                "model": "mock-1",
+                                "connection": {"mode": "self_managed"},
+                            },
+                        }
+                    },
+                },
+            }
+        },
+    )
+    assert response.status_code == 200, f"{response.status_code} {response.text}"
+    return response.json()["workflow"]
+
+
 @pytest.fixture(scope="class")
 def agents(authed_api):
-    # The caller is itself an agent another (unknown) agent created.
-    caller = _create(authed_api, "Ops manager", str(uuid4()))["agent"]
+    caller = _create_caller(authed_api, "Ops manager")
     target = _create(
         authed_api,
         "Invoice helper",
