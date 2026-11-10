@@ -66,12 +66,12 @@ vi.mock("@agenta/settings-ui", async (importOriginal) => ({
     }),
 }))
 
-import {nextRouterModule, routerQuery} from "../support/nextRouter"
-import {WithQueryClient} from "../support/queryClient"
-
 import {AccessSecurityTab} from "@/features/settings/AccessSecurityTab"
 import {AuditLogTab} from "@/features/settings/AuditLogTab"
 import {availableUpgradeActions} from "@/features/settings/upgradePrompt"
+
+import {nextRouterModule, routerQuery} from "../support/nextRouter"
+import {WithQueryClient} from "../support/queryClient"
 
 const labels = () =>
     Array.from(document.querySelectorAll("button, a")).map((node) => node.textContent?.trim())

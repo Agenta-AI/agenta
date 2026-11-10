@@ -19,10 +19,10 @@ vi.mock("../../src/features/settings/licenseApi", async (importOriginal) => ({
     createInstanceRegistration: fixture.register,
 }))
 
-import {WithQueryClient} from "../support/queryClient"
-
 import {RegistrationOffer} from "@/features/onboarding/RegistrationOffer"
 import {isLargeCompany, shouldOfferRegistration} from "@/features/onboarding/registrationOfferRules"
+
+import {WithQueryClient} from "../support/queryClient"
 
 describe("registration offer rules", () => {
     it("adds the Enterprise line for 51 people or more", () => {
