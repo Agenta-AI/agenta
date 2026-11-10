@@ -120,7 +120,6 @@ clients/python/tests/results/
 !.agents/skills/review-naming/
 !.agents/skills/review-simplify/
 !.agents/skills/review-slop/
-!.agents/skills/verify-agenta-mobile/
 !.agents/skills/test-design/
 !.claude/
 .claude/*
@@ -159,7 +158,6 @@ clients/python/tests/results/
 !.claude/skills/review-naming
 !.claude/skills/review-simplify
 !.claude/skills/review-slop
-!.claude/skills/verify-agenta-mobile
 !.claude/skills/test-design
 !.claude/settings.json
 
