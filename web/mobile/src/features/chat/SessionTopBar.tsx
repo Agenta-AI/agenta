@@ -15,7 +15,7 @@ import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-
 import {sessionRowVm} from "@agenta/sessions/row"
 import {KeyboardShortcutsSheet, ShortcutKeys, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {NotePencilIcon, PlusIcon} from "@phosphor-icons/react"
+import {NotePencilIcon} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {sharingCopy} from "@/lib/sharingCopy"
@@ -310,15 +310,16 @@ const SessionTopBarView = ({
         return (
             <header className="flex h-12 shrink-0 items-center gap-0.5 border-x-0 border-b border-t-0 border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-1.5">
                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                {/* Where the desktop bar keeps it: at the start, before the agent. */}
+                {onToggleConfig ? (
+                    <ConfigPaneToggle open={configOpen} onToggle={onToggleConfig} size="icon" />
+                ) : null}
                 {switcher ?? (
                     <span className="min-w-0 flex-1 truncate text-center text-[15px] font-semibold">
                         {agentName}
                     </span>
                 )}
                 {revision}
-                {onToggleConfig ? (
-                    <ConfigPaneToggle open={configOpen} onToggle={onToggleConfig} size="icon" />
-                ) : null}
                 {hasSessions && agentId ? (
                     <Button
                         variant="ghost"
@@ -326,7 +327,7 @@ const SessionTopBarView = ({
                         aria-label="New session"
                         onClick={() => startBlank(agentId)}
                     >
-                        <PlusIcon />
+                        <NotePencilIcon />
                     </Button>
                 ) : null}
                 {more}
