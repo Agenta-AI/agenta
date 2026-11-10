@@ -562,11 +562,18 @@ export async function runTurn(
   }
 
   // Built per turn, never kept on the pooled environment, so a warm turn reads its own credential.
-  const toolCallback = startToolCallbackRuntime(
-    request.toolCallback as ToolCallbackContext | undefined,
-    platformLease,
-    logger,
-  );
+  let toolCallback: ReturnType<typeof startToolCallbackRuntime>;
+  try {
+    toolCallback = startToolCallbackRuntime(
+      request.toolCallback as ToolCallbackContext | undefined,
+      platformLease,
+      logger,
+    );
+  } catch (err) {
+    // The `finally` below is not reached yet, so stop the standalone lease here.
+    platformCredentialLease?.release();
+    throw err;
+  }
 
   // Declared outside the `try` so the failure path can see it: an approval reply is never
   // re-prompted after a stall (see `stalledBeforeFirstResponse` below).
