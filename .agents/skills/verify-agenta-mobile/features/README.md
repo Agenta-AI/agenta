@@ -25,4 +25,3 @@ This directory is the maintained source for verifying user-facing behavior in `w
 
 - [Session version update](session-version-update.md)
 - [Session switching](session-switching.md)
-- [Config auto-save](config-auto-save.md)
