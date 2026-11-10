@@ -1,6 +1,12 @@
 /** What pays for this agent's model calls, and whether a cheaper route is one switch away. */
 export type ModelFunding = "credits-with-own-key" | "credits-no-own-key" | "own-key"
 
+/** The fundings where the agent's model spends credits, the only ones the credit alert serves. */
+export type CreditFunding = Exclude<ModelFunding, "own-key">
+
+export const isCreditFunded = (funding: ModelFunding | null): funding is CreditFunding =>
+    funding === "credits-with-own-key" || funding === "credits-no-own-key"
+
 interface FundingConnection {
     mode?: string | null
     slug?: string | null

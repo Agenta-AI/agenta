@@ -17,13 +17,14 @@ import {
     type CreditAlertAction,
     type ShownAlert,
 } from "./CreditAlertNotice"
+import {isCreditFunded, type CreditFunding} from "./modelFunding"
 import {useModelFunding} from "./useModelFunding"
 import {useWalletSummary} from "./useWalletSummary"
 
 /** In memory only, per project: a dismissed alert comes back on reload or when its kind changes. */
 const dismissedCreditAlertsAtom = atom<Record<string, CreditAlert["kind"]>>({})
 
-/** The wallet warning above the composer; low and daily notes yield to another composer strip. */
+/** The wallet warning above the composer, for agents whose model spends credits. */
 export const CreditAlertStrip = ({
     projectId,
     entityId,
@@ -35,9 +36,14 @@ export const CreditAlertStrip = ({
     hidden: boolean
     onSwitchModel: () => void
 }) => {
+    // On its own key or subscription the agent's model spends no credits, so nothing shows or polls.
+    const funding = useModelFunding(entityId)
+    const creditFunded = isCreditFunded(funding)
     // A turn in another session can move the balance: poll fast while an alert shows, slowly otherwise.
     const [watching, setWatching] = useState(false)
-    const wallet = useWalletSummary(projectId, {poll: watching ? true : 60_000})
+    const wallet = useWalletSummary(projectId, {
+        poll: !creditFunded ? false : watching ? true : 60_000,
+    })
     // Judged at the last fetch: an unchanged response keeps `data`, but the date may have moved.
     const fetchedAt = wallet.dataUpdatedAt
     const alert = useMemo(
@@ -45,7 +51,6 @@ export const CreditAlertStrip = ({
         [wallet.data, fetchedAt],
     )
     useEffect(() => setWatching(alert.kind !== "none"), [alert.kind])
-    const funding = useModelFunding(entityId)
     const billing = useProjectPermissionState(projectId, "edit_billing")
     const canBuy: CanBuy = !isBillingEnabled() ? false : billing.pending ? null : billing.allowed
     const [dismissed, setDismissed] = useAtom(dismissedCreditAlertsAtom)
@@ -56,13 +61,14 @@ export const CreditAlertStrip = ({
     const {mutate} = useVaultSecret()
 
     // The last alert stays rendered while the strip collapses away.
-    const [shown, setShown] = useState<ShownAlert | null>(null)
+    const [shown, setShown] = useState<{alert: ShownAlert; funding: CreditFunding} | null>(null)
     useEffect(() => {
-        if (alert.kind !== "none") setShown(alert)
-    }, [alert])
-    const current = alert.kind !== "none" ? alert : shown
+        if (alert.kind !== "none" && isCreditFunded(funding)) setShown({alert, funding})
+    }, [alert, funding])
+    const current = alert.kind !== "none" && isCreditFunded(funding) ? {alert, funding} : shown
     // A model key does not fund agent runtime, so being out of credits shows even beside another strip.
     const visible =
+        creditFunded &&
         (!hidden || alert.kind === "empty") &&
         alert.kind !== "none" &&
         dismissed[projectId] !== alert.kind
@@ -82,12 +88,12 @@ export const CreditAlertStrip = ({
                 {current ? (
                     <div className="pt-2">
                         <CreditAlertNotice
-                            alert={current}
-                            funding={funding}
+                            alert={current.alert}
+                            funding={current.funding}
                             canBuy={canBuy}
                             onAction={(action) => run[action]()}
                             onDismiss={() =>
-                                setDismissed({...dismissed, [projectId]: current.kind})
+                                setDismissed({...dismissed, [projectId]: current.alert.kind})
                             }
                         />
                     </div>

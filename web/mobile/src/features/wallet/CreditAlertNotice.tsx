@@ -4,7 +4,7 @@ import {Coins, X} from "@phosphor-icons/react"
 import {cn} from "@/lib/utils"
 
 import type {CreditAlert} from "./creditAlert"
-import type {ModelFunding} from "./modelFunding"
+import type {CreditFunding} from "./modelFunding"
 import {formatCredits} from "./walletFormat"
 
 export type ShownAlert = Exclude<CreditAlert, {kind: "none"}>
@@ -56,7 +56,7 @@ const dailyCopy = (alert: ShownAlert) => {
     }
 }
 
-const ROWS: Record<ShownAlert["kind"], Record<ModelFunding, NoticeRow>> = {
+const ROWS: Record<ShownAlert["kind"], Record<CreditFunding, NoticeRow>> = {
     low: {
         "credits-with-own-key": {
             copy: lowCopy(". Switch to your own model key to save credits."),
@@ -68,17 +68,14 @@ const ROWS: Record<ShownAlert["kind"], Record<ModelFunding, NoticeRow>> = {
             main: "add-key",
             secondary: "buy",
         },
-        "own-key": {copy: lowCopy(" for agent runtime and tools."), main: "buy", secondary: null},
     },
     empty: {
         "credits-with-own-key": {copy: emptyCopy, main: "buy", secondary: "switch-model"},
         "credits-no-own-key": {copy: emptyCopy, main: "buy", secondary: "add-key"},
-        "own-key": {copy: emptyCopy, main: "buy", secondary: null},
     },
     daily: {
         "credits-with-own-key": {copy: dailyCopy, main: null, secondary: "switch-model"},
         "credits-no-own-key": {copy: dailyCopy, main: null, secondary: "add-key"},
-        "own-key": {copy: dailyCopy, main: null, secondary: null},
     },
 }
 
@@ -104,13 +101,12 @@ export const CreditAlertNotice = ({
     onDismiss,
 }: {
     alert: ShownAlert
-    /** `null` while the agent's model routes load; it reads as the own-key row. */
-    funding: ModelFunding | null
+    funding: CreditFunding
     canBuy: CanBuy
     onAction: (action: CreditAlertAction) => void
     onDismiss: () => void
 }) => {
-    const row = ROWS[alert.kind][funding ?? "own-key"]
+    const row = ROWS[alert.kind][funding]
     const tone = TONES[alert.kind]
     const {title, detail} = row.copy(alert, canBuy)
     const available = (action: CreditAlertAction | null) =>

@@ -30,8 +30,6 @@ export const LowOnBuiltInModelWithOwnKey: Story = {}
 
 export const LowOnBuiltInModelNoKey: Story = {args: {funding: "credits-no-own-key"}}
 
-export const LowOnOwnKey: Story = {args: {funding: "own-key"}}
-
 export const LowForMember: Story = {args: {canBuy: false}}
 
 export const Empty: Story = {args: {alert: {kind: "empty"}}}
@@ -39,11 +37,11 @@ export const Empty: Story = {args: {alert: {kind: "empty"}}}
 export const EmptyForMember: Story = {args: {alert: {kind: "empty"}, canBuy: false}}
 
 export const DailyOnly: Story = {
-    args: {alert: {kind: "daily", todayMusd: 400_000, refills: true}, funding: "own-key"},
+    args: {alert: {kind: "daily", todayMusd: 400_000, refills: true}},
 }
 
 export const DailyCapReached: Story = {
-    args: {alert: {kind: "daily", todayMusd: 400_000, refills: false}, funding: "own-key"},
+    args: {alert: {kind: "daily", todayMusd: 400_000, refills: false}},
 }
 
 export const DailyGrantPending: Story = {

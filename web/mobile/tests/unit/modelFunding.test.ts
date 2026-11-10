@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {modelFunding} from "../../src/features/wallet/modelFunding"
+import {isCreditFunded, modelFunding} from "../../src/features/wallet/modelFunding"
 
 const BUILTIN = {slug: "agenta", namespace: "builtin"}
 const OWN_KEY = {slug: "openai-prod", namespace: "standard"}
@@ -58,5 +58,12 @@ describe("modelFunding", () => {
 
     it("reads no connection at all as credits", () => {
         expect(modelFunding(null, [BUILTIN])).toBe("credits-no-own-key")
+    })
+
+    it("treats only the built-in routes as spending credits", () => {
+        expect(isCreditFunded("credits-with-own-key")).toBe(true)
+        expect(isCreditFunded("credits-no-own-key")).toBe(true)
+        expect(isCreditFunded("own-key")).toBe(false)
+        expect(isCreditFunded(null)).toBe(false)
     })
 })
