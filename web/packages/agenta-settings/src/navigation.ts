@@ -259,10 +259,11 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canShowTools
         case "mcpEndpoints":
             return access.canShowMcpEndpoints
+        // Listed on OSS too: without the plan feature the tab shows its locked state.
         case "organization":
-            return access.isEE && access.isOwner
+            return access.isOwner
         case "auditLog":
-            return access.isEE && access.canViewEvents
+            return access.canViewEvents
         // Self-hosted only: with billing on, plans come from Stripe.
         case "license":
             return !access.billingEnabled && Boolean(access.isInstanceAdmin)

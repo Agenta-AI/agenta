@@ -9,19 +9,29 @@ export interface UpgradeNoticeProps {
     description: string
     /** The upgrade link — routing and billing availability are the host's to decide. */
     action?: ReactNode
+    /** Where the feature is available. Defaults to the cloud plans that include it. */
+    availability?: ReactNode
 }
 
 /** Stands in for a section the current plan does not include, framed like every empty page. */
-export const UpgradeNotice = ({icon, title, description, action}: UpgradeNoticeProps) => (
+export const UpgradeNotice = ({
+    icon,
+    title,
+    description,
+    action,
+    availability = (
+        <>
+            Available on <strong>Business</strong> and <strong>Enterprise</strong> plans.
+        </>
+    ),
+}: UpgradeNoticeProps) => (
     <SettingsEmpty
         icon={icon}
         title={title}
         description={
             <>
                 {description}
-                <span className="mt-2 block">
-                    Available on <strong>Business</strong> and <strong>Enterprise</strong> plans.
-                </span>
+                <span className="mt-2 block">{availability}</span>
             </>
         }
         action={action}

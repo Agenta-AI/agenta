@@ -11,7 +11,7 @@ import {
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {classifyAgentIntent} from "@agenta/shared/analytics"
-import {isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
+import {isBillingEnabled, isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
 import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
@@ -20,6 +20,7 @@ import {capture, captureIntent} from "@/features/analytics/client"
 import {newId} from "@/lib/ids"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
+import {useInstanceLicense} from "../settings/useInstanceLicense"
 
 import {connectedApps} from "./onboardingApps"
 import type {OnboardingCatalog} from "./onboardingChoices"
@@ -34,6 +35,13 @@ import {OnboardingFlow} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingInvited, isOnboardingPending} from "./onboardingPending"
 import {personProperties, signupSurveyProperties} from "./onboardingQuestions"
 import {isFixedStep, onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
+import {RegistrationOffer} from "./RegistrationOffer"
+import {
+    isLargeCompany,
+    isRegistrationOfferSeen,
+    markRegistrationOfferSeen,
+    shouldOfferRegistration,
+} from "./registrationOfferRules"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
 
@@ -97,6 +105,21 @@ export const OnboardingFlowHost = ({
     const attachments = useComposerAttachments({sessionId})
     const store = useStore()
     const draftKey = onboardingDraftKey(userId ?? "anonymous")
+    const license = useInstanceLicense(projectId)
+    // Set when the survey ends; the offer opens once the license answer allows it, even late.
+    const [survey, setSurvey] = useState<{largeCompany: boolean} | null>(null)
+    const [offerClosed, setOfferClosed] = useState(false)
+    const offerOpen =
+        survey !== null &&
+        !offerClosed &&
+        shouldOfferRegistration({
+            selfHosted: !isBillingEnabled(),
+            isInstanceAdmin: license.isInstanceAdmin,
+            hasKey: Boolean(license.data?.license),
+        })
+    useEffect(() => {
+        if (offerOpen && userId) markRegistrationOfferSeen(userId)
+    }, [offerOpen, userId])
     const track = (event: string, properties?: Record<string, unknown>) => {
         if (!preview) capture(event, properties)
     }
@@ -127,6 +150,9 @@ export const OnboardingFlowHost = ({
         })
         if (step === steps.findLast((shown) => !isFixedStep(shown))) {
             track("survey sent", signupSurveyProperties(draft.answers, userEmail))
+            if (!preview && !invited && !(userId && isRegistrationOfferSeen(userId))) {
+                setSurvey({largeCompany: isLargeCompany(draft.answers)})
+            }
         }
     }
 
@@ -199,20 +225,29 @@ export const OnboardingFlowHost = ({
     }
 
     return (
-        <OnboardingFlow
-            onboardingPath={`${base}/onboarding`}
-            draftKey={draftKey}
-            steps={steps}
-            catalog={catalog}
-            model={model}
-            connectedApps={apps}
-            creating={newAgent.creating}
-            error={newAgent.error}
-            attachments={attachments}
-            onStepCompleted={onStepCompleted}
-            onQuestionsDone={invited ? onQuestionsDone : undefined}
-            onCreate={onCreate}
-            onSkip={onSkip}
-        />
+        <>
+            <OnboardingFlow
+                onboardingPath={`${base}/onboarding`}
+                draftKey={draftKey}
+                steps={steps}
+                catalog={catalog}
+                model={model}
+                connectedApps={apps}
+                creating={newAgent.creating}
+                error={newAgent.error}
+                attachments={attachments}
+                onStepCompleted={onStepCompleted}
+                onQuestionsDone={invited ? onQuestionsDone : undefined}
+                onCreate={onCreate}
+                onSkip={onSkip}
+            />
+            <RegistrationOffer
+                open={offerOpen}
+                projectId={projectId}
+                email={userEmail}
+                largeCompany={survey?.largeCompany ?? false}
+                onClose={() => setOfferClosed(true)}
+            />
+        </>
     )
 }

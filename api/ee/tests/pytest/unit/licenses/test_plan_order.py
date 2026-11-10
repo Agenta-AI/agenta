@@ -142,6 +142,12 @@ def test_the_free_self_hosted_plans_have_no_enterprise_flag(self_hosted, slug):
     assert set(_flags(plans, slug)) == set(Flag)
 
 
+def test_the_registered_plan_gives_the_community_entitlements(self_hosted):
+    plans, _, _ = build_plan_controls()
+
+    assert plans[REGISTERED] == plans[COMMUNITY]
+
+
 def test_default_plan_and_overlay_cannot_unlock_enterprise_without_a_key(
     self_hosted, monkeypatch
 ):

@@ -1392,6 +1392,12 @@ is a user whose email is in `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`, or, when that 
 owner of the oldest organization. A key in `AGENTA_LICENSE_KEY` takes priority over a key added in
 the app, and the License page then shows the key but does not let you change it.
 
+With no key, the License page also offers a free registration key. The instance admin enters an
+email, and the instance sends that email, the instance id, the Agenta version and `AGENTA_WEB_URL`
+to Agenta. Agenta emails back a key on the `self_hosted_registered` plan and a link that adds it.
+Agenta uses `AGENTA_WEB_URL` only to build that link. The registered plan has the same features as
+`self_hosted_community` today.
+
 Without Stripe, the plan of every organization comes from the key. With no valid key, or after the
 key expires, the instance runs on `self_hosted_community`, which has no enterprise features. No data
 is deleted when a key expires. `AGENTA_ACCESS_DEFAULT_PLAN`, `AGENTA_ACCESS_PLANS` and
