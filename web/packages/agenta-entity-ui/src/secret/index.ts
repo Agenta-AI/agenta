@@ -3,16 +3,19 @@ export {CreateSecretDrawer, type CreateSecretDrawerProps} from "./CreateSecretDr
 
 export {
     AgentSecretAttachmentModal,
+    type AgentSecretAttachmentModalProps,
+    type AgentSecretAttachmentResult,
+    type AgentSecretAttachmentTarget,
+} from "./AgentSecretAttachmentModal"
+export {
     ENV_NAME,
+    envBindingError,
     matchRequestedSecret,
     newSecretOwners,
     preserveAgentSecretEnvOverride,
     suggestedAgentSecretEnv,
-    type AgentSecretAttachmentModalProps,
-    type AgentSecretAttachmentResult,
-    type AgentSecretAttachmentTarget,
     type AgentSecretRequestSeed,
-} from "./AgentSecretAttachmentModal"
+} from "./agentSecretRules"
 
 export {PASSWORD_MANAGER_OPT_OUT} from "./passwordManagerOptOut"
 export {OwnerRadioGroup, type OwnerOption, type OwnerRadioGroupProps} from "./OwnerRadioGroup"

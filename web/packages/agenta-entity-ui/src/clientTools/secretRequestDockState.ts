@@ -5,17 +5,17 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 
-import {matchRequestedSecret} from "../secret"
+import {matchRequestedSecret} from "../secret/agentSecretRules"
 
 export interface SecretDockRequest {
     name: string
     envVar: string
     reason: string
-    /** The agent tried the configured value and it failed. */
+    /** The service refused the saved value, so the dock asks for a new one first. */
     rejected: boolean
 }
 
-export type VaultRead = "checking" | "fresh" | "failed"
+export type VaultRead = "checking" | "loaded" | "failed"
 
 /** What the agent can already use for the requested variable. */
 export type SecretDockSubject =
@@ -23,7 +23,7 @@ export type SecretDockSubject =
     /** Nothing saved: the value is the one thing left to give. */
     | {kind: "empty"}
     /** A saved secret fits the request and is not attached yet. */
-    | {kind: "vault"; row: NamedSecretRow}
+    | {kind: "saved"; row: NamedSecretRow}
     /** `row` is the vault record behind it, unknown for a person's own secret or an unread vault. */
     | {kind: "attached"; index: number; binding: AgentSecretBinding; row?: NamedSecretRow}
     /** The attachment names a secret the vault no longer has, so a run would get no value. */
@@ -45,6 +45,7 @@ export const resolveSecretDockSubject = ({
 }: {
     request: SecretDockRequest
     bindings: AgentSecretBinding[]
+    /** Project secrets and the person's own, the latter marked `ownerKind: "user"`. */
     secrets: NamedSecretRow[]
     vault: VaultRead
 }): SecretDockSubject => {
@@ -53,18 +54,21 @@ export const resolveSecretDockSubject = ({
     if (index < 0) {
         const textSecrets = secrets.filter((row) => row.format === CustomSecretFormat.Text)
         const row = matchRequestedSecret(textSecrets, request)
-        return row?.slug ? {kind: "vault", row} : {kind: "empty"}
+        return row?.slug ? {kind: "saved", row} : {kind: "empty"}
     }
     const binding = bindings[index]
     if (isUserSecretBinding(binding) || vault === "failed") {
         return {kind: "attached", index, binding}
     }
-    const row = secrets.find((candidate) => candidate.slug === binding.secret.slug)
+    // A project binding names a project secret; a person's secret with the same slug is not it.
+    const row = secrets.find(
+        (candidate) => candidate.ownerKind !== "user" && candidate.slug === binding.secret.slug,
+    )
     return row ? {kind: "attached", index, binding, row} : {kind: "missing", index, binding}
 }
 
 /** The record a new value overwrites in place. A JSON secret has no single value to replace. */
 export const replaceableRow = (subject: SecretDockSubject): NamedSecretRow | undefined => {
-    if (subject.kind !== "vault" && subject.kind !== "attached") return undefined
+    if (subject.kind !== "saved" && subject.kind !== "attached") return undefined
     return subject.row?.format === CustomSecretFormat.Text ? subject.row : undefined
 }

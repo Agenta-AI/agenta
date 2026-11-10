@@ -62,16 +62,13 @@ vi.mock("../../src/accounts/useItemAccount", () => ({
     useItemAccount: () => ({account: state.ownAccount}),
 }))
 vi.mock("../../src/secret/AgentSecretAttachmentModal", () => ({
-    ENV_NAME: /^[A-Za-z_][A-Za-z0-9_]*$/,
-    matchRequestedSecret: (rows: {name: string}[], request: {name: string}) =>
-        rows.find((row) => row.name === request.name),
-    newSecretOwners: (on: boolean, can: boolean) =>
-        on ? (can ? ["user", "project"] : ["user"]) : undefined,
     AgentSecretAttachmentModal: (props: {open: boolean; request?: {envVar?: string}}) => {
         state.modal.props = props
         return props.open ? createElement("div", {"data-testid": "modal"}) : null
     },
 }))
+
+// These modules build jotai stores on import, which the jotai mock above cannot provide.
 vi.mock("../../src/secret/CreateSecretDrawer", () => ({CreateSecretDrawer: () => null}))
 vi.mock("../../src/secret/OwnerRadioGroup", () => ({OwnerRadioGroup: () => null}))
 vi.mock("../../src/secret/SecretForm/SecretForm", () => ({SecretForm: () => null}))
@@ -115,13 +112,18 @@ const mount = async (
     await flush()
 }
 
-const mountWithoutFlush = async () => {
+const mountWithoutFlush = async (requestInput: unknown = input) => {
     onOutput = vi.fn()
     onAdopt = vi.fn()
     await act(async () => {
         root.render(
             createElement(SecretRequestDock, {
-                meta: {toolCallId: "c", toolName: "request_secret", input, settled: false} as never,
+                meta: {
+                    toolCallId: "c",
+                    toolName: "request_secret",
+                    input: requestInput,
+                    settled: false,
+                } as never,
                 revisionId: "rev-1",
                 canEditSecrets: true,
                 onAdoptRevision: onAdopt,
@@ -394,7 +396,7 @@ describe("a saved secret", () => {
     })
 })
 
-describe("review fixes", () => {
+describe("edge cases", () => {
     it("shows why Save is off when the agent sent an invalid variable", async () => {
         await mount({input: {...input, env_var: "stripe-key"}})
         await typeInto(valueField()!, "sk_live")
@@ -441,15 +443,74 @@ describe("review fixes", () => {
     })
 })
 
-describe("review comments", () => {
+describe("typing, renames, and personal secrets", () => {
     it("keeps the typed value when a late vault answer finds a match", async () => {
-        await mount()
+        vi.useFakeTimers()
+        let answer: (value: {isError: boolean}) => void = () => undefined
+        state.refetch.mockReturnValue(new Promise((done) => (answer = done)))
+        await mountWithoutFlush()
+        await act(async () => void vi.advanceTimersByTime(3000))
         await typeInto(valueField()!, "sk_typed")
+
         state.secrets = [stripeRow]
-        await mount()
+        await act(async () => answer({isError: false}))
 
         expect(valueField()?.value).toBe("sk_typed")
         expect(button("Continue")).toBeUndefined()
+    })
+
+    it("follows a late vault answer when nothing is typed", async () => {
+        vi.useFakeTimers()
+        let answer: (value: {isError: boolean}) => void = () => undefined
+        state.refetch.mockReturnValue(new Promise((done) => (answer = done)))
+        state.bindings = [stripeBinding]
+        await mountWithoutFlush({...input, rejected: true})
+        await act(async () => void vi.advanceTimersByTime(3000))
+        expect(valueField()).toBeNull()
+
+        state.secrets = [stripeRow]
+        await act(async () => answer({isError: false}))
+        expect(valueField()).not.toBeNull()
+    })
+
+    it("releases the hold when the person keeps the saved value", async () => {
+        state.bindings = [stripeBinding]
+        state.secrets = [stripeRow]
+        await mount({input: {...input, rejected: true}})
+        await typeInto(valueField()!, "sk_typed")
+        await click(await menuItem("Keep saved value"))
+        await click(button("Continue"))
+
+        expect(onOutput.mock.calls[0][0].output.status).toBe("configured")
+    })
+
+    it("does not change the shared record's default variable on a rename while replacing", async () => {
+        state.bindings = [stripeBinding]
+        state.secrets = [{...stripeRow, defaultEnvVar: "STRIPE_KEY"}]
+        await mount({input: {...input, rejected: true}})
+        await renameTo("BILLING_KEY")
+        await typeInto(valueField()!, "sk_new")
+        await click(button("Save"))
+
+        expect(state.save).toHaveBeenCalledWith(
+            expect.objectContaining({id: "s1", defaultEnvVar: "STRIPE_KEY"}),
+        )
+        expect(state.commit.mock.calls[0][0].bindings[0].binding.name).toBe("BILLING_KEY")
+    })
+
+    it("resends the answer after a rename when the first one does not land", async () => {
+        await mount({settledFalse: true})
+        await renameTo("BILLING_KEY")
+        await typeInto(valueField()!, "sk_live")
+        await click(button("Save"))
+        expect(onOutput).toHaveBeenCalledTimes(1)
+
+        state.bindings = [
+            {secret: {slug: "stripe-key"}, binding: {type: "env", name: "BILLING_KEY"}},
+        ]
+        await mount({settledFalse: true})
+        await click(button("Continue"))
+        expect(onOutput).toHaveBeenCalled()
     })
 
     it("carries a person's choice to the renamed variable", async () => {
@@ -521,6 +582,31 @@ describe("blocked states", () => {
         expect(button("Continue")?.disabled).toBe(false)
         expect(host.querySelector('[aria-label="Secret options"]')).toBeNull()
         expect(host.textContent).toContain("You do not have permission to change this secret.")
+    })
+
+    it("never offers Continue on a refused value it cannot replace inline", async () => {
+        state.bindings = [{secret: {account_source: "user"}, binding: stripeBinding.binding}]
+        await mount({input: {...input, rejected: true}})
+
+        expect(button("Continue")).toBeUndefined()
+        await click(button("Change value"))
+        expect(host.querySelector('[data-testid="modal"]')).not.toBeNull()
+    })
+
+    it("does not let a person without permission resend a refused value", async () => {
+        state.bindings = [stripeBinding]
+        state.secrets = [stripeRow]
+        await mount({input: {...input, rejected: true}, canEditSecrets: false})
+
+        expect(button("Continue")).toBeUndefined()
+        expect(host.textContent).toContain("Ask a project admin.")
+    })
+
+    it("waits for the personal read before choosing who owns a new secret", async () => {
+        state.access = "loading"
+        await mount()
+        expect(valueField()).toBeNull()
+        expect(host.textContent).toContain("Checking...")
     })
 
     it("offers only Not now for a malformed request", async () => {

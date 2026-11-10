@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent} from "react"
+import {useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent} from "react"
 
 import {userItemKey} from "@agenta/entities/accountChoice"
 import {
@@ -28,7 +28,7 @@ import {useAccountChoice} from "../accounts/useAccountChoice"
 import {useItemAccount} from "../accounts/useItemAccount"
 import {
     AgentSecretAttachmentModal,
-    ENV_NAME,
+    envBindingError,
     newSecretOwners,
     PASSWORD_MANAGER_OPT_OUT,
     useSecretForm,
@@ -47,8 +47,7 @@ interface SecretRequestDockProps {
     revisionId: string
     canEditSecrets?: boolean
     onAdoptRevision: (revisionId: string) => void
-    /** Settle channel. Resolving `false` means the write did not land and the gate is still open
-     *  (see `SettleClientTool`), so the buttons come back. */
+    /** Settle channel; resolving `false` means the write did not land, so the buttons come back. */
     onOutput: (args: {
         toolName: string
         toolCallId: string
@@ -56,15 +55,17 @@ interface SecretRequestDockProps {
     }) => void | boolean | Promise<void | boolean>
 }
 
-interface UnattachedSecret {
-    secret: AgentSecretBinding["secret"]
-    /** A person's own secret still needs its choice stored before the attachment. */
-    choiceFor?: string
-    choiceMissing?: boolean
-}
+type Secret = AgentSecretBinding["secret"]
+
+/** The step a failure left unfinished; Continue resumes it instead of starting over. */
+type Retry =
+    | {kind: "choice"; secretId?: string}
+    | {kind: "attach"; secret: Secret}
+    | {kind: "settle"; secret: Secret; envName: string; revisionId: string}
 
 const VALUE_FIELD_LABEL = "Secret value"
-const VAULT_READ_TIMEOUT_MS = 3000
+const READ_TIMEOUT_MS = 3000
+const PERSONAL_SECRET: Secret = {account_source: "user"} as Secret
 
 /** Text already typed in the focused field, which a new card must not take the keys from. */
 const typingElsewhere = () => {
@@ -85,23 +86,24 @@ export const SecretRequestDock = ({
     onOutput,
 }: SecretRequestDockProps) => {
     const [targetId, setTargetId] = useState(revisionId)
+    const [typing, setTyping] = useState(false)
     // The dock outlives a revision switch on both hosts, so it follows the prop when it moves.
     const [seenRevisionId, setSeenRevisionId] = useState(revisionId)
     if (seenRevisionId !== revisionId) {
         setSeenRevisionId(revisionId)
         setTargetId(revisionId)
+        setTyping(false)
     }
     const [modalOpen, setModalOpen] = useState(false)
     const [settling, setSettling] = useState(false)
     const [committing, setCommitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    // Saved in the vault but not attached: Continue retries the attachment, not the save.
-    const [unattached, setUnattached] = useState<UnattachedSecret | null>(null)
-    // Null follows the request; a person's "Change value" or "Keep saved value" overrides it.
+    const [retry, setRetry] = useState<Retry | null>(null)
+    // Null follows the request; "Change value" and "Keep saved value" override it.
     const [entryChoice, setEntryChoice] = useState<boolean | null>(null)
     const [editingEnv, setEditingEnv] = useState(false)
     const [vault, setVault] = useState<VaultRead>("checking")
-    const [typing, setTyping] = useState(false)
+    const [timedOut, setTimedOut] = useState(false)
     const valueRef = useRef<HTMLTextAreaElement>(null)
 
     const commit = useSetAtom(commitAgentCredentialsAtom)
@@ -123,76 +125,74 @@ export const SecretRequestDock = ({
 
     // The vault query never refetches itself; `refetchVault` changes identity, so it is not a dep.
     useEffect(() => {
-        let current = true
-        const finish = (read: VaultRead) => {
-            if (!current) return
-            current = false
-            setVault(read)
-        }
-        // A failing vault retries for a long time, and the card must not sit without an action.
-        const timer = setTimeout(() => finish("failed"), VAULT_READ_TIMEOUT_MS)
+        let mounted = true
+        // A slow read must not leave the card without an action; a late answer still lands.
+        const timer = setTimeout(() => setTimedOut(true), READ_TIMEOUT_MS)
         Promise.resolve(refetchVault()).then(
-            (result) => finish((result as {isError?: boolean})?.isError ? "failed" : "fresh"),
-            () => finish("failed"),
+            (result) => {
+                if (mounted)
+                    setVault((result as {isError?: boolean})?.isError ? "failed" : "loaded")
+            },
+            () => {
+                if (mounted) setVault("failed")
+            },
         )
         return () => {
-            current = false
+            mounted = false
             clearTimeout(timer)
         }
     }, [])
 
+    // The owner of a new secret depends on the personal read, so the card waits for both.
+    const waiting = !timedOut && (vault === "checking" || access === "loading")
+    const read: VaultRead =
+        !entity || waiting ? "checking" : vault === "checking" ? "failed" : vault
     const resolved = request
         ? resolveSecretDockSubject({
               request,
               bindings,
               secrets: [...namedSecrets, ...personalSecrets],
-              // Until the revision loads, no binding reads the same as an unattached secret.
-              vault: entity ? vault : "checking",
+              vault: read,
           })
         : undefined
-    // A late vault answer must not swap the card, and clear the value, under a person typing.
+    // A late answer must not swap the card, and clear the value, under a person typing.
     const heldSubject = useRef(resolved)
     if (!typing) heldSubject.current = resolved
     const subject = heldSubject.current
     const attachment =
         subject?.kind === "attached" || subject?.kind === "missing" ? subject : undefined
     const replaceable = subject ? replaceableRow(subject) : undefined
-    const hasSaved = subject?.kind === "vault" || subject?.kind === "attached"
-    const inlineValue =
-        canEditSecrets && !!subject && subject.kind !== "checking" && (!hasSaved || !!replaceable)
-    const entry =
-        inlineValue && !unattached && (entryChoice ?? (!hasSaved || request?.rejected === true))
+    const hasSaved = subject?.kind === "saved" || subject?.kind === "attached"
+    const ready = !!subject && subject.kind !== "checking"
+    const inlineValue = canEditSecrets && ready && (!hasSaved || !!replaceable)
+    const rejected = request?.rejected === true
+    const entry = inlineValue && !retry && (entryChoice ?? (!hasSaved || rejected))
 
     const [envVar, setEnvVar] = useState(request?.envVar ?? "")
     const envName = envVar.trim()
-    const envInvalid = !ENV_NAME.test(envName)
-    const envTaken = bindings.some(
-        (item, index) => index !== attachment?.index && item.binding.name === envName,
-    )
-    const envError = envInvalid
-        ? "Use letters, digits, and underscores; do not start with a digit."
-        : envTaken
-          ? "This environment variable is already attached."
-          : null
+    // Once committed, the binding owns the name, so only a pending answer is left to send.
+    const envError =
+        retry?.kind === "settle" ? null : envBindingError(envName, bindings, attachment?.index)
     const envChanged = envName !== attachment?.binding.binding.name
 
     const owners = newSecretOwners(access === "on", canEditSecrets)
-    const owner = owners?.[0] ?? "project"
     const replacing = entry && !!replaceable
-    const personalRow = replaceable?.ownerKind === "user"
-    const savesPersonal = replacing ? personalRow : owner === "user"
+    const savesPersonal = replacing
+        ? replaceable?.ownerKind === "user"
+        : (owners?.[0] ?? "project") === "user"
     const {choose: storeChoice} = useAccountChoice(workflowId, userItemKey("secret", envName))
+    const itemContext = useMemo(
+        () => ({revisionId: targetId, agent: agent ?? {}}),
+        [targetId, agent],
+    )
     const {account: ownAccount} = useItemAccount(
-        {revisionId: targetId, agent: agent ?? {}},
+        itemContext,
         userItemKey("secret", attachment?.binding.binding.name ?? envName),
     )
 
     const settle = (output: Record<string, unknown>) => {
         if (settling || meta.settled) return
         setSettling(true)
-        // A host that reports the failure itself still resolves, with `false` (see
-        // `ClientToolOutputHandler`). Give the buttons back rather than spinning over a gate that
-        // is still open.
         void Promise.resolve(
             onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output}),
         ).then(
@@ -203,11 +203,9 @@ export const SecretRequestDock = ({
         )
     }
     /** A "user" secret reports `{account_source: "user"}` in place of a slug. */
-    const configured = (
-        secret: AgentSecretBinding["secret"],
-        name: string,
-        nextRevisionId: string,
-    ) => {
+    const configured = (secret: Secret, name: string, nextRevisionId: string) => {
+        // If the answer does not land, Continue resends it rather than resolving the card again.
+        setRetry({kind: "settle", secret, envName: name, revisionId: nextRevisionId})
         onAdoptRevision(nextRevisionId)
         settle({status: "configured", secret, env_var: name, revision_id: nextRevisionId})
     }
@@ -230,7 +228,7 @@ export const SecretRequestDock = ({
         return result
     }
 
-    const attach = async (secret: AgentSecretBinding["secret"], justSaved: boolean) => {
+    const attach = async (secret: Secret, justSaved: boolean) => {
         setCommitting(true)
         setError(null)
         try {
@@ -239,10 +237,9 @@ export const SecretRequestDock = ({
                 credential: {secret, binding: {type: "env", name: envName}},
                 editIndex: attachment?.index,
             })
-            setUnattached(null)
             configured(secret, envName, result.revisionId)
         } catch (cause) {
-            setUnattached({secret})
+            setRetry({kind: "attach", secret})
             setError(
                 `${justSaved ? "Saved in the vault, not attached. " : ""}${
                     cause instanceof Error ? cause.message : "The secret could not be attached."
@@ -253,23 +250,22 @@ export const SecretRequestDock = ({
         }
     }
 
-    // "Only me": the item takes each person's own secret, and this one is the choice.
+    // "Only me": a run reads the value through the stored choice, so it comes before the commit.
     const attachPersonal = async (secretId: string | undefined, justSaved: boolean) => {
         setCommitting(true)
+        setError(null)
         const stored = secretId ? await storeChoice({secretId}) : false
-        const secret = {account_source: "user"} as AgentSecretBinding["secret"]
         if (stored !== true) {
-            // A run reads the value through this choice, so the agent must not hear "configured".
             setCommitting(false)
-            setUnattached({secret, choiceFor: secretId, choiceMissing: true})
+            setRetry({kind: "choice", secretId})
             setError(ACCOUNT_COPY.choiceFailed)
             return
         }
-        await attach(secret, justSaved)
+        await attach(PERSONAL_SECRET, justSaved)
     }
 
     const handleSaved = async (saved: SavedSecret) => {
-        // A failed settle must come back to Continue: the field is already cleared.
+        // The form has cleared the field, so the card falls back to Continue.
         setEntryChoice(false)
         setTyping(false)
         if (subject?.kind === "attached" && !envChanged) {
@@ -285,7 +281,7 @@ export const SecretRequestDock = ({
 
     const form = useSecretForm({
         open: entry,
-        // The vault returns the stored value on some records. A replacement never shows it.
+        // The vault returns the stored value on some records; a replacement never shows it.
         initialSecret: replaceable ? {...replaceable, content: undefined, writeOnly: true} : null,
         initialName: request?.name,
         initialDefaultEnvVar: request?.envVar,
@@ -304,16 +300,15 @@ export const SecretRequestDock = ({
     const blocked = busy || dirty || !entity || !!envError
     const canSubmit = !blocked && !!form.textValue.trim()
 
+    const resume = (step: Retry) => {
+        if (step.kind === "choice") void attachPersonal(step.secretId, false)
+        else if (step.kind === "attach") void attach(step.secret, false)
+        else configured(step.secret, step.envName, step.revisionId)
+    }
+
     const continueWithSaved = () => {
-        if (unattached?.choiceMissing) {
-            void attachPersonal(unattached.choiceFor, false)
-            return
-        }
-        if (unattached) {
-            void attach(unattached.secret, false)
-            return
-        }
-        if (subject?.kind === "vault") {
+        if (retry) return resume(retry)
+        if (subject?.kind === "saved") {
             if (subject.row.ownerKind === "user") void attachPersonal(subject.row.id, false)
             else void attach({slug: subject.row.slug ?? ""}, false)
             return
@@ -332,6 +327,11 @@ export const SecretRequestDock = ({
         if (canSubmit) void form.submit()
     }
 
+    const changeValue = (next: string) => {
+        form.setTextValue(next)
+        setTyping(!!next.trim())
+    }
+
     // A copied value often carries the terminal's newline, which would become part of the secret.
     const pasteTrimmed = (event: ClipboardEvent<HTMLTextAreaElement>) => {
         if (form.textValue) return
@@ -339,47 +339,58 @@ export const SecretRequestDock = ({
         changeValue(event.clipboardData.getData("text").trim())
     }
 
-    const changeValue = (next: string) => {
-        form.setTextValue(next)
-        setTyping(!!next.trim())
-    }
-
     const changeEnv = (next: string) => {
         setEnvVar(next)
-        form.setDefaultEnvVar(next.trim())
         setError(null)
+        // A rename belongs to this agent's binding; a replaced record keeps its own default.
+        if (!replaceable) form.setDefaultEnvVar(next.trim())
     }
 
+    const toggleEntry = () => {
+        setEntryChoice(!entry)
+        setTyping(false)
+    }
+
+    // A refused value must not be resent as-is: Continue needs a new value or an explicit keep.
+    const offersSavedValue = !rejected || entryChoice === false
     const canContinue =
-        !!unattached ||
-        subject?.kind === "attached" ||
-        (subject?.kind === "vault" && canEditSecrets)
-    const ready = subject && subject.kind !== "checking"
+        !!retry ||
+        (offersSavedValue &&
+            (subject?.kind === "attached" || (subject?.kind === "saved" && canEditSecrets)))
     const showContinue = ready && !entry && canContinue
     const canRename = canEditSecrets && !!entity
-    // The dialog keeps what the card leaves out: another saved secret, the owner, a personal value.
+    const canToggleEntry = inlineValue && hasSaved && !retry
+    // Without an inline field (a person's own or a JSON secret), the dialog changes the value.
+    const changeInDialog = canEditSecrets && ready && hasSaved && !replaceable
     const hasOptions =
         canEditSecrets &&
-        !!ready &&
-        (namedSecrets.length > 0 || (owners?.length ?? 0) > 1 || (hasSaved && !replaceable))
-    const canToggleEntry = inlineValue && hasSaved && !unattached
-    const notice = !request
-        ? "This request is missing its setup details."
-        : dirty
-          ? "Save or discard your agent changes first."
-          : ready && !canEditSecrets
-            ? canContinue
+        ready &&
+        (changeInDialog || namedSecrets.length > 0 || (owners?.length ?? 0) > 1)
+    const matchedName =
+        subject?.kind === "saved" &&
+        subject.row.name?.trim().toLowerCase() !== request?.name.trim().toLowerCase()
+            ? subject.row.name
+            : undefined
+
+    const notice = (() => {
+        if (!request) return "This request is missing its setup details."
+        if (dirty) return "Save or discard your agent changes first."
+        if (ready && !canEditSecrets) {
+            return canContinue
                 ? "You do not have permission to change this secret."
                 : "You do not have permission to add this secret. Ask a project admin."
-            : subject?.kind === "missing"
-              ? "The saved secret was deleted. Add its value again."
-              : replacing && !personalRow && !request.rejected
-                ? "This replaces the saved value for every agent that uses it."
-                : null
+        }
+        if (subject?.kind === "missing") return "The saved secret was deleted. Add its value again."
+        if (replacing && !savesPersonal && !rejected) {
+            return "This replaces the saved value for every agent that uses it."
+        }
+        if (matchedName && !entry) return `Uses your saved secret “${matchedName}”.`
+        return null
+    })()
     const alert = error ?? (request ? envError : null)
     const detail = alert ?? notice ?? request?.reason
     const title = request
-        ? request.rejected
+        ? rejected
             ? `${request.name} did not work`
             : request.name
         : "Secret setup unavailable"
@@ -429,7 +440,7 @@ export const SecretRequestDock = ({
                 ) : null}
 
                 <div className="mt-2 flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-center">
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-colorTextSecondary">
                         {request ? (
                             editingEnv ? (
                                 <Input
@@ -477,6 +488,9 @@ export const SecretRequestDock = ({
                                 </button>
                             )
                         ) : null}
+                        {entry && !replacing && savesPersonal && !editingEnv ? (
+                            <span className="shrink-0">· only you</span>
+                        ) : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         {!ready && request ? (
@@ -498,7 +512,7 @@ export const SecretRequestDock = ({
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                     {canToggleEntry ? (
-                                        <DropdownMenuItem onSelect={() => setEntryChoice(!entry)}>
+                                        <DropdownMenuItem onSelect={toggleEntry}>
                                             {entry ? "Keep saved value" : "Change value"}
                                         </DropdownMenuItem>
                                     ) : null}
@@ -507,9 +521,7 @@ export const SecretRequestDock = ({
                                             disabled={dirty}
                                             onSelect={() => setModalOpen(true)}
                                         >
-                                            {hasSaved && !replaceable
-                                                ? "Change value"
-                                                : "More options"}
+                                            {changeInDialog ? "Change value" : "More options"}
                                         </DropdownMenuItem>
                                     ) : null}
                                 </DropdownMenuContent>
@@ -532,6 +544,14 @@ export const SecretRequestDock = ({
                             >
                                 Continue
                             </LoadingButton>
+                        ) : rejected && changeInDialog && !retry ? (
+                            <Button
+                                size="sm"
+                                disabled={busy || dirty}
+                                onClick={() => setModalOpen(true)}
+                            >
+                                Change value
+                            </Button>
                         ) : null}
                     </div>
                 </div>

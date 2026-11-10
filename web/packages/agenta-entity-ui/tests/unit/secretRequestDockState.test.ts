@@ -1,10 +1,6 @@
 import type {AgentSecretBinding, NamedSecretRow} from "@agenta/entities/secret"
 import {describe, expect, it, vi} from "vitest"
 
-vi.mock("../../src/secret", () => ({
-    matchRequestedSecret: (rows: NamedSecretRow[], request: {envVar: string; name: string}) =>
-        rows.find((row) => row.defaultEnvVar === request.envVar || row.name === request.name),
-}))
 vi.mock("@agenta/entities/secret", () => ({
     CustomSecretFormat: {Text: "text", Json: "json"},
     isUserSecretBinding: (binding: AgentSecretBinding) => binding.secret.account_source === "user",
@@ -60,7 +56,7 @@ describe("resolveSecretDockSubject", () => {
     const resolve = (
         bindings: AgentSecretBinding[],
         secrets: NamedSecretRow[],
-        vault: "checking" | "fresh" | "failed" = "fresh",
+        vault: "checking" | "loaded" | "failed" = "loaded",
     ) => resolveSecretDockSubject({request, bindings, secrets, vault})
 
     it("waits for the vault read", () => {
@@ -72,7 +68,7 @@ describe("resolveSecretDockSubject", () => {
     })
 
     it("offers a saved secret that is not attached", () => {
-        expect(resolve([], [row()])).toEqual({kind: "vault", row: row()})
+        expect(resolve([], [row()])).toEqual({kind: "saved", row: row()})
     })
 
     it("does not offer a match with no slug to attach", () => {
@@ -110,6 +106,17 @@ describe("resolveSecretDockSubject", () => {
         })
     })
 
+    it("matches a saved secret by its default variable or by a differently cased name", () => {
+        expect(resolve([], [row({name: "Billing", defaultEnvVar: "STRIPE_KEY"})]).kind).toBe(
+            "saved",
+        )
+        expect(resolve([], [row({name: "  stripe KEY "})]).kind).toBe("saved")
+    })
+
+    it("does not read a person's secret as the project secret a binding names", () => {
+        expect(resolve([projectBinding], [row({ownerKind: "user"})]).kind).toBe("missing")
+    })
+
     it("keeps a person's own secret attached without a vault record", () => {
         expect(resolve([userBinding], [])).toEqual({
             kind: "attached",
@@ -121,7 +128,7 @@ describe("resolveSecretDockSubject", () => {
 
 describe("replaceableRow", () => {
     it("names the text record behind a saved secret", () => {
-        expect(replaceableRow({kind: "vault", row: row()})).toEqual(row())
+        expect(replaceableRow({kind: "saved", row: row()})).toEqual(row())
     })
 
     it("refuses a JSON record, which has no single value", () => {
