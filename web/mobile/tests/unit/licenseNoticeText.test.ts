@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import {afterEach, describe, expect, it} from "vitest"
+import {afterEach, describe, expect, it, vi} from "vitest"
+
+const billing = vi.hoisted(() => ({enabled: false}))
+vi.mock("@agenta/shared/api", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/shared/api")>()),
+    isBillingEnabled: () => billing.enabled,
+}))
 
 import type {InstanceLicense} from "@/features/settings/licenseApi"
 import {licenseNotices} from "@/features/settings/LicenseNotices"
@@ -56,6 +62,7 @@ describe("license notices for the instance admin", () => {
 
 describe("the activation link key", () => {
     afterEach(() => {
+        billing.enabled = false
         forgetLicenseKey()
         window.history.replaceState(null, "", "/")
     })
@@ -68,5 +75,15 @@ describe("the activation link key", () => {
         expect(window.location.hash).toBe("")
         expect(window.location.search).toBe("?tab=license")
         expect(peekLicenseKey()).toBe("agenta_license_v1.a.b")
+    })
+
+    it("is dropped from the address bar and not kept when billing is on", () => {
+        billing.enabled = true
+        window.history.replaceState(null, "", "/m/settings?tab=license#key=agenta_license_v1.a.b")
+
+        takeLicenseLinkKey()
+
+        expect(window.location.hash).toBe("")
+        expect(peekLicenseKey()).toBe("")
     })
 })

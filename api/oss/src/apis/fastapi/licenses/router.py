@@ -26,14 +26,19 @@ from oss.src.utils.exceptions import intercept_exceptions
 
 COMMUNITY_PLAN = "self_hosted_community"
 
-_NOT_AVAILABLE = HTTPException(
-    status_code=status.HTTP_404_NOT_FOUND,
-    detail="This deployment has no instance license.",
-)
-_NOT_INSTANCE_ADMIN = HTTPException(
-    status_code=status.HTTP_403_FORBIDDEN,
-    detail="Only an instance admin can manage the license.",
-)
+
+def _not_available() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="This deployment has no instance license.",
+    )
+
+
+def _not_instance_admin() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Only an instance admin can manage the license.",
+    )
 
 
 async def require_instance_admin() -> None:
@@ -47,9 +52,9 @@ async def require_instance_admin() -> None:
         or access.principal.kind != PrincipalKind.HUMAN
         or access.principal.id != access.acting_user_id
     ):
-        raise _NOT_INSTANCE_ADMIN
+        raise _not_instance_admin()
     if not await is_instance_admin(access.principal.id):
-        raise _NOT_INSTANCE_ADMIN
+        raise _not_instance_admin()
 
 
 class LicensesRouter:
@@ -87,7 +92,7 @@ class LicensesRouter:
     @intercept_exceptions()
     async def fetch_instance_license(self, request: Request) -> InstanceLicenseResponse:
         if env.stripe.enabled:
-            raise _NOT_AVAILABLE
+            raise _not_available()
         await require_instance_admin()
 
         if not is_ee():
@@ -110,7 +115,7 @@ class LicensesRouter:
         body: InstanceLicenseActivateRequest,
     ) -> InstanceLicenseResponse:
         if env.stripe.enabled:
-            raise _NOT_AVAILABLE
+            raise _not_available()
         await require_instance_admin()
 
         from ee.src.core.licenses.service import (  # noqa: PLC0415
