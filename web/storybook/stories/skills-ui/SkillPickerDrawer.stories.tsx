@@ -28,6 +28,15 @@ const noop = () => undefined
 
 const OPTIONS: SkillListItem[] = [
     {
+        // The workflow name carries the random suffix; the row titles the SKILL.md name.
+        id: "s0",
+        slug: "laptop-replacement-policy",
+        name: "laptop-replacement-policy-3f2a",
+        description: "When and how an employee gets a new laptop.",
+        origin: "project",
+        version: "2",
+    },
+    {
         id: "s1",
         slug: "pdf-tools",
         name: "PDF tools",
@@ -56,8 +65,8 @@ const OPTIONS: SkillListItem[] = [
     },
     {
         id: "s4",
-        slug: "__ag__web-search",
-        name: "Web search",
+        slug: "web-search",
+        name: "web-search",
         description: "Search the web and cite sources.",
         origin: "builtin",
     },

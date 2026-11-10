@@ -1,4 +1,4 @@
-import {McpServerMark} from "@agenta/ui/agent-icon"
+import {McpServerMark, SkillMark} from "@agenta/ui/agent-icon"
 import {Button, IconTile} from "@agenta/ui/ui"
 import {HardDrives, Plugs, Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
@@ -12,7 +12,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The rounded square that leads a server row, a sheet header and the empty states. Four sizes, each paired with its own radius and glyph size, and three tones: `info` for identity, `muted` for an empty state, `neutral` for the MCP server mark.\n\n**Used in:** `McpServerMark`, which every MCP surface draws: the add-server drawer, the connect sheet, the permission drawer and the Settings registry.",
+                    "The rounded square that leads a server row, a sheet header and the empty states. Four sizes, each paired with its own radius and glyph size, and three tones: `info` for identity, `muted` for an empty state, `neutral` for the MCP server and skill marks.\n\n**Used in:** `SkillMark`, on every skill surface, and `McpServerMark`, which every MCP surface draws: the add-server drawer, the connect sheet, the permission drawer and the Settings registry.",
             },
         },
     },
@@ -81,6 +81,12 @@ export const Showcase: Story = {
                 <McpServerMark />
                 <McpServerMark size={32} />
                 <McpServerMark size={44} />
+            </Row>
+            <Row label="SkillMark · 24 / 28 / 32 / 44">
+                <SkillMark size={24} />
+                <SkillMark />
+                <SkillMark size={32} />
+                <SkillMark size={44} />
             </Row>
             <Row label="any glyph, inheriting the tone">
                 <IconTile size={28}>

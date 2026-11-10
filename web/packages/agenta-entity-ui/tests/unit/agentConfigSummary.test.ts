@@ -102,7 +102,7 @@ describe("integrationKeys", () => {
 })
 
 describe("skillNames", () => {
-    it("names embed refs by sibling name, falls back to the referenced slug", () => {
+    it("titles embed refs by sibling name, falls back to the referenced slug", () => {
         const summary = agentConfigSummary({
             agent: {
                 skills: [
@@ -117,7 +117,7 @@ describe("skillNames", () => {
             },
         })
         expect(summary.skills).toBe(4)
-        expect(summary.skillNames).toEqual(["PDF tools", "csv-checker", "inline-skill"])
+        expect(summary.skillNames).toEqual(["PDF tools", "CSV Checker", "Inline Skill"])
     })
 })
 

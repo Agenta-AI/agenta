@@ -26,7 +26,7 @@ import {
     Cpu,
     DotsThree,
     FileText,
-    GraduationCap,
+    Compass,
     HardDrives,
     Minus,
     PencilSimple,
@@ -99,7 +99,7 @@ export const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
     instructions: <FileText />,
     model: <Cpu />,
     mcps: <HardDrives />,
-    skills: <GraduationCap />,
+    skills: <Compass />,
     params: <SlidersHorizontal />,
 }
 

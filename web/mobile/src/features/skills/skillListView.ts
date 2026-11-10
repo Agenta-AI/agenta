@@ -1,4 +1,4 @@
-import type {SkillListItem} from "@agenta/skills-ui"
+import {skillTitle, type SkillListItem} from "@agenta/skills-ui"
 import type {ListTableGroup, ListTableView} from "@agenta/ui/list-table"
 
 /**
@@ -48,6 +48,8 @@ export const isDefaultSkillFilters = (view: SkillListView): boolean =>
 export interface SkillListRow {
     id: string
     slug: string
+    /** The readable title from the SKILL.md name ("Laptop Replacement Policy"). */
+    title: string
     description: string | null
     origin: SkillListItem["origin"]
     /** The repository an import came from; empty for a project-authored skill. */
@@ -96,6 +98,7 @@ export const toSkillListRow = (item: SkillListItem, creatorName = ""): SkillList
     return {
         id: item.id,
         slug: item.slug,
+        title: skillTitle(item),
         description: item.description ?? null,
         origin: item.origin,
         repository,

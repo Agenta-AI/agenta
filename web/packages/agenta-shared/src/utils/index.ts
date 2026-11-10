@@ -234,6 +234,7 @@ export {
     isGatewayToolSlug,
     parseGatewayToolSlug,
 } from "./toolSlug"
+export {skillDisplayName} from "./skillDisplayName"
 
 // Agent tool-permission policy vocabulary.
 export {

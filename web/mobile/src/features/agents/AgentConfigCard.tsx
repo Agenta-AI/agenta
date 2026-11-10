@@ -13,7 +13,7 @@ import {
 } from "@agenta/entity-ui/agent"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {LogoMarks} from "@agenta/ui/components/presentational"
-import {Cpu, FileText, GraduationCap, HardDrives, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {Cpu, FileText, Compass, HardDrives, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AgentOverviewCard} from "./AgentOverviewCard"
@@ -128,7 +128,7 @@ export const AgentConfigCard = ({
                         onClick={onEdit}
                     />
                     <AgentOverviewCardRow
-                        icon={<GraduationCap size={ICON} />}
+                        icon={<Compass size={ICON} />}
                         label={AGENT_CONFIG_ROW_TITLES.skills}
                         detail={skills}
                         title={summary.skillNames.join(", ") || undefined}

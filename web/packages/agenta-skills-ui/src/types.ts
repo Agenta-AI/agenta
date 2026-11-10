@@ -7,7 +7,7 @@ export type SkillOrigin = "project" | "imported" | "builtin"
 export interface SkillListItem {
     /** Workflow id — the key callers add/remove/open by. */
     id: string
-    /** kebab-case registry identity, rendered mono. */
+    /** The SKILL.md name (kebab-case registry identity); `skillTitle` makes it readable. */
     slug: string
     name: string
     description?: string

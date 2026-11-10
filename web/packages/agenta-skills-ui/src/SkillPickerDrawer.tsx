@@ -1,12 +1,13 @@
 // Add-skills picker: the home page's agent rows, each a toggle that follows the latest version.
 import {useEffect, useMemo, useState} from "react"
 
+import {SkillMark} from "@agenta/ui/agent-icon"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn} from "@agenta/ui/styles"
 import {Button, EmptyState, SearchInput} from "@agenta/ui/ui"
-import {Check, Lightning, Plus} from "@phosphor-icons/react"
+import {Check, Plus} from "@phosphor-icons/react"
 
-import {SkillAvatar} from "./SkillCard"
+import {skillTitle} from "./skillTitle"
 import type {SkillListItem} from "./types"
 
 export interface SkillAddChoice {
@@ -56,28 +57,21 @@ function SkillRow({
             disabled={busy}
             onClick={option.added ? onRemove : onAdd}
             aria-pressed={Boolean(option.added)}
-            aria-label={`${option.added ? "Remove" : "Add"} ${option.slug}`}
+            aria-label={`${option.added ? "Remove" : "Add"} ${skillTitle(option)}`}
             className={cn(ROW, option.added && "bg-accent")}
         >
-            <SkillAvatar
-                origin={option.origin}
-                slug={option.slug}
-                className="size-[34px] rounded-[10px] text-[13px]"
-            />
+            <SkillMark size={32} />
             {/* The description line renders even when empty, so rows keep one height. */}
             <span className="flex min-w-0 flex-1 flex-col gap-px">
-                <span className="truncate font-mono text-sm leading-[1.45] text-foreground">
-                    {option.name || option.slug}
+                <span className="truncate text-sm leading-[1.45] text-foreground">
+                    {skillTitle(option)}
                 </span>
                 <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
                     {option.description?.trim() || "No description"}
                 </span>
             </span>
             {option.origin === "builtin" ? (
-                <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[10px] text-muted-foreground">
-                    <Lightning size={10} weight="fill" />
-                    Agenta
-                </span>
+                <span className="shrink-0 pl-2 text-[10px] text-muted-foreground">Agenta</span>
             ) : option.source ? (
                 <span className="hidden max-w-32 shrink-0 truncate rounded bg-muted px-1.5 py-px font-mono text-[10px] text-muted-foreground sm:block">
                     {option.source.label}

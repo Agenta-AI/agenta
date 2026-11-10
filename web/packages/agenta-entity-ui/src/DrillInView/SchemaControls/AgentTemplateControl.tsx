@@ -57,7 +57,7 @@ import {
 import {
     Cpu,
     FileText,
-    GraduationCap,
+    Compass,
     HardDrives,
     Robot,
     ShieldCheck,
@@ -1241,7 +1241,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         hasSkills && {
             key: "skills",
-            icon: <GraduationCap size={16} />,
+            icon: <Compass size={16} />,
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
             indicator: sectionIndicator("skills"),
@@ -1252,7 +1252,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     onManual={handleAddSkill}
                     manualTitle="Add manually"
                     manualHint="From your library, or write one"
-                    manualIcon={<GraduationCap size={16} />}
+                    manualIcon={<Compass size={16} />}
                 />
             ) : undefined,
             defaultOpen: skills.length > 0,

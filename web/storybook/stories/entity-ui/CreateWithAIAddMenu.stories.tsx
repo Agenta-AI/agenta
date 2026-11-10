@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import {CreateWithAIAddMenu, type CreateWithAIAddMenuProps} from "@agenta/entity-ui/drill-in"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
-import {GraduationCap, Lightning, PuzzlePiece} from "@phosphor-icons/react"
+import {Compass, Lightning, PuzzlePiece} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {createStore, Provider, useAtomValue} from "jotai"
 
@@ -44,7 +44,7 @@ const meta = {
         onManual: () => undefined,
         manualTitle: "Add manually",
         manualHint: "From your library, or write one",
-        manualIcon: <GraduationCap size={16} />,
+        manualIcon: <Compass size={16} />,
     },
     render: (args) => <MenuWithReadout {...args} />,
 } satisfies Meta<typeof CreateWithAIAddMenu>

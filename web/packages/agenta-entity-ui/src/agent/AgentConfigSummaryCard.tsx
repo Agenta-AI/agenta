@@ -9,7 +9,7 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 import {
     CpuIcon,
     FileTextIcon,
-    GraduationCapIcon,
+    CompassIcon,
     HardDrivesIcon,
     ShieldCheckIcon,
     WrenchIcon,
@@ -130,7 +130,7 @@ export const AgentConfigSummaryCard = ({
         },
         {
             key: "skills",
-            icon: <GraduationCapIcon size={16} />,
+            icon: <CompassIcon size={16} />,
             title: AGENT_CONFIG_ROW_TITLES.skills,
             ...(summary.skills
                 ? stated(skillsSummaryDetail(summary.skills))
@@ -203,7 +203,7 @@ export const AgentConfigSummaryCard = ({
                                 {summary.skillNames.map((name) => (
                                     <span
                                         key={name}
-                                        className="rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-px font-mono text-[11px]"
+                                        className="rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-px text-[11px]"
                                     >
                                         {name}
                                     </span>

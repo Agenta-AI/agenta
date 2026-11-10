@@ -8,6 +8,8 @@
  * Everything is optional on purpose: a revision written before a field existed, or an agent that
  * never set one, yields `null` and the row says so rather than the card failing to render.
  */
+import {skillDisplayName} from "@agenta/shared/utils"
+
 export interface AgentConfigSummary {
     model: string | null
     harness: string | null
@@ -37,15 +39,15 @@ const str = (value: unknown): string | null =>
 
 const count = (value: unknown): number => (Array.isArray(value) ? value.length : 0)
 
-/** A skill entry's display name: the sibling `name` (embed refs carry it too), else the
+/** A skill entry's readable title: the sibling `name` (embed refs carry it too), else the
  * referenced workflow slug, else null (an unparseable entry stays counted but unnamed). */
 const skillName = (entry: unknown): string | null => {
     if (!isRecord(entry)) return null
     const name = str(entry.name)
-    if (name) return name
+    if (name) return skillDisplayName(name)
     const refs = nested(nested(entry, "@ag.embed"), "@ag.references")
     const slug = str(nested(refs, "workflow")?.slug) ?? str(nested(refs, "workflow_revision")?.slug)
-    return slug
+    return slug ? skillDisplayName(slug.replace(/^__ag__/, "")) : null
 }
 
 /** A gateway-connection tool's integration key; null for a custom or builtin tool. */

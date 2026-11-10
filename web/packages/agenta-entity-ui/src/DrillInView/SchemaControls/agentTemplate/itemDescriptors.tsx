@@ -3,14 +3,8 @@
  * instructions file) to an {@link ItemDescriptor} (avatar, name, description, tags). Kept beside the
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
-import {humanizeActionKey} from "@agenta/shared/utils"
-import {
-    AGENT_ICON_CHIP_CLASS,
-    agentIconChipStyle,
-    SKILL_MARK_COLOR,
-    skillMarkText,
-    type SkillMarkOrigin,
-} from "@agenta/ui/agent-icon"
+import {humanizeActionKey, skillDisplayName} from "@agenta/shared/utils"
+import {SkillMark} from "@agenta/ui/agent-icon"
 import {FileText, GraphIcon, HardDrives, Plugs, Robot} from "@phosphor-icons/react"
 
 import {SKILL_NAME_PATTERN} from "../skillName"
@@ -338,24 +332,39 @@ export function isStaticSkill(skill: unknown): boolean {
     return asObj(s.flags)?.is_static === true
 }
 
-/** The registry's skill mark on a config row: the chip's chrome, the origin's tint, initials. */
-const skillMark = (name: string, origin: SkillMarkOrigin) => ({
-    mono: skillMarkText(name),
-    color: SKILL_MARK_COLOR[origin],
-    avatarClassName: `${AGENT_ICON_CHIP_CLASS} font-mono`,
-    avatarStyle: agentIconChipStyle(SKILL_MARK_COLOR[origin]),
-})
+/** Every skill row's avatar: the one `SkillMark`, whatever the skill's origin. */
+const SKILL_MARK = {
+    mono: "",
+    color: "transparent",
+    icon: <SkillMark size={28} />,
+    // A skill title is prose; only the slash command a person types stays monospace.
+    monoName: false,
+}
+
+/** The title for a skill whose name is missing: its slug, without the reserved `__ag__` prefix. */
+const slugTitle = (slug: string | undefined) =>
+    slug
+        ? skillDisplayName(
+              slug.startsWith(STATIC_SKILL_SLUG_PREFIX)
+                  ? slug.slice(STATIC_SKILL_SLUG_PREFIX.length)
+                  : slug,
+          )
+        : undefined
 
 /** Classify a skill into its row avatar / name / description / type tags. */
 export function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
+    const embedName = staticEmbedName(s)
     if (isStaticSkill(s)) {
-        const slug = staticEmbedSlug(s)
-        const name = staticEmbedName(s) ?? slug ?? "Static skill"
+        const name =
+            (embedName && skillDisplayName(embedName)) ||
+            slugTitle(staticEmbedSlug(s)) ||
+            "Agenta skill"
         return {
             name,
-            ...skillMark(name, "builtin"),
-            tags: ["static"],
+            ...SKILL_MARK,
+            // "Agenta", the word the skill picker uses for a built-in skill.
+            tags: ["Agenta"],
             typeLabel: "static skill",
             subtitle: "Provided by Agenta — read-only",
         }
@@ -364,11 +373,14 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         // Registry-by-default: the raw "@ag.embed" marker is plumbing, not information.
         // Following the head is the default and says nothing; only a pin is worth a tag.
         const pinned = embedRevisionVersion(s)
-        const name = staticEmbedName(s) ?? staticEmbedSlug(s) ?? "Skill reference"
+        const name =
+            (embedName && skillDisplayName(embedName)) ||
+            slugTitle(staticEmbedSlug(s)) ||
+            "Skill reference"
         return {
             name,
             description: typeof s.description === "string" ? (s.description as string) : undefined,
-            ...skillMark(name, "project"),
+            ...SKILL_MARK,
             tags: pinned ? [{label: "Pinned"}] : [],
             typeLabel: "registry skill",
             typeColor: "gold",
@@ -377,13 +389,13 @@ export function describeSkill(skill: unknown): ItemDescriptor {
                 : "Registry skill — follows the latest version",
         }
     }
-    const name = typeof s.name === "string" && s.name ? (s.name as string) : "Skill"
+    const name = (typeof s.name === "string" && skillDisplayName(s.name)) || "Skill"
     return {
         name,
         description: typeof s.description === "string" ? (s.description as string) : undefined,
-        ...skillMark(name, "project"),
+        ...SKILL_MARK,
         // No "skill" tag: the section it sits in is already Skills. The other branches tag what a
-        // reader cannot otherwise tell — that it is static, or an @ag.embed reference.
+        // reader cannot otherwise tell — that it is built in, or pinned.
         tags: [],
         typeLabel: "skill",
         typeColor: "gold",
