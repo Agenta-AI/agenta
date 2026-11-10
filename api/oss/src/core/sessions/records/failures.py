@@ -3,16 +3,21 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from orjson import OPT_SORT_KEYS, dumps
 from pydantic import BaseModel
 
 from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
     SessionRecord,
 )
+from oss.src.core.sessions.turns.dtos import SessionTurn
 
 
 AGENT_FAILURE_PROMPT_LIMIT = 4000
 AGENT_FAILURE_MESSAGE_LIMIT = 1000
+AGENT_FAILURE_TOOL_INPUT_LIMIT = 2000
+# The last messages before a failure: about two turns of user and agent text.
+AGENT_FAILURE_CONVERSATION_LIMIT = 6
 
 _PLATFORM_TOOL_PREFIXES = ("mcp__agenta-tools__", "mcp.agenta-tools.")
 _MCP_TOOL_PREFIXES = ("mcp__", "mcp.")
@@ -33,6 +38,11 @@ class AgentFailureSource(str, Enum):
     TRIGGER = "trigger"
 
 
+class AgentFailureMessage(BaseModel):
+    role: str  # the record source: "user" or "agent"
+    text: str
+
+
 class AgentFailure(BaseModel):
     record_id: UUID
     project_id: UUID
@@ -51,8 +61,18 @@ class AgentFailure(BaseModel):
     tool_action: Optional[str] = None
     server_name: Optional[str] = None
     http_status: Optional[int] = None
+    # What ran: the model the runner stamps on the failure record, and the turn's revision.
+    model: Optional[str] = None
+    harness: Optional[str] = None
+    workflow_id: Optional[str] = None
+    workflow_slug: Optional[str] = None
+    revision_id: Optional[str] = None
+    revision_version: Optional[str] = None
+    # Customer text, sent only with the detail flag.
     message: Optional[str] = None
     prompt: Optional[str] = None
+    tool_input: Optional[str] = None
+    conversation: Optional[List[AgentFailureMessage]] = None
 
 
 _SOURCE_BY_CODE: Dict[str, AgentFailureSource] = {
@@ -131,6 +151,7 @@ def failure_from_record(record: SessionRecord) -> Optional[AgentFailure]:
         "session_id": record.session_id,
         "turn_id": record.turn_id,
         "occurred_at": record.timestamp or record.created_at,
+        "model": _text(attributes.get("model")),
     }
 
     if record.record_type == "error":
@@ -188,18 +209,59 @@ def _bare_tool_name(name: str) -> str:
     return name
 
 
+def _tool_input(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        text = dumps(value, option=OPT_SORT_KEYS).decode()
+    except TypeError:
+        return None
+    return text[:AGENT_FAILURE_TOOL_INPUT_LIMIT]
+
+
 def _tool_fields(tool_call: SessionRecord) -> Dict[str, Optional[str]]:
     attributes = tool_call.attributes or {}
     name = _text(attributes.get("name"))
     if name is None:
         return {}
 
-    fields = {"tool_name": name, "tool_kind": _tool_kind(name)}
     tool_input = attributes.get("input")
+    fields = {
+        "tool_name": name,
+        "tool_kind": _tool_kind(name),
+        "tool_input": _tool_input(tool_input),
+    }
     if _bare_tool_name(name) == _EXTERNAL_TOOL_RUNNER and isinstance(tool_input, dict):
         fields["tool_integration"] = _text(tool_input.get("integration"))
         fields["tool_action"] = _text(tool_input.get("tool"))
     return fields
+
+
+def turn_fields(turn: SessionTurn) -> Dict[str, Optional[str]]:
+    """What ran the failed turn: its harness and its revision references."""
+    fields: Dict[str, Optional[str]] = {"harness": turn.harness_kind.value}
+    for reference in turn.references or []:
+        if reference.key == "workflow":
+            fields["workflow_id"] = str(reference.id) if reference.id else None
+            fields["workflow_slug"] = reference.slug
+        elif reference.key == "workflow_revision":
+            fields["revision_id"] = str(reference.id) if reference.id else None
+            fields["revision_version"] = reference.version
+    return fields
+
+
+def _conversation(messages: List[SessionRecord]) -> List[AgentFailureMessage]:
+    conversation = []
+    for record in messages:
+        text = _text((record.attributes or {}).get("text"))
+        if text:
+            conversation.append(
+                AgentFailureMessage(
+                    role=record.record_source or "agent",
+                    text=text[:AGENT_FAILURE_MESSAGE_LIMIT],
+                )
+            )
+    return conversation
 
 
 def with_turn_context(
@@ -207,12 +269,17 @@ def with_turn_context(
     *,
     tool_calls: List[SessionRecord],
     prompt: Optional[SessionRecord] = None,
+    messages: Optional[List[SessionRecord]] = None,
+    turn: Optional[SessionTurn] = None,
 ) -> AgentFailure:
-    """`tool_calls` is in send order, so the last match is the latest call."""
-    update: Dict[str, Optional[str]] = {}
+    """`tool_calls` and `messages` are in send order, so the last tool match is the
+    latest call."""
+    update: Dict[str, Any] = turn_fields(turn) if turn is not None else {}
     if prompt is not None:
         text = _text((prompt.attributes or {}).get("text"))
         update["prompt"] = text[:AGENT_FAILURE_PROMPT_LIMIT] if text else None
+    if messages:
+        update["conversation"] = _conversation(messages) or None
     if failure.tool_call_id is not None:
         for record in reversed(tool_calls):
             if (

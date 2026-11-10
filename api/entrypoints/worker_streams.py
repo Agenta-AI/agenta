@@ -155,6 +155,7 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
         failure_reporter=AgentFailureReporter(
             records_dao=RecordsDAO(),
             streams_dao=SessionStreamsDAO(engine=get_transactions_engine()),
+            turns_dao=SessionTurnsDAO(engine=get_transactions_engine()),
         ),
         # Redelivery bound for records the Postgres write rejected.
         reclaim_min_idle_ms=env.agenta.sessions.records.reclaim_idle_ms,

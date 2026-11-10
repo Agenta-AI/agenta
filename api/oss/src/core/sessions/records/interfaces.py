@@ -55,6 +55,17 @@ class RecordsDAOInterface:
     ) -> Optional[SessionRecord]:
         raise NotImplementedError
 
+    async def get_recent_messages(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        at_or_before: Optional[datetime],
+        limit: int,
+    ) -> List[SessionRecord]:
+        """The last `limit` user and agent messages at or before a time, oldest first."""
+        raise NotImplementedError
+
     async def get_records_page(
         self,
         *,

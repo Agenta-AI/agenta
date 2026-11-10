@@ -1108,6 +1108,7 @@ async function runAndStreamWithApiBaseResolved(
         seedForRun(request),
         turnId,
         request.runContext?.trace?.span_id,
+        request.model,
       );
       // Record the inbound user turn first so the session record is the full conversation, not just
       // agent output. Guard on `tailIsFreshUserMessage`: an approval RESUME's tail is the tool_result

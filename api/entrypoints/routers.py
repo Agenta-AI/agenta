@@ -1137,6 +1137,7 @@ _triggers_dispatcher = TriggersDispatcher(
     failure_reporter=AgentFailureReporter(
         records_dao=records_dao,
         streams_dao=session_streams_dao,
+        turns_dao=session_turns_dao,
     ),
 )
 

@@ -1,7 +1,8 @@
-"""The two reads behind an `agent_failure` event, against a real Postgres.
+"""The reads behind an `agent_failure` event, against a real Postgres.
 
-Each read must load only what the event needs: the failed turn's tool calls, and one user
-message at or before the failure. A stub cannot show which rows the SQL returns.
+Each read must load only what the event needs: the failed turn's tool calls, one user
+message, and the last few messages at or before the failure. A stub cannot show which rows
+the SQL returns.
 
 Requires POSTGRES_URI_TRACING pointed at the tracing database.
 """
@@ -129,3 +130,44 @@ async def test_the_prompt_read_returns_the_latest_user_message_at_the_failure():
     assert at_failure.attributes["text"] == "second"
     assert unbounded.attributes["text"] == "after"
     assert before_any is None
+
+
+async def test_the_conversation_read_returns_the_last_messages_oldest_first():
+    project_id, session_id = uuid.uuid4(), f"failure-read-{uuid.uuid4().hex[:8]}"
+    old = _user_message(project_id, session_id, "turn-1", "too old", minutes=0)
+    asked = _user_message(project_id, session_id, "turn-2", "asked", minutes=1)
+    answer = _event(
+        project_id,
+        session_id,
+        "turn-2",
+        "message",
+        minutes=2,
+        attributes={"type": "message", "text": "answer"},
+    )
+    again = _user_message(project_id, session_id, "turn-3", "again", minutes=3)
+    dao = await _seed(
+        [
+            old,
+            asked,
+            answer,
+            again,
+            _event(project_id, session_id, "turn-3", "tool_call", minutes=4),
+            _user_message(project_id, session_id, "turn-4", "later", minutes=20),
+            _user_message(
+                project_id, session_id, "turn-3", "late", minutes=5, quarantined_at=AT
+            ),
+        ]
+    )
+
+    messages = await dao.get_recent_messages(
+        project_id=project_id,
+        session_id=session_id,
+        at_or_before=AT + timedelta(minutes=10),
+        limit=3,
+    )
+
+    assert [m.record_id for m in messages] == [
+        asked.record_id,
+        answer.record_id,
+        again.record_id,
+    ]

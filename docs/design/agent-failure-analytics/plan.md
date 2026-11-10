@@ -75,9 +75,35 @@ class AgentFailure(BaseModel):
     tool_action: Optional[str]
     server_name: Optional[str]
     http_status: Optional[int]
-    message: Optional[str]   # detail only
-    prompt: Optional[str]    # detail only
+    model: Optional[str]          # stamped by the runner on the failure record
+    harness: Optional[str]        # from the turn
+    workflow_id: Optional[str]    # from the turn's references
+    workflow_slug: Optional[str]
+    revision_id: Optional[str]
+    revision_version: Optional[str]
+    message: Optional[str]        # detail only
+    prompt: Optional[str]         # detail only
+    tool_input: Optional[str]     # detail only, JSON, cut to 2000 characters
+    conversation: Optional[List[AgentFailureMessage]]  # detail only, last 6 messages
 ```
+
+## What a test case needs
+
+An event alone should be enough to write a test case: what the user asked (`prompt`,
+`conversation`), what ran (`model`, `harness`, `revision_id`), what the agent tried
+(`tool_name`, `tool_input`) and why it failed (`failure_source`, `failure_code`, `message`).
+`session_id` and `turn_id` lead to the full transcript while the session exists.
+
+The model comes from the runner, not from the revision or the trace:
+
+- A Runtime Lab or playground run can override the revision's config. One local lab turn ran
+  `haiku` on Claude while its revision named `gpt-5.6-luna` on Pi.
+- Spans land later than records. Locally only 131 of 1372 failures had a chat span in the
+  database when the failure record committed.
+
+So the runner adds `model` to the attributes of `error`, `mcp_server_failed` and failed
+`tool_result` records. Attributes are an open dict, so the `/run` wire does not change. Records
+from an older runner and the watchdog's `execution_lost` have no model.
 
 `_SOURCE_BY_CODE` is one table from code to source. An unknown code falls back to `runner`, so a
 new runner code still reaches PostHog.
@@ -91,9 +117,11 @@ new runner code still reaches PostHog.
 4. The tool name comes from a `tool_call` in the same batch. Only when the batch does not hold it,
    `get_turn_tool_calls` reads the failed turn's tool calls. Another worker can commit a
    `tool_call` after its `tool_result`, so the batch is checked first.
-5. Only with the detail flag on, `get_latest_user_message` reads one user message at or before the
-   failure. That is the prompt, also for a continuation turn.
-6. The reporter reads `session_streams.owner_user_id`, then the user's email, and calls
+5. `query_turns` reads the failed turn by session and turn id, for the harness and the revision.
+6. Only with the detail flag on, `get_latest_user_message` reads one user message at or before the
+   failure. That is the prompt, also for a continuation turn. `get_recent_messages` reads the
+   last 6 messages, about two turns, for `conversation`.
+7. The reporter reads `session_streams.owner_user_id`, then the user's email, and calls
    `posthog.capture`.
 
 ## Decisions from the self-review
@@ -115,8 +143,9 @@ new runner code still reaches PostHog.
 - **Bounded wait.** The worker waits on the report before it acknowledges a batch, and the reads have
   no timeout of their own. One report covers the whole batch and stops after 5 seconds, so a
   batch waits 5 seconds at most and loses its unsent events.
-- **Read cost.** Each read is bounded: the turn's tool calls, and one user message with `LIMIT 1`.
-  Neither grows with the length of the session.
+- **Read cost.** Each read is bounded: the turn's tool calls, one turn row, one user message with
+  `LIMIT 1`, and 6 messages with `LIMIT 6`. None grows with the length of the session. An event
+  holds at most about 13 KB of text.
 - **Trigger retries.** A failed start re-raises, and TaskIQ retries it up to 5 times with a new
   session each time. The event uuid comes from the trigger and its event id, so the retries are one
   PostHog event. The event also carries the organization.
@@ -140,9 +169,12 @@ new runner code still reaches PostHog.
 
 - `api/oss/src/core/sessions/records/failures.py`: shape, table, pure functions.
 - `api/oss/src/tasks/asyncio/sessions/failure_reporter.py`: reads context, sends the event.
-- `api/oss/src/core/sessions/records/interfaces.py`, `api/oss/src/dbs/postgres/sessions/records/dao.py`: the two bounded reads.
+- `api/oss/src/core/sessions/records/interfaces.py`, `api/oss/src/dbs/postgres/sessions/records/dao.py`: the bounded record reads.
+- `api/oss/src/core/sessions/turns/dtos.py`, `api/oss/src/dbs/postgres/sessions/turns/dao.py`: the `turn_id` filter.
+- `services/runner/src/sessions/persist.ts`, `services/runner/src/server.ts`: the model on failure records.
 - `api/oss/src/tasks/asyncio/sessions/records_worker.py`, `api/entrypoints/worker_streams.py`: wiring.
 - `api/oss/src/tasks/asyncio/triggers/dispatcher.py`, `api/entrypoints/routers.py`, `api/entrypoints/worker_queues.py`: the `trigger` capture.
 - `api/oss/src/utils/env.py`, `hosting/docker-compose/ee/env.ee.*.example`: the detail flag.
 - `api/oss/tests/pytest/unit/sessions/test_agent_failures.py`: tests.
-- `api/oss/tests/pytest/unit/sessions/test_agent_failure_reads_dao.py`: the two reads against Postgres.
+- `api/oss/tests/pytest/unit/sessions/test_agent_failure_reads_dao.py`: the reads against Postgres.
+- `services/runner/tests/unit/session-persist.test.ts`: the model stamp.

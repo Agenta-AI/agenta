@@ -17,8 +17,11 @@ from oss.src.core.sessions.records.failures import (
     AgentFailure,
     AgentFailureSource,
     failure_from_record,
+    turn_fields,
     with_turn_context,
 )
+from oss.src.core.sessions.turns.dtos import SessionTurn, SessionTurnQuery
+from oss.src.core.sessions.types import SessionReference
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.triggers.dtos import (
@@ -51,6 +54,10 @@ OWNER = UUID("33333333-3333-4333-8333-333333333333")
 RECORD = UUID("44444444-4444-4444-8444-444444444444")
 SESSION = "sess-1"
 TURN = "turn-1"
+RUN_TURN = "55555555-5555-4555-8555-555555555555"
+WORKFLOW = UUID("66666666-6666-4666-8666-666666666666")
+REVISION = UUID("77777777-7777-4777-8777-777777777777")
+MODEL = "anthropic/haiku"
 AT = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
 
 
@@ -316,6 +323,81 @@ def test_a_long_prompt_is_cut():
     assert failure.prompt == "p" * 4000
 
 
+def _turn(references=None, harness_kind="claude"):
+    return SessionTurn(
+        project_id=PROJECT,
+        session_id=SESSION,
+        turn_id=UUID(RUN_TURN),
+        stream_id=uuid4(),
+        turn_index=0,
+        harness_kind=harness_kind,
+        references=references,
+    )
+
+
+_RUN_REFERENCES = [
+    SessionReference(key="workflow", id=WORKFLOW, slug="pr-reviewer"),
+    SessionReference(key="workflow_variant", id=uuid4(), slug="pr-reviewer.default"),
+    SessionReference(key="workflow_revision", id=REVISION, version="26"),
+]
+
+
+def test_the_turn_fields_name_the_harness_and_revision():
+    assert turn_fields(_turn(_RUN_REFERENCES)) == {
+        "harness": "claude",
+        "workflow_id": str(WORKFLOW),
+        "workflow_slug": "pr-reviewer",
+        "revision_id": str(REVISION),
+        "revision_version": "26",
+    }
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        _record("error", {"code": "x", "model": MODEL}),
+        _record("mcp_server_failed", {"serverName": "s", "model": MODEL}),
+        _record("tool_result", {"id": "c", "isError": True, "model": MODEL}),
+    ],
+)
+def test_every_failure_keeps_the_model_the_runner_stamped(record):
+    assert failure_from_record(record).model == MODEL
+
+
+def test_a_failure_from_an_older_runner_has_no_model():
+    assert (
+        failure_from_record(_record("error", {"code": "x", "model": 3})).model is None
+    )
+
+
+def test_the_failed_tool_input_is_kept_and_cut():
+    failure = with_turn_context(
+        _tool_failure(),
+        tool_calls=[_tool_call("bash", {"command": "x" * 3000})],
+    )
+
+    assert failure.tool_input.startswith('{"command":"xxx')
+    assert len(failure.tool_input) == 2000
+
+
+def test_the_conversation_keeps_text_messages_in_order():
+    agent_reply = _record(
+        "message", {"text": "a" * 1500}, record_id=uuid4(), record_source="agent"
+    )
+    no_text = _record("message", {"text": ""}, record_id=uuid4(), record_source="agent")
+
+    failure = with_turn_context(
+        _tool_failure(),
+        tool_calls=[],
+        messages=[_user_message("fix the bug"), agent_reply, no_text],
+    )
+
+    assert [(m.role, m.text) for m in failure.conversation] == [
+        ("user", "fix the bug"),
+        ("agent", "a" * 1000),
+    ]
+
+
 # --------------------------------------------------------------------- the reporter
 
 
@@ -341,15 +423,29 @@ def posthog(monkeypatch):
     return fake
 
 
-def _reporter(*, tool_calls=(), prompt=None, owner_user_id=OWNER):
+def _reporter(
+    *,
+    tool_calls=(),
+    prompt=None,
+    messages=(),
+    owner_user_id=OWNER,
+    turn=None,
+):
     records_dao = MagicMock()
     records_dao.get_turn_tool_calls = AsyncMock(return_value=list(tool_calls))
     records_dao.get_latest_user_message = AsyncMock(return_value=prompt)
+    records_dao.get_recent_messages = AsyncMock(return_value=list(messages))
     streams_dao = MagicMock()
     streams_dao.get_by_session_id_including_archived = AsyncMock(
         return_value=SimpleNamespace(owner_user_id=owner_user_id)
     )
-    return AgentFailureReporter(records_dao=records_dao, streams_dao=streams_dao)
+    turns_dao = MagicMock()
+    turns_dao.query_turns = AsyncMock(return_value=[turn] if turn else [])
+    return AgentFailureReporter(
+        records_dao=records_dao,
+        streams_dao=streams_dao,
+        turns_dao=turns_dao,
+    )
 
 
 async def _report(reporter, records):
@@ -437,6 +533,58 @@ async def test_an_error_code_reaches_the_failure_code_property(posthog):
     # No tool name to find and no text allowed out, so nothing is read.
     reporter.records_dao.get_turn_tool_calls.assert_not_awaited()
     reporter.records_dao.get_latest_user_message.assert_not_awaited()
+    reporter.records_dao.get_recent_messages.assert_not_awaited()
+    # "turn-1" is not a turn id the turns table can hold, so no turn is read.
+    reporter.turns_dao.query_turns.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_the_event_names_the_model_and_revision_without_the_detail_flag(
+    posthog,
+):
+    reporter = _reporter(turn=_turn(_RUN_REFERENCES))
+
+    await _report(
+        reporter, [_record("error", {"code": "x", "model": MODEL}, turn_id=RUN_TURN)]
+    )
+
+    properties = posthog.events[0]["properties"]
+    assert properties["model"] == MODEL
+    assert properties["harness"] == "claude"
+    assert properties["revision_id"] == str(REVISION)
+    assert properties["revision_version"] == "26"
+    assert properties["workflow_slug"] == "pr-reviewer"
+    reporter.turns_dao.query_turns.assert_awaited_once_with(
+        project_id=PROJECT,
+        query=SessionTurnQuery(session_id=SESSION, turn_id=UUID(RUN_TURN)),
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_tool_input_and_conversation_need_the_detail_flag(
+    posthog, monkeypatch
+):
+    def reporter():
+        return _reporter(
+            tool_calls=(_tool_call("bash", {"command": "ls"}),),
+            prompt=_PROMPT,
+            messages=(_PROMPT,),
+        )
+
+    await _report(reporter(), [_FAILED_TOOL])
+    hidden = posthog.events[-1]["properties"]
+    assert "tool_input" not in hidden
+    assert "conversation" not in hidden
+
+    monkeypatch.setattr(env.posthog, "agent_failure_details", True)
+    shown_reporter = reporter()
+    await _report(shown_reporter, [_FAILED_TOOL])
+    shown = posthog.events[-1]["properties"]
+    assert shown["tool_input"] == '{"command":"ls"}'
+    assert shown["conversation"] == [{"role": "user", "text": "my private prompt"}]
+    shown_reporter.records_dao.get_recent_messages.assert_awaited_once_with(
+        project_id=PROJECT, session_id=SESSION, at_or_before=AT, limit=6
+    )
 
 
 @pytest.mark.asyncio

@@ -5,6 +5,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.records.failures import (
+    AGENT_FAILURE_CONVERSATION_LIMIT,
     AgentFailure,
     AgentFailureSource,
     failure_from_record,
@@ -12,6 +13,8 @@ from oss.src.core.sessions.records.failures import (
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.sessions.turns.dtos import SessionTurn, SessionTurnQuery
+from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
@@ -26,7 +29,7 @@ AGENT_FAILURE_EVENT = "agent_failure"
 REPORT_TIMEOUT_SECONDS = 5
 
 _INTERNAL_FIELDS = {"record_id", "tool_call_id", "occurred_at"}
-_DETAIL_FIELDS = {"message", "prompt"}
+_DETAIL_FIELDS = {"message", "prompt", "tool_input", "conversation"}
 
 
 def _reporting_enabled() -> bool:
@@ -83,9 +86,11 @@ class AgentFailureReporter:
         self,
         records_dao: RecordsDAOInterface,
         streams_dao: SessionStreamsDAOInterface,
+        turns_dao: SessionTurnsDAOInterface,
     ):
         self.records_dao = records_dao
         self.streams_dao = streams_dao
+        self.turns_dao = turns_dao
 
     async def report(
         self,
@@ -209,18 +214,57 @@ class AgentFailureReporter:
                 *tool_calls,
             ]
 
+        turn = await self._turn(
+            project_id=project_id, session_id=session_id, turn_id=turn_id
+        )
+
         prompt = None
+        messages: List[SessionRecord] = []
         if env.posthog.agent_failure_details:
             times = [f.occurred_at for f in failures if f.occurred_at is not None]
+            at_or_before = max(times) if times else None
             prompt = await self.records_dao.get_latest_user_message(
                 project_id=project_id,
                 session_id=session_id,
-                at_or_before=max(times) if times else None,
+                at_or_before=at_or_before,
+            )
+            messages = await self.records_dao.get_recent_messages(
+                project_id=project_id,
+                session_id=session_id,
+                at_or_before=at_or_before,
+                limit=AGENT_FAILURE_CONVERSATION_LIMIT,
             )
         return [
-            with_turn_context(failure, tool_calls=tool_calls, prompt=prompt)
+            with_turn_context(
+                failure,
+                tool_calls=tool_calls,
+                prompt=prompt,
+                messages=messages,
+                turn=turn,
+            )
             for failure in failures
         ]
+
+    async def _turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+    ) -> Optional[SessionTurn]:
+        """The failed turn, for its harness and revision."""
+        try:
+            turn_uuid = UUID(turn_id) if turn_id else None
+        except ValueError:
+            return None
+        if turn_uuid is None:
+            return None
+        # By session too: the (project_id, session_id) index bounds the read.
+        turns = await self.turns_dao.query_turns(
+            project_id=project_id,
+            query=SessionTurnQuery(session_id=session_id, turn_id=turn_uuid),
+        )
+        return turns[0] if turns else None
 
     async def _session_owner_email(
         self, *, project_id: UUID, session_id: str

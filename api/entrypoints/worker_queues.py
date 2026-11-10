@@ -301,6 +301,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         failure_reporter=AgentFailureReporter(
             records_dao=RecordsDAO(engine=get_analytics_engine()),
             streams_dao=session_streams_dao,
+            turns_dao=SessionTurnsDAO(engine=transactions_engine),
         ),
     )
     TriggersWorker(
