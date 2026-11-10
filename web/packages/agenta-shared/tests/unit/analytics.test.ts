@@ -66,24 +66,47 @@ describe("shared desktop and mobile analytics", () => {
             },
             $set: {$current_url: "https://agenta.internal/m"},
             $set_once: {
-                $initial_person_info: {r: "https://intranet.internal/", u: "https://agenta.internal/m"},
+                $initial_person_info: {
+                    r: "https://intranet.internal/",
+                    u: "https://agenta.internal/m",
+                },
                 $initial_current_url: "https://agenta.internal/m",
             },
         }
         const sent = stripInstanceUrl(event)
         expect(JSON.stringify(sent)).not.toContain("internal")
-        expect(sent?.properties).toEqual({$pathname: "/m/w/1", $browser: "Chrome", $geoip_disable: true})
+        expect(sent?.properties).toEqual({
+            $pathname: "/m/w/1",
+            $browser: "Chrome",
+            $geoip_disable: true,
+        })
     })
 
     it("answers cloud only when telemetry is on and names no instance group", () => {
-        expect(isCloudTelemetry(parseInstanceTelemetry({enabled: true, distinct_id: "a@b.c", groups: null}))).toBe(true)
         expect(
             isCloudTelemetry(
-                parseInstanceTelemetry({enabled: true, distinct_id: "i:u", groups: {instance: "i"}}),
+                parseInstanceTelemetry({enabled: true, distinct_id: "a@b.c", groups: null}),
+            ),
+        ).toBe(true)
+        expect(
+            isCloudTelemetry(
+                parseInstanceTelemetry({
+                    enabled: true,
+                    distinct_id: "i:u",
+                    groups: {instance: "i"},
+                }),
             ),
         ).toBe(false)
-        expect(isCloudTelemetry(parseInstanceTelemetry({enabled: false, distinct_id: null, groups: null}))).toBe(false)
-        expect(parseInstanceTelemetry(undefined)).toEqual({enabled: false, distinct_id: null, groups: null})
+        expect(
+            isCloudTelemetry(
+                parseInstanceTelemetry({enabled: false, distinct_id: null, groups: null}),
+            ),
+        ).toBe(false)
+        expect(parseInstanceTelemetry(undefined)).toEqual({
+            enabled: false,
+            distinct_id: null,
+            groups: null,
+        })
     })
 
     it("starts over before it identifies a browser that holds another id", () => {

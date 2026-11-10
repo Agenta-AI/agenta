@@ -170,6 +170,17 @@ describe("the onboarding's PostHog events", () => {
         )
     })
 
+    it("sends a self-hosted write-in as its choice label, never the typed line", () => {
+        state.telemetry = {enabled: true, groups: {instance: "instance-1"}}
+        mount()
+        const typed = {...draft, answers: {...draft.answers, persona: "Other: Ada at Example Corp"}}
+        flow().onStepCompleted("source", typed)
+        expect(JSON.stringify(state.capture.mock.calls)).not.toContain("Ada at Example Corp")
+        expect(surveyEvents()[0][1]).toMatchObject({
+            "$survey_response_d71aec24-7e9b-4d89-9cd7-c8f366693367": "Other",
+        })
+    })
+
     it("asks an invited person the questions only, then opens the project", () => {
         state.invited = true
         mount()

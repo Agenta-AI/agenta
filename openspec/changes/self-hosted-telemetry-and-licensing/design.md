@@ -89,11 +89,11 @@ Ops for the move to one image (task group 6). It runs as its own release, after 
 
 **Chosen: A.** The migration that creates the `instances` table also inserts its one row with `gen_random_uuid()`, so no container has to create the id and no start-up race exists. One database is one instance. There is no setting to override the id. The counts are installed, active and silent, and active instances split by `instance_kind` (production, development, CI).
 
-### 3. Anonymous identity for users
+### 3. Pseudonymous identity for users
 
 | Option | Trade-off |
 |---|---|
-| **A. `<instance_id>:<user_id>`.** | No personal data. Cannot match a self-hosted user with the same person on cloud. |
+| **A. `<instance_id>:<user_id>`.** | No email or name in the event. The id is pseudonymous: the instance's own database can map it back to a user. Cannot match a self-hosted user with the same person on cloud. |
 | B. Hash of the email. | Matches across instances and cloud. Common emails can be guessed back, so it is still personal data under GDPR. |
 
 **Chosen: A.** Domains give the company signal. The registration email gives a real contact when the person chooses to share it. The API computes the distinct id in one place and gives it to the browser, so both always send the same id.

@@ -138,8 +138,9 @@ async def test_get_blocked_domains_splits_comma_separated_posthog_payload(monkey
         AsyncMock(
             side_effect=lambda: SimpleNamespace(
                 get_feature_flag_payload=(
-                    lambda feature_flag,
-                    distinct_id: "spica.asia, agenta.ai , yopmail.com"
+                    lambda feature_flag, distinct_id: (
+                        "spica.asia, agenta.ai , yopmail.com"
+                    )
                 ),
             )
         ),
