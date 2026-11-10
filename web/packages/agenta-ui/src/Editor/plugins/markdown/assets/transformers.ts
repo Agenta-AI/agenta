@@ -29,6 +29,7 @@ import {
 } from "@lexical/table"
 import {$dfs} from "@lexical/utils"
 import {
+    $getRoot,
     $isParagraphNode,
     $isTextNode,
     createEditor,
@@ -222,8 +223,7 @@ function getTableColumnsSize(table: TableNode) {
     return $isTableRowNode(row) ? row.getChildrenSize() : 0
 }
 
-// "\n" and "|" count only when an even number of backslashes comes before them, so a cell
-// can hold a literal "\n" (saved as "\\n") or a pipe (saved as "\|").
+// A "\n" or "|" counts only after an even number of backslashes, so a cell can escape both.
 const $createTableCell = (textContent: string): TableCellNode => {
     textContent = textContent.replace(/(?<=(?<!\\)(?:\\\\)*)\\n/g, "\n")
     const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS)
@@ -249,39 +249,31 @@ export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
     ...TEXT_MATCH_TRANSFORMERS,
 ]
 
-// Lexical's CODE_SINGLE_LINE_REGEX, which it does not export: a ```code``` line opens no fence.
-const CODE_SINGLE_LINE_REG_EXP = /^[ \t]*```[^`]+(?:(?:`{1,2}|`{4,})[^`]+)*```(?:[^`]|$)/
-
-const strippedChunkCache = new Map<string, string>()
-
-/**
- * The markdown export escapes every *, _, ` and ~ (and \ inside table cells), whether or not
- * reading the text back needs it. A prompt is saved without the escapes that change nothing on
- * reload, so the model reads `user_id` rather than `user\_id`, while the escapes a reload does
- * need (asterisks typed as text, a backslash in a code block) stay.
- *
- * Lines import one at a time, except for a code fence, so a line (or a whole fence) reloads the
- * same on its own as inside the prompt. Each one is cached, so a keystroke re-checks only the
- * line it changed.
- */
-export function stripUnneededEscapes(markdown: string): string {
-    let scratchEditor: LexicalEditor | undefined
-    const reload = (text: string) => {
-        scratchEditor ??= createEditor({
-            nodes: [
-                ...new Set(
-                    PLAYGROUND_TRANSFORMERS.flatMap((transformer) =>
-                        "dependencies" in transformer ? transformer.dependencies : [],
-                    ),
+let scratchEditor: LexicalEditor | undefined
+const getScratchEditor = () =>
+    (scratchEditor ??= createEditor({
+        nodes: [
+            ...new Set(
+                PLAYGROUND_TRANSFORMERS.flatMap((transformer) =>
+                    "dependencies" in transformer ? transformer.dependencies : [],
                 ),
-            ],
-            onError: console.error,
-        })
-        let reloaded = ""
-        scratchEditor.update(
+            ),
+        ],
+        onError: console.error,
+    }))
+
+const strippedLineCache = new Map<string, string>()
+
+/** Keeps only the escapes a reload needs, so the model reads `user_id` rather than `user\_id`. */
+export function stripUnneededEscapes(markdown: string): string {
+    // null when the reload fails, so the line keeps its escapes.
+    const reload = (text: string): string | null => {
+        let reloaded: string | null = null
+        getScratchEditor().update(
             () => {
                 $convertFromMarkdownString(text, PLAYGROUND_TRANSFORMERS, undefined, true)
                 reloaded = $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, undefined, true)
+                // The scratch tables' dividers would otherwise pile up in tableDividerMap.
                 for (const {node} of $dfs()) {
                     if ($isTableNode(node)) tableDividerMap.delete(node.getKey())
                 }
@@ -291,25 +283,28 @@ export function stripUnneededEscapes(markdown: string): string {
         return reloaded
     }
 
-    const stripChunk = (chunk: string) => {
-        const cached = strippedChunkCache.get(chunk)
+    // Lines outside a code fence import independently, so each is checked and cached on its own.
+    const stripLine = (line: string) => {
+        const cached = strippedLineCache.get(line)
         if (cached !== undefined) {
             return cached
         }
-        const escapes = findBackslashEscapes(chunk)
+        const escapes = findBackslashEscapes(line)
         if (escapes.length === 0) {
-            return chunk
+            return line
+        }
+        const expected = reload(line)
+        if (expected === null) {
+            return line
         }
 
         const without = (dropped: Set<number>) =>
-            chunk
+            line
                 .split("")
                 .filter((_, index) => !dropped.has(index))
                 .join("")
-        const expected = reload(chunk)
         const dropped = new Set<number>()
-        // Drop a whole run of escapes at once and split the run only when that changes the
-        // reload, so a chunk that needs no escapes costs a single extra reload.
+        // Drop a whole run at once and split it only when that changes the reload.
         const tryDropping = (run: number[]) => {
             if (reload(without(new Set([...dropped, ...run]))) === expected) {
                 run.forEach((index) => dropped.add(index))
@@ -322,24 +317,36 @@ export function stripUnneededEscapes(markdown: string): string {
         tryDropping(escapes)
 
         const stripped = without(dropped)
-        if (strippedChunkCache.size >= 1000) strippedChunkCache.clear()
-        strippedChunkCache.set(chunk, stripped)
+        if (strippedLineCache.size >= 1000) strippedLineCache.clear()
+        strippedLineCache.set(line, stripped)
         return stripped
     }
 
-    const chunks: string[] = []
-    let chunkLines: string[] = []
-    let inCodeFence = false
-    for (const line of markdown.split("\n")) {
-        if (CODE.regExpStart.test(line) && !CODE_SINGLE_LINE_REG_EXP.test(line)) {
-            inCodeFence = !inCodeFence
+    const lines = markdown.split("\n")
+    const saved: string[] = []
+    for (let start = 0; start < lines.length; start++) {
+        const startMatch = CODE.regExpStart.exec(lines[start])
+        if (startMatch === null) {
+            saved.push(stripLine(lines[start]))
+            continue
         }
-        chunkLines.push(line)
-        if (!inCodeFence) {
-            chunks.push(chunkLines.join("\n"))
-            chunkLines = []
-        }
+        // Code is exported unescaped, so a fence is kept as is, up to where Lexical's import ends it.
+        let end = lines.length - 1
+        getScratchEditor().update(
+            () => {
+                $getRoot().clear()
+                end = CODE.handleImportAfterStartMatch!({
+                    lines,
+                    rootNode: $getRoot(),
+                    startLineIndex: start,
+                    startMatch,
+                    transformer: CODE,
+                })![1]
+            },
+            {discrete: true},
+        )
+        saved.push(...lines.slice(start, end + 1))
+        start = end
     }
-    if (chunkLines.length > 0) chunks.push(chunkLines.join("\n"))
-    return chunks.map(stripChunk).join("\n")
+    return saved.join("\n")
 }

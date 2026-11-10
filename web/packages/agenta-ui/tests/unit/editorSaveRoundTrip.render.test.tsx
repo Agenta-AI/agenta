@@ -79,6 +79,11 @@ describe("text typed in the rich-text editor survives a save and reload", () => 
         expect(saved).toContain(JSON_WITH_QUOTES)
     })
 
+    it("keeps the backslashes in a code block that holds a fence", async () => {
+        const block = "````md\n```js\nconst star = /\\*/\n```\n````"
+        expect((await typeAndReload(`${block}\n\nX\n`, "Y")).saved).toContain(block)
+    })
+
     it("still saves underscores and bold text without escapes", async () => {
         const {saved} = await typeAndReload("**Bold**\n\nX\n", "Pass the user_id along")
         expect(saved).toContain("**Bold**")
