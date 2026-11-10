@@ -93,6 +93,8 @@ describe("self-hosted PostHog", () => {
             persistence: "localStorage+cookie",
             autocapture: false,
             disable_session_recording: true,
+            capture_exceptions: false,
+            advanced_disable_flags: true,
         })
         expect(config).not.toHaveProperty("session_recording")
         expect(state.reset).toHaveBeenCalledTimes(1)

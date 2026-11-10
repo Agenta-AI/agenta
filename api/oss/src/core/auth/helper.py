@@ -63,7 +63,8 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
 
     posthog = await _load_posthog()
     if posthog is None:
-        log.warning(
+        # Expected when the telemetry switch is off.
+        log.debug(
             "[AUTH] PostHog feature flag lookup skipped",
             feature_flag=feature_flag,
             reason="unavailable",

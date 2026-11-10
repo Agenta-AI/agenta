@@ -112,6 +112,8 @@ The first time a user reaches a feature, the API also marks it on the user with 
 | `activated_playground` | creates a variant |
 | `invited_user_v1` | invites a member |
 
+To check new sign-ups against the blocklists, the API reads the `blocked-domains` and `blocked-emails` feature flags from PostHog, unless `AGENTA_ACCESS_BLOCKED_DOMAINS` and `AGENTA_ACCESS_BLOCKED_EMAILS` are set. The PostHog library records each read as a `$feature_flag_called` event under the fixed distinct id `user distinct id`. The read carries no user data. The API caches the answer for 60 seconds by default (`AGENTA_ACCESS_BLOCKLIST_CACHE_TTL`).
+
 ## Product events from the browser
 
 The browser asks the API whether telemetry is on before it loads the analytics script. When it is on, the browser uses the same distinct id as the API and names the instance as a PostHog group of type `instance`. It sends no email or user name.
@@ -127,7 +129,7 @@ The browser asks the API whether telemetry is on before it loads the analytics s
 | `first_agent_intent` | picks a template or writes a first message (property: a category, never the text) |
 | `agent_create_failed` | fails to create an agent (properties: the reason, the kind of item and the time it took) |
 
-The PostHog browser library adds the page path, the browser, the operating system and the screen size. Agenta removes the page address, the host and the referrer from every event, and turns off GeoIP. Automatic click capture, heatmaps and session recordings are off.
+The PostHog browser library adds the page path, the browser, the operating system and the screen size. Agenta removes the page address, the host and the referrer from every event, and turns off GeoIP. Automatic click capture, heatmaps, session recordings and error capture are off. The browser reads no feature flags and no remote settings from PostHog.
 
 ## Update check
 

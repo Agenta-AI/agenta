@@ -138,6 +138,8 @@ describe("mobile PostHog parity", () => {
                 },
             }),
         )
+        // Cloud keeps feature flags (the maintenance notice reads them).
+        expect(state.init.mock.calls[0][1]).not.toHaveProperty("advanced_disable_flags")
         expect(state.identify).toHaveBeenCalledWith("desktop-visitor")
         expect(state.capture.mock.calls.filter(([event]) => event === "$pageview")).toEqual([
             ["$pageview", {$current_url: window.location.href}],
