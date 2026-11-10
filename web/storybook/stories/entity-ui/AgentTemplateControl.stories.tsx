@@ -299,7 +299,7 @@ const Body = ({children}: {children: ReactNode}) => (
 const SECTIONS: AgentTemplateSectionDescriptor[] = [
     {
         key: "model-harness",
-        icon: <Cpu size={16} />,
+        icon: <Cpu size={16} weight="light" />,
         title: "Model & harness",
         titleBadge: <SectionTitleBadge label="Connect key" tone="warning" />,
         summary: "Claude Code · Sonnet 4.5",
@@ -312,9 +312,8 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "instructions",
-        icon: <FileText size={16} />,
+        icon: <FileText size={16} weight="light" />,
         title: "Instructions",
-        summary: "1 file",
         indicator: {tone: "draft", tooltip: "Unsaved instruction changes."},
         extra: (
             <SectionAddButton
@@ -328,7 +327,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "tools",
-        icon: <PuzzlePiece size={16} />,
+        icon: <PuzzlePiece size={16} weight="light" />,
         title: "Integrations",
         summary: "1 integration",
         extra: <SectionAddButton label="Add integration" onClick={noop} />,
@@ -337,7 +336,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "subagents",
-        icon: <Robot size={16} />,
+        icon: <Robot size={16} weight="light" />,
         title: "Subagents",
         summary: "1 subagent",
         extra: <SectionAddButton label="Add subagent" onClick={noop} />,
@@ -346,7 +345,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "mcp",
-        icon: <HardDrives size={16} />,
+        icon: <HardDrives size={16} weight="light" />,
         title: "MCPs",
         summary: "1 server",
         indicator: {tone: "invalid", tooltip: "An MCP server is missing its name or URL."},
@@ -355,7 +354,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "skills",
-        icon: <Compass size={16} />,
+        icon: <Compass size={16} weight="light" />,
         title: "Skills",
         summary: "1 skill",
         indicator: {tone: "agent", tooltip: "Updated by the agent in v4"},
@@ -364,7 +363,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "advanced",
-        icon: <SlidersHorizontal size={16} />,
+        icon: <SlidersHorizontal size={16} weight="light" />,
         title: "Advanced",
         summary: "Sandbox: local",
         onOpen: noop,
@@ -386,6 +385,26 @@ export const SectionList: Story = {
                 sections={SECTIONS}
                 controlledKeys={new Set(["tools", "subagents", "mcp", "skills"])}
                 openByKey={{tools: true, subagents: true, mcp: false, skills: false}}
+                onOpenChange={noop}
+            />
+        </div>
+    ),
+}
+
+/** Every section collapsed: the caret beside each title, the summaries and `+` at the far right. */
+export const SectionListCollapsed: Story = {
+    args: {
+        schema: AGENT_SCHEMA as SchemaProperty,
+        label: "Agent",
+        value: AGENT_VALUE,
+        onChange: noop,
+    },
+    render: () => (
+        <div data-vrt-subject className="flex max-w-[520px] flex-col px-4">
+            <AgentTemplateSectionList
+                sections={SECTIONS.map((section) => ({...section, defaultOpen: false}))}
+                controlledKeys={new Set(SECTIONS.map((section) => section.key))}
+                openByKey={{}}
                 onOpenChange={noop}
             />
         </div>

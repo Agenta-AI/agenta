@@ -3,29 +3,32 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 /**
  * Loading placeholder for the agent config panel's Configuration section, mirroring its
  * section-row list (Model, Instructions, Tools, MCP servers, Skills, Advanced):
- * leading icon + title on the left, value summary + add/chevron affordances on the right,
+ * leading icon + title + caret on the left, value summary + add button on the right,
  * divider between rows. Shown while the revision/schema is still loading so the panel holds
  * its real shape instead of the generic prompt-config pulse boxes. Triggers/Mounts are NOT
  * config sections — their loading shape is `AgentOperationsSkeleton` (sibling regions).
  */
 
-/** One pulsing section row (icon + title + value + affordances) — shared with the ops skeleton. */
+/** One pulsing section row (icon + title + optional caret, value + add) — shared with the ops skeleton. */
 export const SkeletonSectionRow = ({
     title,
     value,
     withAdd,
+    withCaret,
     divider,
 }: {
     title: number
     value: number
     withAdd?: boolean
+    /** Config sections carry a caret after the title; operations rows do not. */
+    withCaret?: boolean
     divider?: boolean
 }) => (
     <div
         className={
             // Mirror the real ConfigAccordionSection header row exactly: `gap-2`, a 16px leading
-            // icon, title + summary + chevron, and the same 44px text-driven header height (min-h
-            // pins it so the 16px placeholders don't collapse the row) — a divider row then totals
+            // icon, title + 12px caret, summary + add, and the same 44px text-driven header height
+            // (min-h keeps the 16px placeholders from collapsing the row) — a divider row totals
             // 45px like a real bordered section, and the last (no-divider) row is 44px like Advanced.
             "flex min-h-[44px] items-center gap-2 overflow-hidden py-3" +
             (divider ? " border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]" : "")
@@ -35,11 +38,20 @@ export const SkeletonSectionRow = ({
             `Skeleton.Button size="small"` = a 6px-radius block with antd's controlHeightSM*2
             = 48px MIN-WIDTH, which is why the 44px value bars render 48px wide. */}
         <SkeletonBlock active shape="square" className="h-4 w-4" />
-        <SkeletonBlock active className="min-w-12" style={{width: title, height: 16}} />
+        <div className="flex items-center gap-1.5">
+            <SkeletonBlock active className="min-w-12" style={{width: title, height: 16}} />
+            {withCaret ? <SkeletonBlock active shape="circle" className="h-3 w-3" /> : null}
+        </div>
         <div className="ml-auto flex items-center gap-2">
-            <SkeletonBlock active className="min-w-12" style={{width: value, height: 14}} />
-            {withAdd ? <SkeletonBlock active shape="circle" className="h-4 w-4" /> : null}
-            <SkeletonBlock active shape="circle" className="h-3.5 w-3.5" />
+            {value ? (
+                <SkeletonBlock active className="min-w-12" style={{width: value, height: 14}} />
+            ) : null}
+            {/* The add glyph, centred in the 28px button slot that ends the real header. */}
+            {withAdd ? (
+                <span className="flex h-4 w-7 items-center justify-center">
+                    <SkeletonBlock active shape="circle" className="h-4 w-4" />
+                </span>
+            ) : null}
         </div>
     </div>
 )
@@ -47,7 +59,7 @@ export const SkeletonSectionRow = ({
 // One entry per section row: title/value widths vary like the real labels do.
 const ROWS: {title: number; value: number; withAdd?: boolean}[] = [
     {title: 128, value: 130}, // Model (value mirrors the real, truncating summary)
-    {title: 112, value: 48, withAdd: true}, // Instructions
+    {title: 112, value: 0}, // Instructions (no summary: it is always one file)
     {title: 60, value: 56, withAdd: true}, // Tools
     {title: 122, value: 44, withAdd: true}, // MCP servers
     {title: 56, value: 44, withAdd: true}, // Skills
@@ -65,6 +77,7 @@ const AgentConfigSkeleton = () => (
                 title={row.title}
                 value={row.value}
                 withAdd={row.withAdd}
+                withCaret
                 divider={i < ROWS.length - 1}
             />
         ))}

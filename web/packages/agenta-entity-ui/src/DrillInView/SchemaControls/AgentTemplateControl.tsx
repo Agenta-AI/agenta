@@ -1110,7 +1110,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sections = [
         mh.hasModelOrHarness && {
             key: "model-harness",
-            icon: <Cpu size={16} />,
+            icon: <Cpu size={16} weight="light" />,
             title: "Model",
             titleBadge: modelHarnessBadge,
             summary: mh.modelSummary,
@@ -1145,7 +1145,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         hasInstructions && {
             key: "instructions",
-            icon: <FileText size={16} />,
+            icon: <FileText size={16} weight="light" />,
             title: fieldTitle("instructions", "Instructions"),
             indicator: sectionIndicator("instructions"),
             defaultOpen: true,
@@ -1164,7 +1164,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
                 key: "tools",
-                icon: <Wrench size={16} />,
+                icon: <Wrench size={16} weight="light" />,
                 title: "Integrations",
                 summary: countSummary(integrationCount, "integration"),
                 indicator: sectionIndicator("tools"),
@@ -1199,7 +1199,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openSubagentSelector) || subagentCount > 0) && {
                 key: "subagents",
-                icon: <Robot size={16} />,
+                icon: <Robot size={16} weight="light" />,
                 title: "Subagents",
                 summary: countSummary(subagentCount, "subagent"),
                 indicator: sectionIndicator("subagents"),
@@ -1217,7 +1217,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             },
         hasMcp && {
             key: "mcp",
-            icon: <HardDrives size={16} />,
+            icon: <HardDrives size={16} weight="light" />,
             title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
             indicator: sectionIndicator("mcp"),
@@ -1241,7 +1241,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         hasSkills && {
             key: "skills",
-            icon: <Compass size={16} />,
+            icon: <Compass size={16} weight="light" />,
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
             indicator: sectionIndicator("skills"),
@@ -1277,7 +1277,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         mh.hasPermissions && {
             key: "permissions",
-            icon: <ShieldCheck size={16} />,
+            icon: <ShieldCheck size={16} weight="light" />,
             title: "Permissions",
             summary: mh.runnerPermissionSummary,
             indicator: sectionIndicator("permissions"),
@@ -1298,7 +1298,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         mh.hasAdvanced && {
             key: "advanced",
-            icon: <SlidersHorizontal size={16} />,
+            icon: <SlidersHorizontal size={16} weight="light" />,
             title: "Advanced",
             titleBadge: advancedBadge,
             indicator: sectionIndicator("advanced"),

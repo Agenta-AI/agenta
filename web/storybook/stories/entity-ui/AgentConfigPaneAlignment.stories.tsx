@@ -14,8 +14,8 @@ import {Cpu, FileText, Compass, PuzzlePiece, Robot, SlidersHorizontal} from "@ph
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // The agent playground config pane, stacked: region header bars, accordion section headers and
-// nested item cards. All three kinds end on ONE right-hand axis via the shared
-// `ConfigRowTrailing` affordance column — this story is where that is measured and reviewed.
+// nested item cards. Section headers put the caret after the title and end on the summary or
+// the "+" at the right edge, like the Automations bar; this story is where that is reviewed.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/AgentConfigPaneAlignment",
     parameters: {
@@ -23,7 +23,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Right-column alignment harness: every row kind of the agent config pane in one column, so the trailing summary/`+`/caret/folder axis is reviewable (and measurable) in one shot.",
+                    "Right-column alignment harness: every row kind of the agent config pane in one column, so the trailing summary/`+`/folder axis is reviewable (and measurable) in one shot.",
             },
         },
     },
@@ -63,7 +63,7 @@ const SUBAGENT: ItemDescriptor = {
 const SECTIONS: AgentTemplateSectionDescriptor[] = [
     {
         key: "model",
-        icon: <Cpu size={16} />,
+        icon: <Cpu size={16} weight="light" />,
         title: "Model",
         summary: "Claude Code · Sonnet 4.5",
         onOpen: noop,
@@ -71,15 +71,14 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "instructions",
-        icon: <FileText size={16} />,
+        icon: <FileText size={16} weight="light" />,
         title: "Instructions",
-        summary: "1 file",
         extra: <SectionAddButton label="Add instruction file" onClick={noop} />,
         content: <Body>AGENTS.md</Body>,
     },
     {
         key: "tools",
-        icon: <PuzzlePiece size={16} />,
+        icon: <PuzzlePiece size={16} weight="light" />,
         title: "Integrations",
         summary: "1 integration",
         extra: <SectionAddButton label="Add integration" onClick={noop} />,
@@ -88,7 +87,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "subagents",
-        icon: <Robot size={16} />,
+        icon: <Robot size={16} weight="light" />,
         title: "Subagents",
         summary: "1 subagent",
         extra: <SectionAddButton label="Add subagent" onClick={noop} />,
@@ -97,7 +96,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "skills",
-        icon: <Compass size={16} />,
+        icon: <Compass size={16} weight="light" />,
         title: "Skills",
         summary: "1 skill",
         extra: <SectionAddButton label="Add skill" onClick={noop} />,
@@ -105,7 +104,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "advanced",
-        icon: <SlidersHorizontal size={16} />,
+        icon: <SlidersHorizontal size={16} weight="light" />,
         title: "Advanced",
         summary: "Sandbox: local",
         onOpen: noop,
@@ -117,7 +116,7 @@ const FilesCount = () => {
     const [open, setOpen] = useState(false)
     return (
         <div className="flex items-center gap-1.5">
-            <ConfigRowTrailing reserve={false}>
+            <ConfigRowTrailing>
                 <span title="Total files">12 files</span>
             </ConfigRowTrailing>
             <FilesPaneToggle open={open} onToggle={() => setOpen(!open)} />

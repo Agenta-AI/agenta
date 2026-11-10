@@ -1,21 +1,13 @@
 /**
- * The trailing-edge convention every config-panel row follows: content, then one fixed-width
- * affordance column, so carets, locks and folders across three different row components land on
- * a single axis instead of each ending where its own glyph happens to sit.
+ * The trailing cluster of a config-panel row: content (summary, `+`, count), then an optional
+ * fixed 14px affordance column for a lock or a glyph a placeholder stands in for. Carets do
+ * not live here: a section header puts its caret right after the title.
  */
 import type {ReactNode} from "react"
 
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
-
 import {cn} from "../../../utils/styles"
 
-/** Side of the affordance column, in px — the phosphor caret box every config row ends with. */
-const AFFORDANCE_SIZE = 14
-
-/**
- * The reserved affordance column on its own, for rows that assemble their own trailing cluster.
- * Renders empty when there is no affordance, which is what keeps a caret-less row on the axis.
- */
+/** The 14px affordance column. Renders empty under `reserve` when there is no affordance. */
 function ConfigRowAffordance({children, className}: {children?: ReactNode; className?: string}) {
     return (
         <span
@@ -27,32 +19,22 @@ function ConfigRowAffordance({children, className}: {children?: ReactNode; class
     )
 }
 
-/** Both phosphor carets inset their ink differently, so a bare glyph sits off-axis and MOVES on toggle. */
-export function ConfigRowCaret({open = false, className}: {open?: boolean; className?: string}) {
-    const cls = cn("text-[var(--ag-zinc-5)]", className)
-    return open ? (
-        <CaretDown size={AFFORDANCE_SIZE} className={cn("translate-x-[2.2px]", cls)} />
-    ) : (
-        <CaretRight size={AFFORDANCE_SIZE} className={cn("translate-x-[3.9px]", cls)} />
-    )
-}
-
 export interface ConfigRowTrailingProps {
     /** Content before the affordance column — summary text, a `+` button, a count, tags. */
     children?: ReactNode
-    /** The row's caret / lock / folder glyph. */
+    /** The row's lock or other trailing glyph. */
     affordance?: ReactNode
-    /** Keep the column when there is no affordance. Off for rows that never carry one. */
+    /** Keep the column when there is no affordance (e.g. a skeleton holding a glyph's place). */
     reserve?: boolean
     /** Extra classes for the cluster (e.g. `min-w-0` when the row lets its summary truncate). */
     className?: string
 }
 
-/** A config row's trailing cluster: content, then the reserved affordance column. */
+/** A config row's trailing cluster: content, then the affordance column when there is one. */
 export function ConfigRowTrailing({
     children,
     affordance,
-    reserve = true,
+    reserve = false,
     className,
 }: ConfigRowTrailingProps) {
     return (

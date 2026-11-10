@@ -68,7 +68,8 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
         <>
             <section className="flex flex-col" aria-busy>
                 <AgentRegionHeaderBar title="Automations" sticky={sticky}>
-                    <ConfigRowTrailing>
+                    {/* `reserve` holds the place of the real bar's trailing "+" or folder. */}
+                    <ConfigRowTrailing reserve>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
                 </AgentRegionHeaderBar>
@@ -79,7 +80,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
             </section>
             <section className="flex grow flex-col" aria-busy>
                 <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
-                    <ConfigRowTrailing>
+                    <ConfigRowTrailing reserve>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
                 </AgentRegionHeaderBar>
@@ -136,9 +137,7 @@ export function AgentOperationsSections({
         <>
             <section className="flex flex-col">
                 <AgentRegionHeaderBar title="Automations" sticky={sticky}>
-                    {/* No reserved affordance column: this region has no caret, and the empty
-                        14px slot only held the "+" off the bar's right edge. */}
-                    <ConfigRowTrailing reserve={false}>
+                    <ConfigRowTrailing>
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             {countSummary(triggerCount, "automation")}
                         </span>

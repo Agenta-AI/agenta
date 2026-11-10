@@ -1,6 +1,15 @@
 import {HeightCollapse} from "@agenta/ui/components"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {CaretDown, CaretRight, Cpu, Lock, Wrench} from "@phosphor-icons/react"
+import {
+    CaretDown,
+    CaretRight,
+    Cpu,
+    HardDrives,
+    Lock,
+    Plus,
+    SlidersHorizontal,
+    Wrench,
+} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Tooltip, Typography} from "antd"
 
@@ -16,7 +25,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A collapsible config-panel section (icon + title, collapsed-state summary, chevron, smooth height collapse, lockable). The antd cell replays the pre-migration markup — identical layout, but antd `Typography.Text` for the title/summary and antd `Tooltip` on the lock — so the diff isolates exactly what the migration swapped.\n\n**Used in:** 11 places — the agent config panel (`@agenta/entity-ui/DrillInView/SchemaControls`: agent template, workflow/tool reference, trigger management, provider credentials, build kit, model harness), the trigger schedule and subscription drawers, the agent-home template setup drawer, and the agent chat runtime lens.",
+                    "A collapsible config-panel section (icon + title + caret on the left, summary + `extra` at the far right, smooth height collapse, lockable). The antd cell replays the pre-migration markup — identical layout, but antd `Typography.Text` for the title/summary and antd `Tooltip` on the lock — so the diff isolates exactly what the migration swapped.\n\n**Used in:** 11 places — the agent config panel (`@agenta/entity-ui/DrillInView/SchemaControls`: agent template, workflow/tool reference, trigger management, provider credentials, build kit, model harness), the trigger schedule and subscription drawers, the agent-home template setup drawer, and the agent chat runtime lens.",
             },
         },
     },
@@ -181,6 +190,66 @@ export const AntdVsAgenta: Story = {
                     </ConfigAccordionSection>
                 }
             />
+        </div>
+    ),
+}
+
+// Stands in for the entity-ui `SectionAddButton`: a 28px ghost icon button with a 16px Plus.
+const AddButton = () => (
+    <button
+        type="button"
+        aria-label="Add MCP server"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-colorTextTertiary hover:bg-colorFillSecondary hover:text-colorText"
+    >
+        <Plus size={16} />
+    </button>
+)
+
+/** The header layout: caret right after the title, summary then `extra` at the far right. */
+export const HeaderLayout: Story = {
+    render: () => (
+        <div className="flex w-[380px] flex-col" data-vrt-subject>
+            <ConfigAccordionSection
+                icon={<Cpu size={16} weight="light" />}
+                title="Model"
+                summary="Claude Sonnet 4.5"
+                defaultOpen
+            >
+                {body}
+            </ConfigAccordionSection>
+            <ConfigAccordionSection
+                icon={<Wrench size={16} weight="light" />}
+                title="Integrations"
+                summary="3 integrations"
+                defaultOpen={false}
+            >
+                {body}
+            </ConfigAccordionSection>
+            <ConfigAccordionSection
+                icon={<HardDrives size={16} weight="light" />}
+                title="MCP servers"
+                summary="2 servers"
+                extra={<AddButton />}
+                defaultOpen={false}
+            >
+                {body}
+            </ConfigAccordionSection>
+            <ConfigAccordionSection
+                icon={<SlidersHorizontal size={16} weight="light" />}
+                title="Advanced"
+                summary="Sandbox: local"
+                onOpen={() => undefined}
+            />
+            <ConfigAccordionSection
+                icon={<HardDrives size={16} weight="light" />}
+                title="MCP servers"
+                summary="Unavailable"
+                locked
+                lockedReason="Not supported by the selected harness"
+                noDivider
+            >
+                {body}
+            </ConfigAccordionSection>
         </div>
     ),
 }

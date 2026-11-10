@@ -3,13 +3,13 @@
  *
  * A collapsible section used to compose accordion-style configuration panels — the
  * agent playground config panel today, and other config surfaces as the pattern rolls
- * out. The header shows an icon + title on the left and a collapsed-state summary +
- * chevron on the right; the body collapses smoothly via {@link HeightCollapse}.
+ * out. The header shows an icon + title + caret on the left and the summary + `extra` slot on
+ * the right; the body collapses smoothly via {@link HeightCollapse}.
  *
  * Sections can be **availability-gated**: pass `locked` (with an optional `lockedReason`)
  * when a capability is not supported in the current context (e.g. an MCP section locked
  * because the selected harness can't host MCP servers). A locked section can't be
- * expanded and renders a lock affordance instead of the chevron.
+ * expanded and renders a lock affordance on the right instead of the caret.
  *
  * Works controlled (`open` + `onOpenChange`) or uncontrolled (`defaultOpen`).
  *
@@ -36,14 +36,15 @@ import {
     useState,
 } from "react"
 
-import {Lock} from "@phosphor-icons/react"
+import {CaretRight, Lock} from "@phosphor-icons/react"
 import {motion} from "motion/react"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
+import {CollapseCaret} from "../../ui/collapse-caret"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
-import {ConfigRowCaret, ConfigRowTrailing} from "./ConfigRowTrailing"
+import {ConfigRowTrailing} from "./ConfigRowTrailing"
 
 /**
  * Whether the enclosing accordion section is currently expanded. Because the body stays MOUNTED while
@@ -88,7 +89,7 @@ export interface ConfigAccordionSectionProps {
      * header always reflects the current value.
      */
     summary?: ReactNode
-    /** Header-right content rendered before the chevron (e.g. an enable toggle). */
+    /** Header content at the far right, after the summary (e.g. the "+" add button). */
     extra?: ReactNode
     /** Controlled open state. Provide together with `onOpenChange`. */
     open?: boolean
@@ -98,7 +99,7 @@ export interface ConfigAccordionSectionProps {
     onOpenChange?: (open: boolean) => void
     /**
      * When set, the header acts as a button that opens a drawer instead of expanding inline.
-     * The body (`children`) is not rendered; a right chevron signals "opens" rather than "expands".
+     * The body (`children`) is not rendered; an outline caret signals "opens" rather than "expands".
      */
     onOpen?: () => void
     /** When true the section can't be expanded and shows a lock affordance. */
@@ -382,48 +383,61 @@ export function ConfigAccordionSection({
                     )}
                 >
                     {iconAffordance}
-                    {/* Title. Base text stays crisp; while `pulse` holds, an accent DUPLICATE laid
-                        on top is revealed through a moving mask (config-shimmer keyframe), so a
-                        glint sweeps the letters without fading the real text. */}
-                    <span className="relative flex min-w-0">
-                        <span
-                            className={cn(
-                                "min-w-0 truncate font-medium",
-                                size === "compact" ? "text-xs" : "text-sm",
-                            )}
-                        >
-                            {title}
-                        </span>
-                        {indicator?.pulse ? (
+                    {/* Title, then the caret right after it (6px), so the disclosure reads as
+                        part of the name. A locked section keeps its lock on the right instead. */}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                        {/* Base text stays crisp; while `pulse` holds, an accent DUPLICATE laid
+                            on top is revealed through a moving mask (config-shimmer keyframe), so a
+                            glint sweeps the letters without fading the real text. */}
+                        <span className="relative flex min-w-0">
                             <span
-                                aria-hidden
                                 className={cn(
-                                    "animate-config-shimmer pointer-events-none absolute inset-0 truncate font-medium",
+                                    "min-w-0 truncate font-medium",
                                     size === "compact" ? "text-xs" : "text-sm",
                                 )}
-                                style={{
-                                    color: dotColor ?? undefined,
-                                    WebkitMaskImage:
-                                        "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
-                                    maskImage:
-                                        "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
-                                    WebkitMaskSize: "220% 100%",
-                                    maskSize: "220% 100%",
-                                    WebkitMaskRepeat: "no-repeat",
-                                    maskRepeat: "no-repeat",
-                                }}
                             >
                                 {title}
                             </span>
+                            {indicator?.pulse ? (
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        "animate-config-shimmer pointer-events-none absolute inset-0 truncate font-medium",
+                                        size === "compact" ? "text-xs" : "text-sm",
+                                    )}
+                                    style={{
+                                        color: dotColor ?? undefined,
+                                        WebkitMaskImage:
+                                            "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
+                                        maskImage:
+                                            "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
+                                        WebkitMaskSize: "220% 100%",
+                                        maskSize: "220% 100%",
+                                        WebkitMaskRepeat: "no-repeat",
+                                        maskRepeat: "no-repeat",
+                                    }}
+                                >
+                                    {title}
+                                </span>
+                            ) : null}
+                        </span>
+                        {/* Navigation keeps the outline caret; collapse uses the filled one. */}
+                        {opensDrawer ? (
+                            <CaretRight
+                                aria-hidden
+                                size={12}
+                                className="shrink-0 text-colorTextTertiary"
+                            />
+                        ) : canToggle ? (
+                            <CollapseCaret open={isOpen} size={12} />
                         ) : null}
                     </span>
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
 
+                {/* Summary, then `extra` at the far right; only a locked section adds a column. */}
                 <ConfigRowTrailing
                     className={preserveTitle ? "min-w-0" : "shrink-0"}
-                    // A non-collapsible row never carries an affordance, so it keeps no column.
-                    reserve={collapsible || opensDrawer || locked}
                     affordance={
                         locked ? (
                             lockedReason ? (
@@ -438,10 +452,6 @@ export function ConfigAccordionSection({
                             ) : (
                                 <Lock size={14} className="text-[var(--ag-zinc-5)]" />
                             )
-                        ) : opensDrawer ? (
-                            <ConfigRowCaret />
-                        ) : collapsible ? (
-                            <ConfigRowCaret open={isOpen} />
                         ) : null
                     }
                 >

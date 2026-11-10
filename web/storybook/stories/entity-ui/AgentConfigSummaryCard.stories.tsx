@@ -16,7 +16,15 @@ const fixture = (agent: Record<string, unknown>): AgentaDataParameters => ({
 const meta = {
     title: "@agenta/entity-ui/Agent/AgentConfigSummaryCard",
     component: AgentConfigSummaryCard,
-    parameters: {layout: "padded"},
+    parameters: {
+        layout: "padded",
+        docs: {
+            description: {
+                component:
+                    "Rows use the ConfigAccordionSection header: an editor row shows an outline caret right after its title (it opens the editor), an expanding row (Instructions, Skills) a filled caret that turns when open, and a read-only row no caret. The summary sits at the far right.",
+            },
+        },
+    },
     decorators: [
         (Story) => (
             <div className="max-w-sm">

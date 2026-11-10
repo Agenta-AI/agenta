@@ -61,7 +61,6 @@ export {
     SectionSkeleton,
     ConfigAccordionSection,
     CONFIG_REGION_BAR,
-    ConfigRowCaret,
     ConfigRowTrailing,
     sectionIndicatorColor,
     useAccordionSectionOpen,

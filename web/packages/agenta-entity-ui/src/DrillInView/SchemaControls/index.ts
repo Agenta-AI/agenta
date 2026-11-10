@@ -196,7 +196,7 @@ export type {SkillFormViewProps} from "./SkillFormView"
 // COMPOSITE CONTROLS
 // ============================================================================
 
-export {ObjectSchemaControl, CollapsibleObjectControl} from "./ObjectSchemaControl"
+export {ObjectSchemaControl} from "./ObjectSchemaControl"
 export type {ObjectSchemaControlProps} from "./ObjectSchemaControl"
 
 export {SchemaPropertyRenderer} from "./SchemaPropertyRenderer"
