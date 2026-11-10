@@ -50,13 +50,19 @@ const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL:
         observer.observe(el)
         return () => observer.disconnect()
     }, [])
-    const summary = useWalletSummary(projectId, {poll: onScreen})
+    // Fast only while credits need watching: this poll sets the rate for every reader of the summary.
+    const [watching, setWatching] = useState(false)
+    const summary = useWalletSummary(projectId, {
+        poll: !onScreen ? false : watching ? true : 60_000,
+    })
     const data = summary.data?.mode === "enforce" ? summary.data : null
 
     const remaining = Math.max(0, data?.spendable_musd ?? 0)
     const total = data?.active_credit_total_musd ?? 0
     const ratio = total > 0 ? Math.min(1, remaining / total) : 0
-    const tone = METER_TONES[creditAlert(data).kind] ?? DEFAULT_TONE
+    const alertKind = creditAlert(data).kind
+    useEffect(() => setWatching(alertKind !== "none"), [alertKind])
+    const tone = METER_TONES[alertKind] ?? DEFAULT_TONE
 
     return (
         <div ref={ref}>
