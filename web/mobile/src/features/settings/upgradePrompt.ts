@@ -1,4 +1,4 @@
-import {useEffect} from "react"
+import {useEffect, useRef} from "react"
 
 import {isBillingEnabled, isEE} from "@agenta/shared/api"
 
@@ -44,9 +44,17 @@ export const useUpgradePrompt = ({
     shown: boolean
 }): UpgradePrompt => {
     const selfHosted = !isBillingEnabled()
+    // One event per view: StrictMode runs the effect twice in development.
+    const viewed = useRef(false)
 
     useEffect(() => {
-        if (shown && selfHosted) capture("upgrade_prompt_viewed", {feature, screen})
+        if (!shown || !selfHosted) {
+            viewed.current = false
+            return
+        }
+        if (viewed.current) return
+        viewed.current = true
+        capture("upgrade_prompt_viewed", {feature, screen})
     }, [shown, selfHosted, feature, screen])
 
     return {selfHosted, actions: selfHosted ? availableUpgradeActions(isEE()) : []}

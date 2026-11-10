@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act} from "react"
+import {act, StrictMode} from "react"
 
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -66,12 +66,12 @@ vi.mock("@agenta/settings-ui", async (importOriginal) => ({
     }),
 }))
 
+import {nextRouterModule, routerQuery} from "../support/nextRouter"
+import {WithQueryClient} from "../support/queryClient"
+
 import {AccessSecurityTab} from "@/features/settings/AccessSecurityTab"
 import {AuditLogTab} from "@/features/settings/AuditLogTab"
 import {availableUpgradeActions} from "@/features/settings/upgradePrompt"
-
-import {nextRouterModule, routerQuery} from "../support/nextRouter"
-import {WithQueryClient} from "../support/queryClient"
 
 const labels = () =>
     Array.from(document.querySelectorAll("button, a")).map((node) => node.textContent?.trim())
@@ -119,6 +119,21 @@ describe("locked enterprise settings", () => {
         expect(control("Talk to us")?.getAttribute("href")).toBe(
             "https://agenta.ai/contact?feature=audit",
         )
+        expect(events("upgrade_prompt_viewed")).toEqual([{feature: "audit", screen: "auditLog"}])
+    })
+
+    it("sends upgrade_prompt_viewed once per view under StrictMode", async () => {
+        // As Next.js does with reactStrictMode: StrictMode wraps the root.
+        await act(async () => {
+            root.render(
+                <StrictMode>
+                    <WithQueryClient>
+                        <AuditLogTab workspaceId="ws-1" projectId="proj-1" />
+                    </WithQueryClient>
+                </StrictMode>,
+            )
+        })
+
         expect(events("upgrade_prompt_viewed")).toEqual([{feature: "audit", screen: "auditLog"}])
     })
 
