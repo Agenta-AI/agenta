@@ -9,6 +9,8 @@ export interface SkillListItem {
     id: string
     /** kebab-case registry identity, rendered mono. */
     slug: string
+    /** The workflow slug (random suffix included): the identity an embed reference stores. */
+    workflowSlug?: string
     name: string
     description?: string
     origin: SkillOrigin

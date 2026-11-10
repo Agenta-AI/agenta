@@ -24,6 +24,7 @@ export const toSkillListItem = (
     id: item.workflow_id ?? item.id ?? item.workflow_slug ?? "",
     // Registry identity is the SKILL name; workflow_slug is the storage slug (__ag__… builtins).
     slug: item.skill_name ?? item.name ?? item.workflow_slug ?? "",
+    workflowSlug: item.workflow_slug ?? undefined,
     name: item.name ?? item.skill_name ?? item.workflow_slug ?? "",
     description: item.description ?? item.skill_description ?? undefined,
     origin,
