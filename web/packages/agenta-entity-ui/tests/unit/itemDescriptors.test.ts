@@ -126,6 +126,14 @@ describe("describeSkill", () => {
         expect(d.name).toBe("PR Review")
     })
 
+    it("strips the built-in prefix from a sibling name that carries it", () => {
+        const d = describeSkill({
+            "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+            name: "__ag__web-search",
+        })
+        expect(d.name).toBe("Web Search")
+    })
+
     it("titles a built-in known only by its storage slug without the prefix", () => {
         const d = describeSkill({
             "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},

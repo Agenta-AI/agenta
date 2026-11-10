@@ -343,19 +343,16 @@ const SKILL_MARK = {
     monoName: false,
 }
 
-/** The title for a skill whose name is missing: its slug, without the reserved `__ag__` prefix. */
-const slugTitle = (slug: string | undefined) =>
-    slug ? skillDisplayName(stripStaticSkillPrefix(slug)) : undefined
+/** A skill title from a name or slug, without the reserved `__ag__` prefix a built-in carries. */
+const titleOf = (value: string | undefined) =>
+    value ? skillDisplayName(stripStaticSkillPrefix(value)) : undefined
 
 /** Classify a skill into its row avatar / name / description / type tags. */
 export function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
     const embedName = staticEmbedName(s)
     if (isStaticSkill(s)) {
-        const name =
-            (embedName && skillDisplayName(embedName)) ||
-            slugTitle(staticEmbedSlug(s)) ||
-            "Agenta skill"
+        const name = titleOf(embedName) || titleOf(staticEmbedSlug(s)) || "Agenta skill"
         return {
             name,
             ...SKILL_MARK,
@@ -369,10 +366,7 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         // Registry-by-default: the raw "@ag.embed" marker is plumbing, not information.
         // Following the head is the default and says nothing; only a pin is worth a tag.
         const pinned = embedRevisionVersion(s)
-        const name =
-            (embedName && skillDisplayName(embedName)) ||
-            slugTitle(staticEmbedSlug(s)) ||
-            "Skill reference"
+        const name = titleOf(embedName) || titleOf(staticEmbedSlug(s)) || "Skill reference"
         return {
             name,
             description: typeof s.description === "string" ? (s.description as string) : undefined,
@@ -385,7 +379,7 @@ export function describeSkill(skill: unknown): ItemDescriptor {
                 : "Registry skill — follows the latest version",
         }
     }
-    const name = (typeof s.name === "string" && skillDisplayName(s.name)) || "Skill"
+    const name = (typeof s.name === "string" && titleOf(s.name)) || "Skill"
     return {
         name,
         description: typeof s.description === "string" ? (s.description as string) : undefined,

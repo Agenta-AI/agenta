@@ -44,7 +44,7 @@ const count = (value: unknown): number => (Array.isArray(value) ? value.length :
 const skillName = (entry: unknown): string | null => {
     if (!isRecord(entry)) return null
     const name = str(entry.name)
-    if (name) return skillDisplayName(name)
+    if (name) return skillDisplayName(stripStaticSkillPrefix(name))
     const refs = nested(nested(entry, "@ag.embed"), "@ag.references")
     const slug = str(nested(refs, "workflow")?.slug) ?? str(nested(refs, "workflow_revision")?.slug)
     return slug ? skillDisplayName(stripStaticSkillPrefix(slug)) : null
