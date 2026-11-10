@@ -279,7 +279,7 @@ export function RepoImportDrawer({
                                         />
                                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                             <span className="flex min-w-0 items-center gap-1.5">
-                                                <span className="min-w-0 truncate font-mono text-xs font-medium">
+                                                <span className="min-w-0 truncate text-xs font-medium">
                                                     {candidate.name}
                                                 </span>
                                                 {candidate.version ? (

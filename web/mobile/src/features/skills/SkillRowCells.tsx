@@ -1,4 +1,4 @@
-import {SkillAvatar} from "@agenta/skills-ui"
+import {SkillMark} from "@agenta/ui/agent-icon"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillArchivedTag} from "./SkillArchivedTag"
@@ -15,8 +15,8 @@ import {SkillUpdateCell} from "./SkillUpdateCell"
 /**
  * One skill's cells, in column order.
  *
- * The name is the registry identity — the mono slug, the same one the drawer and the picker
- * show — and the whole row opens the drawer, so the actions cell holds only the kebab and,
+ * The name is the readable title from the SKILL.md name, the same one the drawer and the picker
+ * show, and the whole row opens the drawer, so the actions cell holds only the kebab and,
  * once a check found one, the Update mark.
  */
 export const SkillRowCells = ({
@@ -33,16 +33,16 @@ export const SkillRowCells = ({
 }) => (
     <>
         <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
-            <SkillAvatar origin={row.origin} slug={row.slug} />
+            <SkillMark />
             {/* Tight leading and a hairline gap: the frame's own row padding is fixed and
                 shared, so the two lines are where a row can give height back. */}
             <span className="flex min-w-0 flex-1 flex-col gap-px">
                 <span className="flex min-w-0 items-center gap-1.5">
                     <span
-                        className="truncate font-mono text-[13px] leading-[18px] text-foreground"
-                        title={row.slug}
+                        className="truncate text-[13px] leading-[18px] text-foreground"
+                        title={row.title}
                     >
-                        {row.slug}
+                        {row.title}
                     </span>
                     {row.archived ? <SkillArchivedTag /> : null}
                 </span>
