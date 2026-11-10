@@ -50,11 +50,16 @@ from agenta.sdk.engines.running.utils import (
 )
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.agents import (
-    HarnessKind,
+    AgentTemplate,
+    AgentTemplateShapeError,
     InvalidHarnessKindError,
     InvalidAgentInstructionsError as AgentInstructionsShapeError,
+    MCPConfigurationError,
+    SkillValidationError,
+    ToolConfigurationError,
     validate_agent_instructions,
 )
+from agenta.sdk.agents.config_errors import ConfigEntryError
 
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -65,6 +70,7 @@ from oss.src.core.shared.exceptions import (
 from oss.src.core.shared.idempotency import (
     idempotent_workflow_slug,
     resource_identity,
+    request_fingerprint as fingerprint_of,
     request_key_hash,
 )
 from oss.src.core.git.dtos import (
@@ -146,10 +152,12 @@ from oss.src.core.git.types import (
     validate_retrieve_refs_consistent,
 )
 from oss.src.core.workflows.change_set import (
+    AGENT_COMMIT_SCOPE,
     ChangeSetError,
     Reason,
     apply_change_set,
 )
+from oss.src.core.workflows.new_agent import new_agent_revision_data, new_agent_slug
 from oss.src.core.workflows.read_config import (
     ReadConfigError,
     clamp_max_bytes,
@@ -178,6 +186,7 @@ from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
     AgentReferenceUnresolved,
+    InvalidAgentConfigurationError,
     InvalidAgentHarnessError,
     InvalidAgentConnectionError,
     InvalidAgentInstructionsError,
@@ -205,6 +214,7 @@ from oss.src.core.embeds.exceptions import (
 )
 from oss.src.core.embeds.utils import (
     create_universal_resolver,
+    AG_EMBED_KEY,
     find_object_embeds,
     find_snippet_embeds,
     find_string_embeds,
@@ -270,39 +280,11 @@ class RevisionConflictError(Exception):
             "message": "The workflow head changed. No revision was committed.",
             "retryable": False,
             "next_step": (
-                "Call read_config for the new revision, re-anchor your edits to it, and "
-                "send the commit again with the new base_revision_id."
+                "Read the configuration again for the new revision, re-anchor your edits "
+                "to it, and send the commit again with the new base_revision_id."
             ),
             "details": details,
         }
-
-
-def _reject_unreadable_harness_kind(data: Optional[dict]) -> None:
-    """Refuse a commit whose agent template names a harness that does not exist.
-
-    Deliberately narrow. It reads ONE field, and only when the commit actually carries it, so
-    a workflow that is not an agent (and an agent commit that leaves the harness alone) takes
-    exactly the path it took before. An absent or null kind means "use the default" and is
-    left to the runtime, which is the behaviour every existing config relies on.
-    """
-    if not isinstance(data, dict):
-        return
-    parameters = data.get("parameters")
-    if not isinstance(parameters, dict):
-        return
-    agent = parameters.get("agent")
-    if not isinstance(agent, dict):
-        return
-    harness = agent.get("harness")
-    if not isinstance(harness, dict):
-        return
-    kind = harness.get("kind")
-    if kind is None or not str(kind).strip():
-        return
-    try:
-        HarnessKind.coerce(kind)
-    except InvalidHarnessKindError as e:
-        raise InvalidAgentHarnessError(value=kind, message=e.message) from e
 
 
 def _reject_unreadable_agent_instructions(data: Any) -> None:
@@ -323,6 +305,9 @@ def _reject_unreadable_agent_instructions(data: Any) -> None:
     if not isinstance(agent, dict):
         return
     instructions = agent.get("instructions")
+    # An embed resolves before a run, so its shape is only known then.
+    if _holds_embed(instructions):
+        return
     try:
         validate_agent_instructions(instructions)
     except AgentInstructionsShapeError as e:
@@ -430,6 +415,119 @@ def _artifact_id_of_references(references: Optional[dict]) -> Optional[UUID]:
         except ValueError:
             continue
     return None
+
+
+# The lists whose entries the runtime parses one by one, and the error that names an entry.
+_AGENT_TEMPLATE_LISTS = (
+    ("skills", SkillValidationError),
+    ("mcps", MCPConfigurationError),
+    ("tools", ToolConfigurationError),
+)
+
+
+def _holds_embed(value: Any) -> bool:
+    wrapped = {"value": value}
+    return bool(
+        find_object_embeds(wrapped)
+        or find_string_embeds(wrapped)
+        or find_snippet_embeds(wrapped)
+    )
+
+
+def _reject_unrunnable_agent(data: Any) -> None:
+    """Refuse a configuration the agent runtime cannot run.
+
+    Called by `_build_revision_commit`, which builds every revision a commit stores, and by
+    the simple create and edit paths before their first write, where a refusal at the final
+    commit would leave the earlier writes behind. A fork copies stored revisions without
+    building them, so it is not checked.
+
+    The instructions rule applies to any workflow that carries `parameters.agent`. The
+    runtime's own parse, `AgentTemplate.from_params`, applies to an agent (the uri key the
+    `is_agent` flag is inferred from): it runs before every run, and a refusal there fails
+    every run of the agent. It reads the result, not the change, so an agent stored with
+    such a field refuses every change until the change corrects it.
+
+    The template is found the way the runtime finds it: at `parameters.agent` when that is
+    an object, else the parameters themselves (the bare template, or the `prompt` fallback).
+    A part that holds an embed is left out: embeds resolve server-side before a run, so its
+    content is only known then.
+    """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump(mode="json", exclude_none=True)
+    if not isinstance(data, dict):
+        return
+    _reject_unreadable_agent_instructions(data)
+    _reject_unrunnable_agent_connection(data)
+
+    _, _, key, _ = parse_uri(data.get("uri"))
+    parameters = data.get("parameters")
+    if key != "agent" or not isinstance(parameters, dict):
+        return
+
+    wrapped = isinstance(parameters.get("agent"), dict)
+    template = parameters["agent"] if wrapped else parameters
+    if AG_EMBED_KEY in template:
+        return
+    root = "parameters.agent" if wrapped else "parameters"
+
+    # The path of each list entry the parse sees, by its position in the parsed list. The
+    # runtime reads a single object as a list of one.
+    lists = {name for name, _ in _AGENT_TEMPLATE_LISTS}
+    paths: Dict[str, List[str]] = {}
+    kept: Dict[str, Any] = {}
+    for name, value in template.items():
+        if name in lists and isinstance(value, list):
+            indexes = [i for i, entry in enumerate(value) if not _holds_embed(entry)]
+            paths[name] = [f"{root}.{name}[{i}]" for i in indexes]
+            kept[name] = [value[i] for i in indexes]
+        elif not _holds_embed(value):
+            if name in lists and isinstance(value, dict):
+                paths[name] = [f"{root}.{name}"]
+            kept[name] = value
+
+    try:
+        AgentTemplate.from_params(
+            {**parameters, "agent": kept} if wrapped else kept,
+        )
+    except InvalidHarnessKindError as e:
+        raise InvalidAgentHarnessError(value=e.value, message=e.message) from e
+    # The parse's refusals. Anything else is a defect in the parser, not in the
+    # configuration, and must not reach the caller as "correct your fields".
+    except (ConfigEntryError, AgentTemplateShapeError, ValueError) as e:
+        issues = [str(e)]
+        for name, error_type in _AGENT_TEMPLATE_LISTS:
+            if not isinstance(e, error_type) or e.index is None:
+                continue
+            entry_paths = paths.get(name, [])
+            if 0 <= e.index < len(entry_paths):
+                issues = e.describe(entry_paths[e.index])
+                break
+        log.info("[workflows] agent configuration refused", issues=issues)
+        raise InvalidAgentConfigurationError(issues=issues) from e
+
+
+def read_revision_config(
+    revision: WorkflowRevision,
+    *,
+    path: Optional[list] = None,
+    max_bytes: Optional[int] = None,
+) -> ConfigReadOutcome:
+    """One part of a revision the caller already holds, as the config read answers it."""
+    data = (
+        revision.data.model_dump(mode="json", exclude_none=True)
+        if revision.data
+        else None
+    )
+    result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
+    return ConfigReadOutcome(
+        revision=revision,
+        path=result.path,
+        value=result.value,
+        bytes=result.bytes,
+        is_draft=False,
+        warnings=list(result.warnings),
+    )
 
 
 class WorkflowsService:
@@ -2969,20 +3067,7 @@ class WorkflowsService:
                 "That variant has no revision to read.",
                 status_code=404,
             )
-
-        data = (
-            head.data.model_dump(mode="json", exclude_none=True) if head.data else None
-        )
-        result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
-
-        return ConfigReadOutcome(
-            revision=head,
-            path=result.path,
-            value=result.value,
-            bytes=result.bytes,
-            is_draft=False,
-            warnings=list(result.warnings),
-        )
+        return read_revision_config(head, path=path, max_bytes=max_bytes)
 
     async def commit_workflow_revision_checked(
         self,
@@ -2998,12 +3083,17 @@ class WorkflowsService:
         agent_context: bool = False,
         #
         first_agent_owner_user_id: Optional[UUID] = None,
+        attribution: Optional[str] = None,
     ) -> "CommitOutcome":
         """Commit with the base check, the no-change answer, and the warning list.
 
         The commit wrapper of ``contracts/commit-transaction.md``. Every other caller of
         ``commit_workflow_revision`` keeps its signature and its behavior; only the
         workflow commit endpoint routes through here.
+
+        ``attribution`` is appended to the message in parentheses. Only an agent editing
+        ANOTHER agent passes one (see ``agent_attribution``): that edit lands in a history
+        whose owner did not watch it happen.
         """
         self._reject_static_slug(workflow_revision_commit.slug)
 
@@ -3039,17 +3129,19 @@ class WorkflowsService:
                 current=head,
             )
 
+        if attribution:
+            workflow_revision_commit = workflow_revision_commit.model_copy(
+                update={
+                    "message": f"{workflow_revision_commit.message} ({attribution})"
+                }
+            )
+
         # Built before the comparison, because the comparison runs on what would be
         # STORED: enrichment fills `url` and `schemas`, and the flags are inferred from the
         # finished data (contract commit-transaction.md 5.1).
         candidate = self._build_revision_commit(
             workflow_revision_commit=workflow_revision_commit,
         )
-
-        # Checked on the CANDIDATE, so both commit forms are covered by one call: the delta arm
-        # has already merged its operations onto the head by here, and a full-data commit is
-        # the data as sent. An unrunnable agent config must not become a revision.
-        _reject_unreadable_harness_kind(candidate.data)
 
         # There is ONE decision point, and it is inside the lock. Deciding here, before the
         # call, reads a head another writer can move afterwards: the caller was then told
@@ -3393,8 +3485,7 @@ class WorkflowsService:
         # Here, and not only on the checked commit, because every writer (the builder's
         # tool, the commit endpoint, simple application and workflow create/edit) builds
         # its revision through this method.
-        _reject_unreadable_agent_instructions(data)
-        _reject_unrunnable_agent_connection(data)
+        _reject_unrunnable_agent(data)
 
         _revision_slug = workflow_revision_commit.slug or uuid4().hex[-12:]
         return RevisionCommit(
@@ -4168,6 +4259,10 @@ return 0
 """
 
 
+# The idempotency namespace of `create_agent`, the agent tool that creates another agent.
+_CREATE_AGENT_NAMESPACE = "agent_tools.create_agent"
+
+
 class SimpleWorkflowsService:
     def __init__(
         self,
@@ -4369,15 +4464,26 @@ class SimpleWorkflowsService:
         #
         access: Optional[AccessPolicy] = None,
         first_agent_owner_user_id: Optional[UUID] = None,
+        message: Optional[str] = None,
+        read_scope: Optional[AgentReadScope] = None,
     ) -> SimpleWorkflowCreateResult:
+        """Create a workflow whose every write is keyed by ``request_key``, so a retry of a
+        create that stopped part of the way finishes it instead of starting another one.
+
+        ``message`` is the commit message of the revision that holds ``data``: the first
+        revision a person sees in history.
+
+        With ``read_scope``, a retry that finds a workflow this scope does not show raises
+        ``AgentReferenceUnresolved`` before any write, so a retry never reads or changes a
+        workflow its caller cannot see.
+        """
         if not namespace.strip() or not request_key.strip() or not component.strip():
             raise ValueError("namespace, request_key, and component must not be empty")
         if not request_fingerprint.strip():
             raise ValueError("request_fingerprint must not be empty")
 
         # Before any write: a refusal at the final commit would leave earlier writes behind.
-        _reject_unreadable_agent_instructions(simple_workflow_create.data)
-        _reject_unrunnable_agent_connection(simple_workflow_create.data)
+        _reject_unrunnable_agent(simple_workflow_create.data)
 
         workflow_id = resource_identity(
             project_id,
@@ -4444,6 +4550,17 @@ class SimpleWorkflowsService:
                     )
             if workflow is None:
                 raise EntityCreationConflict("Workflow")
+            if (
+                replayed
+                and read_scope is not None
+                and not await self.workflows_service.query_workflows(
+                    project_id=project_id,
+                    read_scope=read_scope,
+                    workflow_refs=[Reference(id=workflow_id)],
+                    include_archived=True,
+                )
+            ):
+                raise AgentReferenceUnresolved()
             commit_owner = _commit_owner(
                 workflow=workflow, first_agent_owner_user_id=first_agent_owner_user_id
             )
@@ -4544,6 +4661,7 @@ class SimpleWorkflowsService:
                             tags=request.tags,
                             meta=request.meta,
                             data=request.data,
+                            message=message,
                             workflow_id=workflow_id,
                             workflow_variant_id=variant.id,
                         ),
@@ -4614,8 +4732,7 @@ class SimpleWorkflowsService:
     ) -> Optional[SimpleWorkflow]:
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
-        _reject_unreadable_agent_instructions(simple_workflow_create.data)
-        _reject_unrunnable_agent_connection(simple_workflow_create.data)
+        _reject_unrunnable_agent(simple_workflow_create.data)
 
         simple_workflow_flags = SimpleWorkflowFlags(
             **WorkflowsService._dump_flags(simple_workflow_create.flags)
@@ -4773,6 +4890,84 @@ class SimpleWorkflowsService:
 
         return simple_workflow
 
+    async def create_agent(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        name: str,
+        description: Optional[str] = None,
+        operations: Optional[list] = None,
+        #
+        message: str,
+        idempotency_scope: str,
+        read_scope: AgentReadScope,
+        first_agent_owner_user_id: Optional[UUID] = None,
+    ) -> tuple[SimpleWorkflow, str, List[CommitWarning]]:
+        """A new agent from the "New agent" template, with an agent's operations applied.
+
+        The operations run in memory, under the agent's commit scope, BEFORE anything is
+        written, so one that fails creates nothing. The first saved revision then holds the
+        template and the operations together, and ``message`` (plus the derived clauses) is
+        its commit message. Returns the agent, that message and the engine's warnings.
+
+        The writes are the idempotent create, keyed by ``idempotency_scope`` and the
+        arguments: the same arguments in the same scope make one agent. A create that stops
+        part of the way is finished by the next call with the same arguments, not left
+        behind beside a second agent. A retry that finds an agent ``read_scope`` does not
+        show (its owner made it private) raises ``AgentReferenceUnresolved``.
+
+        The fingerprint covers the name, the description and the operations, not the
+        template data. A retry across a deploy that changed the "New agent" template
+        therefore finishes the same agent with the new template. This edge case is accepted.
+        """
+        data = new_agent_revision_data()
+        warnings: List[CommitWarning] = []
+        if operations:
+            data, derived, warnings = self.workflows_service._apply_delta(
+                base=data,
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    delta={"operations": operations}
+                ),
+                scope_policy=AGENT_COMMIT_SCOPE,
+                agent_context=True,
+            )
+            message = f"{message}; {derived}"
+
+        fingerprint = fingerprint_of(
+            {"name": name, "description": description, "operations": operations or []}
+        )
+        outcome = await self.create_idempotent(
+            project_id=project_id,
+            user_id=user_id,
+            namespace=_CREATE_AGENT_NAMESPACE,
+            request_key=f"{idempotency_scope}:{fingerprint}",
+            request_fingerprint=fingerprint,
+            component="agent",
+            simple_workflow_create=SimpleWorkflowCreate(
+                slug=new_agent_slug(name),
+                name=name,
+                description=description,
+                flags=SimpleWorkflowFlags(is_application=True, is_agent=True),
+                data=SimpleWorkflowData(**data),
+            ),
+            message=message,
+            # The owner is saved with the artifact, in its transaction, so a create that
+            # stops after the artifact never leaves an ownerless agent for the retry.
+            access=(
+                AccessPolicy(
+                    visibility=Visibility.PROJECT,
+                    owner_user_id=first_agent_owner_user_id,
+                )
+                if first_agent_owner_user_id is not None
+                else None
+            ),
+            first_agent_owner_user_id=first_agent_owner_user_id,
+            read_scope=read_scope,
+        )
+        return outcome.workflow, message, warnings
+
     async def fetch(
         self,
         *,
@@ -4852,8 +5047,7 @@ class SimpleWorkflowsService:
         first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
-        _reject_unreadable_agent_instructions(simple_workflow_edit.data)
-        _reject_unrunnable_agent_connection(simple_workflow_edit.data)
+        _reject_unrunnable_agent(simple_workflow_edit.data)
 
         workflow_ref = Reference(id=simple_workflow_edit.id)
 
@@ -4865,6 +5059,43 @@ class SimpleWorkflowsService:
 
         if workflow is None:
             return None
+
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+        )
+
+        if workflow_variant is None:
+            return None
+
+        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
+
+        workflow_revision_data: Optional[WorkflowRevisionData] = None
+        if should_commit_revision:
+            if simple_workflow_edit.data:
+                workflow_revision_data = WorkflowRevisionData(
+                    **simple_workflow_edit.data.model_dump(mode="json"),
+                )
+            else:
+                latest_workflow_revision = (
+                    await self.workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        #
+                        workflow_variant_ref=Reference(id=workflow_variant.id),
+                    )
+                )
+
+                if latest_workflow_revision is None:
+                    return None
+
+                workflow_revision_data = latest_workflow_revision.data
+
+                # The commit below carries the stored data, so it is refused for the same
+                # reason. Refuse it here, before the artifact write.
+                _reject_unrunnable_agent(workflow_revision_data)
 
         workflow_edit = WorkflowEdit(
             id=simple_workflow_edit.id,
@@ -4901,39 +5132,8 @@ class SimpleWorkflowsService:
         if workflow is None:
             return None
 
-        workflow_variant: Optional[
-            WorkflowVariant
-        ] = await self.workflows_service.fetch_workflow_variant(
-            project_id=project_id,
-            #
-            workflow_ref=workflow_ref,
-        )
-
-        if workflow_variant is None:
-            return None
-
-        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
-
         if should_commit_revision:
             workflow_revision_slug = uuid4().hex[-12:]
-
-            if simple_workflow_edit.data:
-                workflow_revision_data = WorkflowRevisionData(
-                    **simple_workflow_edit.data.model_dump(mode="json"),
-                )
-            else:
-                latest_workflow_revision = (
-                    await self.workflows_service.fetch_workflow_revision(
-                        project_id=project_id,
-                        #
-                        workflow_variant_ref=Reference(id=workflow_variant.id),
-                    )
-                )
-
-                if latest_workflow_revision is None:
-                    return None
-
-                workflow_revision_data = latest_workflow_revision.data
 
             workflow_revision_commit = WorkflowRevisionCommit(
                 slug=workflow_revision_slug,

@@ -4,10 +4,17 @@
  */
 export type AgentaToolsMap = Record<string, "allow" | "ask">
 
-/** What a new agent's entry holds. Mirrors `DEFAULT_AGENTA_TOOLS` in the SDK. */
+/**
+ * What a new agent's entry holds. Mirrors `DEFAULT_AGENTA_TOOLS` in the SDK. The four agent tools
+ * are on by default, unlike `read_config` and `commit_revision`, by product decision.
+ */
 export const DEFAULT_AGENTA_TOOLS: AgentaToolsMap = {
     get_current_session: "allow",
     rename_session: "allow",
+    list_agents: "allow",
+    read_agent_config: "allow",
+    create_agent: "allow",
+    edit_agent_config: "allow",
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

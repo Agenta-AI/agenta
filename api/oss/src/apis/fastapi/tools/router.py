@@ -95,6 +95,7 @@ from oss.src.core.tools.platform_handlers import (
     LIST_STARTERS_CALL_REF,
     READ_CONFIG_CALL_REF,
     required_agent_owner,
+    required_agent_read_scope,
     required_envelope,
     dispatch_platform_tool_handler,
     is_reserved_agenta_call_ref,
@@ -112,6 +113,7 @@ from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.sharing.utils import (
     agent_owner_for_request,
+    agent_read_scope_for_request,
     allow_agent,
     allow_resource,
     artifact_id_of,
@@ -1688,6 +1690,12 @@ class ToolsRouter:
                     if required_agent_owner(call_ref=call_ref)
                     else None
                 ),
+                workspace_id=_workspace_id(request),
+                agent_read_scope=(
+                    await agent_read_scope_for_request(request)
+                    if required_agent_read_scope(call_ref=call_ref)
+                    else None
+                ),
             )
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=envelope, refusal=refusal)
@@ -1707,8 +1715,9 @@ class ToolsRouter:
         # session holding a stale configuration and the playground showing an old revision
         # until something else invalidated it. The handler says whether it wrote; this
         # reuses the emitter already here rather than growing a second one.
-        if response.committed_revision:
+        if response.committed_revision or response.wrote_other_agent_revision:
             await invalidate_cache(project_id=request.state.project_id)
+        if response.committed_revision:
             await _emit_committed_revision_data_event_from_outputs(
                 request=request,
                 outputs=response.committed_revision,
@@ -2147,6 +2156,15 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _workspace_id(request: Request) -> Optional[UUID]:
+    """The caller's workspace, for links into the web app; None when the credential has none."""
+    workspace_id = getattr(request.state, "workspace_id", None)
+    try:
+        return UUID(str(workspace_id)) if workspace_id else None
+    except ValueError:
+        return None
 
 
 def _json_for_inline_script(value: Any) -> str:

@@ -443,7 +443,7 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
     """
 
     @staticmethod
-    async def _call(committed_revision):
+    async def _call(committed_revision, wrote_other_agent_revision=False):
         from types import SimpleNamespace
         from unittest.mock import patch
 
@@ -472,7 +472,9 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
             headers={},
         )
         result = PlatformHandlerResult(
-            content={"status": "x"}, committed_revision=committed_revision
+            content={"status": "x"},
+            committed_revision=committed_revision,
+            wrote_other_agent_revision=wrote_other_agent_revision,
         )
         with (
             patch.object(
@@ -513,6 +515,13 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
 
         assert invalidated, "the warm session kept a stale configuration"
         assert emitted and emitted[0]["name"] == "committed-revision"
+
+    async def test_another_agents_write_clears_the_caches_and_announces_nothing(self):
+        # `edit_agent_config` and `create_agent`: the caller did not commit itself.
+        invalidated, emitted = await self._call(None, wrote_other_agent_revision=True)
+
+        assert invalidated
+        assert not emitted
 
     async def test_no_change_does_neither(self):
         invalidated, emitted = await self._call(None)
