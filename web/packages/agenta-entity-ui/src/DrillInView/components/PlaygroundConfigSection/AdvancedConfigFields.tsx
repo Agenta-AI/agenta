@@ -4,7 +4,7 @@ import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {HeightCollapse} from "@agenta/ui"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
 
 import {validateConfigAgainstSchema} from "../../SchemaControls/schemaValidator"
 
@@ -58,11 +58,7 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
                 onClick={() => setIsAdvancedOpen((prev) => !prev)}
                 disabled={disabled}
             >
-                {isAdvancedOpen ? (
-                    <CaretDown size={14} weight="bold" />
-                ) : (
-                    <CaretRight size={14} weight="bold" />
-                )}
+                <CollapseCaret open={isAdvancedOpen} size={14} />
                 <span className="font-medium text-xs">Advanced</span>
             </button>
             <HeightCollapse open={isAdvancedOpen}>

@@ -23,7 +23,7 @@
 import {useState} from "react"
 
 import {getDefaultViewForValue, getViewOptions} from "@agenta/entity-ui/view-types"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
 import {Button} from "antd"
 
 import {VariableCard} from "./VariableCard"
@@ -72,7 +72,7 @@ export function UnreferencedColumnsFooter({
             <Button
                 type="text"
                 size="small"
-                icon={expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                icon={<CollapseCaret open={expanded} />}
                 onClick={() => setExpanded((prev) => !prev)}
                 aria-expanded={expanded}
                 className="self-start max-w-full !h-auto !whitespace-normal text-left text-[12px] !text-[var(--ag-rgba-051729-55)]"

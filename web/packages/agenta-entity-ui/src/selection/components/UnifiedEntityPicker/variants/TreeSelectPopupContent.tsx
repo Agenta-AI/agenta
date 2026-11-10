@@ -11,8 +11,7 @@
 import React, {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {cn} from "@agenta/ui/styles"
-import {InputAffix, Spinner} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CollapseCaret, InputAffix, Spinner} from "@agenta/ui/ui"
 
 import {useTreeSelectMode, type TreeSelectNode} from "../../../hooks"
 import type {EntitySelectionResult} from "../../../types"
@@ -389,11 +388,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                                             aria-hidden="true"
                                             className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center text-colorTextSecondary"
                                         >
-                                            {isExpanded ? (
-                                                <CaretDown size={12} />
-                                            ) : (
-                                                <CaretRight size={12} />
-                                            )}
+                                            <CollapseCaret open={isExpanded} />
                                         </span>
                                         <span
                                             className={cn(

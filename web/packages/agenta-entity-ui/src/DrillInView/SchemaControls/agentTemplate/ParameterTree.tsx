@@ -12,8 +12,8 @@
  */
 import {useEffect, useMemo, useState} from "react"
 
-import {Button} from "@agenta/ui/ui"
-import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
+import {Button, CollapseCaret} from "@agenta/ui/ui"
+import {Plus, Wrench} from "@phosphor-icons/react"
 
 import {RowRemoveButton} from "../../../drawers/shared/RowRemoveButton"
 
@@ -136,7 +136,7 @@ function TreeRow({
                     }}
                     className="flex h-4 w-4 shrink-0 cursor-pointer appearance-none items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
                 >
-                    {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                    <CollapseCaret open={expanded} className="text-current" />
                 </button>
             ) : (
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">

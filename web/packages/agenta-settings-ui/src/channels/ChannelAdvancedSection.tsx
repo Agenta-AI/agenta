@@ -1,7 +1,15 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {Alert, Button, Checkbox, RadioGroup, RadioGroupItem, Spinner, Switch} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {
+    Alert,
+    Button,
+    Checkbox,
+    CollapseCaret,
+    RadioGroup,
+    RadioGroupItem,
+    Spinner,
+    Switch,
+} from "@agenta/ui/ui"
 
 import {errorMessage} from "./helpers"
 import type {
@@ -293,7 +301,7 @@ export const ChannelAdvancedSection = ({
                 aria-expanded={open}
                 data-testid="channels-advanced-toggle"
             >
-                {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                <CollapseCaret open={open} />
                 Advanced
             </button>
 

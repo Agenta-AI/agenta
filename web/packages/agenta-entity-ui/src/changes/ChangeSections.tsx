@@ -18,10 +18,9 @@ import {HeightCollapse} from "@agenta/ui/components"
 import {AdaptiveList} from "@agenta/ui/components/selection"
 import type {ExtendedDiffLine} from "@agenta/ui/diff"
 import {cn, textColors} from "@agenta/ui/styles"
-import {Badge, type BadgeProps} from "@agenta/ui/ui"
+import {Badge, type BadgeProps, CollapseCaret} from "@agenta/ui/ui"
 import {
     ArrowRight,
-    CaretDown,
     CaretRight,
     Cpu,
     DotsThree,
@@ -377,14 +376,7 @@ export function SectionCard({
                     {section.scalarChanges ? null : (
                         <StatusTags tags={section.tags} small={small} />
                     )}
-                    <span
-                        className={cn(
-                            "inline-flex shrink-0 items-center leading-none",
-                            textColors.tertiary,
-                        )}
-                    >
-                        {open ? <CaretDown /> : <CaretRight />}
-                    </span>
+                    <CollapseCaret open={open} size={14} />
                 </button>
             </div>
             <HeightCollapse open={open}>
@@ -469,9 +461,8 @@ export function DetailCard({
                     )}
                 >
                     {head}
-                    <span className={textColors.tertiary}>
-                        <CaretDown />
-                    </span>
+                    {/* Only rendered while expanded; a click folds it back. */}
+                    <CollapseCaret open size={14} />
                 </button>
             </div>
             <div className="overflow-hidden rounded-b-[10px] border border-t-0 border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)]">

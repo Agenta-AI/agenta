@@ -1,7 +1,6 @@
 import type {ReactNode} from "react"
 
-import {Button} from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {Button, CollapseCaret} from "@agenta/ui/ui"
 
 /**
  * One part of the scenario in the drawer (its inputs, the app output, one evaluator): a title
@@ -32,7 +31,7 @@ export const ScenarioSection = ({
                 aria-expanded={!collapsed}
                 onClick={onToggle}
             >
-                {collapsed ? <CaretRight aria-hidden /> : <CaretDown aria-hidden />}
+                <CollapseCaret open={!collapsed} />
                 <span className="truncate text-sm font-medium">{title}</span>
             </Button>
             {tools}

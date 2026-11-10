@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
 
 import type {StashedPath} from "../../utils/variableShape"
 
@@ -41,7 +41,7 @@ export const StashedKeysToggle = ({variableName, paths}: StashedKeysToggleProps)
                 onClick={() => setOpen((previous) => !previous)}
                 className="flex items-center gap-1 self-start border-0 bg-transparent p-0 text-left text-xs text-muted-foreground"
             >
-                {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                <CollapseCaret open={open} />
                 {summary}
             </button>
             {open ? (

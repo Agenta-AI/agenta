@@ -16,6 +16,7 @@ import {
     Button,
     Checkbox,
     cn,
+    CollapseCaret,
     Input,
     Select,
     SelectContent,
@@ -24,7 +25,7 @@ import {
     SelectValue,
     touchTargetExpansion,
 } from "@agenta/ui/ui"
-import {CaretDown, Copy, SlidersHorizontal} from "@phosphor-icons/react"
+import {Copy, SlidersHorizontal} from "@phosphor-icons/react"
 
 import {HintedField} from "./HintedField"
 
@@ -108,11 +109,9 @@ export const OAuthAdvancedFields = ({
             >
                 <SlidersHorizontal size={14} data-icon="inline-start" />
                 <span className="flex-1 text-left">Advanced</span>
-                <CaretDown
-                    size={12}
-                    data-icon="inline-end"
-                    className={cn("transition-transform", open && "rotate-180")}
-                />
+                <span data-icon="inline-end" className="flex">
+                    <CollapseCaret open={open} />
+                </span>
             </Button>
             {open ? (
                 <div className="flex flex-col gap-4">

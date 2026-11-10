@@ -1,7 +1,7 @@
 import {useState} from "react"
 
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {CaretDown, CaretRight, CaretUp, ChatCircleText, Code, Plus} from "@phosphor-icons/react"
+import {Button, CollapseCaret, SkeletonBlock} from "@agenta/ui/ui"
+import {CaretRight, ChatCircleText, Code, Plus} from "@phosphor-icons/react"
 
 import {ChannelsHubDiagram, type ChannelsHubDiagramTarget} from "./ChannelsHubDiagram"
 import {
@@ -210,12 +210,9 @@ export const ChannelsHubView = ({
                                     className={`rounded-full text-muted-foreground ${open ? "bg-muted" : ""}`}
                                 >
                                     {canExpand ? (
-                                        open ? (
-                                            <CaretUp />
-                                        ) : (
-                                            <CaretDown />
-                                        )
+                                        <CollapseCaret open={open} />
                                     ) : (
+                                        // Opens the platform page: navigation, so an outline caret.
                                         <CaretRight />
                                     )}
                                 </Button>

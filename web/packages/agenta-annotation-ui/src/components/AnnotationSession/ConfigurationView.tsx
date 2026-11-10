@@ -21,7 +21,8 @@ import {resolveOutputSchema, workflowMolecule} from "@agenta/entities/workflow"
 import {EntityDeleteModal} from "@agenta/entity-ui"
 import {Editor} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {ArrowSquareOut, CaretDown} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
+import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Form, Input, Segmented, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -70,15 +71,7 @@ function CollapsibleSection({
                 <Button
                     type="text"
                     size="small"
-                    icon={
-                        <CaretDown
-                            size={12}
-                            style={{
-                                transform: collapsed ? "rotate(-90deg)" : undefined,
-                                transition: "transform 0.2s",
-                            }}
-                        />
-                    }
+                    icon={<CollapseCaret open={!collapsed} />}
                     onClick={(e) => {
                         e.stopPropagation()
                         toggle()
@@ -250,15 +243,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                     <Button
                         type="text"
                         size="small"
-                        icon={
-                            <CaretDown
-                                size={12}
-                                style={{
-                                    transform: collapsed ? "rotate(-90deg)" : undefined,
-                                    transition: "transform 0.2s",
-                                }}
-                            />
-                        }
+                        icon={<CollapseCaret open={!collapsed} />}
                         onClick={() => setCollapsed((v) => !v)}
                     />
                 </div>

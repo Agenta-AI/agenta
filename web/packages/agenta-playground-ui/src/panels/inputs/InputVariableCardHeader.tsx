@@ -8,8 +8,8 @@ import {
 } from "@agenta/entity-ui/view-types"
 import {message} from "@agenta/ui/app-message"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
-import {Badge, Button, SimpleTooltip} from "@agenta/ui/ui"
-import {CaretDown, CaretRight, CopySimple, Database, Info} from "@phosphor-icons/react"
+import {Badge, Button, CollapseCaret, SimpleTooltip} from "@agenta/ui/ui"
+import {CopySimple, Database, Info} from "@phosphor-icons/react"
 
 const EXPECTED_CHIP: Partial<Record<NonNullable<ExpectedType>, ChipVariant>> = {
     object: "json-object",
@@ -135,7 +135,7 @@ export const InputVariableCardHeader = ({
                     className="aria-expanded:bg-transparent"
                     onClick={onToggleCollapsed}
                 >
-                    {collapsed ? <CaretRight /> : <CaretDown />}
+                    <CollapseCaret open={!collapsed} />
                 </Button>
             </div>
         </div>

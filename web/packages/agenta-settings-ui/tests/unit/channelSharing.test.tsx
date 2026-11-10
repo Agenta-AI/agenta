@@ -13,6 +13,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 vi.mock("@agenta/ui/ui", () => {
     const Wrap = ({children}: {children?: React.ReactNode}) => <div>{children}</div>
     return {
+        CollapseCaret: () => null,
         Alert: ({
             message,
             action,

@@ -42,6 +42,7 @@ vi.mock("@agenta/ui/ui", () => {
             </div>
         ),
         Button,
+        CollapseCaret: () => null,
         LoadingButton: Button,
         Input: (props: React.ComponentProps<"input">) => <input {...props} />,
         Textarea: (props: React.ComponentProps<"textarea">) => <textarea {...props} />,

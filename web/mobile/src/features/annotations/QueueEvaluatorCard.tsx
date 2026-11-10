@@ -6,8 +6,7 @@ import {
     parseOutputMetrics,
 } from "@agenta/annotation"
 import {resolveOutputSchema, workflowMolecule} from "@agenta/entities/workflow"
-import {Badge, Button, Segmented, SkeletonBlock} from "@agenta/ui/ui"
-import {CaretDown} from "@phosphor-icons/react"
+import {Badge, Button, CollapseCaret, Segmented, SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -113,13 +112,7 @@ export const QueueEvaluatorCard = ({revisionId}: {revisionId: string}) => {
                         aria-expanded={open}
                         onClick={() => setOpen((value) => !value)}
                     >
-                        <CaretDown
-                            aria-hidden
-                            size={12}
-                            className={
-                                open ? "transition-transform" : "-rotate-90 transition-transform"
-                            }
-                        />
+                        <CollapseCaret open={open} />
                     </Button>
                 </div>
             </div>

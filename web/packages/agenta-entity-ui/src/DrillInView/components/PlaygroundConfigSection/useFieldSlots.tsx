@@ -30,8 +30,9 @@ import {
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
+    CollapseCaret,
 } from "@agenta/ui/ui"
-import {CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
+import {CaretDown, MagicWand} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import {HookConfigControl, CodeConfigControl, SchemasConfigControl} from "../../SchemaControls"
@@ -174,13 +175,7 @@ export function useFieldSlots({
                     onClick={() => toggleSection(fieldKey)}
                 >
                     <div className="flex items-center gap-1">
-                        <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
-                            {isCollapsed ? (
-                                <CaretRight size={14} weight="bold" />
-                            ) : (
-                                <CaretDown size={14} weight="bold" />
-                            )}
-                        </span>
+                        <CollapseCaret open={!isCollapsed} size={14} />
                         <span className="capitalize font-medium text-sm">{displayLabel}</span>
                     </div>
 

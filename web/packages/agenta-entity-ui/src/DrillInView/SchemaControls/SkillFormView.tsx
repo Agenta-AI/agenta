@@ -34,10 +34,10 @@ import {
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
+    CollapseCaret,
 } from "@agenta/ui/ui"
 import {
     ArrowLeft,
-    CaretDown,
     DownloadSimple,
     File as FileIcon,
     Info,
@@ -679,12 +679,7 @@ export function SkillFormView({
                                 Advanced
                             </span>
                         </span>
-                        <CaretDown
-                            size={14}
-                            className={`text-[var(--ag-colorIcon)] transition-transform ${
-                                advancedOpen ? "" : "-rotate-90"
-                            }`}
-                        />
+                        <CollapseCaret open={advancedOpen} size={14} />
                     </button>
                     <HeightCollapse open={advancedOpen}>
                         <div className="flex flex-col gap-3 pb-2 pt-1">

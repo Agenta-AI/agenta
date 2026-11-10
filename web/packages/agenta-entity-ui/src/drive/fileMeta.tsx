@@ -13,7 +13,7 @@ import {fileTypeLabel, resolveDriveFileKind, type DriveFileKind} from "@agenta/e
 import {useMountFileMediaSrc} from "@agenta/entities/drive"
 import {humanSize, relativeTime} from "@agenta/entities/drive"
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
-import {CaretRight} from "@phosphor-icons/react"
+import {CollapseCaret} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -247,10 +247,7 @@ export function DriveFileMetaList({
                     className="ml-auto flex shrink-0 cursor-pointer items-center gap-0.5 rounded border-0 bg-transparent p-0 text-colorTextTertiary transition-colors hover:text-colorText"
                 >
                     Details
-                    <CaretRight
-                        size={10}
-                        className={`transition-transform ${internalExpanded ? "rotate-90" : ""}`}
-                    />
+                    <CollapseCaret open={internalExpanded} size={10} />
                 </button>
             </div>
             {animatedGrid(internalExpanded)}

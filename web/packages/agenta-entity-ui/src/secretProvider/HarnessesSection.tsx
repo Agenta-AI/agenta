@@ -3,8 +3,14 @@ import {useRef, useState} from "react"
 
 import {harnessSummary} from "@agenta/entities/secret"
 import {cn} from "@agenta/ui/styles"
-import {Checkbox, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {CaretRight} from "@phosphor-icons/react"
+import {
+    Checkbox,
+    CollapseCaret,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 
 import {harnessMarkFor} from "./harnessMark"
 
@@ -76,13 +82,7 @@ const HarnessesSection = ({
                 ) : (
                     <span className="text-colorTextSecondary">· {summary}</span>
                 )}
-                <CaretRight
-                    size={12}
-                    className={cn(
-                        "text-colorTextTertiary transition-transform",
-                        expanded && "rotate-90",
-                    )}
-                />
+                <CollapseCaret open={expanded} />
             </button>
 
             {/* Animates height through grid rows; once open, the section scrolls into view. */}

@@ -5,6 +5,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/ui/ui", () => ({
+    CollapseCaret: () => null,
     Alert: ({message, description}: {message: string; description?: React.ReactNode}) => (
         <div role="alert">
             {message}

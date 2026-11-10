@@ -1,7 +1,7 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
-import {CaretRight, FileText} from "@phosphor-icons/react"
+import {FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
@@ -27,7 +27,13 @@ import {turnSpanAtomFamily, useTurnStage, useTurnStageSince} from "../../state/t
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
-import {ActivityNode, LIVE_TEXT_CLASS, WaitingGlyph, type WaitingKind} from "./activityIcons"
+import {
+    ActivityNode,
+    LIVE_TEXT_CLASS,
+    StepCaret,
+    WaitingGlyph,
+    type WaitingKind,
+} from "./activityIcons"
 import {ActivityThoughtStep} from "./ActivityThoughtStep"
 import {ActivityToolStep} from "./ActivityToolStep"
 
@@ -455,15 +461,7 @@ export const ActivityTimeline = ({
                     </span>
                 ) : null}
                 {/* Nothing to open before the first step. */}
-                {nodes ? (
-                    <CaretRight
-                        size={10}
-                        weight="bold"
-                        className={`shrink-0 text-colorTextDisabled opacity-50 transition-transform ${
-                            open ? "rotate-90" : ""
-                        }`}
-                    />
-                ) : null}
+                {nodes ? <StepCaret open={open} /> : null}
             </button>
             <RevealCollapse open={open}>
                 <div className="relative mt-3 mb-1.5 flex flex-col">
