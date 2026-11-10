@@ -1,3 +1,5 @@
+import {memo} from "react"
+
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList, SessionListSkeleton} from "@agenta/sessions-ui"
 import {Button} from "@agenta/ui/ui"
@@ -15,7 +17,7 @@ import {useStartBlankSession} from "./useStartBlankSession"
  * and the rail takes its place, so the pane is never empty. Rows are the SHARED session cards, so
  * they carry the same titles, status dots, pins and context menu as every other list.
  */
-export const SessionsPane = ({
+const SessionsPaneView = ({
     agentId,
     agentResolving = false,
     base,
@@ -81,3 +83,6 @@ export const SessionsPane = ({
         </div>
     )
 }
+
+/** Memoized: a pane slide re-renders the workspace around it. */
+export const SessionsPane = memo(SessionsPaneView)

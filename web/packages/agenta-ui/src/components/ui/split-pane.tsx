@@ -46,6 +46,8 @@ export interface SplitPaneProps {
     barLabel?: string
     onResizeStart?: () => void
     onResize?: (size: number, total: number) => void
+    /** The width the pane draws at, after the clamp: `paneSize` is only the preference. */
+    onDisplayedSize?: (size: number) => void
     onResizeEnd?: (size: number, total: number) => void
     pane: React.ReactNode
     fill: React.ReactNode
@@ -100,7 +102,8 @@ export const paneSlideHoldMs = (): number => paneSlideMs() + 40
  *   before committing, and the re-render sees `prev === open`, so the flag was always false in the
  *   committed output and the transition class only arrived in an effect — after the new width had
  *   already painted, which IS the snap.
- * - `holdAnimate` keeps the class for the whole slide, so removing it cannot cut the tail short.
+ * - The slide's end time keeps the class for the whole slide, so removing it cannot cut the tail
+ *   short, and one timer render at the end drops it.
  * - `keepMounted` holds the pane's CONTENT through a close, so it slides out instead of blanking
  *   to an empty sliver first.
  *
@@ -112,27 +115,27 @@ export const paneSlideHoldMs = (): number => paneSlideMs() + 40
  */
 export const usePaneSlide = (open: boolean, dragging = false) => {
     const prevOpenRef = React.useRef(open)
-    const [closing, setClosing] = React.useState(false)
-    const [holdAnimate, setHoldAnimate] = React.useState(false)
+    // The slide's end, in a ref: state set at the slide's start re-rendered the whole host in the
+    // slide's first frame, which is the frame that has to stay cheap.
+    const slideEndRef = React.useRef(0)
+    const [, rerender] = React.useReducer((n: number) => n + 1, 0)
     const justToggled = prevOpenRef.current !== open
-    // Deps = `open` ONLY, and guarded on the ref, so re-renders during the hold do not re-arm it
-    // (which would cancel the timer and leave the class stuck on).
+    // Deps = `open` ONLY, and guarded on the ref, so re-renders during the slide do not re-arm it.
     React.useEffect(() => {
         if (prevOpenRef.current === open) return
         prevOpenRef.current = open
-        setHoldAnimate(true)
-        if (!open) setClosing(true)
-        const timer = setTimeout(() => {
-            setHoldAnimate(false)
-            setClosing(false)
-        }, paneSlideHoldMs())
+        const hold = paneSlideHoldMs()
+        slideEndRef.current = performance.now() + hold
+        // One render at the end drops the transition and unmounts a closed pane's content.
+        const timer = setTimeout(rerender, hold)
         return () => clearTimeout(timer)
     }, [open])
+    const sliding = justToggled || performance.now() < slideEndRef.current
     return {
-        animate: (justToggled || holdAnimate) && !dragging,
-        // `justToggled` covers the closing frame itself — `closing` is only set in the effect, so
-        // without it the pane unmounts for one frame and remounts to slide out.
-        keepMounted: open || closing || justToggled,
+        animate: sliding && !dragging,
+        // A closing pane keeps its content for the whole slide, so it slides out instead of
+        // blanking to an empty sliver first.
+        keepMounted: open || sliding,
     }
 }
 
@@ -155,6 +158,7 @@ export function SplitPane({
     barLabel = "Resize panes",
     onResizeStart,
     onResize,
+    onDisplayedSize,
     onResizeEnd,
     pane,
     fill,
@@ -183,6 +187,9 @@ export function SplitPane({
         paneSize > 0 && !paneGrow && measuredTotal !== null
             ? clamp(paneSize, measuredTotal)
             : paneSize
+    React.useEffect(() => {
+        onDisplayedSize?.(displayedSize)
+    }, [displayedSize, onDisplayedSize])
 
     const readTotal = React.useCallback(() => {
         const rect = rootRef.current?.getBoundingClientRect()
@@ -310,7 +317,8 @@ export function SplitPane({
             className={cn(
                 // min-w-0: a flex item floors at min-content otherwise, so a pane whose content has
                 // an intrinsic width would refuse to follow `paneSize` down. The basis is the truth.
-                "relative box-border min-h-0 min-w-0 shrink-0 overflow-hidden",
+                // `isolate`: a pane's own sticky headers stack inside it, never over the divider.
+                "relative isolate box-border min-h-0 min-w-0 shrink-0 overflow-hidden",
                 paneGrow ? "grow" : "grow-0",
                 paneClassName,
             )}
@@ -392,25 +400,26 @@ export function SplitPane({
                 <span
                     aria-hidden
                     className={cn(
-                        "absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-colorBorderSecondary transition-colors duration-150",
+                        "absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-colorBorderSecondary transition-colors duration-150",
                         resizable && "group-hover:bg-colorBorder",
                         dragging && "bg-colorBorder",
                     )}
                 />
             )}
-            {/* Grip pill — quiet at rest, a longer primary tint under the pointer. */}
+            {/* Grip pill — hidden at rest so the seam reads as a 1px line; it shows under the
+                pointer and while dragging. */}
             {resizable && !barHidden ? (
                 <span
                     aria-hidden
                     className={cn(
-                        "absolute left-1/2 top-1/2 h-6 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-colorTextTertiary",
+                        "absolute left-1/2 top-1/2 h-6 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-colorTextTertiary opacity-0",
                         "transition-[background,height,opacity] duration-150",
-                        "group-hover:h-9 group-hover:bg-colorPrimary group-hover:opacity-70",
+                        "group-hover:h-9 group-hover:bg-colorPrimary group-hover:opacity-70 group-focus-visible:opacity-70",
                         dragging && "h-9 bg-colorPrimary opacity-70",
                     )}
                 />
             ) : null}
-            {/* Hit-slop: the visible pixels are 2-4px wide, so the grab target is a wider
+            {/* Hit-slop: the visible line is 1px wide, so the grab target is a wider
                 invisible overlay centred on the seam (antd's dragger was 12px). Its pointer
                 events bubble to the bar's own handlers. */}
             {resizable && !barHidden ? (
@@ -426,7 +435,10 @@ export function SplitPane({
     const fillNode = (
         <div
             data-slot="split-pane-fill"
-            className={cn("box-border min-h-0 min-w-0 flex-auto overflow-hidden", fillClassName)}
+            className={cn(
+                "isolate box-border min-h-0 min-w-0 flex-auto overflow-hidden",
+                fillClassName,
+            )}
         >
             {fill}
         </div>

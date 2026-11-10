@@ -93,18 +93,21 @@ vi.mock("@agenta/ui/components/presentational", async (original) => ({
         children,
         onOpen,
         defaultOpen,
+        summary,
         extra,
     }: {
         title: ReactNode
         children: ReactNode
         onOpen?: () => void
         defaultOpen?: boolean
+        summary?: ReactNode
         extra?: ReactNode
     }) => {
         const [open, setOpen] = useState(defaultOpen)
         return (
             <section aria-label={String(title)}>
                 <button onClick={() => (onOpen ? onOpen() : setOpen(!open))}>{title}</button>
+                {summary}
                 {extra}
                 {!onOpen && open ? children : null}
             </section>

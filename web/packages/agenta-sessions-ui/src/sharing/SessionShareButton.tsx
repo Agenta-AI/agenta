@@ -10,18 +10,19 @@ export interface SessionShareButtonProps {
     onClick: () => void
 }
 
-const tooltipOf = (sharing: SessionSharingState): string => {
+/** Who can reach the chat, in one line. */
+export const sessionShareSummary = (sharing: SessionSharingState): string => {
     if (!sharing.shareable) return copy.tooltipNotShareable
     if (sharing.policy.visibility === "project") return copy.tooltipProject
     if (sharing.grants.length > 0) return copy.tooltipPeople(sharing.grants.length)
     return copy.tooltipPrivate
 }
 
-/** The "Share" button at the right end of the session tab strip. */
+/** The "Share" button for a chat the reader owns. */
 export const SessionShareButton = ({sharing, onClick}: SessionShareButtonProps) => {
     const nobodyAdded = sharing.policy.visibility === "private" && sharing.grants.length === 0
     return (
-        <SimpleTooltip title={tooltipOf(sharing)}>
+        <SimpleTooltip title={sessionShareSummary(sharing)}>
             {/* A disabled button fires no pointer events, so the tooltip hangs on a wrapper. */}
             <span className="inline-flex">
                 <Button variant="outline" size="sm" disabled={!sharing.shareable} onClick={onClick}>

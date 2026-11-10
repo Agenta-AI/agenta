@@ -46,6 +46,8 @@ export interface AgentRevisionStatusProps {
     autoUpdate?: boolean
     /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
     checkKey?: string | null
+    /** Show nothing while all is well; the version then lives on the host's history entry. */
+    hideWhenSettled?: boolean
     className?: string
 }
 
@@ -65,6 +67,7 @@ export const AgentRevisionStatus = ({
     onUpdate,
     autoUpdate = false,
     checkKey,
+    hideWhenSettled = false,
     className,
 }: AgentRevisionStatusProps) => {
     // A commit can land while this surface is closed — the agent commits itself mid-session, or
@@ -161,6 +164,7 @@ export const AgentRevisionStatus = ({
     // two chips they competed. A failed save is the exception — there the status IS the retry
     // control, so it stays separate rather than sharing a button that opens history.
     const merged = version !== null && !!historyWorkflowId && !failed
+    const quiet = hideWhenSettled && settled && !justSaved
 
     const statusBody = (
         <>
@@ -176,7 +180,7 @@ export const AgentRevisionStatus = ({
 
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
-            {merged ? (
+            {merged && !quiet ? (
                 <SimpleTooltip title={`${dot.label} · Version history`}>
                     <button
                         type="button"
@@ -201,7 +205,7 @@ export const AgentRevisionStatus = ({
                 </SimpleTooltip>
             ) : null}
 
-            {!merged && version !== null ? (
+            {!merged && !quiet && version !== null ? (
                 historyWorkflowId ? (
                     <SimpleTooltip title="Version history">
                         <button
@@ -258,7 +262,7 @@ export const AgentRevisionStatus = ({
             ) : null}
 
             {/* Tooltip only on failure: there it carries the error and the retry hint. */}
-            {merged ? null : (
+            {merged || quiet ? null : (
                 <StatusWrap tip={failed ? dot.tip : null}>
                     <span
                         role={failed ? "button" : undefined}

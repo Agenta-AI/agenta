@@ -21,11 +21,21 @@ export interface AgentPageHeaderProps {
     title?: string
     /** Revision controls — the variant picker and/or `AgentRevisionStatus`. Preceded by a divider. */
     revision?: ReactNode
+    /** Centered between the identity and the actions, whatever their widths: the session switcher. */
+    center?: ReactNode
     /** Right-edge cluster: the mode switch, settings, and the desktop's evaluation actions. */
     actions?: ReactNode
     /** The agent's chip. Mobile passes a plain AgentGlyph; the desktop passes an interactive one
      * that opens the icon picker. Omitted, the bar draws the shared robot. */
     icon?: ReactNode
+    /**
+     * The bar holds page tabs in `center`: a darker tab-bar ground, no vertical padding and no
+     * bottom line. The tabs bring their own top room and meet the panes below; the identity and
+     * actions centre on the whole bar.
+     */
+    tabbed?: boolean
+    /** `start`: `center` begins right after the identity and fills the room up to the actions. */
+    centerAlign?: "center" | "start"
     className?: string
 }
 
@@ -52,9 +62,12 @@ export const AgentPageHeader = ({
     name,
     title,
     revision,
+    center,
     actions,
     className,
     icon,
+    tabbed = false,
+    centerAlign = "center",
 }: AgentPageHeaderProps) => {
     return (
         <div
@@ -62,9 +75,17 @@ export const AgentPageHeader = ({
             // 48px against the desktop app's 41 (py-2 + a 24px row + the border) and pushed the
             // ENTIRE config pane 7px down — every ink band below it, uniformly. From `sm` up it
             // sizes to its content, as it always did.
-            className={`flex min-h-[48px] shrink-0 items-center justify-between gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] px-2.5 py-2 sm:min-h-0 sm:gap-4 ${
-                className ?? ""
-            }`}
+            className={`${
+                center
+                    ? centerAlign === "start"
+                        ? "grid grid-cols-[auto_minmax(0,1fr)_max-content] items-center !gap-0"
+                        : "grid grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center"
+                    : "flex items-center justify-between"
+            } min-h-[48px] shrink-0 gap-2 px-2.5 sm:min-h-0 sm:gap-4 ${
+                tabbed
+                    ? "bg-[var(--ag-surface-tab-bar)]"
+                    : "border-x-0 border-t-0 border-b border-solid border-[var(--ag-shell-line)] bg-[var(--ag-surface-raised)] py-2"
+            } ${className ?? ""}`}
         >
             {/* min-w-0 + shrink (not shrink-0): on a phone the identity yields to the actions rather
             than pushing them off the bar; the name truncates instead. */}
@@ -109,11 +130,17 @@ export const AgentPageHeader = ({
                 )}
             </div>
 
+            {center}
+
             {/* flex-1 has a zero basis, so with min-w-0 this cluster gets only what the identity
             leaves and its buttons spill left over the name. Below `sm` it keeps its content width
             and the name truncates instead; from `sm` up min-w-0 lets the desktop's evaluator-tag
             strip scroll inside it. */}
-            <div className="flex min-w-fit flex-1 items-center justify-end gap-2 sm:min-w-0">
+            <div
+                className={`flex min-w-fit flex-1 items-center justify-end gap-2 sm:min-w-0 ${
+                    center && centerAlign === "start" ? "pl-4" : ""
+                }`}
+            >
                 {actions}
             </div>
         </div>

@@ -223,6 +223,14 @@ const VARS: Record<string, [string, string]> = {
         color(p.playgroundSurface.rowHover.light),
         color(p.playgroundSurface.rowHover.dark),
     ],
+    "ag-surface-tab-bar": [
+        color(p.playgroundSurface.tabBar.light),
+        color(p.playgroundSurface.tabBar.dark),
+    ],
+    "ag-surface-tab-hover": [
+        color(p.playgroundSurface.tabHover.light),
+        color(p.playgroundSurface.tabHover.dark),
+    ],
     "ag-surface-raised-shadow": [
         color(p.playgroundSurface.raisedShadow.light),
         color(p.playgroundSurface.raisedShadow.dark),

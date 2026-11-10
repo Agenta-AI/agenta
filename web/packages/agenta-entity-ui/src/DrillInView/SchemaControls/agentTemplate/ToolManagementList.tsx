@@ -113,6 +113,8 @@ export interface ToolManagementListProps {
     onRemoveIntegration?: (row: IntegrationRow) => void
     /** Per-tool draft/validation status (unsaved edits, missing fields). */
     statusFor?: ToolStatusFor
+    /** Shown instead of the empty line: the section's add button. */
+    emptyAction?: ReactNode
 }
 
 /** Shared empty-state line: one quiet line, the section header's "+" is the way to add. */
@@ -128,10 +130,11 @@ export function ToolManagementList({
     onOpenIntegration,
     onRemoveIntegration,
     statusFor,
+    emptyAction,
 }: ToolManagementListProps) {
     if (integrationRows.length === 0) {
         if (disabled) return null
-        return <EmptyLine label="No integrations yet" />
+        return emptyAction ?? <EmptyLine label="No integrations yet" />
     }
 
     return (
@@ -180,6 +183,8 @@ export interface SubagentListProps {
     closeEditor: () => void
     disabled?: boolean
     statusFor?: ToolStatusFor
+    /** Shown instead of the empty line: the section's add button. */
+    emptyAction?: ReactNode
 }
 
 /** The Subagents section body: a flat row list, no sub-header. */
@@ -218,12 +223,13 @@ export function SubagentList({
     closeEditor,
     disabled,
     statusFor,
+    emptyAction,
 }: SubagentListProps) {
     const keys = subagentKeys(entries)
 
     if (entries.length === 0) {
         if (disabled) return null
-        return <EmptyLine label="No subagents yet" />
+        return emptyAction ?? <EmptyLine label="No subagents yet" />
     }
 
     return (

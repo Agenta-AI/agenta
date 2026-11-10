@@ -87,6 +87,7 @@ export function useModelHarness({
     onCredentialRevisionCommitted,
     normalizeSandbox = false,
     onlyCurrentConnection = false,
+    policyPicker,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -94,6 +95,8 @@ export function useModelHarness({
     disabled?: boolean
     withTooltip?: boolean
     revisionId?: string | null
+    /** The Permissions row opens the policy picker, so the row owns its open state. */
+    policyPicker?: {open: boolean; onOpenChange: (open: boolean) => void}
     /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
     buildKitOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
     /** The owning section drawer has unsaved local state outside the workflow draft atom. */
@@ -621,21 +624,37 @@ export function useModelHarness({
 
     const permissionsBody = (
         <>
-            {/* No rail label: the section header already reads "Policy: …", so the select
-                takes the full width. */}
+            {/* The Permissions row's value is plain text. The picker's trigger is an invisible
+                layer over the whole row, so the menu opens as wide as the row; the row itself is
+                what the user clicks or focuses. */}
             {runnerPermissionSchema && policyInFocus ? (
-                <PermissionPolicySelect
-                    value={currentRunnerPermission}
-                    onChange={(v) =>
-                        setSection("runner", {
-                            ...runner,
-                            permissions: {...runnerPermissions, default: v},
-                        })
-                    }
-                    options={runnerPermissionOptions}
-                    disabled={disabled}
-                    aria-label="Policy"
-                />
+                <>
+                    {policyPicker ? (
+                        <span>{permissionPolicyLabel(currentRunnerPermission)}</span>
+                    ) : null}
+                    <PermissionPolicySelect
+                        size="sm"
+                        align="start"
+                        open={policyPicker?.open}
+                        triggerTabIndex={policyPicker ? -1 : undefined}
+                        onOpenChange={policyPicker?.onOpenChange}
+                        triggerClassName={
+                            policyPicker
+                                ? "pointer-events-none absolute inset-0 h-auto w-auto border-transparent bg-transparent opacity-0 shadow-none"
+                                : undefined
+                        }
+                        value={currentRunnerPermission}
+                        onChange={(v) =>
+                            setSection("runner", {
+                                ...runner,
+                                permissions: {...runnerPermissions, default: v},
+                            })
+                        }
+                        options={runnerPermissionOptions}
+                        disabled={disabled}
+                        aria-label="Policy"
+                    />
+                </>
             ) : null}
         </>
     )

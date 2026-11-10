@@ -37,7 +37,7 @@ const channelsOffOf = (connections: ChannelConnections): string[] =>
         agentConnectionsOf(connections, platform).some((connection) => connection.agentOff),
     ).map((platform) => channelPlatformLabel[platform])
 
-export interface AgentPrivacyHostOptions {
+export interface AgentPrivacyOptions {
     agentId: string
     agentName: string
     workspaceId: string
@@ -92,7 +92,7 @@ export const useAgentPrivacyProps = ({
     onChanged,
     access,
     engaged = true,
-}: AgentPrivacyHostOptions & {engaged?: boolean}): AgentPrivacyProps => {
+}: AgentPrivacyOptions & {engaged?: boolean}): AgentPrivacyProps => {
     const project = useCurrentProject(workspaceId, projectId)
     const me = useAtomValue(userAtom)
     const queryClient = useQueryClient()

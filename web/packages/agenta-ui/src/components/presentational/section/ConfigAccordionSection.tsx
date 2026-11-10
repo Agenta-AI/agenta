@@ -156,6 +156,11 @@ export interface ConfigAccordionSectionProps {
      */
     headerBand?: string
     /**
+     * Grouped-list look: no divider and no band; the header fills on hover, and the add control
+     * and caret show on hover, keyboard focus, or while open. Off by default.
+     */
+    quiet?: boolean
+    /**
      * Fade + subtle rise the section in on mount (opacity/transform only — no layout impact). Off by
      * default so existing usages are unchanged; the agent config panel opts in (staggered via
      * `revealDelayMs`) so its sections don't pop in when the panel resolves. Motion-safe.
@@ -181,6 +186,17 @@ export interface ConfigAccordionSectionProps {
     children?: ReactNode
 }
 
+/** A quiet row's value and actions overlap in one grid cell where hover exists. */
+const QUIET_CELL = "[@media(hover:hover)]:[grid-area:1/1]"
+/** Actions: shown on hover, keyboard focus, or while one of their menus is open. */
+const QUIET_REVEAL =
+    "transition-opacity duration-150 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 [@media(hover:hover)]:group-has-[:focus-visible]/row:opacity-100 [@media(hover:hover)]:group-has-[[aria-haspopup][aria-expanded=true]]/row:opacity-100"
+/** Value: the mirror of QUIET_REVEAL, so the two never show at once. */
+const QUIET_HIDE =
+    "transition-opacity duration-150 [@media(hover:hover)]:group-hover/row:opacity-0 [@media(hover:hover)]:group-has-[:focus-visible]/row:opacity-0 [@media(hover:hover)]:group-has-[[aria-haspopup][aria-expanded=true]]/row:opacity-0"
+/** Value of an open row: hidden while its actions stay up. */
+const QUIET_HIDDEN = "[@media(hover:hover)]:opacity-0"
+
 /**
  * A single collapsible section for accordion-style config panels.
  */
@@ -204,7 +220,8 @@ export function ConfigAccordionSection({
     titleBadge,
     preserveTitle = false,
     className,
-    headerBand,
+    headerBand: headerBandProp,
+    quiet = false,
     revealOnMount = false,
     revealDelayMs = 0,
     animateInitialOpen = false,
@@ -240,6 +257,8 @@ export function ConfigAccordionSection({
           : status === "warning"
             ? "var(--ag-colorWarning)"
             : "var(--ag-c-586673)"
+    // A quiet row never bands: its hover fill and group spacing do that job.
+    const headerBand = quiet ? undefined : headerBandProp
     const isControlled = open !== undefined
     // With `animateInitialOpen`, a default-open section still MOUNTS closed and expands via the
     // effect below, so its first paint is the collapsed row (matching skeletons), not the content.
@@ -314,6 +333,43 @@ export function ConfigAccordionSection({
             iconNode
         )
 
+    // The caret's axis nudge lines it up in the reserved column; a quiet row has no column, so
+    // its ink ends on the value's right edge instead.
+    const quietCaret = quiet ? "!translate-x-0" : undefined
+    const affordanceNode = locked ? (
+        lockedReason ? (
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Lock size={14} className="text-[var(--ag-zinc-5)]" />
+                    </TooltipTrigger>
+                    <TooltipContent>{lockedReason}</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        ) : (
+            <Lock size={14} className="text-[var(--ag-zinc-5)]" />
+        )
+    ) : opensDrawer ? (
+        <ConfigRowCaret className={quietCaret} />
+    ) : collapsible ? (
+        <ConfigRowCaret open={isOpen} className={quietCaret} />
+    ) : null
+    const summaryNode = summary && (!summaryCollapsedOnly || !isOpen) ? summary : null
+    const extraNode = extra ? (
+        // `-my-2` keeps a full-height control (e.g. a 32px antd add-button) from stretching the
+        // header past its text-driven height, so every row stays the same height.
+        <span
+            className="-my-2 flex items-center"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            onKeyUp={(e) => e.stopPropagation()}
+        >
+            {extra}
+        </span>
+    ) : null
+    // An open quiet row keeps its actions up; its value would only repeat what is below.
+    const actionsShown = quiet && isOpen && collapsible && !opensDrawer
+
     const sectionInner = (
         <div
             className={cn(
@@ -342,7 +398,9 @@ export function ConfigAccordionSection({
                                         : "border-[var(--ag-c-EAEFF5)]",
                                 ),
                       )
-                    : !noDivider && "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
+                    : !noDivider &&
+                          !quiet &&
+                          "border-0 border-b border-solid border-[var(--ag-c-EAEFF5)]",
                 className,
             )}
         >
@@ -351,7 +409,12 @@ export function ConfigAccordionSection({
             <div
                 onClick={headerActs ? activate : undefined}
                 className={cn(
-                    "flex items-center justify-between gap-2 py-3 select-none",
+                    "flex items-center justify-between gap-2 select-none",
+                    quiet
+                        ? "group/row relative -mx-2 rounded-md px-2 py-2 transition-colors duration-150 hover:bg-[var(--ag-colorFillQuaternary)]"
+                        : "py-3",
+                    // An open quiet row keeps its hover fill, so it reads as the one in use.
+                    quiet && isOpen && "bg-[var(--ag-colorFillQuaternary)]",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
                     // Header fill: bled to the section edges and layered over the section's body fill so
@@ -420,62 +483,78 @@ export function ConfigAccordionSection({
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
 
-                <ConfigRowTrailing
-                    className={preserveTitle ? "min-w-0" : "shrink-0"}
-                    // A non-collapsible row never carries an affordance, so it keeps no column.
-                    reserve={collapsible || opensDrawer || locked}
-                    affordance={
-                        locked ? (
-                            lockedReason ? (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Lock size={14} className="text-[var(--ag-zinc-5)]" />
-                                        </TooltipTrigger>
-                                        <TooltipContent>{lockedReason}</TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            ) : (
-                                <Lock size={14} className="text-[var(--ag-zinc-5)]" />
-                            )
-                        ) : opensDrawer ? (
-                            <ConfigRowCaret />
-                        ) : collapsible ? (
-                            <ConfigRowCaret open={isOpen} />
-                        ) : null
-                    }
-                >
-                    {summary && (!summaryCollapsedOnly || !isOpen) ? (
-                        // antd `Text type="secondary"` is colorTextDescription, not colorTextSecondary.
-                        // The title gives way, not the summary — a percentage cap here resolved
-                        // against this shrink-to-fit cluster, i.e. the text's own width, so it
-                        // clipped even "1 file" to "1 f…". `preserveTitle` swaps which half yields.
-                        <span
-                            className={cn(
-                                "text-right text-xs text-colorTextDescription",
-                                preserveTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap",
-                            )}
-                        >
-                            {summary}
-                        </span>
-                    ) : null}
-                    {extra ? (
-                        // `-my-2` keeps a full-height control (e.g. a 32px antd add-button) from
-                        // stretching the header past its text-driven height, so every section row
-                        // stays the same height whether or not it has an `extra` action.
-                        <span
-                            className="-my-2 flex items-center"
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => e.stopPropagation()}
-                            onKeyUp={(e) => e.stopPropagation()}
-                        >
-                            {extra}
-                        </span>
-                    ) : null}
-                </ConfigRowTrailing>
+                {quiet ? (
+                    // Value and actions share one right-aligned cell and cross-fade on hover,
+                    // so every row keeps one right edge. Without hover they sit side by side.
+                    <div
+                        className={cn(
+                            "flex items-center gap-1.5 [@media(hover:hover)]:grid [@media(hover:hover)]:justify-items-end",
+                            preserveTitle ? "min-w-0" : "shrink-0",
+                        )}
+                    >
+                        {summaryNode ? (
+                            <span
+                                className={cn(
+                                    QUIET_CELL,
+                                    "text-right text-xs text-colorTextDescription",
+                                    preserveTitle
+                                        ? "min-w-0 truncate"
+                                        : "shrink-0 whitespace-nowrap",
+                                    actionsShown ? QUIET_HIDDEN : QUIET_HIDE,
+                                )}
+                            >
+                                {summaryNode}
+                            </span>
+                        ) : null}
+                        {extraNode || affordanceNode ? (
+                            <span
+                                className={cn(
+                                    QUIET_CELL,
+                                    // No gap: the add button's own padding already spaces it.
+                                    "flex items-center",
+                                    !actionsShown && QUIET_REVEAL,
+                                )}
+                            >
+                                {extraNode}
+                                {affordanceNode ? (
+                                    <span className="flex h-[14px] w-[14px] items-center justify-end">
+                                        {affordanceNode}
+                                    </span>
+                                ) : null}
+                            </span>
+                        ) : null}
+                    </div>
+                ) : (
+                    <ConfigRowTrailing
+                        className={preserveTitle ? "min-w-0" : "shrink-0"}
+                        // A non-collapsible row never carries an affordance, so it keeps no column.
+                        reserve={collapsible || opensDrawer || locked}
+                        affordance={affordanceNode}
+                    >
+                        {summaryNode ? (
+                            // antd `Text type="secondary"` is colorTextDescription, not
+                            // colorTextSecondary. The title gives way, not the summary — a
+                            // percentage cap here resolved against this shrink-to-fit cluster,
+                            // i.e. the text's own width, so it clipped even "1 file" to "1 f…".
+                            // `preserveTitle` swaps which half yields.
+                            <span
+                                className={cn(
+                                    "text-right text-xs text-colorTextDescription",
+                                    preserveTitle
+                                        ? "min-w-0 truncate"
+                                        : "shrink-0 whitespace-nowrap",
+                                )}
+                            >
+                                {summaryNode}
+                            </span>
+                        ) : null}
+                        {extraNode}
+                    </ConfigRowTrailing>
+                )}
             </div>
 
-            {opensDrawer ? null : (
+            {/* No body at all without content: a non-collapsible value row stays "open". */}
+            {opensDrawer || children == null ? null : (
                 // The 4px bleed keeps a focused control's 3px ring inside the collapse's clip.
                 <HeightCollapse open={isOpen} className="-mx-1" contentClassName="px-1">
                     {/* Top padding gives the body room below the header band (which carries the

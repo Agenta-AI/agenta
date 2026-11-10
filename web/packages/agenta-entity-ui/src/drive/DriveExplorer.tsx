@@ -125,6 +125,7 @@ export function DriveExplorer({
     initialShowTree = true,
     treePersistKey,
     closeVariant = "close",
+    headerClassName,
 }: {
     drive: SessionDriveData
     /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
@@ -160,6 +161,8 @@ export function DriveExplorer({
     /** Remember the tree's shown/hidden state and width across opens under this key. */
     treePersistKey?: string
     closeVariant?: "close" | "collapse" | "back"
+    /** Classes for the header row: a side pane matches it to the bar beside it. */
+    headerClassName?: string
 }) {
     const chrome = chromeProp ?? onClose != null
     const rootLabel = driveRootLabel(drive.mount)
@@ -847,6 +850,7 @@ export function DriveExplorer({
             {chrome ? (
                 <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
                     <DriveHeader
+                        className={headerClassName}
                         selectedPath={selectedPath}
                         isFolder={selectedIsFolder}
                         rootLabel={rootLabel}

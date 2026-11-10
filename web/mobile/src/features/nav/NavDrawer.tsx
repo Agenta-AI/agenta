@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {memo, useEffect, useState} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
@@ -24,7 +24,7 @@ const drawerExpandedAtom = atom(false)
  * rail's own width. The hamburger hides at lg where the rail takes over, so a viewport never
  * shows both entries to the same nav.
  */
-export const NavDrawer = ({
+const NavDrawerView = ({
     workspaceId,
     projectId,
     scope: scopeOverride,
@@ -91,3 +91,6 @@ export const NavDrawer = ({
         </Sheet>
     )
 }
+
+/** Memoized: it sits in the session bar, which re-renders as it refits. */
+export const NavDrawer = memo(NavDrawerView)

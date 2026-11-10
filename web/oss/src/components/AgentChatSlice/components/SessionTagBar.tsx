@@ -1,10 +1,9 @@
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {useSessionPins} from "@agenta/sessions/state"
 import {
     SessionRowContextMenu,
     SessionTab,
-    SessionTabDragItem,
     SessionTabStrip,
     withSessionShortcutKeys,
     withShortcutKey,
@@ -15,18 +14,14 @@ import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowLineRight, PencilSimple, X, XSquare} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
-import {AnimatePresence, MotionConfig} from "motion/react"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {SESSION_SPRING, TAG_VARIANTS} from "../assets/sessionMotion"
 import {useInlineRenameRequest} from "../hooks/useInlineRenameRequest"
 import {useSessionActions, type SessionMenuItem} from "../hooks/useSessionActions"
 import {type SessionDotStatus, sessionDotStatusAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
-import {
-    type AgentChatSession,
-    reorderSessionsAtomFamily,
-    sessionFirstUserTextAtomFamily,
-} from "../state/sessions"
+import {type AgentChatSession, sessionFirstUserTextAtomFamily} from "../state/sessions"
 import {renameSessionRequestAtom} from "../state/uiRequests"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
@@ -173,10 +168,8 @@ const SessionTag = memo(function SessionTag({
         mountedRef.current = true
     }, [active])
     return (
-        // Wrapper collapses its width + gap margin on enter/exit so neighbours close up with no snap,
-        // and doubles as the tab's drag slot (arranging tabs writes the scope's open-ids order).
-        <SessionTabDragItem
-            id={session.id}
+        // Wrapper collapses its width + gap margin on enter/exit so neighbours close up with no snap.
+        <motion.div
             ref={tabRef}
             variants={TAG_VARIANTS}
             initial="initial"
@@ -250,7 +243,7 @@ const SessionTag = memo(function SessionTag({
             {showDivider && (
                 <span aria-hidden className="mx-1.5 h-4 w-px shrink-0 bg-colorBorderSecondary" />
             )}
-        </SessionTabDragItem>
+        </motion.div>
     )
 })
 
@@ -299,8 +292,6 @@ const SessionTagBar = ({
     // Right-click a chip for the same verbs the sessions list offers. Scope IS the owning agent,
     // so the local tab cache and the server stay in step.
     const scope = useChatScopeKey()
-    const reorderSessions = useSetAtom(reorderSessionsAtomFamily(scope))
-    const tabIds = useMemo(() => sessions.map((session) => session.id), [sessions])
     const {isPinned} = useSessionPins()
     const {menuItems, onMenuClick} = useSessionActions()
     // Rename edits the chip in place, and the chip owns that state — so the menu asks for it the
@@ -407,7 +398,6 @@ const SessionTagBar = ({
                 extra={extra}
                 leadingExtra={leftExtra}
                 remeasureKey={sessions}
-                reorder={{ids: tabIds, onReorder: reorderSessions}}
             >
                 <AnimatePresence initial={false}>
                     {sessions.map((session, index) => (

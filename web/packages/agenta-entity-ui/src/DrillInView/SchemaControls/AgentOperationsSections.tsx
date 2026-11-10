@@ -15,7 +15,7 @@
 import {useCallback, type ReactNode} from "react"
 
 import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
-import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
+import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {Lightning} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
@@ -29,9 +29,13 @@ import {
     type TriggerOwnerRef,
 } from "./TriggerManagementSection"
 
+// A group title like the config rows' (Agent, Capabilities): a hairline, then the same title
+// spacing, on the panel's own sheet, so the regions read as more groups of one list.
 const barClass = (sticky: boolean) =>
-    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
-const titleClass = "text-[13px] font-semibold text-colorText"
+    `mt-1.5 flex items-center justify-between overflow-hidden border-0 border-t border-solid border-[var(--ag-c-EAEFF5)] px-4 pb-1.5 pt-3.5 ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-content)]`
+const titleClass = "text-xs text-colorTextTertiary"
+// Each region is one white sheet, so the space above its title line is not the panel's tint.
+const SECTION_SHEET = "bg-[var(--ag-surface-section-content)]"
 
 /** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */
 export function AgentRegionHeaderBar({
@@ -66,7 +70,7 @@ const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
 export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
     return (
         <>
-            <section className="flex flex-col" aria-busy>
+            <section className={`flex flex-col ${SECTION_SHEET}`} aria-busy>
                 <AgentRegionHeaderBar title="Automations" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
@@ -77,7 +81,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                     <SkeletonSectionRow title={82} value={44} withAdd />
                 </div>
             </section>
-            <section className="flex grow flex-col" aria-busy>
+            <section className={`flex grow flex-col ${SECTION_SHEET}`} aria-busy>
                 <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
@@ -134,11 +138,13 @@ export function AgentOperationsSections({
 
     return (
         <>
-            <section className="flex flex-col">
+            <section className={`flex flex-col ${SECTION_SHEET}`}>
                 <AgentRegionHeaderBar title="Automations" sticky={sticky}>
                     {/* No reserved affordance column: this region has no caret, and the empty
                         14px slot only held the "+" off the bar's right edge. */}
-                    <ConfigRowTrailing reserve={false}>
+                    {/* `-mr-[7px]`: the icon button's padding, so the "+" glyph lands on the
+                        rows' right edge. */}
+                    <ConfigRowTrailing reserve={false} className="-my-1.5 -mr-[7px]">
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             {countSummary(triggerCount, "automation")}
                         </span>
@@ -160,13 +166,36 @@ export function AgentOperationsSections({
                         disabled={disabled}
                         automationDrawer={automationDrawer}
                         onOpenRunHistory={onOpenRunHistory}
+                        // Say what automations are, not only that there are none.
+                        emptyState={
+                            <span className="text-xs leading-5 text-colorTextTertiary">
+                                Run this agent on a schedule or an event.{" "}
+                                <CreateWithAIAddMenu
+                                    label="Add automation"
+                                    starterPrompt="I want an automation that"
+                                    onManual={onAdd}
+                                    manualTitle="Create manually"
+                                    manualHint="Run on a schedule or an event"
+                                    manualIcon={<Lightning size={16} />}
+                                    align="start"
+                                    trigger={
+                                        <button
+                                            type="button"
+                                            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-colorTextSecondary underline decoration-colorBorder underline-offset-2 hover:text-colorText hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ag-controlOutline)]"
+                                        >
+                                            Add one
+                                        </button>
+                                    }
+                                />
+                            </span>
+                        }
                     />
                 </div>
             </section>
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
-            <section className="flex grow flex-col">
+            <section className={`flex grow flex-col ${SECTION_SHEET}`}>
                 <AgentRegionHeaderBar title="Recent files" sticky={sticky}>
                     {storageHeader}
                 </AgentRegionHeaderBar>

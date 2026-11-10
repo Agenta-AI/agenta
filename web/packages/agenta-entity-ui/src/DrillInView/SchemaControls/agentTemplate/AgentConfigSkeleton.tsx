@@ -15,11 +15,14 @@ export const SkeletonSectionRow = ({
     value,
     withAdd,
     divider,
+    quiet = false,
 }: {
     title: number
     value: number
     withAdd?: boolean
     divider?: boolean
+    /** The grouped panel's 36px, divider-free row. */
+    quiet?: boolean
 }) => (
     <div
         className={
@@ -27,7 +30,9 @@ export const SkeletonSectionRow = ({
             // icon, title + summary + chevron, and the same 44px text-driven header height (min-h
             // pins it so the 16px placeholders don't collapse the row) — a divider row then totals
             // 45px like a real bordered section, and the last (no-divider) row is 44px like Advanced.
-            "flex min-h-[44px] items-center gap-2 overflow-hidden py-3" +
+            (quiet
+                ? "flex min-h-[36px] items-center gap-2 overflow-hidden py-2"
+                : "flex min-h-[44px] items-center gap-2 overflow-hidden py-3") +
             (divider ? " border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]" : "")
         }
     >
@@ -65,7 +70,7 @@ const AgentConfigSkeleton = () => (
                 title={row.title}
                 value={row.value}
                 withAdd={row.withAdd}
-                divider={i < ROWS.length - 1}
+                quiet
             />
         ))}
     </div>

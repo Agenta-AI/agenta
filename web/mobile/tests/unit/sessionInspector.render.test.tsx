@@ -1,83 +1,120 @@
 // @vitest-environment jsdom
+/** "Inspect session" lives in the session bar's ⋯: a menu on a desktop, a sheet on a phone. */
+import {act} from "react"
+
 import {activeUserIdAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
-import {flushSync} from "react-dom"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {InspectSessionButton} from "@/features/chat/InspectSessionButton"
+import {SessionMoreMenu} from "@/features/chat/SessionMoreMenu"
+;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-vi.mock("@agenta/entities/session", async () => {
+vi.mock("@agenta/entities/session", async (importOriginal) => {
     const {atom} = await import("jotai")
     const recordsAtom = atom({data: [], isLoading: false, isError: false})
     return {
+        ...(await importOriginal<typeof import("@agenta/entities/session")>()),
         sessionRecordsQueryFamily: () => recordsAtom,
         revalidateSessionRecordsAtom: atom(null, () => undefined),
     }
 })
 
-vi.mock("@agenta/ui/ui", () => ({
-    Button: ({children, ...props}: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-        <button {...props}>{children}</button>
-    ),
-    SimpleTooltip: ({children}: {children: React.ReactNode}) => children,
-    Sheet: ({open, children}: {open: boolean; children: React.ReactNode}) =>
-        open ? <div>{children}</div> : null,
-    SheetContent: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
-    SheetDescription: ({children}: {children: React.ReactNode}) => <p>{children}</p>,
-    SheetHeader: ({children}: {children: React.ReactNode}) => <header>{children}</header>,
-    SheetTitle: ({children}: {children: React.ReactNode}) => <h2>{children}</h2>,
+vi.mock("@agenta/entity-ui/drive", () => ({
+    useSessionFilesPane: () => ({toggle: () => undefined}),
 }))
 
-vi.mock("@phosphor-icons/react", () => ({
-    ArrowClockwise: () => null,
-    DownloadSimple: () => null,
-    MagnifyingGlass: () => null,
+vi.mock("@/features/chat/useSessionHeader", () => ({
+    useSessionHeader: () => ({data: null}),
 }))
-;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
-    true
+
+// Node's own `localStorage` global shadows jsdom's and has no storage file here.
+const storage = new Map<string, string>()
+vi.stubGlobal("localStorage", {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => void storage.set(key, value),
+    removeItem: (key: string) => void storage.delete(key),
+})
+
+vi.stubGlobal(
+    "ResizeObserver",
+    class {
+        observe = vi.fn()
+        unobserve = vi.fn()
+        disconnect = vi.fn()
+    },
+)
 
 let root: Root | undefined
 let host: HTMLDivElement | undefined
 
 afterEach(() => {
-    if (root) flushSync(() => root!.unmount())
+    act(() => root?.unmount())
     root = undefined
     host?.remove()
     host = undefined
-    localStorage.clear()
+    storage.clear()
 })
 
-const renderButton = (enabled: boolean) => {
+const renderMenu = ({enabled, phone}: {enabled: boolean; phone: boolean}) => {
     const store = createStore()
     store.set(activeUserIdAtom, "qa-user")
     store.set(playgroundInspectorEnabledAtom, enabled)
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
-    flushSync(() => {
+    act(() => {
         root!.render(
             <Provider store={store}>
-                <InspectSessionButton sessionId="session-123" />
+                <SessionMoreMenu
+                    sessionId="session-123"
+                    entityId={null}
+                    agentName="Support triage"
+                    agentHidden
+                    hasSessions
+                    projectId="project-1"
+                    phone={phone}
+                    onOpenShortcuts={() => undefined}
+                />
             </Provider>,
         )
     })
-    return host
 }
 
-describe("mobile session inspector control", () => {
-    it("stays hidden while the debug preference is off", () => {
-        expect(renderButton(false).querySelector('[aria-label="Inspect session"]')).toBeNull()
+/** The desktop menu opens on pointerdown, the phone sheet on click. */
+const openMenu = async () => {
+    const trigger = document.querySelector<HTMLButtonElement>('[aria-label="More actions"]')!
+    await act(async () => {
+        trigger.dispatchEvent(
+            new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+        )
+        trigger.click()
+    })
+}
+
+const action = (label: string) =>
+    [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find((element) =>
+        element.textContent?.includes(label),
+    )
+
+describe.each([
+    ["desktop menu", false, "Keyboard shortcuts"],
+    ["phone sheet", true, "Files"],
+] as const)("mobile session inspector in the %s", (_surface, phone, otherAction) => {
+    it("stays out while the debug preference is off", async () => {
+        renderMenu({enabled: false, phone})
+        await openMenu()
+
+        expect(action(otherAction)).toBeDefined()
+        expect(action("Inspect session")).toBeUndefined()
     })
 
-    it("opens the current session inspector while the debug preference is on", () => {
-        const view = renderButton(true)
-        const trigger = view.querySelector<HTMLButtonElement>('[aria-label="Inspect session"]')
-        expect(trigger).not.toBeNull()
+    it("opens the current session inspector while the debug preference is on", async () => {
+        renderMenu({enabled: true, phone})
+        await openMenu()
+        await act(async () => action("Inspect session")!.click())
 
-        flushSync(() => trigger!.click())
-
-        expect(view.textContent).toContain("Session inspector")
-        expect(view.textContent).toContain("session-123")
+        expect(document.body.textContent).toContain("Session inspector")
+        expect(document.body.textContent).toContain("session-123")
     })
 })

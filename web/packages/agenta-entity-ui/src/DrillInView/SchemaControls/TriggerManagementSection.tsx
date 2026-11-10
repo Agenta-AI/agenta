@@ -79,6 +79,8 @@ export interface TriggerManagementSectionProps {
      * cannot import it directly (that package depends on this one), so the host passes it in.
      */
     automationDrawer: ReactNode
+    /** Shown instead of the empty line, e.g. a line that explains automations and adds one. */
+    emptyState?: ReactNode
 }
 
 export function TriggerManagementSection({
@@ -86,6 +88,7 @@ export function TriggerManagementSection({
     disabled,
     onOpenRunHistory,
     automationDrawer,
+    emptyState,
 }: TriggerManagementSectionProps) {
     const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
 
@@ -326,7 +329,7 @@ export function TriggerManagementSection({
     )
 
     return (
-        <div className="flex flex-col gap-2 py-3">
+        <div className="flex flex-col gap-2 pb-3 pt-0.5">
             {/* One list, not a Subscriptions section beside a Schedules section: both are
                 automations, the region header above already names them, and two accordions for
                 what is usually one or two rows spent more height on their own headers than on
@@ -361,10 +364,11 @@ export function TriggerManagementSection({
                 </div>
             ) : null}
 
-            {scopedSubscriptions.length === 0 && scopedSchedules.length === 0 && !disabled ? (
-                // One quiet line; the header's "+" is the way to add one.
-                <span className="text-xs text-colorTextTertiary">No automations yet</span>
-            ) : null}
+            {scopedSubscriptions.length === 0 && scopedSchedules.length === 0 && !disabled
+                ? (emptyState ?? (
+                      <span className="text-xs text-colorTextTertiary">No automations yet</span>
+                  ))
+                : null}
 
             {/* Propless, atom-driven drawers — mounted once; they manage their own
                 visibility. App browsing + connecting now happens inside the subscription

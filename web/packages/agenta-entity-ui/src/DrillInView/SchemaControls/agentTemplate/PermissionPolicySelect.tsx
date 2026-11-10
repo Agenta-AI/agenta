@@ -53,6 +53,8 @@ export interface PermissionPolicySelectProps {
      */
     triggerTitle?: string
     size?: "sm" | "default"
+    /** -1 when a surrounding row opens the menu, so focus lands on the row only. */
+    triggerTabIndex?: number
     /** Which trigger edge the menu lines up with. A row's trailing chip opens leftward ("end"). */
     align?: "start" | "end"
 }
@@ -71,6 +73,7 @@ export function PermissionPolicySelect({
     triggerTitle,
     size,
     align,
+    triggerTabIndex,
 }: PermissionPolicySelectProps) {
     const selected = options.find((option) => option.value === value)
     return (
@@ -81,7 +84,12 @@ export function PermissionPolicySelect({
             open={open}
             onOpenChange={onOpenChange}
         >
-            <SelectTrigger className={triggerClassName} size={size} aria-label={ariaLabel}>
+            <SelectTrigger
+                className={triggerClassName}
+                size={size}
+                aria-label={ariaLabel}
+                tabIndex={triggerTabIndex}
+            >
                 <SelectValue>
                     <span className="flex min-w-0 items-center gap-2">
                         {selected?.icon}

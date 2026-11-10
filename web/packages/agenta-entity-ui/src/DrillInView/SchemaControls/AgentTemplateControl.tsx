@@ -82,6 +82,7 @@ import {
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
+import {EmptyAddButton} from "./agentTemplate/EmptyAddButton"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
 import {
     embedRevisionVersion,
@@ -191,6 +192,11 @@ const useNoHeadVersions = (): Record<string, string> => EMPTY_HEAD_VERSIONS
 const EMPTY_HEAD_VERSIONS: Record<string, string> = {}
 
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
+
+/** The panel's row groups, in display order. Advanced closes the Access group. */
+const BRAIN_GROUP = {id: "brain", title: "Brain"}
+const CAPABILITIES_GROUP = {id: "capabilities", title: "Capabilities"}
+const ACCESS_GROUP = {id: "access", title: "Access"}
 
 export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
@@ -1093,6 +1099,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     // Shared by both subagent-list branches, which differ only by wrapper.
     const subagentListProps = {
+        emptyAction: openSubagentSelector ? (
+            <EmptyAddButton label="Add subagent" onClick={openSubagentSelector} />
+        ) : undefined,
         entries: subagentTools,
         openEdit,
         removeItem,
@@ -1107,9 +1116,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
     // tabs / cards) without duplicating the content. Schema-gated, like before.
+    // The Permissions row opens the policy picker it shows as its value.
+    const [policyPickerOpen, setPolicyPickerOpen] = useState(false)
+    const policyPicker = useMemo(
+        () => ({open: policyPickerOpen, onOpenChange: setPolicyPickerOpen}),
+        [policyPickerOpen],
+    )
     const sections = [
         mh.hasModelOrHarness && {
             key: "model-harness",
+            group: BRAIN_GROUP,
             icon: <Cpu size={16} />,
             title: "Model",
             titleBadge: modelHarnessBadge,
@@ -1145,6 +1161,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         hasInstructions && {
             key: "instructions",
+            group: BRAIN_GROUP,
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
             indicator: sectionIndicator("instructions"),
@@ -1164,6 +1181,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
                 key: "tools",
+                group: CAPABILITIES_GROUP,
                 icon: <Wrench size={16} />,
                 title: "Integrations",
                 summary: countSummary(integrationCount, "integration"),
@@ -1187,6 +1205,21 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         integrationRows={integrationRows}
                         disabled={disabled}
                         statusFor={toolStatusFor}
+                        emptyAction={
+                            openIntegrationDrawer ? (
+                                <CreateWithAIAddMenu
+                                    label="Add integration"
+                                    starterPrompt="I want to connect"
+                                    onManual={openIntegrationDrawer}
+                                    manualTitle="Browse integrations"
+                                    manualHint="Pick an app and its actions"
+                                    manualIcon={<Wrench size={16} />}
+                                    align="start"
+                                    matchTriggerWidth
+                                    trigger={<EmptyAddButton label="Add integration" />}
+                                />
+                            ) : undefined
+                        }
                         onOpenIntegration={gatewayTools?.enabled ? openIntegrationRow : undefined}
                         onRemoveIntegration={(row) => {
                             removeIntegration(row)
@@ -1199,6 +1232,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasTools &&
             (Boolean(openSubagentSelector) || subagentCount > 0) && {
                 key: "subagents",
+                group: CAPABILITIES_GROUP,
                 icon: <Robot size={16} />,
                 title: "Subagents",
                 summary: countSummary(subagentCount, "subagent"),
@@ -1217,6 +1251,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             },
         hasMcp && {
             key: "mcp",
+            group: CAPABILITIES_GROUP,
             icon: <Plugs size={16} />,
             title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
@@ -1233,6 +1268,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     removeItem={(index: number) => removeItem("mcp", index)}
                     closeEditor={closeEditor}
                     statusFor={mcpStatusFor}
+                    emptyAction={
+                        <EmptyAddButton label="Add MCP server" onClick={handleAddMcpServer} />
+                    }
                     addOpen={addMcpOpen}
                     onAddClose={() => setAddMcpOpen(false)}
                     onAddOpen={() => setAddMcpOpen(true)}
@@ -1241,6 +1279,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         hasSkills && {
             key: "skills",
+            group: CAPABILITIES_GROUP,
             icon: <GraduationCap size={16} />,
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
@@ -1271,21 +1310,36 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         closeEditor={closeEditor}
                         disabled={disabled}
                         statusFor={skillStatusFor}
+                        emptyAction={
+                            <CreateWithAIAddMenu
+                                label="Add skill"
+                                starterPrompt="I want a skill that"
+                                onManual={handleAddSkill}
+                                manualTitle="Add manually"
+                                manualHint="From your library, or write one"
+                                manualIcon={<GraduationCap size={16} />}
+                                align="start"
+                                matchTriggerWidth
+                                trigger={<EmptyAddButton label="Add skill" />}
+                            />
+                        }
                     />
                 </>
             ),
         },
         mh.hasPermissions && {
             key: "permissions",
+            group: ACCESS_GROUP,
             icon: <ShieldCheck size={16} />,
             title: "Permissions",
-            summary: mh.runnerPermissionSummary,
-            indicator: sectionIndicator("permissions"),
-            defaultOpen: true,
-            content: (
+            // One row whose value is the policy; the whole row opens the picker, like Model and
+            // Advanced open theirs.
+            onOpen: disabled ? undefined : () => setPolicyPickerOpen(true),
+            summary: (
                 <ChangedPathsProvider changes={panelChangedPaths}>
                     <ModelHarnessSectionBody
                         section="permissions"
+                        policyPicker={policyPicker}
                         schema={schema}
                         config={config}
                         onChange={onChange}
@@ -1295,9 +1349,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     />
                 </ChangedPathsProvider>
             ),
+            indicator: sectionIndicator("permissions"),
+            content: null,
         },
         mh.hasAdvanced && {
             key: "advanced",
+            group: ACCESS_GROUP,
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
             titleBadge: advancedBadge,

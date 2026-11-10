@@ -50,7 +50,7 @@ const routeSessionId = (query: typeof Router.query): string | undefined => {
  * closing its tab follows. Without it the verb landed, the rail dropped the row, and the page
  * stayed parked on a session no list carries, retitled "New session" over its old transcript.
  *
- * Lands on the nearest surviving tab; a blank session with the same agent when it was the only
+ * Lands on the nearest session in the list; a blank session with the same agent when it was the only
  * one; the sessions list when the session's agent is unknown. Resolves once the route change has
  * settled. Bound to the route, not to a chat surface, so the nav drawer's rows use it too.
  */
@@ -86,7 +86,10 @@ export const useLeaveSession = (base: string) => {
             pendingCloseRef.current = {sessionId, appId}
             // Read at call time: the rendered order changes often, and this must not.
             const openTabIds = store.get(renderedSessionTabsAtomFamily(scope))
-            const survivor = nearestSurvivingTab(openTabIds, new Set([sessionId]), sessionId)
+            // The refetch after the verb can drop the row first; then any other session will do.
+            const survivor =
+                nearestSurvivingTab(openTabIds, new Set([sessionId]), sessionId) ||
+                openTabIds.find((id) => id !== sessionId)
             if (survivor && survivor !== sessionId) {
                 await settle(router.push(sessionRoutePath(base, survivor)))
             } else if (appId) {

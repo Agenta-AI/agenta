@@ -114,7 +114,7 @@ const ContentPaneSkeleton = ({mode}: {mode: "grid" | "preview"}) => (
 
 /** Row 1's 48px band, matching DriveHeader. */
 const ChromeSkeleton = () => (
-    <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
+    <div className="flex h-10 shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
         <div className={`h-6 w-6 shrink-0 ${bar}`} />
         <div className={`h-6 w-6 shrink-0 ${bar}`} />
         <div className={`ml-1 h-3.5 w-40 ${bar}`} />

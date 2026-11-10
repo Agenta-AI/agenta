@@ -40,12 +40,7 @@ export {
     useCloseSessionTabs,
     type SessionTabCloseTargets,
 } from "./openTabs"
-export {
-    sessionTabOrderAtomFamily,
-    setSessionTabOrderAtom,
-    applySessionTabOrder,
-    useSessionTabOrderSeed,
-} from "./tabOrder"
+export {sessionTabOrderAtomFamily, applySessionTabOrder, useSessionTabOrderSeed} from "./tabOrder"
 export {
     sessionListRequestFilters,
     sessionListIdGroupLimit,

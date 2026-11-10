@@ -542,6 +542,9 @@ export const playgroundSurface = {
     chip: {light: "#ebeaea", dark: "#2a2a2e"},
     chipBorder: {light: HAIRLINE, dark: "#303035"},
     rowHover: {light: GROUND, dark: "#212327"},
+    // Session tab bar: a step below the canvas, so the open tab (canvas) reads as joined to the page.
+    tabBar: {light: "#f3f2ef", dark: "#1a1b1e"},
+    tabHover: {light: "#eae9e6", dark: "#24262a"},
     // Brand accent. Light retires lime #c2d54a for the focus/send green-yellow; dark
     // chrome is frozen by the recolor spec, so it keeps the shipped lime.
     accent: {light: FOCUS_LIME, dark: "#c2d54a"},

@@ -16,6 +16,7 @@ export function ConfigItemList({
     disabled,
     statusFor,
     extraFor,
+    emptyAction,
 }: {
     kind: ItemKind
     items: unknown[]
@@ -30,6 +31,8 @@ export function ConfigItemList({
      * "Login expired" through it; `ItemRow` has always had the slot.
      */
     extraFor?: (item: unknown, index: number) => ReactNode
+    /** Shown instead of the empty line: the section's add button. */
+    emptyAction?: ReactNode
 }) {
     const def = ITEM_KINDS[kind]
     if (items.length > 0) {
@@ -54,6 +57,6 @@ export function ConfigItemList({
         )
     }
     if (disabled) return null
-    // One quiet line; the section header's "+" is the way to add one.
-    return <span className="text-xs text-colorTextTertiary">{def.emptyLabel}</span>
+    // The section's add button when the host gives one; otherwise one quiet line.
+    return emptyAction ?? <span className="text-xs text-colorTextTertiary">{def.emptyLabel}</span>
 }

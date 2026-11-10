@@ -10,7 +10,15 @@ const MUTED = "text-xs text-[var(--ag-colorTextTertiary)]"
 
 function StorageFilesToggle({scope, sessionId}: {scope: string; sessionId: string}) {
     const {open, toggle} = useSessionFilesPane(scope, sessionId)
-    return <FilesPaneToggle open={open} onToggle={toggle} disabled={!sessionId} />
+    return (
+        <FilesPaneToggle
+            open={open}
+            onToggle={toggle}
+            disabled={!sessionId}
+            // As quiet as the region titles' "+": full strength on hover or while open.
+            className="!text-colorTextTertiary hover:!text-colorText aria-pressed:!text-colorText"
+        />
+    )
 }
 
 export default function StorageFilesHeader({
@@ -34,7 +42,10 @@ export default function StorageFilesHeader({
               : `${shown} files`
 
     return (
-        <div className="flex items-center gap-1.5">
+        // The folder button's padding pulled out, so its glyph lands on the rows' right edge.
+        <div
+            className={`flex items-center gap-1.5 ${scope !== undefined ? "-my-1.5 -mr-[7px]" : ""}`}
+        >
             {drive.isLoading ? (
                 <ConfigRowTrailing reserve={false}>
                     <SkeletonBlock className="h-[14px] w-[44px]" />

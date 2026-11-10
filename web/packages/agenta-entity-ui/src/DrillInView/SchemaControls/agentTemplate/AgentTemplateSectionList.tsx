@@ -11,7 +11,7 @@
  * Migrated from antd `Typography.Text type="secondary"` → a `<span>` on the same token
  * (`colorTextDescription`, which is what antd's `type="secondary"` resolves to).
  */
-import type {ReactNode} from "react"
+import {Fragment, type ReactNode} from "react"
 
 import {
     ConfigAccordionSection,
@@ -32,6 +32,13 @@ export interface AgentTemplateSectionDescriptor {
     defaultOpen?: boolean
     /** When set, the header opens a drawer instead of expanding inline. */
     onOpen?: () => void
+    /** False for a row that never expands (its value is its control). */
+    collapsible?: boolean
+    /**
+     * The group this row belongs to. Adjacent rows with the same `id` render as one group under
+     * `title`; a list with any group renders every row in the quiet, divider-free look.
+     */
+    group?: {id: string; title?: ReactNode}
     bodyClassName?: string
     content: ReactNode
 }
@@ -70,38 +77,73 @@ export const AgentTemplateSectionList = ({
         return <span className="break-words text-xs text-colorTextDescription">{emptyText}</span>
     }
 
+    const grouped = sections.some((s) => s.group)
+    const renderSection = (s: AgentTemplateSectionDescriptor, index: number) => {
+        const controlled = Boolean(controlledKeys?.has(s.key))
+        return (
+            <ConfigAccordionSection
+                key={s.key}
+                quiet={grouped}
+                collapsible={s.collapsible}
+                icon={s.icon}
+                title={s.title}
+                titleBadge={s.titleBadge}
+                summary={s.summary}
+                extra={s.extra}
+                indicator={s.indicator}
+                onOpen={s.onOpen}
+                bodyClassName={s.bodyClassName}
+                // The panel body sits in the config section's `px-4` field wrapper
+                // (PlaygroundConfigSection), so the expanded header's fill bleeds 16px
+                // each side to the panel edges while its text stays aligned with the
+                // content below.
+                headerBand={headerBand}
+                noDivider={index === sections.length - 1}
+                {...(controlled
+                    ? {
+                          open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
+                          onOpenChange: (open: boolean) => onOpenChange?.(s.key, open),
+                      }
+                    : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
+            >
+                {s.content}
+            </ConfigAccordionSection>
+        )
+    }
+
+    if (!grouped) return <>{sections.map(renderSection)}</>
+
+    // Adjacent rows sharing a group id form one block; blocks are split by a hairline.
+    const groups: {id: string; title?: ReactNode; rows: AgentTemplateSectionDescriptor[]}[] = []
+    for (const s of sections) {
+        const id = s.group?.id ?? s.key
+        const last = groups[groups.length - 1]
+        if (last && last.id === id) last.rows.push(s)
+        else groups.push({id, title: s.group?.title, rows: [s]})
+    }
     return (
         <>
-            {sections.map((s, index) => {
-                const controlled = Boolean(controlledKeys?.has(s.key))
-                return (
-                    <ConfigAccordionSection
-                        key={s.key}
-                        icon={s.icon}
-                        title={s.title}
-                        titleBadge={s.titleBadge}
-                        summary={s.summary}
-                        extra={s.extra}
-                        indicator={s.indicator}
-                        onOpen={s.onOpen}
-                        bodyClassName={s.bodyClassName}
-                        // The panel body sits in the config section's `px-4` field wrapper
-                        // (PlaygroundConfigSection), so the expanded header's fill bleeds 16px
-                        // each side to the panel edges while its text stays aligned with the
-                        // content below.
-                        headerBand={headerBand}
-                        noDivider={index === sections.length - 1}
-                        {...(controlled
-                            ? {
-                                  open: openByKey?.[s.key] ?? s.defaultOpen ?? false,
-                                  onOpenChange: (open: boolean) => onOpenChange?.(s.key, open),
-                              }
-                            : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
+            {groups.map((g, gi) => (
+                <Fragment key={g.id}>
+                    {gi > 0 ? (
+                        <div
+                            aria-hidden
+                            className={`${headerBand} my-1.5 h-px bg-[var(--ag-c-EAEFF5)]`}
+                        />
+                    ) : null}
+                    <div
+                        role="group"
+                        aria-label={typeof g.title === "string" ? g.title : undefined}
                     >
-                        {s.content}
-                    </ConfigAccordionSection>
-                )
-            })}
+                        {g.title ? (
+                            <div className="pb-1.5 pt-2 text-xs text-colorTextTertiary">
+                                {g.title}
+                            </div>
+                        ) : null}
+                        {g.rows.map((s) => renderSection(s, sections.indexOf(s)))}
+                    </div>
+                </Fragment>
+            ))}
         </>
     )
 }

@@ -5,16 +5,9 @@ import {type SessionMenuEntry} from "./menu"
 import {withShortcutKey} from "./menuShortcut"
 
 /**
- * The rail's own menu verbs, appended to the host's. Reserved keys, handled here and never
- * forwarded — the host knows nothing about tab order.
- *
- * They exist because touch cannot drag: a long press opens this very menu (see SessionTabDragItem),
- * so moving a tab by hand has to be sayable in words too. They are equally the keyboard path.
+ * The rail's own menu verbs, appended to the host's: Chrome's tab-close verbs. Reserved keys,
+ * handled here and never forwarded to the host.
  */
-export const MOVE_LEFT = "__rail-move-left"
-export const MOVE_RIGHT = "__rail-move-right"
-
-/** Chrome's tab-close verbs, likewise reserved and handled here. */
 export const CLOSE = "__rail-close"
 export const CLOSE_OTHERS = "__rail-close-others"
 export const CLOSE_RIGHT = "__rail-close-right"
@@ -40,15 +33,6 @@ export const closeEntries = (targets: SessionTabCloseTargets): SessionMenuEntry[
         disabled: targets.toRight.length === 0,
     },
 ]
-
-export const moveEntries = (index: number, count: number): SessionMenuEntry[] =>
-    count < 2
-        ? []
-        : [
-              {type: "divider"},
-              {key: MOVE_LEFT, label: "Move left", disabled: index === 0},
-              {key: MOVE_RIGHT, label: "Move right", disabled: index === count - 1},
-          ]
 
 /**
  * The menu an UNLISTED chip carries — a session whose row has not landed, so there is no

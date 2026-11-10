@@ -142,6 +142,8 @@ export function SessionFilesPane({
         <div className="flex h-full min-h-0 w-full flex-col">
             <DriveExplorer
                 key={driveGeneration}
+                // Beside the session bar, so it wears the bar's ground.
+                headerClassName="bg-[var(--ag-surface-tab-bar)]"
                 drive={drive}
                 scope="session"
                 initialPath={initialPath}

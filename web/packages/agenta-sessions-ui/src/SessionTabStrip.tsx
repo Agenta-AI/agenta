@@ -17,7 +17,6 @@ import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
-import {Reorder} from "motion/react"
 
 /** Left/right edge fade so tabs dissolve into the strip edges instead of a hard cut when they
  * overflow. Applied per-side ONLY where content is actually clipped (scrolled past) — a strip
@@ -43,12 +42,35 @@ const INLINE_ADD_PX = 28
  * overflow and offsets do not.
  */
 const chipsWidth = (el: HTMLElement): number => {
-    const first = el.firstElementChild as HTMLElement | null
-    const last = el.lastElementChild as HTMLElement | null
+    // The edge covers are sticky and report where they are pinned, so they never bound the row.
+    const chips = (Array.from(el.children) as HTMLElement[]).filter((c) => !c.dataset.curtain)
+    const first = chips[0]
+    const last = chips[chips.length - 1]
     if (!first || !last) return 0
     const trailing = parseFloat(getComputedStyle(last).marginRight) || 0
     return last.offsetLeft + last.offsetWidth + trailing - first.offsetLeft
 }
+
+/** The host's cap on the strip: the first `max-width` above it, read from CSS. */
+const hostCap = (el: HTMLElement): number => {
+    for (let node = el.parentElement; node; node = node.parentElement) {
+        const max = parseFloat(getComputedStyle(node).maxWidth)
+        if (Number.isFinite(max)) return max
+    }
+    return Number.POSITIVE_INFINITY
+}
+
+/** The room the strip has now: its cap, narrowed by a host that fills its row. */
+const hostRoom = (el: HTMLElement): number => {
+    const fill = el.closest<HTMLElement>('[data-strip-room="fill"]')
+    return Math.min(fill?.clientWidth ?? Number.POSITIVE_INFINITY, hostCap(el))
+}
+
+/** The tab slots: every scroller child but the edge covers and the inline (+). */
+const tabSlots = (el: HTMLElement): HTMLElement[] =>
+    (Array.from(el.children) as HTMLElement[]).filter(
+        (child) => !child.dataset.curtain && !child.dataset.stripAdd,
+    )
 
 export interface SessionTabStripProps {
     /** The chips — `SessionTab`s, each in its own `shrink-0` wrapper. */
@@ -73,11 +95,17 @@ export interface SessionTabStripProps {
      * content, so adding or removing a chip needs this to re-measure the fade.
      */
     remeasureKey?: unknown
+    /** Only the chips and extras, for a host bar that already draws the height and hairline. */
+    bare?: boolean
     /**
-     * Drag-to-reorder. `ids` must be the chips' order as rendered, and each child must be a
-     * `SessionTabDragItem` with a matching id. Omit for a fixed strip.
+     * Bare only: show this many tabs. The strip takes the width of the widest run of that many
+     * (the host caps it), so switching tabs never resizes it, and scrolls the open tab into view;
+     * a scroll by hand stays where it is left.
      */
-    reorder?: {ids: string[]; onReorder: (ids: string[]) => void}
+    fitTabs?: number
+    /** Fit mode: the width the strip takes with room to spare (its host's cap included), so the
+     * host can make room before the strip has to shrink. */
+    onNaturalWidth?: (width: number) => void
     className?: string
 }
 
@@ -91,6 +119,13 @@ export const TAB_DIVIDER =
 const SCROLLER_CLASS =
     "flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 
+/** The bare strip's room at each end, where the open tab's flared corners sit. */
+const BARE_INSET_PX = 12
+const BARE_SCROLLER_CLASS =
+    "flex h-full min-w-0 max-w-full flex-1 items-end overflow-x-auto overscroll-x-contain px-3 [justify-content:safe_center] motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+/** Covers each end's padding so tabs stop at the inset; stops 4px short to keep the corners. */
+const CURTAIN = "sticky z-[2] mb-1 w-3 shrink-0 self-stretch bg-[var(--ag-surface-tab-bar)]"
+
 export const SessionTabStrip = ({
     children,
     showTabs = true,
@@ -100,7 +135,9 @@ export const SessionTabStrip = ({
     extra,
     leadingExtra,
     remeasureKey,
-    reorder,
+    bare = false,
+    fitTabs,
+    onNaturalWidth,
     className,
 }: SessionTabStripProps) => {
     // Edge fade is applied per side only where the strip is actually scrolled past its content, so
@@ -111,6 +148,66 @@ export const SessionTabStrip = ({
     const [pinAdd, setPinAdd] = useState(false)
     const pinAddRef = useRef(false)
     const stripElRef = useRef<HTMLDivElement | null>(null)
+    // Fit mode: ONE function owns the strip's width and scroll.
+    const naturalRef = useRef(0)
+    const onNaturalWidthRef = useRef(onNaturalWidth)
+    onNaturalWidthRef.current = onNaturalWidth
+    // The open tab last scrolled into view; a refit alone must not move a hand scroll.
+    const shownActiveRef = useRef<string | Element | null>(null)
+    // False once a wheel or press hands the scroll to the user; a new open tab takes it back.
+    const ownsScrollRef = useRef(true)
+    const fitWindow = useCallback(() => {
+        const el = stripElRef.current
+        if (!el || !fitTabs) return
+        const slots = tabSlots(el)
+        if (slots.length === 0) return
+        const margins = slots.map((slot) => parseFloat(getComputedStyle(slot).marginRight) || 0)
+        // Exact widths: rounded `offsetWidth`s drift a pixel per tab.
+        const sizes = slots.map((slot, i) => slot.getBoundingClientRect().width + margins[i])
+        // Flow positions from the sizes, so a tab mid-glide does not skew them.
+        const starts = sizes.map((_, i) => sizes.slice(0, i).reduce((sum, size) => sum + size, 0))
+        const room = hostRoom(el)
+        // A tab may never be wider than the strip can show, or a one-tab strip clips it.
+        if (Number.isFinite(room)) {
+            el.style.setProperty("--strip-tab-max", `${Math.floor(room) - 2 * BARE_INSET_PX}px`)
+        }
+        // The widest run of `fitTabs` tabs sets the width, so a switch never resizes the strip.
+        const count = Math.min(fitTabs, slots.length)
+        let widest = 0
+        for (let first = 0; first + count <= slots.length; first++) {
+            const last = first + count - 1
+            widest = Math.max(widest, starts[last] + sizes[last] - margins[last] - starts[first])
+        }
+        // Capped like the strip itself: the host decides centre or start from this width.
+        const natural = Math.min(Math.round(widest + 2 * BARE_INSET_PX), hostCap(el))
+        if (natural !== naturalRef.current) {
+            naturalRef.current = natural
+            onNaturalWidthRef.current?.(natural)
+        }
+        el.style.width = `${Math.min(natural, Math.floor(room))}px`
+        el.style.flex = "none"
+        const active = slots.findIndex((slot) => slot.querySelector('[aria-selected="true"]'))
+        // By id where the host gives one: a tab that remounts (a draft getting listed) is not new.
+        const shown = active >= 0 ? (slots[active].dataset.tabId ?? slots[active]) : null
+        // Only a new open tab takes the scroll back; a tab opened or closed elsewhere must not.
+        if (shown !== shownActiveRef.current) ownsScrollRef.current = true
+        shownActiveRef.current = shown
+        if (!ownsScrollRef.current || active < 0) return
+        // The least scroll that shows the open tab, so a tab in view never moves under the pointer.
+        const view = el.clientWidth - 2 * BARE_INSET_PX
+        const from = starts[active]
+        const to = from + sizes[active] - margins[active]
+        const left = el.scrollLeft
+        // Scrolling right rests on a tab start, so the first tab in view is whole too.
+        const target =
+            from < left
+                ? from
+                : to > left + view
+                  ? (starts.find((start) => start >= to - view - 1) ?? from)
+                  : left
+        // No `behavior`: the strip's CSS smooth scroll applies, and it honours reduced motion.
+        if (Math.abs(target - left) > 1) el.scrollTo({left: Math.max(0, target)})
+    }, [fitTabs])
     const measureFade = useCallback(() => {
         const el = stripElRef.current
         if (!el) return
@@ -122,8 +219,17 @@ export const SessionTabStrip = ({
         // inside one commit chain, and React threw "Maximum update depth exceeded" (#6742).
         const content = chipsWidth(el)
         const overflow = content - el.clientWidth > 1
-        const left = overflow && el.scrollLeft > 1
-        const right = overflow && el.scrollLeft < content - el.clientWidth - 1
+        let left = overflow && el.scrollLeft > 1
+        let right = overflow && el.scrollLeft < content - el.clientWidth - 1
+        if (bare) {
+            // Fade only an edge a tab is cut at, so whole tabs (the open tab among them) stay crisp.
+            const box = el.getBoundingClientRect()
+            const lo = box.left + BARE_INSET_PX
+            const hi = box.right - BARE_INSET_PX
+            const tabs = tabSlots(el).map((child) => child.getBoundingClientRect())
+            left = left && tabs.some((tab) => tab.left < lo - 1 && tab.right > lo + 1)
+            right = right && tabs.some((tab) => tab.left < hi - 1 && tab.right > hi + 1)
+        }
         // Chips resize per frame while animating; bail on an unchanged mask to avoid re-rendering.
         setFade((prev) => (prev.left === left && prev.right === right ? prev : {left, right}))
         // Pin once the chips overflow; un-pin once they leave the button's footprint spare. The
@@ -134,7 +240,7 @@ export const SessionTabStrip = ({
             pinAddRef.current = pin
             setPinAdd(pin)
         }
-    }, [])
+    }, [bare])
     // React 19 registers onWheel as passive, so preventDefault would be a no-op. Attach a native
     // non-passive listener that maps vertical wheel delta to horizontal scroll; also track scroll +
     // resize to recompute the edge fade.
@@ -154,36 +260,63 @@ export const SessionTabStrip = ({
                 const delta =
                     e.deltaMode === 1 ? axis * 16 : e.deltaMode === 2 ? axis * el.clientWidth : axis
                 e.preventDefault()
+                // A hand scroll: it stays where it is left.
+                ownsScrollRef.current = false
                 const prev = el.style.scrollBehavior
                 el.style.scrollBehavior = "auto"
                 el.scrollLeft += delta
                 el.style.scrollBehavior = prev
             }
+            // A touch pan or a press on a tab: the user takes the scroll. A tab switch hands it back.
+            const onPointerDown = () => {
+                ownsScrollRef.current = false
+            }
             el.addEventListener("wheel", onWheel, {passive: false})
+            el.addEventListener("pointerdown", onPointerDown)
             el.addEventListener("scroll", measureFade, {passive: true})
-            const ro = new ResizeObserver(() => measureFade())
+            // The host's cap can change at a breakpoint without resizing anything observed.
+            window.addEventListener("resize", fitWindow)
+            const ro = new ResizeObserver(() => {
+                measureFade()
+                fitWindow()
+            })
             ro.observe(el)
+            // The host may fill its row (`data-strip-room="fill"`) and resize with the bar.
+            const roomHost = el.closest<HTMLElement>("[data-strip-host]")
+            if (roomHost) ro.observe(roomHost)
             // Watch the chips too: they animate their width, and a removed chip never resizes the box.
             const observeChildren = () => {
                 for (const child of Array.from(el.children)) ro.observe(child)
             }
             observeChildren()
-            const mo = new MutationObserver(() => {
+            const mo = new MutationObserver((records) => {
+                // A tab's own subtree changing (its hover actions) is not a tab set change.
+                if (!records.some((r) => r.type === "attributes" || r.target === el)) return
                 observeChildren()
                 measureFade()
+                fitWindow()
             })
-            mo.observe(el, {childList: true})
+            // `aria-selected` too: switching tabs moves the window to the open one.
+            mo.observe(el, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ["aria-selected"],
+            })
             measureFade()
+            fitWindow()
             stripCleanupRef.current = () => {
                 el.removeEventListener("wheel", onWheel)
+                el.removeEventListener("pointerdown", onPointerDown)
                 el.removeEventListener("scroll", measureFade)
+                window.removeEventListener("resize", fitWindow)
                 mo.disconnect()
                 ro.disconnect()
             }
         },
-        [measureFade],
+        [measureFade, fitWindow],
     )
-    // Remeasure when the tab set changes, and after the add button moves (it resizes the scroller).
+
     useEffect(() => {
         measureFade()
     }, [remeasureKey, pinAdd, measureFade])
@@ -211,18 +344,31 @@ export const SessionTabStrip = ({
             </span>
         </SimpleTooltip>
     ) : null
-    // Scroller's last child, so it trails the last chip. Not a reorder value, so never a drag slot.
+    // Scroller's last child, so it trails the last chip.
     // It takes the same hairline the chips do, so the row ends the way every gap in it reads.
     const inlineAdd =
         canAdd && !pinAdd ? (
-            <div className={clsx("flex shrink-0 items-center", TAB_DIVIDER)}>{addButton}</div>
+            <div data-strip-add className={clsx("flex shrink-0 items-center", TAB_DIVIDER)}>
+                {addButton}
+            </div>
         ) : null
+
+    const scrollerClass = bare ? BARE_SCROLLER_CLASS : SCROLLER_CLASS
+    const startCurtain = bare ? (
+        <span aria-hidden data-curtain className={clsx(CURTAIN, "-left-3 -ml-3")} />
+    ) : null
+    const endCurtain = bare ? (
+        <span aria-hidden data-curtain className={clsx(CURTAIN, "-right-3 -mr-3")} />
+    ) : null
 
     return (
         <div
             role="tablist"
             className={clsx(
-                "flex h-[48px] w-full min-w-0 shrink-0 items-center gap-2 overflow-hidden border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
+                "flex min-w-0 shrink-0 gap-2 overflow-hidden",
+                bare ? "h-full items-stretch" : "w-full items-center",
+                !bare &&
+                    "h-[48px] border-x-0 border-t-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3",
                 className,
             )}
         >
@@ -230,29 +376,12 @@ export const SessionTabStrip = ({
                 <div className="flex shrink-0 items-center gap-1">{leadingExtra}</div>
             ) : null}
             {showTabs ? (
-                reorder ? (
-                    // The scroller IS the group, so chips stay DIRECT children of the scroll box
-                    // (both the fade measuring and the desktop's reveal-on-enter read that box).
-                    // `layoutScroll` keeps motion's layout projection honest inside a scroller.
-                    <Reorder.Group
-                        as="div"
-                        axis="x"
-                        layoutScroll
-                        values={reorder.ids}
-                        onReorder={reorder.onReorder}
-                        ref={scrollStripRef}
-                        className={SCROLLER_CLASS}
-                        style={maskStyle}
-                    >
-                        {children}
-                        {inlineAdd}
-                    </Reorder.Group>
-                ) : (
-                    <div ref={scrollStripRef} className={SCROLLER_CLASS} style={maskStyle}>
-                        {children}
-                        {inlineAdd}
-                    </div>
-                )
+                <div ref={scrollStripRef} className={scrollerClass} style={maskStyle}>
+                    {startCurtain}
+                    {children}
+                    {inlineAdd}
+                    {endCurtain}
+                </div>
             ) : (
                 <div className="min-w-0 flex-1" />
             )}
