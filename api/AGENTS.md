@@ -46,11 +46,16 @@ RBAC / access enforcement:
   `api/oss/src/core/access/`. Handlers call `check_action_access(...)`
   unconditionally; it decides for the request's principal (the `RequestAccess` the auth
   middleware sets), and there is no edition gate around the check itself.
-- The only edition difference is the EE plan gate: in EE, `check_entitlements(Flag.RBAC)`
-  can grant allow-all to members when a plan is not RBAC-entitled. It enters through
-  `RbacEnforcementInterface` (`oss/src/core/access/interfaces.py`); `entrypoints/access.py`
-  wires `EntitlementsRbacEnforcement` (EE) or `AlwaysEnforcedRbac` (OSS). OSS never imports
-  `ee.*` at module top.
+- Roles apply on every edition and plan; no plan lets a member pass a check their role
+  lacks. The plan decides only which roles an invite or a role change may set:
+  `AccessService.offered_roles` is the one reader, through `RbacEntitlementInterface`
+  (`oss/src/core/access/interfaces.py`); `entrypoints/access.py` wires
+  `PlanRbacEntitlement` (EE, `Flag.RBAC`) or `NoRbacEntitlement` (OSS). With the
+  entitlement (Business, Enterprise) every catalog role but `owner` is offered and the
+  floor role is `viewer`; without it (OSS, Hobby, Pro) `admin` and `member` are offered
+  and the floor role is `member`. The same entitlement limits organization credentials
+  to selected projects (`ee/src/core/secrets/limits.py`). OSS never imports `ee.*` at
+  module top.
 - Custom roles are an EE feature: `AGENTA_ACCESS_ROLES` / `AGENTA_ACCESS_ROLES_OVERLAY`
   are parsed/applied in `api/ee/src/core/access/permissions/role_overrides.py` and
   ignored in OSS (which enforces the code-default catalog).
@@ -69,10 +74,12 @@ Project membership and access:
 - `check_action_access` delegates to `AccessService.check_request`. Every process that
   checks access calls `bootstrap_access()` at startup (the API and both workers do).
 - No new code reads `workspace_members` or `project_members` to decide access.
-- No code creates or updates `workspaces` or `workspace_members` rows or writes
-  `projects.workspace_id` (workspace removal step 2). The API answers the organization id
-  where a workspace id was. Legacy workspace ids still map to their organization through
-  `db_manager` (`_WORKSPACE_REF_CTE`, `get_workspace`) until step 2b removes those reads.
+- No deployed code reads or writes `workspaces`, `workspace_members`,
+  `projects.workspace_id` or `meters.workspace_id`, and the runtime ORM maps none of them
+  (workspace removal step 2b; step 3 drops them). The API answers the organization id where
+  a workspace id was, and a legacy workspace id is an unknown id. Migrations that need
+  these objects use frozen models, never `oss.src.models.db_models`.
+  `unit/memberships/test_workspace_storage_unread.py` pins it.
 - A hot-path membership read is one SQL statement (`fetch_membership_row`,
   `list_membership_rows`). `integration/memberships/test_hot_path_query_counts_postgres.py`
   pins the counts.
@@ -123,16 +130,17 @@ Access layer invariants (agent and session sharing):
 - Audit events carry identifiers, never credential values.
 
 Organization-scoped decisions and organization credentials (M5):
-- An organization subscription login (`subscription_provider` in `ORGANIZATION_SECRET_KINDS`,
-  never in `ORGANIZATION_GATEWAY_KINDS`) is the one organization value that leaves the API:
-  only to the run credential, from `GET /secrets/{slug}?scope=organization`, through
-  `organization_subscription_for_runtime`. The runner uses it like a project login.
+- An organization subscription login or custom secret (`ORGANIZATION_RUNTIME_KINDS`, never in
+  `ORGANIZATION_GATEWAY_KINDS`) are the only organization values that leave the API: only to
+  the run credential, from `GET /secrets/{slug}?scope=organization`, through
+  `organization_secret_for_runtime`. The runner uses a login like a project login; the
+  sandbox gets a custom secret as a variable.
 
 - Organization-scoped actions are decided only by `decide_organization`
   (`oss/src/core/access/organizations.py`). It allows a browser-session human acting as
   itself, with no run envelope, whose organization role is `owner` or `admin`. It reads
-  the member row uncached and nothing else, so project RBAC shortcuts (the EE no-RBAC
-  bypass, the organization-owner shortcut) never apply.
+  the member row uncached and nothing else, so the project organization-owner shortcut
+  never applies.
 - An agent names its connection by scope and slug (`project`, the default, or
   `organization`). Nothing is inherited or overridden: a project slug reads project rows
   only, no connection means the project default, and an organization connection resolves

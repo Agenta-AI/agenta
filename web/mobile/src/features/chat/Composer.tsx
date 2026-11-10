@@ -48,12 +48,14 @@ export const Composer = ({
     onSteer,
     onRefusedOverDraft,
     disabled = false,
+    sendDisabled = false,
     waitingOnUser = false,
     streaming = false,
     stopping = false,
     onStop,
     inputBusy = streaming,
     inputRef,
+    modelPickerRef,
     placeholder,
     hasTurns,
     onNewSession,
@@ -78,6 +80,8 @@ export const Composer = ({
     onRefusedOverDraft?: (input: {text: string; parts?: FileUIPart[]}) => void
     /** No resolvable agent yet, or the screen is still hydrating. */
     disabled?: boolean
+    /** Typing stays on and Send is off: the agent's model needs setup. */
+    sendDisabled?: boolean
     /** The run is parked on the user (pending approval) — sends will queue. */
     waitingOnUser?: boolean
     /** A run is streaming from this device — the send button becomes Stop. */
@@ -88,6 +92,8 @@ export const Composer = ({
     inputBusy?: boolean
     /** Lets the host write into the input — a rewind puts the rewound message back to edit. */
     inputRef?: MutableRefObject<RichChatInputHandle | null>
+    /** Lets the host open the `/model` picker, as the low-credit strip's "Switch model" does. */
+    modelPickerRef?: MutableRefObject<(() => void) | null>
     /** Full placeholder override — used when the composer is gated (no model key). */
     placeholder?: string
     /** The session already has turns: the key hints move from chips into the placeholder. */
@@ -117,6 +123,14 @@ export const Composer = ({
             richInputRef.current?.blur()
         }, [richInputRef]),
     })
+    const openModelPicker = slash.openModelPicker
+    useEffect(() => {
+        if (!modelPickerRef) return
+        modelPickerRef.current = openModelPicker
+        return () => {
+            modelPickerRef.current = null
+        }
+    }, [modelPickerRef, openModelPicker])
     // Focus can only return AFTER the picker unmounts — a focus() in the handler is undone when
     // the still-focused panel leaves the DOM.
     const hadPickerRef = useRef(slash.picker)
@@ -166,7 +180,7 @@ export const Composer = ({
         // Enter and the send button (and a voice take completing) can all fire while an upload
         // is still in flight; a second pass would re-send the same staged tray. Returning false
         // synchronously keeps the text in the editor.
-        if (sending.current) {
+        if (sendDisabled || sending.current) {
             if (extraFiles.length) attachments.addFiles(extraFiles)
             return false
         }
@@ -370,6 +384,7 @@ export const Composer = ({
                             onChange={draft.handleComposerChange}
                             slashCommands={slash.sections}
                             disabled={disabled}
+                            sendDisabled={sendDisabled}
                             composerDisabled={disabled}
                             dictating={dictating}
                             dictationAnalyserRef={voice.dictationAnalyserRef}

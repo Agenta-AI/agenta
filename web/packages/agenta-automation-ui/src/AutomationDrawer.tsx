@@ -203,6 +203,8 @@ const AutomationEditDrawer = ({
                     onChangeCron={editor.setCron}
                     onSelectEvent={editor.setEvent}
                     onChangeInputs={editor.setInputs}
+                    includeEvent={editor.draft.includeEvent}
+                    onChangeIncludeEvent={editor.setIncludeEvent}
                     onToggle={editor.onToggle}
                     onDiscard={editor.discard}
                     onSave={() => void editor.save()}
@@ -232,7 +234,10 @@ const AutomationCreateDrawer = ({
 }) => {
     const state = useAutomationCreate({
         defaultKind: kind,
-        defaultAgentId: playgroundEntityId ?? null,
+        // The agent panel knows the agent by its REVISION id. The draft needs the agent's own
+        // id, as the automations screen passes it: the latest-revision read that decides the
+        // instruction's key finds nothing for a revision id, and create stays blocked.
+        defaultAgentId: defaultReferences?.application?.id ?? playgroundEntityId ?? null,
         defaultAgentName,
         defaultReferences,
     })

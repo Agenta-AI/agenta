@@ -77,6 +77,9 @@ function fakeRun() {
     openToolCallIds() {
       return [];
     },
+    wasForceSettled() {
+      return false;
+    },
     traceId() {
       return "trace-mock";
     },

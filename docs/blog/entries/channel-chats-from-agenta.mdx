@@ -1,0 +1,37 @@
+---
+title: "Continue channel chats in Agenta"
+slug: channel-chats-from-agenta
+date: 2026-10-27
+tags: [v0.125.2]
+description: "Send messages in Slack and Telegram chats from Agenta, keep owner-connected private agents in channels, and retain more work from interrupted turns."
+---
+
+<Summary>
+
+You can now continue a Slack or Telegram chat in Agenta. Members who can send to a project-visible channel chat can write in the app, and the agent's answer also goes back to the channel thread.
+
+- A private agent can stay connected to a channel through a connection its owner made.
+- A new channel chat with that private agent belongs to its owner and starts private.
+- Fixes keep first messages and more of a long turn's work when a chat changes or a turn ends.
+
+</Summary>
+
+{/* truncate */}
+
+## Continue a channel conversation in the app
+
+A chat started in Slack or Telegram no longer becomes view-only in Agenta. Open the chat in the app and send a follow-up there. For a project-visible channel chat, members whose role permits sending can write to it; the agent's reply also appears in the channel thread. [See the change](https://github.com/Agenta-AI/agenta/pull/7822).
+
+The owner of a private agent can connect it to a channel. New channel chats for that agent start private to the owner. A connection made by someone else stops answering if the agent becomes private; the owner can connect it again. Existing channel chats keep their visibility. See [Share agents and chats](/guides/share-agents-and-chats).
+
+## Improvements
+
+- Claude Haiku 5.5 is available in the model catalog and [works in Pi agent runs](https://github.com/Agenta-AI/agenta/pull/7837).
+- Agent turn-start lookups [run in parallel](https://github.com/Agenta-AI/agenta/pull/7832) rather than waiting for each independent lookup in sequence.
+
+## Bug fixes
+
+- Switching chats while a first message is being prepared [no longer loses that message](https://github.com/Agenta-AI/agenta/pull/7838).
+- A turn that reaches its time limit [keeps the work it completed](https://github.com/Agenta-AI/agenta/pull/7823) for the next message. The runner also applies its output budget [per step rather than per turn](https://github.com/Agenta-AI/agenta/pull/7829).
+- Stopping a turn through the older stream route [keeps its partial answer](https://github.com/Agenta-AI/agenta/pull/7827) and records the turn as stopped.
+- Resolving an agent with large inline skills [no longer uses the slow token scan](https://github.com/Agenta-AI/agenta/pull/7831).

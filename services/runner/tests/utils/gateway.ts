@@ -156,7 +156,10 @@ export function buildTestGatewayGate(opts?: {
   );
   const gate = buildGatewayToolGate({
     responder: new ApprovalResponder(plan, decisions, () => {}),
-    run: { emitEvent: (event) => void events.push(event) },
+    run: {
+      emitEvent: (event) => void events.push(event),
+      wasForceSettled: () => false,
+    },
     pause: {
       markPausedToolCall: (id) => void pausedToolCallIds.push(id),
       pause: () => {

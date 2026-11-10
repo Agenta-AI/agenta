@@ -15,9 +15,12 @@ const isCallbackRoute = (pathname: string) => pathname.startsWith("/auth/callbac
 
 const isAuthRoute = (pathname: string) => pathname.startsWith("/auth")
 
+/** A reset link is for whoever holds it, signed in or not; the page must not move them. */
+const isResetPasswordRoute = (pathname: string) => pathname.startsWith("/auth/reset-password")
+
 /** The route to replace with, or null to stay put. */
 export const authRedirectTarget = (verdict: SessionVerdict, pathname: string): string | null => {
-    if (isCallbackRoute(pathname)) return null
+    if (isCallbackRoute(pathname) || isResetPasswordRoute(pathname)) return null
     if (verdict === "unauthenticated") return isAuthRoute(pathname) ? null : "/auth"
     // A confirmed session while sitting on the sign-in page: hand back to the root resolver, which
     // knows the remembered workspace/project pair. Only from a CONFIRMED verdict — "unknown" is

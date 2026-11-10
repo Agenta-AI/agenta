@@ -7,6 +7,7 @@ import {
     onboardingQuestion,
     personProperties,
     recommendedCategory,
+    signupSurveyProperties,
     writeInAnswer,
     writeInText,
     WRITE_IN_MAX,
@@ -114,5 +115,38 @@ describe("the source vocabulary", () => {
         expect(labels).toContain("Conference or event")
         expect(labels).toContain("ChatGPT or Claude")
         expect(labels).toContain("Other")
+    })
+})
+
+describe("the signup survey event", () => {
+    const answers = {
+        persona: "Marketing",
+        size: "51-200",
+        source: "Friend or colleague",
+    }
+
+    it("answers the live survey's questions by id, in the shapes its form sends", () => {
+        expect(signupSurveyProperties(answers, "person@example.com")).toEqual({
+            $survey_id: "019f3812-8ce3-0000-1123-8c254a48750d",
+            $survey_name: "Signup 3 - Agents",
+            "$survey_response_d71aec24-7e9b-4d89-9cd7-c8f366693367": "Marketing",
+            "$survey_response_3b4ac88c-7530-46f1-b54a-c42bf6aca67a": "51-200",
+            "$survey_response_e15a61d7-15b2-4ddd-9efd-b2e154005675": ["Friend or colleague"],
+            "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9": "person@example.com",
+        })
+    })
+
+    it("sends a write-in as the typed line, without the Other prefix", () => {
+        const properties = signupSurveyProperties(
+            {...answers, persona: writeInAnswer("Other", "Teacher")},
+            "person@example.com",
+        )
+        expect(properties["$survey_response_d71aec24-7e9b-4d89-9cd7-c8f366693367"]).toBe("Teacher")
+    })
+
+    it("omits an email it does not have", () => {
+        expect(signupSurveyProperties(answers, null)).not.toHaveProperty(
+            "$survey_response_d6c2d8aa-d624-4736-a71b-25fe0b74d0e9",
+        )
     })
 })

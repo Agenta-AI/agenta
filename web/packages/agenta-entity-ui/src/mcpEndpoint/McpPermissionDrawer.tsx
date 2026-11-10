@@ -24,7 +24,7 @@ import {
     askWritesPolicy,
     fromGatewayPermissions,
     gatewayRefusalCode,
-    gatewayRefusalMessage,
+    gatewayRefusalStatus,
     getMcpConnectionStatusLabel,
     isToolHidden,
     listMcpTools,
@@ -117,6 +117,12 @@ export interface McpPermissionDrawerProps {
     agentPolicy?: PermissionPolicy | null
     /** Settings' "View tools": the same drawer with nothing to set. */
     readOnly?: boolean
+    /** The "Account" block, above the preset select. Absent in Settings' "View tools". */
+    account?: ReactNode
+    /**
+     * The reader may not edit the agent. Controls lock, and the drawer offers no removal and no
+     * sign-in, because such a reader may not use the server either.
+     */
     disabled?: boolean
     /** The drawer's panel element, so a reconnect opened from it can open inside it. */
     panelRef?: Ref<HTMLDivElement>
@@ -126,7 +132,45 @@ type ToolsState =
     | {status: "idle"}
     | {status: "loading"}
     | {status: "ready"; tools: McpToolSummary[]}
-    | {status: "failed"; error: string; needsAuth: boolean}
+    | {status: "failed"; error: string; needsAuth: boolean; retryable: boolean}
+
+/**
+ * What a person reads when the tool list fails, and whether trying again can help. The server's
+ * own sentence names routes and permissions, so it goes to the console, never to the screen.
+ */
+const toolListFailure = (
+    error: unknown,
+    name: string,
+): Omit<Extract<ToolsState, {status: "failed"}>, "status"> => {
+    const code = gatewayRefusalCode(error)
+    const status = gatewayRefusalStatus(error)
+    if (code === "auth_required") {
+        return {
+            needsAuth: true,
+            retryable: false,
+            error: `${name} is not connected yet, so its tools cannot be listed.`,
+        }
+    }
+    if (status === 403 && code !== "endpoint_inactive") {
+        return {
+            needsAuth: false,
+            retryable: false,
+            error: "You do not have access to this server's tools.",
+        }
+    }
+    return {
+        needsAuth: false,
+        // No answer, a server fault, a rate limit, or the chosen server failing can pass. Any
+        // other refusal answers the same way again.
+        retryable:
+            status === null ||
+            status >= 500 ||
+            status === 408 ||
+            status === 429 ||
+            code === "upstream_error",
+        error: "The tool list could not be read.",
+    }
+}
 
 /** The login-expired banner (D4), and the one action that fixes it. */
 function LoginExpiredBanner({
@@ -218,11 +262,9 @@ function DrawerTitle({
 function RemoveFromAgent({
     connectionName,
     onRemove,
-    disabled,
 }: {
     connectionName: string
     onRemove: () => void
-    disabled?: boolean
 }) {
     const [confirming, setConfirming] = useState(false)
 
@@ -242,7 +284,6 @@ function RemoveFromAgent({
         // the app's focus ring, and this is the destructive control.
         <Button
             variant="ghost"
-            disabled={disabled}
             onClick={() => setConfirming(true)}
             className="-ml-2 px-2 font-normal !text-colorError hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)]"
         >
@@ -270,6 +311,7 @@ export default function McpPermissionDrawer({
     readOnly,
     disabled,
     panelRef,
+    account,
 }: McpPermissionDrawerProps) {
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
@@ -292,18 +334,8 @@ export default function McpPermissionDrawer({
             setTools({status: "ready", tools: listed})
         } catch (error) {
             if (shownFor.current !== slug) return
-            // The gateway's own sentence, with the harness marker taken out of it. What reached the
-            // screen before was "Authorization required for custom/<slug>
-            // ⟦agenta_code:auth_required⟧", which names a route and a code rather than the
-            // connection and what to do about it (QA-D3).
-            const needsAuth = gatewayRefusalCode(error) === "auth_required"
-            setTools({
-                status: "failed",
-                needsAuth,
-                error: needsAuth
-                    ? `${name} is not connected yet, so its tools cannot be listed.`
-                    : gatewayRefusalMessage(error) || "The tool list could not be read.",
-            })
+            console.error("[mcp] the tool list could not be read", error)
+            setTools({status: "failed", ...toolListFailure(error, name)})
         }
     }, [loadToolsFrom, name, projectId, slug])
 
@@ -321,6 +353,9 @@ export default function McpPermissionDrawer({
     )
 
     const loginLapsed = status !== "connected"
+    // A person who may not edit the agent cannot reconnect either. They get the tool list's own
+    // answer (usually "no access") rather than a sign-in they cannot finish.
+    const askToReconnect = loginLapsed && !disabled
 
     /**
      * Tools that hold a permission the filter now hides.
@@ -456,7 +491,7 @@ export default function McpPermissionDrawer({
         }
         // The banner above already names the problem and carries Reconnect. A second, differently
         // worded ask for the same sign-in would read as two problems.
-        if (loginLapsed) return null
+        if (askToReconnect) return null
         if (tools.status !== "failed") return null
         return (
             <ToolsEmpty
@@ -464,21 +499,20 @@ export default function McpPermissionDrawer({
                 title="Couldn't read this server's tools"
                 description={tools.error}
                 action={
-                    // Retrying a tool list on a server nobody has authorized only fails again.
-                    tools.needsAuth && onReconnect ? (
-                        <Button variant="outline" disabled={disabled} onClick={onReconnect}>
+                    tools.needsAuth && onReconnect && !disabled ? (
+                        <Button variant="outline" onClick={onReconnect}>
                             Connect
                         </Button>
-                    ) : (
+                    ) : tools.retryable ? (
                         <Button variant="outline" onClick={() => void loadTools()}>
                             <ArrowClockwise size={14} />
                             Retry tools
                         </Button>
-                    )
+                    ) : undefined
                 }
             />
         )
-    }, [disabled, loadTools, loginLapsed, onReconnect, slug, tools])
+    }, [askToReconnect, disabled, loadTools, onReconnect, slug, tools])
 
     const catalog = useMemo<PermissionDrawerCatalog>(() => {
         if (!slug) return {status: "error", tools: [], complete: false, errorNode}
@@ -530,6 +564,7 @@ export default function McpPermissionDrawer({
             onChangeToolPermission={setTool}
             agentPolicy={agentPolicy}
             disabled={disabled}
+            account={account}
             source={{
                 catalogKey: slug ?? "mcp",
                 title: (
@@ -562,18 +597,14 @@ export default function McpPermissionDrawer({
                 lockedTool: (toolKey) =>
                     isToolHidden(policy, toolKey) ? HIDDEN_TOOL_REASON : null,
                 rowValue,
-                banner: loginLapsed ? (
+                banner: askToReconnect ? (
                     <LoginExpiredBanner connectionName={name} onReconnect={onReconnect} />
                 ) : null,
                 controlsDisabled: loginLapsed,
                 footNote,
                 footerStart:
-                    onRemove && !readOnly ? (
-                        <RemoveFromAgent
-                            connectionName={name}
-                            onRemove={onRemove}
-                            disabled={disabled}
-                        />
+                    onRemove && !readOnly && !disabled ? (
+                        <RemoveFromAgent connectionName={name} onRemove={onRemove} />
                     ) : null,
                 readOnly,
             }}

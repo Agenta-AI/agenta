@@ -363,9 +363,12 @@ export function EntityCommitContent({
         <div
             className={cn(
                 "flex overflow-hidden",
-                hasDiffData ? "flex-row" : "flex-col gap-4",
+                // Side by side from `sm` up; stacked on a phone, where 400px beside the summary
+                // would leave the summary no room.
+                hasDiffData ? "flex-col sm:flex-row" : "flex-col gap-4",
                 hasDiffData && !isAgentCommit && "h-full gap-4",
-                isAgentTwoPane && "h-[min(450px,72vh)]",
+                isAgentTwoPane &&
+                    "max-sm:max-h-[72vh] max-sm:overflow-y-auto sm:h-[min(450px,72vh)]",
             )}
         >
             {/* Form section — agent two-pane: sits on the RIGHT and holds the action footer. */}
@@ -374,8 +377,8 @@ export function EntityCommitContent({
                     "flex flex-col gap-4",
                     hasDiffData
                         ? isAgentCommit
-                            ? "order-2 w-[400px] shrink-0 overflow-hidden border-l border-[var(--ag-colorBorderSecondary)] px-6 py-5 min-h-0"
-                            : "w-[320px] shrink-0 overflow-y-auto"
+                            ? "order-2 box-border w-full shrink-0 overflow-hidden border-t border-[var(--ag-colorBorderSecondary)] px-6 py-5 min-h-0 sm:w-[400px] sm:border-t-0 sm:border-l"
+                            : "w-full shrink-0 overflow-y-auto sm:w-[320px]"
                         : "w-full",
                 )}
             >

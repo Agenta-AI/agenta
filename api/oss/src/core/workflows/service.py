@@ -19,6 +19,8 @@ from typing import (
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import MissingPrincipal
+from oss.src.core.account_choices.claims import sign_run_accounts
+from oss.src.core.account_choices.items import user_items_of_revision
 from oss.src.core.git.dtos import RevisionGrouping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -184,6 +186,7 @@ from oss.src.core.workflows.types import (
     WorkflowDetachedStartFailed,
     WorkflowDetachedStartNeverSent,
     WorkflowDetachedStartRejected,
+    service_failure_status,
     answered_by_service,
     detached_start_never_sent,
     transport_never_sent,
@@ -195,8 +198,13 @@ from oss.src.core.embeds.dtos import (
     ErrorPolicy,
     ResolutionInfo,
 )
-from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.core.embeds.exceptions import (
+    EmbedError,
+    EmbedReferenceInconsistentError,
+    NonEmbeddableWorkflowReferenceError,
+)
 from oss.src.core.embeds.utils import (
+    create_universal_resolver,
     find_object_embeds,
     find_snippet_embeds,
     find_string_embeds,
@@ -399,6 +407,29 @@ _AGENT_REFERENCE_ORDER = (
     ("workflow", "artifact"),
     ("application", "artifact"),
 )
+
+
+def _artifact_id_of_references(references: Optional[dict]) -> Optional[UUID]:
+    """The agent a run's references name by artifact id, for its account choices, when
+    the request already carried its revision (so nothing was resolved here). No read: an
+    agent named only by revision, variant or slug gets no account choices, and its
+    "user" items fall back to defaults and sign-ins."""
+    for key, level in _AGENT_REFERENCE_ORDER:
+        if level != "artifact":
+            continue
+        reference = (references or {}).get(key)
+        reference_id = (
+            reference.get("id")
+            if isinstance(reference, dict)
+            else getattr(reference, "id", None)
+        )
+        if not reference_id:
+            continue
+        try:
+            return UUID(str(reference_id))
+        except ValueError:
+            continue
+    return None
 
 
 class WorkflowsService:
@@ -1066,7 +1097,12 @@ class WorkflowsService:
                         if detached_start_never_sent(response):
                             raise WorkflowDetachedStartNeverSent(message)
                         if answered_by_service(response):
-                            raise WorkflowDetachedStartRejected(message)
+                            status = service_failure_status(raw)
+                            raise WorkflowDetachedStartRejected(
+                                message,
+                                failure_code=status.get("failure_code"),
+                                failure_details=status.get("details"),
+                            )
                         raise WorkflowDetachedStartFailed(message)
 
                     trace_id = response.headers.get("x-ag-trace-id")
@@ -1406,6 +1442,17 @@ class WorkflowsService:
             raise AgentReferenceUnresolved()
         return artifact_ids.pop()
 
+    async def fetch_request_revision(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+    ) -> Optional[WorkflowRevision]:
+        """The revision a request's references and selector resolve to, or None."""
+        return await self._ensure_request_revision(
+            project_id=project_id, request=request
+        )
+
     async def _ensure_request_revision(
         self,
         *,
@@ -1704,6 +1751,10 @@ class WorkflowsService:
             exclude_none=True,
             exclude={"flags"},
         )
+        # exclude_none drops a null folder_id, but a null sent on purpose moves the
+        # workflow to the top level.
+        if "folder_id" in workflow_edit.model_fields_set:
+            artifact_edit_kwargs["folder_id"] = workflow_edit.folder_id
         if "flags" in workflow_edit.model_fields_set:
             artifact_flags = self._artifact_flags_from_any(workflow_edit.flags)
             artifact_edit_kwargs["flags"] = (
@@ -2270,6 +2321,57 @@ class WorkflowsService:
                 slug = self._non_embeddable_static_workflow_slug(ref)
                 if slug:
                     raise NonEmbeddableWorkflowReferenceError(slug)
+
+    async def _reject_inconsistent_workflow_embeds(
+        self,
+        *,
+        project_id: UUID,
+        data: Optional[WorkflowRevisionData],
+    ) -> None:
+        """Refuse an embed whose refs name two different workflows (one slug, another's
+        id). Stored, it would fail every run of the revision that carries it."""
+        if not data:
+            return
+
+        configuration = data.model_dump(mode="json", exclude_none=True)
+        embeds = (
+            *find_object_embeds(configuration),
+            *find_string_embeds(configuration),
+            *find_snippet_embeds(configuration),
+        )
+
+        # The run-time resolver itself, so commit applies the same lookup and retry rules.
+        resolve = create_universal_resolver(
+            project_id=project_id,
+            include_archived=True,
+            workflows_service=self,
+        )
+
+        async def check(refs: Dict[str, Reference]) -> None:
+            try:
+                await resolve(refs)
+            except EmbedReferenceInconsistentError:
+                raise
+            except EmbedError:
+                # Missing or non-embeddable targets are not this check's concern.
+                pass
+
+        checks = []
+        for embed in embeds:
+            refs = {
+                entity_type: ref
+                for entity_type, ref in embed.references.items()
+                if self._reference_category(entity_type) == "workflow"
+            }
+            identifiers = sum(
+                value is not None
+                for ref in refs.values()
+                for value in (ref.id, ref.slug, ref.version)
+            )
+            # A single identifier cannot disagree with itself.
+            if identifiers >= 2:
+                checks.append(check(refs))
+        await asyncio.gather(*checks)
 
     def _ref_has_static_id(self, ref: Optional[Reference]) -> bool:
         return (
@@ -3146,6 +3248,11 @@ class WorkflowsService:
             workflow_revision_commit=workflow_revision_commit,
         )
 
+        await self._reject_inconsistent_workflow_embeds(
+            project_id=project_id,
+            data=workflow_revision_commit.data,
+        )
+
         if not _revision_commit.artifact_id:
             if not _revision_commit.variant_id:
                 return None
@@ -3615,7 +3722,7 @@ class WorkflowsService:
 
         request.meta = {**(request.meta or {}), "gateway_run_id": gateway_run_id}
 
-        await self._ensure_request_revision(
+        resolved_revision = await self._ensure_request_revision(
             project_id=project_id,
             request=request,
         )
@@ -3656,6 +3763,19 @@ class WorkflowsService:
             gateway_run_id=gateway_run_id,
             grants=self._service_grants(service_url),
             envelope=envelope,
+            # The accounts of the revision's "user" items, for the run person: one read,
+            # and none for a revision without "user" items.
+            run_accounts=await sign_run_accounts(
+                envelope=envelope,
+                items=user_items_of_revision(revision_data),
+                artifact_id=(
+                    resolved_revision.workflow_id
+                    if resolved_revision is not None
+                    else _artifact_id_of_references(
+                        getattr(request, "references", None)
+                    )
+                ),
+            ),
         )
 
         credentials = f"Secret {secret_token}"

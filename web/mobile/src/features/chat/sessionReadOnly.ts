@@ -41,7 +41,8 @@ export const sessionReadOnlyReason = ({
  * sharing state that loaded and did not fail since: until then nothing on screen may send,
  * approve or answer (the server would refuse a Viewer, but the controls must not pretend). A
  * session minted in this browser (`fresh`) has no sharing row yet and belongs to its creator,
- * so it keeps sending as before.
+ * so it keeps sending as before. The chat screen also passes an empty chat this tab created as
+ * `fresh`: it has no row either, and a reload has cleared the marker.
  */
 export const sessionAccessKnown = ({
     fresh,

@@ -3,7 +3,7 @@ import {memo, useMemo} from "react"
 import {ActivityTimeline} from "@agenta/chat/components"
 import {useTypewriter} from "@agenta/chat/hooks"
 import ChatMarkdown from "@agenta/chat/markdown"
-import {endsOnClosedText, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
+import {splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {ChatBubble, userBubbleContentClass} from "@agenta/ui/components/presentational"
 
 import {cn} from "@/lib/utils"
@@ -33,19 +33,18 @@ const EmbedTurnInner = ({
     sessionId,
     live,
     waitingOnUser,
+    resuming,
     fileBlob,
 }: {
     turn: TurnViewModel
     sessionId: string
     live: boolean
     waitingOnUser: boolean
+    resuming: boolean
     fileBlob: (fileId: string) => Promise<Blob>
 }) => {
-    const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
-    const activity = useMemo(
-        () => splitTurnActivity(turn.items, {holdClosedText: live && trailingClosed}),
-        [turn.items, live, trailingClosed],
-    )
+    const settled = !live && !(turn.isLast && (waitingOnUser || resuming))
+    const activity = useMemo(() => splitTurnActivity(turn.items, {settled}), [turn.items, settled])
     const files = turn.items.flatMap((item) => (item.kind === "files" ? item.parts : []))
     const fileList = files.length ? (
         <div className={cn("flex flex-wrap gap-2", turn.isUser && "justify-end")}>
@@ -119,15 +118,17 @@ const EmbedTurnInner = ({
                             sessionId={sessionId}
                             steps={activity.steps}
                             streaming={live}
-                            answerStarted={activity.answer !== null}
+                            answerStarted={activity.messages.length > 0}
+                            writing={activity.messages.at(-1)?.part.state === "streaming"}
                             waitingOnUser={turn.isLast && waitingOnUser}
                         />
-                        {activity.answer ? (
+                        {activity.messages.map((message) => (
                             <Answer
-                                text={activity.answer.text}
-                                streaming={isLiveTextItem(turn, activity.answerIndex)}
+                                key={message.index}
+                                text={message.part.text}
+                                streaming={isLiveTextItem(turn, message.index)}
                             />
-                        ) : null}
+                        ))}
                         {errorText ? (
                             <p role="alert" className="m-0 text-xs text-destructive">
                                 {errorText}

@@ -237,7 +237,8 @@ export const useEmbedConversation = ({
                 ? {phase: "idle"}
                 : state,
         )
-    }, [pendingIds])
+        // Also on a phase change: the gate can clear while the answer is still sending.
+    }, [pendingIds, approval.phase])
 
     useEffect(() => {
         if (approval.phase !== "answered") return

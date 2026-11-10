@@ -3,6 +3,12 @@ title: "Project access, permissions and runs that act as their creator"
 slug: project-access-and-permissions
 date: 2026-10-25
 tags: [v0.124.0]
+improvements:
+  - area: Security
+    text: "Agenta checks organization admin rights, SSO domains, credentials and password resets more strictly"
+fixes:
+  - area: Self-hosting
+    text: "The membership repair migration stays fast on large databases"
 description: "Project membership is resolved in one place, project actions follow roles, API keys act only in their own project, and removing access takes effect at the next request."
 ---
 
@@ -54,9 +60,3 @@ When you remove a member, change a role or delete a key, the API refuses the nex
 - Messages that were queued and approvals that were waiting during the upgrade are cancelled once. Send the message or answer the approval again.
 - Runs that started before the upgrade fail once.
 
-## Fixes
-
-- Cache locks now expire after their time to live in seconds.
-- Creating a workspace finds the caller by user id.
-- The membership repair migration stays fast on large databases.
-- Mounts store their storage prefix. Files, attachments and agent mounts keep the same keys.

@@ -16,12 +16,16 @@ import {
 import {extractApiErrorMessage, slugifyBase} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 
+import {ENV_NAME} from "../agentSecretRules"
+
 import {buildSecretContent, parseFlatJson} from "./content"
 import {objectToRows, rowsToObject, type KvRow} from "./primitives"
 
 export type JsonView = "grid" | "json"
 
 export interface SavedSecret {
+    /** The vault row's id. */
+    id?: string
     name: string
     slug: string
     format: CustomSecretFormatType
@@ -38,6 +42,8 @@ export interface UseSecretFormOptions {
     /** Create-mode seed for a text value (e.g. the MCP Basic helper's encoded credential). */
     initialValue?: string
     initialDefaultEnvVar?: string
+    /** "user" creates the person's own secret; absent, the project's. */
+    ownerKind?: "user"
     /** Called after a successful save with the persisted row. */
     onSaved?: (row: SavedSecret) => void
 }
@@ -83,6 +89,7 @@ export function useSecretForm({
     initialName,
     initialValue,
     initialDefaultEnvVar,
+    ownerKind,
     onSaved,
 }: UseSecretFormOptions): SecretFormController {
     // `handleModifyNamedSecret` already refetches the vault query, so no extra `mutate()`.
@@ -260,7 +267,8 @@ export function useSecretForm({
             const createSlug = slug.trim() || slugifyBase(trimmedName)
             const savedDefaultEnvVar =
                 format === CustomSecretFormat.Text ? defaultEnvVar.trim() || undefined : undefined
-            await handleModifyNamedSecret({
+            const savedId = await handleModifyNamedSecret({
+                ...(ownerKind ? {ownerKind} : {}),
                 name: trimmedName,
                 slug: isEditing ? undefined : createSlug,
                 format,
@@ -275,6 +283,7 @@ export function useSecretForm({
             setReplacementSupplied(false)
             message.success("The secret is saved")
             onSaved?.({
+                id: savedId,
                 name: trimmedName,
                 slug: isEditing ? (initialSecret?.slug ?? "") : createSlug,
                 format,
@@ -313,7 +322,7 @@ export function useSecretForm({
     const defaultEnvError =
         format === CustomSecretFormat.Text &&
         defaultEnvVar.length > 0 &&
-        !/^[A-Za-z_][A-Za-z0-9_]*$/.test(defaultEnvVar)
+        !ENV_NAME.test(defaultEnvVar)
     const okDisabled = duplicateKeyError || defaultEnvError
 
     return {

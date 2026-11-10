@@ -81,7 +81,14 @@ type QueryClient = import("@tanstack/react-query").QueryClient
 interface WorkflowRevisionRequest {
     projectId: string
     revisionId: string
+    includeArchived?: boolean
 }
+
+/**
+ * Set by a screen that lists archived items (the /m archived evaluators page) so a revision opened
+ * from it resolves even though its workflow is archived. Off everywhere else.
+ */
+export const workflowIncludeArchivedAtom = atom(false)
 
 interface WorkflowLatestRevisionRequest {
     projectId: string
@@ -110,8 +117,7 @@ const workflowRecencyScore = (workflow: Workflow | null | undefined): number => 
  * VERSION decides, not the timestamp. `version` is server-assigned and monotonic; `created_at` is
  * not a reliable ordering — revisions committed by the agent land in bursts that tie to the second,
  * and a tie used to fall through to array order and pick an arbitrary revision as "latest". That
- * wrong pick then persisted: it is written to the `latestRevision` key, mirrored to IndexedDB, and
- * that query is disabled whenever the key is already populated, so nothing ever revalidated it.
+ * wrong pick then persisted: it is written to the `latestRevision` key and mirrored to IndexedDB.
  *
  * Timestamps stay as the tie-break for revisions that share a version.
  */
@@ -149,9 +155,11 @@ function primeWorkflowRevisionDetailCache(
 ): void {
     if (!workflow?.id) return
     const queryKey = ["workflows", "revision", workflow.id, projectId]
+    const alreadyCached = !!queryClient.getQueryData<Workflow>(queryKey)?.data
     queryClient.setQueryData(queryKey, workflow)
     // setQueryData bypasses the persister — mirror full bodies (only revisions carry `data`) to IDB.
-    if (workflow.data) {
+    // A body already cached under this id is the same one: revisions are immutable.
+    if (workflow.data && !alreadyCached) {
         void immutablePersister.persistQueryByKey(queryKey, queryClient).catch(() => undefined)
     }
 }
@@ -167,11 +175,11 @@ function primeWorkflowRevisionDetailCache(
  */
 export function primeWorkflowRevisionDetailCacheImperative(
     workflow: Workflow | null | undefined,
-    options?: StoreOptions,
+    options?: StoreOptions & {projectId?: string},
 ): void {
     if (!workflow?.id) return
     const store = getStore(options)
-    const projectId = store.get(workflowProjectIdAtom)
+    const projectId = options?.projectId ?? store.get(workflowProjectIdAtom)
     if (!projectId) return
     try {
         const qc = store.get(queryClientAtom)
@@ -279,36 +287,11 @@ function findWorkflowRevisionInCache(
     )
 }
 
-function findLatestWorkflowRevisionInCache(
-    queryClient: QueryClient,
-    projectId: string,
-    workflowId: string,
-): Workflow | undefined {
-    const direct = queryClient.getQueryData<Workflow>([
-        "workflows",
-        "latestRevision",
-        workflowId,
-        projectId,
-    ])
-    if (direct) return direct
-
-    const revisionsByWorkflow = queryClient.getQueryData<WorkflowRevisionsResponse>([
-        "workflows",
-        "revisionsByWorkflow",
-        workflowId,
-        projectId,
-    ])
-    const revisions = revisionsByWorkflow?.workflow_revisions ?? []
-    if (revisions.length === 0) return undefined
-
-    const latestByRecency = pickMostRecentWorkflowRevision(revisions)
-    return latestByRecency ?? undefined
-}
-
 const workflowRevisionBatchFetcher = createBatchFetcher<WorkflowRevisionRequest, Workflow | null>({
     maxBatchSize: 50,
     flushDelay: 10,
-    serializeKey: (req) => `${req.projectId}:${req.revisionId}`,
+    serializeKey: (req) =>
+        `${req.projectId}:${req.revisionId}${req.includeArchived ? ":archived" : ""}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Workflow | null>()
         serializedKeys.forEach((key) => results.set(key, null))
@@ -323,7 +306,9 @@ const workflowRevisionBatchFetcher = createBatchFetcher<WorkflowRevisionRequest,
         const revisionIds = [...new Set(requests.map((req) => req.revisionId).filter(Boolean))]
         if (revisionIds.length === 0) return results
 
-        const revisionMap = await fetchWorkflowRevisionsByIdsBatch(projectId, revisionIds)
+        const revisionMap = await fetchWorkflowRevisionsByIdsBatch(projectId, revisionIds, {
+            includeArchived: requests.some((req) => req.includeArchived),
+        })
         requests.forEach((req, index) => {
             results.set(serializedKeys[index], revisionMap.get(req.revisionId) ?? null)
         })
@@ -356,20 +341,7 @@ const workflowLatestRevisionBatchFetcher = createBatchFetcher<
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
             if (!req.workflowId) return
-
-            if (req.queryClient) {
-                const cached = findLatestWorkflowRevisionInCache(
-                    req.queryClient,
-                    projectId,
-                    req.workflowId,
-                )
-                if (cached) {
-                    results.set(key, cached)
-                    return
-                }
-                queryClients.add(req.queryClient)
-            }
-
+            if (req.queryClient) queryClients.add(req.queryClient)
             pending.push({workflowId: req.workflowId, key})
         })
 
@@ -399,6 +371,8 @@ const workflowLatestRevisionBatchFetcher = createBatchFetcher<
                 "[workflowLatestRevisionBatchFetcher] Failed to fetch latest revisions:",
                 error,
             )
+            // Fail the queries so a refetch keeps the cached revision instead of storing null.
+            throw error
         }
 
         return results
@@ -447,6 +421,8 @@ export interface WorkflowListRef {
     /** The agent's access policy (owner and visibility): the Owner column and the private
      *  marker on the agents roster. */
     access: Workflow["access"]
+    /** The folder the workflow sits in (the Prompts page). */
+    folder_id: string | null
 }
 
 /**
@@ -473,6 +449,7 @@ export function toWorkflowListRef(w: Workflow): WorkflowListRef {
         updated_at: w.updated_at ?? null,
         created_by_id: w.created_by_id ?? null,
         access: w.access ?? null,
+        folder_id: w.folder_id ?? null,
     }
 }
 
@@ -729,13 +706,13 @@ export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId
                     const latestKey = ["workflows", "latestRevision", workflowId, projectId]
                     queryClient.setQueryData(latestKey, latestByRecency)
                     // setQueryData bypasses the persister; mirror to IDB so a warm reload paints the
-                    // latest from disk even when this prime keeps the dedicated query disabled.
+                    // latest from disk.
                     void catalogPersister
                         .persistQueryByKey(latestKey, queryClient)
                         .catch(() => undefined)
                     // Persist agent-ness for the next cold load (playgroundEarlyAgentStateAtom).
-                    // This priming DISABLES the dedicated latest-revision query (its only other
-                    // writer), so without writing here the map starves and every cold load
+                    // This prime keeps the fresh latest-revision query (its only other writer) from
+                    // fetching, so without writing here the map starves and every cold load
                     // mounts the prompt 50% split before snapping to the agent geometry.
                     writePersistedAgentType(
                         workflowId,
@@ -878,6 +855,36 @@ export const workflowRevisionRefsByVariantAtomFamily = atomFamily((variantId: st
     }),
 )
 
+const workflowVariantNewestVersionQueryAtomFamily = atomFamily((variantId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        return {
+            queryKey: ["workflows", "variantNewestVersion", variantId, projectId],
+            queryFn: async (): Promise<number | null> => {
+                if (!projectId) return null
+                const response = await queryWorkflowRevisions(variantId, projectId, undefined, {
+                    includeArchived: true,
+                    windowing: {limit: 1},
+                })
+                return response.workflow_revisions[0]?.version ?? null
+            },
+            enabled: get(sessionAtom) && !!projectId && !!variantId,
+        }
+    }),
+)
+
+/**
+ * The version of a variant's newest revision, archived revisions included. The revision lists
+ * hide archived revisions, but the server numbers a new commit after all of them, so the commit
+ * dialog reads its next version from this. `undefined` while it loads.
+ */
+export const workflowVariantNewestVersionAtomFamily = atomFamily((variantId: string) =>
+    atom<number | null | undefined>((get) => {
+        const query = get(workflowVariantNewestVersionQueryAtomFamily(variantId))
+        return query.data
+    }),
+)
+
 /**
  * Derived atom family for resolved revision list by variant ID.
  * Resolves thin refs through the molecule entity atom for full data.
@@ -984,6 +991,9 @@ export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((
 // LATEST REVISION (lightweight dedicated query)
 // ============================================================================
 
+/** Bumped by `reloadWorkflowLatestRevisionAtom` so the query below reads its options again. */
+const workflowLatestRevisionGenerationAtomFamily = atomFamily((_workflowId: string) => atom(0))
+
 /**
  * Query atom family for fetching the latest revision of a workflow.
  * Uses cache-aware batch fetching by workflow ID, avoiding N+1 calls when
@@ -991,48 +1001,26 @@ export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((
  */
 export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: string) =>
     atomWithQuery((get) => {
+        get(workflowLatestRevisionGenerationAtomFamily(workflowId))
         const projectId = get(workflowProjectIdAtom)
         const queryClient = get(queryClientAtom)
-        const detailCached = projectId
-            ? queryClient.getQueryData<Workflow>([
-                  "workflows",
-                  "latestRevision",
-                  workflowId,
-                  projectId,
-              ])
-            : undefined
         return {
             queryKey: ["workflows", "latestRevision", workflowId, projectId],
             queryFn: async (): Promise<Workflow | null> => {
                 if (!projectId || !workflowId) return null
-                try {
-                    const cached = findLatestWorkflowRevisionInCache(
-                        queryClient,
-                        projectId,
-                        workflowId,
-                    )
-                    const revision =
-                        cached ??
-                        (await workflowLatestRevisionBatchFetcher({
-                            projectId,
-                            workflowId,
-                            queryClient,
-                        }))
-                    // Remember the workflow type so the next cold reload knows agent-ness instantly
-                    // (see playgroundEarlyAgentStateAtom) instead of waiting on this round-trip.
-                    if (revision) {
-                        writePersistedAgentType(
-                            workflowId,
-                            deriveWorkflowTypeFromRevision(revision),
-                        )
-                    }
-                    return revision
-                } catch {
-                    return null
+                const revision = await workflowLatestRevisionBatchFetcher({
+                    projectId,
+                    workflowId,
+                    queryClient,
+                })
+                // Remember the workflow type so the next cold reload knows agent-ness instantly
+                // (see playgroundEarlyAgentStateAtom) instead of waiting on this round-trip.
+                if (revision) {
+                    writePersistedAgentType(workflowId, deriveWorkflowTypeFromRevision(revision))
                 }
+                return revision
             },
-            initialData: detailCached ?? undefined,
-            enabled: get(sessionAtom) && !!projectId && !!workflowId && !detailCached,
+            enabled: get(sessionAtom) && !!projectId && !!workflowId,
             staleTime: 30_000,
             // Class B paint-fast: a warm reload resolves the fallback selector + "latest" tag from
             // disk instead of blocking on the (backend-slow) revisions round-trip; the restored
@@ -1042,6 +1030,33 @@ export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: str
             persister: catalogPersister.persisterFn<Workflow | null, (string | null)[]>,
         }
     }),
+)
+
+/**
+ * Loads a workflow's latest revision again, as on first open. It is for a change that no commit
+ * announces, such as a deleted revision. Invalidating the query is not enough: it answers from its
+ * own cached entry before it asks the server, and it stays disabled while an entry was cached
+ * when it was built. So the entry goes from memory and from disk first, and then the query is
+ * built again.
+ *
+ * A revision list that nothing shows goes too: `workflowLatestRevisionIdAtomFamily` reads it
+ * while the query loads, and an invalidated list that nothing shows is not fetched again.
+ */
+export const reloadWorkflowLatestRevisionAtom = atom(
+    null,
+    async (get, set, workflowId: string): Promise<void> => {
+        const projectId = get(workflowProjectIdAtom)
+        const queryClient = get(queryClientAtom)
+        const queryKey = ["workflows", "latestRevision", workflowId, projectId]
+        queryClient.removeQueries({queryKey, exact: true})
+        queryClient.removeQueries({
+            queryKey: ["workflows", "revisionsByWorkflow", workflowId, projectId],
+            exact: true,
+            type: "inactive",
+        })
+        await catalogPersister.removeQueries({queryKey, exact: true}).catch(() => undefined)
+        set(workflowLatestRevisionGenerationAtomFamily(workflowId), (generation) => generation + 1)
+    },
 )
 
 /**
@@ -1286,13 +1301,18 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<Workflow | null>((get) => {
         const projectId = get(workflowProjectIdAtom)
         const queryClient = get(queryClientAtom)
+        const includeArchived = get(workflowIncludeArchivedAtom)
         const detailCached =
             projectId && revisionId
                 ? findWorkflowRevisionInDetailCache(queryClient, projectId, revisionId)
                 : undefined
 
         return {
-            queryKey: ["workflows", "revision", revisionId, projectId],
+            // The archived lookup is a different answer, so it gets its own entry. The default key
+            // stays as it was, because the detail cache is primed and read under it.
+            queryKey: includeArchived
+                ? ["workflows", "revision", revisionId, projectId, "archived"]
+                : ["workflows", "revision", revisionId, projectId],
             queryFn: async (): Promise<Workflow | null> => {
                 if (!projectId || !revisionId) return null
                 // Persist agent-ness wherever a revision is learned, keyed by its WORKFLOW id
@@ -1334,7 +1354,9 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 } catch {
                     // fall through to the direct fetch below
                 }
-                return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
+                return persistType(
+                    await workflowRevisionBatchFetcher({projectId, revisionId, includeArchived}),
+                )
             },
             initialData: detailCached ?? undefined,
             // Every result of this query, cache hits and initialData included, passes through here.
@@ -2961,6 +2983,7 @@ export function seedCreatedWorkflowCache(
         created_by_id: revision.created_by_id ?? null,
         // A revision carries no access policy; the list refetch fills it.
         access: revision.access ?? null,
+        folder_id: revision.folder_id ?? null,
     }
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)
@@ -3108,6 +3131,40 @@ export function invalidateWorkflowRevisionsByVariantCache(
     store.set(workflowRevisionsQueryAtomFamily(variantId))
 }
 
+const invalidateRevisionReads = (qc: QueryClient, workflowId: string | null | undefined) => {
+    qc.invalidateQueries({
+        queryKey: ["workflows", "latestRevision"],
+        exact: false,
+        predicate: workflowId
+            ? (query) => {
+                  // A host-owned key under this prefix names the workflow in its data.
+                  const data = query.state.data as {workflowId?: string | null} | null
+                  return query.queryKey.includes(workflowId) || data?.workflowId === workflowId
+              }
+            : undefined,
+    })
+    qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false})
+    // The version SELECTOR reads the revisions list, not the latest-revision tag, so leaving
+    // it out left the freshly committed version missing from the picker until a reload
+    // (#6380) — the config had already moved on to a version you could not name.
+    qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false})
+    qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false})
+}
+
+/**
+ * Re-read an agent's revisions when a surface that names one opens: a commit may have landed
+ * while it was closed (#6380). Not a commit itself, so the project-wide agent/prompt split stays
+ * cached.
+ */
+export function revalidateAgentRevisionReads(workflowId?: string | null, options?: StoreOptions) {
+    const store = getStore(options)
+    try {
+        invalidateRevisionReads(store.get(queryClientAtom), workflowId)
+    } catch {
+        // queryClientAtom may not be initialized yet
+    }
+}
+
 /**
  * Refresh the playground's read-only views after the agent commits a new revision of itself
  * (#4920 — Application 1). A commit lands a new revision, so this invalidates both the
@@ -3116,20 +3173,18 @@ export function invalidateWorkflowRevisionsByVariantCache(
  *
  * Fired on the one-way `data-committed-revision` stream signal (which the backend emits after
  * committed revisions whether the tool asked first or ran directly), not on approval — so a
- * single emit point covers both. The payload's ids aren't needed: a prefix invalidation refetches every
- * active observer, which is exactly the set the playground has mounted.
+ * single emit point covers both.
+ *
+ * A `workflowId` narrows only the latest-revision keys; the other keys' data names no workflow.
  */
-export function invalidateAgentCommittedRevisionCache(options?: StoreOptions) {
+export function invalidateAgentCommittedRevisionCache(
+    workflowId?: string | null,
+    options?: StoreOptions,
+) {
     const store = getStore(options)
     try {
         const qc = store.get(queryClientAtom)
-        qc.invalidateQueries({queryKey: ["workflows", "latestRevision"], exact: false})
-        qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false})
-        // The version SELECTOR reads the revisions list, not the latest-revision tag, so leaving
-        // it out left the freshly committed version missing from the picker until a reload
-        // (#6380) — the config had already moved on to a version you could not name.
-        qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false})
-        qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false})
+        invalidateRevisionReads(qc, workflowId)
         // The agent/prompt split is read off the latest revision's flags, and a commit can flip
         // it. Its key no longer carries per-workflow timestamps, so it needs saying explicitly.
         qc.invalidateQueries({queryKey: ["workflows", "apps", "agentFlags"], exact: false})

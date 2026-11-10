@@ -42,6 +42,8 @@ export interface AutomationDraft {
     connectionId: string | null
     eventKey: string | null
     triggerConfig?: Record<string, unknown>
+    /** Event drafts only — whether the event data is added to the agent's message. */
+    includeEvent: boolean
     /** Whether it starts running the moment it is created. */
     isActive: boolean
 }
@@ -64,9 +66,9 @@ export const useAutomationCreate = ({
     /** Pre-bound agent — the playground opens this already knowing whose automation it is. */
     defaultAgentId?: string | null
     /**
-     * The pre-bound agent's name. The playground binds by REVISION id, which the agents list
-     * cannot resolve, so the host passes the label it already has rather than leaving the
-     * generated name to fall back to "Untitled automation".
+     * The pre-bound agent's name. The agents list may not have loaded when the drawer opens, so
+     * the host passes the label it already has rather than leaving the generated name to fall
+     * back to "Untitled automation".
      */
     defaultAgentName?: string | null
     /**
@@ -87,6 +89,7 @@ export const useAutomationCreate = ({
         inputsFields: {},
         connectionId: null,
         eventKey: null,
+        includeEvent: true,
         isActive: true,
     }))
     const [saving, setSaving] = useState(false)
@@ -131,17 +134,34 @@ export const useAutomationCreate = ({
                     : draft.connectionId && draft.eventKey
                       ? ""
                       : "Choose the event this automation runs on",
+            // The instruction is stored under the key the agent reads, which only its latest
+            // revision says. Created before that, it lands under "message" and a chat agent
+            // runs with no message.
+            instruction:
+                !draft.agentId || latestRevision.data
+                    ? ""
+                    : latestRevision.isPending
+                      ? "Loading the agent. Try again in a moment."
+                      : "Couldn't load this agent. Reload the page and try again.",
         }),
-        [draft.agentId, draft.connectionId, draft.cron, draft.eventKey, draft.kind],
+        [
+            draft.agentId,
+            draft.connectionId,
+            draft.cron,
+            draft.eventKey,
+            draft.kind,
+            latestRevision.data,
+            latestRevision.isPending,
+        ],
     )
-    const blockedReason = missing.agent || missing.runsWhen
+    const blockedReason = missing.agent || missing.runsWhen || missing.instruction
 
     // The errors show only once the reader has tried to create: a form that opens with two
     // red fields is telling them off for not having filled in what they have not reached yet.
     // Once they have tried, the marks stay live — they clear field by field as each is fixed.
     const [attempted, setAttempted] = useState(false)
     const errors = useMemo(
-        () => (attempted ? missing : {agent: "", runsWhen: ""}),
+        () => (attempted ? missing : {agent: "", runsWhen: "", instruction: ""}),
         [attempted, missing],
     )
 
@@ -165,6 +185,7 @@ export const useAutomationCreate = ({
                           event_key: draft.eventKey ?? "",
                           trigger_config: draft.triggerConfig,
                           inputs_fields: draft.inputsFields,
+                          include_event: draft.includeEvent,
                       },
                   }
         return {
@@ -204,6 +225,9 @@ export const useAutomationCreate = ({
     }, [])
     const setAgent = useCallback((agentId: string) => {
         setDraft((current) => ({...current, agentId}))
+    }, [])
+    const setIncludeEvent = useCallback((includeEvent: boolean) => {
+        setDraft((current) => ({...current, includeEvent}))
     }, [])
     const setActive = useCallback((isActive: boolean) => {
         setDraft((current) => ({...current, isActive}))
@@ -249,8 +273,14 @@ export const useAutomationCreate = ({
                     : "Automation created — it stays off until you switch it on",
             )
             return created
-        } catch {
-            message.error("Couldn't create this automation")
+        } catch (error) {
+            // 424: the app's provider refused, most often because the connection is not active.
+            const status = (error as {response?: {status?: number}})?.response?.status
+            message.error(
+                status === 424
+                    ? "Couldn't create this automation. Reconnect the app and try again."
+                    : "Couldn't create this automation",
+            )
             return null
         } finally {
             setSaving(false)
@@ -271,6 +301,7 @@ export const useAutomationCreate = ({
         setKind,
         setEvent,
         setInputs,
+        setIncludeEvent,
         setActive,
         create,
     }

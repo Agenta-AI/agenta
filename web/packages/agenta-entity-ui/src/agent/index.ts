@@ -67,6 +67,7 @@ export {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK, AGENT_FOCUS_RING} from "./chrome"
 export {
     useAgentActions,
     useRenameAgent,
+    useRestoreWorkflow,
     useUpdateAgentDescription,
     type AgentActionTarget,
 } from "./useAgentActions"

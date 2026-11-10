@@ -1,14 +1,17 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
-import {isValidEmailAddress} from "@agenta/auth"
+import {getEmailSignInMode, isValidEmailAddress} from "@agenta/auth"
+import {projectPermissionQueryPrefix} from "@agenta/entities/access"
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {
-    fetchAllWorkspaceRoles,
+    assignWorkspaceRole,
+    fetchOfferedRoles,
     inviteToWorkspace,
     removeFromWorkspace,
 } from "@agenta/entities/organization"
-import {updateUsername, useProfile} from "@agenta/entities/profile"
+import {requestPasswordReset, updateUsername, useProfile} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
     AlertDialog,
@@ -34,14 +37,19 @@ import {
     SelectValue,
 } from "@agenta/ui/ui"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
+import {useRouter} from "next/compat/router"
 
+import {useProjectPermission} from "../context/useProjectPermission"
+
+import {InvitedLinkDialog, type InvitedLink} from "./InvitedLinkDialog"
+import {memberRole, MemberRoleCell, memberRoleLabel} from "./MemberRoleCell"
+import {ResetPasswordLinkDialog} from "./ResetPasswordLinkDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useSettingsOrg} from "./useSettingsOrg"
 
-const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
-
 /** Mobile binding for Members: invite and remove as dialogs, your own name renamed in place. */
-export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) => {
+export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsTabProps) => {
     const {user: signedInUser} = useProfile()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(routeWorkspaceId)
     const members = org.data?.default_workspace?.members ?? []
@@ -54,23 +62,54 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
     const [emailTouched, setEmailTouched] = useState(false)
     const [pendingRemoval, setPendingRemoval] = useState<WorkspaceMember | null>(null)
     const [error, setError] = useState<string | null>(null)
+    // A role change happens on the table, not in a dialog, so its failure is said there.
+    const [roleError, setRoleError] = useState<string | null>(null)
+    const [resetTarget, setResetTarget] = useState<WorkspaceMember | null>(null)
+    const [invitedLink, setInvitedLink] = useState<InvitedLink | null>(null)
     const queryClient = useQueryClient()
 
-    // NOT a permission check: it only says we know which workspace to write to. Mobile's access
-    // model is deliberately optimistic (`useMobileSettingsAccess`) and the API authorizes — there
-    // is no packaged RBAC rule yet.
+    // Knowing the workspace is the floor; each verb below also asks the backend what this
+    // reader may do, so no control appears that the API would refuse.
     const scopeKnown = Boolean(organizationId && workspaceId)
+    const canInvite = useProjectPermission(projectId, "add_new_user_to_workspace")
+    // A reset link only works where members sign in with a password; with email codes the
+    // backend has no password recipe and the request fails.
+    const passwordSignIn = getEmailSignInMode() === "password"
+    const canResetPassword = useProjectPermission(projectId, "reset_password") && passwordSignIn
+    const canChangeRoles = useProjectPermission(projectId, "modify_user_roles")
 
+    // Invite Teammate lands here with inviteModal=open: open once, then drop the parameter.
+    // The compat hook is null where no router is mounted (a host that renders the tab alone).
+    const router = useRouter()
+    const inviteRequested =
+        useAtomValue(betaDeveloperModeActiveAtom) && router?.query.inviteModal === "open"
+    useEffect(() => {
+        if (!router || !inviteRequested || !scopeKnown || !canInvite) return
+        setInviteOpen(true)
+        const query = {...router.query}
+        delete query.inviteModal
+        void router.replace({pathname: router.pathname, query}, undefined, {shallow: true})
+    }, [canInvite, inviteRequested, router, scopeKnown])
+    // The remove route requires the admin role itself (or the organization owner), whatever
+    // permissions a custom role holds, so this reads the reader's own role.
+    const signedInMember = members.find((member) => member.user.id === signedInUser?.id)
+    const canRemove =
+        (Boolean(ownerId) && signedInUser?.id === ownerId) ||
+        (signedInMember ? ["admin", "owner"].includes(memberRole(signedInMember)) : false)
+
+    // The roles this organization offers, which is what an invite and a role change may set.
+    // Keyed by organization, because another organization on another plan offers another set.
     const roles = useQuery({
-        queryKey: ["workspace-roles"],
-        queryFn: () => fetchAllWorkspaceRoles(true),
-        enabled: inviteOpen,
+        queryKey: ["offered-roles", organizationId, projectId],
+        queryFn: () => fetchOfferedRoles(projectId),
+        enabled: Boolean(projectId) && (inviteOpen || canChangeRoles),
     })
+    const offeredRoles = (roles.data ?? []).map((entry) => entry.role_name)
 
     const emailValid = isValidEmailAddress(email.trim())
     const showEmailError = emailTouched && Boolean(email.trim()) && !emailValid
     // A role is required wherever the API offers roles; still loading counts as offered.
-    const roleMissing = (roles.isPending || Boolean(roles.data?.length)) && !role
+    const roleMissing = (roles.isPending || offeredRoles.length > 0) && !role
 
     const closeInvite = () => {
         setInviteOpen(false)
@@ -81,13 +120,16 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
     }
 
     const inviteMutation = useMutation({
-        mutationFn: () =>
+        mutationFn: (invitedEmail: string) =>
             inviteToWorkspace({
                 organizationId: organizationId!,
                 workspaceId: workspaceId!,
-                data: [{email: email.trim(), ...(role ? {roles: [role]} : {})}],
+                data: [{email: invitedEmail, ...(role ? {roles: [role]} : {})}],
             }),
-        onSuccess: () => {
+        onSuccess: (response: {url?: unknown}, invitedEmail) => {
+            if (typeof response?.url === "string") {
+                setInvitedLink({email: invitedEmail, url: response.url})
+            }
             closeInvite()
             onChanged()
         },
@@ -113,6 +155,32 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
             setError((cause as Error)?.message || "Unable to remove the member"),
     })
 
+    const roleMutation = useMutation({
+        mutationFn: ({member, role: next}: {member: WorkspaceMember; role: string}) =>
+            assignWorkspaceRole(
+                {
+                    organizationId: organizationId!,
+                    workspaceId: workspaceId!,
+                    email: member.user.email,
+                    role: next,
+                },
+                true,
+            ),
+        onSuccess: () => {
+            onChanged()
+            // The change can be the reader's own role (an admin who makes themself a member):
+            // every cached permission answer, the trace gate included, must be asked again.
+            void queryClient.invalidateQueries({queryKey: projectPermissionQueryPrefix})
+        },
+        // The API's refusal is a sentence written for the reader ("This role is not available on
+        // your plan."); anything else gets the plain fallback, never the transport's own text.
+        onError: (cause: unknown) => {
+            const detail = (cause as {response?: {data?: {detail?: unknown}}})?.response?.data
+                ?.detail
+            setRoleError(typeof detail === "string" ? detail : "Unable to change the role")
+        },
+    })
+
     if (failed)
         return <LoadError title="Could not load this organization's members" onRetry={retry} />
 
@@ -122,19 +190,43 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
             loading={loading}
             signedInUser={signedInUser}
             ownerId={ownerId}
-            canInviteMembers={scopeKnown}
-            canRemoveMembers={scopeKnown}
+            canInviteMembers={scopeKnown && canInvite}
+            canRemoveMembers={scopeKnown && canRemove}
+            canResetPassword={canResetPassword}
+            renderRoleCell={(member) => (
+                <MemberRoleCell
+                    member={member}
+                    isOwner={Boolean(ownerId) && member.user.id === ownerId}
+                    offeredRoles={offeredRoles}
+                    canChange={scopeKnown && canChangeRoles}
+                    pending={
+                        roleMutation.isPending &&
+                        roleMutation.variables?.member.user.id === member.user.id
+                    }
+                    onChange={(next) => {
+                        setRoleError(null)
+                        if (next !== memberRole(member)) roleMutation.mutate({member, role: next})
+                    }}
+                />
+            )}
             onInvite={() => setInviteOpen(true)}
             onRemove={(member) => {
                 setError(null)
                 setPendingRemoval(member)
             }}
+            onResetPassword={(member) => setResetTarget(member)}
             onRenameSelf={async (_member, name) => {
                 await updateUsername(name)
                 await queryClient.invalidateQueries({queryKey: ["profile"]})
                 onChanged()
             }}
         >
+            {roleError ? (
+                <p role="alert" className="m-0 mt-2 text-sm text-colorError">
+                    {roleError}
+                </p>
+            ) : null}
+
             <Dialog open={inviteOpen} onOpenChange={(next) => (next ? undefined : closeInvite())}>
                 <DialogContent>
                     <DialogHeader>
@@ -158,7 +250,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
                                 Enter a valid email address
                             </p>
                         ) : null}
-                        {roles.data?.length ? (
+                        {offeredRoles.length ? (
                             <Select value={role} onValueChange={setRole}>
                                 {/* Full width, like the field above it — the trigger's
                                     default is fit-to-content, which left it stranded. */}
@@ -166,9 +258,9 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
                                     <SelectValue placeholder="Role" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {roles.data.map((entry) => (
-                                        <SelectItem key={entry.role_name} value={entry.role_name}>
-                                            {roleLabel(entry.role_name)}
+                                    {offeredRoles.map((entry) => (
+                                        <SelectItem key={entry} value={entry}>
+                                            {memberRoleLabel(entry)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -188,7 +280,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
                             disabled={!emailValid || roleMissing || inviteMutation.isPending}
                             onClick={() => {
                                 setError(null)
-                                inviteMutation.mutate()
+                                inviteMutation.mutate(email.trim())
                             }}
                         >
                             {inviteMutation.isPending ? "Sending…" : "Send invitation"}
@@ -196,6 +288,14 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <InvitedLinkDialog invited={invitedLink} onClose={() => setInvitedLink(null)} />
+
+            <ResetPasswordLinkDialog
+                target={resetTarget}
+                onRequest={(member) => requestPasswordReset(member.user.id)}
+                onClose={() => setResetTarget(null)}
+            />
 
             <AlertDialog
                 open={Boolean(pendingRemoval)}

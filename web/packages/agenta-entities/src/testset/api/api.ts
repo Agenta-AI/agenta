@@ -150,13 +150,18 @@ export async function fetchRevisionsList({
 export async function fetchLatestRevision({
     projectId,
     testsetId,
-}: RevisionListParams): Promise<Revision | null> {
+    includeArchived = false,
+}: RevisionListParams & {
+    /** Also read the revisions of an archived testset. */
+    includeArchived?: boolean
+}): Promise<Revision | null> {
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 1, order: "descending"},
             include_testcases: false,
+            ...(includeArchived ? {include_archived: true} : {}),
         },
         {params: {project_id: projectId}},
     )
@@ -284,6 +289,40 @@ export async function fetchTestsetsList({
         return {testsets: [], count: 0}
     }
     return validated
+}
+
+/**
+ * Fetch one page of testsets, newest first.
+ * The name filter goes in the request body. Errors throw (no silent empty page).
+ */
+export async function queryTestsetsPage(params: {
+    projectId: string
+    limit: number
+    cursor?: string | null
+    name?: string
+    includeArchived?: boolean
+    /** Only test sets created at or after this ISO time. The server windows by creation time. */
+    createdAfter?: string
+}): Promise<{testsets: Testset[]; nextCursor: string | null}> {
+    const {projectId, limit, cursor, name, includeArchived = false, createdAfter} = params
+    const trimmedName = name?.trim()
+
+    const data = await getTestsetsClient().queryTestsets(
+        {
+            windowing: {
+                limit,
+                order: "descending",
+                ...(cursor ? {next: cursor} : {}),
+                ...(createdAfter ? {oldest: createdAfter} : {}),
+            },
+            include_archived: includeArchived,
+            ...(trimmedName ? {testset: {name: trimmedName}} : {}),
+        },
+        {queryParams: {project_id: projectId}},
+    )
+
+    const validated = testsetsResponseSchema.parse(data)
+    return {testsets: validated.testsets, nextCursor: validated.windowing?.next ?? null}
 }
 
 /**

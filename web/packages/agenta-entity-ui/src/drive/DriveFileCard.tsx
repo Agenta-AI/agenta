@@ -45,7 +45,17 @@ export function DriveFileInlineRef({path}: {path: string}) {
 }
 
 /** A file a turn wrote, as a tile; it reads only the drive listing, never the file. */
-export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
-    const {entry, target} = useDriveFileLookup()(path)
+export function DriveFileCard({
+    path,
+    op,
+    listedOnly,
+}: {
+    path: string
+    op?: FileActivityOp
+    /** A drive path from a link: render only once the listing holds that exact file. */
+    listedOnly?: boolean
+}) {
+    const {entry, target} = useDriveFileLookup()(path, listedOnly)
+    if (listedOnly && !entry) return null
     return <DriveFileTile path={path} op={op} size={entry?.size} target={target} />
 }

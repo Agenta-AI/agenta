@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * A first message typed on Home or an agent's page waits on the chat screen until the screen can
- * send it (the transcript, the vault and the setup step all hold it). A user who opens another
+ * send it (the transcript, the vault and the needs-setup check all hold it). A user who opens another
  * chat during that wait must not lose it: the chat stays in the rail, and coming back shows the
  * message as not sent, with its text, ready to retry. Staging lost the message, the rail row and
  * the chat itself in 3 of 4 switches made 0.5 s to 1.6 s after Enter.
@@ -30,8 +30,10 @@ vi.mock("@agenta/entities/session", async () => {
     return {...local, ...fresh, fetchSessionRecordsAtom: atom(null, async () => undefined)}
 })
 vi.mock("@agenta/chat/state", async () => {
+    const {atom} = await import("jotai")
     const fresh = await import("../../../packages/agenta-entities/src/session/core/freshSessions")
-    return {markSessionFresh: fresh.markSessionFresh}
+    const statusAtom = atom("idle")
+    return {markSessionFresh: fresh.markSessionFresh, sessionStatusAtomFamily: () => statusAtom}
 })
 vi.mock("@agenta/shared/state", async () => {
     const {atom} = await import("jotai")

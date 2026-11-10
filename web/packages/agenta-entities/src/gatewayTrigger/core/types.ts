@@ -220,6 +220,8 @@ export const triggerSubscriptionDataSchema = z
         inputs_fields: z.union([z.record(z.string(), z.unknown()), z.string()]).nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
         selector: triggerSelectorSchema.nullish(),
+        // Adds the event data to the agent's message. Absent reads as on.
+        include_event: z.boolean().nullish(),
     })
     .passthrough()
 export type TriggerSubscriptionData = z.infer<typeof triggerSubscriptionDataSchema>
@@ -310,6 +312,8 @@ export const triggerDeliveryDataSchema = z
         session_id: z.string().nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
         inputs: z.record(z.string(), z.unknown()).nullish(),
+        // The event context block the run resolved against (`event_type`, `attributes`, ...).
+        event: z.record(z.string(), z.unknown()).nullish(),
         result: z.record(z.string(), z.unknown()).nullish(),
         error: z.string().nullish(),
         // Set on capture-and-skip deliveries from an is_test subscription.
@@ -353,6 +357,14 @@ export const triggerDeliveriesResponseSchema = z
     })
     .passthrough()
 export type TriggerDeliveriesResponse = z.infer<typeof triggerDeliveriesResponseSchema>
+
+/** Mirrors the shared backend `Windowing` DTO, the fields the deliveries query reads. */
+export interface TriggerDeliveryWindowing {
+    oldest?: string
+    newest?: string
+    limit?: number
+    order?: "ascending" | "descending"
+}
 
 export interface TriggerDeliveryQuery {
     status?: TriggerStatus

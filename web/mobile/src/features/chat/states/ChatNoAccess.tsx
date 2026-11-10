@@ -35,7 +35,10 @@ export const ChatNoAccess = ({
                     <EmptyDescription>{sharingCopy.accessRemovedBody}</EmptyDescription>
                 </>
             ) : (
-                <EmptyDescription>{sharingCopy.chatNotFound}</EmptyDescription>
+                <>
+                    <EmptyDescription>{sharingCopy.chatNotFound}</EmptyDescription>
+                    <EmptyDescription>{sharingCopy.chatNotFoundAskOwner}</EmptyDescription>
+                </>
             )}
         </EmptyHeader>
         <EmptyContent>

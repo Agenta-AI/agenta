@@ -1,5 +1,5 @@
 from hmac import compare_digest
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Query, HTTPException, Request
@@ -16,12 +16,21 @@ from oss.src.utils.context import get_auth_context, get_auth_scope
 from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
+from agenta.sdk.agents.accounts import user_item_from_key
+
+from oss.src.core.access.dtos import RequestCredentialKind, RunEnvelope
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.account_choices.claims import sign_run_accounts
+from oss.src.core.account_choices.dtos import MAX_RUN_ITEM_KEYS
+from oss.src.core.account_choices.policy import personal_accounts_enabled
+from oss.src.core.gateways.run_claims import run_accounts
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import RbacEntitlementUnavailable
 from oss.src.core.access.permissions.controls import SCOPES
 from oss.src.core.access.controls import get_roles
+from oss.src.apis.fastapi.access.models import AccessRolesResponse
 
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
@@ -150,6 +159,42 @@ def _run_credential_grants(request: Request, *, action: Optional[str]) -> List[s
     ]
 
 
+async def _run_accounts_of_exchange(
+    request: Request,
+    *,
+    envelope: RunEnvelope,
+    workflow_id: Optional[UUID],
+    item_keys: Optional[List[str]],
+) -> Optional[List[dict]]:
+    """The `run_accounts` claim of the credential this exchange returns.
+
+    A run credential carries its own claim on, unchanged. Otherwise this is the first
+    mint of a playground or chat turn: the agent service names the turn's agent and the
+    item keys of its "user" items, read from the configuration it runs, and the accounts
+    resolve here in one statement for the run person. The keys only select which of the
+    caller's own accounts to look up, so a caller can never reach another person's
+    account. No keys: no read, as for every agent without "user" items."""
+    access = get_request_access()
+    if (
+        access is not None
+        and access.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
+    ):
+        # A renewed credential drops the claim once the switch is off.
+        if not personal_accounts_enabled():
+            return None
+        return run_accounts(request) or None
+    items = [
+        item
+        for item in (
+            user_item_from_key(key) for key in (item_keys or ())[:MAX_RUN_ITEM_KEYS]
+        )
+        if item is not None
+    ]
+    return await sign_run_accounts(
+        envelope=envelope, items=items, artifact_id=workflow_id
+    )
+
+
 class AccessRouter:
     def __init__(self) -> None:
         self.router = APIRouter()
@@ -166,15 +211,27 @@ class AccessRouter:
             self.fetch_roles,
             methods=["GET"],
             operation_id="fetch_access_roles",
+            response_model=AccessRolesResponse,
         )
 
     @intercept_exceptions()
-    async def fetch_roles(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Return the effective role catalog per scope (organization,
-        workspace, project). RBAC is an OSS feature, so this is served in both
-        editions; the frontend reads the `workspace` scope for the members UI.
+    async def fetch_roles(self) -> AccessRolesResponse:
+        """Return the effective role catalog per scope (organization, workspace,
+        project), and the offered roles of the caller's organization (`offered`): the
+        roles its invites and role changes may set, and its floor role. The catalog
+        keeps every role, so a stored role that is not offered still has a description
+        and permissions.
         """
-        return {scope: list(get_roles(scope)) for scope in SCOPES}
+        try:
+            offered = await get_access_service().offered_roles(
+                organization_id=get_auth_scope().organization_id
+            )
+        except RbacEntitlementUnavailable as exc:
+            raise HTTPException(status_code=503, detail=exc.message) from exc
+        return AccessRolesResponse(
+            **{scope: list(get_roles(scope)) for scope in SCOPES},
+            offered=offered,
+        )
 
     async def check_permissions(
         self,
@@ -185,6 +242,8 @@ class AccessRouter:
         resource_type: Optional[str] = Query(None),
         resource_id: Optional[UUID] = Query(None),
         without_grants: bool = Query(False),
+        workflow_id: Optional[UUID] = Query(None),
+        item_keys: Optional[List[str]] = Query(None),
     ):
         """Evaluate a permission against the AUTHENTICATED scope.
 
@@ -279,6 +338,12 @@ class AccessRouter:
         if envelope is None:
             raise Deny()
         secret_token = await sign_secret_token(
+            run_accounts=await _run_accounts_of_exchange(
+                request,
+                envelope=envelope,
+                workflow_id=workflow_id,
+                item_keys=item_keys,
+            ),
             user_id=user_id,
             user_email=getattr(request.state, "user_email", None),
             project_id=project_id,

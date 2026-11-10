@@ -45,6 +45,7 @@ const toFormValue = (candidate: SkillScanCandidate): Record<string, unknown> => 
     description: candidate.skill.description ?? "",
     body: candidate.skill.body,
     files: candidate.skill.files,
+    ...(candidate.skill.disable_model_invocation ? {disable_model_invocation: true} : {}),
 })
 
 /** What an upload of several skills shows in place of the editor: the skills, each ticked. */

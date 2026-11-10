@@ -2,8 +2,8 @@
 
 Organization-scoped actions (today: managing organization credentials) are decided here
 and nowhere else. The rule is the same in OSS and EE, and it reads no entitlement, project
-row, project role or custom role, so the EE no-RBAC bypass and the organization-owner
-shortcut of project RBAC never apply.
+row, project role or custom role, so the organization-owner shortcut of project RBAC
+never applies.
 
 1. A browser-session human acting as itself, with no run envelope. Every API key (an M6
    personal key included, whose principal is a human), every run credential, an admin

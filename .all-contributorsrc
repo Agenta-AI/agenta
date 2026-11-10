@@ -955,6 +955,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "WahidSaeed",
+      "name": "Abdul Wahid",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26499932?v=4",
+      "profile": "https://wahidsaeed.github.io",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "TPSJASPER",
+      "name": "Jasper",
+      "avatar_url": "https://avatars.githubusercontent.com/u/204532137?v=4",
+      "profile": "https://github.com/TPSJASPER",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

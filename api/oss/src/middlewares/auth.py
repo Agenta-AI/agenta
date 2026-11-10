@@ -59,6 +59,7 @@ from oss.src.core.access.principals import (
     envelope_to_claims,
     missing_principal_error,
 )
+from oss.src.core.account_choices.claims import run_accounts_from_claim
 from oss.src.core.access.types import InvalidRunClaims
 from oss.src.core.memberships.service import get_memberships_service
 
@@ -542,6 +543,7 @@ def _build_request_access_from_state(request: Request) -> Optional[RequestAccess
             credential_kind=credential_kind,
             acting_user_id=UUID(str(user_id)),
             envelope=getattr(state, "run_envelope", None),
+            run_accounts=getattr(state, "run_accounts", None) or (),
         )
     except (TypeError, ValueError, ValidationError):
         log.warning("[auth] request access could not be built", exc_info=True)
@@ -809,10 +811,7 @@ async def _member_fallback_project(*, user_id, default) -> Optional[UUID]:
         for listing in listings
         if str(listing.summary.organization_id) == str(default.project_organization_id)
     ]
-    return await db_manager.pick_fallback_project(
-        project_ids=project_ids,
-        ref_workspace_id=default.ref_workspace_id,
-    )
+    return await db_manager.pick_fallback_project(project_ids=project_ids)
 
 
 async def verify_bearer_token(
@@ -949,10 +948,11 @@ async def verify_bearer_token(
         # Older pods cached these branches' successes after a workspace-row check only
         # (workspace only), with no membership check at all (no parameters), with the
         # workspace's organization, or with no organization check for the project's own
-        # workspace (project + workspace): step 2 reads none of those entries. The
-        # project-only key is unchanged: its organization always came from the project.
+        # workspace (project + workspace); step-2 pods also accepted a legacy workspace
+        # id here. Step 2b reads none of those entries. The project-only key is
+        # unchanged: its organization always came from the project.
         if query_workspace_id or not query_project_id:
-            cache_key["v"] = "m4b2"
+            cache_key["v"] = "m4b2b"
 
         state = await get_cache(
             project_id=query_project_id,
@@ -978,8 +978,6 @@ async def verify_bearer_token(
             request.state.user_id = state.get("user_id")
             request.state.user_email = state.get("user_email")
             request.state.project_id = state.get("project_id")
-            # The organization id, also for a state a step-1 pod cached (its workspace
-            # field may hold a legacy workspace id).
             request.state.workspace_id = state.get("organization_id")
             request.state.organization_id = state.get("organization_id")
             request.state.organization_name = state.get("organization_name")
@@ -993,11 +991,9 @@ async def verify_bearer_token(
             return
 
         if query_project_id and query_workspace_id:
-            # The project and its workspace's organization, in one statement.
-            scoped = await db_manager.fetch_project_with_workspace_organization(
+            project = await db_manager.get_project_by_id(
                 project_id=query_project_id,
             )
-            project = scoped.project if scoped else None
 
             if not project:
                 await set_cache(
@@ -1011,16 +1007,9 @@ async def verify_bearer_token(
                 _deny("resolve", "project not found")
                 raise UnauthorizedException()
 
-            # The project's organization id needs no read; the project's own workspace
-            # only when that workspace is in the project's organization (a legacy
-            # cross-organization project is refused through it); any other id must name
-            # a workspace of the project's organization.
-            if (
-                str(query_workspace_id) == str(project.workspace_id)
-                and scoped.workspace_organization_id is not None
-                and str(scoped.workspace_organization_id)
-                != str(project.organization_id)
-            ):
+            # `workspace_id` is the organization id (design D6); any other id, a legacy
+            # workspace id included, does not name the project's organization.
+            if str(query_workspace_id) != str(project.organization_id):
                 await set_cache(
                     project_id=query_project_id,
                     user_id=user_id,
@@ -1031,38 +1020,6 @@ async def verify_bearer_token(
 
                 _deny("resolve", "project/workspace mismatch")
                 raise UnauthorizedException()
-
-            if str(query_workspace_id) not in {
-                str(project.workspace_id),
-                str(project.organization_id),
-            }:
-                workspace = await db_manager.get_workspace(
-                    workspace_id=query_workspace_id,
-                )
-
-                if not workspace:
-                    await set_cache(
-                        project_id=query_project_id,
-                        user_id=user_id,
-                        namespace="verify_bearer_token",
-                        key=cache_key,
-                        value={"deny": True},
-                    )
-
-                    _deny("resolve", "workspace not found")
-                    raise UnauthorizedException()
-
-                if str(workspace.organization_id) != str(project.organization_id):
-                    await set_cache(
-                        project_id=query_project_id,
-                        user_id=user_id,
-                        namespace="verify_bearer_token",
-                        key=cache_key,
-                        value={"deny": True},
-                    )
-
-                    _deny("resolve", "project/workspace mismatch")
-                    raise UnauthorizedException()
 
             project_id = query_project_id
             organization_id = project.organization_id
@@ -1088,9 +1045,9 @@ async def verify_bearer_token(
             organization_id = project.organization_id
 
         elif not query_project_id and query_workspace_id:
-            # A workspace id or an organization id: its default project, in one read.
+            # An organization id: its default project, in one read.
             default = await db_manager.fetch_default_project(
-                workspace_or_organization_id=query_workspace_id,
+                organization_id=query_workspace_id,
             )
 
             if not default:
@@ -1105,28 +1062,21 @@ async def verify_bearer_token(
                 _deny("resolve", "workspace not found (no project_id)")
                 raise UnauthorizedException()
 
-            # The default project of the organization the id names (never a project of
-            # another organization), and that project's organization.
+            # The default project of the organization the id names, and that
+            # project's organization.
             project_id = default.project_id
             organization_id = default.project_organization_id
 
         else:
-            # Today's choice: the oldest workspace membership. A user without one (no
-            # workspace rows, written by workspace removal step 2) falls back to the
-            # oldest organization membership.
-            try:
-                default_ref = await db_manager.get_default_workspace_id(
-                    user_id=user_id,
-                )
-            except NoResultFound:
-                default_ref = await db_manager.fetch_oldest_organization_id(
-                    user_id=user_id,
-                )
-                if default_ref is None:
-                    raise
+            # The user's oldest organization membership.
+            default_ref = await db_manager.fetch_oldest_organization_id(
+                user_id=user_id,
+            )
+            if default_ref is None:
+                raise NoResultFound(f"No organization membership for user {user_id}")
 
             default = await db_manager.fetch_default_project(
-                workspace_or_organization_id=default_ref,
+                organization_id=default_ref,
             )
             if not default:
                 raise NoResultFound(f"No default project for {default_ref}")
@@ -1134,8 +1084,8 @@ async def verify_bearer_token(
             project_id = default.project_id
             organization_id = default.project_organization_id
 
-            # The resolver decides, as `?project_id=` would: a workspace row alone does
-            # not make a member (CONTRACT section 2). A user who may not open the
+            # The resolver decides, as `?project_id=` would (CONTRACT section 2). A
+            # user who may not open the
             # organization's default project lands on a project they may open. Not
             # cached on a denial.
             if (
@@ -1535,6 +1485,13 @@ async def verify_secret_token(
         request.state.gateway_run_id = auth_context.get("gateway_run_id")
         request.state.gateway_run_labels = auth_context.get("gateway_run_labels")
         request.state.gateway_tools = auth_context.get("gateway_tools")
+        # The run's "user" accounts, by id. A malformed claim refuses the credential.
+        try:
+            request.state.run_accounts = run_accounts_from_claim(
+                auth_context.get("run_accounts")
+            )
+        except InvalidRunClaims as exc:
+            raise DecodeError("Secret token carries invalid run accounts.") from exc
         request.state.gateway_platform_run = (
             audience == GATEWAY_TOKEN_AUDIENCE
             and auth_context.get("gateway_platform_run") is True
@@ -1630,8 +1587,12 @@ async def sign_secret_token(
     expires_in: Optional[int] = None,
     *,
     envelope: RunEnvelope,
+    run_accounts: Optional[List[dict]] = None,
 ):
     """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
+
+    `run_accounts` is the run's `run_accounts` claim (the ready accounts of its "user"
+    items, by id), written only when set. It is not an envelope claim.
 
     `envelope` is required: every run credential carries its principal, authority and
     run context as claims (`principal`, `restrictions`, `authority`, `run`, `sender`,
@@ -1704,6 +1665,9 @@ async def sign_secret_token(
         # Built-in (platform-funded) models accept only a token that carries this mark.
         if gateway_platform_run:
             auth_context["gateway_platform_run"] = True
+
+        if run_accounts:
+            auth_context["run_accounts"] = list(run_accounts)
 
         auth_context.update(envelope_to_claims(envelope=envelope))
 

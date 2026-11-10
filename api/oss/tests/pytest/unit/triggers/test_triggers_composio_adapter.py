@@ -51,6 +51,48 @@ async def test_delete_subscription_propagates_transient_provider_failure(error):
     assert exc_info.value.operation == "delete_subscription"
 
 
+def _adapter_with_webhooks(items):
+    adapter = object.__new__(ComposioTriggersAdapter)
+    adapter._get = AsyncMock(return_value={"items": items})
+    adapter._client = AsyncMock()
+    return adapter
+
+
+async def test_ensure_webhook_subscription_returns_existing_secret_and_url():
+    adapter = _adapter_with_webhooks(
+        [{"secret": "whsec_1", "webhook_url": "https://a.example.org/hook"}]
+    )
+
+    registration = await adapter.ensure_webhook_subscription(
+        webhook_url="https://b.example.org/hook"
+    )
+
+    assert registration.secret == "whsec_1"
+    assert registration.webhook_url == "https://a.example.org/hook"
+    adapter._client.post.assert_not_awaited()
+
+
+def _adapter_with_patch_error(error):
+    adapter = object.__new__(ComposioTriggersAdapter)
+    adapter._patch = AsyncMock(side_effect=error)
+    return adapter
+
+
+async def test_set_subscription_status_accepts_provider_409_as_already_in_state():
+    adapter = _adapter_with_patch_error(_status_error(409))
+
+    await adapter.set_subscription_status(trigger_id="ti_live", enabled=True)
+
+
+async def test_set_subscription_status_propagates_other_provider_failures():
+    adapter = _adapter_with_patch_error(_status_error(500))
+
+    with pytest.raises(AdapterError) as exc_info:
+        await adapter.set_subscription_status(trigger_id="ti_live", enabled=False)
+
+    assert exc_info.value.operation == "set_subscription_status"
+
+
 _V3_ENVELOPE = {
     "id": "msg_1",
     "timestamp": "2026-10-28T10:43:20Z",
@@ -82,6 +124,8 @@ def test_normalize_webhook_event_maps_v3_envelope():
         {**_V3_ENVELOPE, "type": "composio.connected_account.expired"},
         {k: v for k, v in _V3_ENVELOPE.items() if k != "id"},
         {**_V3_ENVELOPE, "metadata": {"trigger_slug": "X"}},
+        {**_V3_ENVELOPE, "metadata": ["ti_1"]},
+        {**_V3_ENVELOPE, "metadata": "ti_1"},
     ],
 )
 def test_normalize_webhook_event_rejects_unroutable_envelopes(envelope):

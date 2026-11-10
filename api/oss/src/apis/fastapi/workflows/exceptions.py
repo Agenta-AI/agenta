@@ -10,7 +10,10 @@ from functools import wraps
 from fastapi import HTTPException
 
 from oss.src.apis.fastapi.sharing.utils import agent_creation_failed_exception
-from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.core.embeds.exceptions import (
+    EmbedError,
+    NonEmbeddableWorkflowReferenceError,
+)
 from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.workflows.types import (
     InvalidAgentConnectionError,
@@ -32,6 +35,13 @@ class NonEmbeddableWorkflowReferenceException(HTTPException):
         self,
         message: str = "This static workflow cannot be embedded.",
     ):
+        super().__init__(status_code=400, detail=message)
+
+
+class EmbedException(HTTPException):
+    # Every embed resolution error (cycle, depth or count limit, missing or unsupported
+    # reference, mixed families, bad path) comes from the request's configuration.
+    def __init__(self, message: str = "The embedded references could not be resolved."):
         super().__init__(status_code=400, detail=message)
 
 
@@ -57,6 +67,8 @@ def handle_workflow_exceptions():
                 raise StaticWorkflowSlugException(message=e.message) from e
             except NonEmbeddableWorkflowReferenceError as e:
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
+            except EmbedError as e:
+                raise EmbedException(message=str(e)) from e
             except InvalidAgentInstructionsError as e:
                 raise InvalidAgentInstructionsException(e) from e
             except InvalidAgentConnectionError as e:

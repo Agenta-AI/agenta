@@ -787,7 +787,10 @@ export interface GatewayToolPolicy {
 /** One configured integration inside `gatewayPolicy`: its routing plus its tool table. */
 export interface GatewayIntegrationPolicy {
   provider: string;
-  connection: string;
+  /** Absent (null on the wire) for a "user" integration. */
+  connection?: string | null;
+  /** "user": the run person's own connection, named by the run's credential. */
+  accountSource?: "user" | null;
   toolkitVersion: string;
   tools: Record<string, GatewayToolPolicy>;
 }

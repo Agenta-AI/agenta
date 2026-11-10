@@ -17,7 +17,6 @@ import {
     testcaseIdsAtom,
     newEntityIdsAtom,
     deletedEntityIdsAtom,
-    testcaseDraftAtomFamily,
     testcaseEntityAtomFamily,
     testcaseHasDraftAtomFamily,
     discardAllDraftsAtom,
@@ -64,47 +63,25 @@ interface Column {
     name: string
 }
 
-// Derive current columns from testcase entities + revision-level pending ops
+/**
+ * The top-level columns the commit keeps: every key of the loaded and new rows, which already
+ * carry the pending column changes (see `testcaseEntityAtomFamily`), and every added column.
+ */
 const currentColumnsAtom = atom<Column[]>((get) => {
     const revisionId = get(currentRevisionIdAtom)
-    const serverIds = get(testcaseIdsAtom)
-    const newIds = get(newEntityIdsAtom)
-    const allIds = [...serverIds, ...newIds]
-
-    // Get revision-level pending column ops
-    const pendingColumnOps = revisionId ? get(pendingColumnOpsAtomFamily(revisionId)) : null
-    const deletedCols = new Set(pendingColumnOps?.remove ?? [])
-    const addedCols = new Set(pendingColumnOps?.add ?? [])
-
-    // Collect unique keys from all entities
-    // Note: Testcase uses nested format - data fields are in testcase.data
-    const keySet = new Set<string>()
-    for (const id of allIds) {
-        const entity = get(testcaseEntityAtomFamily(id))
-        if (!entity?.data) continue
-        for (const key of Object.keys(entity.data)) {
-            if (!DATA_INTERNAL_FIELDS.has(key)) {
-                keySet.add(key)
-            }
+    const ids = [...get(testcaseIdsAtom), ...get(newEntityIdsAtom)]
+    const keys = new Set<string>()
+    for (const id of ids) {
+        const data = get(testcaseEntityAtomFamily(id))?.data
+        if (!data) continue
+        for (const key of Object.keys(data)) {
+            if (!DATA_INTERNAL_FIELDS.has(key)) keys.add(key)
         }
     }
-
-    // Filter out pending deleted columns
-    const columns: Column[] = []
-    for (const key of keySet) {
-        if (!deletedCols.has(key)) {
-            columns.push({key, name: key})
-        }
+    if (revisionId) {
+        for (const key of get(pendingColumnOpsAtomFamily(revisionId)).add) keys.add(key)
     }
-
-    // Add pending added columns that aren't already present
-    for (const key of addedCols) {
-        if (!keySet.has(key) && !deletedCols.has(key)) {
-            columns.push({key, name: key})
-        }
-    }
-
-    return columns
+    return [...keys].map((key) => ({key, name: key}))
 })
 
 // Clear revision draft
@@ -125,6 +102,8 @@ export interface SaveTestsetParams {
     testsetId: string
     revisionId?: string | null
     commitMessage?: string
+    /** Rows left out of the commit: a saved one stays unchanged, a new one is not saved. */
+    excludeIds?: ReadonlySet<string>
 }
 
 /**
@@ -177,7 +156,7 @@ const normalizeCommittedRows = (
 export const saveTestsetAtom = atom(
     null,
     async (get, set, params: SaveTestsetParams): Promise<SaveTestsetResult> => {
-        const {projectId, testsetId, revisionId, commitMessage} = params
+        const {projectId, testsetId, revisionId, commitMessage, excludeIds} = params
 
         if (!projectId || !testsetId) {
             return {success: false, error: new Error("Missing projectId or testsetId")}
@@ -227,8 +206,9 @@ export const saveTestsetAtom = atom(
         try {
             // Get all required state
             const columns = get(currentColumnsAtom)
-            const serverIds = get(testcaseIdsAtom)
-            const newIds = get(newEntityIdsAtom)
+            const included = (id: string) => !excludeIds?.has(id)
+            const serverIds = get(testcaseIdsAtom).filter(included)
+            const newIds = get(newEntityIdsAtom).filter(included)
             const deletedIds = get(deletedEntityIdsAtom)
 
             // Build patch operations from local changes
@@ -298,10 +278,10 @@ export const saveTestsetAtom = atom(
             }
 
             // 2. Collect new testcases (from newEntityIdsAtom)
-            // Note: Draft is already in nested Testcase format (draft.data contains column values)
+            // The entity, not the bare draft: it carries the pending column renames
             const newTestcasesData = newIds
                 .map((id) => {
-                    const draft = get(testcaseDraftAtomFamily(id))
+                    const draft = get(testcaseEntityAtomFamily(id))
                     if (!draft) return null
                     const filteredData: Record<string, unknown> = {}
                     if (draft.data) {
@@ -469,9 +449,10 @@ export const saveNewTestsetAtom = atom(
 
                 // Collect testcase data from new entities
                 // Note: Testcase uses nested format - data fields are in draft.data
+                // The entity, not the bare draft: it carries the pending column renames
                 testcaseData = newIds
                     .map((id) => {
-                        const draft = get(testcaseDraftAtomFamily(id))
+                        const draft = get(testcaseEntityAtomFamily(id))
                         if (!draft?.data) return null
                         // Filter to only include current columns
                         const filteredData: Record<string, unknown> = {}
@@ -543,12 +524,12 @@ export const clearChangesAtom = atom(null, (get, set) => {
         set(clearPendingOpsReducer, revisionId)
     }
 
+    // Discard drafts BEFORE clearing the ids: discardAllDraftsAtom finds drafts through them
+    set(discardAllDraftsAtom)
+
     // Clear new and deleted entity tracking
     set(clearNewEntityIdsAtom)
     set(clearDeletedIdsAtom)
-
-    // Clear all drafts
-    set(discardAllDraftsAtom)
 })
 
 // ============================================================================

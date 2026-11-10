@@ -1,10 +1,10 @@
 # Sharing program: normative contract
 
-Status: proposed, not implemented. Version 3 (2026-10-22), after three Codex reviews.
+Status: partly implemented. Section 14 marks what shipped. Version 6 (2026-11-02): follows what shipped for M7 (the accounts package, v0.128.0), `small-team-roles` (v0.128.1), M10 (v0.127.2) and needs setup (v0.128.0). Version 5 (2026-10-28): adds the owner decisions of 2026-10-28 for M7 in sections 4 and 14. Version 4 (2026-10-26): adds the owner decisions of 2026-10-26 in sections 4 and 15. Version 3 (2026-10-22) followed three Codex reviews.
 
 This file is the single source for the names, rules and ownership boundaries that the OpenSpec changes share. A change specifies only its own additions and points here for everything else. When a change and this file disagree, this file wins, and the change must be fixed.
 
-Changes: M1 `project-membership-resolver`, M2 `run-principal`, M3 `agent-session-sharing`, M4 `remove-workspaces-org-storage`, M5 `organization-credentials`, M6 `personal-project-and-doors`, M9 `session-trace-privacy`, M7 `personal-credentials-bindings`, M8 `agent-use-grants` (deferred design note only).
+Changes: M1 `project-membership-resolver`, M2 `run-principal`, M3 `agent-session-sharing`, M4 `remove-workspaces-org-storage`, M5 `organization-credentials`, M6 `personal-project-and-doors`, M9 `session-trace-privacy` (M9a only; M9b is replaced by `small-team-roles`), `small-team-roles`, M7 `personal-credentials-bindings` (shipped), M8 `agent-use-grants` (deferred design note only), M10 `channel-limits` (shipped), and `agent-needs-setup` (cross-cutting, no milestone number, shipped).
 
 ## 1. Tenancy
 
@@ -57,6 +57,19 @@ Owner decision (2026-10-22): keep today's Slack and Telegram behavior in this pr
 - M2 keeps today's authority for channel turns: the linked user's own role when the Slack user is linked, else the binding creator's role. No installation restrictions are enforced.
 - This is not a one-way door. Because the principal and the sender are stored on every turn, a later change can add restrictions (an operation list, bound-agent-only, no child agents) or move linked users to delegated credentials without a data migration.
 - Known risk, unchanged from today: a channel user acts with the binding creator's capabilities when not linked.
+- M6 keeps this authority. When the installation principal becomes the connection's service account (M6a), the role still comes from the linked user or the binding creator; the service account's stored role grants nothing to installation turns.
+
+Owner decisions (2026-10-26) about channels:
+
+- A private agent may be active in a channel. Everyone in the channel may talk to it, unless the owner sets channel limits (M10). Requiring a "who can talk to it" setup first is not a rule.
+- New channel chats of a private agent are private to the agent's owner.
+- A chat that came from a channel is not view only in Agenta. A person who may send in the chat writes to it in `/m`, under the same rules as any chat.
+- Channel limits (M10) are optional for every agent. They limit where the agent answers and whom it answers. They never change who reads the chats in Agenta. Only the owner changes a private agent's limits.
+
+Personal accounts in channels (M7, as shipped in v0.128.0):
+
+- A Slack or Telegram turn has no run person, because nothing links channel users to Agenta users today. A `"user"` item is left out of a channel turn, and the agent runs without it (`docs/design/accounts-package/spec.md`, section 3.1). The person who created the channel connection or the binding is never the run person.
+- Saving or activating a channel binding is never refused because the agent has a `"user"` item (section 15).
 
 ## 5. Schedules and subscriptions (M2)
 
@@ -75,13 +88,13 @@ AccessService.decide(*, authority: RunAuthority | None, principal: PrincipalRef,
                      project_id: UUID | None = None, resource: ResourceRef | None = None) -> Decision
 ```
 
-- Order, fixed: (1) membership eligibility, (2) authority restrictions, (3) capability (EE no-RBAC and organization-owner shortcuts apply only here), (4) resource policy (M3 and later).
+- Order, fixed: (1) membership eligibility, (2) authority restrictions, (3) capability (the organization-owner shortcut applies only here; `small-team-roles` removes the EE no-RBAC shortcut), (4) resource policy (M3 and later).
 - From M3, `AccessService` requires a resource policy, and every composition root passes it. Startup fails without it.
 - Denial reasons, fixed: `principal_inactive` (a deleted key, a disconnected binding, a removed user), `not_member`, `restricted_by_authority`, `missing_capability`, `resource_denied`.
 - The tenant scope comes from the requested project, never from a human identity record.
 - Organization-scoped decisions are NOT in M2. M5 adds them with their own policy that EE no-RBAC shortcuts cannot bypass.
 - Caching: no cache stores a decision. `decide` runs on every call. Membership is cached per (user, project), including its absence, and invalidated by every M1 membership mutation, so decisions stay fast and fresh; the principal record is cached for `AGENTA_CACHE_TTL` and invalidated on key deletion, binding and connection changes, and user deletion. The exchange mints a run credential only after `decide` allows. Credential exchanges that perform no permission check still check principal eligibility (steps 1 and 2). Revocation takes effect at the next decision. A change can take up to `AGENTA_CACHE_TTL` (300 s) in three known cases: Redis invalidation fails; a read that started before the mutation committed refills the old entry after the invalidation; and the ApiKey middleware state on routes that check no permission. Run tokens live 15 minutes, gateway and mount credentials 12 hours, and live streams recheck every 60 seconds.
-- Durable executable work (schedules, subscriptions, evaluation runs) gets one edit rule in M7, not before: only the executing principal may change what it executes. Others with the capability may pause, stop, archive or delete it. A rerun or a copy is new work whose principal is the person who starts it.
+- Durable executable work (schedules, subscriptions, evaluation runs) gets one edit rule in M7 (as shipped in v0.128.0, #7919): every save through an edit route writes the caller as the executing principal, so the work runs as whoever saved it last. Pause, resume, archive, delete and worker writes keep the stored principal. A channel installation may not edit a trigger (`edit_from_channel_not_allowed`). A rerun or a copy is new work whose principal is the person who starts it.
 - Organization-scoped decisions (M5) accept only a browser-session human with no run envelope. Every API key, including M6 personal keys, and every run credential is refused.
 - List scopes derive owner and grant eligibility from the principal, never from a creator id. List and direct reads must agree for every principal kind.
 
@@ -112,7 +125,7 @@ M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical desig
   - An exact binding names one credential id and never substitutes another. This is M7.
 - An agent with no connection keeps the project's default for the provider; an organization credential is never chosen for it. Every save path writes the connection explicitly.
 - Existing slug references keep their M5 named meaning after M7. M7 does not reclassify them as exact.
-- Agent connection binding (M7): `caller_account | project_default | specific`. `specific` never names a user-owned credential.
+- Item account source (M7, as shipped in v0.128.0): each item has `account_source`, `agent` (the account the item names, used by every run, today's behavior) or `user` (an account the run person owns). A missing `user` account leaves the item out of the run; only a missing model stops a run. `docs/design/accounts-package/spec.md` is the source for M7 and replaces the `caller_account | project_default | specific` binding of the M7 change.
 - Shared-session rule (M7): a session shared with others never releases a user-owned credential. The check and a sticky "used a personal credential" mark on the session are done under one session-row lock, before any personal credential is used. A session with that mark cannot be shared later.
 - Organization credential values never reach a user-controlled sandbox. Paths that deliver plaintext refuse organization credentials. The one exception is an organization subscription login (below), which behaves like a project one.
 - Organization rows come from the organization that the project row names; a request whose organization differs from it gets none. An admin chooses which projects may use each organization credential (all projects by default; selected projects in EE).
@@ -132,15 +145,16 @@ M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical desig
 - Refused when: an active run exists, a slug clashes, a reference resolves in the source, or a mount in the move set uses an old path.
 - Doors run on the server. The sandbox never gets a credential for another project. Only web runs by a human in their own personal project get doors. Doors are: find agents, read files, run an agent (an execution door).
 - Door rule: the parent's delegation limits AND the principal's current access in the target AND the target resource policy.
-- Activation gate: the run-an-agent door stays off until M9 enforcement runs everywhere, because before M9 target trace readers could read the child result. The find-agents and read-files doors do not wait.
+- Activation gate: the run-an-agent door stays off until `small-team-roles` is live, so the people who can read the child result are the trace-reading roles only. The find-agents and read-files doors do not wait.
 - Later, not planned here: a read-sessions operation for agent-to-agent communication, so a run acting as a user can read other sessions that user can read. It reuses `decide` with a session resource, the same check M3 adds. Across projects it becomes one more door. The reader's session then holds a copy of that content, so the R4 sharing rule applies to it.
 - A move refuses an agent that is deployed to an environment. It never deletes a deployment.
 
 ## 11. Trace privacy (M9)
 
-- One read-scope boundary for all user-triggered trace reads, including saved queries. Unrestricted scope only for named maintenance operations.
-- A deleted private session leaves a privacy tombstone until its traces expire.
-- Query strategy is chosen after measuring; the change specifies the semantics only.
+- M9a: tokens and cost are stored on each turn, and displays read the turn.
+- M9b (trace reads filtered by session access) is replaced by `small-team-roles`. Trace content is readable by roles with `VIEW_SPANS`, which is every catalog role except `member`. On Hobby, Pro and OSS, that means owner and admin.
+- Private chats are private from members, not from admins and owners.
+- The privacy tombstone written by M3 stays until a separate cleanup.
 
 ## 12. Migrations and rollout
 
@@ -172,9 +186,12 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M6c | Sharing by move |
 | M6d | Doors (find agents, read files, run an agent) |
 | M9a | Cost and token usage stored on each turn |
-| M9b | Trace reads filtered by session access |
+| M9b | Trace reads filtered by session access. Replaced by `small-team-roles` |
+| small-team-roles | The `member` role, roles enforced on every plan, offered roles per plan |
 | M7 | Personal credentials and bindings, durable-work edit rule |
 | M8 | Use grants (deferred, not planned) |
+| M10 | Channel limits: where an agent answers and whom it answers (Slack first, then Telegram) |
+| Needs setup | `agent-needs-setup`: one check and one UI state for an agent that names an item that is missing where it runs |
 
 ### Implementation dependencies (who can start when)
 
@@ -191,8 +208,11 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M6c | M3, M4b mount step, M6b (it calls `is_organization_keyed`) | M6d |
 | M6d | M2, M6b | M6c |
 | M9a | nothing | everything |
-| M9b | M3 | M6 |
-| M7 | M5, M6a, M3 (session personal-use mark) | M9b |
+| M9b | replaced by `small-team-roles` | |
+| small-team-roles | M1, M2 (`AccessService`) | M6 |
+| M7 | M5, M6a, M3 (session personal-use mark) | shipped |
+| M10 | nothing beyond today's channels code | shipped |
+| Needs setup | M5 for the organization reasons (`not_shared`); M7 for `needs_personal_account` | shipped |
 
 ### Release dependencies (what must be live first)
 
@@ -207,15 +227,25 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M6a | M2 |
 | M6b | M3 and M5 (a personal project needs organization keys to be usable) |
 | M6c | the M4b mount step and M6b |
-| M6d | M6a (doors refuse keys and installations only once those are service accounts) and M6b; the run-an-agent door also needs M9b |
+| M6d | M6a (doors refuse keys and installations only once those are service accounts) and M6b; the run-an-agent door also needs `small-team-roles` |
 | M9a | nothing |
-| M9b | M3 |
-| M7 | M5, M6a and M9b |
+| M9b | replaced by `small-team-roles` |
+| small-team-roles | M9a (reduced PR #7881, so chat reads no trace) |
+| M7 | M5 and M6a. It shipped without M9b. |
+| M10 | nothing. It shipped in v0.127.2 (#7890). |
+| Needs setup | nothing for the project scope. It shipped in v0.128.0 with M7 (#7942). |
 
 ### Parallel tracks
 
-- Track 1 (critical path): M1, then M2, then M3, then M6b, then M6c and M6d, then M7.
+- Track 1 (critical path): M1, then M2, then M3, then M6b, then M6c and M6d.
 - Track 2 (start now, independent): M4a and M9a.
 - Track 3 (after M2's types exist): M5.
 - Track 4 (after M1 is live): M4b.
-- Track 5 (after M3 is live): M9b, which unlocks the run-an-agent door and M7.
+- Track 5 (after M3 is live): `small-team-roles`, which replaces M9b and unlocks the run-an-agent door. M7 did not wait for it.
+
+## 15. Agent configuration (owner decisions, 2026-10-26)
+
+- The LLM gateway is always on. The option to turn it off (`AGENTA_LLM_GATEWAY_ENABLED`) is being removed. No change specifies behavior for a deployment with the gateway off.
+- No checks at save time. Saving an agent never refuses a reference because the item it names is missing, unavailable or not signed in. Self-managed agents save and run as on v0.125.0.
+- A missing item is shown, not refused at save: the `agent-needs-setup` change marks it "Needs setup" when the agent is opened, and only a model item (the model, its model key, or its subscription login) blocks a run.
+- The check that finds missing items runs on the server. `/m` calls it in parallel with its other requests, so it adds no wait.

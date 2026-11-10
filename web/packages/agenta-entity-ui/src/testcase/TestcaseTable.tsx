@@ -22,26 +22,37 @@
  * ```
  */
 
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, type ReactNode} from "react"
 
 import {
+    loadMoreTestcasesAtom,
     testcaseMolecule as testcase,
     testcaseDataController,
     type Column,
     type TestcaseDataConfig,
     type TestcaseTableRow,
 } from "@agenta/entities/testcase"
-import {SmartCellContent, TextCellContent} from "@agenta/ui/cell-renderers"
-import type {RowHeightFeatureConfig, TypeChipConfig} from "@agenta/ui/table"
+import {CellContentPopover, SmartCellContent, TextCellContent} from "@agenta/ui/cell-renderers"
+import {
+    ColumnVisibilityMenuTrigger,
+    useRowHeightContext,
+    type ColumnDefs,
+    type RowHeightFeatureConfig,
+    type TypeChipConfig,
+} from "@agenta/ui/table"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {EntityTable} from "../shared"
+import {EntityTable, type EntityColumnHeader} from "../shared"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 export interface TestcaseTableProps {
-    /** Data source configuration */
+    /**
+     * Data source configuration. An edit session sets `includeNewRows`, so rows added locally
+     * and not yet saved show in the table.
+     */
     config: TestcaseDataConfig
     /** Enable row selection (default: false) */
     selectable?: boolean
@@ -62,6 +73,33 @@ export interface TestcaseTableProps {
     showSettings?: boolean
     /** Whether export actions should be enabled */
     canExportData?: boolean
+    /**
+     * Called when a row is clicked. A row click then no longer toggles selection; the
+     * checkbox still does.
+     */
+    onRowClick?: (row: TestcaseTableRow) => void
+    /** Extra columns appended after the data columns, for example a row menu */
+    appendColumns?: ColumnDefs<TestcaseTableRow>
+    /** Replaces each column and group header, for per-column actions */
+    renderColumnHeader?: (header: EntityColumnHeader) => ReactNode
+    /** Extra controls in the toolbar, next to the settings button */
+    headerExtra?: ReactNode
+
+    // Editor features. Each is off by default, so a picker or preview renders as before.
+    /**
+     * Puts the table settings button (column visibility, row height) in the header of the last
+     * appended column, or of a small column of its own. Cells then follow the row height.
+     */
+    columnSettings?: boolean
+    /** A "Delete selected" entry in the settings menu. Used with `columnSettings`. */
+    settingsDelete?: {onDelete: () => void; disabled?: boolean; label?: string}
+    /** Shows the full value of a cell, with a Copy button, when the pointer rests on it */
+    cellPopover?: boolean
+    /**
+     * Marks each row with unsaved edits, and each new row, on its left edge. Needs `selectable`:
+     * the marker sits in the selection cell.
+     */
+    markEditedRows?: boolean
 }
 
 // ============================================================================
@@ -106,6 +144,49 @@ function getNativeColumnValue(
     return current
 }
 
+const SETTINGS_COLUMN_WIDTH = 48
+
+/**
+ * A cell value that follows the row height: the chosen size caps the cell's height and lines.
+ * A string gets the hover popover with Copy when asked for; other values get it from
+ * `SmartCellContent`.
+ */
+function TestcaseCellValue({value, popover}: {value: unknown; popover: boolean}) {
+    const {maxLines, heightPx} = useRowHeightContext()
+    const capped = (content: ReactNode) => (
+        <div className="overflow-hidden" style={{maxHeight: heightPx}}>
+            {content}
+        </div>
+    )
+    if (typeof value !== "string") {
+        return capped(<SmartCellContent value={value} showPopover={popover} />)
+    }
+    const content = capped(<TextCellContent value={value} maxLines={maxLines} />)
+    if (!popover || value === "") return content
+    return (
+        <CellContentPopover
+            fullContent={<TextCellContent value={value} truncate={false} />}
+            copyText={value}
+        >
+            <div className="cursor-pointer">{content}</div>
+        </CellContentPopover>
+    )
+}
+
+/** The left-edge marker of a row with unsaved edits, or of a new row. */
+function EditedRowMarker({row}: {row: TestcaseTableRow}) {
+    const draft = useAtomValue(testcase.atoms.draft(row.id))
+    if (!row.__isNew && !draft) return null
+    return (
+        <span
+            className="pointer-events-none absolute inset-0 border-0 border-l-[3px] border-solid border-colorWarning bg-colorWarningBg"
+            title="Unsaved changes"
+        >
+            <span className="sr-only">Unsaved changes</span>
+        </span>
+    )
+}
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -120,6 +201,14 @@ export function TestcaseTable({
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
     canExportData = true,
+    onRowClick,
+    appendColumns,
+    renderColumnHeader,
+    headerExtra,
+    columnSettings = false,
+    settingsDelete,
+    cellPopover = false,
+    markEditedRows = false,
 }: TestcaseTableProps) {
     // Testcase-specific row data resolver:
     // All rows (identity-only) look up data from the entity's .data property.
@@ -140,13 +229,59 @@ export function TestcaseTable({
         return getNativeColumnValue(entity?.data, columnKey)
     }, [])
 
-    const renderCell = useCallback((value: unknown) => {
-        if (typeof value === "string") {
-            return <TextCellContent value={value} />
-        }
+    // Without the editor features a cell renders exactly as before.
+    const editorCells = columnSettings || cellPopover
+    const renderCell = useCallback(
+        (value: unknown) => {
+            if (editorCells) return <TestcaseCellValue value={value} popover={cellPopover} />
+            if (typeof value === "string") {
+                return <TextCellContent value={value} />
+            }
 
-        return <SmartCellContent value={value} />
-    }, [])
+            return <SmartCellContent value={value} />
+        },
+        [cellPopover, editorCells],
+    )
+
+    // The settings button sits in the header of the last appended column. The appended
+    // columns hold row controls, so the column picker does not list them.
+    const trailingColumns = useMemo<ColumnDefs<TestcaseTableRow> | undefined>(() => {
+        if (!columnSettings) return appendColumns
+        const trigger = <ColumnVisibilityMenuTrigger variant="icon" />
+        const locked = {columnVisibilityLocked: true}
+        if (!appendColumns || appendColumns.length === 0) {
+            return [
+                {
+                    key: "__settings",
+                    title: trigger,
+                    width: SETTINGS_COLUMN_WIDTH,
+                    fixed: "right",
+                    render: () => null,
+                    ...locked,
+                },
+            ]
+        }
+        const last = appendColumns.length - 1
+        return appendColumns.map((column, index) => {
+            if (index !== last) return {...column, ...locked}
+            const title = typeof column.title === "function" ? column.title({}) : column.title
+            return {
+                ...column,
+                ...locked,
+                title: (
+                    <div className="flex items-center justify-end gap-1">
+                        {title}
+                        {trigger}
+                    </div>
+                ),
+            }
+        })
+    }, [appendColumns, columnSettings])
+
+    const renderSelectionMarker = useCallback(
+        (row: TestcaseTableRow) => <EditedRowMarker row={row} />,
+        [],
+    )
 
     // Share chip visibility pref with OSS TestcasesTableShell so toggling
     // chips off in one surface (eg. main testsets page) hides them in all
@@ -160,6 +295,10 @@ export function TestcaseTable({
         [getTypeChipValue],
     )
 
+    // A server table loads later pages as the reader scrolls; a local one has one page.
+    const loadMore = useSetAtom(loadMoreTestcasesAtom)
+    const loadNextPage = useCallback(() => loadMore(config), [config, loadMore])
+
     return (
         <EntityTable<TestcaseTableRow, TestcaseDataConfig, Column>
             controller={testcaseDataController}
@@ -169,12 +308,19 @@ export function TestcaseTable({
             selectable={selectable}
             selectedIds={selectedIds}
             onSelectionChange={onSelectionChange}
+            onRowClick={onRowClick}
             multiSelect={multiSelect}
             selectionDisabled={selectionDisabled}
             grouping
             rowHeightConfig={rowHeightConfig}
             showSettings={showSettings}
+            settingsDelete={settingsDelete}
             enableExport={canExportData}
+            appendColumns={trailingColumns}
+            renderSelectionMarker={markEditedRows ? renderSelectionMarker : undefined}
+            renderColumnHeader={renderColumnHeader}
+            headerExtra={headerExtra}
+            loadNextPage={config.useLocal ? undefined : loadNextPage}
             typeChips={typeChips}
             renderCell={renderCell}
             emptyMessage="No testcases found"

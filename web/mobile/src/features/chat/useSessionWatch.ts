@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from "react"
 
 import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
 import {actionableInteractionsQueryKey} from "@agenta/sessions/state"
-import {useQueryClient} from "@tanstack/react-query"
+import {useQueryClient, type Query} from "@tanstack/react-query"
 
 import {tryRefreshSession} from "@/lib/auth"
 
@@ -14,6 +14,38 @@ import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
 /** Minimum spacing between two reconnect revalidations, so a reconnect loop can't fan out
  * into one full records refetch per attempt. */
 const MIN_INTERVAL_MS = 3_000
+
+/** A read this recent already covers the gap a new stream's `ready` stands for. */
+const readBeforeConnect = (query: Query) =>
+    Date.now() - query.state.dataUpdatedAt >= MIN_INTERVAL_MS
+
+const COALESCE_MS = 500
+
+/** Leading call at once; calls inside the window collapse into one trailing call at its end. */
+const coalesce = (fn: () => void) => {
+    let timer: number | undefined
+    let pending = false
+    const run = () => {
+        if (timer !== undefined) {
+            pending = true
+            return
+        }
+        fn()
+        timer = window.setTimeout(() => {
+            timer = undefined
+            if (pending) {
+                pending = false
+                run()
+            }
+        }, COALESCE_MS)
+    }
+    const cancel = () => {
+        if (timer !== undefined) window.clearTimeout(timer)
+        timer = undefined
+        pending = false
+    }
+    return {run, cancel}
+}
 
 /**
  * The rail's head window, not its paging tail.
@@ -62,6 +94,10 @@ export const useSessionWatch = ({
     onRecordsChangedRef.current = onRecordsChanged
     const onInteractionChangedRef = useRef(onInteractionChanged)
     onInteractionChangedRef.current = onInteractionChanged
+    // A ref: this prop lands after the session row does, and reopening the stream for it costs a
+    // second `ready`.
+    const sharedReaderAdvertisedRef = useRef(sharedReaderAdvertised)
+    sharedReaderAdvertisedRef.current = sharedReaderAdvertised
 
     useEffect(() => {
         if (!sessionId || !projectId) return
@@ -74,12 +110,14 @@ export const useSessionWatch = ({
         let lastNotifiedAt = 0
         let lastLivenessRefreshAt = 0
 
-        /** Reconnect coverage only — real `records-changed` events are never throttled. */
+        const recordsChanged = coalesce(() => onRecordsChangedRef.current())
+
+        /** Reconnect coverage only — real `records-changed` events are only coalesced. */
         const notifyOnConnect = () => {
             const now = Date.now()
             if (now - lastNotifiedAt < MIN_INTERVAL_MS) return
             lastNotifiedAt = now
-            onRecordsChangedRef.current()
+            recordsChanged.run()
         }
 
         const invalidateLiveness = (trackLegacyRefresh = false) => {
@@ -87,8 +125,8 @@ export const useSessionWatch = ({
             void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
         }
 
-        const invalidateBadges = (trackLegacyRefresh = false) => {
-            invalidateLiveness(trackLegacyRefresh)
+        const badges = coalesce(() => {
+            invalidateLiveness()
             void queryClient.invalidateQueries({
                 queryKey: actionableInteractionsQueryKey(projectId),
             })
@@ -99,6 +137,31 @@ export const useSessionWatch = ({
             })
             void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-pinned"]})
             void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-waiting"]})
+        })
+
+        // One session switch opens more than one stream (the replay screen, then the live one),
+        // and each `ready` used to re-read the whole rail and cancel the read before it.
+        let connectedBefore = false
+        const badgesOnConnect = () => {
+            const options = {cancelRefetch: false}
+            for (const queryKey of [
+                livenessQueryKey(projectId),
+                actionableInteractionsQueryKey(projectId),
+                ["sidebar-sessions-pinned"],
+                ["sidebar-sessions-waiting"],
+            ]) {
+                void queryClient.invalidateQueries(
+                    {queryKey, predicate: readBeforeConnect},
+                    options,
+                )
+            }
+            void queryClient.invalidateQueries(
+                {
+                    predicate: (query) =>
+                        isSidebarSessionHeadQuery(query.queryKey) && readBeforeConnect(query),
+                },
+                options,
+            )
         }
 
         const close = () => {
@@ -136,14 +199,17 @@ export const useSessionWatch = ({
             // change landing in that window would miss both this refetch and the stream.
             es.addEventListener("ready", () => {
                 notifyOnConnect()
-                invalidateBadges()
+                // A reconnect may have missed events, so only the first `ready` may skip a read.
+                if (connectedBefore) badges.run()
+                else badgesOnConnect()
+                connectedBefore = true
             })
             es.addEventListener("records-changed", () => {
-                onRecordsChangedRef.current()
+                recordsChanged.run()
                 const now = Date.now()
                 if (
                     shouldRefreshLegacyObserverLiveness({
-                        sharedReaderAdvertised,
+                        sharedReaderAdvertised: sharedReaderAdvertisedRef.current,
                         lastRefreshAt: lastLivenessRefreshAt,
                         now,
                     })
@@ -151,10 +217,13 @@ export const useSessionWatch = ({
                     invalidateLiveness(true)
                 }
             })
-            es.addEventListener("lifecycle", () => invalidateBadges(true))
+            es.addEventListener("lifecycle", () => {
+                lastLivenessRefreshAt = Date.now()
+                badges.run()
+            })
             es.addEventListener("interaction", (event) => {
                 onInteractionChangedRef.current?.(event as MessageEvent<string>)
-                invalidateBadges()
+                badges.run()
             })
             es.onerror = () => {
                 setConnected(false)
@@ -181,9 +250,11 @@ export const useSessionWatch = ({
             disposed = true
             document.removeEventListener("visibilitychange", onVisibility)
             if (retryHandle !== undefined) window.clearTimeout(retryHandle)
+            recordsChanged.cancel()
+            badges.cancel()
             close()
         }
-    }, [sessionId, projectId, queryClient, sharedReaderAdvertised])
+    }, [sessionId, projectId, queryClient])
 
     return {connected}
 }

@@ -23,6 +23,11 @@ import {WithQueryClient} from "../support/queryClient"
 vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
 
 const topUpOffer = vi.hoisted(() => ({status: "unavailable" as string, calls: [] as unknown[]}))
+// Checkout needs `edit_billing`; the check itself is covered by its own suite.
+vi.mock("@/features/context/useProjectPermission", () => ({
+    useProjectPermission: () => true,
+    useProjectPermissionState: () => ({allowed: true, pending: false}),
+}))
 vi.mock("@agenta/settings-ui", () => ({
     useTopUpOffer: (params: {enabled?: boolean}) => {
         topUpOffer.calls.push(params)
@@ -106,6 +111,14 @@ const press = (label: string) => {
     act(() => target!.click())
 }
 
+/** Press a card whose surface is a dynamic chunk, then let that chunk land. */
+const pressAndLoad = async (label: string) => {
+    press(label)
+    await act(async () => {
+        await vi.dynamicImportSettled()
+    })
+}
+
 const billingOn = () => {
     runtime.__env = {NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "true"}
 }
@@ -151,17 +164,17 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(hasRetry()).toBe(false)
     })
 
-    it.each([...OWN_KEY_CODES])("opens the providers drawer in place for %s", (code) => {
+    it.each([...OWN_KEY_CODES])("opens the providers drawer in place for %s", async (code) => {
         const text = renderTurn(failedTurn("Out of starter credits.", code))
 
         expect(text).toContain("Out of starter credits.")
         expect(hasRetry()).toBe(true)
-        press("Add key")
+        await pressAndLoad("Add key")
         expect(shown()).toContain("[providers drawer: catalog]")
         expect(routerPush).not.toHaveBeenCalled()
     })
 
-    it("offers credits and a key when free credits run out and packs can be bought", () => {
+    it("offers credits and a key when free credits run out and packs can be bought", async () => {
         billingOn()
         topUpOffer.status = "available"
         const text = renderTurn(
@@ -175,7 +188,7 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(text).toContain("Buy more credits, or add your own provider key to keep going.")
         expect(text).toContain("Buy credits")
         expect(text).toContain("Add key")
-        press("Buy credits")
+        await pressAndLoad("Buy credits")
         expect(shown()).toContain("[buy credits dialog]")
     })
 
@@ -202,11 +215,11 @@ describe("mobile TurnRow: a run that failed", () => {
             },
         )
 
-        it("opens the plans in place where billing is on", () => {
+        it("opens the plans in place where billing is on", async () => {
             billingOn()
             renderTurn(failedTurn(sentence, "concurrent_turns_limit"))
 
-            press("See plans")
+            await pressAndLoad("See plans")
             expect(shown()).toContain("[plans dialog]")
         })
 
@@ -271,7 +284,7 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(hasRetry()).toBe(true)
     })
 
-    it("opens the failed provider's card when its key was rejected", () => {
+    it("opens the failed provider's card when its key was rejected", async () => {
         renderTurn(
             failedTurn(
                 '401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}} anthropic',
@@ -279,7 +292,7 @@ describe("mobile TurnRow: a run that failed", () => {
             ),
         )
 
-        press("Update key")
+        await pressAndLoad("Update key")
         expect(shown()).toContain("[providers drawer: anthropic]")
     })
 

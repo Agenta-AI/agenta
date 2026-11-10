@@ -6,7 +6,8 @@ vault's encryption directly.
 The resolver is built per plane (M5). Every plane reads the project's own rows for a
 provider scan and a project slug. Only the LLM plane also answers an organization
 connection, and only one an agent named by scope `organization` (by slug, or by id through
-a bound reference). The MCP plane never reads, lists or answers an organization row.
+a bound reference). The MCP plane never reads, lists or answers an organization row. Only
+the MCP plane answers a person's row: a sign-in, by id, for the person the reference names.
 """
 
 from typing import List, Optional, Set
@@ -14,7 +15,6 @@ from typing import List, Optional, Set
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     GatewayPlane,
-    SecretMode,
     SecretOwner,
     SecretOwnerKind,
     SecretRef,
@@ -95,12 +95,11 @@ class SecretsResolver(SecretsResolverInterface):
         scope: AuthScope,
         #
         ref: SecretRef,
-        mode: SecretMode,
     ) -> ResolvedSecret:
         if isinstance(ref, BoundSecretRef):
-            return await self._resolve_bound_secret(scope=scope, ref=ref, mode=mode)
+            return await self._resolve_bound_secret(scope=scope, ref=ref)
         if isinstance(ref, ProviderKeyRef):
-            return await self._resolve_provider_key(scope=scope, ref=ref, mode=mode)
+            return await self._resolve_provider_key(scope=scope, ref=ref)
         raise TypeError(f"Unsupported SecretRef type: {type(ref)!r}")
 
     async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
@@ -165,28 +164,26 @@ class SecretsResolver(SecretsResolverInterface):
                 project_id=scope.project_id,
                 secret_id=ref.secret_id,
             )
-        # An organization reference on a project-only plane, or a user reference (M7):
-        # nothing is read.
+        if ref.owner_kind == SecretOwnerKind.USER and self.plane == GatewayPlane.MCP:
+            # A person's MCP sign-in: only that person's row, in this organization.
+            return await self.vault_service.get_personal_secret_by_id(
+                organization_id=scope.organization_id,
+                user_id=ref.user_id,
+                secret_id=ref.secret_id,
+            )
+        # An organization reference on a project-only plane, or a user reference on the
+        # model plane: nothing is read.
         return None
 
     async def _resolve_bound_secret(
-        self, *, scope: AuthScope, ref: BoundSecretRef, mode: SecretMode
+        self, *, scope: AuthScope, ref: BoundSecretRef
     ) -> ResolvedSecret:
         target = f"secret:{ref.secret_id}"
 
-        # No owner column exists on a bound secret for users yet (secrets.md): every mode
-        # degrades to the same owner-kind lookup until user-owned secrets ship. The branch
-        # stays explicit so only the per-mode lookup changes later.
-        if mode not in (
-            SecretMode.PROJECT_ONLY,
-            SecretMode.USER_REQUIRED,
-            SecretMode.USER_OPTIONAL,
-        ):
-            raise TypeError(f"Unsupported SecretMode: {mode!r}")
         secret = await self._fetch_bound_secret(scope=scope, ref=ref)
 
         if secret is None:
-            raise SecretNotFoundError(mode=mode, missing=ref.owner_kind, target=target)
+            raise SecretNotFoundError(missing=ref.owner_kind, target=target)
         return ResolvedSecret(
             secret=secret,
             owner=self._owner(scope=scope, secret=secret),
@@ -207,24 +204,14 @@ class SecretsResolver(SecretsResolverInterface):
         return candidates[0] if candidates else None
 
     async def _resolve_provider_key(
-        self, *, scope: AuthScope, ref: ProviderKeyRef, mode: SecretMode
+        self, *, scope: AuthScope, ref: ProviderKeyRef
     ) -> ResolvedSecret:
         target = f"provider:{ref.provider_key}"
 
-        # Same degenerate-today, explicit-forever branch as BoundSecretRef: no
-        # (project, user) provider-key lookup exists yet.
-        if mode not in (
-            SecretMode.PROJECT_ONLY,
-            SecretMode.USER_REQUIRED,
-            SecretMode.USER_OPTIONAL,
-        ):
-            raise TypeError(f"Unsupported SecretMode: {mode!r}")
         match = await self._match_provider_secret(scope=scope, ref=ref)
 
         if match is None:
-            raise SecretNotFoundError(
-                mode=mode, missing=SecretOwnerKind.PROJECT, target=target
-            )
+            raise SecretNotFoundError(missing=SecretOwnerKind.PROJECT, target=target)
         return ResolvedSecret(
             secret=match,
             owner=self._owner(scope=scope, secret=match),

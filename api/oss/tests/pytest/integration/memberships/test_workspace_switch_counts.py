@@ -61,38 +61,27 @@ def _dao() -> MembershipsDAO:
 async def test_bearer_counts_per_branch_and_state(bearer_world):
     seeded, user = bearer_world
     ids = seeded.project_ids
+    # Step 2b: the workspace parameter carries the organization id; a legacy workspace id
+    # is refused (no workspace read at all).
     measured = {
-        "project+workspace": await step1._measure(
-            user,
-            project_id=ids[0],
-            workspace_id=seeded.workspace_ids[0],
-            project_ids=ids,
-        ),
-        "project": await step1._measure(user, project_id=ids[0], project_ids=ids),
-        "workspace": await step1._measure(
-            user, workspace_id=seeded.workspace_ids[0], project_ids=ids
-        ),
-        "none": await step1._measure(user, project_ids=ids),
-    }
-    # The organization id in the workspace parameter: the same numbers as the workspace id.
-    measured_org = {
         "project+workspace": await step1._measure(
             user,
             project_id=ids[0],
             workspace_id=seeded.organization_id,
             project_ids=ids,
         ),
+        "project": await step1._measure(user, project_id=ids[0], project_ids=ids),
         "workspace": await step1._measure(
             user, workspace_id=seeded.organization_id, project_ids=ids
         ),
+        "none": await step1._measure(user, project_ids=ids),
     }
-    for runs in (measured, measured_org):
-        for branch, states in runs.items():
-            for state, value in states.items():
-                sql, redis = step1._AFTER[branch][state]
-                assert value["sql"] == sql, (branch, state, value)
-                assert value["sql"] <= step1._TODAY_SQL[branch][state], (branch, state)
-                assert len(value["redis"]) == redis, (branch, state, value)
+    for branch, states in measured.items():
+        for state, value in states.items():
+            sql, redis = step1._AFTER[branch][state]
+            assert value["sql"] == sql, (branch, state, value)
+            assert value["sql"] <= step1._TODAY_SQL[branch][state], (branch, state)
+            assert len(value["redis"]) == redis, (branch, state, value)
     assert {tuple(states["warm"]["redis"]) for states in measured.values()} == {
         ("GET", "GET")
     }
@@ -474,9 +463,9 @@ async def test_invite_accept_counts(redis_required, policy, admins, with_workspa
         admins=admins, with_workspace=with_workspace
     )
     try:
-        # The link's workspace segment: the legacy workspace id (step 1 links) or the
-        # organization id (step 2 links, and organizations without workspace rows).
-        segment = seeded.workspace_ids[0] if with_workspace else seeded.organization_id
+        # The link's workspace segment: the organization id (links since step 2; step 2b
+        # refuses a legacy workspace id). `with_workspace` keeps the legacy rows seeded.
+        segment = seeded.organization_id
         base = {
             "kind": "invite_accept",
             "policy": policy,

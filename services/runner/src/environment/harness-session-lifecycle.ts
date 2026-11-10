@@ -22,7 +22,10 @@ import {
   conciseError,
   HarnessInitTimeoutError,
 } from "../engines/sandbox_agent/errors.ts";
-import { probeCapabilities } from "../engines/sandbox_agent/capabilities.ts";
+import {
+  probeCapabilities,
+  type ProbedCapabilities,
+} from "../engines/sandbox_agent/capabilities.ts";
 import { envTimerMs } from "../env.ts";
 import type { Log, TimingLog } from "./timing.ts";
 
@@ -109,6 +112,12 @@ export interface ProbeInput {
   sandbox: { createSession?: unknown };
   acpAgent: string;
   timingLog: TimingLog;
+  /**
+   * Reuse key for the probe result, or undefined to probe every time. Set it only when the key
+   * names everything the answer depends on: the harness and the daemon and adapter build that
+   * answer. See `capabilityProbeCacheKey`.
+   */
+  cacheKey?: string;
 }
 
 export interface ProbeDeps {
@@ -124,16 +133,65 @@ export interface ProbeDeps {
 export async function probe(
   input: ProbeInput,
   deps: ProbeDeps = {},
-): Promise<Awaited<ReturnType<typeof probeCapabilities>>> {
+): Promise<ProbedCapabilities> {
   const probeCapabilitiesStartedAt = Date.now();
   try {
-    return await (deps.probeCapabilities ?? probeCapabilities)(
+    const cached = input.cacheKey ? probeCache.get(input.cacheKey) : undefined;
+    if (cached) return cloneProbed(cached);
+    const probed = await (deps.probeCapabilities ?? probeCapabilities)(
       input.sandbox as never,
       input.acpAgent as never,
     );
+    // Only a real answer is kept. The static fallback stands in for a probe that failed, and a
+    // failure can be passing (a daemon still starting), so the next acquire asks again.
+    if (input.cacheKey && probed.source === "probed") {
+      probeCache.set(input.cacheKey, cloneProbed(probed));
+    }
+    return probed;
   } finally {
     input.timingLog("probe_capabilities", probeCapabilitiesStartedAt);
   }
+}
+
+/**
+ * Probe results by `cacheKey`, for the life of this process. The probe asks a new daemon
+ * `getAgent(harness, { config: true })`, which for Pi runs `pi --version` (0.36-1.1 s measured),
+ * and the answer is the same for every daemon this process starts from the same build.
+ */
+const probeCache = new Map<string, ProbedCapabilities>();
+
+function cloneProbed(probed: ProbedCapabilities): ProbedCapabilities {
+  return { ...probed, capabilities: { ...probed.capabilities } };
+}
+
+/** Forget every kept probe result. For tests. */
+export function resetCapabilityProbeCache(): void {
+  probeCache.clear();
+}
+
+/**
+ * The reuse key for a probe, or undefined when the answer cannot be reused safely.
+ *
+ * - `local`: the daemon is the `binaryPath` binary, and the capability flags it reports for a
+ *   harness are part of that binary, so every local daemon this process starts answers the same.
+ * - `daytona`: the daemon and adapters come from the sandbox's snapshot. The key uses the
+ *   snapshot THIS sandbox was built from (`sandboxSnapshot`, see `sandboxSnapshotOf`), not the
+ *   configured one, so a parked sandbox from an older snapshot misses the cache. Without a known
+ *   snapshot (an image build, or a sandbox this process neither created nor reconnected) there
+ *   is no key and the probe runs.
+ * - anything else probes every time.
+ */
+export function capabilityProbeCacheKey(
+  sandboxId: string,
+  acpAgent: string,
+  binaryPath: string | undefined,
+  sandboxSnapshot?: string,
+): string | undefined {
+  if (sandboxId === "local") return `local|${binaryPath ?? ""}|${acpAgent}`;
+  if (sandboxId === "daytona" && sandboxSnapshot) {
+    return `daytona|${sandboxSnapshot}|${acpAgent}`;
+  }
+  return undefined;
 }
 
 export interface OpenSessionInput {

@@ -13,13 +13,13 @@
  *
  * // Or collect paths manually
  * const pathMap = new Map()
- * collectColumnPaths(data, '', pathMap, 0)
+ * collectColumnPaths(data, [], pathMap, 0)
  * ```
  */
 
 import {isPlainObject} from "@agenta/shared/utils"
 
-import {isSystemField} from "./schema"
+import {isInternalDataField} from "./schema"
 import type {Column} from "./types"
 
 // ============================================================================
@@ -47,6 +47,8 @@ export const DEFAULT_SAMPLE_SIZE = 20
 export interface ColumnPathInfo {
     /** Parent key path (undefined for top-level columns) */
     parentKey?: string
+    /** The keys from the row down to the leaf. A key may hold a dot (`{"meta.lang": ...}`). */
+    path: string[]
 }
 
 /**
@@ -54,35 +56,39 @@ export interface ColumnPathInfo {
  * Stringified JSON remains a string leaf and is not expanded.
  *
  * @param obj - Object to collect paths from
- * @param parentPath - Current path prefix
- * @param results - Map to store results (path -> info)
+ * @param parentSegments - The keys from the row down to `obj` ([] at the row). Given as keys,
+ *   not as a dotted string, so a key that holds a dot (`"meta.lang"`) stays one key.
+ * @param results - Map to store results (dotted path -> info)
  * @param depth - Current recursion depth
  * @param maxDepth - Maximum depth to recurse (default: COLUMN_EXTRACTION_MAX_DEPTH)
  */
 export function collectColumnPaths(
     obj: Record<string, unknown>,
-    parentPath: string,
+    parentSegments: string[],
     results: Map<string, ColumnPathInfo>,
     depth: number,
     maxDepth: number = COLUMN_EXTRACTION_MAX_DEPTH,
 ): void {
     if (depth >= maxDepth) return
+    const parentPath = parentSegments.join(".")
 
     for (const [key, value] of Object.entries(obj)) {
-        // Skip system fields and private fields
-        if (isSystemField(key) || key.startsWith("_")) continue
+        // Keys of the testcase itself live outside `data`, so a data key named `meta` or `tags`
+        // is a user column. Only internal keys stay hidden.
+        if (isInternalDataField(key)) continue
 
         const fullPath = parentPath ? `${parentPath}.${key}` : key
+        const path = [...parentSegments, key]
 
         // Check if value is already an object
         if (isPlainObject(value) && Object.keys(value).length > 0) {
             // Nested object - recurse into it
-            collectColumnPaths(value, fullPath, results, depth + 1, maxDepth)
+            collectColumnPaths(value, path, results, depth + 1, maxDepth)
             continue
         }
 
         // Leaf value (primitive, array, empty object, or non-object JSON)
-        results.set(fullPath, {parentKey: parentPath || undefined})
+        results.set(fullPath, {parentKey: parentPath || undefined, path})
     }
 }
 
@@ -136,21 +142,22 @@ export function extractColumnsFromData(
     for (const row of data.slice(0, sampleSize)) {
         if (!row) continue
 
-        // If the row has a `data` property (Testcase format), extract columns from there
-        // Otherwise use the row directly (flat format)
-        const dataSource =
-            row.data && typeof row.data === "object" && !Array.isArray(row.data)
-                ? (row.data as Record<string, unknown>)
-                : row
+        // A testcase (`{id, data}`) gives its `data`, or nothing when `data` is empty, so its own
+        // fields never become columns. Any other row is the data itself.
+        const dataSource = isPlainObject(row.data)
+            ? row.data
+            : "id" in row && "data" in row
+              ? {}
+              : row
 
-        collectColumnPaths(dataSource, "", columnMap, 0, maxDepth)
+        collectColumnPaths(dataSource, [], columnMap, 0, maxDepth)
     }
 
     // Convert to Column[] (compatible with groupColumns utility)
     return Array.from(columnMap.entries()).map(([key, info]) => {
         const lastDot = key.lastIndexOf(".")
         const label = lastDot === -1 ? key : key.substring(lastDot + 1)
-        return {key, label, parentKey: info.parentKey}
+        return {key, label, parentKey: info.parentKey, path: info.path}
     })
 }
 
@@ -188,13 +195,13 @@ export function extractColumnsWithAccessor<T>(
     for (const row of rows.slice(0, sampleSize)) {
         const dataSource = getDataSource(row)
         if (!dataSource) continue
-        collectColumnPaths(dataSource, "", columnMap, 0, maxDepth)
+        collectColumnPaths(dataSource, [], columnMap, 0, maxDepth)
     }
 
     // Convert to Column[] (compatible with groupColumns utility)
     return Array.from(columnMap.entries()).map(([key, info]) => {
         const lastDot = key.lastIndexOf(".")
         const label = lastDot === -1 ? key : key.substring(lastDot + 1)
-        return {key, label, parentKey: info.parentKey}
+        return {key, label, parentKey: info.parentKey, path: info.path}
     })
 }

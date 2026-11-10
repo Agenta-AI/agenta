@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {executionController} from "@agenta/playground"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
@@ -13,9 +13,13 @@ import {InspectorDrawer} from "@/oss/components/AgentChatSlice/components/Inspec
 const PanelSessionInspectorButton = ({entityId}: {entityId: string}) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const loadableId = useAtomValue(executionController.selectors.derivedLoadableId)
-    const backendSessionId = useAtomValue(
-        executionController.selectors.backendSessionId(loadableId ?? "", `sess:${entityId}`),
+    // The selector builds a new atom for each call (its family keys on an object), so keep one
+    // atom per panel. A new atom on each render makes `useAtomValue` render again without end.
+    const backendSessionIdAtom = useMemo(
+        () => executionController.selectors.backendSessionId(loadableId ?? "", `sess:${entityId}`),
+        [loadableId, entityId],
     )
+    const backendSessionId = useAtomValue(backendSessionIdAtom)
     const [open, setOpen] = useState(false)
     // If the session goes invalid while the drawer is open, close it (letting it animate out) rather
     // than unmounting mid-flight; also resets `open` so it can't silently reappear if the id returns.

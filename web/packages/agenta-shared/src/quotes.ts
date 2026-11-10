@@ -21,14 +21,22 @@ export interface FileQuoteSource {
 }
 
 /** A picked element in a rendered HTML app, DOCX page or PPTX slide. */
+/** A Word body block, 1-based like python-docx `document.paragraphs` / `document.tables`. */
+export interface WordBlock {
+    kind: "paragraph" | "table"
+    index: number
+}
+
 export interface ElementAnchor {
     type: "element"
     format: "html" | "document" | "presentation"
     /** Search hint inside the rendered document. */
     selector: string
     tag: string
-    /** DOCX page or PPTX slide, 1-based. */
+    /** DOCX page (Pages layout only) or PPTX slide, 1-based. */
     page?: number
+    /** DOCX only: the Word block, the same in both layouts. */
+    block?: WordBlock
     /** HTML only: the element's opening tag with its attributes. */
     openTag?: string
     /** 0..1 inside the element; where the pin sits. */
@@ -309,6 +317,8 @@ export const formatPreviewLocation = (anchor: PreviewAnchor): string => {
         return anchor.sheet === undefined
             ? `cells ${anchor.range}`
             : `sheet ${inlineCode(anchor.sheet)}, ${anchor.range}`
+    // A Word block is what python-docx indexes; the rendered page is only a hint.
+    if (anchor.block) return `${anchor.block.kind} ${anchor.block.index}`
     if (anchor.format === "document" && anchor.page) return `page ${anchor.page}`
     if (anchor.format === "presentation" && anchor.page) return `slide ${anchor.page}`
     return `element ${inlineCode(anchor.selector)}`
@@ -318,6 +328,8 @@ export const formatPreviewLocation = (anchor: PreviewAnchor): string => {
 export const formatPreviewChipLocation = (anchor: PreviewAnchor): string => {
     if (anchor.type === "cells")
         return anchor.sheet === undefined ? anchor.range : `${anchor.sheet}!${anchor.range}`
+    if (anchor.block?.kind === "paragraph") return `¶ ${anchor.block.index}`
+    if (anchor.block) return `table ${anchor.block.index}`
     if (anchor.format === "document" && anchor.page) return `p. ${anchor.page}`
     if (anchor.format === "presentation" && anchor.page) return `slide ${anchor.page}`
     return `<${anchor.tag}>`
@@ -426,7 +438,7 @@ export interface QuotedExcerpt {
 // The whole origin line `quotesToMarkdown` writes, so a hand-written blockquote is not taken for one.
 // A preview location's greedy `.+` runs to the line's last `)`, so brackets inside it are safe.
 const QUOTE_HEAD =
-    /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*(?: \((?:L\d+(?:–L\d+)?|(?:element|page|slide|sheet|cells) .+)\))? *$/
+    /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*(?: \((?:L\d+(?:–L\d+)?|(?:element|page|slide|sheet|cells|paragraph|table) .+)\))? *$/
 
 /** A sent message's leading quotes and the user's own words; inverts `quotesToMarkdown`. */
 export const splitQuotedMessage = (markdown: string): {quotes: QuotedExcerpt[]; text: string} => {

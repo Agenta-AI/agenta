@@ -9,6 +9,7 @@ import { acquireEnvironment } from "./environment.ts";
 import { runCredential } from "./runtime-policy.ts";
 import { loadDurableDecisions } from "../../sessions/interactions.ts";
 import { runTurn } from "./run-turn.ts";
+import { withDaytonaActivityHeartbeat } from "./daytona-heartbeat.ts";
 import { normalizeRequestModel } from "./model.ts";
 import { TURN_INDEX_TAKEN_CODE } from "./errors.ts";
 import {
@@ -154,21 +155,23 @@ export async function runSandboxAgent(
   const env = acquired.env;
   let result: AgentRunResult | undefined;
   try {
-    result = await runTurn(env, request, emit, signal, {
-      loaded: env.loadedFromContinuity,
-      nativeHistoryVerified: env.nativeHistoryVerified,
-      ...turnOptions,
-      // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
-      // rows the spread would then discard — a claimed row is spent even if it is thrown away.
-      // Read + claim BEFORE the turn: runTurn must not suspend before its responder is wired.
-      seededDecisions:
-        turnOptions.seededDecisions ??
-        (await loadDurableDecisions(
-          env.sessionId,
-          runCredential(request),
-          env.logger,
-        )),
-    });
+    result = await withDaytonaActivityHeartbeat(env, async () =>
+      runTurn(env, request, emit, signal, {
+        loaded: env.loadedFromContinuity,
+        nativeHistoryVerified: env.nativeHistoryVerified,
+        ...turnOptions,
+        // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
+        // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+        // Read + claim BEFORE the turn: runTurn must not suspend before its responder is wired.
+        seededDecisions:
+          turnOptions.seededDecisions ??
+          (await loadDurableDecisions(
+            env.sessionId,
+            runCredential(request),
+            env.logger,
+          )),
+      }),
+    );
     result = withGatewayErrorDetail(result);
     return result;
   } finally {

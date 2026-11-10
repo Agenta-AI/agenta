@@ -1,9 +1,9 @@
 /**
- * When a run began, read off its trace root span.
+ * A time stamp from a span or a session turn, in milliseconds.
  *
- * The trace is what the transcript trusts for a turn's time: the client's own first-seen stamp
- * back-dates to page load, which is wrong for anything restored rather than watched. Both the
- * turn timestamp and the turn clock read the same span through this.
+ * The transcript trusts the run's own time for a turn: the client's first-seen stamp back-dates
+ * to page load, which is wrong for anything restored rather than watched. The turn clock and the
+ * turn timestamp read the session turn's start through this.
  */
 export const parseTraceTime = (value: unknown): number | undefined => {
     // Only the two shapes a span actually carries. `new Date()` coerces anything: `true` becomes

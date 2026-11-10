@@ -10,6 +10,9 @@ export {
     querySimpleQueues,
     // Fetch (single)
     fetchSimpleQueue,
+    // Edit
+    editSimpleQueue,
+    type EditSimpleQueuePayload,
     // Delete
     deleteSimpleQueue,
     deleteSimpleQueues,

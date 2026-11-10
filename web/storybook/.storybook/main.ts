@@ -107,6 +107,9 @@ const config: StorybookConfig = {
             // (@storybook/nextjs transforms next/font/google natively, incl. in the
             // transpiled @agenta/oss provider, so no font stub is needed.)
             "@/oss": path.resolve(ossDir, "src"),
+            // The /m app's own alias, for stories that render /m screens. After "@/oss", which
+            // webpack tries first.
+            "@": path.resolve(__dirname, "../../mobile/src"),
         }
         for (const pkg of SINGLETONS) {
             try {
@@ -116,6 +119,20 @@ const config: StorybookConfig = {
             }
         }
         cfg.resolve.alias = alias
+        // The /m annotation screens (the queue session, and the run's Annotate tab and sheet) read
+        // two controllers that need a live queue or run. Their stories swap in a stand-in, for the
+        // files of those folders only.
+        cfg.module.rules.push({
+            test: /mobile[\\/]src[\\/]features[\\/](annotations|evaluation-run[\\/]focus)[\\/]/,
+            resolve: {
+                alias: {
+                    "@agenta/annotation$": path.resolve(
+                        __dirname,
+                        "../fixtures/annotationSession.ts",
+                    ),
+                },
+            },
+        })
         return cfg
     },
 }

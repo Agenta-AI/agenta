@@ -1,6 +1,6 @@
 {
     "name": "@agenta/mobile",
-    "version": "0.127.0",
+    "version": "0.128.12",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -18,9 +18,12 @@
         "tokens:check": "tsx scripts/generate-shadcn-tokens.ts --check",
         "test": "pnpm run test:unit",
         "test:unit": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "speed:check": "node scripts/speed/check.mjs",
+        "speed:timing": "node scripts/speed/check.mjs --timing"
     },
     "dependencies": {
+        "@agenta/annotation": "workspace:../packages/agenta-annotation",
         "@agenta/auth": "workspace:../packages/agenta-auth",
         "@agenta/auth-ui": "workspace:../packages/agenta-auth-ui",
         "@agenta/automation-ui": "workspace:../packages/agenta-automation-ui",
@@ -55,7 +58,7 @@
         "jotai-tanstack-query": "^0.11.0",
         "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
-        "next": "16.4.1",
+        "next": "16.4.2",
         "posthog-js": "^1.223.3",
         "radix-ui": "^1.6.2",
         "react": "^19.0.0",
@@ -68,6 +71,8 @@
     "devDependencies": {
         "@eslint/js": "^9.39.4",
         "@tailwindcss/postcss": "^4.1.0",
+        "@testing-library/dom": "^10.4.0",
+        "@testing-library/react": "^16.3.2",
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.4",

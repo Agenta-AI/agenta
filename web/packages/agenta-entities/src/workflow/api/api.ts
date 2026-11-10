@@ -47,57 +47,6 @@ import {
 } from "../core"
 import type {WorkflowDetailParams, WorkflowListParams, WorkflowData} from "../core"
 
-const toUnixMs = (value: string | null | undefined): number => {
-    if (!value) return 0
-    const timestamp = new Date(value).getTime()
-    return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-const workflowRecencyScore = (workflow: Workflow | null | undefined): number => {
-    if (!workflow) return 0
-    return toUnixMs(workflow.created_at) || toUnixMs(workflow.updated_at)
-}
-
-/**
- * Is `a` a later revision than `b`?
- *
- * VERSION decides, not the timestamp. `version` is server-assigned and monotonic; `created_at` is
- * not a reliable ordering — revisions committed by the agent land in bursts that tie to the second,
- * and a tie used to fall through to array order and pick an arbitrary revision as "latest".
- *
- * Timestamps stay as the tie-break for revisions that share a version.
- *
- * `store.ts` carries the same rule. It cannot be shared from there — `state/` imports this
- * module, not the reverse — and this copy exists to stop the two diverging: what stood here was
- * the timestamp-first picker commit 0c9b25b7e2 already replaced on the store side.
- */
-const isLaterWorkflowRevision = (
-    a: Workflow | null | undefined,
-    b: Workflow | null | undefined,
-): boolean => {
-    if (!a) return false
-    if (!b) return true
-    const aVersion = Number(a.version ?? 0)
-    const bVersion = Number(b.version ?? 0)
-    if (aVersion !== bVersion) return aVersion > bVersion
-    return workflowRecencyScore(a) > workflowRecencyScore(b)
-}
-
-/** The newest real revision in a list. Version-0 placeholders carry no config and never win. */
-const pickMostRecentWorkflowRevision = (
-    revisions: (Workflow | null | undefined)[],
-): Workflow | null => {
-    let latest: Workflow | null = null
-
-    for (const revision of revisions) {
-        if (!revision) continue
-        if ((revision.version ?? 0) === 0) continue
-        if (isLaterWorkflowRevision(revision, latest)) latest = revision
-    }
-
-    return latest
-}
-
 // ============================================================================
 // QUERY / LIST (Workflows)
 // ============================================================================
@@ -321,12 +270,17 @@ export async function retrieveWorkflowRevision({
     workflowRef,
     workflowVariantRef,
     workflowRevisionRef,
+    environmentRef,
+    key,
     lowPriority,
 }: {
     projectId: string
     workflowRef?: {id?: string; slug?: string; version?: string}
     workflowVariantRef?: {id?: string; slug?: string; version?: string}
     workflowRevisionRef?: {id?: string; slug?: string; version?: string}
+    /** The environment to read the deployed revision from, with `key` into its reference map. */
+    environmentRef?: {id?: string; slug?: string; version?: string}
+    key?: string
     /** Send with the `priority: "low"` fetch hint (secondary/background load). */
     lowPriority?: boolean
 }): Promise<Workflow | null> {
@@ -338,7 +292,9 @@ export async function retrieveWorkflowRevision({
     const hasWorkflowIdent = !!(workflowRef?.id || workflowRef?.slug)
     const hasVariantIdent = !!(workflowVariantRef?.id || workflowVariantRef?.slug)
     const hasRevisionIdent = !!(workflowRevisionRef?.id || workflowRevisionRef?.slug)
-    const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
+    const hasEnvironmentIdent = !!(environmentRef?.id || environmentRef?.slug)
+    const hasNoIdentifyingRef =
+        !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent && !hasEnvironmentIdent
     if (hasNoIdentifyingRef) return null
 
     // Use the Fern-generated client (single source of truth for the
@@ -349,6 +305,8 @@ export async function retrieveWorkflowRevision({
             ...(workflowRef ? {workflow_ref: workflowRef} : {}),
             ...(workflowVariantRef ? {workflow_variant_ref: workflowVariantRef} : {}),
             ...(workflowRevisionRef ? {workflow_revision_ref: workflowRevisionRef} : {}),
+            ...(environmentRef ? {environment_ref: environmentRef} : {}),
+            ...(key ? {key} : {}),
         },
         {queryParams: {project_id: projectId}},
     )
@@ -431,12 +389,15 @@ export async function fetchAgentaToolsAccess(
  * @param variantId - The workflow variant ID
  * @param projectId - Project ID
  * @param flags - Optional query flags for filtering
+ * @param opts.includeArchived - Also return archived revisions
+ * @param opts.windowing - Page the revisions, newest first
  * @returns Revisions response with workflow_revisions array
  */
 export async function queryWorkflowRevisions(
     variantId: string,
     projectId: string,
     flags?: WorkflowQueryFlags,
+    opts?: {includeArchived?: boolean; windowing?: WorkflowRevisionWindowing},
 ): Promise<WorkflowRevisionsResponse> {
     if (!projectId || !variantId) {
         return {count: 0, workflow_revisions: []}
@@ -447,6 +408,8 @@ export async function queryWorkflowRevisions(
         {
             workflow_variant_refs: [{id: variantId}],
             workflow_revision: flags ? {flags} : undefined,
+            ...(opts?.includeArchived ? {include_archived: true} : {}),
+            ...(opts?.windowing ? {windowing: opts.windowing} : {}),
         },
         {params: {project_id: projectId}},
     )
@@ -1021,12 +984,14 @@ export interface UpdateWorkflowPayload {
  *
  * @param projectId - Project ID
  * @param payload - Workflow update data (must include `id` = workflow ID)
- * @returns The updated workflow (revision with data)
+ * @returns The updated revision, or `null` when a write succeeded but the revision could not be
+ * read back. A failed read-back after a successful write is not an error: the caller must refresh
+ * its own caches.
  */
 export async function updateWorkflow(
     projectId: string,
     payload: UpdateWorkflowPayload,
-): Promise<Workflow> {
+): Promise<Workflow | null> {
     // Update workflow metadata if non-data fields changed. Description and tags are checked for
     // presence, not truth: an empty string clears a description, `null` clears the tags.
     const hasMetadataChanges =
@@ -1034,6 +999,7 @@ export async function updateWorkflow(
         payload.description !== undefined ||
         payload.flags ||
         payload.tags !== undefined
+    let wrote = false
     if (hasMetadataChanges) {
         await axios.put(
             `${getAgentaApiUrl()}/workflows/${payload.id}`,
@@ -1049,6 +1015,7 @@ export async function updateWorkflow(
             },
             {params: {project_id: projectId}},
         )
+        wrote = true
     }
 
     // Commit a new revision if data changed
@@ -1069,6 +1036,7 @@ export async function updateWorkflow(
             },
             {params: {project_id: projectId}},
         )
+        wrote = true
 
         const validatedRevision = safeParseWithLogging(
             workflowRevisionResponseSchema,
@@ -1080,8 +1048,15 @@ export async function updateWorkflow(
         }
     }
 
-    // Fall back to fetching the latest revision
-    return fetchWorkflow({id: payload.id, projectId})
+    // Fall back to fetching the latest revision. The write is already saved at this point, so a
+    // failed read must not turn it into an error.
+    if (!wrote) return fetchWorkflow({id: payload.id, projectId})
+    try {
+        return await fetchWorkflow({id: payload.id, projectId})
+    } catch (error) {
+        console.warn("[updateWorkflow] Saved, but reading the revision back failed", error)
+        return null
+    }
 }
 
 // ============================================================================
@@ -1260,7 +1235,7 @@ export async function unarchiveWorkflow(
 /**
  * Batch fetch workflow revisions by workflow IDs.
  *
- * Uses the revision query endpoint with workflow_refs to fetch latest revisions.
+ * Groups by artifact so the server returns one row per workflow, its latest revision.
  *
  * Endpoint: `POST /workflows/revisions/query`
  *
@@ -1274,7 +1249,6 @@ export async function fetchWorkflowsBatch(
     opts?: {lowPriority?: boolean},
 ): Promise<Map<string, Workflow>> {
     const results = new Map<string, Workflow>()
-    const groupedByWorkflowId = new Map<string, Workflow[]>()
 
     if (!projectId || workflowIds.length === 0) return results
 
@@ -1282,9 +1256,7 @@ export async function fetchWorkflowsBatch(
         `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_refs: workflowIds.map((id) => ({id})),
-            // When fetching for a single workflow, limit to 1 (latest) to reduce payload.
-            // With multiple workflows the global limit would cut across all, so skip it.
-            ...(workflowIds.length === 1 ? {windowing: {limit: 1, order: "descending"}} : {}),
+            grouping: {by: "artifact", get: "latest"},
         },
         {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )
@@ -1301,20 +1273,10 @@ export async function fetchWorkflowsBatch(
             const workflow = safeParseWithLogging(workflowSchema, raw, "[fetchWorkflowsBatch:item]")
             if (workflow) {
                 // Key by workflow_id so callers can look up by the workflow ID they passed in
-                const key = workflow.workflow_id ?? workflow.id
-                const current = groupedByWorkflowId.get(key) ?? []
-                groupedByWorkflowId.set(key, [...current, workflow])
+                results.set(workflow.workflow_id ?? workflow.id, workflow)
             }
         } catch (e) {
             console.error("[fetchWorkflowsBatch] Failed to parse workflow:", e, raw)
-        }
-    }
-
-    for (const workflowId of workflowIds) {
-        const candidates = groupedByWorkflowId.get(workflowId) ?? []
-        const mostRecent = pickMostRecentWorkflowRevision(candidates)
-        if (mostRecent) {
-            results.set(workflowId, mostRecent)
         }
     }
 
@@ -1359,6 +1321,8 @@ export async function fetchWorkflowAgentFlags(
             // Archived workflows are classified too: the archived Agents tab needs them split the
             // same way, and their revisions are not themselves archived.
             include_archived: true,
+            // Only the flags are read, and `data` is most of each row.
+            include_data: false,
         },
         {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )
@@ -1390,11 +1354,13 @@ export async function fetchWorkflowAgentFlags(
  *
  * @param projectId - Project ID
  * @param revisionIds - Array of revision IDs to fetch
+ * @param opts.includeArchived - Also return revisions of archived workflows
  * @returns Map of revision ID → Workflow
  */
 export async function fetchWorkflowRevisionsByIdsBatch(
     projectId: string,
     revisionIds: string[],
+    opts?: {includeArchived?: boolean},
 ): Promise<Map<string, Workflow>> {
     const results = new Map<string, Workflow>()
 
@@ -1404,6 +1370,8 @@ export async function fetchWorkflowRevisionsByIdsBatch(
         `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_revision_refs: revisionIds.map((id) => ({id})),
+            // Sent only when asked: an archived evaluator opened cold must still resolve.
+            ...(opts?.includeArchived ? {include_archived: true} : {}),
         },
         {params: {project_id: projectId}},
     )

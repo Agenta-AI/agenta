@@ -52,6 +52,7 @@ import {bgColors, cn} from "@agenta/ui/styles"
 import {
     buildEntityColumns,
     InfiniteVirtualTableFeatureShell,
+    isColumnGroupDef,
     type BuildEntityColumnsOptions,
     type RowHeightFeatureConfig,
     type TableScopeConfig,
@@ -63,9 +64,27 @@ import type {GroupColumnsOptions} from "@agenta/ui/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {collapsedGroupValue} from "./collapsedGroupValue"
+
 // ============================================================================
 // TYPES
 // ============================================================================
+
+/**
+ * A column header the table is about to render, handed to `renderColumnHeader`.
+ * A group header (the parent of dotted keys) has `isGroup: true` and the group path as `key`.
+ */
+export interface EntityColumnHeader {
+    /** Column key, or the group path for a group header */
+    key: string
+    /** The key relative to its group */
+    label: string
+    /** The header the table would render without `renderColumnHeader` */
+    title: ReactNode
+    isGroup: boolean
+    /** Path of the group this header sits under, or null at the top level */
+    groupPath: string | null
+}
 
 /**
  * Props for the generic EntityTable component.
@@ -107,6 +126,12 @@ export interface EntityTableProps<
      */
     getCellValue?: (record: TRow, columnKey: string) => unknown
 
+    /**
+     * Called when a row is clicked. When set, a row click no longer toggles selection
+     * (the checkbox still does), so a table can use rows to open a detail view.
+     */
+    onRowClick?: (record: TRow) => void
+
     // Selection
     /** Enable row selection (default: false) */
     selectable?: boolean
@@ -118,6 +143,11 @@ export interface EntityTableProps<
     multiSelect?: boolean
     /** Whether selection is disabled (grayed out but visible) */
     selectionDisabled?: boolean
+    /**
+     * Drawn in each row's selection cell, behind the checkbox, for a per-row marker such as an
+     * unsaved edit. Only used when `selectable` is true.
+     */
+    renderSelectionMarker?: (record: TRow) => ReactNode
 
     // Column customization
     /**
@@ -133,6 +163,11 @@ export interface EntityTableProps<
     prependColumns?: ColumnDefs<TRow>
     /** Extra columns appended to the column list */
     appendColumns?: ColumnDefs<TRow>
+    /**
+     * Replaces the header of every leaf and group column, for per-column actions such as
+     * rename and delete. Receives the header the table would render, so it can wrap it.
+     */
+    renderColumnHeader?: (header: EntityColumnHeader) => ReactNode
     /** Optional cell renderer override for entity-specific display rules. */
     renderCell?: (
         value: unknown,
@@ -145,8 +180,14 @@ export interface EntityTableProps<
     rowHeightConfig?: RowHeightFeatureConfig
     /** Show settings dropdown (default: true) */
     showSettings?: boolean
+    /** A "Delete selected" entry in the settings menu */
+    settingsDelete?: {onDelete: () => void; disabled?: boolean; label?: string}
     /** Enable table export action (default: true) */
     enableExport?: boolean
+    /** Extra controls in the table toolbar, next to the settings button */
+    headerExtra?: ReactNode
+    /** Loads the next page when the reader scrolls near the end. Without it the table shows one page. */
+    loadNextPage?: () => void
     /**
      * Type chip config. When omitted, a default config is built from
      * `getCellValue`/`getRowData` so chip rendering doesn't depend on each
@@ -169,6 +210,8 @@ export interface EntityTableProps<
 // CONSTANTS
 // ============================================================================
 
+const noop = () => undefined
+
 /** Width for selection checkbox column */
 const SELECTION_COLUMN_WIDTH = 48
 /** Width for collapsed group column */
@@ -188,6 +231,59 @@ const DEFAULT_ROW_HEIGHT_CONFIG: RowHeightFeatureConfig = {
 
 const defaultGetRowData = <TRow,>(record: TRow): Record<string, unknown> | null =>
     record as Record<string, unknown>
+
+// ============================================================================
+// COLUMN HEADERS
+// ============================================================================
+
+const GROUP_KEY_PREFIX = "__group_"
+
+/** A title can be a function of the sort state; the header slot gets what it draws now. */
+const resolveTitle = (title: ColumnDef<unknown>["title"]): ReactNode =>
+    typeof title === "function" ? title({}) : title
+
+/** The key relative to its group: `inputs.prompt` under `inputs` is `prompt`. */
+const relativeKey = (key: string, groupPath: string | null) =>
+    groupPath && key.startsWith(`${groupPath}.`) ? key.slice(groupPath.length + 1) : key
+
+/** Runs `renderColumnHeader` over every leaf and group column, keeping the column order. */
+function withColumnHeaders<TRow>(
+    columns: ColumnDefs<TRow>,
+    renderColumnHeader: (header: EntityColumnHeader) => ReactNode,
+    groupPath: string | null = null,
+): ColumnDefs<TRow> {
+    return columns.map((column) => {
+        if (isColumnGroupDef(column)) {
+            const key = String(column.key ?? "")
+            if (!key.startsWith(GROUP_KEY_PREFIX)) return column
+            const path = key.slice(GROUP_KEY_PREFIX.length)
+            return {
+                ...column,
+                title: renderColumnHeader({
+                    key: path,
+                    label: relativeKey(path, groupPath),
+                    title: resolveTitle(column.title),
+                    isGroup: true,
+                    groupPath,
+                }),
+                children: withColumnHeaders(column.children, renderColumnHeader, path),
+            }
+        }
+        const key = String(column.key ?? "")
+        // Selection and collapsed-group columns are not data columns.
+        if (!key || key.startsWith("__")) return column
+        return {
+            ...column,
+            title: renderColumnHeader({
+                key,
+                label: relativeKey(key, groupPath),
+                title: resolveTitle(column.title),
+                isGroup: false,
+                groupPath,
+            }),
+        }
+    })
+}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -215,15 +311,21 @@ export function EntityTable<
     selectable = false,
     selectedIds: externalSelectedIds,
     onSelectionChange,
+    onRowClick,
     multiSelect = true,
     selectionDisabled = false,
+    renderSelectionMarker,
     grouping = false,
     prependColumns,
     appendColumns,
+    renderColumnHeader,
     renderCell,
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
+    settingsDelete,
     enableExport = true,
+    headerExtra,
+    loadNextPage,
     typeChips,
     store,
     pageSize,
@@ -292,19 +394,18 @@ export function EntityTable<
         () => ({
             scopeId: config.scopeId,
             pageSize: resolvedPageSize,
-            enableInfiniteScroll: false,
+            enableInfiniteScroll: Boolean(loadNextPage),
         }),
-        [config.scopeId, resolvedPageSize],
+        [config.scopeId, loadNextPage, resolvedPageSize],
     )
 
-    // Build pagination object for IVT (no-op for now — paginated mode TBD)
     const pagination = useMemo(
         () => ({
             rows,
-            loadNextPage: () => {},
-            resetPages: () => {},
+            loadNextPage: loadNextPage ?? noop,
+            resetPages: noop,
         }),
-        [rows],
+        [loadNextPage, rows],
     )
 
     // Handle row selection toggle
@@ -402,8 +503,7 @@ export function EntityTable<
                 render: (_, record) => {
                     const dataSource = getRowData(record)
                     if (!dataSource) return null
-                    const value = (dataSource as Record<string, unknown>)[groupPath]
-                    return <SmartCellContent value={value} />
+                    return <SmartCellContent value={collapsedGroupValue(dataSource, groupPath)} />
                 },
             }),
         } as GroupColumnsOptions<TRow, TColumn>
@@ -419,7 +519,43 @@ export function EntityTable<
         // checkboxes whose behaviour silently replaces the previous
         // selection on every click — the "we do something else behind the
         // curtains" UX wart Arda flagged on 2026-06-01.
-        const selectionColumn: ColumnDef<TRow> = {
+        const selectionControl = (record: TRow) => {
+            const checked = selectedIdsSet.has(record.id)
+            if (multiSelect) {
+                return (
+                    <Checkbox
+                        checked={checked}
+                        onCheckedChange={(next) => handleRowSelect(record.id, next === true)}
+                        disabled={selectionDisabled}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Select row"
+                    />
+                )
+            }
+            // Single-select: render a radio. Clicking an unchecked radio
+            // selects (and replaces the previous selection via the
+            // `multiSelect ? … : [rowId]` branch in `handleRowSelect`).
+            // Clicking a checked radio is a no-op (Radix only fires
+            // `onValueChange` on an actual change) — we don't try to
+            // "uncheck" because single-select tables are semantically
+            // "pick one"; the user can pick a different row instead.
+            // Each row is its own single-item RadioGroup: rows render in
+            // independent cells, so a shared Radix group root can't wrap them.
+            return (
+                <RadioGroup
+                    value={checked ? record.id : ""}
+                    onValueChange={() => {
+                        if (!checked) handleRowSelect(record.id, true)
+                    }}
+                    disabled={selectionDisabled}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <RadioGroupItem value={record.id} aria-label="Select row" />
+                </RadioGroup>
+            )
+        }
+
+        const selectionColumn: ColumnDef<TRow> & {columnVisibilityLocked: boolean} = {
             key: "__selection",
             title: multiSelect ? (
                 <Checkbox
@@ -435,41 +571,17 @@ export function EntityTable<
             ),
             width: SELECTION_COLUMN_WIDTH,
             fixed: "left",
-            render: (_, record) => {
-                const checked = selectedIdsSet.has(record.id)
-                if (multiSelect) {
-                    return (
-                        <Checkbox
-                            checked={checked}
-                            onCheckedChange={(next) => handleRowSelect(record.id, next === true)}
-                            disabled={selectionDisabled}
-                            onClick={(e) => e.stopPropagation()}
-                            aria-label="Select row"
-                        />
-                    )
-                }
-                // Single-select: render a radio. Clicking an unchecked radio
-                // selects (and replaces the previous selection via the
-                // `multiSelect ? … : [rowId]` branch in `handleRowSelect`).
-                // Clicking a checked radio is a no-op (Radix only fires
-                // `onValueChange` on an actual change) — we don't try to
-                // "uncheck" because single-select tables are semantically
-                // "pick one"; the user can pick a different row instead.
-                // Each row is its own single-item RadioGroup: rows render in
-                // independent cells, so a shared Radix group root can't wrap them.
-                return (
-                    <RadioGroup
-                        value={checked ? record.id : ""}
-                        onValueChange={() => {
-                            if (!checked) handleRowSelect(record.id, true)
-                        }}
-                        disabled={selectionDisabled}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <RadioGroupItem value={record.id} aria-label="Select row" />
-                    </RadioGroup>
-                )
-            },
+            // The column picker lists data columns only.
+            columnVisibilityLocked: true,
+            render: (_, record) =>
+                renderSelectionMarker ? (
+                    <>
+                        {renderSelectionMarker(record)}
+                        <span className="relative">{selectionControl(record)}</span>
+                    </>
+                ) : (
+                    selectionControl(record)
+                ),
         }
 
         // Build entity columns using the helper
@@ -484,7 +596,11 @@ export function EntityTable<
         const result: ColumnDefs<TRow> = []
         if (selectable) result.push(selectionColumn)
         if (prependColumns) result.push(...prependColumns)
-        result.push(...entityColumns)
+        result.push(
+            ...(renderColumnHeader
+                ? withColumnHeaders(entityColumns, renderColumnHeader)
+                : entityColumns),
+        )
         if (appendColumns) result.push(...appendColumns)
         return result
     }, [
@@ -495,12 +611,14 @@ export function EntityTable<
         isSomeSelected,
         selectedIdsSet,
         selectionDisabled,
+        renderSelectionMarker,
         groupingOptions,
         handleSelectAll,
         handleRowSelect,
         getRowData,
         getCellValue,
         renderCell,
+        renderColumnHeader,
         prependColumns,
         appendColumns,
     ])
@@ -527,6 +645,13 @@ export function EntityTable<
         }
     }, [typeChips, defaultGetRowValue])
 
+    // A row click opens the row when the caller asked for that, else it toggles selection.
+    const rowClickHandler = onRowClick
+        ? onRowClick
+        : selectable
+          ? (record: TRow) => handleRowSelect(record.id, !selectedIdsSet.has(record.id))
+          : undefined
+
     // Loading state
     if (isLoading && rows.length === 0) {
         return <LoadingSkeleton variant="paragraph" rows={loadingRows} />
@@ -547,16 +672,17 @@ export function EntityTable<
                 rowKey="id"
                 autoHeight={autoHeight}
                 useSettingsDropdown={showSettings}
+                settingsDropdownDelete={settingsDelete}
                 enableExport={enableExport}
+                primaryActions={headerExtra}
                 typeChips={effectiveTypeChips}
                 store={globalStore}
                 tableProps={{
                     size: "small",
                     bordered: true,
-                    onRow: selectable
+                    onRow: rowClickHandler
                         ? (record) => ({
-                              onClick: () =>
-                                  handleRowSelect(record.id, !selectedIdsSet.has(record.id)),
+                              onClick: () => rowClickHandler(record),
                               className: cn(
                                   "cursor-pointer",
                                   selectedIdsSet.has(record.id) && bgColors.subtle,

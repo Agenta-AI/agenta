@@ -1,29 +1,51 @@
-import type {Key} from "react"
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {useObservability, useSessions} from "@agenta/observability"
-import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
+import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
+import {useObservability} from "@agenta/observability"
+import {
+    ObservabilityRangePicker,
+    ObservabilityToolbar,
+    useAutoRefresh,
+} from "@agenta/observability-ui"
 import {AddActionsDropdown, DeleteTraceModal, deleteTraceModalAtom} from "@agenta/observability-ui"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
+import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"
 import {MessagesSquare, Network} from "lucide-react"
+import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {useProjectPermissionState} from "../context/useProjectPermission"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
+import {useRouteAppId} from "../developer/useRouteAppId"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {useAddToTestsetAction} from "./addToTestset/useAddToTestsetAction"
+import {ObservabilityAppFilter} from "./ObservabilityAppFilter"
+import {useObservabilityAppScope, useSelectObservabilityApp} from "./observabilityAppScope"
+import {useAddAllMatchingAction} from "./queueAll/useAddAllMatchingAction"
+import {selectedTraceIds} from "./selectedTraceIds"
+import {useObservabilitySessionUrl} from "./sessionDrawer/useObservabilitySessionUrl"
 import {SessionsList} from "./SessionsList"
 import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
 import {TracesList} from "./TracesList"
 import {TracesTable} from "./TracesTable"
+import {useObservabilityTab, type ObservabilityTab} from "./useObservabilityTab"
 import {useTracesExportBinding} from "./useTracesExportBinding"
 
-type ObservabilityTab = "traces" | "sessions"
+// Loaded on the first session opened, so the page everyone opens does not carry the drawer.
+const ObservabilitySessionDrawer = dynamic(
+    () => import("./sessionDrawer/ObservabilitySessionDrawer"),
+    {ssr: false},
+)
 
 /**
  * Project-wide observability.
@@ -59,18 +81,38 @@ const TAB_ITEMS = [
     },
 ]
 
-export const ObservabilityScreen = ({
+const ObservabilityContent = ({
     workspaceId,
     projectId,
+    appFilterEnabled,
+    routeAppId,
+    showAppFilter,
 }: {
     workspaceId: string
     projectId: string
+    appFilterEnabled: boolean
+    routeAppId: string | null
+    /** False inside the app menu: the app comes from the path. */
+    showAppFilter: boolean
 }) => {
     useBindProjectContext(projectId)
-    const [tab, setTab] = useState<ObservabilityTab>("traces")
+    const [tab, setTab] = useObservabilityTab()
+    // This whole screen is trace content. A role without `view_spans` reads none of it, so the
+    // route itself leads back to the project rather than to a page of refusals.
+    const router = useRouter()
+    const spans = useProjectPermissionState(projectId, "view_spans")
+    useEffect(() => {
+        if (!spans.pending && !spans.allowed)
+            void router.replace(projectHomeUrl({workspaceId, projectId}))
+    }, [spans.allowed, spans.pending, projectId, router, workspaceId])
 
-    // No scope binding: the seam's own defaults are project-wide with no workflow, which is
-    // exactly this screen. Binding would only re-state them.
+    const onAppChange = useSelectObservabilityApp()
+    const tracesFilters = tab === "traces" ? <TracesFilters /> : undefined
+
+    const session = useObservabilitySessionUrl()
+    // Mounted once a session has been opened, and kept so the panel can slide out.
+    const [sessionDrawerRequested, setSessionDrawerRequested] = useState(false)
+    if (session.sessionId !== null && !sessionDrawerRequested) setSessionDrawerRequested(true)
 
     const isNarrow = useIsNarrowScreen()
     // Selection lives in the table; the narrow card list has none. Anything that acts on a
@@ -79,23 +121,63 @@ export const ObservabilityScreen = ({
     const showsTable = !isNarrow
     const bodyRef = useRef<HTMLDivElement | null>(null)
 
-    const {fetchTraces} = useObservability()
-    const {refetchSessions} = useSessions()
+    // The selection lives in the shared atom: the toolbar's Delete button reads it to enable.
+    const {
+        fetchTraces,
+        fetchAnnotations,
+        traces,
+        selectedRowKeys,
+        setSelectedRowKeys,
+        filters,
+        sort,
+        traceTabs,
+    } = useObservability()
+    // Not `useSessions()`: that would load sessions and their spans on the Traces tab too.
+    const queryClient = useQueryClient()
 
     // Swallow the refetch results: the toolbar only needs the promise to settle.
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
-    const {onExport, isExporting} = useTracesExportBinding()
+    const {onExport, isExporting, canExportData} = useTracesExportBinding(
+        projectId,
+        appFilterEnabled ? routeAppId : null,
+    )
     const openDeleteModal = useSetAtom(deleteTraceModalAtom)
+    // Rows are keyed by span id; delete and the queue take trace ids.
+    const traceIds = useMemo(
+        () => selectedTraceIds(traces, selectedRowKeys),
+        [traces, selectedRowKeys],
+    )
+    const clearSelection = useCallback(() => setSelectedRowKeys([]), [setSelectedRowKeys])
+    // The atom outlives the screen and the app scope; a selection never carries across either.
+    useEffect(() => clearSelection, [clearSelection, appFilterEnabled, routeAppId])
+    const addToTestset = useAddToTestsetAction(projectId, selectedRowKeys.map(String))
+    const queueAllMatching = useAddAllMatchingAction({
+        workspaceId,
+        projectId,
+        appId: (appFilterEnabled && routeAppId) || "",
+        filters,
+        sort,
+        traceTabs,
+        hasTraces: traces.length > 0,
+    })
 
     const onDelete = useCallback(
-        () => openDeleteModal({isOpen: true, traceIds: selectedRowKeys.map(String)}),
-        [openDeleteModal, selectedRowKeys],
+        () => openDeleteModal({isOpen: true, traceIds, onClose: clearSelection}),
+        [openDeleteModal, traceIds, clearSelection],
     )
 
     const onRefresh = useCallback(async () => {
-        if (tab === "traces") await fetchTraces()
-        else await refetchSessions()
-    }, [tab, fetchTraces, refetchSessions])
+        // As in the old app: the annotations reload with the traces, and the evaluator list too,
+        // so a new score shows in its evaluator column.
+        if (tab === "traces") {
+            await Promise.all([fetchAnnotations(), fetchTraces()])
+            invalidateEvaluatorsListCache()
+        } else
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ["sessions"]}),
+                queryClient.invalidateQueries({queryKey: ["session_spans"]}),
+            ])
+    }, [tab, fetchAnnotations, fetchTraces, queryClient])
+    const autoRefresh = useAutoRefresh(onRefresh)
 
     return (
         <>
@@ -122,24 +204,41 @@ export const ObservabilityScreen = ({
                     >
                         <ObservabilityToolbar
                             componentType={tab}
-                            onRefresh={onRefresh}
+                            onRefresh={autoRefresh.refresh}
+                            refreshTrigger={autoRefresh.refreshTrigger}
                             sortSlot={<ObservabilityRangePicker />}
-                            filtersSlot={tab === "traces" ? <TracesFilters /> : undefined}
-                            onExport={tab === "traces" ? onExport : undefined}
+                            filtersSlot={
+                                showAppFilter ? (
+                                    <>
+                                        {tracesFilters}
+                                        <ObservabilityAppFilter
+                                            projectId={projectId}
+                                            value={routeAppId}
+                                            onChange={onAppChange}
+                                        />
+                                    </>
+                                ) : (
+                                    tracesFilters
+                                )
+                            }
+                            onExport={tab === "traces" && canExportData ? onExport : undefined}
                             isExporting={isExporting}
                             onDelete={tab === "traces" && showsTable ? onDelete : undefined}
                             actionsSlot={
                                 tab === "traces" && showsTable ? (
                                     <AddActionsDropdown
+                                        testsetAction={addToTestset.testsetAction}
                                         queueAction={{
                                             itemType: "traces",
-                                            itemIds: selectedRowKeys.map(String),
+                                            itemIds: traceIds,
                                             label:
-                                                selectedRowKeys.length > 0
-                                                    ? `Add ${selectedRowKeys.length} selected to queue`
+                                                traceIds.length > 0
+                                                    ? `Add ${traceIds.length} selected to queue`
                                                     : "Add selected to queue",
-                                            disabled: selectedRowKeys.length === 0,
+                                            disabled: traceIds.length === 0,
+                                            onItemsAdded: clearSelection,
                                         }}
+                                        queueAllMatchingAction={queueAllMatching}
                                     />
                                 ) : undefined
                             }
@@ -155,10 +254,10 @@ export const ObservabilityScreen = ({
                             {tab === "sessions" ? (
                                 !showsTable ? (
                                     <div className="min-h-0 flex-1 overflow-y-auto pb-6">
-                                        <SessionsList />
+                                        <SessionsList onOpenSession={session.open} />
                                     </div>
                                 ) : (
-                                    <SessionsTable />
+                                    <SessionsTable onOpenSession={session.open} />
                                 )
                             ) : !showsTable ? (
                                 <div className="min-h-0 flex-1 overflow-y-auto pb-6">
@@ -172,10 +271,48 @@ export const ObservabilityScreen = ({
                             )}
                         </div>
                         <DeleteTraceModal />
+                        {sessionDrawerRequested ? (
+                            <ObservabilitySessionDrawer
+                                sessionId={session.sessionId}
+                                onSelectSession={session.open}
+                            />
+                        ) : null}
+                        {addToTestset.sheet}
                     </PageLayout>
                 </ScreenScaffold>
             </AppShell>
         </>
+    )
+}
+
+/**
+ * Project wide, which is the scope seam's own default, unless the app filter developer view is
+ * on: then `?app=` scopes the queries and the toolbar gets a picker.
+ *
+ * The content subscribes to the traces query as soon as it renders, so a link with `?app=` waits
+ * here for the answer on the view. Without that wait its first request would be project wide.
+ */
+export const ObservabilityScreen = ({
+    workspaceId,
+    projectId,
+}: {
+    workspaceId: string
+    projectId: string
+}) => {
+    const appFilterView = useDeveloperViewEnabled("observability-app-filter")
+    const appFilterEnabled = appFilterView === true
+    const {appId: routeAppId, fromPath} = useRouteAppId()
+    useObservabilityAppScope(appFilterEnabled ? routeAppId : null)
+
+    if (appFilterView === null && routeAppId !== null) return null
+    return (
+        <ObservabilityContent
+            workspaceId={workspaceId}
+            projectId={projectId}
+            appFilterEnabled={appFilterEnabled}
+            routeAppId={routeAppId}
+            showAppFilter={appFilterEnabled && !fromPath}
+        />
     )
 }
 

@@ -2,7 +2,9 @@ import type {KeyboardEvent, ReactNode, Ref} from "react"
 
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {SkeletonBlock, cn} from "@agenta/ui/ui"
-import {CaretRight, Plus} from "@phosphor-icons/react"
+import {Plus} from "@phosphor-icons/react"
+
+import {SettingsGroupHeading} from "./SettingsGroupHeading"
 
 /** A row's state: `attention` names its problem beside the name, `available` draws a "+". */
 export type SettingsCatalogStatus = "connected" | "attention" | "available"
@@ -27,7 +29,8 @@ export interface SettingsCatalogItem {
 
 export interface SettingsCatalogGroup {
     key: string
-    label: string
+    /** The heading: a word, or a node such as the project switch. A folding group takes text. */
+    label: ReactNode
     items: SettingsCatalogItem[]
     /** The count beside the label. Defaults to the rows shown; `null` hides it. */
     count?: number | null
@@ -40,6 +43,8 @@ export interface SettingsCatalogGroup {
     /** With `onToggle`, the heading folds the rows away. */
     collapsed?: boolean
     onToggle?: () => void
+    /** Shown with no rows too, e.g. a heading that is also the project switch. */
+    keepWhenEmpty?: boolean
 }
 
 const FOCUS_RING =
@@ -141,15 +146,6 @@ const SkeletonGroup = ({rows}: {rows: number}) => (
     </section>
 )
 
-const HEADING = "m-0 text-[13px] font-medium leading-[18px] text-muted-foreground"
-
-const Count = ({group}: {group: Omit<SettingsCatalogGroup, "key">}) =>
-    group.count === null ? null : (
-        <span className="text-[13px] font-normal text-muted-foreground/60">
-            {group.count ?? group.items.length}
-        </span>
-    )
-
 /** One catalog group, exported for hosts that load groups on their own via `after`. */
 export const SettingsCatalogSection = ({
     group,
@@ -160,34 +156,13 @@ export const SettingsCatalogSection = ({
     sectionRef?: Ref<HTMLElement>
 }) => (
     <section ref={sectionRef} className="flex flex-col gap-3">
-        <div className="flex min-h-6 items-center gap-1.5">
-            {group.onToggle ? (
-                <h2 className={HEADING}>
-                    <button
-                        type="button"
-                        aria-expanded={!group.collapsed}
-                        onClick={group.onToggle}
-                        className={cn(
-                            "flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent p-0 font-[inherit] text-inherit hover:text-foreground",
-                            FOCUS_RING,
-                        )}
-                    >
-                        {group.label}
-                        <Count group={group} />
-                        <CaretRight
-                            size={12}
-                            className={cn("transition-transform", !group.collapsed && "rotate-90")}
-                        />
-                    </button>
-                </h2>
-            ) : (
-                <>
-                    <h2 className={HEADING}>{group.label}</h2>
-                    <Count group={group} />
-                </>
-            )}
-            {group.action ? <div className="ml-auto flex">{group.action}</div> : null}
-        </div>
+        <SettingsGroupHeading
+            label={group.label}
+            count={group.count === null ? null : (group.count ?? group.items.length)}
+            collapsed={group.collapsed}
+            onToggle={group.onToggle}
+            action={group.action}
+        />
         {group.collapsed ? null : group.items.length || group.pendingRows ? (
             <div className={ROW_GRID}>
                 {group.items.map((item) => (
@@ -223,7 +198,8 @@ export const SettingsCatalog = ({
     toolbar?: ReactNode
 }) => {
     const shown = groups.filter(
-        (group) => group.items.length > 0 || group.pendingRows || group.footer,
+        (group) =>
+            group.items.length > 0 || group.pendingRows || group.footer || group.keepWhenEmpty,
     )
     return (
         // The search sits close to what it filters; groups keep their wider gap between them.

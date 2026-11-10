@@ -1,4 +1,14 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 from uuid import UUID, uuid4
 from datetime import datetime
 
@@ -134,14 +144,17 @@ class TracingService:
         *,
         project_id: UUID,
         trace_id: UUID,
+        on_root_usage: Optional[Callable[..., Awaitable[object]]] = None,
     ) -> Optional[int]:
-        """Recompute cumulative metrics of one trace from all its stored spans."""
+        """Recompute cumulative metrics of one trace from all its stored spans.
+        `on_root_usage` runs under the trace's lock."""
         return await self.tracing_dao.recompute_trace_metrics(
             project_id=project_id,
             trace_id=trace_id,
             #
             recompute=recompute_cumulative_metrics,
             max_spans=env.agenta.otlp.totals_max_spans,
+            on_root_usage=on_root_usage,
         )
 
     async def ingest_span_dtos(

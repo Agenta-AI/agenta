@@ -10,6 +10,7 @@ export {
     PREFERENCE_SECTIONS,
     usePreferenceBindings,
     type PreferencesPageProps,
+    type HostPreferenceItem,
     type PreferenceBinding,
     type PreferenceBindings,
     type PreferenceItem,
@@ -19,6 +20,7 @@ export {
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
+export {addAccountOwners, showsYours} from "./shared/accountOwners"
 export {
     AIProvidersPage,
     SUBSCRIPTION_DOCS_URL,
@@ -191,7 +193,20 @@ export {
     AGENT_INVOKE_DOCS_URL,
     agentHostFromApiUrl,
     buildAgentSnippets,
+    CodeBlock,
+    buildAppEndpointParams,
+    buildFetchConfigSnippets,
+    buildFetchVariantConfigSnippets,
+    buildInvokeAppSnippets,
+    buildTestsetJsonSnippets,
+    buildTestsetUploadSnippets,
+    TESTSET_CREATE_DOCS_URL,
+    type TestsetCreateSnippetInput,
     type AgentApiPanelProps,
+    type AppEndpointLang,
+    type AppEndpointVariant,
+    type AppEndpointSnippets,
+    type CodeBlockProps,
     type AgentEmbedPanelProps,
     type AgentPublishProps,
     type AgentSnippetLang,

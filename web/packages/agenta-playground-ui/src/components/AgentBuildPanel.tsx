@@ -22,6 +22,8 @@ export interface AgentBuildPanelProps {
     revisionId: string
     /** The panel's own header — identity, and the Commit/Deploy actions. */
     header?: ReactNode
+    /** Shown under the header, above the config sections (the needs-setup banner). */
+    banner?: ReactNode
     /**
      * The Files region. `AgentOperationsSections` has always taken this as a slot, because the
      * drive listing is the one part of the panel that is still app-layer.
@@ -45,6 +47,8 @@ export interface AgentBuildPanelProps {
      * navigates there; absent, the history opens in the deliveries drawer over the panel.
      */
     onOpenRunHistory?: (owner: TriggerOwnerRef) => void
+    /** The reader may not edit this agent: every config and automation control is locked. */
+    disabled?: boolean
     className?: string
 }
 
@@ -60,12 +64,14 @@ export const AgentBuildPanel = memo(
     ({
         revisionId,
         header,
+        banner,
         storage,
         storageHeader,
         stickyHeaderTop = 48,
         sticky = true,
         automationDrawer,
         onOpenRunHistory,
+        disabled,
         className,
     }: AgentBuildPanelProps) => {
         const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
@@ -74,6 +80,7 @@ export const AgentBuildPanel = memo(
             <div className={className}>
                 <section className="flex flex-col">
                     {header}
+                    {banner}
                     {hasPendingHydration ? (
                         // The same px-4 pb-3 pt-1 inset the schema-loading gate and the real
                         // agent_config field wrapper use — without it the skeleton renders flush
@@ -85,6 +92,7 @@ export const AgentBuildPanel = memo(
                         <FieldsDetectionProvider value={EMPTY_FIELDS_DETECTION}>
                             <PlaygroundConfigSection
                                 revisionId={revisionId}
+                                disabled={disabled}
                                 stickyHeaderTop={stickyHeaderTop}
                                 // Hold the panel's real section-row shape while the schema loads,
                                 // instead of the generic prompt-config pulse boxes.
@@ -101,6 +109,7 @@ export const AgentBuildPanel = memo(
                 ) : (
                     <AgentOperationsSections
                         revisionId={revisionId}
+                        disabled={disabled}
                         sticky={sticky}
                         storage={storage}
                         storageHeader={storageHeader}

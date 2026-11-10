@@ -6,6 +6,7 @@ import {AutomationInstructionField} from "./AutomationInstructionField"
 import {AutomationMetaRow} from "./AutomationMetaRow"
 import type {Automation} from "./automationModel"
 import {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
+import {AutomationRunPersonNotice} from "./AutomationRunPersonNotice"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationSaveBar} from "./AutomationSaveBar"
 import {AutomationTitle} from "./AutomationTitle"
@@ -40,6 +41,8 @@ export const AutomationDetailBody = ({
     onChangeCron,
     onSelectEvent,
     onChangeInputs,
+    includeEvent,
+    onChangeIncludeEvent,
     onToggle,
     onDiscard,
     onSave,
@@ -77,6 +80,9 @@ export const AutomationDetailBody = ({
     onChangeCron: (cron: string) => void
     onSelectEvent: (selection: EventSelection) => void
     onChangeInputs: (inputs: Record<string, unknown>) => void
+    /** Event automations only — the draft's include-event option. */
+    includeEvent: boolean
+    onChangeIncludeEvent: (next: boolean) => void
     onToggle: (next: boolean) => Promise<void>
     onDiscard: () => void
     onSave: () => void
@@ -122,11 +128,24 @@ export const AutomationDetailBody = ({
                 agentId={preview.agentId}
                 inputsFields={preview.raw.data?.inputs_fields}
                 onCommit={onChangeInputs}
+                kind={preview.kind}
+                connectionId={preview.connectionId}
+                eventKey={preview.eventKey}
+                includeEvent={includeEvent}
+                onChangeIncludeEvent={onChangeIncludeEvent}
+                automation={automation}
             />
         </div>
         {onOpenRunHistory ? (
             <AutomationRunHistoryCard onOpen={onOpenRunHistory} caption={runHistoryCaption} />
         ) : null}
+        {/* Next to the save it is about: right above the bar, or last in a drawer whose
+            footer holds the bar. */}
+        <AutomationRunPersonNotice
+            automation={automation}
+            draftAgentId={preview.agentId}
+            dirty={dirty}
+        />
         {/* Last on the page: the bar commits the whole screen, so it reads as the end of the
             form rather than a divider halfway down it. */}
         {hideSaveBar ? null : (

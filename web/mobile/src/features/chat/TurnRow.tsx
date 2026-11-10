@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     getMessageTraceId,
@@ -16,13 +16,10 @@ import {
     McpServerNoticeCard,
     TurnFooter,
 } from "@agenta/chat/components"
-import {
-    endsOnClosedText,
-    readableTraceError,
-    splitTurnActivity,
-    type TurnViewModel,
-} from "@agenta/chat/model"
+import {useSessionTurnFooter} from "@agenta/chat/hooks"
+import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
@@ -42,14 +39,14 @@ import {cn} from "@/lib/utils"
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
-import {useBillingRoute, useCanBuyCredits, useProviderRecovery} from "./providerRecovery"
 import {quotedMessageParts} from "./quotedMessageParts"
-import {describeRunFailure, RunErrorMessage} from "./RunErrorMessage"
-import {RunErrorRecovery} from "./RunErrorRecovery"
+import {describeRunFailure, type RunFailureView} from "./RunErrorMessage"
 import {runRetryAction} from "./runRetry"
+import {refreshOnSetupFailure} from "./setupFailureRefresh"
 import {turnFiles} from "./turnFileList"
 import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
+import {TurnRunFailure} from "./TurnRunFailure"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
@@ -62,6 +59,9 @@ const attachmentSize = (metadata: unknown): number | undefined => {
 /** One transcript turn: a user bubble, or an assistant fold, answer, meta line and any run error. */
 const ASSISTANT_META: ("tokens" | "cost")[] = ["tokens", "cost"]
 
+/** The fold's failure line reads the same whichever ways out the page can offer. */
+const NO_WAYS_OUT = {providers: false, buyCredits: false, plans: false}
+
 const TurnRowInner = ({
     turn,
     onClientToolOutput,
@@ -71,6 +71,7 @@ const TurnRowInner = ({
     waitingOnUser = false,
     resuming = false,
     runId,
+    runStartedAt,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -89,8 +90,12 @@ const TurnRowInner = ({
     resuming?: boolean
     /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
+    /** When the server saved the user message that started this run: the clock counts from it. */
+    runStartedAt?: number
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
+    // A reader whose role has no trace access gets no trace action and no trace read.
+    const canViewSpans = useAtomValue(canViewSpansAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const traceId = getMessageTraceId(turn.message)
     // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
@@ -103,9 +108,11 @@ const TurnRowInner = ({
         turn.message.parts as {state?: string; errorText?: string}[],
     )
     const usage = getMessageUsage(turn.message)
-    const openProviders = useProviderRecovery()
-    const openBilling = useBillingRoute()
-    const canBuyCredits = useCanBuyCredits(turn.status.errorCode)
+    // A user turn has no trace of its own: it takes its time from the turn it started.
+    const sessionTurn = useSessionTurnFooter({
+        sessionId,
+        traceId: turn.isUser ? turn.turnTraceId : traceId,
+    })
 
     /**
      * Notices about a server that did not join the run, above the timeline rather than in it.
@@ -140,13 +147,15 @@ const TurnRowInner = ({
     const footer = {
         messageId: turn.message.id,
         traceId,
-        turnTraceId: turn.turnTraceId,
         isStreaming: turn.isStreamingTurn,
         usage,
+        sessionTurnFigures: sessionTurn.figures,
+        sessionTurnStartedAt: sessionTurn.startedAt,
+        sessionTurnsPending: sessionTurn.pending,
         copyText,
         // Rewinding the last turn re-runs the current one; hidden, as on desktop.
         onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,
-        onViewTrace: (id: string) => openTraceDrawer({traceId: id}),
+        onViewTrace: canViewSpans ? (id: string) => openTraceDrawer({traceId: id}) : undefined,
         // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
         metrics: ASSISTANT_META,
     }
@@ -164,36 +173,32 @@ const TurnRowInner = ({
     const errorText = turn.status.showError
         ? (turn.status.errorText ?? "Something went wrong.")
         : traceError
-    const runError = errorText
-        ? describeRunFailure({
+    const runFailure = errorText
+        ? {
               text: errorText,
               code: turn.status.errorCode ?? undefined,
               transport: isMessageRunErrorTransport(turn.message),
               onRetry: runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined),
-              can: {providers: !!openProviders, buyCredits: canBuyCredits, plans: !!openBilling},
-              onSignIn: openProviders,
-          })
+          }
         : null
-    // A closed text is only the answer once the run is over: until then a call can still follow it,
-    // and the model may take many seconds to start that call. A timed hold promoted such asides to
-    // the answer and pulled them back into the fold when the call landed.
-    const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
+    // The latest turn failing for needs-setup refreshes the tags and the banner.
+    const lastErrorCode = turn.isLast && errorText ? turn.status.errorCode : null
+    useEffect(() => refreshOnSetupFailure(lastErrorCode), [lastErrorCode, turn.message.id])
     const streamedHereRef = useRef(false)
     if (turn.isStreamingTurn) streamedHereRef.current = true
-    // `live`, as the fold's header reads it: a send can flip the local stream on and off and then
-    // run on the shared reader, so a closed local stream is not a finished run.
-    // Parked on the reader is open too: the text before a question is not the answer.
+    // Parked on the reader is open too: a message before a question is not the answer yet.
     const runOpen = live || (turn.isLast && (waitingOnUser || resuming))
+    // While the run works, every message shows below the fold; once it is over, only the answer.
     const activity = useMemo(
-        () =>
-            splitTurnActivity(turn.items, {
-                holdClosedText: runOpen && trailingClosed,
-            }),
-        [turn.items, runOpen, trailingClosed],
+        () => splitTurnActivity(turn.items, {settled: !runOpen}),
+        [turn.items, runOpen],
     )
+    const answered = activity.messages.length > 0
+    const writing = activity.messages.at(-1)?.part.state === "streaming"
     // An answer present at mount is history (reload, session open); a later one arrived live.
     // By message id alone: adoption can shift the answer's index without it being a new answer.
-    const answerKey = activity.answer ? turn.message.id : null
+    // Only once the run is over: an interim message must not pin the scroll while work goes on.
+    const answerKey = answered && !runOpen ? turn.message.id : null
     const mountAnswerKeyRef = useRef(answerKey)
     const rowMarkers = turn.isLast
         ? {
@@ -233,7 +238,34 @@ const TurnRowInner = ({
                 : [],
         [turn.isUser, turn.items],
     )
-    const writtenFiles = useMemo(() => turnFiles(activity.steps), [activity.steps])
+    const writtenFiles = useMemo(
+        () =>
+            // Once settled, `messages` holds only the answer; an open run's text is still interim.
+            turnFiles(
+                activity.steps,
+                runOpen ? [] : activity.messages.map((message) => message.part.text),
+            ),
+        [activity.steps, activity.messages, runOpen],
+    )
+
+    // The turn's meta line sits under the answer, revealed on hover or focus like the desktop's;
+    // the row keeps its height so nothing shifts when it appears. Not while the run is parked on
+    // the reader: the turn is not over, only waiting.
+    const renderMetaLine = (failed?: RunFailureView) =>
+        !live && !(turn.isLast && (waitingOnUser || resuming)) ? (
+            <div
+                className={`flex min-h-6 items-center gap-1 ${
+                    inspectorEnabled ? "" : turnToolbarRevealClass
+                }`}
+            >
+                <TurnFooter
+                    {...footer}
+                    isUser={false}
+                    copyText={footer.copyText || failed?.paragraphs.join("\n\n")}
+                    onRetry={failed?.onRetry}
+                />
+            </div>
+        ) : null
 
     const body = turn.isUser ? (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
@@ -248,66 +280,61 @@ const TurnRowInner = ({
         </div>
     ) : (
         <div className="flex min-w-0 max-w-full flex-col gap-3">
-            {mcpNotices.map((item) => (
-                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
-            ))}
             <ActivityTimeline
                 messageId={turn.message.id}
                 clockId={runId}
                 sessionId={sessionId}
                 steps={activity.steps}
                 streaming={live}
-                answerStarted={activity.answer !== null}
+                answerStarted={answered}
+                writing={writing}
                 waitingOnUser={turn.isLast && waitingOnUser}
                 resuming={turn.isLast && resuming}
                 hadGate={turn.hadGate}
-                traceId={traceId}
+                sessionTurnStartedAt={sessionTurn.startedAt}
+                sessionTurnDurationMs={sessionTurn.figures?.durationMs}
                 streamedHere={streamedHereRef.current}
+                runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}
-                failure={runError?.failure}
+                failure={
+                    runFailure
+                        ? describeRunFailure({...runFailure, can: NO_WAYS_OUT}).failure
+                        : undefined
+                }
             />
-            {activity.answer ? (
-                <div {...quoteProps}>
-                    <AnswerReveal animate={live}>
-                        <AssistantMarkdown
-                            streaming={isLiveTextItem(turn, activity.answerIndex)}
-                            text={activity.answer.text}
-                        />
-                    </AnswerReveal>
+            {answered ? (
+                <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
+                    {activity.messages.map((message, at) => (
+                        <AnswerReveal
+                            key={message.index}
+                            animate={live}
+                            answer={at === activity.messages.length - 1}
+                        >
+                            <AssistantMarkdown
+                                streaming={isLiveTextItem(turn, message.index)}
+                                text={message.part.text}
+                            />
+                        </AnswerReveal>
+                    ))}
                 </div>
             ) : null}
+            {/* After the messages: a server that did not join is what the turn came to. */}
+            {mcpNotices.map((item) => (
+                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
+            ))}
             {!live ? <TurnFiles files={writtenFiles} /> : null}
-            {runError ? (
-                <>
-                    <RunErrorMessage paragraphs={runError.paragraphs} quote={runError.quote} />
-                    <RunErrorRecovery actions={runError.recoveries} />
-                </>
+            {runFailure ? (
+                <TurnRunFailure failure={runFailure} renderFooter={renderMetaLine} />
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
                 </span>
-            ) : turn.status.stopped && !activity.answer && !live ? (
+            ) : turn.status.stopped && !answered && !live ? (
                 // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
                 // running call, the fold hides that failed call, and the turn would read empty.
                 <span className="text-xs italic text-colorTextSecondary">Stopped</span>
             ) : null}
-            {/* The turn's meta line sits under the answer, revealed on hover or focus like the
-                desktop's; the row keeps its height so nothing shifts when it appears. Not while
-                the run is parked on the reader: the turn is not over, only waiting. */}
-            {!live && !(turn.isLast && (waitingOnUser || resuming)) ? (
-                <div
-                    className={`flex min-h-6 items-center gap-1 ${
-                        inspectorEnabled ? "" : turnToolbarRevealClass
-                    }`}
-                >
-                    <TurnFooter
-                        {...footer}
-                        isUser={false}
-                        copyText={footer.copyText || runError?.paragraphs.join("\n\n")}
-                        onRetry={runError?.onRetry}
-                    />
-                </div>
-            ) : null}
+            {runFailure ? null : renderMetaLine()}
         </div>
     )
 

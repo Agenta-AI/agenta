@@ -262,3 +262,26 @@ describe("which relay failures are the chosen server refusing a credential", () 
         expect(isCredentialRefusal(bare(502, {}))).toBe(false)
     })
 })
+
+describe("a refusal from the generated client", () => {
+    // The generated client throws with the parsed body on `body`, not on `response.data`.
+    const fernRefusal = {
+        statusCode: 409,
+        body: {
+            detail: {
+                code: "server_not_discovered",
+                message: "A project admin must connect this server once first.",
+            },
+        },
+    }
+
+    it("reads the code from the body", () => {
+        expect(gatewayRefusalCode(fernRefusal)).toBe("server_not_discovered")
+    })
+
+    it("reads the message from the body", () => {
+        expect(gatewayRefusalMessage(fernRefusal)).toBe(
+            "A project admin must connect this server once first.",
+        )
+    })
+})

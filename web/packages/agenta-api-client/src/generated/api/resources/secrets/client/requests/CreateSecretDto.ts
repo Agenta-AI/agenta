@@ -29,6 +29,7 @@ export namespace CreateSecretDto {
     export const Scope = {
         Project: "project",
         Organization: "organization",
+        User: "user",
     } as const;
     export type Scope = (typeof Scope)[keyof typeof Scope];
 }

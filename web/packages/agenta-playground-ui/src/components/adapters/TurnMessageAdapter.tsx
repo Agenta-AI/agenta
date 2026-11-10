@@ -1,15 +1,7 @@
 import React, {ComponentProps, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {executionItemController, playgroundController} from "@agenta/playground"
-import type {ChatMessage, MessageTarget, SimpleChatMessage} from "@agenta/playground"
-import type {MessageContent} from "@agenta/shared/types"
-import {
-    addImageToContent,
-    addFileToContent,
-    removeAttachmentFromContent,
-    getAttachments,
-    updateTextInContent,
-} from "@agenta/shared/utils"
+import type {SimpleChatMessage} from "@agenta/playground"
+import {getAttachments} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui"
 import {
     ChatMessageEditor as MessageEditor,
@@ -21,15 +13,14 @@ import {
     PromptImageUpload,
     PromptDocumentUpload,
 } from "@agenta/ui/components/presentational"
-import type {PromptUploadFile} from "@agenta/ui/components/presentational"
 import {messageViewModeAtom, toMessageViewMode} from "@agenta/ui/drill-in"
 import clsx from "clsx"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
-import JSON5 from "json5"
+import {useAtom, useSetAtom} from "jotai"
 import {v4 as uuidv4} from "uuid"
 
+import {useTurnMessage} from "../../hooks/useTurnMessage"
 import {openPlaygroundFocusDrawerAtom} from "../../state/focusDrawer"
-import {createToolCallPayloads, ToolCallViewHeader} from "../ToolCallView"
+import {ToolCallViewHeader} from "../ToolCallView"
 import TurnMessageHeaderOptions from "../TurnMessageHeaderOptions"
 import type {RepetitionNavProps, TurnMessageHeaderOptionsProps} from "../TurnMessageHeaderOptions"
 
@@ -66,19 +57,6 @@ type AdapterMessageProps = Partial<ComponentProps<typeof MessageEditor>> & {
     footerClassName?: string
 }
 
-// Extract display text from SimpleChatMessage content
-function extractTextFromContent(content: MessageContent | undefined | null): string {
-    if (!content) return ""
-    if (typeof content === "string") return content
-    if (Array.isArray(content)) {
-        return content
-            .filter((part) => part.type === "text")
-            .map((part) => (part as {type: "text"; text: string}).text)
-            .join("")
-    }
-    return ""
-}
-
 const TurnMessageAdapter: React.FC<Props> = ({
     entityId,
     rowId,
@@ -106,35 +84,46 @@ const TurnMessageAdapter: React.FC<Props> = ({
     renderRepetitionNav,
 }) => {
     const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
-    const isComparisonView = useAtomValue(
-        useMemo(() => playgroundController.selectors.isComparisonView(), []),
-    )
     const editorIdRef = useRef(uuidv4())
-    const messagesById = useAtomValue(
-        useMemo(() => executionItemController.selectors.messagesById, []),
-    )
-    const messageIds = useAtomValue(useMemo(() => executionItemController.selectors.messageIds, []))
-    const patchMessage = useSetAtom(executionItemController.actions.patchMessage)
-    const deleteMsg = useSetAtom(executionItemController.actions.deleteMessage)
-    const clearResponseByRowEntity = useSetAtom(executionItemController.actions.clearResponse)
+    const {
+        message: msg,
+        role: roleValue,
+        isError,
+        editorText,
+        hasBeenRun,
+        isComparisonView,
+        toolPayloads,
+        resultHashes,
+        results: storedResults,
+        onChangeText,
+        onChangeRole,
+        rerun: handleRerun,
+        remove: deleteMessage,
+        uploadSlots,
+        imageSlotCount,
+        documentSlotCount,
+        addUploadSlot,
+        setSlotImage: handleUploadFileChange,
+        setSlotDocument: handleDocumentFileChange,
+        removeSlot: handleRemoveUploadSlot,
+        addFile: handleAddFileAttachment,
+        listedAttachments,
+        removeListedAttachment: handleRemoveAttachment,
+    } = useTurnMessage({
+        entityId,
+        rowId,
+        kind,
+        toolIndex,
+        messageOverride: messageOverride ? (messageOverride as SimpleChatMessage) : undefined,
+    })
     const {
         footerClassName,
         onPasteLimitExceeded: messageOnPasteLimitExceeded,
         ...messageProps
     } = (_messageProps || {}) as AdapterMessageProps
     const [isMessageCollapsed, setIsMessageCollapsed] = useState(false)
-    const [uploadSlots, setUploadSlots] = useState<
-        {
-            id: string
-            type: "image" | "document"
-            file?: PromptUploadFile
-            filled?: boolean
-            value?: string
-        }[]
-    >([])
     const autoMinimizedRef = useRef(false)
     const isToolKind = kind === "tool"
-    const sessionId = `sess:${entityId}`
 
     const editorCollapseStyle = getCollapseStyle(isMessageCollapsed)
 
@@ -147,74 +136,6 @@ const TurnMessageAdapter: React.FC<Props> = ({
         [isMessageCollapsed],
     )
 
-    // Build the message target for reducer dispatches
-    const messageTarget: MessageTarget = useMemo(
-        () => ({turnId: rowId, kind, sessionId, toolIndex}),
-        [rowId, kind, sessionId, toolIndex],
-    )
-
-    const msg = useMemo<SimpleChatMessage | null>(() => {
-        if (messageOverride) return messageOverride as SimpleChatMessage
-        if (kind === "user") {
-            return (messagesById[rowId] as SimpleChatMessage) ?? null
-        }
-        if (kind === "assistant") {
-            for (const mid of messageIds) {
-                const m = messagesById[mid] as ChatMessage | undefined
-                if (
-                    m &&
-                    m.parentId === rowId &&
-                    m.sessionId === sessionId &&
-                    m.role === "assistant"
-                )
-                    return m as SimpleChatMessage
-            }
-            return null
-        }
-        if (kind === "tool") {
-            let idx = 0
-            for (const mid of messageIds) {
-                const m = messagesById[mid] as ChatMessage | undefined
-                if (m && m.parentId === rowId && m.sessionId === sessionId && m.role === "tool") {
-                    if (idx === toolIndex) return m as SimpleChatMessage
-                    idx++
-                }
-            }
-            return null
-        }
-        return null
-    }, [messagesById, messageIds, rowId, sessionId, kind, toolIndex, messageOverride])
-
-    const roleValue = msg?.role
-    const computedText = useMemo(() => extractTextFromContent(msg?.content), [msg?.content])
-
-    const editorText = useMemo(() => {
-        const fallback = computedText
-        const candidates: string[] = []
-
-        if (typeof msg?.content === "string") {
-            candidates.push(msg.content)
-        }
-
-        candidates.push(fallback)
-
-        for (const candidate of candidates) {
-            if (typeof candidate !== "string") continue
-            const trimmed = candidate.trim()
-            if (!trimmed) continue
-            if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) continue
-            try {
-                const parsed = JSON5.parse(candidate)
-                if (parsed !== null && typeof parsed === "object") {
-                    return JSON.stringify(parsed, null, 2)
-                }
-            } catch {
-                // ignore parse errors and fall back to plain text rendering
-            }
-        }
-
-        return fallback
-    }, [computedText, msg])
     // Shared + persisted across all message editors (see messageViewModeAtom).
     // The atom is typed `ViewMode` (can hold "form"), so coerce to a mode this
     // editor can actually render before deriving any mode-dependent state.
@@ -226,91 +147,10 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const effectiveDisabled = Boolean(disabled)
     const isUserRole = kind === "user" && !isToolKind
 
-    const attachments = useMemo(() => getAttachments(msg?.content ?? null), [msg?.content])
-    const hasAttachments = attachments.length > 0
+    const hasListedAttachments = getAttachments(listedAttachments).length > 0
 
-    const handleAddImage = useCallback(
-        (imageUrl: string) => {
-            patchMessage({
-                target: messageTarget,
-                updater: (m) => {
-                    if (!m) return m
-                    return {...m, content: addImageToContent(m.content ?? "", imageUrl)}
-                },
-            })
-        },
-        [messageTarget, patchMessage],
-    )
-
-    const handleRemoveAttachment = useCallback(
-        (attachmentIndex: number) => {
-            patchMessage({
-                target: messageTarget,
-                updater: (m) => {
-                    if (!m) return m
-                    return {
-                        ...m,
-                        content: removeAttachmentFromContent(m.content ?? "", attachmentIndex),
-                    }
-                },
-            })
-        },
-        [messageTarget, patchMessage],
-    )
-
-    const imageSlotCount = uploadSlots.filter((s) => s.type === "image").length
-    const documentSlotCount = uploadSlots.filter((s) => s.type === "document").length
-
-    const handleAddUploadSlot = useCallback(() => {
-        if (imageSlotCount >= 5) return
-        setUploadSlots((prev) => [...prev, {id: uuidv4(), type: "image"}])
-    }, [imageSlotCount])
-
-    const handleAddDocumentSlot = useCallback(() => {
-        if (documentSlotCount >= 5) return
-        setUploadSlots((prev) => [...prev, {id: uuidv4(), type: "document"}])
-    }, [documentSlotCount])
-
-    const handleUploadFileChange = useCallback(
-        (slotId: string, file: PromptUploadFile | null) => {
-            if (!file) return
-            const base64 = typeof file.base64 === "string" ? file.base64 : undefined
-            const imageUrl = base64 || file.url || file.thumbUrl
-            if (imageUrl) {
-                handleAddImage(imageUrl)
-            }
-            // Update the slot with the file data (keep it visible for preview)
-            setUploadSlots((prev) => prev.map((s) => (s.id === slotId ? {...s, file} : s)))
-        },
-        [handleAddImage],
-    )
-
-    const handleAddFileAttachment = useCallback(
-        (fileData: string, filename: string, format: string) => {
-            patchMessage({
-                target: messageTarget,
-                updater: (m) => {
-                    if (!m) return m
-                    return {
-                        ...m,
-                        content: addFileToContent(m.content ?? "", fileData, filename, format),
-                    }
-                },
-            })
-        },
-        [messageTarget, patchMessage],
-    )
-
-    const handleDocumentFileChange = useCallback(
-        (slotId: string, fileData: string, filename: string, format: string) => {
-            handleAddFileAttachment(fileData, filename, format)
-            // Mark slot as filled (keep it visible)
-            setUploadSlots((prev) =>
-                prev.map((s) => (s.id === slotId ? {...s, filled: true, value: fileData} : s)),
-            )
-        },
-        [handleAddFileAttachment],
-    )
+    const handleAddUploadSlot = useCallback(() => addUploadSlot("image"), [addUploadSlot])
+    const handleAddDocumentSlot = useCallback(() => addUploadSlot("document"), [addUploadSlot])
 
     const handleAddSnippetAttachment = useCallback(
         async (pastedText: string) => {
@@ -319,89 +159,6 @@ const TurnMessageAdapter: React.FC<Props> = ({
             message?.success(`Attached ${filename} as a snippet.`)
         },
         [handleAddFileAttachment],
-    )
-
-    const handleRemoveUploadSlot = useCallback(
-        (slotId: string) => {
-            const slot = uploadSlots.find((s) => s.id === slotId)
-            setUploadSlots((prev) => prev.filter((s) => s.id !== slotId))
-
-            // If the slot had data added to content, remove the last matching attachment
-            if (slot?.file || slot?.filled) {
-                // Find and remove the attachment that corresponds to this slot.
-                // Attachments are appended in order, so we find the index of this slot
-                // among filled slots to determine which attachment index to remove.
-                const filledSlots = uploadSlots.filter((s) => s.file || s.filled)
-                const slotIndex = filledSlots.findIndex((s) => s.id === slotId)
-                if (slotIndex !== -1) {
-                    patchMessage({
-                        target: messageTarget,
-                        updater: (m) => {
-                            if (!m) return m
-                            return {
-                                ...m,
-                                content: removeAttachmentFromContent(m.content ?? "", slotIndex),
-                            }
-                        },
-                    })
-                }
-            }
-        },
-        [uploadSlots, messageTarget, patchMessage],
-    )
-
-    const deleteMessage = useCallback(() => {
-        const msgId = msg?.id
-        if (!msgId) return
-        if (isToolKind) {
-            deleteMsg({target: messageTarget})
-        } else if (kind === "assistant") {
-            deleteMsg({target: {turnId: rowId, kind: "assistant", sessionId}})
-        } else {
-            deleteMsg({target: {turnId: rowId, kind: "user"}})
-        }
-        if (kind === "assistant" && messageOverride) {
-            clearResponseByRowEntity({rowId, entityId})
-        }
-    }, [
-        deleteMsg,
-        kind,
-        entityId,
-        sessionId,
-        rowId,
-        msg,
-        isToolKind,
-        messageOverride,
-        clearResponseByRowEntity,
-        messageTarget,
-    ])
-
-    const onChangeRole = useCallback(
-        (v: string) => {
-            if (isToolKind) return
-            if (!msg) return
-            patchMessage({
-                target: messageTarget,
-                updater: (m) => {
-                    if (!m) return m
-                    return {...m, role: v}
-                },
-            })
-        },
-        [msg, messageTarget, patchMessage, isToolKind],
-    )
-
-    const onChangeText = useCallback(
-        (v: string) => {
-            patchMessage({
-                target: messageTarget,
-                updater: (m) => {
-                    if (!m) return m
-                    return {...m, content: updateTextInContent(m.content ?? "", v)}
-                },
-            })
-        },
-        [messageTarget, patchMessage],
     )
 
     const defaultOnPasteLimitExceeded = useCallback(
@@ -452,99 +209,14 @@ const TurnMessageAdapter: React.FC<Props> = ({
         messageOnPasteLimitExceeded ??
         (isUserRole && !effectiveDisabled ? defaultOnPasteLimitExceeded : undefined)
 
-    // Check if this user turn has been executed (gates re-run enabled state).
-    // We check for ANY child message (assistant, error, tool) — not just assistants,
-    // because error responses have role "Error" and aren't in the assistant index.
-    const hasBeenRun = useMemo(() => {
-        for (const mid of messageIds) {
-            const m = messagesById[mid] as ChatMessage | undefined
-            if (m && m.parentId === rowId && m.sessionId === sessionId) return true
-        }
-        return false
-    }, [messagesById, messageIds, rowId, sessionId])
-
-    const triggerTest = useSetAtom(executionItemController.actions.triggerTest)
-    const truncateChat = useSetAtom(executionItemController.actions.truncateChat)
-    const clearSessionResponses = useSetAtom(executionItemController.actions.clearSessionResponses)
-    const runStatusMap = useAtomValue(
-        useMemo(() => executionItemController.selectors.runStatusByRowEntity, []),
-    ) as Record<string, {resultHash?: string | null} | undefined>
-
-    const handleRerun = useCallback(() => {
-        if (isToolKind) return
-        const logicalId = String(rowId)
-        const messageId = msg?.id
-
-        if (isComparisonView) {
-            // Comparison mode: session-scoped cleanup — only clear this entity's
-            // responses from this turn onward. Shared messages and other entities'
-            // responses are preserved.
-            clearSessionResponses({sessionId, afterUserMessageId: logicalId})
-        } else {
-            // Single mode: delete the assistant for this turn, then truncate
-            // everything after (subsequent turns depend on this response).
-            if (kind === "assistant" && messageId) {
-                deleteMsg({target: {turnId: rowId, kind: "assistant", sessionId}})
-            } else if (kind === "user") {
-                deleteMsg({target: {turnId: rowId, kind: "assistant", sessionId}})
-            }
-            if (messageId) {
-                truncateChat({afterTurnId: logicalId})
-            }
-        }
-
-        triggerTest({
-            executionId: entityId,
-            step: {id: logicalId, messageId},
-        })
-    }, [
-        triggerTest,
-        truncateChat,
-        clearSessionResponses,
-        rowId,
-        entityId,
-        sessionId,
-        msg,
-        kind,
-        deleteMsg,
-        isToolKind,
-        isComparisonView,
-    ])
-
-    const resultHashes = useMemo(() => {
-        try {
-            const key = `${rowId}:${entityId}`
-            const entry = (runStatusMap || {})[key]
-            const h = entry?.resultHash
-            return h ? [h] : []
-        } catch {
-            return []
-        }
-    }, [runStatusMap, rowId, entityId])
-
-    const fullResult = useAtomValue(
-        useMemo(
-            () =>
-                executionItemController.selectors.fullResult({
-                    rowId,
-                    entityId,
-                }),
-            [rowId, entityId],
-        ),
-    )
-    const results = useMemo(() => {
-        if (propsResults) return propsResults
-        if (!fullResult?.output) return []
-        const output = fullResult.output
-        return Array.isArray(output) ? output.filter(Boolean) : [output]
-    }, [propsResults, fullResult])
+    const results = propsResults ?? storedResults
 
     const footerContent = useMemo(
         () => (
             <>
-                {hasAttachments && isUserRole && uploadSlots.length === 0 && (
+                {hasListedAttachments && isUserRole && (
                     <MessageAttachments
-                        content={msg!.content!}
+                        content={listedAttachments}
                         onRemove={handleRemoveAttachment}
                         disabled={effectiveDisabled}
                     />
@@ -583,9 +255,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
         [
             footer,
             footerClassName,
-            hasAttachments,
+            hasListedAttachments,
             isUserRole,
-            msg,
+            listedAttachments,
             handleRemoveAttachment,
             effectiveDisabled,
             uploadSlots,
@@ -600,17 +272,10 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return kind === "user" ? "Type your message…" : "Enter tool call result here and hit run"
     }, [placeholder, kind])
 
-    // TODO: IMPROVE THIS
-    const isError = roleValue === "Error"
     const editorRole = roleValue ?? kind
     const editorState = isError ? "readOnly" : "filled"
     const toolCallId = msg?.tool_call_id
     const toolName = msg?.name
-
-    const toolPayloads = useMemo(() => {
-        if (kind !== "assistant") return []
-        return createToolCallPayloads(msg?.tool_calls)
-    }, [kind, msg])
 
     const msgId = msg?.id
     useEffect(() => {
@@ -654,7 +319,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         )}
                     >
                         <MessageEditor
-                            id={editorIdRef.current}
+                            id={`${editorIdRef.current}-${p.callId}`}
                             key={`${editorIdRef.current}-${viewMode}-${p.callId}`}
                             role={editorRole}
                             isJSON={isCodeMode}
@@ -684,7 +349,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             headerRight={
                                 <TurnMessageHeaderOptions
                                     {...messageOptionProps}
-                                    id={editorIdRef.current}
+                                    id={`${editorIdRef.current}-${p.callId}`}
                                     messageId={msg?.id}
                                     disabled={kind === "user" && !hasBeenRun}
                                     resultHashes={propsResultHashes ?? resultHashes}

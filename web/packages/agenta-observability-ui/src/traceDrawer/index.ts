@@ -10,7 +10,10 @@ export {default as TraceReferences} from "./TraceReferences"
 export {
     configureTraceDrawerReferences,
     getTraceDrawerReferences,
+    type AddToQueuePopoverSlotProps,
+    type TraceDrawerPickerSlots,
     type TraceDrawerReferenceSlots,
+    type TraceDrawerSlots,
 } from "./referenceSlots"
 export {default as EvaluatorDetailsPopover} from "./EvaluatorDetailsPopover"
 export {default as TraceAnnotations} from "./TraceAnnotations"
@@ -28,3 +31,4 @@ export {default as TraceContent} from "./TraceContent"
 export type * from "./traceTypeHeaderTypes"
 export {default as TraceDrawer} from "./TraceDrawer"
 export {default as TraceDrawerContent} from "./TraceDrawerContent"
+export {createReferenceLabels, type ReferenceHrefs} from "../references/referenceLabels"

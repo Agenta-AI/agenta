@@ -1,25 +1,19 @@
 import {useCallback} from "react"
 
 import {
+    formatHumanMetricLabel,
+    getHumanMetrics,
+    type HumanMetric,
+    type WorkflowRevisionLike,
+} from "@agenta/annotation"
+import {
     EntityPicker,
     useEnrichedHumanEvaluatorAdapter,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
-import {VersionBadge} from "@agenta/ui"
+import {VersionBadge} from "@agenta/ui/components/presentational"
 import {textColors} from "@agenta/ui/styles"
 import {Plus} from "@phosphor-icons/react"
-
-export interface WorkflowRevisionLike {
-    version?: number | null
-    name?: string | null
-    flags?: {is_feedback?: boolean} | null
-    data?: Record<string, unknown> | null
-}
-
-interface OutputMetric {
-    name: string
-    type: string
-}
 
 export interface EntityEvaluatorSelectorProps {
     onSelect: (selection: WorkflowRevisionSelectionResult) => void
@@ -40,84 +34,7 @@ export interface EntityEvaluatorSelectorProps {
     defaultOpenVersionPanel?: boolean
 }
 
-function getNestedValue(obj: unknown, ...keys: string[]): unknown {
-    let current: unknown = obj
-    for (const key of keys) {
-        if (!current || typeof current !== "object") return undefined
-        current = (current as Record<string, unknown>)[key]
-    }
-    return current
-}
-
-function parseOutputMetrics(schema: unknown): OutputMetric[] {
-    if (!schema || typeof schema !== "object") return []
-
-    const node = schema as Record<string, unknown>
-    const properties = node.properties as Record<string, unknown> | undefined
-
-    if (!properties || typeof properties !== "object") return []
-
-    return Object.entries(properties)
-        .map(([name, definition]) => {
-            if (!definition || typeof definition !== "object") return null
-            return {
-                name,
-                type: getOutputMetricType(definition),
-            }
-        })
-        .filter(Boolean) as OutputMetric[]
-}
-
-function getOutputMetricType(definition: unknown): string {
-    if (!definition || typeof definition !== "object") return "unknown"
-
-    const node = definition as Record<string, unknown>
-    const explicitType = node.type
-
-    if (typeof explicitType === "string") {
-        if (explicitType === "array") {
-            const itemType = getOutputMetricType(node.items)
-            return itemType === "unknown" ? "array" : `array<${itemType}>`
-        }
-        return explicitType
-    }
-
-    if (Array.isArray(explicitType) && explicitType.every((item) => typeof item === "string")) {
-        return explicitType.join(" | ")
-    }
-
-    if (Array.isArray(node.enum)) return "enum"
-    if (Array.isArray(node.oneOf)) return "union"
-    if (Array.isArray(node.anyOf)) return "union"
-    if (Array.isArray(node.allOf)) return "composed"
-
-    return "unknown"
-}
-
-export function getHumanMetrics(revision: WorkflowRevisionLike): OutputMetric[] {
-    const data = revision.data
-    const candidates = [
-        getNestedValue(data, "schemas", "outputs"),
-        getNestedValue(data, "service", "format", "properties", "outputs"),
-        getNestedValue(data, "service", "configuration", "outputs"),
-        getNestedValue(data, "configuration", "outputs"),
-        getNestedValue(data, "service", "configuration", "format", "properties", "outputs"),
-        getNestedValue(data, "configuration", "format", "properties", "outputs"),
-    ]
-
-    for (const candidate of candidates) {
-        const metrics = parseOutputMetrics(candidate)
-        if (metrics.length > 0) return metrics
-    }
-
-    return []
-}
-
-export function formatHumanMetricLabel(metric: OutputMetric): string {
-    return `${metric.name}: ${metric.type}`
-}
-
-function formatMetricSummary(metrics: OutputMetric[]): string {
+function formatMetricSummary(metrics: HumanMetric[]): string {
     const labels = metrics.map(formatHumanMetricLabel)
 
     if (labels.length <= 3) return labels.join(", ")

@@ -164,6 +164,20 @@ describe("ChannelsSettingsPage", () => {
         expect(byTestId("manage-s-orphan")).toBeNull()
     })
 
+    it("does not open a connection whose agent this member cannot see", async () => {
+        const hidden = connection({
+            connectionId: "s-private",
+            workspaceName: "Gamma",
+            agent: {id: "a-private", name: ""},
+        })
+        const onAgentChange = vi.fn()
+        await act(async () => root.render(<Host rows={[hidden]} onAgentChange={onAgentChange} />))
+        await clickTestId("channels-card-s-private")
+        expect(onAgentChange).not.toHaveBeenCalled()
+        expect(byTestId("channels-agent-picker")).toBeNull()
+        expect(byTestId("manage-s-private")).toBeNull()
+    })
+
     it("opens a pending link on its linking step, past the hub", async () => {
         await act(async () => root.render(<Host rows={[PENDING]} />))
         await clickTestId("channels-card-t-pending")

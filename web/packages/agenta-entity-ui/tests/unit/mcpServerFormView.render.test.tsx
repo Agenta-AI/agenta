@@ -69,6 +69,11 @@ vi.mock("@agenta/entities/secret", async (importOriginal) => ({
     customNamedSecretsAtom: NAMED_SECRETS_ATOM,
 }))
 
+// The server's needs-setup answer is not what these files test: no requirements.
+vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentRequirements", () => ({
+    useAgentRequirements: () => null,
+}))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: (atom: unknown) => (atom === NAMED_SECRETS_ATOM ? [] : {data: endpoints}),

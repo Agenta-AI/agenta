@@ -43,5 +43,42 @@ export const useSettlingIds = (pending: ClientToolMeta[], onOutput?: ClientToolO
         [onOutput, mark, forget],
     )
 
-    return {settlingIds, mark, forget, isSettling, settle}
+    /**
+     * Settle every target from outside the cards, as their own decline would. Resolves with the
+     * calls it settled once every write lands; rejects, and gives the cards back, when one fails,
+     * whether the handler threw or reported `false`. A no-op without a settle channel.
+     */
+    const dismiss = useCallback(
+        async (
+            pending: ClientToolMeta[],
+            output: (meta: ClientToolMeta) => Record<string, unknown>,
+            failure: string,
+        ): Promise<ClientToolMeta[]> => {
+            // Checked before the markers go up, which would close the dock over live requests.
+            if (!onOutput) return []
+            const targets = pending.filter((meta) => !meta.settled && !isSettling(meta.toolCallId))
+            if (targets.length === 0) return []
+            const ids = targets.map((meta) => meta.toolCallId)
+            mark(ids)
+            try {
+                const landed = await Promise.all(
+                    targets.map((meta) =>
+                        onOutput({
+                            toolName: meta.toolName,
+                            toolCallId: meta.toolCallId,
+                            output: output(meta),
+                        }),
+                    ),
+                )
+                if (landed.some((result) => result === false)) throw new Error(failure)
+                return targets
+            } catch (error) {
+                forget(ids)
+                throw error
+            }
+        },
+        [onOutput, mark, forget, isSettling],
+    )
+
+    return {settlingIds, settle, dismiss}
 }

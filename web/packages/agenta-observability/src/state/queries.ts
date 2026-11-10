@@ -1,3 +1,4 @@
+import {canViewSpansAtom} from "@agenta/entities/access"
 import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {
     attachAnnotationsToTraces,
@@ -40,7 +41,6 @@ interface AgAttributes {
         costs?: {cumulative?: {total?: number}; incremental?: {total?: number}}
     }
     data?: {inputs?: unknown; outputs?: unknown}
-    session?: {id?: string}
 }
 
 const agOf = (span?: TraceSpanNode) => span?.attributes?.ag as AgAttributes | undefined
@@ -75,7 +75,12 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
     // URL param to be sent. Gating on `!isResolving` skips that wasted
     // request — once ctx settles, the atom re-evaluates with the correct
     // `effectiveAppId` and queryFn fires.
-    const enabledFlag = sessionExists && Boolean(appId || projectId) && !workflowCtx.isResolving
+    // A reader without `view_spans` gets no trace list: the API would refuse every page.
+    const enabledFlag =
+        sessionExists &&
+        Boolean(appId || projectId) &&
+        !workflowCtx.isResolving &&
+        get(canViewSpansAtom)
 
     return {
         queryKey: ["traces", projectId, appId, params],
@@ -189,7 +194,7 @@ export const annotationsQueryAtom = atomWithQuery((get) => {
                 []
             )
         },
-        enabled: Array.isArray(links) && links.length > 0,
+        enabled: Array.isArray(links) && links.length > 0 && get(canViewSpansAtom),
         refetchOnWindowFocus: false,
     }
 })
@@ -351,7 +356,7 @@ export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
                 nextWindowing: response?.windowing,
             }
         },
-        enabled: sessionExists && Boolean(appId || projectId),
+        enabled: sessionExists && Boolean(appId || projectId) && get(canViewSpansAtom),
 
         getNextPageParam: (lastPageRaw) => {
             // Disable pagination in realtime mode (latest activity shows fixed LIMIT items)
@@ -389,59 +394,39 @@ export const sessionCountAtom = selectAtom(
     (query) => (query.data?.pages?.[0] as SessionsPage | undefined)?.count ?? 0,
 )
 
-export const filteredSessionIdsAtom = atom((get) => {
-    const sessionIds = get(sessionIdsAtom)
-    const sessionsSpans = get(sessionsSpansAtom)
-    return sessionIds.filter((id) => (sessionsSpans[id]?.length ?? 0) > 0)
-})
-
 // Session Spans ---------------------------------------------------------------
-export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
-    const appId = get(observabilityScopeAtom).appId
-    const filters = get(userFiltersAtomFamily("sessions"))
-    const traceTabs = get(traceTabsAtomFamily("sessions"))
-    const projectId = get(projectIdAtom)
-    const limit = get(limitAtomFamily("sessions"))
-    const sessionIds = get(sessionIdsAtom)
+// One query per session, so loading another page of sessions leaves loaded spans cached.
+export const sessionSpansQueryAtomFamily = atomFamily((sessionId: string) =>
+    atomWithQuery((get) => {
+        const appId = get(observabilityScopeAtom).appId
+        const filters = get(userFiltersAtomFamily("sessions"))
+        const traceTabs = get(traceTabsAtomFamily("sessions"))
+        const projectId = get(projectIdAtom)
+        const sessionExists = get(sessionAtom)
 
-    const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
-        buildTraceQueryParams(filters, undefined, traceTabs, undefined)
+        const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
+            buildTraceQueryParams(filters, undefined, traceTabs, undefined)
 
-    const sessionExists = get(sessionAtom)
-
-    return {
-        queryKey: ["session_spans", projectId, appId, params, JSON.stringify(sessionIds)],
-        initialPageParam: {
-            newest: typeof params.newest === "string" ? params.newest : undefined,
-        },
-
-        queryFn: async ({pageParam}) => {
-            if (!sessionIds.length) {
-                return {
-                    traces: [],
-                    traceCount: 0,
-                    nextCursor: undefined,
-                    annotationPageSize: 0,
+        return {
+            queryKey: ["session_spans", projectId, appId, params, sessionId],
+            queryFn: async () => {
+                const sessionParams = {
+                    ...params,
+                    filter: mergeConditions(params.filter as string | undefined, [
+                        {
+                            field: "attributes",
+                            key: "ag.session.id",
+                            operator: "is",
+                            value: sessionId,
+                        },
+                    ]),
                 }
-            }
-
-            const promises = sessionIds.map(async (sessionId) => {
-                // Clone params and inject session ID filter for this request
-                const specificParams = JSON.parse(JSON.stringify(params))
-                specificParams.filter = mergeConditions(specificParams.filter, [
-                    {
-                        field: "attributes",
-                        key: "ag.session.id",
-                        operator: "is",
-                        value: sessionId,
-                    },
-                ])
-
-                // The API returns one page per call (it has a default and a maximum
-                // limit). Read the whole session: follow the API's cursor to the end.
+                // The API returns one page per call: follow its cursor to read the whole session.
                 const result = await executeTraceQuery({
-                    params: specificParams,
-                    pageParam: pageParam as {newest?: string} | undefined,
+                    params: sessionParams,
+                    pageParam: {
+                        newest: typeof params.newest === "string" ? params.newest : undefined,
+                    },
                     appId: appId as string,
                     projectId: projectId ?? "",
                     isHasAnnotationSelected,
@@ -449,92 +434,28 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     hasAnnotationOperator,
                     readAllPages: true,
                 })
-                // Tag each trace with the session it was queried for. The grouping
-                // below relies on this instead of re-reading `attributes.ag.session.id`:
-                // the new /traces/query endpoint canonicalises `ag` to {data,type,metrics}
-                // and no longer serialises `ag.session.id` on the span, but every trace
-                // here is already scoped to `sessionId` by the filter above. (AGE-3788)
-                result.traces.forEach((t) => {
-                    ;(t as TraceSpanNode & {__sessionId?: string}).__sessionId = sessionId
-                })
-                return result
-            })
+                return result.traces as TraceSpanNode[]
+            },
+            enabled: sessionExists && Boolean(appId || projectId) && get(canViewSpansAtom),
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
 
-            const results = await Promise.all(promises)
-
-            // Merge results
-            const mergedTraces: TraceSpanNode[] = []
-            let maxCount = 0
-
-            results.forEach((res) => {
-                mergedTraces.push(...res.traces)
-                maxCount += res.traceCount // Sum or max? Depending on how we use it. Usually count is total.
-            })
-
-            return {
-                traces: mergedTraces,
-                traceCount: maxCount,
-                nextCursor: undefined, // Pagination for multi-session not supported in this view
-                annotationPageSize: 0,
-            }
-        },
-        enabled: sessionExists && Boolean(appId || projectId) && sessionIds.length > 0,
-
-        getNextPageParam: (lastPage, _pages) => {
-            const page = lastPage as {
-                annotationPageSize?: number
-                traces: unknown[]
-                nextCursor?: string
-            }
-            const pageSize = page.annotationPageSize ?? page.traces.length
-            return pageSize === limit && page.nextCursor
-                ? {newest: page.nextCursor as string}
-                : undefined
-        },
-
-        refetchOnWindowFocus: false,
-    }
-})
-
-export const sessionsSpansAtom = selectAtom(
-    sessionsSpansQueryAtom,
-    (query) => {
-        const pages = query.data?.pages ?? []
-        if (!pages.length) return {} as Record<string, TraceSpanNode[]>
-
-        const seen = new Set<string>()
-        const grouped: Record<string, TraceSpanNode[]> = {}
-
-        pages.forEach((page) => {
-            page.traces.forEach((trace: TraceSpanNode) => {
-                const key = trace.span_id || trace.key
-                if (!key || seen.has(key)) return
-                seen.add(key)
-                // Prefer the session id tagged at query time (the trace was fetched
-                // with a per-session filter). Fall back to the attribute path for any
-                // legacy/other caller that still serialises `ag.session.id`. (AGE-3788)
-                const sessionId = ((trace as TraceSpanNode & {__sessionId?: string}).__sessionId ||
-                    agOf(trace)?.session?.id) as string
-
-                if (sessionId) {
-                    if (!grouped[sessionId]) grouped[sessionId] = []
-                    grouped[sessionId].push(trace)
-                }
-            })
-        })
-
-        return grouped
-    },
-    deepEqual,
+// Only a session whose spans loaded empty is hidden; pending and failed ones stay listed.
+export const filteredSessionIdsAtom = atom((get) =>
+    get(sessionIdsAtom).filter((id) => {
+        const query = get(sessionSpansQueryAtomFamily(id))
+        return query.isPending || query.isError || (query.data?.length ?? 0) > 0
+    }),
 )
 
 // --- Granular Session Stats Atoms ---
 
+const NO_TRACES: TraceSpanNode[] = []
+
 const sessionTracesAtomFamily = atomFamily((sessionId: string) =>
-    atom((get) => {
-        const spansMap = get(sessionsSpansAtom)
-        return spansMap[sessionId] || []
-    }),
+    atom((get) => get(sessionSpansQueryAtomFamily(sessionId)).data ?? NO_TRACES),
 )
 
 export const sessionTraceCountAtomFamily = atomFamily((sessionId: string) =>
@@ -672,14 +593,9 @@ export const sessionLastOutputAtomFamily = atomFamily((sessionId: string) =>
     }),
 )
 
-// Combined loading state for session context
-// Checks strict loading state of sessions list and session spans
+// True while the sessions list or any listed session's spans are loading.
 export const sessionsLoadingAtom = atom((get) => {
     const sessionsQuery = get(sessionsQueryAtom)
-    const isSessionsLoading = sessionsQuery.isLoading && !sessionsQuery.isFetchingNextPage
-
-    const spansQuery = get(sessionsSpansQueryAtom)
-    const isSpansLoading = spansQuery.isLoading && !spansQuery.isFetchingNextPage
-
-    return isSessionsLoading || isSpansLoading
+    if (sessionsQuery.isLoading && !sessionsQuery.isFetchingNextPage) return true
+    return get(sessionIdsAtom).some((id) => get(sessionSpansQueryAtomFamily(id)).isLoading)
 })

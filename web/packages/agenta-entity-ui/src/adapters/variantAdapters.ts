@@ -9,7 +9,12 @@
  */
 import {syncPromptInputKeysInParameters} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
-import {workflowMolecule, type Workflow} from "@agenta/entities/workflow"
+import {
+    workflowMolecule,
+    workflowRevisionRefsByVariantAtomFamily,
+    workflowVariantNewestVersionAtomFamily,
+    type Workflow,
+} from "@agenta/entities/workflow"
 import {classifyAgentChanges, buildCommitSummaryMessage} from "@agenta/entities/workflow/commitDiff"
 import {stripAgentaMetadataDeep, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import {atom} from "jotai"
@@ -60,9 +65,13 @@ function buildGenericCommitContext(
     remoteData: Record<string, unknown> | null,
     version: number | undefined,
     isLocalDraft: boolean,
+    newestVersion: number | undefined,
 ): CommitContext {
     const currentVersion = version ?? 0
-    const targetVersion = currentVersion + 1
+    // The server numbers a commit after the variant's newest revision, not after the one the
+    // commit starts from.
+    const latestVersion = Math.max(currentVersion, newestVersion ?? 0)
+    const targetVersion = latestVersion + 1
 
     // Diff the whole data object; parameters keep metadata-strip + input-key sync. Empty
     // collections are dropped so an add-then-remove (`skills: []` vs an absent key) doesn't read
@@ -106,7 +115,7 @@ function buildGenericCommitContext(
         versionInfo: {
             currentVersion,
             targetVersion,
-            latestVersion: currentVersion,
+            latestVersion,
         },
         changesSummary:
             hasDiff || isLocalDraft
@@ -135,11 +144,21 @@ const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string,
 
         if (!localData) return null
 
+        const variantId = localData.workflow_variant_id ?? localData.variant_id ?? null
+        // The revision list hides archived revisions; the server still numbers after them.
+        const newestVersion = variantId
+            ? Math.max(
+                  get(workflowRevisionRefsByVariantAtomFamily(variantId))[0]?.version ?? 0,
+                  get(workflowVariantNewestVersionAtomFamily(variantId)) ?? 0,
+              )
+            : undefined
+
         return buildGenericCommitContext(
             (localData.data as Record<string, unknown> | null) ?? null,
             (remoteData?.data as Record<string, unknown> | null) ?? null,
             localData.version ?? undefined,
             isLocalDraft,
+            newestVersion,
         )
     })
 

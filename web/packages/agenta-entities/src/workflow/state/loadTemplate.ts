@@ -3,8 +3,9 @@ import {generateId} from "@agenta/shared/utils"
 import type {AgentaApi} from "@agentaai/api-client"
 import {atom} from "jotai"
 
+import {queryToolConnections} from "../../gatewayTool/api"
+import {isConnectionActive, isConnectionValid} from "../../gatewayTool/core"
 import type {Visibility} from "../../sharing/core/schema"
-import {type AgentSetupSelection} from "../agentSetup"
 import {
     templateBuilderMessage,
     type AgentStarterTemplate,
@@ -37,7 +38,6 @@ export interface LoadAgentTemplateFromEphemeralParams {
     stagingSessionId?: string
     attachmentIds?: string[]
     initialMessage?: string
-    setup?: AgentSetupSelection
     /** Sharing (M3): sent as the load request's top-level `visibility`. */
     visibility?: Visibility
 }
@@ -64,10 +64,18 @@ const selectedConnectionChoice = (
 
 export const templateConnectionChoices = (
     template: AgentStarterTemplate,
-    setup?: AgentSetupSelection,
+    connectedSlugs: readonly string[],
 ): ConnectionChoice[] => {
-    const connected = new Set(setup?.connectedSlugs ?? [])
+    const connected = new Set(connectedSlugs)
     return template.connections.map((connection) => selectedConnectionChoice(connection, connected))
+}
+
+/** Integrations the project can use right now, read fresh so a connection made a moment ago counts. */
+const usableIntegrationSlugs = async (): Promise<string[]> => {
+    const response = await queryToolConnections().catch(() => undefined)
+    return (response?.connections ?? [])
+        .filter((connection) => isConnectionActive(connection) && isConnectionValid(connection))
+        .flatMap((connection) => (connection.integration_key ? [connection.integration_key] : []))
 }
 
 interface LoadIntent {
@@ -115,7 +123,6 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
             template,
             source = template?.source,
             initialMessage,
-            setup,
             stagingSessionId,
             attachmentIds,
             visibility,
@@ -159,7 +166,7 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
                         ui_disabled_ops: buildKitState.disabledOps,
                         ui_op_permissions: resolveBuildKitPermissions(overlay, buildKitState),
                         connection_choices: template
-                            ? templateConnectionChoices(template, setup)
+                            ? templateConnectionChoices(template, await usableIntegrationSlugs())
                             : [],
                         ...(visibility ? {visibility} : {}),
                     },

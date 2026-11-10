@@ -3,12 +3,7 @@ import React, {useMemo} from "react"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import type {ChatMessage, SimpleChatMessage} from "@agenta/playground"
-import {
-    extractAssistantDisplayValue,
-    getEvaluatorVerdictFromOutput,
-    hasAssistantContent as checkHasAssistantContent,
-} from "@agenta/playground/utils"
+import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import {LoadingOutlined} from "@ant-design/icons"
 import {Popover, Tag} from "antd"
 import clsx from "clsx"
@@ -17,10 +12,10 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {TurnMessageAdapter} from "@agenta/playground-ui/adapters"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
-import {useExecutionCell} from "../../../../hooks/useExecutionCell"
+import {useChatTurn} from "../../../../hooks/useChatTurn"
+import {usePlaygroundNodeLabels} from "../../../../hooks/usePlaygroundNodeLabels"
 import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
 import {extractDisplayEntries} from "../../../shared/EvaluatorFieldGrid/utils"
-import {usePlaygroundNodeLabels} from "../ExecutionRow/shared"
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 import TypingIndicator from "../TypingIndicator"
 
@@ -198,117 +193,21 @@ const ChatTurnView = ({
 
     const {
         isRunning,
-        result,
         currentResult,
-        displayResult,
-        status,
-        errorMessage,
         traceId,
         repetitionIndex,
         repetitionProps,
         run,
         cancel,
-    } = useExecutionCell({
-        entityId: entityId as string,
-        stepId: turnId,
-    })
-
-    const messageOverride = useMemo(() => {
-        if (Array.isArray(result) && result.length > 0) {
-            return executionItemController.helpers.buildAssistantMessage(currentResult)
-        }
-        return undefined
-    }, [result, currentResult])
-
-    const sessionId = entityId ? `sess:${entityId}` : null
-
-    const assistantMessages = useAtomValue(
-        useMemo(
-            () =>
-                sessionId
-                    ? executionItemController.selectors.assistantsForTurn({turnId, sessionId})
-                    : executionItemController.selectors.assistantsForTurn({
-                          turnId: "",
-                          sessionId: "",
-                      }),
-            [turnId, sessionId],
-        ),
-    ) as ChatMessage[]
-
-    const toolMessages = useAtomValue(
-        useMemo(
-            () =>
-                sessionId
-                    ? executionItemController.selectors.toolsForTurn({turnId, sessionId})
-                    : executionItemController.selectors.toolsForTurn({
-                          turnId: "",
-                          sessionId: "",
-                      }),
-            [turnId, sessionId],
-        ),
-    ) as ChatMessage[]
-
-    const lastAssistantMessage = useMemo(
-        () =>
-            assistantMessages.length > 0
-                ? (assistantMessages[assistantMessages.length - 1] as SimpleChatMessage)
-                : null,
-        [assistantMessages],
-    )
-
-    const fallbackAssistantMessage = useMemo(
-        () =>
-            !lastAssistantMessage && messageOverride
-                ? (messageOverride as SimpleChatMessage)
-                : null,
-        [lastAssistantMessage, messageOverride],
-    )
-
-    const fallbackErrorAssistantMessage = useMemo(() => {
-        if (lastAssistantMessage || fallbackAssistantMessage || status !== "error") return null
-        return {
-            id: `error-${turnId}-${entityId || "session"}`,
-            role: "Error",
-            content: errorMessage ?? "Error",
-        } as SimpleChatMessage
-    }, [lastAssistantMessage, fallbackAssistantMessage, status, turnId, entityId, errorMessage])
-
-    const displayedAssistantMessage =
-        lastAssistantMessage || fallbackAssistantMessage || fallbackErrorAssistantMessage
-
-    const displayAssistantValue = useMemo(
-        () => extractAssistantDisplayValue(displayedAssistantMessage?.content, displayResult),
-        [displayedAssistantMessage, displayResult],
-    )
-
-    const hasAssistantContent = useMemo(
-        () =>
-            checkHasAssistantContent(
-                displayedAssistantMessage,
-                displayAssistantValue,
-                toolMessages.length > 0,
-            ),
-        [displayedAssistantMessage, displayAssistantValue, toolMessages.length],
-    )
-    const hasPendingToolContinuation = useMemo(() => {
-        if (toolMessages.length === 0) return false
-
-        const assistantHasToolCalls = assistantMessages.some((msg) => {
-            const toolCalls = (msg as {tool_calls?: unknown[]}).tool_calls
-            return Array.isArray(toolCalls) && toolCalls.length > 0
-        })
-
-        const fallbackHasToolCalls = Array.isArray(
-            (fallbackAssistantMessage as {tool_calls?: unknown[]} | null | undefined)?.tool_calls,
-        )
-            ? ((fallbackAssistantMessage as {tool_calls?: unknown[]} | null | undefined)?.tool_calls
-                  ?.length ?? 0) > 0
-            : false
-
-        return assistantHasToolCalls || fallbackHasToolCalls
-    }, [assistantMessages, fallbackAssistantMessage, toolMessages.length])
-    const isToolContinuationRunning = isRunning && hasPendingToolContinuation
-    const isRerunning = isRunning && hasAssistantContent && !isToolContinuationRunning
+        messageOverride,
+        assistantMessages,
+        toolMessages,
+        displayedAssistantMessage,
+        fallbackHasToolCalls,
+        hasAssistantContent,
+        isToolContinuationRunning,
+        isRerunning,
+    } = useChatTurn({entityId: entityId as string, turnId})
 
     // Chain nodes for downstream evaluator results
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
@@ -422,35 +321,18 @@ const ChatTurnView = ({
                                 messageOverride={displayedAssistantMessage ?? messageOverride}
                                 repetitionProps={repetitionProps}
                             />
-                            {(() => {
-                                const hasToolCalls = Array.isArray(
-                                    (
-                                        fallbackAssistantMessage as
-                                            | {tool_calls?: unknown[]}
-                                            | null
-                                            | undefined
-                                    )?.tool_calls,
+                            {ChatTurnAssistantActions && entityId && fallbackHasToolCalls ? (
+                                isToolContinuationRunning ? (
+                                    <TypingIndicator />
+                                ) : (
+                                    <ChatTurnAssistantActions
+                                        rowId={turnId}
+                                        entityId={entityId}
+                                        currentResult={currentResult}
+                                        onRun={run}
+                                    />
                                 )
-                                    ? ((
-                                          fallbackAssistantMessage as
-                                              | {tool_calls?: unknown[]}
-                                              | null
-                                              | undefined
-                                      )?.tool_calls?.length ?? 0)
-                                    : 0
-                                return ChatTurnAssistantActions && entityId && hasToolCalls > 0 ? (
-                                    isToolContinuationRunning ? (
-                                        <TypingIndicator />
-                                    ) : (
-                                        <ChatTurnAssistantActions
-                                            rowId={turnId}
-                                            entityId={entityId}
-                                            currentResult={currentResult}
-                                            onRun={run}
-                                        />
-                                    )
-                                ) : null
-                            })()}
+                            ) : null}
                         </>
                     )}
                     {hasFooterContent ? (

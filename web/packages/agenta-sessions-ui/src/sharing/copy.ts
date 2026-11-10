@@ -22,6 +22,9 @@ export const sessionRoleCopy: Record<SessionRole, {label: string; description: s
 }
 
 export const sessionSharingCopy = {
+    /** Draft (accounts package, contract section 13 item 16): the agent has "user" items. */
+    personalAccountsNote:
+        "This agent uses each person's own accounts for some items. People you share this chat with can see what it did with yours.",
     shareButton: "Share",
     tooltipPrivate: "Private",
     tooltipPeople: (count: number) => `Shared with ${count} ${count === 1 ? "person" : "people"}`,
@@ -66,6 +69,11 @@ export const sessionSharingCopy = {
     stopSharing: "Stop sharing",
     copyLink: "Copy share link",
     linkCopied: "Link copied. Only people with access can open it.",
+    /** Draft: the chat is private with nobody added, so the copied link opens for nobody else. */
+    linkNobodyYet:
+        "Nobody else can open this link yet. Invite people above, or choose Shared with project.",
+    /** Draft: the toast after a copy while nobody else has access. */
+    linkCopiedNobodyYet: "Link copied. Nobody else can open it yet.",
     done: "Done",
 
     stopTitle: "Stop sharing?",
@@ -99,6 +107,8 @@ export const shareDisclosureCopy = {
     bodySession: (accounts: readonly string[]) =>
         `They will see everything in this chat, and anyone who can send can make the agent use its connected accounts: ${joinNames(accounts)}.`,
     bodySessionNoAccounts: "They will see everything in this chat.",
+    /** Draft (accounts package): an item that uses each person's own account, not the owner's. */
+    personalAccount: (account: string) => `Each person's own ${account}`,
     back: "Back",
     share: "Share",
 

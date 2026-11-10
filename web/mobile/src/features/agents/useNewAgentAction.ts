@@ -5,9 +5,7 @@ import {markSessionFresh, revealConfigPaneAtom} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
     agentTemplatesAtom,
-    appendSetupPreamble,
     invalidateWorkflowsListCache,
-    type AgentSetupSelection,
     type AgentTemplateSource,
 } from "@agenta/entities/workflow"
 import {useCreateAgent, type CreatedAgent} from "@agenta/home-ui"
@@ -23,16 +21,14 @@ import {newId} from "@/lib/ids"
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
 import {agentHandoffPath, isSeededCreate} from "./agentHandoff"
-import {templateSetupDraftAtom} from "./templateSetupDraft"
 
 /**
  * Create an agent from this app, over the SHARED mint+commit core — blank, seeded from a starter
  * template, or seeded from what the user typed on the first-run hero. One hook so every entry runs
  * the same create rather than three copies of it.
  *
- * Template entries first visit the existing setup surface. Its confirmed selection reaches the
- * loader before the server starts the first session. Ordinary creation keeps the pending-task
- * handoff used by the chat screen.
+ * A template create loads its package and starts the first session on the server. Ordinary
+ * creation keeps the pending-task handoff used by the chat screen.
  */
 export const useNewAgentAction = (base: string) => {
     const router = useRouter()
@@ -41,7 +37,6 @@ export const useNewAgentAction = (base: string) => {
     const createAgent = useCreateAgent({onError: setError})
     const stashTask = useSetAtom(stashPendingTaskAtom)
     const dropTask = useSetAtom(takePendingTaskAtom)
-    const setSetupDraft = useSetAtom(templateSetupDraftAtom)
     const revealConfigPane = useSetAtom(revealConfigPaneAtom)
     // The fetched catalogue, read at call time — a key is only ever resolved against what loaded.
     const templates = useAtomValue(agentTemplatesAtom)
@@ -57,16 +52,10 @@ export const useNewAgentAction = (base: string) => {
              */
             sessionId?: string
             seedParts?: FileUIPart[]
-            /** The starter template this create came from, carried to the session's connect step. */
+            /** The starter template this create loads. */
             templateKey?: string
             /** A template package from outside the catalog (an upload or a GitHub repository). */
             source?: AgentTemplateSource
-            /**
-             * What the pre-create connect step decided (#6043) — which accounts are connected,
-             * which were skipped, how much the agent may do. Rides along on the seed so the
-             * builder knows; see `appendSetupPreamble`. Absent when the step didn't run.
-             */
-            setup?: AgentSetupSelection
             /**
              * Commit THIS already-minted ephemeral instead of minting a fresh one — first run
              * configures the agent before it exists (see `useEphemeralAgent`), so the entity the
@@ -77,25 +66,6 @@ export const useNewAgentAction = (base: string) => {
             onCreated?: (agent: CreatedAgent) => void
         }): Promise<boolean> => {
             if (creating) return false
-            // Template loading starts the first run server-side. Collect choices on the existing
-            // setup screen BEFORE calling it; the live session is already too late for a gate.
-            if (params?.templateKey && !params.entityId && !params.setup) {
-                setCreating(true)
-                setSetupDraft({
-                    base,
-                    templateKey: params.templateKey,
-                    text: params.seedMessage,
-                    sessionId: params.sessionId,
-                    parts: params.seedParts,
-                })
-                const navigated = await router
-                    .push(`${base}/agents/new?template=${encodeURIComponent(params.templateKey)}`)
-                    .catch(() => false)
-                if (!navigated) setSetupDraft(null)
-                // Released either way: a query-only navigation keeps this hook mounted.
-                setCreating(false)
-                return navigated
-            }
             const template = params?.templateKey
                 ? agentTemplateByKey(templates, params.templateKey)
                 : undefined
@@ -120,7 +90,6 @@ export const useNewAgentAction = (base: string) => {
                         throw new Error("Wait for the attachment upload before creating the agent.")
                     return id
                 }),
-                setup: params?.setup,
             })
             if (!created) {
                 setCreating(false)
@@ -128,8 +97,7 @@ export const useNewAgentAction = (base: string) => {
             }
             params?.onCreated?.(created)
 
-            const typed = params?.seedMessage?.trim() ?? ""
-            const seed = params?.setup ? appendSetupPreamble(typed, params.setup) : typed
+            const seed = params?.seedMessage?.trim() ?? ""
             const seedParts = params?.seedParts
             const seeded = isSeededCreate({seed, partCount: seedParts?.length ?? 0})
             const sessionId = created.sessionId ?? params?.sessionId ?? newId()
@@ -143,7 +111,6 @@ export const useNewAgentAction = (base: string) => {
                         agentId: created.appId,
                         text: seed,
                         parts: seedParts,
-                        templateKey: params?.templateKey,
                     },
                 })
             } else if (!created.sessionId) {
@@ -172,17 +139,7 @@ export const useNewAgentAction = (base: string) => {
             }
             return true
         },
-        [
-            base,
-            createAgent,
-            creating,
-            dropTask,
-            revealConfigPane,
-            router,
-            setSetupDraft,
-            stashTask,
-            templates,
-        ],
+        [base, createAgent, creating, dropTask, revealConfigPane, router, stashTask, templates],
     )
 
     const create = useCallback(() => {
@@ -190,9 +147,7 @@ export const useNewAgentAction = (base: string) => {
         void run()
     }, [run])
 
-    /**
-     * A template pick opens the existing setup surface before the first run can start.
-     */
+    /** A template pick creates the agent and opens its first session. */
     const createFromTemplate = useCallback(
         (templateKey: string) => {
             const template = agentTemplateByKey(templates, templateKey)
@@ -221,11 +176,10 @@ export const useNewAgentAction = (base: string) => {
             text: string
             /** A template pick carries the template's name; a plain description carries none. */
             name?: string
-            /** And its key, so the session can ask for the accounts the template declares. */
+            /** And its key, so the create loads the template's package. */
             templateKey?: string
             sessionId?: string
             parts?: FileUIPart[]
-            setup?: AgentSetupSelection
             entityId?: string
             onCreated?: (agent: CreatedAgent) => void
         }) =>
@@ -235,7 +189,6 @@ export const useNewAgentAction = (base: string) => {
                 seedMessage: input.text,
                 sessionId: input.sessionId,
                 seedParts: input.parts,
-                setup: input.setup,
                 entityId: input.entityId,
                 onCreated: input.onCreated,
             }),

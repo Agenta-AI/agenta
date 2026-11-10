@@ -35,6 +35,22 @@ const assistantAwaitingQuestion = (id: string): UIMessage =>
         ],
     }) as unknown as UIMessage
 
+/** An assistant tail paused on a parked secret request (the secret dock owns it). */
+const assistantAwaitingSecret = (id: string): UIMessage =>
+    ({
+        id,
+        role: "assistant",
+        parts: [
+            {
+                type: "tool-request_secret",
+                state: "input-available",
+                toolCallId: `${id}-secret`,
+                input: {name: "Stripe key", env_var: "STRIPE_KEY", reason: "to bill"},
+            },
+            {type: "data-render", data: {toolCallId: `${id}-secret`, render: {kind: "secret"}}},
+        ],
+    }) as unknown as UIMessage
+
 /** An assistant tail paused on a HITL tool gate (the dock-actionable state). */
 const assistantAwaitingApproval = (id: string): UIMessage =>
     ({
@@ -116,11 +132,15 @@ interface HarnessProps {
     onSendFailed?: Parameters<typeof useAgentChatQueue>[0]["onSendFailed"]
 }
 
+// Echoes live in a per-session store that outlives a mount, so each mount takes its own session.
+let sessions = 0
+
 const setup = (initial: HarnessProps) => {
     const fallback = durableServer().server
+    const sessionId = `session-${++sessions}`
     const view = renderHook(
         ({server, ...props}: HarnessProps) =>
-            useAgentChatQueue({...props, server: server ?? fallback}),
+            useAgentChatQueue({sessionId, ...props, server: server ?? fallback}),
         {initialProps: initial},
     )
     return view
@@ -162,6 +182,73 @@ describe("useAgentChatQueue", () => {
         ])
     })
 
+    it("shows a steer behind a card dismissal before that dismissal lands", async () => {
+        const server: ServerQueueAdapter = {
+            busy: false,
+            queued: [],
+            viewSeq: 0,
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result} = setup({
+            messages: [userTurn("u1", "go"), assistantAwaitingQuestion("a1")],
+            stopped: false,
+            server,
+        })
+        let land!: () => void
+        const dismissed = new Promise<void>((resolve) => (land = resolve))
+
+        let steering!: Promise<void>
+        act(() => {
+            steering = result.current.steer({text: "use Gmail instead"}, {after: dismissed})
+        })
+
+        expect(result.current.pendingSendRows.map((row) => row.parts)).toEqual([
+            [{type: "text", text: "use Gmail instead"}],
+        ])
+        expect(server.submit).not.toHaveBeenCalled()
+
+        await act(async () => {
+            land()
+            await steering
+        })
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "use Gmail instead"}),
+            "steer",
+            expect.anything(),
+        )
+    })
+
+    it("takes the steer echo back when the card dismissal fails, without a failed send", async () => {
+        const server: ServerQueueAdapter = {
+            busy: false,
+            queued: [],
+            viewSeq: 0,
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const onSendFailed = vi.fn()
+        const {result} = setup({
+            messages: [userTurn("u1", "go"), assistantAwaitingQuestion("a1")],
+            stopped: false,
+            server,
+            onSendFailed,
+        })
+
+        await act(async () => {
+            await expect(
+                result.current.steer(
+                    {text: "use Gmail instead"},
+                    {after: Promise.reject(new Error("dismiss failed"))},
+                ),
+            ).rejects.toThrow("dismiss failed")
+        })
+
+        expect(result.current.pendingSendRows).toEqual([])
+        expect(server.submit).not.toHaveBeenCalled()
+        expect(onSendFailed).not.toHaveBeenCalled()
+    })
+
     it("admits Steer while the run is parked on a client tool, before the snapshot says busy", async () => {
         // A question dismissed from the composer resumes the run server-side, but the parked run
         // reads `idle` and the next poll is seconds out. The transcript already says the turn is
@@ -196,10 +283,12 @@ describe("useAgentChatQueue", () => {
         )
     })
 
-    it("refuses Steer while an APPROVAL is parked, so the message keeps queueing behind the gate", async () => {
-        // A message typed over an approval is as likely to be consent as a redirect, so the gate
-        // stays the only way to answer it. Reading "parked on the user" as steerable would have
-        // admitted one straight past the queue.
+    it.each([
+        ["a secret request", assistantAwaitingSecret],
+        ["an approval", assistantAwaitingApproval],
+    ])("admits Steer while the run is parked on %s", async (_label, parkedTail) => {
+        // Every dock is answered by a message typed over it: the host settles the dock first, then
+        // steers the message into the resumed run. Queueing it left the dock waiting instead.
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
@@ -208,25 +297,18 @@ describe("useAgentChatQueue", () => {
             remove: vi.fn().mockResolvedValue(undefined),
         }
         const {result} = setup({
-            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            messages: [userTurn("u1", "go"), parkedTail("a1")],
             stopped: false,
             server,
         })
 
         await act(async () => {
-            await expect(result.current.steer({text: "yes go ahead"})).rejects.toThrow(
-                "not ready to accept a Steer input",
-            )
+            await result.current.steer({text: "do this instead"})
         })
-        expect(server.submit).not.toHaveBeenCalled()
 
-        // The same message still queues, which is what the approval dock expects.
-        await act(async () => {
-            await result.current.submit({text: "yes go ahead"})
-        })
         expect(server.submit).toHaveBeenCalledWith(
-            expect.objectContaining({text: "yes go ahead"}),
-            "queue",
+            expect.objectContaining({text: "do this instead"}),
+            "steer",
             expect.anything(),
         )
     })

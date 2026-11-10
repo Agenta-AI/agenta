@@ -22,6 +22,42 @@ export interface LastContext {
 export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
 
+/** Sections whose list page means the same thing in every project. */
+const PROJECT_LIST_SECTIONS = new Set([
+    "agents",
+    "apps",
+    "automations",
+    "observability",
+    "sessions",
+    "skills",
+    "templates",
+])
+
+/**
+ * Where a project switch lands from `asPath`: the same section in the next project. Settings
+ * keeps its tab; an entity of the old project falls back to its section's list.
+ */
+/** True for a route inside a project (`/w/<org>/p/<project>...`). */
+export const isProjectPath = (asPath: string): boolean => PROJECT_PATH.test(asPath)
+
+export const projectSwitchUrl = (asPath: string, next: LastContext): string => {
+    const match = PROJECT_PATH.exec(asPath)
+    if (!match) return projectHomeUrl(next)
+    if (match[2] === encodeURIComponent(next.projectId)) return asPath
+    const url = new URL(match[3], "http://x")
+    const section = url.pathname.split("/")[1] ?? ""
+    const base = `/w/${encodeURIComponent(next.workspaceId)}/p/${encodeURIComponent(next.projectId)}`
+    if (section === "settings") {
+        const tab = url.searchParams.get("tab")
+        return tab ? `${base}/settings?tab=${encodeURIComponent(tab)}` : `${base}/settings`
+    }
+    if (PROJECT_LIST_SECTIONS.has(section)) return `${base}/${section}`
+    return projectHomeUrl(next)
+}
+
+export const projectOnboardingUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/onboarding`
+
 /** A website template link lands on that template's create step instead of the project home. */
 export const projectTemplateUrl = ({workspaceId, projectId}: LastContext, templateKey: string) =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/agents/new?template=${encodeURIComponent(templateKey)}`

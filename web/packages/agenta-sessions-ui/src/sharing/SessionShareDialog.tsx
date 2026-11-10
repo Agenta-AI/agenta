@@ -65,6 +65,11 @@ export interface SessionShareDialogProps {
     onNotify?: (message: string) => void
     /** Refetches the sharing state after a 409. */
     onReload?: () => void
+    /**
+     * The agent has items that use each person's own account, so the chat may show what it did
+     * with the owner's accounts: one line says so.
+     */
+    usesPersonalAccounts?: boolean
 }
 
 /** A widening change waiting for the disclosure. */
@@ -94,6 +99,7 @@ export const SessionShareDialog = ({
     onCopyLink,
     onNotify,
     onReload,
+    usesPersonalAccounts = false,
 }: SessionShareDialogProps) => {
     const [picked, setPicked] = useState<SharingPerson[]>([])
     const [inviteRole, setInviteRole] = useState<SessionRole>("viewer")
@@ -210,7 +216,7 @@ export const SessionShareDialog = ({
 
     const copyLink = async () => {
         if ((await onCopyLink?.()) === false) return
-        onNotify?.(copy.linkCopied)
+        onNotify?.(nobodyAdded ? copy.linkCopiedNobodyYet : copy.linkCopied)
     }
 
     const owner = ownerId ? byId.get(ownerId) : undefined
@@ -270,6 +276,12 @@ export const SessionShareDialog = ({
                     <>
                         {notice === "conflict" ? (
                             <Alert type="warning" showIcon role="status" message={copy.conflict} />
+                        ) : null}
+
+                        {usesPersonalAccounts && isOwner ? (
+                            <p className="m-0 text-xs text-muted-foreground">
+                                {copy.personalAccountsNote}
+                            </p>
                         ) : null}
 
                         {isOwner ? (
@@ -505,6 +517,13 @@ export const SessionShareDialog = ({
                                 </div>
                             </div>
                         </section>
+
+                        {onCopyLink && nobodyAdded ? (
+                            <p className="m-0 flex items-start gap-1.5 text-xs text-muted-foreground">
+                                <LinkIcon size={13} className="mt-px shrink-0" aria-hidden />
+                                {copy.linkNobodyYet}
+                            </p>
+                        ) : null}
 
                         {notice === "failed" ? (
                             <Alert type="error" showIcon message={copy.saveFailed} />

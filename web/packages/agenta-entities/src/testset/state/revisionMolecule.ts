@@ -50,15 +50,13 @@ import {testcaseMolecule} from "../../testcase/state/molecule"
 import {normalizeRevision, type Revision, type QueryResult} from "../core"
 
 // Import testcase molecule for compound actions
+import {addColumnEditAtom, removeColumnEditAtom, renameColumnEditAtom} from "./columnEdits"
 import {deleteRevisionsReducer} from "./mutations"
 import {
     revisionTableState,
     pendingColumnOpsAtomFamily,
     pendingRowOpsAtomFamily,
     hasPendingChangesAtomFamily,
-    addColumnReducer,
-    removeColumnReducer,
-    renameColumnReducer,
     addRowReducer,
     removeRowReducer,
     removeRowsReducer,
@@ -177,24 +175,21 @@ const revisionWithTestcasesQueryAtomFamily = atomFamily((revisionId: string) =>
                     return null
                 }
 
-                try {
-                    const response = await axios.post(
-                        `${getAgentaApiUrl()}/testsets/revisions/query`,
-                        {
-                            testset_revision_refs: [{id: revisionId}],
-                            windowing: {limit: 1},
-                        },
-                        {params: {project_id: projectId, include_testcases: true}},
-                    )
+                // A failed read throws, so the query reports `isError` and a screen can offer a
+                // retry. Returning null here would look the same as a revision with no test cases.
+                const response = await axios.post(
+                    `${getAgentaApiUrl()}/testsets/revisions/query`,
+                    {
+                        testset_revision_refs: [{id: revisionId}],
+                        windowing: {limit: 1},
+                    },
+                    {params: {project_id: projectId, include_testcases: true}},
+                )
 
-                    const revisions = response.data?.testset_revisions ?? []
-                    if (revisions.length === 0) return null
+                const revisions = response.data?.testset_revisions ?? []
+                if (revisions.length === 0) return null
 
-                    return normalizeRevision(revisions[0])
-                } catch (error) {
-                    console.error("[revisionWithTestcasesQuery] Failed to fetch:", error)
-                    return null
-                }
+                return normalizeRevision(revisions[0])
             },
             enabled: isEnabled,
             staleTime: 5 * 60 * 1000,
@@ -1021,12 +1016,12 @@ export const revisionMolecule = {
      * Table reducers for column and row operations
      */
     tableReducers: {
-        /** Add a column to the revision */
-        addColumn: addColumnReducer,
-        /** Remove a column from the revision */
-        removeColumn: removeColumnReducer,
-        /** Rename a column in the revision */
-        renameColumn: renameColumnReducer,
+        /** Add a column, staged until the commit */
+        addColumn: addColumnEditAtom,
+        /** Remove a column and its values in edited rows, staged until the commit */
+        removeColumn: removeColumnEditAtom,
+        /** Rename a column and its key in edited rows, staged until the commit */
+        renameColumn: renameColumnEditAtom,
         /** Add a new row (creates local testcase) */
         addRow: addRowReducer,
         /** Remove a row (marks for deletion or removes local) */

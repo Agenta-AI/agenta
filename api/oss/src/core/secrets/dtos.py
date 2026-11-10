@@ -464,7 +464,8 @@ def _validate_secret_data_based_on_kind(
             raise ValueError(
                 "The provided request secret dto is missing required fields for WebhookProviderSettingsDTO"
             )
-    elif kind == SecretKind.CUSTOM_SECRET.value:
+    elif kind in (SecretKind.CUSTOM_SECRET.value, SecretKind.MCP_TOKEN.value):
+        # A person's MCP token has the custom secret shape.
         if not isinstance(data, dict):
             raise ValueError(
                 "The provided request secret dto is not a valid type for CustomSecretDTO"
@@ -605,8 +606,9 @@ class CreateSecretDTO(Slug, BaseModel):
     secret: SecretDTO
     write_only: bool = True
     # `organization` creates a connection of the request's organization, which every
-    # project can use, or (in EE with RBAC) only the listed projects.
-    scope: Literal["project", "organization"] = "project"
+    # project can use, or (in EE with RBAC) only the listed projects. `user` creates the
+    # caller's own custom secret in the request's organization.
+    scope: Literal["project", "organization", "user"] = "project"
     availability: Optional[SecretAvailability] = None
     project_ids: Optional[List[UUID]] = None
 
@@ -741,16 +743,33 @@ class SecretValueStatus(BaseModel):
 
 
 class SecretOwner(BaseModel):
-    """Who owns a stored secret (CONTRACT section 8).
+    """Who owns a stored secret.
 
     A frozen pydantic model rather than a dataclass, because it rides inside cached and
-    serialized DTOs. Storage keeps the typed columns; the DAO maps `kind` to the column.
+    serialized DTOs. Storage keeps the typed columns; the DAO maps `kind` to the columns.
+    A user owner is a person inside one organization, so it also names the organization.
     """
 
     model_config = ConfigDict(frozen=True)
 
     kind: SecretOwnerKind
     id: UUID
+    # A user owner only: the organization the person's row belongs to.
+    organization_id: Optional[UUID] = None
+
+    @classmethod
+    def for_user(cls, *, organization_id: UUID, user_id: UUID) -> "SecretOwner":
+        return cls(
+            kind=SecretOwnerKind.USER, id=user_id, organization_id=organization_id
+        )
+
+    @model_validator(mode="after")
+    def _user_owner_names_its_organization(self) -> "SecretOwner":
+        if (self.kind == SecretOwnerKind.USER) != (self.organization_id is not None):
+            raise ValueError(
+                "a user owner, and only a user owner, names its organization"
+            )
+        return self
 
 
 class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):

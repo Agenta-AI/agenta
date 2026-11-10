@@ -9,7 +9,7 @@ from oss.src.core.secrets.redaction import (
     CREDENTIAL_FIELDS,
     organization_connection_response,
     organization_secret_response,
-    organization_subscription_for_runtime,
+    organization_secret_for_runtime,
     project_secret_response,
 )
 from oss.tests.pytest.utils.organization_secrets import SENTINEL_KEY
@@ -119,7 +119,7 @@ def test_an_organization_subscription_login_is_hidden_from_every_ordinary_read()
 
 
 def test_only_the_runtime_release_carries_the_organization_login():
-    released = organization_subscription_for_runtime(_subscription_row("organization"))
+    released = organization_secret_for_runtime(_subscription_row("organization"))
     assert released.data.login.access == SENTINEL_KEY
 
 
@@ -133,4 +133,4 @@ def test_only_the_runtime_release_carries_the_organization_login():
 )
 def test_the_runtime_release_refuses_every_other_row(row):
     with pytest.raises(ValueError):
-        organization_subscription_for_runtime(row())
+        organization_secret_for_runtime(row())

@@ -1,11 +1,12 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.account_choices.dtos import RunAccount
 
 
 class RoleRequirement(BaseModel):
@@ -19,7 +20,6 @@ class DecisionReason(str, Enum):
     ROLE = "role"
     PROJECT_OWNER = "project_owner"
     ORGANIZATION_OWNER = "organization_owner"
-    RBAC_NOT_ENTITLED = "rbac_not_entitled"
     NOT_MEMBER = "not_member"
     MISSING_CAPABILITY = "missing_capability"
     PRINCIPAL_INACTIVE = "principal_inactive"
@@ -35,6 +35,15 @@ class DecisionReason(str, Enum):
 class Decision(BaseModel):
     allowed: bool
     reason: DecisionReason
+
+
+class OfferedRoles(BaseModel):
+    """The roles a plan lets an invite or a role change set (slugs, catalog order), and
+    its floor role: the role of an invite that names none, and of a member whose role
+    is removed. `member` without the RBAC entitlement, `viewer` with it."""
+
+    roles: list[str]
+    floor_role: str
 
 
 # -- run principal (M2) -------------------------------------------------------------
@@ -187,6 +196,9 @@ class RequestAccess(BaseModel):
     credential_kind: RequestCredentialKind
     acting_user_id: UUID  # == request.state.user_id
     envelope: Optional[RunEnvelope] = None  # run_credential only
+    # run_credential only: the ready accounts of the run's "user" items (the
+    # `run_accounts` claim). Read through `account_choices.claims.run_account`.
+    run_accounts: Tuple[RunAccount, ...] = ()
 
 
 class UserPrincipals(BaseModel):
@@ -203,7 +215,7 @@ class UserPrincipals(BaseModel):
 
 
 class ScopePrincipals(BaseModel):
-    """What deleting organizations, workspaces or projects must invalidate, read
+    """What deleting organizations or projects must invalidate, read
     before the delete: the projects that go, and the API keys and channel bindings in
     them (removed by the cascade)."""
 

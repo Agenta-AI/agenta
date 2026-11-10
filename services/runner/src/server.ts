@@ -23,6 +23,7 @@ import { apiBase, envApiUrl, runWithRequestApiBase } from "./apiBase.ts";
 import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import type { PlatformCredentialSource } from "./sessions/auth.ts";
+import { withDaytonaActivityHeartbeat } from "./engines/sandbox_agent/daytona-heartbeat.ts";
 import {
   isRunnerShutdownAbort,
   isUserStopAbort,
@@ -351,18 +352,20 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
   // once rather than at each of its call sites. It must happen BEFORE runTurn: that function
   // may not suspend before its permission responder is attached.
   runTurn: async (env, request, emit, signal, opts) =>
-    runTurn(env, request, emit, signal, {
-      ...opts,
-      // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
-      // rows the spread would then discard — a claimed row is spent even if it is thrown away.
-      seededDecisions:
-        opts?.seededDecisions ??
-        (await loadDurableDecisions(
-          env.sessionId,
-          runCredential(request),
-          env.logger,
-        )),
-    }),
+    withDaytonaActivityHeartbeat(env, async () =>
+      runTurn(env, request, emit, signal, {
+        ...opts,
+        // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
+        // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+        seededDecisions:
+          opts?.seededDecisions ??
+          (await loadDurableDecisions(
+            env.sessionId,
+            runCredential(request),
+            env.logger,
+          )),
+      }),
+    ),
   // LIFECYCLE MIGRATION, STEP 6. The live-route applier. The coordinator gates on the plan being
   // entirely live-applicable; this performs it and commits applied state only if all of it landed.
   applyReconcilePlan: (env, request, plan) =>
@@ -409,16 +412,18 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
     if (!acquired.ok) return { ok: false, error: acquired.error };
     let result: AgentRunResult | undefined;
     try {
-      result = await runTurn(acquired.env, request, emit, signal, {
-        loaded: acquired.env.loadedFromContinuity,
-        nativeHistoryVerified: acquired.env.nativeHistoryVerified,
-        ...(credentialLease ? { credentialLease } : {}),
-        seededDecisions: await loadDurableDecisions(
-          acquired.env.sessionId,
-          runCredential(request),
-          acquired.env.logger,
-        ),
-      });
+      result = await withDaytonaActivityHeartbeat(acquired.env, async () =>
+        runTurn(acquired.env, request, emit, signal, {
+          loaded: acquired.env.loadedFromContinuity,
+          nativeHistoryVerified: acquired.env.nativeHistoryVerified,
+          ...(credentialLease ? { credentialLease } : {}),
+          seededDecisions: await loadDurableDecisions(
+            acquired.env.sessionId,
+            runCredential(request),
+            acquired.env.logger,
+          ),
+        }),
+      );
       return result;
     } finally {
       // Never parks: the coordinator sends a run here only when it cannot pool it.

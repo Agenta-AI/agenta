@@ -1,23 +1,39 @@
 import {ObservabilitySessionsTable} from "@agenta/observability-ui"
+import {RoleColorClassesProvider, THEME_ROLE_COLOR_CLASSES} from "@agenta/ui/cell-renderers"
 
+import {openOnKey} from "./openOnKey"
 import {ObservabilityEmpty, ObservabilityListSkeleton} from "./states/ObservabilityStates"
 
 /**
  * The sessions table — the shared component, for desktop-width viewports.
  *
- * Phones keep the stacked card list; anything wider gets the real table.
+ * Phones keep the stacked card list; anything wider gets the real table. A row opens its session
+ * on click, and on Enter or Space once the keyboard has reached it.
  */
-export const SessionsTable = () => (
-    <ObservabilitySessionsTable
-        className="min-h-0 flex-1"
-        loadingState={<ObservabilityListSkeleton />}
-        emptyState={
-            <ObservabilityEmpty
-                title="No sessions yet"
-                hint="Sessions appear here once your app groups traces by session id."
-            />
-        }
-    />
+export const SessionsTable = ({onOpenSession}: {onOpenSession: (sessionId: string) => void}) => (
+    // The role labels in the message cells take the theme colors; /m has no antd color scale.
+    <RoleColorClassesProvider value={THEME_ROLE_COLOR_CLASSES}>
+        <ObservabilitySessionsTable
+            className="min-h-0 flex-1"
+            onRowClick={(record) => onOpenSession(record.session_id)}
+            tableProps={{
+                // The rows open a drawer, so the keyboard reaches them and shows where it is.
+                onRow: (record) => ({
+                    tabIndex: 0,
+                    className:
+                        "cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring",
+                    onKeyDown: openOnKey(() => onOpenSession(record.session_id)),
+                }),
+            }}
+            loadingState={<ObservabilityListSkeleton />}
+            emptyState={
+                <ObservabilityEmpty
+                    title="No sessions yet"
+                    hint="Sessions appear here once your app groups traces by session id."
+                />
+            }
+        />
+    </RoleColorClassesProvider>
 )
 
 export default SessionsTable

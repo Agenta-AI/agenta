@@ -21,6 +21,21 @@ export interface ListTableColumn {
      * columns.
      */
     headerClassName?: string
+    /**
+     * False keeps the column out of the column visibility menu. Control columns (`srOnly`) are
+     * never offered there either.
+     */
+    hideable?: boolean
+}
+
+/**
+ * One column of a CSV export. Separate from {@link ListTableColumn} because a cell draws a
+ * React node and a CSV field needs the plain value under it.
+ */
+export interface ListTableCsvColumn<Row> {
+    /** The header in the first line of the file. */
+    label: string
+    value: (row: Row) => string | number | boolean | null | undefined
 }
 
 /**
@@ -61,6 +76,25 @@ export type ListTableViewProps<Row> =
 
 export type ListTableProps<Row> = ListTableBaseProps<Row> & ListTableViewProps<Row>
 
+/**
+ * Row selection, opt in. The frame draws a checkbox column first, a select-all checkbox in the
+ * header, and while anything is selected an "N selected" bar in place of the column names, with
+ * the consumer's bulk actions. The selection is the consumer's state: the frame only reports
+ * what the reader ticked, by `rowKey`.
+ *
+ * The list view only: a card grid has no column for a checkbox.
+ */
+export interface ListTableSelection<Row> {
+    selectedKeys: ReadonlySet<string>
+    onChange: (next: Set<string>) => void
+    /** False for a row that cannot be selected (no checkbox). All rows by default. */
+    canSelect?: (row: Row) => boolean
+    /** The checkbox's accessible name, for example `Select ${row.name}`. */
+    rowLabel: (row: Row) => string
+    /** Drawn at the right of the "N selected" bar: Archive, Delete, Export. */
+    bulkActions?: (selectedKeys: ReadonlySet<string>) => ReactNode
+}
+
 export interface ListTableBaseProps<Row> {
     /** The list view's columns. The grid view ignores them — a card has no columns. */
     columns: ListTableColumn[]
@@ -82,6 +116,8 @@ export interface ListTableBaseProps<Row> {
     groupActions?: (group: ListTableGroup<Row>) => ReactNode
     /** Opening a row. Absent ⇒ rows are not clickable and take no focus. */
     onOpenRow?: (row: Row) => void
+    /** With `onOpenRow`: false for a row that does not open (no pointer, no focus). All open by default. */
+    canOpenRow?: (row: Row) => boolean
     /** Wrap the finished row element (a `ContextMenuTrigger asChild`, say). Identity by default. */
     wrapRow?: (row: Row, rowNode: ReactNode) => ReactNode
     /**
@@ -112,7 +148,7 @@ export interface ListTableBaseProps<Row> {
     /**
      * Keep the column names for screen readers only. For a list whose surroundings already say
      * what the rows are — a tab named "Sessions" over a single-column list — where a header row
-     * only repeats the tab.
+     * only repeats the tab. Ignored with `selection`, whose controls live in the header row.
      */
     hideHeader?: boolean
     /**
@@ -121,5 +157,7 @@ export interface ListTableBaseProps<Row> {
      * reader scans once.
      */
     density?: "default" | "compact"
+    /** Row selection with a select-all and a bulk bar. Absent ⇒ no checkbox column. */
+    selection?: ListTableSelection<Row>
     className?: string
 }

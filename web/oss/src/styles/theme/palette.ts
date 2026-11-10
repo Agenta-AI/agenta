@@ -460,15 +460,14 @@ export const chartSeries = [
 ] satisfies Pair[]
 
 /**
- * Chart chrome. THEME-BLIND on purpose: each half carries the literal the chart components
- * rendered inline before tokenization, in both modes, so this is a pure move of where the value
- * lives. That freezes a known defect — grid/axis/tick are navy-on-navy in dark, i.e. barely
- * visible — which is a separate, deliberate fix (see the palette notes in the migration report).
+ * Chart chrome. The light halves are the literals the chart components rendered inline before
+ * tokenization. The dark halves are light ink on the dark surface: the old navy literals were
+ * barely visible there, and the axis text keeps at least 4.5:1 contrast on the dark container.
  */
 export const chart = {
-    grid: {light: "#05172933", dark: "#05172933"}, // cartesian/polar grid lines
-    axisLine: {light: "#05172933", dark: "#05172933"}, // axis + tick lines
-    axisText: {light: "#666666", dark: "#666666"}, // tick labels
+    grid: {light: "#05172933", dark: "#FFFFFF1F"}, // cartesian/polar grid lines
+    axisLine: {light: "#05172933", dark: "#FFFFFF33"}, // axis + tick lines
+    axisText: {light: "#666666", dark: "#A6A6A6"}, // tick labels
     reference: {light: "#94A3B8", dark: "#94A3B8"}, // threshold / reference lines
     // Unfilled remainder of a stacked bar — the part with no series.
     track: {light: "#E5E5E3", dark: "#333333"},

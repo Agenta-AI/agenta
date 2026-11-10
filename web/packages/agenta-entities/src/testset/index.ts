@@ -78,6 +78,12 @@ export {
     getVersionDisplay,
     NEW_TESTSET_ID,
     isNewTestsetId,
+    // File import helpers
+    detectTestsetFileType,
+    parseCsvRows,
+    readTestsetFilePreview,
+    type TestsetFileType,
+    type TestsetFilePreviewResult,
 } from "./core"
 
 export type {
@@ -109,6 +115,7 @@ export {
     // Fetch
     fetchRevision,
     fetchRevisionWithTestcases,
+    fetchRevisionColumnKeys,
     fetchLatestRevisionWithTestcases,
     fetchRevisionsList,
     fetchLatestRevision,
@@ -116,6 +123,7 @@ export {
     fetchRevisionsBatch,
     fetchTestsetsBatch,
     fetchTestsetsList,
+    queryTestsetsPage,
     fetchTestsetDetail,
     fetchVariantDetail,
     // Testset CRUD
@@ -128,6 +136,11 @@ export {
     patchRevision,
     commitRevision,
     archiveRevision,
+    // File upload
+    uploadTestsetFile,
+    uploadTestsetRevisionFile,
+    // Evaluation runs that use a Testset
+    fetchEvaluationRunIdsUsingTestsets,
     // File download
     downloadTestset,
     downloadRevision,
@@ -151,9 +164,30 @@ export {latestRevisionForTestsetAtomFamily, testsetQueryAtomFamily} from "./stat
  * Save mutation atom for committing testset changes.
  * Used by entity adapters for the commit modal.
  */
-export {saveTestsetAtom} from "./state/mutations"
+export {
+    saveTestsetAtom,
+    saveNewTestsetAtom,
+    changesSummaryAtom,
+    hasUnsavedChangesAtom,
+    clearChangesAtom,
+} from "./state/mutations"
 
-export type {SaveTestsetParams, SaveTestsetResult} from "./state/mutations"
+export {commitPreviewAtom, type CommitPreview, type CommitPreviewEntry} from "./state/commitPreview"
+export {applyColumnOps, type PendingColumnOps} from "./state/revisionTableState"
+
+export type {
+    SaveTestsetParams,
+    SaveTestsetResult,
+    SaveNewTestsetParams,
+    SaveNewTestsetResult,
+    ChangesSummary,
+} from "./state/mutations"
+
+export {
+    testsetRevisionHeaderAtomFamily,
+    type TestsetRevisionHeader,
+    type TestsetRevisionHeaderState,
+} from "./state/metadata"
 
 // ============================================================================
 // SELECTION CONFIG

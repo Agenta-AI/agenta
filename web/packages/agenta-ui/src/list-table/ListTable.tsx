@@ -3,10 +3,20 @@ import type {KeyboardEvent} from "react"
 
 import {ChevronDown} from "lucide-react"
 
+import {Checkbox} from "../components/ui/checkbox"
 import {SkeletonBlock} from "../components/ui/skeleton"
 import {cn} from "../components/ui/utils"
 
+import {ListTableSelectionBar} from "./ListTableSelectionBar"
 import type {ListTableColumn, ListTableProps} from "./types"
+
+/** The checkbox column `selection` adds in front of the consumer's columns. */
+const SELECT_COLUMN: ListTableColumn = {
+    key: "__select",
+    label: "Select",
+    srOnly: true,
+    width: "20px",
+}
 
 /**
  * Drawn INSIDE the box: rows are full-bleed inside the scroller, so an outward ring is clipped
@@ -69,6 +79,7 @@ export const ListTable = <Row,>({
     cardMinWidth = 240,
     groupActions,
     onOpenRow,
+    canOpenRow,
     wrapRow,
     minWidth = 572,
     loading = false,
@@ -77,22 +88,56 @@ export const ListTable = <Row,>({
     onToggleGroup,
     empty,
     stickyHeader = false,
-    hideHeader = false,
+    hideHeader: hideHeaderProp = false,
     density = "default",
+    selection,
     className,
 }: ListTableProps<Row>) => {
     const isGrid = view === "grid"
-    const grid = gridTemplate(columns)
+    const selecting = Boolean(selection) && !isGrid
+    const allColumns = selecting ? [SELECT_COLUMN, ...columns] : columns
+    const grid = gridTemplate(allColumns)
+    // Select-all covers every selectable row, also those in a collapsed group.
+    const selectableKeys = selection
+        ? groups.flatMap((group) =>
+              group.rows.filter((row) => selection.canSelect?.(row) ?? true).map(rowKey),
+          )
+        : []
+    const selectedCount = selection?.selectedKeys.size ?? 0
+    const selectedVisible = selectableKeys.filter((key) => selection?.selectedKeys.has(key)).length
+    const allState: boolean | "indeterminate" =
+        selectedVisible === 0
+            ? false
+            : selectedVisible === selectableKeys.length
+              ? true
+              : "indeterminate"
+    const toggleAll = () => {
+        if (!selection) return
+        const next = new Set(selection.selectedKeys)
+        if (allState === true) selectableKeys.forEach((key) => next.delete(key))
+        else selectableKeys.forEach((key) => next.add(key))
+        selection.onChange(next)
+    }
+    const toggleRow = (key: string) => {
+        if (!selection) return
+        const next = new Set(selection.selectedKeys)
+        if (!next.delete(key)) next.add(key)
+        selection.onChange(next)
+    }
     // `min(100%, …)`, so a container narrower than one card still gets one card, not a scroller.
     const cardGrid = `repeat(auto-fill, minmax(min(100%, ${cardMinWidth}px), 1fr))`
     // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
     const rowPad = density === "compact" ? "py-2" : "py-[13px]"
     const isEmpty = groups.every((group) => group.rows.length === 0)
     // A grid has no column header, so a stuck heading sits at the scroller's own top.
+    // Selection lives in the header row (select all, the bulk bar), so it keeps the header.
+    const hideHeader = hideHeaderProp && !selecting
     const headingTop = groupTop(hideHeader || isGrid)
 
+    // A row that cannot open takes no focus, has no button role and shows no pointer.
+    const opens = (row: Row) => Boolean(onOpenRow) && (canOpenRow?.(row) ?? true)
     const openHandlers = (row: Row) =>
-        onOpenRow
+        onOpenRow && opens(row)
             ? {
                   role: "button" as const,
                   tabIndex: 0,
@@ -148,20 +193,38 @@ export const ListTable = <Row,>({
                         )}
                         style={{gridTemplateColumns: grid}}
                     >
-                        {columns.map((column) => (
-                            // The cell stays in the grid flow (`sr-only` is absolute) so tracks line up.
-                            <span
-                                key={column.key}
-                                role="columnheader"
-                                className={column.headerClassName}
-                            >
-                                {column.srOnly ? (
-                                    <span className="sr-only">{column.label}</span>
-                                ) : (
-                                    column.label
-                                )}
+                        {selecting ? (
+                            <span role="columnheader" className="flex">
+                                <Checkbox
+                                    checked={allState}
+                                    disabled={selectableKeys.length === 0}
+                                    onCheckedChange={toggleAll}
+                                    aria-label="Select all"
+                                />
                             </span>
-                        ))}
+                        ) : null}
+                        {selecting && selection && selectedCount > 0 ? (
+                            <ListTableSelectionBar
+                                count={selectedCount}
+                                onClear={() => selection.onChange(new Set())}
+                                actions={selection.bulkActions?.(selection.selectedKeys)}
+                            />
+                        ) : (
+                            columns.map((column) => (
+                                // The cell stays in the grid flow (`sr-only` is absolute) so tracks line up.
+                                <span
+                                    key={column.key}
+                                    role="columnheader"
+                                    className={column.headerClassName}
+                                >
+                                    {column.srOnly ? (
+                                        <span className="sr-only">{column.label}</span>
+                                    ) : (
+                                        column.label
+                                    )}
+                                </span>
+                            ))
+                        )}
                     </div>
                 )}
 
@@ -206,7 +269,7 @@ export const ListTable = <Row,>({
                                     className={cn("grid w-full items-center gap-3", rowPad)}
                                     style={{gridTemplateColumns: grid}}
                                 >
-                                    {columns.map((column, index) => (
+                                    {allColumns.map((column, index) => (
                                         // `SkeletonBlock`, not `Skeleton`: the latter is antd's
                                         // composite (avatar + title + paragraph) and paints nothing
                                         // of its own — a bare one renders a transparent box.
@@ -330,9 +393,9 @@ export const ListTable = <Row,>({
                                                             // shadow is nearly invisible on a dark
                                                             // surface, so dark mode adds the fill
                                                             // lift a row gets and a deeper shadow.
-                                                            onOpenRow &&
+                                                            opens(row) &&
                                                                 "cursor-pointer transition-[border-color,box-shadow,background-color] hover:border-foreground/30 hover:shadow-[0_3px_14px_rgb(0_0_0/0.07)] dark:hover:bg-accent/40 dark:hover:shadow-[0_4px_16px_rgb(0_0_0/0.5)]",
-                                                            onOpenRow && FOCUS_RING,
+                                                            opens(row) && FOCUS_RING,
                                                         )}
                                                     >
                                                         {renderCard?.(row)}
@@ -373,12 +436,34 @@ export const ListTable = <Row,>({
                                                     "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
                                                     rowPad,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
-                                                    onOpenRow &&
+                                                    opens(row) &&
                                                         "cursor-pointer hover:bg-accent/60",
-                                                    onOpenRow && FOCUS_RING,
+                                                    opens(row) && FOCUS_RING,
                                                 )}
                                                 style={{gridTemplateColumns: grid}}
                                             >
+                                                {selecting && selection ? (
+                                                    // The row opens on a click; the checkbox must not.
+                                                    <span
+                                                        className="flex"
+                                                        onClick={(event) => event.stopPropagation()}
+                                                        onKeyDown={(event) =>
+                                                            event.stopPropagation()
+                                                        }
+                                                    >
+                                                        {(selection.canSelect?.(row) ?? true) ? (
+                                                            <Checkbox
+                                                                checked={selection.selectedKeys.has(
+                                                                    rowKey(row),
+                                                                )}
+                                                                onCheckedChange={() =>
+                                                                    toggleRow(rowKey(row))
+                                                                }
+                                                                aria-label={selection.rowLabel(row)}
+                                                            />
+                                                        ) : null}
+                                                    </span>
+                                                ) : null}
                                                 {renderRow(row)}
                                             </div>
                                         )

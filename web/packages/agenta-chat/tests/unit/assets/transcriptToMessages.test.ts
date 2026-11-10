@@ -121,6 +121,48 @@ describe("transcriptToMessages", () => {
         ])
     })
 
+    it("does not read a turn a Steer cancelled as Stopped", () => {
+        const pausedThenSteered = (cancelledBy?: string) =>
+            transcriptToMessages([
+                record("u1", {type: "message", text: "connect Linear"}, "user", "turn-1"),
+                record(
+                    "c1",
+                    {type: "tool_call", id: "tc-1", name: "request_connection", input: {}},
+                    "agent",
+                    "turn-1",
+                ),
+                record("d1", {type: "done", stopReason: "paused"}, "agent", "turn-1"),
+                record(
+                    "d2",
+                    {type: "done", stopReason: "cancelled", ...(cancelledBy ? {cancelledBy} : {})},
+                    "agent",
+                    "turn-2",
+                ),
+                record("u2", {type: "message", text: "say something"}, "user", "turn-3"),
+            ])
+
+        const steered = pausedThenSteered("steer")
+        expect(steered?.map((message) => message.role)).toEqual(["user", "assistant", "user"])
+        expect(steered?.[1].metadata?.runStopped).toBeUndefined()
+
+        expect(pausedThenSteered()?.[1].metadata).toMatchObject({runStopped: true})
+    })
+
+    it("adds no empty row for a content-free turn a Steer cancelled", () => {
+        const messages = transcriptToMessages([
+            record("u1", {type: "message", text: "go"}, "user", "turn-1"),
+            record(
+                "d1",
+                {type: "done", stopReason: "cancelled", cancelledBy: "steer"},
+                "agent",
+                "turn-1",
+            ),
+            record("u2", {type: "message", text: "do this instead"}, "user", "turn-2"),
+        ])
+
+        expect(messages?.map((message) => message.role)).toEqual(["user", "user"])
+    })
+
     it("suppresses an abort error when the same durable turn is explicitly user-stopped", () => {
         const messages = transcriptToMessages([
             record("r1", {type: "error", message: "Request was aborted"}),

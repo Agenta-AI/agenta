@@ -34,7 +34,7 @@ turns that plan into a landed change.
 plan-feature  ->  implement-feature  ->  write-pr-description
                         |
         implement-feature orchestrates, per slice:
-        debug-local-deployment  ·  agent-workflows-qa  ·  agent-replay-test
+        debug-local-deployment  ·  agent-release-gate  ·  agent-replay-test
         write-docs  ·  style-editing  ·  defer-todo  ·  but
 ```
 
@@ -63,14 +63,15 @@ and hits the backend API with a project key. The debug phase of `implement-featu
 skill in a loop: run, observe, fix, re-run, until the slice does what its acceptance check
 says.
 
-### Test: agent-workflows-qa and agent-replay-test
+### Test: agent-release-gate and agent-replay-test
 
-`agent-workflows-qa` (shared) defines the test matrix for the agent runtime. Its three axes
-are the environment (sandbox-agent local, sandbox-agent Daytona, and the local SDK), the
-harness (`pi_core`, `claude`, `codex`), and the capability under test. "Test with daytona,
-local pi, and claude, on both the SDK and the UI" is exactly a walk across these cells. Each
-test forces a capability with a token the model cannot guess, so a pass proves the capability
-ran.
+`agent-release-gate` (shared) is the QA harness for the agent runtime. It drives the same
+product endpoint the playground drives and asserts on the SSE frames and real side effects,
+never on model prose, so it runs against any deployment from three environment variables. Its
+cells cross the harness (`pi_core`, `claude`, `codex`), the sandbox (`local`, `daytona`), and the
+auth mode, and each cell runs a list of user journeys. "Test with daytona, local pi, and claude"
+is a walk across these cells. The gate runs one layer below the UI and does not run a host SDK
+script, so those two surfaces are tested separately.
 
 `agent-replay-test` (shared) pins a green cell so it stays green. It captures one real `/run`,
 redacts the volatile fields, and writes a test that replays the recorded runner response

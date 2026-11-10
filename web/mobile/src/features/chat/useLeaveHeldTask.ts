@@ -11,7 +11,7 @@ const openScreens = new Map<string, number>()
  * Keep a held first message when the user leaves its session before the chat screen sent it.
  *
  * Home and an agent's page hand the first message to the chat screen, which holds it until the
- * transcript, the vault and the setup step answer. The chat route stays mounted across a session
+ * transcript, the vault and the needs-setup check answer. The chat route stays mounted across a session
  * switch, so the session id changing is a leave too, not only an unmount. Without this the task
  * sat unsent with no engine left to send it, and the session had no rail row and no route agent,
  * so coming back showed a chat that does not exist.

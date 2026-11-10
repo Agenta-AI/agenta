@@ -2,6 +2,20 @@ import {describe, expect, it, vi} from "vitest"
 
 const retrieve = vi.hoisted(() => vi.fn())
 vi.mock("@agenta/entities/workflow", () => ({retrieveWorkflowRevision: retrieve}))
+const commits = vi.hoisted(
+    () => new Map<string, (from: string, to: string, workflowId?: string) => void>(),
+)
+vi.mock("../../src/state/execution/agentAutoCommit", () => ({
+    registerAgentAutoCommitHandler: (
+        key: string,
+        handler: (from: string, to: string, workflowId?: string) => void,
+    ) => {
+        commits.set(key, handler)
+        return () => commits.delete(key)
+    },
+}))
+const landCommit = (workflowId: string) =>
+    commits.forEach((handler) => handler("rev-a", "rev-b", workflowId))
 
 import {watchLatestVersion} from "../../src/state/execution/latestVersionCheck"
 
@@ -70,5 +84,33 @@ describe("watchLatestVersion", () => {
         await flush()
         expect(onLatest).toHaveBeenCalledOnce()
         expect(onLatest).toHaveBeenCalledWith({workflowId: "agent-1", id: "rev-7", version: 7})
+    })
+
+    it("checks again when this tab saves a new version of the same agent", async () => {
+        commits.clear()
+        retrieve.mockReset().mockResolvedValueOnce({id: "rev-6", version: "6"})
+        const page = fakePage("visible")
+        const onLatest = vi.fn()
+        const stop = watchLatestVersion({
+            workflowId: "agent-1",
+            projectId: "project-1",
+            onLatest,
+            page: page as unknown as Document,
+        })
+        await flush()
+
+        retrieve.mockResolvedValueOnce({id: "rev-7", version: "7"})
+        landCommit("agent-2")
+        await flush()
+        expect(retrieve).toHaveBeenCalledOnce()
+
+        landCommit("agent-1")
+        await flush()
+        expect(retrieve).toHaveBeenCalledTimes(2)
+        expect(onLatest).toHaveBeenLastCalledWith({workflowId: "agent-1", id: "rev-7", version: 7})
+
+        stop()
+        landCommit("agent-1")
+        expect(retrieve).toHaveBeenCalledTimes(2)
     })
 })

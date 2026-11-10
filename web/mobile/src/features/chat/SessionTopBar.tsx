@@ -29,6 +29,7 @@ export const SessionTopBar = ({
     entityId,
     sessionId,
     onUpdate,
+    autoUpdate = false,
     agentId,
     agentHidden = false,
     canSend = true,
@@ -41,6 +42,8 @@ export const SessionTopBar = ({
     sessionId: string
     /** Pin this session to a newer version the user asked for. */
     onUpdate: (revisionId: string) => void
+    /** Move to a newer version with no click; false keeps the version pill. */
+    autoUpdate?: boolean
     agentId?: string | null
     /** A private agent the reader cannot see: a lock and "Private agent", nothing to act on. */
     agentHidden?: boolean
@@ -83,6 +86,7 @@ export const SessionTopBar = ({
                         revisionId={entityId}
                         historyWorkflowId={agentId}
                         onUpdate={onUpdate}
+                        autoUpdate={autoUpdate}
                         checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
                     />
                 ) : undefined

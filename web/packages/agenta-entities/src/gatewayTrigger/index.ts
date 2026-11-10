@@ -33,6 +33,7 @@ export type {
     TriggerDeliveriesResponse,
     TriggerDeliveryData,
     TriggerDeliveryQuery,
+    TriggerDeliveryWindowing,
     TriggerDeliveryResponse,
     TriggerProviderKind,
     TriggerReference,
@@ -93,20 +94,29 @@ export {
 } from "./core/scheduleBuilder"
 export type {CronCadence, CronTimeOfDay, ScheduleBuilderState} from "./core/scheduleBuilder"
 export {
+    FALLBACK_MESSAGE_SHAPE,
     getScheduleMessage,
     getScheduleMessagePreview,
     messageContentText,
     parseInputsFields,
+    misplacedMessageShape,
     remapMessageShape,
     setScheduleMessage,
 } from "./core/messageInputs"
 export {
     compileMessageTemplate,
     parseMessageTemplate,
+    remapMessageTemplate,
     splitTemplate,
+    templateSelectors,
 } from "./core/eventMessageTemplate"
+export {eventFieldsFromSchema, selectorLabel} from "./core/eventFields"
+export type {EventField} from "./core/eventFields"
+export {addsEventText, includesEvent, renderMessagePreview} from "./core/eventPreview"
+export {latestDeliveryEvent} from "./core/latestDeliveryEvent"
 export {localFaceToUtcIso, utcIsoToLocalFace} from "./core/window"
 export {previewValue, resolveSelectorPreview} from "./core/selectorPreview"
+export {normalizeRepoFilters} from "./core/repoFilter"
 
 // ---------------------------------------------------------------------------
 // API — HTTP wrappers (axios + zod boundary validation)
@@ -188,6 +198,8 @@ export {
     triggerConnectionSubscriptionsAtomFamily,
     triggerDeliveryQueryAtomFamily,
     triggerDeliveriesAtomFamily,
+    triggerRecentDeliveriesAtomFamily,
+    RECENT_TRIGGER_DELIVERIES_LIMIT,
     triggerEventDetailQueryFamily,
     triggerEventsSearchAtom,
     triggerIntegrationConnectionsAtomFamily,

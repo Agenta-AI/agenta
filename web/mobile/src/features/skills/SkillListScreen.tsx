@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {useDebounceInput} from "@agenta/shared/hooks"
 import {
     invalidateSkillsListCache,
     skillsListDataAtom,
@@ -72,6 +73,8 @@ export const SkillListScreen = ({
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
+    // The search is a server query, so it waits for a pause in typing.
+    const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
     const setShowArchived = useSetAtom(skillsShowArchivedAtom)
     // One cached request, shared with the agents roster: a row names its author under a source
     // heading, and cannot from an id alone.
@@ -209,8 +212,8 @@ export const SkillListScreen = ({
                                     the view switch takes the far edge, where it changes how the
                                     results are drawn rather than which ones are. */}
                                 <ListTableToolbar
-                                    search={search}
-                                    onSearchChange={setSearch}
+                                    search={typed}
+                                    onSearchChange={setTyped}
                                     searchPlaceholder="Search skills by name…"
                                     actions={
                                         <>

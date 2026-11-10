@@ -367,13 +367,6 @@ def test_create_refused_by_a_limit_leaves_no_row(world):
 def test_kind_family_bedrock_refusals_answer_422(world):
     client, _ = world["client"]()
     for body in (
-        {
-            "header": {"name": "token"},
-            "secret": {
-                "kind": "custom_secret",
-                "data": {"secret": {"format": "text", "content": "value-123456"}},
-            },
-        },
         org_secret_payload(family="composio"),
         org_secret_payload(kind="custom_provider", family="bedrock"),
         org_secret_payload(key="m5key12"),
@@ -609,7 +602,7 @@ def test_an_editor_cannot_create_an_organization_subscription(world):
     assert world["dao"].records == {}
 
 
-def test_an_unnamed_organization_login_is_named_and_a_second_one_is_409(world):
+def test_an_unnamed_organization_login_is_named_and_a_second_one_is_its_own(world):
     client, _ = world["client"](runner=_FakeRunner())
     login = {
         "header": {},
@@ -620,8 +613,8 @@ def test_an_unnamed_organization_login_is_named_and_a_second_one_is_409(world):
     assert created.json()["header"]["name"] == "ChatGPT (Organization)"
 
     again = _create(client, login)
-    assert again.status_code == 409
-    assert again.json()["detail"].startswith("This organization already has")
+    assert again.status_code == 200, again.text
+    assert again.json()["slug"] != created.json()["slug"]
 
     # A project login still needs a name, as before.
     assert client.post("/secrets/", json=login).status_code == 422

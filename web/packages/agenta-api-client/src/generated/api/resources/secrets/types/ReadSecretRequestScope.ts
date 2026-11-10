@@ -3,5 +3,6 @@
 export const ReadSecretRequestScope = {
     Project: "project",
     Organization: "organization",
+    User: "user",
 } as const;
 export type ReadSecretRequestScope = (typeof ReadSecretRequestScope)[keyof typeof ReadSecretRequestScope];

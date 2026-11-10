@@ -14,7 +14,6 @@ import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const setupStep = vi.hoisted(() => ({blocking: false}))
 const calls = vi.hoisted(() => ({
     dropLocalSession: vi.fn(),
     onSendFailed: null as null | ((message: unknown, error?: unknown) => void),
@@ -76,6 +75,7 @@ vi.mock("@agenta/chat/hooks", () => ({
         }
     },
     useAgentModelKeyStatus: () => ({gateActive: false, loading: false}),
+    useAgentModelSetup: () => ({blocked: false, loading: false, canFix: false}),
     useElicitationDock: () => ({
         open: false,
         settlingIds: new Set(),
@@ -88,10 +88,18 @@ vi.mock("@agenta/chat/hooks", () => ({
         settle: vi.fn(),
         dismiss: vi.fn(),
     }),
+    useSecretDock: () => ({
+        open: false,
+        front: null,
+        settlingIds: new Set(),
+        settle: vi.fn(),
+        dismiss: vi.fn(),
+    }),
     useComposerAttachments: () => ({restoreAttachments: vi.fn(), setRejections: vi.fn()}),
 }))
 
 vi.mock("@agenta/chat/components", () => ({
+    ModelSetupBanner: () => null,
     ConnectionFocusProvider: ({children}: {children: ReactNode}) => children,
     ConnectionWarningStrip: () => null,
     ConnectionDock: () => <div data-testid="connection-dock" />,
@@ -143,9 +151,6 @@ vi.mock("@agenta/chat/assets", () => ({
     shouldShowStopControl: () => false,
     restoreRefusedSend: vi.fn(),
 }))
-vi.mock("@agenta/chat/clientTools", () => ({
-    getPendingSecretInteractions: () => [],
-}))
 vi.mock("@agenta/chat/state", () => ({getSessionTurnId: () => null, runKey: () => ""}))
 vi.mock("@agenta/entities/session", async () => {
     const {atom} = await import("jotai")
@@ -171,7 +176,12 @@ vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
 vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
-vi.mock("@agenta/entity-ui/onboarding", () => ({AgentSetupCard: () => null}))
+vi.mock("@agenta/entity-ui/onboarding", () => ({
+    PersonalAccountsCard: () => null,
+}))
+vi.mock("@/features/chat/usePersonalSetupStep", () => ({
+    usePersonalSetupStep: () => ({open: false, items: [], pendingKeys: new Set()}),
+}))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {warning: vi.fn()},
@@ -221,6 +231,7 @@ vi.mock("@/features/sessions/useLivenessPoll", () => ({
 }))
 vi.mock("@/features/wallet/useWalletSummary", () => ({
     useWalletSummary: () => ({data: undefined, isLoading: false}),
+    walletSummaryKey: (projectId: string) => ["wallet", "summary", projectId],
 }))
 vi.mock("@/features/chat/buildKitWait", () => ({waitForBuildKit: async () => true}))
 vi.mock("@/features/chat/hasUnsavedConfigEdits", () => ({hasUnsavedConfigEdits: () => false}))
@@ -245,6 +256,9 @@ vi.mock("@/features/chat/states/PendingTaskError", () => ({
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
+vi.mock("@/features/wallet/CreditAlertStrip", () => ({CreditAlertStrip: () => null}))
+vi.mock("@/features/chat/useOpenModelSetup", () => ({useOpenModelSetup: () => vi.fn()}))
+vi.mock("@/features/chat/setupFailureRefresh", () => ({refreshOnSetupFailure: () => undefined}))
 vi.mock("@/features/chat/Composer", () => ({
     Composer: ({disabled}: {disabled: boolean}) => (
         <div data-testid="composer" data-disabled={disabled ? "true" : "false"} />
@@ -271,9 +285,6 @@ vi.mock("@/features/chat/TranscriptTurns", () => ({
 vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: vi.fn()}),
 }))
-vi.mock("@/features/chat/useSessionSetupStep", () => ({
-    useSessionSetupStep: () => ({open: setupStep.blocking, blocking: setupStep.blocking}),
-}))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
 vi.mock("@/features/chat/useTranscriptAutoScroll", () => ({
@@ -290,7 +301,6 @@ let root: Root
 let store: ReturnType<typeof createStore>
 
 beforeEach(() => {
-    setupStep.blocking = false
     calls.dropLocalSession.mockReset()
     calls.onSendFailed = null
     store = createStore()
@@ -384,21 +394,5 @@ describe("a send that fails while the session is open", () => {
 
         expect(calls.dropLocalSession).toHaveBeenCalledWith("session-1")
         expect(store.get(pendingTasksAtom)["session-1"]).toBeUndefined()
-    })
-})
-
-describe("a failed task whose template connect step is up", () => {
-    it("waits for the step before it can be sent again", async () => {
-        store.set(pendingTasksAtom, {
-            "session-1": {agentId: "agent-1", text: "hello", delivery: "failed"},
-        })
-        setupStep.blocking = true
-        await render()
-        const card = () => host.querySelector('[data-testid="task-error"]')
-        expect(card()?.getAttribute("data-retry-disabled")).toBe("true")
-
-        setupStep.blocking = false
-        await render()
-        expect(card()?.getAttribute("data-retry-disabled")).toBe("false")
     })
 })

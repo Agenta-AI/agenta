@@ -9,18 +9,17 @@ import {
 import {message} from "@agenta/ui/app-message"
 import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
-import {useMutation, useQuery} from "@tanstack/react-query"
+import {useMutation} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {fetchProjects, projectHomeUrl, writeLastContext} from "@/lib/context"
-
 import {useLogout} from "../auth/useLogout"
-import {groupByOrganization} from "../context/workspaceGroups"
+import {switchSettingsContext} from "../settings/switchContext"
 import {LiveChatNavButton} from "../support/LiveChatNavButton"
 import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
 import {CreateProjectSheet} from "./CreateProjectSheet"
 import {useMobileHelpItem} from "./useMobileNavItems"
+import {useOrganizationProjects} from "./useOrganizationProjects"
 
 /**
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
@@ -45,31 +44,13 @@ export const DrawerProjectSwitcher = ({
         onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
     })
     const liveChatEnabled = useLiveChatEnabled(projectId)
-    const query = useQuery({
-        queryKey: ["mobile", "projects"],
-        queryFn: () => fetchProjects(),
-        staleTime: 30_000,
-    })
-    const groups = useMemo(
-        () => (query.data?.kind === "ok" ? groupByOrganization(query.data.projects) : []),
-        [query.data],
+    const {query, groups, currentGroup, currentProject} = useOrganizationProjects(
+        workspaceId,
+        projectId,
     )
 
-    // Matched on the project: the route segment can be a legacy workspace id or the
-    // organization id for the same project (workspace removal step 2).
-    const currentGroup =
-        groups.find((group) =>
-            group.projects.some((project) => project.project_id === projectId),
-        ) ?? groups.find((group) => group.projects.some((p) => p.workspace_id === workspaceId))
-    const currentProject = currentGroup?.projects.find(
-        (project) => project.project_id === projectId,
-    )
-
-    const goTo = (nextWorkspaceId: string, nextProjectId: string) => {
-        writeLastContext({workspaceId: nextWorkspaceId, projectId: nextProjectId})
-        // The resolver's own spelling of this route; the literal it replaces dropped the encoding.
-        void router.push(projectHomeUrl({workspaceId: nextWorkspaceId, projectId: nextProjectId}))
-    }
+    const goTo = (nextWorkspaceId: string, nextProjectId: string) =>
+        switchSettingsContext(router, {workspaceId: nextWorkspaceId, projectId: nextProjectId})
 
     const projects = useMemo<SwitcherEntry[]>(
         () =>
@@ -79,7 +60,7 @@ export const DrawerProjectSwitcher = ({
                 isActive: project.project_id === projectId,
                 onSelect: () => goTo(project.workspace_id, project.project_id),
             })),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
         [currentGroup?.projects, projectId],
     )
 
@@ -95,7 +76,7 @@ export const DrawerProjectSwitcher = ({
                     if (first) goTo(group.workspaceId, first.project_id)
                 },
             })),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
         [groups, currentGroup?.key],
     )
 

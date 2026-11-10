@@ -159,3 +159,89 @@ async def test_a_cancelled_catalog_reader_does_not_cancel_the_shared_crawl(monke
     assert [entry.key for entry in await second] == ["A"]
     with pytest.raises(asyncio.CancelledError):
         await first
+
+
+async def test_an_unavailable_connection_is_left_out_when_asked(monkeypatch):
+    """Needs setup: with `omit_unavailable`, a missing connection is named in
+    `unavailable_connections` and the other references still resolve."""
+    from oss.src.core.tools.exceptions import ConnectionNotFoundError
+
+    service = object.__new__(ToolsService)
+
+    async def _connection(*, connection_slug, **_kwargs):
+        if connection_slug == "gone":
+            raise ConnectionNotFoundError(
+                provider_key="composio",
+                integration_key="github",
+                connection_slug="gone",
+            )
+        return object()
+
+    async def _get_action(*, action_key, **_kwargs):
+        return _action(action_key)
+
+    monkeypatch.setattr(service, "resolve_connection_by_slug", _connection)
+    monkeypatch.setattr(service, "get_action", _get_action)
+    gone = GatewayToolConfig(integration="github", action="GONE", connection="gone")
+
+    result = await service.resolve_tools(
+        project_id=uuid4(), tools=[_ref("KEPT"), gone], omit_unavailable=True
+    )
+    assert [tool.description for tool in result.custom] == ["KEPT"]
+    assert [
+        (item.provider, item.integration, item.connection)
+        for item in result.unavailable_connections
+    ] == [("composio", "github", "gone")]
+
+    with pytest.raises(ConnectionNotFoundError):
+        await service.resolve_tools(project_id=uuid4(), tools=[_ref("KEPT"), gone])
+
+
+async def test_a_user_connection_with_no_account_is_left_out_when_asked():
+    """A "user" entry whose run has no account for it is named in
+    `unavailable_connections` with its account source, and no project slug is read."""
+    from oss.src.core.access.context import reset_request_access, set_request_access
+    from oss.src.core.tools.dtos import GatewayConnectionTool
+    from oss.tests.pytest.utils.principals import make_envelope, make_request_access
+
+    service = object.__new__(ToolsService)
+    reads = []
+
+    async def get_connection(**kwargs):
+        reads.append(kwargs)
+        return None
+
+    service.get_connection = get_connection
+    ref = GatewayConnectionTool.model_validate(
+        {
+            "type": "gateway_connection",
+            "connection": {
+                "provider": "composio",
+                "integration": "gmail",
+                "account_source": "user",
+            },
+        }
+    )
+    token = set_request_access(
+        make_request_access(
+            envelope=make_envelope(kind="human"), credential_kind="run_credential"
+        )
+    )
+    try:
+        resolution = await service.resolve_tools(
+            project_id=uuid4(), tools=[ref], omit_unavailable=True
+        )
+    finally:
+        reset_request_access(token)
+    assert resolution.gateway_connections == []
+    (unavailable,) = resolution.unavailable_connections
+    assert (
+        unavailable.integration,
+        unavailable.connection,
+        unavailable.account_source,
+    ) == (
+        "gmail",
+        None,
+        "user",
+    )
+    assert reads == []

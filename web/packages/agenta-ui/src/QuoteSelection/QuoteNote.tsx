@@ -8,6 +8,10 @@ import {Button} from "../components/ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
 import {ShortcutKeys} from "../shortcuts/ShortcutKeys"
 
+// The press that closed a note; the surface under it must not start a new pick from it.
+const closingPresses = new WeakSet<Event>()
+export const pressClosedNote = (event: Event): boolean => closingPresses.has(event)
+
 const GAP = 8
 const WIDTH = 320
 // Long enough that moving through to the button does not flash it.
@@ -57,7 +61,9 @@ export const QuoteNote = ({
     // Bound once: the box re-renders every scroll frame while it tracks its span.
     useEffect(() => {
         const onDown = (e: PointerEvent) => {
-            if (!ref.current?.contains(e.target as Node)) cancelRef.current()
+            if (ref.current?.contains(e.target as Node)) return
+            closingPresses.add(e)
+            cancelRef.current()
         }
         document.addEventListener("pointerdown", onDown, true)
         return () => document.removeEventListener("pointerdown", onDown, true)

@@ -89,10 +89,22 @@ export const OnboardingQuestion = ({
         timerRef.current = setTimeout(onAdvance, answerHoldMs)
     }
 
+    // Keep a ref so the keydown handler always reads the current writeIn without re-subscribing.
+    const writeInRef = useRef<string | null>(null)
+    writeInRef.current = writeIn
+
     const write = (text: string) => {
         if (!writeIn) return
         setDraftLine(text)
-        onAnswer(text.trim() ? writeInAnswer(writeIn, text) : [])
+        if (text.trim()) {
+            onAnswer(writeInAnswer(writeIn, text))
+        } else {
+            // Keep the write-in box visible while the field is empty: the "Other" chip stays
+            // selected (via the `writing` state) even though the answer is removed from the
+            // draft. The box disappears only when the user picks a different choice.
+            setWriting(writeIn)
+            onAnswer([])
+        }
     }
 
     useEffect(() => {
@@ -100,6 +112,9 @@ export const OnboardingQuestion = ({
             if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return
             const target = event.target instanceof Element ? event.target : null
             if (target?.closest("input, textarea, [contenteditable=true]")) return
+            // Suppress letter shortcuts while the write-in box is open so that typing
+            // does not accidentally select a different choice.
+            if (writeInRef.current) return
             if (event.key === "Enter") {
                 if (!multiple || target?.closest("button, a")) return
                 event.preventDefault()

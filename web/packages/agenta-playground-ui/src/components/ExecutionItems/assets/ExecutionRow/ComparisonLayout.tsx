@@ -25,8 +25,9 @@ import {
 } from "@agenta/playground-ui/state"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
+import {usePlaygroundNodeLabels} from "../../../../hooks/usePlaygroundNodeLabels"
 
-import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
+import {ExecutionRowRunControl} from "./shared"
 
 interface Props {
     rowId: string
@@ -331,12 +332,15 @@ const ComparisonLayout = ({
                                         />
                                     </div>
                                 )}
-                                <PlaygroundInputsBodyHost
-                                    rowId={rowId}
-                                    downstreamKey={downstreamKey}
-                                    editable={!disabled}
-                                    templateFormat={promptTemplateFormat}
-                                />
+                                {/* Same inset as the toolbar above and the run controls below. */}
+                                <div className="px-2">
+                                    <PlaygroundInputsBodyHost
+                                        rowId={rowId}
+                                        downstreamKey={downstreamKey}
+                                        editable={!disabled}
+                                        templateFormat={promptTemplateFormat}
+                                    />
+                                </div>
                             </>
                         ) : (
                             variableIds.map((variableId, index) => (

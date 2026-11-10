@@ -36,6 +36,19 @@ UNSUPPORTED_TEXT = (
 # The person opted out (STOP) or back in (START).
 OPTED_OUT_TEXT = "You won't get more messages from us. Send START to chat again."
 OPTED_IN_TEXT = "Welcome back. Send your message and we'll reply here."
+# A person the agent does not answer addressed it: one private note a day per
+# person and place. The notes name no agent and no owner. Draft copy, pending
+# owner approval.
+REFUSED_SENDER_TEXT = (
+    "This agent only answers chosen people. Ask its owner in Agenta to add you."
+)
+REFUSED_CHANNEL_TEXT = "This agent does not answer in this channel."
+REFUSED_DIRECT_MESSAGE_TEXT = (
+    "This agent does not answer direct messages. Mention it in a channel instead."
+)
+
+# Agents often answer, rename, then close with "Session named.": that line must not replace the answer.
+_HOUSEKEEPING_TOOLS = frozenset({"rename_session", "rename_agent"})
 
 
 def render_indicator(*, capabilities: ChannelCapabilities) -> RenderItem:
@@ -174,7 +187,7 @@ def render_turn_result(
     if folded.get("stop_reason") == "paused" and pending_interaction is not None:
         return [_render_pending_interaction(capabilities, pending_interaction)]
 
-    text = extract_answer_text(folded.get("messages") or [])
+    text = extract_final_answer(folded.get("messages") or [])
 
     return _render_text(capabilities, text)
 
@@ -266,23 +279,58 @@ def _render_pending_interaction(
     )
 
 
+def _message_text(message: Dict[str, Any]) -> List[str]:
+    content = message.get("content")
+    if isinstance(content, str):
+        return [content] if content.strip() else []
+    if isinstance(content, list):
+        return [
+            block["text"]
+            for block in content
+            if isinstance(block, dict) and isinstance(block.get("text"), str)
+        ]
+    return []
+
+
 def extract_answer_text(messages: List[Dict[str, Any]]) -> str:
-    """Only what fold() already surfaced as message content — never a raw
-    thought/usage event."""
+    """All the text of the turn so far, for the live progress message. Only
+    what fold() already surfaced as message content — never a raw thought/usage
+    event."""
 
     parts: List[str] = []
     for message in messages:
-        if message.get("role") != "assistant":
-            continue
-        content = message.get("content")
-        if isinstance(content, str) and content:
-            parts.append(content)
-        elif isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and isinstance(block.get("text"), str):
-                    parts.append(block["text"])
+        if message.get("role") == "assistant":
+            parts.extend(_message_text(message))
 
     return "\n".join(parts)
+
+
+def extract_final_answer(messages: List[Dict[str, Any]]) -> str:
+    """The reply: what the agent said after its last tool. Text before a tool
+    is a work step ("Checking the logs."), not the answer. A turn that stopped
+    on a tool never wrote a final message, so it keeps all its text."""
+
+    housekeeping_calls = {
+        message.get("tool_call_id")
+        for message in messages
+        if _is_housekeeping_tool(message.get("tool_name"))
+    }
+
+    parts: List[str] = []
+    for message in messages:
+        if message.get("role") == "assistant":
+            parts.extend(_message_text(message))
+        elif message.get("tool_call_id") not in housekeeping_calls:
+            parts = []
+
+    return "\n".join(parts) or extract_answer_text(messages)
+
+
+def _is_housekeeping_tool(tool_name: Any) -> bool:
+    return (
+        isinstance(tool_name, str)
+        and tool_name.rsplit("__", 1)[-1] in _HOUSEKEEPING_TOOLS
+    )
 
 
 def _render_text(

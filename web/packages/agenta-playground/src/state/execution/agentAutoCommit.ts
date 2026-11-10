@@ -50,7 +50,7 @@ const inFlight = new Set<string>()
  *
  * Keyed so a module re-evaluation (HMR) replaces its handler instead of stacking a second one.
  */
-type AfterCommitHandler = (revisionId: string, newRevisionId: string) => void
+type AfterCommitHandler = (revisionId: string, newRevisionId: string, workflowId?: string) => void
 const afterCommitHandlers = new Map<string, AfterCommitHandler>()
 
 export const registerAgentAutoCommitHandler = (
@@ -199,10 +199,13 @@ const runFlush = async (
             store.set(agentAutoCommitErrorAtomFamily(revisionId), null)
             // The commit atom invalidates everything BUT the latest-revision query, which an
             // unattended writer notices: the next read keeps answering with the superseded id.
-            invalidateAgentCommittedRevisionCache()
+            const workflowId = store.get(workflowMolecule.selectors.data(revisionId))?.workflow_id
+            invalidateAgentCommittedRevisionCache(workflowId)
             const newRevisionId = result.newRevisionId
             if (newRevisionId) {
-                afterCommitHandlers.forEach((handler) => handler(revisionId, newRevisionId))
+                afterCommitHandlers.forEach((handler) =>
+                    handler(revisionId, newRevisionId, workflowId ?? undefined),
+                )
                 // Deferred a tick so subscribers reading this revision during the switch
                 // finish first. Safe: it is superseded.
                 setTimeout(() => forgetRevision(store, revisionId), 0)

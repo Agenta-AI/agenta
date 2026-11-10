@@ -23,6 +23,11 @@ export interface OpenQueuePayload {
     initialScenarioId?: string | null
 }
 
+/** Payload for opening an evaluation run for annotation, without a queue. */
+export interface OpenRunPayload {
+    runId: string
+}
+
 export interface ApplyRouteStatePayload {
     view?: SessionView
     scenarioId?: string | null
@@ -206,7 +211,8 @@ export interface UpdateMetricPayload {
  */
 export interface SubmitAnnotationsPayload {
     scenarioId: string
-    queueId: string
+    /** Absent when a run is annotated directly (`openRun`). */
+    queueId?: string
     markComplete?: boolean
 }
 

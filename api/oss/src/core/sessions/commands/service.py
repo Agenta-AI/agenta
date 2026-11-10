@@ -32,7 +32,7 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
 
@@ -161,6 +161,19 @@ class InputContinuationAdmission:
         self.execution_state = execution_state
 
 
+class LostExecutionSettlement:
+    def __init__(
+        self,
+        *,
+        settled: bool,
+        admission: Optional[InputContinuationAdmission] = None,
+    ) -> None:
+        self.settled = settled
+        # The queued input promoted in the same commit. The caller delivers it once the lost
+        # turn has released its Redis ownership.
+        self.admission = admission
+
+
 class CommandOutcomeReport:
     def __init__(self, *, command: SessionCommand, admitted: bool) -> None:
         self.command = command
@@ -169,6 +182,11 @@ class CommandOutcomeReport:
 
 class _SettlementRejected(Exception):
     pass
+
+
+def steer_cancel_key(input_id: Union[UUID, str]) -> str:
+    """The idempotency key of the cancel a Steer requests for its own input."""
+    return f"steer:{input_id}"
 
 
 class SessionCommandsService:
@@ -592,6 +610,29 @@ class SessionCommandsService:
             await self._deliver(command)
         return CancelAdmission(
             command=command, execution_id=target_turn_id, accepted=True
+        )
+
+    async def cancelled_by_steer(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> bool:
+        """True when a Steer, not a Stop, cancelled this execution.
+
+        A Steer that bound to a Stop already open keeps that Stop's key, so the turn still reads
+        as stopped by the user."""
+        command = await self._dao.fetch_turn_cancel(
+            project_id=project_id,
+            session_id=session_id,
+            target_turn_id=execution_id,
+        )
+        steer_input_id = ((command.data or {}) if command else {}).get("steer_input_id")
+        return (
+            command is not None
+            and steer_input_id is not None
+            and command.idempotency_key == steer_cancel_key(steer_input_id)
         )
 
     async def respond_interaction(
@@ -1838,9 +1879,18 @@ class SessionCommandsService:
         execution_id: str,
         settled_at: datetime,
         transaction: Optional[Any] = None,
-    ) -> bool:
+    ) -> LostExecutionSettlement:
         if self._executions is None:
-            return True
+            return LostExecutionSettlement(settled=True)
+        if transaction is None:
+            async with self._dao.transaction() as transaction:
+                return await self.settle_execution_lost(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=execution_id,
+                    settled_at=settled_at,
+                    transaction=transaction,
+                )
         execution = await self._executions.fetch_execution(
             project_id=project_id,
             session_id=session_id,
@@ -1873,11 +1923,18 @@ class SessionCommandsService:
                 ],
             )
             if recovered is not None:
-                return False
+                return LostExecutionSettlement(settled=False)
             # A recoverable continuation deliberately receives no watchdog terminal record.
             # Its next delivery resumes the same logical execution. A concurrent terminal
             # winner likewise already owns the ending, so neither race permits a lost record.
-            return False
+            return LostExecutionSettlement(settled=False)
+        # Read under the row lock, so a Stop that commits first is seen.
+        locked = await self._executions.lock_for_control(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            transaction=transaction,
+        )
         result = await self._executions.settle(
             project_id=project_id,
             session_id=session_id,
@@ -1887,11 +1944,40 @@ class SessionCommandsService:
             settled_at=settled_at,
             transaction=transaction,
         )
+        admission: Optional[InputContinuationAdmission] = None
+        # A Stop leaves the queue parked, as its own settlement does.
+        if result.won and locked.state != SessionExecutionState.stopping:
+            admission = await self._promote_next_input(
+                project_id=project_id,
+                session_id=session_id,
+                parent_execution_id=execution_id,
+                transaction=transaction,
+            )
         winner = result.settlement
-        return result.won or (
-            winner.terminal_outcome == SessionCommandOutcome.lost.value
-            and winner.settled_by == "watchdog"
+        return LostExecutionSettlement(
+            settled=result.won
+            or (
+                winner.terminal_outcome == SessionCommandOutcome.lost.value
+                and winner.settled_by == "watchdog"
+            ),
+            admission=admission,
         )
+
+    async def deliver_input_admission(
+        self, admission: InputContinuationAdmission
+    ) -> None:
+        try:
+            receipt = await self._deliver(admission.command)
+        except Exception as error:  # noqa: BLE001 - the promotion already committed
+            log.warning(
+                "promoted input delivery failed command=%s: %s",
+                admission.command.id,
+                error,
+            )
+            receipt = None
+        if receipt is None or receipt.status != "accepted":
+            if await self._mark_continuation_recoverable(admission, receipt):
+                admission.execution_state = SessionExecutionState.recoverable
 
     async def settle_execution_ended(
         self,
@@ -1933,10 +2019,7 @@ class SessionCommandsService:
                 session_id=session_id,
                 execution_id=execution_id,
             )
-            receipt = await self._deliver(admission.command)
-            if receipt is None or receipt.status != "accepted":
-                await self._mark_continuation_recoverable(admission, receipt)
-                admission.execution_state = SessionExecutionState.recoverable
+            await self.deliver_input_admission(admission)
         # A failed ending deferred to a Stop is reconciled too: the Stop command settles it.
         deferred_to_stop = (
             terminal_outcome == "failed"

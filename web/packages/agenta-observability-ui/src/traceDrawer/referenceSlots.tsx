@@ -1,5 +1,8 @@
 import type {ComponentType, ReactNode} from "react"
 
+import type {SimpleQueue} from "@agenta/entities/simpleQueue"
+import dynamic from "next/dynamic"
+
 /**
  * Host slots for the reference labels the trace drawer renders.
  *
@@ -25,6 +28,21 @@ export type DrillInViewProps = Record<string, unknown>
 /** Props the drawer passes to a slotted action button. */
 export type ActionSlotProps = Record<string, unknown>
 
+/** Props every add-to-queue picker takes: the trigger is `children`, the picker opens beside it. */
+export interface AddToQueuePopoverSlotProps {
+    itemType: "traces" | "testcases"
+    /** Item ids for the default add path. Omit when `onQueueSelected` is set. */
+    itemIds?: string[]
+    children: ReactNode
+    disabled?: boolean
+    onItemsAdded?: () => void
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    toggleOnTriggerClick?: boolean
+    /** Picker mode: the caller owns the add, so picking a queue only reports it. */
+    onQueueSelected?: (queue: SimpleQueue) => void
+}
+
 export interface TraceDrawerReferenceSlots {
     ApplicationReferenceLabel: ComponentType<ReferenceLabelProps>
     EnvironmentReferenceLabel: ComponentType<ReferenceLabelProps>
@@ -47,6 +65,22 @@ export interface TraceDrawerReferenceSlots {
     AnnotateDrawerButton: ComponentType<ActionSlotProps>
 }
 
+/**
+ * Slots the drawer takes beyond the reference labels and sibling-drawer actions. Kept out of
+ * `TraceDrawerReferenceSlots` so a host that types its registrations against that interface
+ * (`TraceDrawerReferenceSlots[keyof TraceDrawerReferenceSlots]`) is not forced to widen them.
+ */
+export interface TraceDrawerPickerSlots {
+    /**
+     * The "add to annotation queue" picker. The default is the antd popover, loaded on first
+     * render only. A host that cannot ship antd (`/m`) registers its own picker, and its bundle
+     * then never requests the antd chunk.
+     */
+    AddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps>
+}
+
+export type TraceDrawerSlots = TraceDrawerReferenceSlots & TraceDrawerPickerSlots
+
 /** Renders the label text alone — enough to read the reference, with no lookup behaviour. */
 const PlainReference: ComponentType<ReferenceLabelProps> = ({label}) => (
     <span className="text-colorText">{label ?? "—"}</span>
@@ -55,11 +89,17 @@ const PlainReference: ComponentType<ReferenceLabelProps> = ({label}) => (
 /** Renders nothing — an unregistered action is absent, not broken. */
 const NoSlot: ComponentType<ActionSlotProps> = () => null
 
-const slots: TraceDrawerReferenceSlots = {
+const DefaultAddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps> = dynamic(
+    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
+    {ssr: false},
+)
+
+const slots: TraceDrawerSlots = {
     TraceSpanDrillInView: NoSlot,
     PrettyJsonView: NoSlot,
     AddToTestsetButton: NoSlot,
     AnnotateDrawerButton: NoSlot,
+    AddToQueuePopover: DefaultAddToQueuePopover,
     ApplicationReferenceLabel: PlainReference,
     EnvironmentReferenceLabel: PlainReference,
     EvaluatorReferenceLabel: PlainReference,
@@ -74,9 +114,9 @@ const slots: TraceDrawerReferenceSlots = {
  * @example
  * configureTraceDrawerReferences({ApplicationReferenceLabel, TestsetTag, ...})
  */
-export const configureTraceDrawerReferences = (next: Partial<TraceDrawerReferenceSlots>) => {
+export const configureTraceDrawerReferences = (next: Partial<TraceDrawerSlots>) => {
     Object.assign(slots, next)
 }
 
 /** The registered slots. Read at render time so a late registration still takes effect. */
-export const getTraceDrawerReferences = (): TraceDrawerReferenceSlots => slots
+export const getTraceDrawerReferences = (): TraceDrawerSlots => slots

@@ -145,7 +145,7 @@ class _World:
             self.principals.human(user)
         self.access = AccessService(
             memberships=self.world.service._memberships,
-            rbac=RecordingRbac(enforced=True),
+            rbac_entitlement=RecordingRbac(entitled=True),
             principals=self.principals,
             resource_policy=self.world.service,
         )
@@ -457,6 +457,40 @@ async def test_owner_reads_agent_sharing_with_disclosure(world):
     assert body["sharing"]["policy"]["visibility"] == "private"
     assert body["disclosure"]["connections"] == [
         {"provider": "composio", "integration": "github", "connection": "team-github"}
+    ]
+
+
+async def test_sharing_an_agent_with_a_personal_tool_names_it_without_a_slug(
+    world, monkeypatch
+):
+    """A "user" Gmail tool has no connection slug; the read used to fail with a 500."""
+    personal = {
+        "agent": {
+            "tools": [
+                {
+                    "type": "gateway_connection",
+                    "connection": {
+                        "provider": "composio",
+                        "integration": "gmail",
+                        "account_source": "user",
+                    },
+                }
+            ]
+        }
+    }
+
+    async def fetch_workflow_revision(*, project_id, workflow_ref, **_kwargs):
+        return SimpleNamespace(data=SimpleNamespace(parameters=personal))
+
+    monkeypatch.setattr(
+        world.workflows, "fetch_workflow_revision", fetch_workflow_revision
+    )
+    response = world.client(world.alice).get(
+        f"/workflows/{world.private_agent}/sharing"
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["disclosure"]["connections"] == [
+        {"provider": "composio", "integration": "gmail", "account_source": "user"}
     ]
 
 

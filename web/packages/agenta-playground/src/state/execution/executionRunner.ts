@@ -439,6 +439,8 @@ interface ExecuteStepForSessionParams {
     targetNodeId?: string
     /** Cached chain results from a previous run (used to resolve inputs for targeted execution) */
     cachedChainResults?: Record<string, ExecutionResult>
+    /** The run id the caller stored on its results, so a cancel of those results aborts this run */
+    runId?: string
 }
 
 export async function executeStepForSessionWithExecutionItems(
@@ -465,7 +467,7 @@ export async function executeStepForSessionWithExecutionItems(
         return
     }
 
-    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const runId = params.runId ?? `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const perSession = sessionOptions?.[session.id]
     const projectId = perSession?.projectId
     const rootExecutionHandle = createExecutionItemHandle({
@@ -857,6 +859,9 @@ export async function executeStepForSessionWithExecutionItems(
                             ...(perSession2?.headers ?? {}),
                         },
                         abortSignal: abortController.signal,
+                        // Read the response like the first run, so every repeat has one shape.
+                        normalizeResponse: (responseData) =>
+                            normalizeWorkflowResponse(responseData),
                     })
 
                     repetitions.push({

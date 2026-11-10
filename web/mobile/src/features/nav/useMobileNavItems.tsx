@@ -1,8 +1,10 @@
 import {createElement, useCallback, useMemo, type ReactNode} from "react"
 
+import {promptWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
+    buildInviteTeammateNavItem,
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
@@ -28,12 +30,11 @@ import {
     useSessionRowChrome,
     type SessionActionTarget,
 } from "@agenta/sessions-ui"
-import {userAtom} from "@agenta/shared/state"
+import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
 import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
-    ChartLineUpIcon,
     ChatsCircleIcon,
     CircleIcon,
     GearIcon,
@@ -42,6 +43,7 @@ import {
     HouseIcon,
     KeyboardIcon,
     LightningIcon,
+    PaperPlaneIcon,
     QuestionIcon,
     RobotIcon,
     ScrollIcon,
@@ -56,10 +58,14 @@ import {agentEntryHref} from "@/features/agents/agentEntry"
 import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
+import {useEnabledDeveloperViews} from "@/features/developer/developerViewAccess"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
+
+import {useProjectPermission} from "../context/useProjectPermission"
 
 import {AgentsNavAction} from "./AgentsNavAction"
 import {AgentsQuickPanel} from "./AgentsQuickPanel"
+import {developerNavSlots, PROMPTS_ROW_KEY} from "./developerNavSlots"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
@@ -69,9 +75,6 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
 /** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
 const PALETTE_SHORTCUT_ID = "palette.open"
-
-/** Flip to show the Observability rail entry again — the screen and its route are untouched. */
-const SHOW_OBSERVABILITY = false
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -145,6 +148,24 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
 )
 
 /**
+ * The prompt apps under the beta developer mode Prompts row, as in the old app. The list loads
+ * only while the row is open.
+ */
+export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
+    MOBILE_NAV_SCOPE_ID,
+    PROMPTS_ROW_KEY,
+    {
+        kind: "app",
+        icon: createElement(SquaresFourIcon, {size: 14}),
+        listAtom: promptWorkflowsListQueryStateAtom,
+        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled prompt",
+        childPath: (workflow) => `/apps/${workflow.id}/playground`,
+        emptyLabel: "No prompts",
+        showAllPath: "/prompts",
+    },
+)
+
+/**
  * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
  * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
  * forking a component.
@@ -172,6 +193,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 sessionName: target.name ?? "",
                 workspaceId,
                 projectId,
+                agentId: target.appId,
             })
         },
         [openShare, projectURL],
@@ -200,6 +222,8 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
             : undefined
     }, [mac])
+    const developerViews = useEnabledDeveloperViews()
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     const wrapSessionRow = useCallback(
         (ref: SidebarEntityRef, node: ReactNode) =>
             createElement(SessionRowActions, {
@@ -210,6 +234,20 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         [chrome],
     )
 
+    const promptsSource = useAtomValue(mobilePromptsEntity.activeSourceAtom)
+    const developerSlots = useMemo(
+        () =>
+            developerNavSlots(
+                projectURL,
+                developerViews,
+                developerMode,
+                developerMode
+                    ? resolveChildren(mobilePromptsEntity, promptsSource, projectURL)
+                    : [],
+            ),
+        [developerMode, developerViews, projectURL, promptsSource],
+    )
+
     return useMemo(
         () => [
             {
@@ -218,6 +256,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
+            ...developerSlots.afterHome,
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: "Agents",
@@ -280,19 +319,9 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                     wrapSessionRow,
                 ),
             },
-            // Observability is hidden from the rail for now; the screen and its route still work.
-            ...(SHOW_OBSERVABILITY
-                ? [
-                      {
-                          key: "mobile-observability",
-                          title: "Observability",
-                          icon: createElement(ChartLineUpIcon, {size: 16}),
-                          link: `${projectURL}/observability`,
-                      },
-                  ]
-                : []),
+            ...developerSlots.afterSessions,
         ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut],
+        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut, developerSlots],
     )
 }
 
@@ -302,13 +331,32 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** The pinned bottom entries: Templates and Settings, both dropped inside the settings scope. */
+/** Templates and Settings (not in the settings scope), plus Invite Teammate in beta developer mode. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
 ): SidebarConfig[] => {
     const version = useMobileVersion()
-    return useMemo(
+    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    // No project id, no permission request: outside beta developer mode nothing is asked.
+    const [, , , , projectId = ""] = projectURL.split("/")
+    const canInvite = useProjectPermission(
+        developerMode ? projectId : "",
+        "add_new_user_to_workspace",
+    )
+    const inviteItems = useMemo(
+        () =>
+            developerMode && canInvite
+                ? [
+                      buildInviteTeammateNavItem({
+                          projectURL,
+                          icon: createElement(PaperPlaneIcon, {size: 16}),
+                      }),
+                  ]
+                : [],
+        [canInvite, developerMode, projectURL],
+    )
+    const items = useMemo(
         () =>
             // The settings scope drops them: the rail IS settings there.
             includeSettingsLink
@@ -335,6 +383,10 @@ export const useMobileBottomNavItems = (
                   ]
                 : [],
         [includeSettingsLink, projectURL, version],
+    )
+    return useMemo(
+        () => (inviteItems.length ? [...items, ...inviteItems] : items),
+        [inviteItems, items],
     )
 }
 

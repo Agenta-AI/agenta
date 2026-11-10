@@ -18,6 +18,8 @@ export interface SidebarConfig {
     title: string
     tooltip?: string
     link?: string
+    /** Next's `<Link prefetch>` for this row. Unset keeps Next's default. */
+    prefetch?: boolean
     icon?: ReactNode
     isHidden?: boolean
     submenu?: SidebarConfig[]

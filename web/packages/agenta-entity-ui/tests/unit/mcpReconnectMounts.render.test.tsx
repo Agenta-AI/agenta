@@ -98,6 +98,11 @@ vi.mock("@agenta/entities/secret", () => ({
     SecretKind: {ProviderKey: "provider_key"},
 }))
 
+// The server's needs-setup answer is not what these files test: no requirements.
+vi.mock("../../src/DrillInView/SchemaControls/agentTemplate/useAgentRequirements", () => ({
+    useAgentRequirements: () => null,
+}))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: () => ({data: endpoints}),

@@ -1,5 +1,8 @@
+import {isBetaDeveloperModeEnabled} from "@agenta/shared/api"
+import {clearClassicModeCookie, mobileEscapeHref} from "@agenta/shared/hooks"
 import {
     agentaChannelSurfaceEnabledAtom,
+    betaDeveloperModeFlagAtom,
     channelDebugEnabledAtom,
     classicModeEnabledAtom,
     playgroundInspectorEnabledAtom,
@@ -13,6 +16,7 @@ import {ThemePicker, type ThemePickerProps} from "./ThemePicker"
 /** One switch on the Preferences page. The key names the row, not its storage. */
 export type PreferenceKey =
     | "classic-mode"
+    | "beta-developer-mode"
     | "playground-inspector"
     | "channel-debug"
     | "agenta-channel-surface"
@@ -31,8 +35,8 @@ export interface PreferenceSection {
 }
 
 /**
- * The page's sections, rows and copy. Defined once so `/w` and `/m` cannot drift: a host only
- * decides how each row is bound, never what it says or where it sits.
+ * The page's sections, rows and copy. Defined once so `/w` and `/m` cannot drift: a host decides
+ * how each row is bound, and may add rows of its own through `hostItems`.
  */
 export const PREFERENCE_SECTIONS: PreferenceSection[] = [
     {
@@ -43,6 +47,12 @@ export const PREFERENCE_SECTIONS: PreferenceSection[] = [
                 key: "classic-mode",
                 title: "Developer Mode",
                 description: "Show Evaluation, Prompt Management, and Tracing in the navigation.",
+            },
+            {
+                key: "beta-developer-mode",
+                title: "Use new beta developer mode",
+                description:
+                    "Developer Mode stays in the new app and shows the Developer section, instead of opening the classic app.",
             },
         ],
     },
@@ -77,12 +87,25 @@ export interface PreferenceBinding {
 
 export type PreferenceBindings = Partial<Record<PreferenceKey, PreferenceBinding>>
 
+/** Bound only while Developer Mode is on; every other row is always bound. */
+type ConditionalPreferenceKey = "beta-developer-mode"
+
 /**
  * Every row bound to its shared atom. A host replaces a binding only where its behavior differs
  * (`/m`'s Developer Mode switch also navigates to the desktop app).
+ *
+ * The beta developer mode row is bound only while Developer Mode is on and the deployment offers
+ * it (`AGENTA_BETA_DEVELOPER_MODE`). Its default binding is the desktop's: turning it on sends the
+ * user to `/m`, where Developer Mode then stays. Turning it off keeps Developer Mode on as an
+ * explicit choice, so the gate cookie says "1" again.
  */
-export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding> => {
+export const usePreferenceBindings = (): Record<
+    Exclude<PreferenceKey, ConditionalPreferenceKey>,
+    PreferenceBinding
+> &
+    PreferenceBindings => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
+    const [betaDeveloperMode, setBetaDeveloperMode] = useAtom(betaDeveloperModeFlagAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
     const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
     const [channelProbe, setChannelProbe] = useAtom(agentaChannelSurfaceEnabledAtom)
@@ -92,13 +115,44 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
         "playground-inspector": {enabled: inspector, onChange: setInspector},
         "channel-debug": {enabled: channelDebug, onChange: setChannelDebug},
         "agenta-channel-surface": {enabled: channelProbe, onChange: setChannelProbe},
+        ...(classicMode &&
+            isBetaDeveloperModeEnabled() && {
+                "beta-developer-mode": {
+                    enabled: betaDeveloperMode,
+                    onChange: (enabled: boolean) => {
+                        setBetaDeveloperMode(enabled)
+                        if (!enabled) {
+                            setClassicMode(true)
+                            return
+                        }
+                        // Withdraw the "1" before leaving: the sync effect would not run before the
+                        // document unloads, and `/m`'s gate would send the user straight back.
+                        clearClassicModeCookie()
+                        window.location.replace(mobileEscapeHref())
+                    },
+                },
+            }),
     }
+}
+
+/**
+ * A row only one host shows, placed after the shared rows of a {@link PREFERENCE_SECTIONS}
+ * section. `/m` lists its developer views in preview this way; `/w` passes none.
+ */
+export interface HostPreferenceItem {
+    /** The `key` of the section it joins. */
+    section: string
+    key: string
+    title: string
+    description: string
+    binding: PreferenceBinding
 }
 
 export interface PreferencesPageProps {
     theme: ThemePickerProps
     /** Rows without a binding are not rendered; a section left empty is dropped. */
     bindings?: PreferenceBindings
+    hostItems?: readonly HostPreferenceItem[]
 }
 
 /**
@@ -107,17 +161,22 @@ export interface PreferencesPageProps {
  * Theme is a per-viewer choice both apps show the same way; the switches share storage across
  * apps, so a choice made in `/m` holds on the desktop and the other way round.
  */
-export const PreferencesPage = ({theme, bindings = {}}: PreferencesPageProps) => (
+export const PreferencesPage = ({theme, bindings = {}, hostItems = []}: PreferencesPageProps) => (
     <div className="flex flex-col gap-8">
         <SettingsSection title="Appearance" framed={false}>
             <ThemePicker {...theme} />
         </SettingsSection>
 
         {PREFERENCE_SECTIONS.map((section) => {
-            const rows = section.items.flatMap((item) => {
-                const binding = bindings[item.key]
-                return binding ? [{item, binding}] : []
-            })
+            const rows = [
+                ...section.items.flatMap((item) => {
+                    const binding = bindings[item.key]
+                    return binding ? [{item, binding}] : []
+                }),
+                ...hostItems
+                    .filter((item) => item.section === section.key)
+                    .map((item) => ({item, binding: item.binding})),
+            ]
             if (rows.length === 0) return null
             return (
                 <SettingsSection

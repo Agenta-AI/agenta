@@ -1,6 +1,7 @@
 from typing import Any, Callable, Optional, Dict
 from os import getenv
 from json import dumps
+from uuid import UUID
 
 import httpx
 
@@ -13,6 +14,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import display_exception
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
+from agenta.sdk.agents.accounts import read_user_items
 
 import agenta as ag
 
@@ -124,6 +126,50 @@ def _structured_denial(response) -> Optional[Dict[str, Any]]:
     return None
 
 
+async def _run_accounts_params(request: Request) -> Dict[str, Any]:
+    """The agent and the "user" item keys of the configuration a turn runs, read from the
+    request body (`data.parameters`, and the agent from `references`). Empty when the
+    configuration has no "user" items, or the body is not a turn."""
+    # Only a turn (`.../invoke`) with a JSON body carries an agent configuration.
+    url = getattr(request, "url", None)
+    if getattr(request, "method", None) != "POST" or not str(
+        getattr(url, "path", "")
+    ).endswith("/invoke"):
+        return {}
+    if "json" not in (request.headers.get("content-type") or ""):
+        return {}
+    try:
+        body = await request.json()
+    except Exception:  # pylint: disable=broad-except
+        return {}
+    if not isinstance(body, dict):
+        return {}
+    data = body.get("data")
+    parameters = data.get("parameters") if isinstance(data, dict) else None
+    items = read_user_items(parameters if isinstance(parameters, dict) else None)
+    references = body.get("references")
+    workflow_id = None
+    if isinstance(references, dict):
+        # The artifact keys the API reads for a run's agent, in its order.
+        for family in ("workflow", "application"):
+            reference = references.get(family)
+            raw = reference.get("id") if isinstance(reference, dict) else None
+            try:
+                workflow_id = str(UUID(str(raw))) if raw else None
+            except ValueError:
+                workflow_id = None
+            if workflow_id:
+                break
+    if not items:
+        return {}
+    # Without a saved agent there are no account choices; defaults and sign-ins still
+    # resolve, so the keys go either way.
+    params: Dict[str, Any] = {"item_keys": [item.item_key for item in items]}
+    if workflow_id:
+        params["workflow_id"] = workflow_id
+    return params
+
+
 async def get_credentials(
     request: Request,
     host: str,
@@ -185,6 +231,9 @@ async def get_credentials(
         if scope_type and scope_id:
             params["scope_type"] = scope_type
             params["scope_id"] = scope_id
+        ## ACCOUNTS: the "user" items of the configuration this turn runs, so the
+        ## credential carries the run person's accounts for them (no keys, no read).
+        params.update(await _run_accounts_params(request))
         ## ACTION
         params["action"] = "run_service"
         ## RESOURCE
@@ -199,7 +248,12 @@ async def get_credentials(
             sort_keys=True,
         )
 
-        if _CACHE_ENABLED:
+        # A turn with "user" items is never answered from the cache: its credential
+        # carries the person's accounts as they are now, so an account set up a moment
+        # ago is in the next turn.
+        cacheable = _CACHE_ENABLED and "item_keys" not in params
+
+        if cacheable:
             credentials = _cache.get(_hash)
 
             if credentials:
@@ -295,7 +349,8 @@ async def get_credentials(
 
                 credentials = auth.get("credentials")
 
-                _cache.put(_hash, credentials)
+                if cacheable:
+                    _cache.put(_hash, credentials)
 
                 return credentials
 

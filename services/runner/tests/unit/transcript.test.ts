@@ -7,8 +7,10 @@ import {
   TOOL_RESULT_RENDER_MAX_CHARS,
 } from "../../src/engines/sandbox_agent/transcript.ts";
 import type { AgentRunRequest, ContentBlock } from "../../src/protocol.ts";
+import { isWellFormed } from "../utils/well-formed.ts";
 import {
   APPROVED_EXECUTION_RESULT_UNKNOWN,
+  DEFERRED_NOT_EXECUTED_PREFIX,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
 
@@ -156,6 +158,18 @@ describe("tool result render cap", () => {
     assert.match(transcript, /\[\.\.\. 500 chars omitted\]/);
   });
 
+  it("does not split a character that straddles the cap", () => {
+    // The pair sits at code units 3999-4000, the real case that broke a session: the
+    // lone high half became `\ud835` in the ACP body and the daemon rejected it.
+    const body = `${"x".repeat(TOOL_RESULT_RENDER_MAX_CHARS - 1)}𝗰${"y".repeat(500)}`;
+    const transcript = messageTranscript([
+      { type: "tool_result", toolName: OTHER_TOOL, output: body },
+    ]);
+
+    assert.ok(isWellFormed(transcript));
+    assert.match(transcript, /\[\.\.\. 502 chars omitted\]/);
+  });
+
   it("keeps a small tool RESULT body whole, no marker", () => {
     const transcript = messageTranscript([
       { type: "tool_result", toolName: OTHER_TOOL, output: { ok: true } },
@@ -217,6 +231,33 @@ describe("buildTurnText history window", () => {
       assert.match(logs[0], /pendingNudge=false/);
       assert.match(logs[0], /resumeFrame=none/);
       assert.match(logs[0], /turnText \d+ chars/);
+    } finally {
+      restoreEnv();
+    }
+  });
+
+  it("does not split a character that straddles the window start", () => {
+    process.env.AGENTA_AGENT_HISTORY_MAX_CHARS = "1000";
+    try {
+      const logs: string[] = [];
+      // The second message renders as "assistant: " + body, so the window starts at the low
+      // half of the "𝗰" pair placed 999 code units before the end of the transcript.
+      const body = `${"a".repeat(2000)}𝗰${"b".repeat(999)}`;
+      const text = buildTurnText(
+        {
+          messages: [
+            { role: "user", content: "old goal" },
+            { role: "assistant", content: body },
+            { role: "user", content: "continue" },
+          ],
+        },
+        (msg) => logs.push(msg),
+      );
+
+      assert.ok(isWellFormed(text));
+      assert.ok(!text.includes("𝗰"), "the split character is dropped whole");
+      assert.match(logs[0], /transcript \d+->999 chars/);
+      assert.match(logs[0], /evicted 1\/2 messages/);
     } finally {
       restoreEnv();
     }
@@ -496,6 +537,342 @@ describe("buildTurnText approval transcript hints", () => {
       transcript,
       /DENIED mcp__agenta-tools__commit_revision; executed below/,
     );
+  });
+
+  it("keeps all distinct parallel tool approvals pending when inputs differ (#7951)", () => {
+    const paths = Array.from({ length: 14 }, (_, i) => `src/file_${i}.ts`);
+    const content: ContentBlock[] = [];
+    for (let i = 0; i < paths.length; i++) {
+      content.push({
+        type: "tool_call",
+        toolCallId: `call-${i}`,
+        toolName: "read_file",
+        input: { path: paths[i] },
+      });
+      content.push({
+        type: "tool_result",
+        toolCallId: `call-${i}`,
+        toolName: "read_file",
+        output: { approved: true },
+      });
+    }
+
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content,
+      },
+    ]);
+
+    const callsToRun = transcript.match(/Call the tool again/g) ?? [];
+    assert.equal(callsToRun.length, 14);
+    assert.doesNotMatch(transcript, /approved read_file earlier/);
+    assert.doesNotMatch(transcript, /executed below/);
+  });
+
+  it("settles only the executed call when one of multiple parallel approvals completes (#7951)", () => {
+    const paths = ["src/a.ts", "src/b.ts", "src/c.ts"];
+    const content: ContentBlock[] = [];
+    for (let i = 0; i < paths.length; i++) {
+      content.push({
+        type: "tool_call",
+        toolCallId: `call-${i}`,
+        toolName: "read_file",
+        input: { path: paths[i] },
+      });
+      content.push({
+        type: "tool_result",
+        toolCallId: `call-${i}`,
+        toolName: "read_file",
+        output: { approved: true },
+      });
+    }
+
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content,
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-exec-1",
+            toolName: "read_file",
+            input: { path: "src/b.ts" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-1",
+            toolName: "read_file",
+            output: { content: "export const b = 2;" },
+          },
+        ],
+      },
+    ]);
+
+    const callsToRun = transcript.match(/Call the tool again/g) ?? [];
+    assert.equal(callsToRun.length, 2);
+    const executed = transcript.match(/executed below/g) ?? [];
+    assert.equal(executed.length, 1);
+  });
+
+  it("does not treat a pause terminalization sentinel as an execution result (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            input: { name: "draft" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: `${DEFERRED_NOT_EXECUTED_PREFIX} turn paused`,
+          },
+        ],
+      },
+    ]);
+
+    assert.doesNotMatch(transcript, /executed below/);
+    assert.match(transcript, /Call the tool again/);
+  });
+
+  it("treats APPROVED_EXECUTION_RESULT_UNKNOWN as settling its approved call without prompting retry (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            input: { name: "draft" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: APPROVED_EXECUTION_RESULT_UNKNOWN,
+          },
+        ],
+      },
+    ]);
+
+    assert.match(transcript, /executed below/);
+    assert.doesNotMatch(transcript, /Call the tool again/);
+    assert.match(transcript, /may have already run/);
+    assert.match(transcript, /do NOT retry a side-effecting call/i);
+  });
+
+  it("settles at most one approval in order when multiple identical calls are approved (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: "read_file",
+            input: { path: "duplicate.txt" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: "read_file",
+            output: { approved: true },
+          },
+          {
+            type: "tool_call",
+            toolCallId: "call-2",
+            toolName: "read_file",
+            input: { path: "duplicate.txt" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-2",
+            toolName: "read_file",
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: "read_file",
+            output: { content: "content line" },
+          },
+        ],
+      },
+    ]);
+
+    const callsToRun = transcript.match(/Call the tool again/g) ?? [];
+    assert.equal(callsToRun.length, 1);
+    const executed = transcript.match(/executed below/g) ?? [];
+    assert.equal(executed.length, 1);
+  });
+
+  it("settles an approved no-argument call executed under a new call id (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_call", toolCallId: "call-1", toolName: "list_tasks" },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: "list_tasks",
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-exec-1",
+            toolName: "list_tasks",
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-1",
+            toolName: "list_tasks",
+            output: { tasks: [] },
+          },
+        ],
+      },
+    ]);
+
+    assert.match(transcript, /executed below/);
+    assert.doesNotMatch(transcript, /Call the tool again/);
+  });
+
+  it("settles an approval by tool name when the execution has no recorded call (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            input: { name: "draft" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: COMMIT_TOOL,
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-1",
+            toolName: COMMIT_TOOL,
+            output: { ok: true },
+          },
+        ],
+      },
+    ]);
+
+    assert.match(transcript, /executed below/);
+    assert.doesNotMatch(transcript, /Call the tool again/);
+  });
+
+  it("does not let a name-only match take the result a keyed approval needs (#7951)", () => {
+    const transcript = turnTextFor([
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-a",
+            toolName: "read_file",
+            input: { path: "src/a.ts" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-a",
+            toolName: "read_file",
+            output: { approved: true },
+          },
+          {
+            type: "tool_call",
+            toolCallId: "call-b",
+            toolName: "read_file",
+            input: { path: "src/b.ts" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-b",
+            toolName: "read_file",
+            output: { approved: true },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-b",
+            toolName: "read_file",
+            output: { content: "b" },
+          },
+          {
+            type: "tool_call",
+            toolCallId: "call-exec-a",
+            toolName: "read_file",
+            input: { path: "src/a.ts" },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-exec-a",
+            toolName: "read_file",
+            output: { content: "a" },
+          },
+        ],
+      },
+    ]);
+
+    const executed = transcript.match(/executed below/g) ?? [];
+    assert.equal(executed.length, 2);
+    assert.doesNotMatch(transcript, /Call the tool again/);
   });
 
   it("keeps preflight tolerant of unverified attachment display fields", () => {
