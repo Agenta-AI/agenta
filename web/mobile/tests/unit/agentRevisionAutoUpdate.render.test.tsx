@@ -37,7 +37,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     const agent = atom(true)
     return {
         dirtyAtom,
-        invalidateAgentCommittedRevisionCache: () => undefined,
+        revalidateAgentRevisionReads: () => undefined,
         workflowMolecule: {selectors: {data, isDirty: () => dirtyAtom, isAgent: () => agent}},
     }
 })
