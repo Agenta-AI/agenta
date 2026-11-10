@@ -58,6 +58,8 @@ def signing_key(monkeypatch) -> Ed25519PrivateKey:
 def self_hosted(monkeypatch):
     monkeypatch.setattr(env.stripe, "api_key", None)
     monkeypatch.setattr(env.license, "key", None)
+    # A reachable Redis would carry one test's state into the next.
+    monkeypatch.setattr(env.agenta.api.caching, "enabled", False)
 
 
 @pytest.fixture
