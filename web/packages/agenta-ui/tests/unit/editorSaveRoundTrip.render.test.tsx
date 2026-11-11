@@ -33,15 +33,17 @@ const mount = async (id: string, markdown: string, loadedText: string) => {
     return {container, editor, onChange}
 }
 
-// Types `typed` in place of the text "X", saves, and loads the saved prompt into a fresh editor.
-const typeAndReload = async (markdown: string, typed: string) => {
-    const {editor, onChange} = await mount("typed", markdown, "X")
+const $findX = () =>
+    $getRoot()
+        .getAllTextNodes()
+        .find((node) => node.getTextContent().trim() === "X")
+
+// Edits a loaded prompt, saves it, and loads the saved prompt into a fresh editor.
+const saveAndReload = async (markdown: string, loadedText: string, $edit: () => void) => {
+    const {editor, onChange} = await mount("edited", markdown, loadedText)
     await act(async () => {
         editor.update(() => {
-            $getRoot()
-                .getAllTextNodes()
-                .find((node) => node.getTextContent().trim() === "X")
-                ?.setTextContent(typed)
+            $edit()
             $getRoot().append($createParagraphNode().append($createTextNode("Edited.")))
         })
     })
@@ -55,6 +57,9 @@ const typeAndReload = async (markdown: string, typed: string) => {
         cells: [...container.querySelectorAll("td, th")].map((cell) => cell.textContent?.trim()),
     }
 }
+
+const typeAndReload = (markdown: string, typed: string) =>
+    saveAndReload(markdown, "X", () => $findX()?.setTextContent(typed))
 
 const TABLE = "| Name | Value |\n| --- | --- |\n| Typed | X |\n"
 const JSON_WITH_QUOTES = '{"reply": "say \\"hi\\""}'
@@ -73,6 +78,18 @@ describe("text typed in the rich-text editor survives a save and reload", () => 
     it("keeps a pipe in a table cell", async () => {
         expect((await typeAndReload(TABLE, "a | b")).cells).toContain("a | b")
     })
+
+    it.each(["a|b", "a\\|b", "a\\nb"])(
+        "keeps inline code %s in a table cell across saves",
+        async (code) => {
+            const first = await saveAndReload(TABLE, "X", () => {
+                $findX()?.setTextContent(code).setFormat("code")
+            })
+            expect(first.cells).toContain(code)
+            cleanup()
+            expect((await saveAndReload(first.saved, "Edited.", () => {})).cells).toContain(code)
+        },
+    )
 
     it("keeps the backslashes in a code block", async () => {
         const {saved} = await typeAndReload(`\`\`\`json\n${JSON_WITH_QUOTES}\n\`\`\`\n\nX\n`, "Y")

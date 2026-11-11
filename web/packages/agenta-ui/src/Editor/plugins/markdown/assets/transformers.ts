@@ -99,8 +99,15 @@ export const TABLE: ElementTransformer = {
                 if ($isTableCellNode(cell)) {
                     rowOutput.push(
                         $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, cell)
-                            .replace(/\n/g, "\\n")
-                            .replace(/\|/g, "\\|")
+                            // Double each backslash run before "n", a line break or "|", then escape the last two.
+                            .replace(
+                                /(\\*)(n|\n|\|)/g,
+                                (_, backslashes: string, char: string) =>
+                                    backslashes +
+                                    backslashes +
+                                    (char === "n" ? "" : "\\") +
+                                    (char === "\n" ? "n" : char),
+                            )
                             .trim(),
                     )
                     if (cell.__headerState === TableCellHeaderStates.ROW) {
@@ -223,9 +230,14 @@ function getTableColumnsSize(table: TableNode) {
     return $isTableRowNode(row) ? row.getChildrenSize() : 0
 }
 
-// A "\n" or "|" counts only after an even number of backslashes, so a cell can escape both.
+// Halve each backslash run before "n" or "|"; an odd run before "n" was a line break.
 const $createTableCell = (textContent: string): TableCellNode => {
-    textContent = textContent.replace(/(?<=(?<!\\)(?:\\\\)*)\\n/g, "\n")
+    textContent = textContent.replace(
+        /(\\*)(n|\|)/g,
+        (_, backslashes: string, char: string) =>
+            "\\".repeat(Math.floor(backslashes.length / 2)) +
+            (char === "n" && backslashes.length % 2 === 1 ? "\n" : char),
+    )
     const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS)
     $convertFromMarkdownString(textContent, PLAYGROUND_TRANSFORMERS, cell)
     return cell
@@ -236,6 +248,7 @@ const mapToTableCells = (textContent: string): TableCellNode[] | null => {
     if (!match || !match[1]) {
         return null
     }
+    // A "|" after an odd backslash run belongs to the cell, so rows split only after an even one.
     return match[1].split(/(?<=(?<!\\)(?:\\\\)*)\|/).map((text) => $createTableCell(text))
 }
 
