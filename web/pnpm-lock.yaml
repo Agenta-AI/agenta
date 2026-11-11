@@ -37,7 +37,7 @@ overrides:
   next@<15.5.24: '>=15.5.24 <16.0.0'
   vite: 8.1.6
   postcss-selector-parser@<7.1.6: 7.1.6
-  qs@>=6 <6.16.0: 6.16.0
+  qs@>=6 <6.16.1: 6.16.1
   fflate@>=0.4.5 <0.4.9: 0.4.9
   '@opentelemetry/core@>=2 <2.8.0': 2.8.0
   '@ai-sdk/provider-utils@4.0.0-beta.47': 4.0.33
@@ -11159,8 +11159,8 @@ packages:
   qr.js@0.0.0:
     resolution: {integrity: sha512-c4iYnWb+k2E+vYpRimHqSu575b1/wKl4XFeJGpFmrJQz5I88v9aY2czh7s0w36srfCM1sXgC/xpoJz5dJfq+OQ==}
 
-  qs@6.16.0:
-    resolution: {integrity: sha512-h6fhOIaRrID2CbEY2fqs+7t+UXZo+MLAnU5gRIq85uFtdiUPCdsApMlHhXogKVM4HM2DVbIjGNTTYH2OcmP1vA==}
+  qs@6.16.1:
+    resolution: {integrity: sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==}
     engines: {node: '>=0.6'}
 
   query-selector-shadow-dom@1.0.1:
@@ -22284,7 +22284,7 @@ snapshots:
 
   qr.js@0.0.0: {}
 
-  qs@6.16.0:
+  qs@6.16.1:
     dependencies:
       es-define-property: 1.0.1
       side-channel: 1.1.1
@@ -23969,7 +23969,7 @@ snapshots:
   url@0.11.4:
     dependencies:
       punycode: 1.4.1
-      qs: 6.16.0
+      qs: 6.16.1
 
   use-animation-frame@0.2.1(react@19.2.6):
     dependencies:
