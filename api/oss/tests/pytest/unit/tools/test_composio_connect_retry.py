@@ -7,6 +7,7 @@ the client can try again without repeating a write.
 """
 
 import json
+import re
 import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -34,7 +35,10 @@ _NO_AUTH_FACEBOOK = {
 
 
 class _Handler(BaseHTTPRequestHandler):
+    paths: List[str] = []
+
     def do_GET(self):
+        self.paths.append(self.path)
         body = json.dumps(_NO_AUTH_FACEBOOK).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -48,6 +52,7 @@ class _Handler(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def composio_url() -> Iterator[str]:
+    _Handler.paths = []
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -118,6 +123,38 @@ async def test_every_composio_client_survives_one_dns_failure(
     assert dns_fails_once == [_HOST, _HOST]
 
 
+@pytest.mark.asyncio
+async def test_composio_client_goes_through_the_env_proxy(composio_url, monkeypatch):
+    port = composio_url.split(":")[2].split("/")[0]
+    monkeypatch.setenv("HTTP_PROXY", f"http://127.0.0.1:{port}")
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    monkeypatch.delenv("no_proxy", raising=False)
+    adapter = ComposioConnectionsAdapter(api_key="k", api_url=composio_url)
+    try:
+        resp = await adapter._client.get(f"{adapter.api_url}/toolkits/facebook")
+    finally:
+        await adapter.close()
+
+    assert resp.json() == _NO_AUTH_FACEBOOK
+    assert _Handler.paths == [f"{composio_url}/toolkits/facebook"]
+
+
+@pytest.mark.asyncio
+async def test_composio_client_skips_the_proxy_for_no_proxy_hosts(
+    composio_url, dns_fails_once, monkeypatch
+):
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("NO_PROXY", _HOST)
+    adapter = ComposioConnectionsAdapter(api_key="k", api_url=composio_url)
+    try:
+        resp = await adapter._client.get(f"{adapter.api_url}/toolkits/facebook")
+    finally:
+        await adapter.close()
+
+    assert resp.json() == _NO_AUTH_FACEBOOK
+    assert _Handler.paths == ["/api/v3.1/toolkits/facebook"]
+
+
 def test_no_composio_adapter_builds_its_own_client():
     src = Path(__file__).resolve().parents[4] / "src"
     shared = src / "core/gateway/providers/composio/client.py"
@@ -125,5 +162,16 @@ def test_no_composio_adapter_builds_its_own_client():
         str(path.relative_to(src))
         for path in src.glob("**/providers/composio/*.py")
         if path != shared and "httpx.AsyncClient(" in path.read_text()
+    ]
+    assert offenders == []
+
+
+def test_no_composio_request_drops_the_connect_bound():
+    src = Path(__file__).resolve().parents[4] / "src"
+    offenders = [
+        f"{path.relative_to(src)}:{number}"
+        for path in src.glob("**/providers/composio/*.py")
+        for number, line in enumerate(path.read_text().splitlines(), 1)
+        if re.search(r"timeout=\d", line)
     ]
     assert offenders == []
