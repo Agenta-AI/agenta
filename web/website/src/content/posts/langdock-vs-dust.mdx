@@ -1,0 +1,243 @@
+---
+slug: "langdock-vs-dust"
+title: "Langdock vs Dust: Enterprise AI Workspace, Agents, and Pricing Compared (2026)"
+description: "An architectural and pricing comparison of Langdock and Dust across AI chat, multi-step agents, MCP connectors, EU compliance, self-hosting, and open-source alternatives."
+category: "Article"
+date: 2026-11-06
+readingTime: "16 min read"
+heroImage: "/blog/langdock-vs-dust/hero.webp"
+ogImage: "/blog/langdock-vs-dust/hero.webp"
+author: "mahmoud-mabrouk"
+featured: false
+tags:
+  - "AI agents"
+  - "AI coworkers"
+  - "comparisons"
+  - "open source"
+  - "enterprise AI"
+faq:
+  - question: "What is the main difference between Langdock and Dust?"
+    answer: "Langdock is designed first as a GDPR-compliant European multi-model AI workspace for replacing ChatGPT Team across an organization, pairing employee chat, custom agents, skills, and meeting transcription with a separate visual workflow builder. Dust (dust.tt) is designed around company-knowledge agents grounded in permissioned Spaces, multi-agent @mention delegation, collaborative Pods, and interactive React dashboards called Frames."
+  - question: "How does Langdock pricing compare to Dust pricing in 2026?"
+    answer: "Langdock charges €23.20 per user per month on Core (or €99.00 per user per month for a 5x usage seat) and €31.20 per user per month on Work (or €109.00 per user per month for 5x usage) for the first 50 seats, plus an optional €449 per month Workflows Business add-on (billed annually) for 40,000 monthly workflow runs where workflow LLM tokens are billed separately via API pricing. Dust charges €24 per seat per month billed annually (€30 monthly) for Pro seats with 8,000 monthly credits, or €120 per seat per month billed annually (€150 monthly) for Max seats with 40,000 monthly credits, and allows up to 5 free seats on a Business workspace."
+  - question: "What are the connector and usage limits on Langdock and Dust?"
+    answer: "Langdock enforces dual rolling usage limits on included chat and agent models: a 5-hour session window and a Monday-to-Monday weekly window, falling back to GPT-6 Luna once a user hits 100% unless Extra Usage or BYOK is enabled. Dust's Business plan (up to 100 seats) caps workspaces at 3 managed data-source connectors, 5 Spaces, and 5 remote MCP servers, and unused monthly credits do not roll over."
+  - question: "Can you self-host Langdock or Dust?"
+    answer: "Neither platform offers a self-hosted edition for startups or mid-market teams. Dust is a proprietary cloud-only SaaS platform with US and EU data residency options and single-tenant cloud deployment on Enterprise (100+ seats). Langdock offers multi-tenant EU SaaS by default, requires at least 2,000 seats for dedicated single-tenant cloud hosting, and requires at least 5,000 seats for self-hosted Kubernetes (BYOC) deployment."
+  - question: "Do Langdock or Dust run coding agent harnesses like Claude Code or Codex?"
+    answer: "No. Langdock runs a proprietary chat-and-agent orchestration layer with sandboxed data analysis, Canvas apps, and a separate trigger-action workflow builder. Dust runs a proprietary knowledge-and-MCP agent runtime with SQL warehouse querying and interactive React Frames. Neither platform runs open-source coding agent harnesses such as Claude Code, OpenAI Codex, or Pi inside a full per-agent Linux virtual machine."
+  - question: "What is the best open-source alternative to Langdock and Dust?"
+    answer: "Agenta (MIT-licensed) is an open-source AI coworker platform that lets non-technical and technical teams build plain-language AI coworkers powered by real coding agent harnesses (Claude Code, Codex, and Pi) inside isolated Daytona Linux and Chromium sandboxes. Unlike Langdock and Dust, Agenta can be self-hosted free from 1 user up via Docker Compose or Helm with SSO and RBAC included, or used on Agenta Cloud starting at $0 on Hobby and $29 per month on Starter with unlimited team members and zero per-seat fees."
+---
+
+When European and global teams outgrow generic ChatGPT subscriptions, [Langdock](https://www.langdock.com/) and [Dust](https://dust.tt/) are two of the most common platforms on the shortlist. Both promise access to frontier models from Anthropic, OpenAI, Google, and Mistral, both support the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), and both offer European data residency with enterprise compliance certifications.
+
+Look past the surface checklist, however, and Langdock and Dust are built around two very different mental models of how a company adopts AI:
+
+- **Langdock** starts from the **compliance-first multi-model employee workspace**. Headquartered in Berlin, it gives every employee a governed chat interface, prompt library, reusable **Skills**, meeting note transcription, and custom **Agents**, while keeping background automations inside a separate visual **Workflows** product (`2,500` to `10,000` included runs per month, or `€449/month` billed annually for the `40,000`-run Workflows Business add-on where model tokens are billed separately). Its pricing (`€23.20/user/month` on Core or `€31.20/user/month` on Work for the first 50 standard seats) relies on rolling **5-hour session windows and Monday-to-Monday weekly windows**, and its self-hosted Kubernetes option requires at least **5,000 seats**.
+- **Dust (`dust.tt`)** starts from **company-knowledge agents and collaborative workspaces**. Founded in Paris and San Francisco, Dust organizes internal knowledge into permissioned **Spaces** (`Open`, `Restricted`, and `Project` Spaces), lets teammates chain specialized `@agents` inside shared **Pods**, and renders live interactive React apps and dashboards called **Frames** that refresh on wake-up schedules. Yet its **Business plan** (`€24/seat/month` Pro or `€120/seat/month` Max billed annually, up to 100 seats) caps the entire workspace at **3 managed data-source connectors, 5 Spaces, and 5 remote MCP servers** until you upgrade to a 100+ seat Enterprise contract.
+- **Neither Langdock nor Dust is open source, and neither gives every agent a real coding-agent harness or full Linux workstation.** For teams that want plain-language agent building for non-technical teammates without per-seat pricing cliffs, connector caps, or 5,000-seat self-hosting minimums, **[Agenta](https://agenta.ai)** provides a third architectural path: an [MIT-licensed](https://opensource.org/license/mit) open-source AI coworker platform where every agent runs on a battle-tested coding agent harness ([Claude Code](https://code.claude.com/docs/en/overview), [OpenAI Codex](https://developers.openai.com/codex), or [Pi](https://github.com/badlogic/pi-mono/)) inside an isolated [Daytona](https://www.daytona.io/) Linux and browser sandbox.
+
+## Langdock vs Dust vs Agenta at a Glance
+
+| Dimension                         | Langdock                                                                                                                                 | Dust (`dust.tt`)                                                                                                                                             | Agenta                                                                                                                                                                                                                                       |
+| :-------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Primary Product Focus**         | EU-governed multi-model employee chat workspace, custom agents, meeting transcription, and visual workflows                              | Company-knowledge agents grounded in permissioned Spaces, collaborative Pods, and interactive React Frames                                                   | Open-source AI coworker platform for non-technical and technical teams to build plain-language agents and automations                                                                                                                        |
+| **Agent & Workflow Architecture** | Chat **Agents** + reusable **Skills** + separate trigger-action **Workflows** module (up to `2,000` steps/run)                           | Multi-agent `@mention` orchestration, sub-agent tool calls, webhook/schedule triggers, and wake-up **Frames**                                                | Real coding agent harnesses ([Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), [Pi](https://github.com/badlogic/pi-mono/)) with cron schedules, event subscriptions, and tool approvals |
+| **Code & File Execution**         | Sandboxed Python data analysis and interactive Canvas web apps (`5-user` share cap on Core; unlimited on Work)                           | Interactive React **Frames** (`viz`) and SQL warehouse querying (BigQuery, Snowflake, Salesforce); no Linux VM                                               | Dedicated [Daytona](https://www.daytona.io/) Linux VM and headless Chromium browser per agent + persistent shared agent files and session scratch files                                                                                      |
+| **Integrations & MCP**            | `57` native integrations (`754` actions), custom OpenAPI actions, and remote MCP server support                                          | Managed continuous knowledge sync + remote MCP servers (**Business plan capped at `3` connectors and `5` MCP servers**)                                      | `1,000+` managed OAuth integrations, custom MCP servers, per-tool `allow` / `ask` / `deny` gates, and full CLI (`git`, `gh`, `curl`)                                                                                                         |
+| **Base Pricing (2026)**           | **Core:** `€23.20/user/mo` (`€99` 5x seat)<br/>**Work:** `€31.20/user/mo` (`€109` 5x seat)<br/>**Workflows Business:** `+€449/mo` annual | **Business (up to 100 seats):** Mix **Free** (`€0`, up to 5 users), **Pro** (`€24/seat/mo` annual, 8k credits), **Max** (`€120/seat/mo` annual, 40k credits) | **Self-Hosted (MIT):** `$0 forever` (unlimited users)<br/>**Cloud Hobby:** `$0 forever`<br/>**Cloud Starter:** `$29/mo` (unlimited users)<br/>**Cloud Business:** `$299/mo` (unlimited users)                                                |
+| **Usage Metering & Limits**       | Rolling **5-hour session window** + **Monday-to-Monday weekly window** (throttles to `GPT-6 Luna` at 100%)                               | Monthly per-seat credit allowance (`8,000` Pro / `40,000` Max); unused credits expire at month-end                                                           | Pooled workspace credits on Cloud (`$0` model credits with BYOK API key or ChatGPT subscription); unlimited runs on self-hosted                                                                                                              |
+| **Hosting & Self-Hosting**        | Proprietary EU SaaS; `2,000+` seats required for single-tenant cloud; **`5,000+` seats required for self-hosted K8s**                    | Proprietary cloud-only SaaS (US or EU residency); single-tenant on Enterprise (`100+` seats); **no self-hosting**                                            | **[MIT License](https://opensource.org/license/mit)** open source; self-host free from `1 user` via Docker Compose or Helm (SSO & RBAC included)                                                                                             |
+| **Best Fit**                      | Mid-to-large European organizations replacing ChatGPT Team across 50 to 5,000 employees under strict GDPR/BaFin rules                    | Teams centering AI around synced Notion/Drive/Slack Spaces and live React dashboards inside Dust Pods                                                        | Startups, ops teams, and enterprises wanting plain-language AI coworkers with real coding-harness depth and zero per-seat tax                                                                                                                |
+
+![Langdock vs Dust vs Agenta Workspace and Agent Architecture](/blog/langdock-vs-dust/langdock-vs-dust-architecture.webp)
+
+## How Langdock Actually Works: EU Multi-Model Workspace + Separate Workflow Builder
+
+![Langdock multi-model enterprise AI workspace interface](/blog/langdock-vs-dust/langdock.webp)
+
+Founded in Berlin in 2023, [Langdock](https://www.langdock.com/) built its reputation as the GDPR-native European alternative to ChatGPT Team and Microsoft Copilot (for a broader look at employee chat portals, see our guide to the [best ChatGPT Business alternatives](/blog/best-chatgpt-business-alternatives)). Rather than forcing a company onto a single model vendor, Langdock gives administrators one governed workspace over OpenAI, Anthropic, Google Gemini, Mistral, and custom endpoints.
+
+### 1. Chat, Custom Agents, Skills, and Canvas Apps
+
+Inside the daily employee interface, Langdock combines four workspace primitives:
+
+- **Multi-Model Chat and Projects:** Employees switch models mid-conversation or let Langdock route queries, organize threads and reference documents inside shared **Projects**, and use built-in **Meeting Notes** transcription (`10 transcribed meetings per member per month` on Core; unlimited on Work subject to a `60 hours/week` fair-use threshold).
+- **Custom [Agents](https://www.langdock.com/products/agents) and Reusable Skills:** Non-technical teammates create custom assistants with system instructions, attached knowledge bases, web search, sandboxed data analysis, and connected tool actions. Builders can also package recurring prompt patterns and instructions as reusable **Skills** that any agent or employee can invoke.
+- **Interactive Canvas Apps:** Agents can render interactive mini web apps and visual artifacts on a side-by-side Canvas. On the **Core** plan, sharing a Canvas app is limited to `5 users`; the **Work** plan unlocks unlimited internal app sharing.
+- **57 Native Integrations and MCP:** Langdock ships `57` built-in integrations spanning `754` pre-built actions (including Slack, Jira, Confluence, HubSpot, Linear, Google Drive, SharePoint, and GitHub), alongside custom OpenAPI action definitions and remote **Model Context Protocol (MCP)** server connections.
+
+### 2. Separate Trigger-Action Workflows Module
+
+Unlike platforms where the conversational agent and the background automation engine are the exact same runtime, Langdock separates interactive chat **Agents** from background **[Workflows](https://www.langdock.com/products/workflows)**:
+
+- **Trigger-Action Automation:** Workflows run on schedules, incoming webhooks, or app events, executing up to `2,000 steps per workflow run` across APIs and LLM prompts.
+- **Included Run Quotas vs the €449/month Business Add-On:** As documented in [Langdock's pricing guide](https://docs.langdock.com/en/admin/billing/pricing), the Core plan includes `2,500 workflow runs per workspace per month` (`5` runs/minute rate limit) and the Work plan includes `10,000 workflow runs per workspace per month` (`20` runs/minute). Teams running heavier background automation must add the **Workflows Business** package at **€449 per workspace per month** (billed annually) for `40,000 runs per month`, with additional 10,000-run packs priced at `€100/month`.
+- **Separate Token Billing on Workflows Business:** A critical detail in Langdock's billing documentation is that while standard chat and interactive agent turns draw from each user's seat allowance, **AI model usage inside the Workflows Business add-on is billed separately through Langdock's API token pricing** (or your own BYOK keys).
+
+### 3. Rolling 5-Hour and Weekly Usage Windows
+
+Beginning March 24, 2026, Langdock replaced legacy flat usage caps with a two-window throttling mechanism detailed in its [Fair Usage Policy](https://docs.langdock.com/en/using-langdock/models-and-limits/fair-usage-policy):
+
+1. **5-Hour Rolling Session Window:** Tracks active token and tool consumption across a rolling five-hour window to prevent burst spikes.
+2. **Monday-to-Monday Weekly Window:** Tracks cumulative weekly consumption (resetting Mondays at `00:00 UTC`).
+
+When a teammate hits `100%` of either their 5-hour or weekly window on a standard seat, Langdock automatically throttles their chat and agent requests down to **`GPT-6 Luna`**, a lightweight fallback model, unless the workspace admin has enabled metered **Extra Usage**, upgraded that user to a **5x usage seat** (`€99/user/month` on Core or `€109/user/month` on Work), or routed models through **Bring Your Own Key (BYOK)**.
+
+### 4. Where Langdock Shows Its Limits
+
+1. **Governance unbundling on Core in 2027:** While SSO and SCIM are included on Core, Langdock's **Governance** package (custom data retention rules, granular admin roles, audit logs, and custom terms of use) is only free on Core until **January 1, 2027**, after which it adds `€3.50/user/month` (or requires upgrading to Work at `€31.20/user/month`).
+2. **Enterprise-only self-hosting thresholds:** Per [Langdock's pricing page](https://www.langdock.com/pricing), dedicated single-tenant cloud deployment requires at least **2,000 seats**, and self-hosted Kubernetes / Bring Your Own Cloud (BYOC) requires at least **5,000 seats**. Startups and mid-market engineering teams cannot self-host Langdock.
+3. **Not a coding-agent harness:** Langdock provides sandboxed data analysis for charts and spreadsheets and Canvas previews, but agents do not operate inside a full Linux VM with `Claude Code`, `Codex`, or `Pi`, persistent git repositories, and a headless Chromium browser.
+
+## How Dust (`dust.tt`) Actually Works: Permissioned Spaces, Multi-Agent Pods, and React Frames
+
+![Dust enterprise AI agent platform and knowledge workspace](/blog/langdock-vs-dust/dust.webp)
+
+Where Langdock begins with employee chat and bolts on workflows, [Dust](https://dust.tt/) (`dust.tt`) treats **company knowledge synchronization and composable `@agents`** as the center of gravity.
+
+### 1. Permissioned Knowledge Spaces (`Open`, `Restricted`, `Project`)
+
+In Dust, agents do not simply search a flat workspace folder. Administrators and builders organize synced company data sources (Notion, Slack, Google Drive, Confluence, GitHub, Intercom, Zendesk, and SharePoint) into **[Spaces](https://docs.dust.tt/docs/spaces)**:
+
+- **Company Space (`Open`):** Accessible to everyone in the workspace for company-wide policies, handbooks, and shared documentation.
+- **Restricted Spaces:** Scoped to specific groups (such as Finance, Legal, or Executive teams) or provisioned automatically via SCIM on Enterprise plans so sensitive folders never leak into general agent retrieval.
+- **Project Spaces:** Dedicated context boundaries for cross-functional initiatives where teammates combine synced folders, static uploads, and specialized agents.
+
+### 2. Multi-Agent `@mention` Orchestration, MCP Tools, and Warehouse SQL
+
+Every assistant in Dust is an `@agent` that combines three building blocks:
+
+- **Instructions and Frontier Models:** Builders write natural-language instructions and pick from 20+ models across Anthropic Claude, OpenAI, Google Gemini, Mistral, Fireworks, and Together AI.
+- **Sub-Agent Delegation and Collaborative Pods:** Inside shared **Pods** (or Slack, Microsoft Teams, and the Chrome extension), users can call multiple `@agents` in the same thread, and a primary agent can delegate subtasks to specialized child agents or trigger on recurring schedules and webhooks.
+- **Remote [MCP Servers](https://docs.dust.tt/docs/mcp) and SQL Querying:** Dust built its action layer directly around the Model Context Protocol. Agents can call remote MCP servers (authenticated via OAuth, bearer tokens, or custom headers) with per-tool confirmation settings (`Always ask`, `Never ask`, or user-cached approval), and can execute structured SQL queries against connected data warehouses such as **BigQuery**, **Snowflake**, and **Salesforce**.
+
+### 3. Interactive React Frames (`viz`)
+
+One of Dust's most distinctive features is **[Frames](https://docs.dust.tt/docs/frames)** (`viz`):
+
+- Instead of returning static Markdown tables, a Dust agent can generate an **interactive React component** (dashboards, sortable tables, charts, or mini internal tools) rendered directly inside a Dust conversation or pinned to a shared **Pod**.
+- Paired with Dust's **wake-up schedules**, an agent can wake up every morning, query Snowflake and HubSpot via MCP, refresh the live React Frame in the team's Pod, and post a summary notification.
+
+### 4. Where Dust Shows Its Limits
+
+Despite its strong knowledge and dashboard ergonomics, Dust's packaging introduces sharp constraints for growing teams:
+
+1. **The 3-Connector, 5-Space, 5-MCP Cap on Business:** According to [Dust's pricing page](https://dust.tt/home/pricing), the **Business plan** (which covers teams up to 100 seats) limits the entire workspace to **at most 3 managed data-source connectors, 5 Spaces, and 5 remote MCP servers**. If a 25-person company wants to sync Notion, Slack, Google Drive, GitHub, and Zendesk (`5` connectors) or segment data across `8` department Spaces, they hit the Business plan ceiling and are forced toward a 100+ seat Enterprise conversation.
+2. **Expiring Per-Seat Credits (No Pooling on Business):** On the Business plan, **Pro** seats (`€24/seat/month` billed annually or `€30` monthly) receive `8,000 credits/month` and **Max** seats (`€120/seat/month` billed annually or `€150` monthly) receive `40,000 credits/month`. Unused monthly credits **do not roll over**, and workspace-wide credit pooling is locked behind the Enterprise tier.
+3. **Closed-Source Cloud SaaS with No General Linux VM:** Dust is proprietary SaaS with no open-source or self-hosted community edition. Furthermore, while Dust renders front-end React Frames and runs warehouse queries, it does not give each agent a persistent Linux VM, shell, file system, and headless browser driven by a coding-agent harness.
+
+## Head-to-Head Comparison Across 6 Core Dimensions
+
+### 1. Knowledge Grounding and Data Permissions
+
+- **Dust** leads when your primary problem is continuous, permission-aware indexing across fragmented company knowledge bases. Its separation of Company, Restricted, and Project Spaces makes it straightforward to guarantee that an engineering agent and a people-ops agent retrieve from different slices of Notion, Slack, and Google Drive, provided you stay within the `3-connector` and `5-Space` Business cap or pay for Enterprise.
+- **Langdock** handles knowledge through conversation attachments, shared **Projects**, agent-level file uploads, and live search actions across its `57` integrations. It is intuitive for everyday document Q&A and meeting transcripts, though less centered on multi-space knowledge graphs than Dust.
+
+### 2. Agent Execution Depth, Code Sandboxes, and Browser Automation
+
+| Capability                    | Langdock                                                                        | Dust (`dust.tt`)                                                                   | Agenta                                                                                                                                                                          |
+| :---------------------------- | :------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Core Agent Loop**           | Proprietary multi-model chat agent + reusable Skills + separate Workflows       | Proprietary `@agent` loop with sub-agent handoffs and wake-up schedules            | Real coding agent harnesses ([Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex), [Pi](https://github.com/badlogic/pi-mono/)) |
+| **Linux VM & Shell**          | Sandboxed Python data analysis for files/charts; no general Linux CLI VM        | No general-purpose per-agent Linux shell or Git workstation                        | Isolated [Daytona](https://www.daytona.io/) Linux VM per agent with bash, Python, Node, `git`, and `gh`                                                                         |
+| **Browser Automation**        | Web search and URL fetching; no persistent headless Chromium inside an agent VM | Web search and scraping tools; no full Playwright browser inside an agent VM       | Headless Chromium via Playwright inside the agent's sandbox plus Browserbase / MCP tools                                                                                        |
+| **Interactive Visual Output** | **Canvas** mini web apps (`5-user` share cap on Core; unlimited on Work)        | **Frames** (`viz`): live React dashboards pinned to Pods and refreshed on schedule | Full web apps, reports, charts, and files saved to persistent shared agent storage or session workspace                                                                         |
+| **Durable Agent Memory**      | Project files, prompt library, and reusable Skills                              | Synced data sources in Spaces + Pod history                                        | Two-tier file system: **persistent shared agent files** across all sessions + **temporary session files**                                                                       |
+
+### 3. Background Workflows and Triggers
+
+- **In Langdock**, background automation lives in the dedicated **Workflows** builder (`2,500` runs/month on Core; `10,000` runs/month on Work; `40,000` runs/month with the `€449/month` Workflows Business add-on). This gives operations teams a structured trigger-action builder up to `2,000` steps per run, but splits both your architecture and your token billing on Workflows Business between chat Agents and background Workflows.
+- **In Dust**, the same `@agent` you mention in chat can be attached to a **webhook or cron schedule**, wake up autonomously, call sub-agents and MCP tools, and update a live React Frame inside a Pod.
+- **In Agenta**, every coworker agent natively supports **cron schedules** and **event subscriptions** alongside interactive chat. The exact same agent configuration, skills, persistent shared files, and tool approval rules execute whether a teammate messages the agent in Slack or a daily schedule triggers it at 6:00 AM. (See our broader breakdown of the [best AI agent orchestration platforms](/blog/best-ai-agent-orchestration-platforms).)
+
+### 4. Pricing Economics and Hidden Scaling Cliffs
+
+![Langdock vs Dust vs Agenta Pricing Mechanics and Self-Hosting Thresholds](/blog/langdock-vs-dust/langdock-vs-dust-pricing-mechanics.webp)
+
+Both Langdock and Dust look similarly priced on a single-seat brochure (`€23.20/seat` vs `€24/seat`), but their real-world TCO diverges sharply once a team connects multiple systems or automates recurring work.
+
+#### Worked Cost Comparison: 3 Realistic Team Scenarios
+
+| Team Scenario                                                                                                    | Langdock Monthly Cost                                                                                                                                                  | Dust (`dust.tt`) Monthly Cost                                                                                                                                          | Agenta (MIT Self-Hosted or Cloud)                                                                                                                                 |
+| :--------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Scenario A: 30-person team using daily AI chat, 5 SaaS knowledge sources, and light automations**              | **€696/mo** on Core (`30 × €23.20`) or **€936/mo** on Work (`30 × €31.20`), plus `€105/mo` starting Jan 2027 if Core needs Governance                                  | **Blocked on Business by the 3-connector cap** (`€720/mo` for 30 Pro seats only connects 3 data sources; connecting 5 managed sources requires an Enterprise contract) | **$0 software license** self-hosted, or **$29/mo** (Starter) to **$299/mo** (Business) on Agenta Cloud for **all 30 users** (unlimited seats, zero per-seat fees) |
+| **Scenario B: 50-person company with 10 heavy agent builders and 35,000 monthly background workflow runs**       | **€1,160 to €2,369/mo+** (`40` Core seats at `€23.20` + `10` 5x seats at `€99` = `€1,918/mo`, plus **€449/mo** Workflows Business add-on + separate API token charges) | **€2,160/mo** billed annually (`40` Pro seats at `€24` + `10` Max seats at `€120`, still capped at `3` managed connectors and `5` MCP servers on Business)             | **$0 software license** self-hosted + raw BYOK LLM tokens, or **$299/mo** on Agenta Cloud Business with unlimited users and **$0 model credit markup on BYOK**    |
+| **Scenario C: 40-person regulated engineering & ops org requiring self-hosted Docker/Kubernetes, SSO, and RBAC** | **Not available** (Langdock requires **2,000+ seats** for single-tenant cloud and **5,000+ seats** for self-hosted Kubernetes)                                         | **Not available** (Dust is cloud-only SaaS with no self-hosted edition; single-tenant cloud requires **100+ seat** Enterprise)                                         | **$0 forever** on **Agenta Open Source (MIT)** via Docker Compose or Helm on Kubernetes, with **SSO, RBAC, and unlimited users included free**                    |
+
+### 5. EU Compliance, Security, and Data Residency
+
+Both Langdock and Dust have invested heavily in security and compliance:
+
+- **Langdock ([Security](https://www.langdock.com/security)):** EU-hosted by default (with optional US hosting), **ISO 27001**, **SOC 2 Type II**, GDPR compliant with zero training on customer data, **HIPAA** and **BaFin** (German financial regulator) compliance support on enterprise deployments, and optional customer BYOK.
+- **Dust ([Security](https://dust.tt/home/security)):** **SOC 2 Type II**, **ISO 27001**, **GDPR**, **HIPAA**, zero data retention agreements with model providers, choice of **EU or US data residency** at workspace creation, and single-tenant cloud isolation on Enterprise.
+- **Agenta:** **SOC 2 Type II** and GDPR compliant on Agenta Cloud (with EU and US cloud regions), plus complete **MIT-licensed open-source self-hosting** so regulated teams of any size, from a 5-person fintech startup to a 5,000-person enterprise, can keep every prompt, database row, OAuth secret, and sandbox container inside their own VPC without waiting for a 5,000-seat contract.
+
+### 6. Deployment Surfaces and External Channels
+
+- **Langdock** is primarily an internal employee web and mobile workspace with Slack and Microsoft Teams integrations and API/webhook endpoints.
+- **Dust** deploys agents inside its web workspace (Pods and Frames), Slack, Microsoft Teams, a Chrome sidebar extension, Zendesk, and Excel/Google Sheets add-ins.
+- **Agenta** deploys coworkers across the web workspace, **Slack**, **Telegram**, **WhatsApp**, and **embeddable web chat widgets** (`Publish > Embed`), allowing teams to expose an agent not only to internal employees in Slack, but also in external partner channels or internal web portals.
+
+## Where Agenta Fits: The Open-Source AI Coworker Alternative to Langdock and Dust
+
+![Agenta open-source AI coworker and agent workspace](/blog/langdock-vs-dust/agenta.webp)
+
+When teams compare Langdock and Dust, they often discover an uncomfortable trade-off:
+
+- **Both charge per seat (`€23.20` to `€150/user/month`)**, which means rolling AI out to 40 or 80 employees costs `€1,000` to `€3,000+` every month before you even scale background automations.
+- **Both gate critical infrastructure behind high seat minimums:** Dust caps Business workspaces at `3` managed connectors, `5` Spaces, and `5` MCP servers until you reach the `100+ seat` Enterprise tier, while Langdock gates dedicated single-tenant cloud behind `2,000+ seats` and self-hosted Kubernetes behind `5,000+ seats`.
+- **Both are built around chat-and-connector wrappers rather than real coding-agent harnesses.** When an agent needs to clone a repository, run a multi-step Python script, inspect a live web page in headless Chromium, write durable team reports across sessions, and open a pull request or Slack approval card, a standard chat assistant hits a wall.
+
+**[Agenta](https://agenta.ai) ([`Agenta-AI/agenta`](https://github.com/Agenta-AI/agenta) on GitHub) is built to remove all three bottlenecks** (see also our comparisons of the [best open-source AI agent platforms](/blog/best-open-source-ai-agent-platforms) and [AI coworker platforms for business](/blog/ai-coworker-platforms-for-business)):
+
+1. **Built for Non-Technical and Technical Teams Alike:** Anyone in marketing, operations, customer support, sales, product, or engineering can create and refine an AI coworker in plain language. You do not need to write Python boilerplate or wire complex node graphs: tell the agent how you want it to work, attach reusable skills, and it updates its own configuration and memory cleanly.
+2. **Powered by Real Coding Agent Harnesses (`Claude Code`, `Codex`, `Pi`):** Every Agenta coworker runs on a full coding-agent harness ([Claude Code](https://code.claude.com/docs/en/overview), [OpenAI Codex](https://developers.openai.com/codex), or [Pi](https://github.com/badlogic/pi-mono/)). Instead of stopping at a summarized chat answer, your agent can write and execute scripts, inspect files, run CLI tools (`git`, `gh`, `curl`, `jq`), and recover from errors across long-horizon tasks.
+3. **Isolated Linux Computer, Headless Browser, and Two-Tier File Storage:** Every agent receives its own isolated [Daytona](https://www.daytona.io/) sandbox with a Linux terminal, headless Chromium browser (via Playwright), **temporary session files** for scratch work, and **persistent shared agent files** (AI Drive) that preserve institutional reports, brand assets, and playbooks across every conversation.
+4. **1,000+ Integrations, Custom MCP Servers, and Human Approval Gates:** Connect over 1,000 SaaS tools and custom HTTP MCP servers with zero artificial 3-connector or 5-MCP caps. Configure granular `allow`, `ask`, or `deny` policies per tool so sensitive actions (sending an email, posting to Slack, or mutating CRM data) pause with an interactive approval card first.
+5. **Multi-Surface Publishing + Versioned Playground & Evals:** Deploy any coworker in one click to **Slack**, **Telegram**, **WhatsApp**, or an **embeddable website widget** (`Publish > Embed`), while keeping full configuration version history, side-by-side Playground comparisons, execution traces, and automated evaluations (learn more in our [prompt versioning guide](/blog/prompt-versioning-guide)).
+6. **MIT Open-Source Self-Hosting and Unlimited-Seat Cloud Pricing:** Self-host Agenta free forever via [Docker Compose](https://docs.docker.com/compose/) or [Kubernetes Helm](https://helm.sh/) with **unlimited users, SSO, and RBAC included in the free open-source edition**. Or run on Agenta Cloud with **unlimited seats on every plan**: **Hobby at $0 forever** (`500` signup bonus credits + `75` daily credits on up to 10 days/month), **Starter at $29/month** (`2,900` credits), and **Business at $299/month** (`32,000` credits, SSO, SOC 2 Type II), with **$0 Agenta credit charges on model tokens when you bring your own API keys or ChatGPT subscription**.
+
+## Decision Guide: Which Platform Should Your Team Choose?
+
+### Choose Langdock if:
+
+- Your top priority is **rolling out a GDPR- and BaFin-ready ChatGPT Team replacement** across 50 to 5,000 European employees with a familiar multi-model chat UI, prompt library, and built-in meeting transcription.
+- You prefer keeping everyday employee chat **Agents** separate from centralized, admin-built **Workflows**, and your budget accommodates per-seat licensing (`€23.20` to `€31.20/user/month`) plus the `€449/month` Workflows Business add-on for high-volume automations.
+
+### Choose Dust (`dust.tt`) if:
+
+- Your workflows revolve around **continuous company knowledge synchronization** across Notion, Slack, Google Drive, and data warehouses (Snowflake, BigQuery), organized into permissioned **Spaces**.
+- You want teammates collaborating inside shared **Pods** where `@agents` can refresh live interactive React **Frames** on wake-up schedules, and either your setup fits within the Business plan's `3-connector / 5-Space / 5-MCP` limits or you are ready for a `100+ seat` Enterprise contract.
+
+### Choose Agenta if:
+
+- You want **non-technical and technical teammates building real AI coworkers in plain language** that can execute multi-step work inside an isolated Linux and Chromium sandbox powered by **Claude Code**, **Codex**, or **Pi**.
+- You want **MIT-licensed open-source self-hosting from 1 user up** (with SSO and RBAC included free) or **unlimited-user cloud pricing** (`$0` Hobby / `$29/mo` Starter / `$299/mo` Business) without paying a `€24` to `€150` monthly tax for every teammate you invite.
+- You want to publish agents across **Slack, Telegram, WhatsApp, and embedded web chat widgets** with persistent shared agent files, cron and webhook triggers, and tool-level human approvals. (Explore more options in our guides to the [best agentic AI tools](/blog/best-agentic-ai-tools), [best Relevance AI alternatives](/blog/best-relevance-ai-alternatives), and [open-source Claude Cowork alternatives](/blog/open-source-claude-cowork-alternative).)
+
+## Frequently Asked Questions
+
+### What is the main difference between Langdock and Dust?
+
+Langdock is designed first as a GDPR-compliant European multi-model AI workspace for replacing ChatGPT Team across an organization, pairing employee chat, custom agents, skills, and meeting transcription with a separate visual workflow builder. Dust (dust.tt) is designed around company-knowledge agents grounded in permissioned Spaces, multi-agent @mention delegation, collaborative Pods, and interactive React dashboards called Frames.
+
+### How does Langdock pricing compare to Dust pricing in 2026?
+
+Langdock charges €23.20 per user per month on Core (or €99.00 per user per month for a 5x usage seat) and €31.20 per user per month on Work (or €109.00 per user per month for 5x usage) for the first 50 seats, plus an optional €449 per month Workflows Business add-on (billed annually) for 40,000 monthly workflow runs where workflow LLM tokens are billed separately via API pricing. Dust charges €24 per seat per month billed annually (€30 monthly) for Pro seats with 8,000 monthly credits, or €120 per seat per month billed annually (€150 monthly) for Max seats with 40,000 monthly credits, and allows up to 5 free seats on a Business workspace.
+
+### What are the connector and usage limits on Langdock and Dust?
+
+Langdock enforces dual rolling usage limits on included chat and agent models: a 5-hour session window and a Monday-to-Monday weekly window, falling back to GPT-6 Luna once a user hits 100% unless Extra Usage or BYOK is enabled. Dust's Business plan (up to 100 seats) caps workspaces at 3 managed data-source connectors, 5 Spaces, and 5 remote MCP servers, and unused monthly credits do not roll over.
+
+### Can you self-host Langdock or Dust?
+
+Neither platform offers a self-hosted edition for startups or mid-market teams. Dust is a proprietary cloud-only SaaS platform with US and EU data residency options and single-tenant cloud deployment on Enterprise (100+ seats). Langdock offers multi-tenant EU SaaS by default, requires at least 2,000 seats for dedicated single-tenant cloud hosting, and requires at least 5,000 seats for self-hosted Kubernetes (BYOC) deployment.
+
+### Do Langdock or Dust run coding agent harnesses like Claude Code or Codex?
+
+No. Langdock runs a proprietary chat-and-agent orchestration layer with sandboxed data analysis, Canvas apps, and a separate trigger-action workflow builder. Dust runs a proprietary knowledge-and-MCP agent runtime with SQL warehouse querying and interactive React Frames. Neither platform runs open-source coding agent harnesses such as Claude Code, OpenAI Codex, or Pi inside a full per-agent Linux virtual machine.
+
+### What is the best open-source alternative to Langdock and Dust?
+
+Agenta (MIT-licensed) is an open-source AI coworker platform that lets non-technical and technical teams build plain-language AI coworkers powered by real coding agent harnesses (Claude Code, Codex, and Pi) inside isolated Daytona Linux and Chromium sandboxes. Unlike Langdock and Dust, Agenta can be self-hosted free from 1 user up via Docker Compose or Helm with SSO and RBAC included, or used on Agenta Cloud starting at $0 on Hobby and $29 per month on Starter with unlimited team members and zero per-seat fees.
