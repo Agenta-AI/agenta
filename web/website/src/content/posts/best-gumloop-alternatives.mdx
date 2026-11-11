@@ -1,0 +1,392 @@
+---
+slug: "best-gumloop-alternatives"
+title: "8 Best Gumloop Alternatives in 2026 (Including Open-Source Options)"
+description: "Compare the 8 best Gumloop alternatives in 2026 across 4-part credit pricing, open-source self-hosting, coding agent harnesses, Slack coworkers, and visual workflows."
+category: "Article"
+date: 2026-11-08
+readingTime: "22 min read"
+heroImage: "/blog/best-gumloop-alternatives/hero.webp"
+ogImage: "/blog/best-gumloop-alternatives/hero.webp"
+author: "mahmoud-mabrouk"
+featured: false
+tags:
+  - "Gumloop Alternatives"
+  - "AI Agents"
+  - "AI Coworkers"
+  - "Workflow Automation"
+  - "Open Source AI"
+faq:
+  - question: "What is the best Gumloop alternative in 2026?"
+    answer: "Agenta is the best overall alternative if you want Gumloop's plain-language agent building and Slack coworking combined with MIT-licensed open-source self-hosting, real coding agent harnesses (Claude Code, Codex, and Pi) inside isolated Daytona sandboxes, and unlimited seats on paid cloud tiers. If you mainly use Gumloop Flows for deterministic API routing, n8n and Activepieces are the strongest workflow-focused replacements."
+  - question: "Does Gumloop still have a free plan?"
+    answer: "No. Gumloop retired its permanent free plan. Every new organization starts with a one-time 14-day Pro trial that requires a credit card upfront and converts into the Pro plan at $37 per month for 20,000 monthly credits, or pauses until you subscribe."
+  - question: "How does Gumloop credit billing work?"
+    answer: "Gumloop converts $1 into 200 credits ($0.005 per credit) and charges four components on every agent turn: model token usage (Chat and Reasoning), connector tool calls (1 credit per call plus 2 credits per Company Brain search and any premium enrichment costs), active VM compute time (5 credits per active session-minute), and an 8% platform orchestration fee (or 16% on BYOK flow tiers)."
+  - question: "What is the best open-source alternative to Gumloop?"
+    answer: "Agenta (MIT License), Activepieces (MIT Community Edition), and Langflow (MIT License) offer true OSI-approved open-source licenses. Agenta is built for plain-language AI coworkers, persistent agent files, and Slack or web deployment; Activepieces is built for Zapier-style no-code flows; and Langflow is built for Python and MCP component graphs. Dify (Modified Apache 2.0) and n8n (Sustainable Use License) also support free self-hosting for internal workflows."
+  - question: "Does bringing your own API keys (BYOK) eliminate Gumloop credit charges?"
+    answer: "Not completely. Supplying your own OpenAI or Anthropic API keys sets direct model token credits to zero, but Gumloop still charges 1 credit per connector call, 5 credits per active VM minute, and a platform orchestration fee calculated against the retail list cost of the run (8% on standard agent runs and 16% on BYOK flow tiers)."
+  - question: "Which Gumloop alternative is best between Gumloop, n8n, and Activepieces?"
+    answer: "Choose n8n if you have technical builders who want deterministic node control, JavaScript or Python transformation steps, and a single flat execution charge per workflow run. Choose Activepieces if non-technical operators want a clean step-by-step builder where BYOK AI calls drop to 1 credit per step. Choose Agenta if you want conversational AI coworkers that write code, keep permanent shared files, and work inside Slack threads."
+  - question: "Can Agenta run with my own API keys or ChatGPT subscription?"
+    answer: "Yes. On both self-hosted Agenta and Agenta Cloud, you can connect your own model API keys (Anthropic, OpenAI, Google, or OpenRouter) without a percentage orchestration fee on your token spend. On a local self-hosted personal deployment, Agenta can also authenticate through your mounted ChatGPT-compatible harness login (such as Codex or Pi)."
+  - question: "How do I migrate from Gumloop to an alternative?"
+    answer: "Separate your Gumloop workspace into two buckets before migrating: conversational agents and deterministic API flows. Export your agent system instructions, Markdown skills, and reference files from .workspace/agent/ before their 14-day inactivity window expires, then recreate conversational teammates in Agenta and rebuild rigid webhook-to-CRM pipelines in n8n or Activepieces."
+---
+
+[Gumloop](https://www.gumloop.com/) has grown from a visual web-scraping flow builder into a cloud workspace where teams configure plain-language AI agents, attach an isolated Python and shell VM, search internal docs through Company Brain, and run visual node **Flows**.
+
+That evolution makes Gumloop easy to adopt in week one, yet many startups, operations teams, and automation agencies start searching for a **Gumloop alternative** once their workflows hit daily production volume. The most common triggers are Gumloop's removal of its permanent free tier (replaced by a 14-day card-required trial into a **$37/month** Pro plan), a four-part credit meter that bills simultaneously for model tokens, tool calls, active VM minutes, and an **8% to 16% orchestration fee**, automatic **14-day deletion** of shared agent workspace files, and a proprietary cloud-only architecture with no self-hosted edition.
+
+Because Gumloop combines two product categories in one UI (conversational **Agents** and visual **Flows**), the right replacement depends on which half of Gumloop your team relies on most:
+
+1. **Plain-language AI coworkers in Slack and web apps with MIT open-source self-hosting and coding agent harnesses:** [Agenta](#1-agenta-best-open-source-alternative-for-plain-language-ai-coworkers-and-coding-harnesses)
+2. **Deterministic node workflows with JavaScript/Python steps and single-charge execution billing:** [n8n](#2-n8n-best-for-deterministic-node-workflows-and-flat-per-execution-billing)
+3. **No-code Zapier-style automation with MIT open-source self-hosting and 1-credit BYOK steps:** [Activepieces](#3-activepieces-best-for-no-code-open-source-workflow-automation-with-byok)
+4. **Visual RAG pipelines, document indexing, and developer-led LLM application studios:** [Dify](#4-dify-best-for-visual-rag-pipelines-and-llm-application-studios)
+5. **100% free MIT-licensed Python and MCP component graphs for AI engineers:** [Langflow](#5-langflow-best-for-python-developers-building-visual-agent-and-mcp-graphs)
+6. **Visual multi-agent GTM workforces and sales operations enrichment:** [Relevance AI](#6-relevance-ai-best-for-visual-multi-agent-gtm-workforces)
+7. **Prebuilt inbox, meeting, and sales assistant routines for non-technical business teams:** [Lindy](#7-lindy-best-for-ready-made-inbox-meeting-and-crm-assistants)
+8. **Visual multi-app scenario routing across 3,000+ SaaS integrations at a $9/month entry point:** [Make](#8-make-best-for-visual-multi-app-saas-routing-across-3000-connectors)
+
+## The 8 best Gumloop alternatives at a glance
+
+| Platform                                          | Best for                                                                     | Open source & self-hosting                                                            | How billing scales                                                                                                             | Starting price & free tier                                                                           |
+| :------------------------------------------------ | :--------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
+| **[Agenta](https://agenta.ai/)**                  | Shared AI coworkers, Slack/Telegram/web embeds, and coding-harness sandboxes | **MIT License**; free Docker Compose & Kubernetes self-hosting (includes RBAC & SSO)  | Cloud runtime & model credits ($0 model credits with BYOK); unlimited seats on paid cloud tiers; $0 unlimited runs self-hosted | **$0 forever** self-hosted; Cloud Hobby **$0** (up to 3 seats); Starter **$29/mo** (unlimited seats) |
+| **[n8n](https://n8n.io/)**                        | Technical workflow automation with explicit code and LangChain.js nodes      | **Sustainable Use License** (source-available); free internal self-hosting via Docker | 1 execution per completed workflow run regardless of internal node count; $0 LLM markup with BYOK                              | **$0** self-hosted Community Edition; Cloud Starter **EUR 20/mo** billed annually (2,500 executions) |
+| **[Activepieces](https://www.activepieces.com/)** | No-code business workflows and visual AI agent steps                         | **MIT License** (Community Edition); free Docker self-hosting                         | 1 credit per executed flow step; BYOK drops AI token charges to 1 step credit                                                  | **$0** self-hosted; Cloud Standard **$0** (1,000 credits/mo); Plus **$20/mo** (10,000 credits/mo)    |
+| **[Dify](https://dify.ai/)**                      | Visual RAG pipelines, knowledge retrieval, and LLM app builders              | **Dify Open Source License** (Modified Apache 2.0); free Docker Compose self-hosting  | Workspace subscription + message credits; direct BYOK model provider keys                                                      | **$0** self-hosted Community; Cloud Sandbox **$0** (200 messages); Professional **$59/workspace/mo** |
+| **[Langflow](https://www.langflow.org/)**         | Python-native visual agent graphs and MCP servers                            | **MIT License**; 100% free desktop app, Python package, and Docker container          | No platform credit meter; pay only your own LLM and vector database providers                                                  | **$0 forever** (MIT open source)                                                                     |
+| **[Relevance AI](https://relevanceai.com/)**      | Multi-agent GTM workforces and custom sales tools                            | Proprietary cloud SaaS (Enterprise data residency options)                            | Two meters: Actions (per tool/agent step) + Vendor Credits (for managed models/enrichers)                                      | 14-day trial; Pro **$19/mo** billed annually ($29 monthly, 7,000 Actions, 2 Build Users)             |
+| **[Lindy](https://www.lindy.ai/)**                | Ready-made inbox, calendar, phone, and CRM assistants                        | Proprietary cloud SaaS                                                                | Per-seat subscription with pooled monthly model and phone/task credits                                                         | 7-day trial; Plus **$29.99/user/mo** billed annually ($39.99 monthly, 3,000 credits)                 |
+| **[Make](https://www.make.com/)**                 | Visual multi-app SaaS routing across 3,000+ connectors                       | Proprietary cloud SaaS                                                                | 1 credit per module action executed inside a scenario                                                                          | Free (**1,000 credits/mo**); Core **$9/mo** billed annually (10,000 credits/mo)                      |
+
+## What is Gumloop?
+
+[Gumloop](https://www.gumloop.com/) is a cloud AI automation platform that combines two distinct builder experiences in the same workspace:
+
+1. **The Four-Tab Agent Builder (`Agent`, `Triggers`, `Access`, `Settings`):** Introduced as the centerpiece of Gumloop's multiplayer workspace and detailed in [Gumloop's Agents documentation](https://docs.gumloop.com/core-concepts/agents), the Agent Builder lets non-technical teammates configure conversational agents in plain language. It includes an `Auto` five-tier model router (`gumloop-chew`), **Company Brain** retrieval across Google Drive, Notion, Slack, GitHub, and Confluence, **Edit Own Instructions** and **AI Skill Editing** so agents can update their own prompts and skills during a conversation, a persistent **Cloud Browser**, and an isolated per-conversation **Python and shell VM** (with 80+ pre-installed data packages).
+2. **Visual Node Flows, Subflows, and Interfaces:** Gumloop's original drag-and-drop canvas connects webhook triggers, web scrapers, data enrichment nodes, conditional routers, and reusable Subflows into deterministic pipelines, paired with form **Interfaces** and the **Gummie** setup assistant.
+
+![Gumloop visual workflow and agent builder interface](/blog/best-gumloop-alternatives/gumloop.webp)
+_Gumloop combines a plain-language Agent Builder with its visual node-based Flows canvas._
+
+This combination makes Gumloop popular with marketing, SEO, and GTM operations teams that want to spin up web-scraping flows or Slack assistants without asking engineering to provision infrastructure.
+
+## Why teams look for a Gumloop alternative
+
+Teams rarely outgrow Gumloop because it is hard to start. They look for an alternative when four architectural and billing constraints surface in day-to-day production.
+
+![How Gumloop credit billing compares with alternatives](/blog/best-gumloop-alternatives/gumloop-billing-vs-alternatives.webp)
+
+### 1. The four-part credit meter and the 8% to 16% orchestration fee
+
+As documented in [Gumloop's Credits & Pricing guide](https://docs.gumloop.com/core-concepts/credits_and_pricing), Gumloop converts **$1 into 200 credits** (`$0.005` per credit) and meters four separate components on every agent turn:
+
+1. **Chat & Reasoning:** The underlying LLM input and output token cost divided by `$0.005/credit`.
+2. **Tool Calls & Company Brain:** `1 credit` (`$0.005`) per connector call, `2 credits` (`$0.01`) per Company Brain search, plus variable per-call charges for premium scrapers and enrichment providers.
+3. **Active VM Compute:** `5 credits` (`$0.025`) per active session-minute inside the Python and shell sandbox, with a 1-credit minimum whenever the VM wakes up.
+4. **Platform Orchestration Fee:** An additional **8% fee** added to the total credit cost of managed agent runs.
+
+Many teams assume that supplying their own OpenAI or Anthropic API keys (BYOK) removes platform runtime markups. In Gumloop, BYOK drops direct token credits to zero, but tool calls and VM compute minutes still bill at full rate, and on legacy flow tiers (`Solo`, `Team`), Gumloop's orchestration fee increases from **8% to 16% of the full retail list cost** of the run, meaning a $1.00 model run on your own API key still deducts 32 Gumloop credits (`$0.16`).
+
+### 2. No permanent free tier and no monthly credit rollover on Pro
+
+According to [Gumloop's pricing page](https://www.gumloop.com/pricing), Gumloop no longer offers a permanent free plan. New organizations start with a one-time **14-day Pro trial** (credit card required upfront) with 2,500 trial credits. When the 14 days end, workspaces must convert to the **Pro plan at $37/month** (20,000 monthly credits, unlimited seats, and up to 5 concurrent runs) or all automations pause.
+
+Unused monthly credits on the Pro plan expire at the end of each billing cycle and never roll over. Teams that want pooled annual credits, SSO/SAML, SCIM provisioning, GitHub skill syncing, or VPC deployment have to move to custom **Enterprise** contracts.
+
+### 3. Ephemeral 14-day agent storage and a tool-wrapper VM
+
+As noted in [Gumloop's Code Sandbox & Secrets documentation](https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets), Gumloop gives each agent three file directories: the root session directory (deleted when the conversation ends), `.workspace/agent/` (shared across conversations), and `.workspace/personal/` (private per user, capped at 10 GB).
+
+Crucially, **files stored in `.workspace/agent/` and `.workspace/personal/` automatically expire and delete after 14 days of inactivity**. If your team builds an SEO, research, or ops coworker that accumulates competitive dossiers, brand playbooks, or SQLite state in its workspace folder and goes untouched during a two-week sprint, those files vanish unless backed up externally. Furthermore, Gumloop's VM is a secondary tool invoked by Gumloop's proprietary cloud agent loop rather than a native coding agent harness like Claude Code, Codex, or Pi operating directly inside a persistent workstation.
+
+### 4. Closed-source, cloud-only lock-in
+
+Gumloop has no open-source license and no self-hosted Docker or Kubernetes community edition. For regulated startups, engineering-led companies, and agencies that want to deploy agents inside their own AWS, GCP, or on-premise VPC (or hand a self-hosted instance to a client without an ongoing SaaS subscription), a closed cloud platform is a non-starter.
+
+## How to choose the right Gumloop alternative
+
+Before migrating, identify which product shape matches the workflows you actually run in Gumloop. Every tool in this guide falls into one of three architectures:
+
+![How Gumloop alternatives split into three product shapes](/blog/best-gumloop-alternatives/gumloop-alternatives-architecture-map.webp)
+
+Use four concrete questions to narrow your shortlist:
+
+- **Did you use Gumloop for conversational Agents or visual Flows?** If your team lives in the four-tab Agent Builder and chats with agents in Slack, move to an AI coworker platform like **Agenta** (open source) or **Lindy** (cloud SaaS). If you built deterministic webhook-to-CRM graphs on the Flows canvas, move to **n8n**, **Activepieces**, or **Make**. If you want a deeper head-to-head on these two styles, see our [Gumloop vs n8n comparison](/blog/gumloop-vs-n8n).
+- **Do you need open-source self-hosting?** Verify the exact license before deploying. **Agenta**, **Activepieces (Community Edition)**, and **Langflow** use the permissive **MIT License**. **Dify** uses a Modified Apache 2.0 license, and **n8n** uses the source-available **Sustainable Use License** (free for internal business use, restricted for commercial white-labeling).
+- **How does pricing treat BYOK and additional teammates?** Check whether adding 15 Slack users multiplies your monthly per-seat bill, and whether connecting your own Anthropic or OpenAI key leaves behind per-step or percentage orchestration fees.
+- **Does the agent need a real computer and permanent files?** If your agent writes Python scripts, inspects git repositories, drives a headless browser, and maintains long-term team files that must never auto-expire after 14 days, choose a platform built on persistent sandboxes and coding agent harnesses.
+
+## 1. Agenta: best open-source alternative for plain-language AI coworkers and coding harnesses
+
+[Agenta](https://agenta.ai/) is an MIT-licensed, open-source platform for building and deploying AI agents and coworkers across your team. It is the closest architectural match for teams that love Gumloop's plain-language Agent Builder, reusable skills, and Slack integration, but want **true open-source self-hosting**, **coding agent harnesses** (`Claude Code`, `Codex`, and `Pi`), **permanent shared agent storage**, and **predictable pricing with unlimited seats**.
+
+![Agenta workspace showing plain-language AI coworker configuration, skills, integrations, and sandbox terminal](/blog/best-gumloop-alternatives/agenta.webp)
+_Agenta lets non-technical and technical teammates configure AI coworkers in plain language with reusable skills, 1,000+ integrations, and a full Daytona sandbox computer._
+
+### How Agenta compares to Gumloop's Agent Builder
+
+Like Gumloop, Agenta does not force marketers, founders, or ops leads to wire LangChain nodes or write JSON expressions just to build a capable agent. Teammates create and refine agents through conversation or a clean configuration view built around four core building blocks:
+
+- **Coding Agent Harnesses in Daytona Sandboxes:** Instead of running a proprietary cloud loop that calls a temporary VM as a side tool, every Agenta agent runs on a real coding agent harness ([Claude Code](https://code.claude.com/docs/en/overview), [OpenAI Codex](https://developers.openai.com/codex/cli), or [Pi](https://shittycodingagent.ai/)) inside its own isolated [Daytona](https://www.daytona.io/) sandbox computer. Each agent gets a full Linux filesystem, bash terminal (`git`, `gh`, `curl`, `jq`, `uv`, `python3`, `node`, `ffmpeg`, `sqlite3`), and headless Chromium browser via Playwright.
+- **Permanent Two-Tier File Storage (No 14-Day Expiry):** Every conversation has a fast scratch working directory, plus a durable `agent-files/` folder that persists across all sessions and teammates. Unlike Gumloop's `.workspace/agent/` directory, files in `agent-files/` never auto-delete after 14 days, and tools or binaries installed under `agent-files/.tools/` rebuild automatically across sessions.
+- **Versioned Instructions and Reusable Skills:** Agents learn standing team preferences into a `## Memory` section and commit configuration revisions with full diff history. Multi-step procedures, templates, and scripts live in modular `SKILL.md` packages that can be shared across agents, checked for upstream updates, and edited in plain Markdown.
+- **1,000+ Managed OAuth Integrations and Custom MCP Servers:** Connect Gmail, Google Drive, Slack, Notion, HubSpot, Salesforce, Linear, Jira, GitHub, Google Search Console, and custom Model Context Protocol (MCP) servers. Builders set granular per-tool permissions (`Allow`, `Ask`, or `Deny`), and sensitive operations pause with inline approval cards (`request_input`, `request_secret`, `request_connection`) before sending external messages or mutating production data.
+- **Work Where Your Team Already Works:** Deploy the exact same coworker in the Agenta web workspace, inside **Slack** channels and threads, **Telegram** groups, **WhatsApp**, or inside your own product using Agenta's **embeddable web widget** (Iframe, Floating Widget, or headless React SDK via `@agenta/embed-react`). Agents also run autonomously in the background via cron schedules and real-time webhook or app-event subscriptions.
+
+### Pricing and hosting
+
+Agenta is available both as a free self-hosted open-source platform under the **MIT License** on [GitHub](https://github.com/Agenta-AI/agenta) and as a managed cloud service on [Agenta pricing](https://agenta.ai/pricing):
+
+- **Self-Hosted Open Source ($0 forever):** Deploy via Docker Compose or Helm/Kubernetes on your own infrastructure with unlimited users, unlimited projects, scheduled and webhook triggers, role-based access control (RBAC), and enterprise SSO included at no license cost.
+- **Cloud Hobby ($0 forever):** Up to 3 team members and 2 projects, with 500 one-time signup bonus credits plus 25 daily refreshing credits (up to 750 free credits per month).
+- **Cloud Starter ($29/month):** **Unlimited team members**, up to 10 projects, 2,900 monthly credits plus 75 daily free credits (up to 2,250/month), Slack/Telegram/WhatsApp deployment, and embeddable widgets.
+- **Cloud Plus ($99/month):** **Unlimited team members**, unlimited projects, 10,000 monthly credits plus 150 daily free credits (up to 4,500/month), and role-based access control.
+- **Bring Your Own Key (BYOK) & ChatGPT Subscription Support:** Connect your own Anthropic, OpenAI, Google, or OpenRouter API keys without Gumloop's 8% to 16% orchestration fee on token spend. On local self-hosted personal deployments, you can also authenticate using your existing ChatGPT subscription via a mounted `Codex` or `Pi` harness login.
+
+### Pros and cons vs Gumloop
+
+- **Pros:** True MIT open-source self-hosting with RBAC and SSO included; runs real coding agent harnesses (`Claude Code`, `Codex`, `Pi`) in Daytona sandboxes; persistent `agent-files/` never expire after 14 days; permanent $0 Cloud Hobby tier and $29/month Starter tier with unlimited seats; supports web embeds alongside Slack, Telegram, and WhatsApp.
+- **Cons:** Designed around conversational AI coworkers, skills, and scheduled/event automations rather than Gumloop's drag-and-drop node canvas for legacy visual ETL flows.
+
+## 2. n8n: best for deterministic node workflows and flat per-execution billing
+
+If your team primarily uses Gumloop's visual **Flows** canvas to wire webhook triggers, HTTP requests, conditional branches, and database upserts, [n8n](https://n8n.io/) is the industry standard for technical workflow automation.
+
+![n8n visual workflow automation canvas with AI agent and sub-nodes](/blog/best-gumloop-alternatives/n8n.webp)
+_n8n gives technical builders explicit control over workflow nodes, JavaScript or Python code steps, and LangChain.js agent sub-nodes._
+
+### How n8n compares to Gumloop
+
+Where Gumloop abstracts execution behind a 4-part credit meter, n8n exposes every step on an explicit graph and bills by the **completed workflow execution**:
+
+- **Flat Per-Execution Billing:** In n8n, a workflow triggered by a webhook that loops through 150 CRM records, runs three JavaScript transformations, and calls two LLM nodes counts as **1 workflow execution**. You never pay per internal step or per active VM minute.
+- **LangChain.js Cluster Nodes + Standalone Agents (Preview):** As documented in [n8n's AI & LangChain guide](https://docs.n8n.io/build/integrate-ai/langchain-in-n8n), engineers wire a root `AI Agent` (`Tools Agent`) node to explicit Chat Model, Memory (Postgres, Redis, MongoDB), Vector Store (Pinecone, Qdrant, PGVector), and Tool sub-nodes. Starting in n8n 2.32.3+, n8n also includes standalone project-level **Agents (Preview)** with Markdown skills and sub-agents, though self-hosted Preview Agent knowledge bases require configuring an external Daytona sandbox and do not yet support Redis Queue mode.
+- **1,000+ Connectors and Inline Code:** Every workflow can mix prebuilt SaaS nodes with custom JavaScript or Python `Code` nodes, GraphQL queries, cURL imports, and MCP Client or Server triggers.
+
+### Pricing and hosting
+
+According to [n8n's pricing page](https://n8n.io/pricing/), n8n offers two deployment paths:
+
+- **Self-Hosted Community Edition ($0):** Free to run on Docker or Kubernetes under the source-available **Sustainable Use License** for internal business workflows, with zero n8n markup on your own LLM API keys.
+- **n8n Cloud:** **Starter** costs **EUR 20/month billed annually** (EUR 24 billed monthly) for 2,500 workflow executions and unlimited users; **Pro** costs **EUR 50/month billed annually** for 10,000 executions; **Business** costs **EUR 667/month billed annually** (EUR 800 monthly) for 40,000 executions, SSO/SAML, Git version control, environments, and self-hosted Business support.
+
+### Pros and cons vs Gumloop
+
+- **Pros:** Predictable per-execution billing for multi-step loops; free Docker self-hosting for internal use; deep control over JSON payloads, error branches, and LangChain sub-nodes; zero platform fee on BYOK model tokens.
+- **Cons:** Steep learning curve for non-technical marketers; Sustainable Use License prohibits commercial white-labeling without an Enterprise contract; steep jump from EUR 50/month Pro to EUR 667/month Business for SSO and Git control; no built-in coding agent harness or persistent Linux desktop out of the box.
+
+## 3. Activepieces: best for no-code open-source workflow automation with BYOK
+
+[Activepieces](https://www.activepieces.com/) is an open-source, no-code automation platform that bridges the gap between Gumloop's friendly visual builder and n8n's self-hosted architecture.
+
+![Activepieces clean step-by-step no-code workflow builder with AI and human approval steps](/blog/best-gumloop-alternatives/activepieces.webp)
+_Activepieces offers a linear, non-technical workflow builder with TypeScript Pieces, human approval links, and MIT-licensed self-hosting._
+
+### How Activepieces compares to Gumloop
+
+For operations and marketing teams that find n8n's JSON expressions intimidating, Activepieces keeps the clean, step-by-step flow experience of Gumloop Flows while removing Gumloop's BYOK surcharge:
+
+- **1-Credit BYOK AI Steps:** On Activepieces Cloud, every executed flow step consumes `1 credit`. When you connect your own OpenAI, Anthropic, or Google API keys inside the **AI Providers** settings, AI agent and prompt steps consume only the standard **1 step credit** with no 8% or 16% orchestration markup.
+- **MIT-Licensed Community Edition and TypeScript Pieces:** Every integration ("Piece") is an open-source TypeScript npm package. More than 60% of Activepieces connectors are contributed by its open-source community, and internal developers can write custom Pieces with full IDE autocomplete.
+- **Built-in Tables, Todos, and Mcp Server Tools:** Activepieces includes native relational **Tables** for lightweight state, **Human Input / Approval** steps (`Todos`) that pause flows until a teammate approves, and visual AI agents that can call any Piece as an MCP tool.
+
+### Pricing and hosting
+
+As listed on [Activepieces pricing](https://www.activepieces.com/pricing):
+
+- **Self-Hosted Community Edition ($0):** Licensed under the **MIT License**, deployable via Docker with unlimited flows and step executions on your own server.
+- **Activepieces Cloud:** **Standard (Free)** includes **1,000 credits/month** and 2 active flows; **Plus** costs **$20/month** for **10,000 credits/month**, 10 active flows, and 1-credit BYOK AI usage; **Business** costs **$100/month** for **50,000 credits/month**, 50 active flows, 5 seats, and custom roles.
+
+### Pros and cons vs Gumloop
+
+- **Pros:** True MIT open-source core; permanent free cloud tier and $20/month entry plan; BYOK drops AI steps to 1 credit; much easier for non-technical builders than n8n.
+- **Cons:** Built primarily for linear and branching step workflows rather than open-ended conversational coworkers with a full Python/bash computer sandbox and persistent file workspace.
+
+## 4. Dify: best for visual RAG pipelines and LLM application studios
+
+When teams use Gumloop to ingest PDFs, index internal documentation, and expose a custom chat or workflow app to teammates or customers, [Dify](https://dify.ai/) provides a dedicated open-source LLM application studio.
+
+![Dify visual workflow and RAG pipeline builder](/blog/best-gumloop-alternatives/dify.webp)
+_Dify specializes in visual Chatflow and Workflow graphs with built-in document chunking, hybrid retrieval, and model routing._
+
+### How Dify compares to Gumloop
+
+While Gumloop's Company Brain offers zero-setup search at `2 credits` per query, Dify gives engineering and technical product teams granular control over every stage of the retrieval-augmented generation (RAG) and prompt pipeline:
+
+- **Deep RAG Ingestion & Hybrid Search:** Dify lets you configure parent-child document chunking, custom cleaning rules, embedding models, vector databases (Weaviate, Qdrant, Milvus, PGVector), and reranker models, with side-by-side hit testing before publishing.
+- **Chatflow and Workflow Canvas:** Builders choose between **Chatflows** (multi-turn conversational apps with memory variables) and **Workflows** (batch automation graphs with iterators, code blocks, HTTP requests, and conditional branches), plus a growing marketplace of Dify plugins and MCP integrations.
+- **Built-in Observability and API Publishing:** Every Dify workflow automatically generates a REST API endpoint, an embeddable web app template, and token-level logs with Langfuse, Arize Phoenix, and Opik integrations.
+
+### Pricing and hosting
+
+According to [Dify's pricing page](https://dify.ai/pricing):
+
+- **Self-Hosted Community Edition ($0):** Free to deploy via Docker Compose under the **Dify Open Source License** (built on Apache 2.0 with specific multi-tenant commercial restrictions), using your own model API keys.
+- **Dify Cloud:** **Sandbox ($0)** includes 200 OpenAI message credits and 1 member; **Professional ($59/workspace/month)** includes 3 team members, 50 apps, 5,000 message credits, and 5 GB vector storage; **Team ($159/workspace/month)** scales to 50 team members.
+
+### Pros and cons vs Gumloop
+
+- **Pros:** Far deeper control over RAG chunking, embeddings, and reranking than Gumloop's Company Brain; free Docker self-hosting; one-click REST API for every workflow.
+- **Cons:** Geared toward developers building LLM apps rather than non-technical operators spinning up Slack coworkers or browser-scraping flows; self-hosted Docker stack runs multiple microservices (API, worker, web, Postgres, Redis, vector DB, sandbox).
+
+## 5. Langflow: best for Python developers building visual agent and MCP graphs
+
+[Langflow](https://www.langflow.org/) (backed by DataStax / IBM) is a **100% free, MIT-licensed** visual IDE for building Python-based multi-agent applications, RAG pipelines, and Model Context Protocol (MCP) servers.
+
+![Langflow visual Python component canvas for agents and MCP tools](/blog/best-gumloop-alternatives/langflow.webp)
+_Langflow turns every visual node on its canvas into an editable Python component that can act as both an MCP client and an MCP server._
+
+### How Langflow compares to Gumloop
+
+If your engineering team likes the visual clarity of Gumloop's node canvas but wants every node to be real, inspectable Python code with zero SaaS subscription fees, Langflow is purpose-built for that workflow:
+
+- **Every Node Is Editable Python:** Behind every prompt, agent, retriever, or tool block on the Langflow canvas sits a standard Python class. Developers can click into any node, edit its Python source inline, add custom PyPI dependencies, and commit the flow JSON to Git.
+- **Native MCP Client and Server:** Any Langflow project can connect to external MCP servers as tools **and** automatically expose its own flows as an MCP server for Claude Desktop, Cursor, or other agents.
+- **Zero Platform Credit Meter:** Langflow has no credit system, no seat fees, and no orchestration percentage markup. You run it via Langflow Desktop, `uv pip install langflow`, or Docker, and pay only your underlying LLM and vector store providers.
+
+### Pricing and hosting
+
+- **100% Free & MIT Open Source ($0 forever):** Download [Langflow Desktop](https://www.langflow.org/desktop) or self-host via Docker/Kubernetes under the permissive **MIT License**.
+
+### Pros and cons vs Gumloop
+
+- **Pros:** Completely free MIT open source with zero credit markups; full Python extensibility inside every visual node; first-class MCP client and server support.
+- **Cons:** No managed SaaS business workspace with built-in OAuth governance, Slack coworking channels, or pre-warmed cloud browser scrapers for non-technical GTM teams; you manage your own hosting, auth, and webhook uptime.
+
+## 6. Relevance AI: best for visual multi-agent GTM workforces
+
+For sales and marketing operations teams that use Gumloop primarily for lead enrichment, account research, and outbound personalization, [Relevance AI](https://relevanceai.com/) is the closest commercial GTM competitor. (If you are also evaluating Relevance AI directly, see our guide to the [best Relevance AI alternatives](/blog/best-relevance-ai-alternatives).)
+
+![Relevance AI Workforce canvas showing multi-agent handoffs and custom GTM tools](/blog/best-gumloop-alternatives/relevance-ai.webp)
+_Relevance AI organizes automation into deterministic Tools, autonomous Agents, and a visual multi-agent Workforce canvas._
+
+### How Relevance AI compares to Gumloop
+
+Relevance AI structures its platform around a three-tier hierarchy: **Tools** (deterministic step sequences with scrapers, prompt blocks, and Python/JS steps), **Agents** (autonomous workers with instructions and approval rules), and **Workforce** (a visual canvas where specialized agents hand tasks to one another):
+
+- **Prebuilt BDR and Lifecycle Agents:** Relevance AI ships with deep CRM integrations (HubSpot, Salesforce), LinkedIn and web research enrichment templates, and multi-agent delegation graphs tailored for revenue teams.
+- **Lower Entry Price, Stricter Builder Seat Caps:** On [Relevance AI's pricing page](https://relevanceai.com/pricing), the **Pro** plan starts at **$19/month billed annually** ($29 monthly) for 7,000 Actions, which is lower than Gumloop's $37/month Pro plan. However, Relevance AI Pro caps workspaces at **2 Build Users and 1 project**, whereas Gumloop Pro and Agenta Starter include unlimited seats. Adding a third builder or second project in Relevance AI requires jumping to the **Team** plan at **$234/month billed annually** ($349 monthly).
+- **Two-Meter Billing (Actions + Vendor Credits):** As detailed in [Relevance AI's pricing docs](https://relevanceai.com/docs/get-started/relevance-pricing), every tool or agent step consumes **Actions** (top-ups cost $80 per 1,000 Actions), while managed LLM and enrichment calls consume **Vendor Credits**. Bringing your own LLM API keys skips Vendor Credits, but every step still consumes Actions.
+
+### Pricing and hosting
+
+- **Cloud-only SaaS:** 14-day free trial ( retired its legacy permanent free plan in late 2025); **Pro** at **$19/month billed annually** ($29 monthly, 7,000 Actions, 2 Build Users, 1 project); **Team** at **$234/month billed annually** ($349 monthly, 7,000 Actions, 5 Build Users, 5 projects); **Enterprise** custom.
+
+### Pros and cons vs Gumloop
+
+- **Pros:** Purpose-built multi-agent Workforce canvas for GTM and sales research; lower single-builder entry price ($19/month annual vs Gumloop's $37/month); strong native CRM and enrichment tooling.
+- **Cons:** Proprietary cloud-only platform with no self-hosting; strict 2-builder seat and 1-project cap on Pro before a jump to $234/month; two separate usage meters (Actions + Vendor Credits) where BYOK still consumes Actions on every step.
+
+## 7. Lindy: best for ready-made inbox, meeting, and CRM assistants
+
+When non-technical founders, executives, or recruiters use Gumloop to automate email triage, meeting prep, calendar scheduling, and CRM updates, [Lindy](https://www.lindy.ai/) removes the workflow canvas almost entirely in favor of conversational setup and prebuilt business templates.
+
+![Lindy interface for configuring automated business, inbox, and meeting assistants](/blog/best-gumloop-alternatives/lindy.webp)
+_Lindy focuses on ready-made assistants for email triage, meeting recording, scheduling, and outbound sales follow-ups._
+
+### How Lindy compares to Gumloop
+
+Where Gumloop asks you to configure tool permissions, Company Brain sources, or visual flow nodes, Lindy ships catalog templates ("Lindies") for inbox management, meeting note-taking, customer support, and phone/SMS outreach:
+
+- **Zero-Canvas Assistant Setup:** You describe what you want in plain English or pick a template, connect Gmail, Outlook, Slack, HubSpot, or Google Calendar via OAuth, and Lindy handles trigger polling and follow-up loops automatically.
+- **Built-in Voice and Meeting Capabilities:** Unlike Gumloop, Lindy includes native meeting bots that join Zoom/Google Meet calls and AI phone agents (billed per minute in credits) for inbound and outbound calls.
+- **Per-Seat Billing with Pooled Credits:** According to [Lindy's pricing page](https://www.lindy.ai/pricing), Lindy bills **per user seat** (`$29.99/user/month` billed annually or `$39.99/user/month` billed monthly on Plus) rather than offering unlimited seats on its base plan like Gumloop Pro or Agenta Starter.
+
+### Pricing and hosting
+
+- **Cloud-only SaaS:** 7-day free trial (400 credits); **Plus** at **$29.99/user/month billed annually** ($39.99 monthly, 3,000 pooled credits/month); **Pro** at **$49.99/user/month billed annually** ($59.99 monthly, 5,000 credits/month); **Enterprise** custom.
+
+### Pros and cons vs Gumloop
+
+- **Pros:** Fastest setup for non-technical executives automating Gmail, calendar scheduling, meeting notes, and phone calls; clean conversational UX.
+- **Cons:** Closed-source cloud SaaS with no self-hosting; per-seat pricing becomes expensive as you invite a 10- or 20-person team; lacks a Python/bash code sandbox or deep developer customization.
+
+## 8. Make: best for visual multi-app SaaS routing across 3,000+ connectors
+
+If you use Gumloop primarily to move structured payloads between SaaS apps (for example, routing Typeform submissions through an OpenAI prompt into Airtable, Slack, and HubSpot) and want a lower entry price with a massive integration catalog, [Make](https://www.make.com/) is the most mature visual cloud router on the market.
+
+![Make visual scenario builder connecting SaaS modules and routers](/blog/best-gumloop-alternatives/make.webp)
+_Make provides a visual scenario canvas with 3,000+ app integrations, visual routers, and granular module-level error handling._
+
+### How Make compares to Gumloop
+
+Make (formerly Integromat) models automations as visual **Scenarios** made of connected app modules:
+
+- **3,000+ Prebuilt App Connectors:** Make's integration library is roughly 10x larger than Gumloop's 300+ connectors, covering niche e-commerce, ERP, accounting, and regional marketing tools out of the box, plus Make AI Agents and MCP support.
+- **Transparent 1-Credit-Per-Module Meter:** As explained in [Make's credit documentation](https://help.make.com/credits), Make updated its billing unit from Operations to **Credits** in August 2025, where **1 module action = 1 Make credit** (with dynamic credit scaling only if you use Make's built-in managed AI Toolkit without your own API keys). When you call OpenAI or Anthropic via Make's standard app modules with your own API key, each module step costs exactly **1 Make credit** with no percentage orchestration surcharge.
+- **$9/Month Entry Point and Permanent Free Tier:** Unlike Gumloop's $37/month floor, Make offers a permanent **Free** tier (1,000 credits/month) and a **Core** plan at **$9/month billed annually** ($10.59 monthly) for 10,000 credits/month.
+
+### Pricing and hosting
+
+- **Cloud-only SaaS:** **Free** ($0 for 1,000 credits/month, 2 active scenarios); **Core** at **$9/month billed annually** (10,000 credits/month, unlimited active scenarios); **Pro** at **$16/month billed annually**; **Teams** at **$29/month billed annually**; **Enterprise** custom.
+
+### Pros and cons vs Gumloop
+
+- **Pros:** Permanent free tier and $9/month paid entry point; 3,000+ SaaS integrations; clear 1-credit-per-module billing with no percentage orchestration fee on BYOK LLM calls.
+- **Cons:** Proprietary cloud-only platform with no self-hosting; built for deterministic module scenarios rather than autonomous AI coworkers with a persistent Linux sandbox, reusable skills, and Slack thread collaboration.
+
+## Open-source vs cloud Gumloop alternatives: license and sandbox comparison
+
+Because several vendors market themselves as "open" while restricting self-hosting or commercial embedding, here is how the technical architecture and licensing compare across all nine platforms:
+
+| Platform         | License type                                       | Self-hosting support                                        | Agent execution runtime                                     | Built-in code sandbox & file persistence                                                         | BYOK billing impact                                                                |
+| :--------------- | :------------------------------------------------- | :---------------------------------------------------------- | :---------------------------------------------------------- | :----------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
+| **Gumloop**      | Proprietary (Closed)                               | Enterprise VPC only                                         | Proprietary cloud agent loop (`Auto` router) + visual Flows | Per-conversation Python/shell VM; shared `.workspace/agent/` files **auto-delete after 14 days** | Removes token credits, but keeps tool/VM credits + **8% to 16% orchestration fee** |
+| **Agenta**       | **MIT License** (OSI open source)                  | Free Docker Compose & Helm/Kubernetes (includes RBAC & SSO) | Coding agent harnesses (**Claude Code, Codex, Pi**)         | Isolated **Daytona sandbox** (Linux CLI, Python, Node, Chromium) + **permanent `agent-files/`**  | **$0 model credit markup** on BYOK or local personal ChatGPT harness login         |
+| **n8n**          | **Sustainable Use License** (source-available)     | Free Docker & Kubernetes for internal business use          | LangChain.js `Tools Agent` cluster nodes + Preview Agents   | JS/Python task-runner Code nodes (Preview Agent KB requires external Daytona setup)              | **$0 markup**; workflow still counts as 1 execution                                |
+| **Activepieces** | **MIT License** (Community Edition)                | Free Docker Compose & Kubernetes                            | Visual step flows + MCP-enabled AI Agent steps              | Sandboxed TypeScript Piece & code step runner + built-in relational Tables                       | Drops AI step cost to **1 standard step credit**                                   |
+| **Dify**         | **Dify Open Source License** (Modified Apache 2.0) | Free Docker Compose & Kubernetes                            | Visual Chatflow / Workflow engine + ReAct/Function Calling  | Sandboxed Python/JS code block runner for data transformations                                   | **$0 platform markup** on self-hosted; consumes message credits on Cloud           |
+| **Langflow**     | **MIT License** (OSI open source)                  | Free Desktop app, `pip` / `uv`, Docker & Kubernetes         | Python component DAG + native MCP server/client             | Direct local/container Python execution environment                                              | **$0 platform meter** (100% free software)                                         |
+| **Relevance AI** | Proprietary (Closed)                               | Cloud only                                                  | Multi-agent Workforce graph + tool-calling agents           | Cloud Python/JS code transformation steps + Knowledge Tables                                     | Skips Vendor Credits, but **every step still consumes Actions**                    |
+| **Lindy**        | Proprietary (Closed)                               | Cloud only                                                  | Managed cloud assistant loop                                | No user-accessible Linux/Python sandbox                                                          | Managed credits bundled per user seat                                              |
+| **Make**         | Proprietary (Closed)                               | Cloud only                                                  | Visual scenario router + Make AI Agents                     | Short cloud JS code steps (Enterprise/custom apps)                                               | Costs **1 Make credit per module step** with no percentage fee                     |
+
+## How to migrate from Gumloop without breaking active workflows
+
+Teams that switch away from Gumloop cleanly rarely lift-and-shift everything into a single canvas on day one. Instead, they run a three-step migration over a single afternoon:
+
+1. **Export `.workspace/agent/` files and Skills before the 14-day window expires:** Open every active Gumloop agent, copy its system instructions and Markdown **Skills**, and download any reference files, CSVs, or scripts stored in `.workspace/agent/` so nothing is lost to Gumloop's 14-day inactivity cleanup.
+2. **Split conversational coworkers from rigid webhook routers:** Look at your top five Gumloop automations by monthly credit burn.
+   - Move **conversational agents, research coworkers, SEO/content pipelines, and code-assisted workflows** into **[Agenta](https://agenta.ai/)**. Paste your instructions and `SKILL.md` playbooks, place permanent team files in `agent-files/`, connect your OAuth integrations or MCP servers, and attach the agent to your Slack channels or cron schedules.
+   - Move **high-frequency, deterministic webhook-to-CRM pipelines** (where no reasoning loop or sandbox computer is needed) into **[n8n](https://n8n.io/)** (if your builders write JavaScript/Python) or **[Activepieces](https://www.activepieces.com/)** (if your builders prefer a no-code flow list).
+3. **Run one parallel cycle with BYOK enabled:** Connect your own Anthropic or OpenAI API keys in your new workspace and compare one week of real production runs against Gumloop's Usage dashboard. Most teams see an immediate drop in monthly spend simply by eliminating Gumloop's per-minute VM credit charges and 8% to 16% orchestration surcharge.
+
+If you are evaluating broader agent infrastructure beyond Gumloop, explore our guides to the [best open-source AI agent platforms](/blog/best-open-source-ai-agent-platforms), [AI coworker platforms for business](/blog/ai-coworker-platforms-for-business), and the best [open-source Claude Cowork alternative](/blog/open-source-claude-cowork-alternative).
+
+## Frequently asked questions
+
+### What is the best Gumloop alternative in 2026?
+
+Agenta is the best overall alternative if you want Gumloop's plain-language agent building and Slack coworking combined with MIT-licensed open-source self-hosting, real coding agent harnesses (Claude Code, Codex, and Pi) inside isolated Daytona sandboxes, and unlimited seats on paid cloud tiers. If you mainly use Gumloop Flows for deterministic API routing, n8n and Activepieces are the strongest workflow-focused replacements.
+
+### Does Gumloop still have a free plan?
+
+No. Gumloop retired its permanent free plan. Every new organization starts with a one-time 14-day Pro trial that requires a credit card upfront and converts into the Pro plan at $37 per month for 20,000 monthly credits, or pauses until you subscribe.
+
+### How does Gumloop credit billing work?
+
+Gumloop converts $1 into 200 credits ($0.005 per credit) and charges four components on every agent turn: model token usage (Chat and Reasoning), connector tool calls (1 credit per call plus 2 credits per Company Brain search and any premium enrichment costs), active VM compute time (5 credits per active session-minute), and an 8% platform orchestration fee (or 16% on BYOK flow tiers).
+
+### What is the best open-source alternative to Gumloop?
+
+Agenta (MIT License), Activepieces (MIT Community Edition), and Langflow (MIT License) offer true OSI-approved open-source licenses. Agenta is built for plain-language AI coworkers, persistent agent files, and Slack or web deployment; Activepieces is built for Zapier-style no-code flows; and Langflow is built for Python and MCP component graphs. Dify (Modified Apache 2.0) and n8n (Sustainable Use License) also support free self-hosting for internal workflows.
+
+### Does bringing your own API keys (BYOK) eliminate Gumloop credit charges?
+
+Not completely. Supplying your own OpenAI or Anthropic API keys sets direct model token credits to zero, but Gumloop still charges 1 credit per connector call, 5 credits per active VM minute, and a platform orchestration fee calculated against the retail list cost of the run (8% on standard agent runs and 16% on BYOK flow tiers).
+
+### Which Gumloop alternative is best between Gumloop, n8n, and Activepieces?
+
+Choose n8n if you have technical builders who want deterministic node control, JavaScript or Python transformation steps, and a single flat execution charge per workflow run. Choose Activepieces if non-technical operators want a clean step-by-step builder where BYOK AI calls drop to 1 credit per step. Choose Agenta if you want conversational AI coworkers that write code, keep permanent shared files, and work inside Slack threads.
+
+### Can Agenta run with my own API keys or ChatGPT subscription?
+
+Yes. On both self-hosted Agenta and Agenta Cloud, you can connect your own model API keys (Anthropic, OpenAI, Google, or OpenRouter) without a percentage orchestration fee on your token spend. On a local self-hosted personal deployment, Agenta can also authenticate through your mounted ChatGPT-compatible harness login (such as Codex or Pi).
+
+### How do I migrate from Gumloop to an alternative?
+
+Separate your Gumloop workspace into two buckets before migrating: conversational agents and deterministic API flows. Export your agent system instructions, Markdown skills, and reference files from .workspace/agent/ before their 14-day inactivity window expires, then recreate conversational teammates in Agenta and rebuild rigid webhook-to-CRM pipelines in n8n or Activepieces.
