@@ -1170,9 +1170,9 @@ class SessionStreamsRouter:
 
         stream = watch_event_stream(
             channel=watch_channel(str(project_id), session_id),
-            # One pubsub connection per SSE connection (v1 — simplest correct
-            # teardown story; revisit with a shared listener if counts grow).
-            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            # One pubsub connection per SSE connection, from the subscriber pool
+            # (capped per process, apart from the pool that span ingest uses).
+            pubsub_factory=lambda: get_streams_engine().get_subscriber_redis().pubsub(),
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
             retry_milliseconds=env.sessions.watch_retry_milliseconds,
         )
@@ -1244,7 +1244,7 @@ class SessionStreamsRouter:
 
         stream = live_event_stream(
             channel=live_events_channel(project_id, session_id),
-            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            pubsub_factory=lambda: get_streams_engine().get_subscriber_redis().pubsub(),
             authorization_check=authorized,
             authorization_recheck_seconds=env.sessions.live_auth_recheck_seconds,
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
@@ -1300,7 +1300,7 @@ class SessionStreamsRouter:
 
         stream = watch_event_stream(
             channel=project_watch_channel(str(authorized_project_id)),
-            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            pubsub_factory=lambda: get_streams_engine().get_subscriber_redis().pubsub(),
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
             retry_milliseconds=env.sessions.watch_retry_milliseconds,
             event_filter=project_event_filter(
