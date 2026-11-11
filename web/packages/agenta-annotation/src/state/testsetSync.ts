@@ -248,9 +248,7 @@ function applyAnnotationOutputEntries(
     entries: {columnKey: string; outputs: Record<string, unknown>}[],
 ): void {
     for (const entry of entries) {
-        const existingValue = data[entry.columnKey]
         data[entry.columnKey] = {
-            ...(isPlainRecord(existingValue) ? existingValue : {}),
             ...entry.outputs,
         }
     }

@@ -520,6 +520,29 @@ describe("buildTestcaseExportRows", () => {
         })
         expect(rows).toHaveLength(0)
     })
+
+    it("replaces existing evaluator column data so cleared fields are removed", () => {
+        const testcase = {
+            id: "tc-1",
+            testset_id: "ts-1",
+            data: {prompt: "hello", quality: {score: 8, note: "stale note"}},
+        } as unknown as Testcase
+        const ann = makeAnnotation({
+            evaluatorSlug: "quality",
+            tags: [queueTag("q-1"), TESTCASE_QUEUE_KIND_TAG],
+            outputs: {score: 9},
+        })
+        const rows = buildTestcaseExportRows({
+            scenarioIds: ["s-1"],
+            testcasesByScenarioId: new Map([["s-1", testcase]]),
+            annotationsByTestcaseId: new Map([["tc-1", [ann]]]),
+            evaluators: [evaluator],
+            queueId: "q-1",
+        })
+        expect(rows).toHaveLength(1)
+        expect((rows[0].data as Record<string, unknown>).prompt).toBe("hello")
+        expect((rows[0].data as Record<string, unknown>).quality).toEqual({score: 9})
+    })
 })
 
 // ---------------------------------------------------------------------------
@@ -597,6 +620,25 @@ describe("buildTestsetSyncPreview", () => {
         expect(preview.targets[0].baseRevisionId).toBe("rev-1")
         expect(preview.exportableRows).toBe(1)
         expect(preview.hasBlockingConflicts).toBe(false)
+    })
+
+    it("replaces existing evaluator outputs so cleared fields do not persist into preview rows", () => {
+        const testcase = {
+            id: "tc-1",
+            testset_id: "ts-1",
+            data: {prompt: "hello", quality: {score: 7, note: "stale note"}},
+        } as unknown as Testcase
+        const ann = makeQueueAnn()
+        const preview = buildTestsetSyncPreview({
+            queueId: "q-1",
+            completedScenarios: [{scenarioId: "s-1", testcaseId: "tc-1"}],
+            testcasesById: new Map([["tc-1", testcase]]),
+            annotationsByTestcaseId: new Map([["tc-1", [ann]]]),
+            evaluators: [evaluator],
+            latestRevisionIdsByTestsetId: new Map([["ts-1", "rev-1"]]),
+        })
+        expect(preview.targets[0].rows[0].data.quality).toEqual({score: 7})
+        expect(preview.targets[0].rows[0].data.quality).not.toHaveProperty("note")
     })
 
     it("records duplicate_queue_annotations conflict and skips the row", () => {
