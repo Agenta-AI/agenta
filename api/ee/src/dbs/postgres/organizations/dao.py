@@ -476,18 +476,29 @@ class OrganizationProvidersDAO:
         #
         provider_id: str,
         #
+        slug: Optional[str] = None,
+        #
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        #
         flags: Optional[dict] = None,
         #
         secret_id: Optional[str] = None,
         #
     ) -> Optional[OrganizationProviderDBE]:
-        """Update a provider's secret reference or flags."""
+        """Update a provider's slug, header, secret reference or flags."""
         now = datetime.now(timezone.utc)
 
         if self.session:
             provider = await self.session.get(OrganizationProviderDBE, provider_id)
 
             if provider:
+                if slug is not None:
+                    provider.slug = slug
+                if name is not None:
+                    provider.name = name
+                if description is not None:
+                    provider.description = description
                 if secret_id is not None:
                     provider.secret_id = secret_id
                 if flags is not None:
@@ -506,6 +517,12 @@ class OrganizationProvidersDAO:
                 provider = await session.get(OrganizationProviderDBE, provider_id)
 
                 if provider:
+                    if slug is not None:
+                        provider.slug = slug
+                    if name is not None:
+                        provider.name = name
+                    if description is not None:
+                        provider.description = description
                     if secret_id is not None:
                         provider.secret_id = secret_id
                     if flags is not None:
