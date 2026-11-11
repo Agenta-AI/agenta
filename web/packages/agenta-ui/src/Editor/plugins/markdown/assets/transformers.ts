@@ -1,5 +1,6 @@
 import {
     CHECK_LIST,
+    CODE,
     ELEMENT_TRANSFORMERS,
     MULTILINE_ELEMENT_TRANSFORMERS,
     TEXT_FORMAT_TRANSFORMERS,
@@ -26,9 +27,18 @@ import {
     TableNode,
     TableRowNode,
 } from "@lexical/table"
-import {$isParagraphNode, $isTextNode, ElementNode, LexicalNode} from "lexical"
+import {$dfs} from "@lexical/utils"
+import {
+    $getRoot,
+    $isParagraphNode,
+    $isTextNode,
+    createEditor,
+    ElementNode,
+    LexicalEditor,
+    LexicalNode,
+} from "lexical"
 
-import {unescapeTemplateDelimiters} from "../utils/textCleanup"
+import {findBackslashEscapes, unescapeTemplateDelimiters} from "../utils/textCleanup"
 
 // Stores the original markdown divider patterns (e.g. ":---", "---:", ":---:")
 // keyed by table node key so we can reproduce them exactly on export.
@@ -89,7 +99,15 @@ export const TABLE: ElementTransformer = {
                 if ($isTableCellNode(cell)) {
                     rowOutput.push(
                         $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, cell)
-                            .replace(/\n/g, "\\n")
+                            // Double each backslash run before "n", a line break or "|", then escape the last two.
+                            .replace(
+                                /(\\*)(n|\n|\|)/g,
+                                (_, backslashes: string, char: string) =>
+                                    backslashes +
+                                    backslashes +
+                                    (char === "n" ? "" : "\\") +
+                                    (char === "\n" ? "n" : char),
+                            )
                             .trim(),
                     )
                     if (cell.__headerState === TableCellHeaderStates.ROW) {
@@ -212,8 +230,14 @@ function getTableColumnsSize(table: TableNode) {
     return $isTableRowNode(row) ? row.getChildrenSize() : 0
 }
 
+// Halve each backslash run before "n" or "|"; an odd run before "n" was a line break.
 const $createTableCell = (textContent: string): TableCellNode => {
-    textContent = textContent.replace(/\\n/g, "\n")
+    textContent = textContent.replace(
+        /(\\*)(n|\|)/g,
+        (_, backslashes: string, char: string) =>
+            "\\".repeat(Math.floor(backslashes.length / 2)) +
+            (char === "n" && backslashes.length % 2 === 1 ? "\n" : char),
+    )
     const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS)
     $convertFromMarkdownString(textContent, PLAYGROUND_TRANSFORMERS, cell)
     return cell
@@ -224,7 +248,8 @@ const mapToTableCells = (textContent: string): TableCellNode[] | null => {
     if (!match || !match[1]) {
         return null
     }
-    return match[1].split("|").map((text) => $createTableCell(text))
+    // A "|" after an odd backslash run belongs to the cell, so rows split only after an even one.
+    return match[1].split(/(?<=(?<!\\)(?:\\\\)*)\|/).map((text) => $createTableCell(text))
 }
 
 export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
@@ -236,3 +261,105 @@ export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
     ...TEXT_FORMAT_TRANSFORMERS,
     ...TEXT_MATCH_TRANSFORMERS,
 ]
+
+let scratchEditor: LexicalEditor | undefined
+const getScratchEditor = () =>
+    (scratchEditor ??= createEditor({
+        nodes: [
+            ...new Set(
+                PLAYGROUND_TRANSFORMERS.flatMap((transformer) =>
+                    "dependencies" in transformer ? transformer.dependencies : [],
+                ),
+            ),
+        ],
+        onError: console.error,
+    }))
+
+const strippedLineCache = new Map<string, string>()
+
+/** Keeps only the escapes a reload needs, so the model reads `user_id` rather than `user\_id`. */
+export function stripUnneededEscapes(markdown: string): string {
+    // null when the reload fails, so the line keeps its escapes.
+    const reload = (text: string): string | null => {
+        let reloaded: string | null = null
+        getScratchEditor().update(
+            () => {
+                $convertFromMarkdownString(text, PLAYGROUND_TRANSFORMERS, undefined, true)
+                reloaded = $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, undefined, true)
+                // The scratch tables' dividers would otherwise pile up in tableDividerMap.
+                for (const {node} of $dfs()) {
+                    if ($isTableNode(node)) tableDividerMap.delete(node.getKey())
+                }
+            },
+            {discrete: true},
+        )
+        return reloaded
+    }
+
+    // Lines outside a code fence import independently, so each is checked and cached on its own.
+    const stripLine = (line: string) => {
+        const cached = strippedLineCache.get(line)
+        if (cached !== undefined) {
+            return cached
+        }
+        const escapes = findBackslashEscapes(line)
+        if (escapes.length === 0) {
+            return line
+        }
+        const expected = reload(line)
+        if (expected === null) {
+            return line
+        }
+
+        const without = (dropped: Set<number>) =>
+            line
+                .split("")
+                .filter((_, index) => !dropped.has(index))
+                .join("")
+        const dropped = new Set<number>()
+        // Drop a whole run at once and split it only when that changes the reload.
+        const tryDropping = (run: number[]) => {
+            if (reload(without(new Set([...dropped, ...run]))) === expected) {
+                run.forEach((index) => dropped.add(index))
+            } else if (run.length > 1) {
+                const middle = Math.floor(run.length / 2)
+                tryDropping(run.slice(0, middle))
+                tryDropping(run.slice(middle))
+            }
+        }
+        tryDropping(escapes)
+
+        const stripped = without(dropped)
+        if (strippedLineCache.size >= 1000) strippedLineCache.clear()
+        strippedLineCache.set(line, stripped)
+        return stripped
+    }
+
+    const lines = markdown.split("\n")
+    const saved: string[] = []
+    for (let start = 0; start < lines.length; start++) {
+        const startMatch = CODE.regExpStart.exec(lines[start])
+        if (startMatch === null) {
+            saved.push(stripLine(lines[start]))
+            continue
+        }
+        // Code is exported unescaped, so a fence is kept as is, up to where Lexical's import ends it.
+        let end = lines.length - 1
+        getScratchEditor().update(
+            () => {
+                $getRoot().clear()
+                end = CODE.handleImportAfterStartMatch!({
+                    lines,
+                    rootNode: $getRoot(),
+                    startLineIndex: start,
+                    startMatch,
+                    transformer: CODE,
+                })![1]
+            },
+            {discrete: true},
+        )
+        saved.push(...lines.slice(start, end + 1))
+        start = end
+    }
+    return saved.join("\n")
+}
