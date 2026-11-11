@@ -4,6 +4,7 @@ import {$createParagraphNode, $createTextNode, $getRoot, type LexicalEditor} fro
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {Editor, EditorProvider} from "../../src/Editor"
+import {stripUnneededEscapes} from "../../src/Editor/plugins/markdown/assets/transformers"
 
 afterEach(cleanup)
 
@@ -99,6 +100,12 @@ describe("text typed in the rich-text editor survives a save and reload", () => 
     it("keeps the backslashes in a code block that holds a fence", async () => {
         const block = "````md\n```js\nconst star = /\\*/\n```\n````"
         expect((await typeAndReload(`${block}\n\nX\n`, "Y")).saved).toContain(block)
+    })
+
+    it("strips escapes after a code fence closes, but not inside it", () => {
+        expect(stripUnneededEscapes("````md\n````js\nuser\\_id\n````\nuser\\_id")).toBe(
+            "````md\n````js\nuser\\_id\n````\nuser_id",
+        )
     })
 
     it("still saves underscores and bold text without escapes", async () => {
