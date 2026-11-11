@@ -1,0 +1,229 @@
+---
+slug: "gumloop-vs-n8n"
+title: "Gumloop vs n8n: Agent Architecture, Workflows, and Pricing Compared (2026)"
+description: "An architectural and pricing comparison of Gumloop and n8n across plain-language agents, LangChain.js workflows, sandboxes, self-hosting, and open-source alternatives."
+category: "Article"
+date: 2026-11-05
+readingTime: "16 min read"
+heroImage: "/blog/gumloop-vs-n8n/hero.webp"
+ogImage: "/blog/gumloop-vs-n8n/hero.webp"
+author: "mahmoud-mabrouk"
+featured: false
+tags:
+  - "AI agents"
+  - "AI coworkers"
+  - "comparisons"
+  - "open source"
+  - "workflow automation"
+faq:
+  - question: "Is Gumloop better than n8n for building AI agents?"
+    answer: "Gumloop is faster for non-technical and go-to-market teams that want to configure plain-language AI agents with built-in cloud browser access, an isolated Python and shell VM, Company Brain search, and self-improving skills without wiring nodes. n8n is better for engineering-led teams that want deterministic node control over LangChain.js sub-nodes, custom JavaScript or Python transformation steps, and self-hosted execution on their own servers."
+  - question: "Does Gumloop have a free tier or open-source self-hosting?"
+    answer: "No. Gumloop is a proprietary, cloud-only platform with no permanent free tier. New organizations start with a one-time 14-day Pro trial (credit card required) that converts into the Pro plan at $37 per month for 20,000 monthly credits. Only Enterprise customers can request dedicated VPC deployment."
+  - question: "How does Gumloop credit pricing compare to n8n execution pricing?"
+    answer: "Gumloop bills agent runs across four components at $0.005 per credit: model token costs (Chat and Reasoning), connector tool calls (1 credit per call plus any third-party enrichment fee), active VM compute time (5 credits per session-minute), and an 8% orchestration fee (or 16% on BYOK flow tiers). n8n bills per completed workflow execution regardless of how many nodes or loop iterations run inside that execution, starting at €20 per month billed annually for 2,500 executions on n8n Cloud or $0 on self-hosted Community Edition."
+  - question: "Are Gumloop or n8n built on coding agent harnesses like Claude Code or Codex?"
+    answer: "No. Gumloop runs its own managed agent orchestration loop with an attached cloud VM sandbox tool for Python and shell commands. n8n runs LangChain.js tool-calling cluster nodes on a workflow canvas (plus a standalone Preview Agent builder in n8n 2.32.3+). Neither platform runs open-source coding agent harnesses such as Claude Code, OpenAI Codex, or Pi."
+  - question: "Is n8n truly open source?"
+    answer: "n8n uses the Sustainable Use License, a fair-code source-available license rather than an OSI-approved open-source license. Teams can self-host n8n Community Edition free for internal business workflows, but cannot white-label, embed, or monetize n8n for external customers without an Enterprise commercial license."
+  - question: "What is the best open-source alternative to both Gumloop and n8n?"
+    answer: "Agenta (MIT-licensed) combines Gumloop-style plain-language agent building for non-technical teammates with full open-source self-hosting via Docker Compose or Kubernetes. Unlike Gumloop and n8n, Agenta runs real coding agent harnesses (Claude Code, Codex, and Pi) inside isolated Daytona sandboxes with persistent shared agent files, reusable skills, scheduled and webhook triggers, and native deployment to Slack, Telegram, WhatsApp, and embeddable web widgets."
+---
+
+Most comparisons between [Gumloop](https://www.gumloop.com/) and [n8n](https://n8n.io/) reduce the decision to a surface-level stereotype: pick Gumloop if you want a no-code AI canvas, or pick n8n if you are a developer who wants to self-host workflows.
+
+That framing misses how both platforms actually build and run AI agents today, and where teams hit architectural or billing walls three months after adoption:
+
+- **Gumloop** has evolved beyond visual drag-and-drop "Flows" into a cloud-only multiplayer agent platform with a four-tab **Agent Builder** (`Agent`, `Triggers`, `Access`, `Settings`), a five-tier `Auto` model router, **Company Brain** search, a cloud browser, an isolated per-conversation Python and shell VM, and self-editing instructions and skills. Yet it remains closed-source SaaS with no permanent free tier (`$37/month` Pro after a 14-day card-required trial) and a four-part credit meter that bills model tokens, connector calls, active session-minutes, and an `8%` to `16%` orchestration fee.
+- **n8n** has added standalone project-level **Agents (Preview)** alongside its deterministic visual workflow canvas and **LangChain.js** cluster nodes (`AI Agent` root node wired to Chat Model, Memory, Vector Store, Retriever, and Output Parser sub-nodes). It gives engineering teams predictable per-execution billing and free self-hosting under the fair-code Sustainable Use License, but requires technical wiring for JSON schemas, memory buffers, and sandbox connections, and jumps to `€667/month` (billed annually) on the Business tier when teams need SSO, Git version control, multiple environments, or Redis Queue mode.
+- **Neither Gumloop nor n8n is built on a coding agent harness.** When non-technical and technical teammates want Gumloop's plain-language simplicity combined with MIT-licensed open-source self-hosting and real coding agent harnesses ([Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex/cli), and [Pi](https://shittycodingagent.ai/)) running inside isolated [Daytona](https://www.daytona.io/) sandboxes, [Agenta](https://agenta.ai) provides that third architectural path.
+
+## Gumloop vs n8n vs Agenta at a Glance
+
+| Dimension                        | Gumloop                                                                                                                              | n8n                                                                                                                                         | Agenta                                                                                                                                                                    |
+| :------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Primary Builder Experience**   | Plain-language 4-tab Agent Builder + visual drag-and-drop Flows, Subflows, and Interfaces                                            | Visual deterministic node canvas + LangChain.js sub-nodes + standalone Agents (Preview)                                                     | Plain-language chat and workspace configuration (instructions, skills, tools, triggers)                                                                                   |
+| **Agent Execution Architecture** | Proprietary cloud agent loop with `Auto` 5-tier model router (`gumloop-chew`), self-editing instructions/skills, and VM sandbox tool | LangChain.js `Tools Agent` root node wired to Model/Memory/Vector sub-nodes, or Preview Agent loop                                          | Coding agent harnesses (`Claude Code`, `Codex`, `Pi`) running directly inside isolated Daytona sandboxes                                                                  |
+| **Code & File Sandbox**          | Built-in per-conversation cloud VM (Python, shell, 80+ packages, `.workspace/agent/` and `.workspace/personal/`, cloud browser)      | JavaScript and Python Code nodes in workflow task runners; Preview Agent knowledge bases require an external Daytona sandbox on self-hosted | Dedicated [Daytona](https://www.daytona.io/) computer and browser per agent with persistent shared agent files and temporary session files                                |
+| **Integrations & MCP**           | 300+ managed OAuth connectors + remote MCP servers + hosted Gumloop MCP endpoint                                                     | 1,000+ workflow nodes and HTTP Request/GraphQL + MCP Client and Server trigger nodes                                                        | 1,000+ managed OAuth integrations, custom MCP servers, full CLI (`gh`, `git`, `curl`), and REST/Python SDK                                                                |
+| **Hosting & License**            | Proprietary cloud-only SaaS (Enterprise VPC option available; no self-hosted community edition)                                      | Source-available under **Sustainable Use License** (fair-code); n8n Cloud or Docker/Kubernetes self-hosting                                 | **MIT License** (true OSI open source); Agenta Cloud or free self-hosting via Docker Compose and Helm/Kubernetes                                                          |
+| **Pricing Unit**                 | 4-part credit meter (`1 credit = $0.005`): model tokens + tool calls + 5 credits/min compute + `8%` (`16%` BYOK) orchestration fee   | Per completed workflow execution (unlimited steps per execution) + zero markup on BYOK LLM API keys                                         | Cloud credits for included models and runtime (`$0` model credits with BYOK or ChatGPT subscription); `$0` unlimited runs on self-hosted                                  |
+| **Entry Price & Free Tier**      | No permanent free tier (14-day card-required Pro trial, then **$37/mo** for 20,000 credits, unlimited seats)                         | **$0** self-hosted Community Edition; Cloud Starter at **€20/mo** billed annually (~$24/mo for 2,500 executions, unlimited users)           | **$0 forever** self-hosted (includes RBAC and SSO); Cloud Hobby **$0 forever** (500 signup bonus + up to 750 free credits/mo); Cloud Starter **$29/mo** (unlimited users) |
+| **Best Fit**                     | Non-technical GTM, marketing, and operations teams that want fast cloud-hosted AI assistants and scraping flows                      | Developers and technical ops engineers wiring deterministic multi-system API pipelines with explicit LangChain sub-nodes                    | Product, ops, and engineering teams that want Gumloop-simple AI coworkers with MIT open-source self-hosting and coding-harness depth                                      |
+
+![Gumloop vs n8n vs Agenta Architecture Comparison](/blog/gumloop-vs-n8n/gumloop-vs-n8n-architecture-comparison.webp)
+
+## How Gumloop Actually Builds Agents and Workflows
+
+![Gumloop visual workflow and agent builder interface](/blog/gumloop-vs-n8n/gumloop.webp)
+
+A common misconception in older reviews is that [Gumloop](https://www.gumloop.com/) is only a visual node canvas for scraping websites into Google Sheets. While Gumloop still ships its visual node-based **Flows** (along with reusable **Subflows**, shareable form **Interfaces**, and the **Gummie** flow assistant), its core product is now centered around a multiplayer [Agent Builder](https://docs.gumloop.com/core-concepts/agents) organized across four tabs: **Agent**, **Triggers**, **Access**, and **Settings**.
+
+### 1. The Four-Tab Agent Builder and Self-Improving Skills
+
+Instead of connecting LLM nodes to memory buffers on a graph, a builder configures a Gumloop agent in plain language:
+
+- **Model Picker & `Auto` Router:** Builders can pin a specific model from Anthropic, OpenAI, Google, DeepSeek, or xAI, choose presets (`Balanced` or `Smartest`), or select `Auto` (`gumloop-chew` in the CLI and API). As documented in Gumloop's [AI models guide](https://docs.gumloop.com/core-concepts/ai_models), `Auto` inspects each incoming prompt and routes it across five capability tiers, from low-cost models for simple summaries up to top-tier reasoning models for multi-source synthesis or real-world write operations, and can step up to a stronger model mid-run if a step requires it.
+- **Edit Own Instructions & AI Skill Editing:** When `Edit Own Instructions` is enabled on the Agent tab, the agent can rewrite its own system instructions in response to user corrections during a live task. Similarly, `AI Skill Editing` lets the agent package a multi-step procedure, template, or script it just learned into a reusable **Skill** (which Enterprise teams can sync bi-directionally with a GitHub repository).
+- **Company Brain:** Builders attach organization-wide knowledge sources (Google Drive, Notion, Slack, GitHub, Confluence, or uploaded files) so the agent can retrieve internal context at `2 credits` per search without someone manually wiring an embedding pipeline.
+- **Connectors and Tool Approvals:** Gumloop provides 300+ managed connectors and supports remote MCP servers. Every connector supports either **User-Owned** credentials (so the agent acts as the teammate chatting with it) or **Agent-Owned** service accounts, governed by four approval presets: `Always allow`, `Ask each time`, `Ask for writes/deletes` (default), or `Custom` per-action rules.
+
+### 2. Built-In Cloud VM Sandbox and Cloud Browser
+
+According to Gumloop's [Code Sandbox & Secrets documentation](https://docs.gumloop.com/core-concepts/agent_sandbox_and_secrets), every agent conversation automatically gets an isolated cloud virtual machine:
+
+- **Python and Shell Execution:** The agent can write and run Python scripts (with 80+ pre-installed libraries such as `pandas`, `polars`, `duckdb`, `playwright`, `pypdf`, and `scikit-learn`) and bash commands (`30-minute` foreground timeout; up to `6 hours` for background processes).
+- **Three-Tier Workspace Storage:** Files created in the root directory live only for that conversation. Files saved to `.workspace/agent/` persist across conversations for everyone using that agent, and files saved to `.workspace/personal/` persist privately per user (`10 GB` max per workspace, with files automatically expiring after `14 days`).
+- **Proxy-Injected Secrets & Cloud Browser:** Secrets configured in Gumloop are never exposed as plaintext environment variables inside the VM; an outbound HTTP proxy injects them only when requests hit approved domains. Agents can also drive a persistent Cloud Browser with saved logins and 1Password integration for sites without APIs.
+
+### 3. Where Gumloop Shows Its Limits
+
+Gumloop removes virtually all setup friction for non-technical builders, but that convenience comes with structural trade-offs:
+
+1. **Not a coding-agent harness:** Gumloop's VM is a tool the proprietary cloud agent calls to execute Python snippets or shell commands, rather than an open-source coding agent harness like `Claude Code`, `Codex`, or `Pi` operating natively over a persistent repository and toolchain. Even its durable `.workspace/agent/` files automatically delete after 14 days unless refreshed.
+2. **Closed-source and cloud-only:** There is no open-source edition and no self-hosted Docker deployment for standard teams. Unless you negotiate an Enterprise VPC contract, all prompts, connector tokens, and workspace files flow through Gumloop's managed cloud.
+3. **Multi-variable credit burn:** Because Gumloop bills simultaneously for tokens, tool calls, active VM minutes (`5 credits/minute`), and an orchestration percentage fee (`8%` standard, or `16%` on BYOK flow tiers), long-running browser or data-processing tasks can consume monthly credits rapidly.
+
+## How n8n Actually Builds Workflows and AI Agents
+
+![n8n visual workflow automation canvas with AI agent and sub-nodes](/blog/gumloop-vs-n8n/n8n.webp)
+
+Where Gumloop hides orchestration mechanics behind a plain-language agent form, [n8n](https://n8n.io/) exposes the execution graph explicitly. As outlined in n8n's [Build and Manage Agents documentation](https://docs.n8n.io/build/build-and-manage-agents), n8n now gives technical teams two distinct ways to build with AI: **workflow-embedded LangChain.js cluster nodes** and **standalone Agents (Preview)**.
+
+### 1. Deterministic Workflows with LangChain.js Cluster Nodes
+
+In production n8n deployments, most teams build agents inside a standard n8n workflow canvas using n8n's [LangChain.js integration](https://docs.n8n.io/build/integrate-ai/langchain-in-n8n):
+
+- **Root `AI Agent` Node (`Tools Agent`):** Since n8n 1.82.0, n8n standardized its `AI Agent` root node on the `Tools Agent` architecture. The `AI Agent` node sits inside a deterministic pipeline (for example, after a Webhook, Slack event, or Cron trigger and before a Postgres upsert or HTTP Response node).
+- **Explicit Sub-Node Wiring:** Nothing is implicit. To give the `AI Agent` node a brain, memory, and tools, the builder manually wires sub-nodes underneath it:
+  - **Chat Model Sub-Node:** OpenAI, Anthropic, Google Vertex, Ollama, AWS Bedrock, or Azure OpenAI using your own API keys.
+  - **Memory Sub-Node:** `Simple Memory` (in-memory window buffer), `Postgres Chat Memory`, `Redis Chat Memory`, or `MongoDB Chat Memory` keyed by a session ID expression.
+  - **Vector Store & Retriever Sub-Nodes:** Explicit nodes for `Pinecone`, `Qdrant`, `Supabase`, `PGVector`, document loaders, recursive character text splitters, and embedding models.
+  - **Tool Sub-Nodes & Output Parsers:** Any of n8n's 1,000+ nodes wrapped as a tool, custom `Code Tool` sub-nodes in JavaScript or Python, `MCP Client Tool` sub-nodes, or structured JSON output parsers with auto-fixing sub-nodes.
+- **Deterministic Guardrails Around the Agent:** Because the `AI Agent` node is just one step on the canvas, engineers can validate inputs with a JavaScript `Code` node before the LLM ever runs, enforce schema checks afterward, branch with `If` / `Switch` nodes, and pause at a `Wait` or `Human in the Loop` approval step.
+
+### 2. Standalone Agents (Preview in n8n 2.32.3+)
+
+Recognizing that wiring six LangChain sub-nodes is heavy for conversational assistants, n8n introduced project-level **Agents (Preview)** starting in version `2.32.3`:
+
+- **Direct Agent Configuration:** Builders pick a model, write instructions, attach tools (existing n8n workflows, JSON-schema tools, app integrations, or MCP servers), upload Markdown **Skills**, configure session and episodic memory, and connect channels such as Slack, Telegram, or Linear.
+- **Sub-Agents and Schedules:** A primary Preview Agent can delegate specialized work to up to 10 sub-agents or wake up on recurring schedules.
+- **Operational Caveats in Preview:** As documented in n8n's [Agents guide](https://docs.n8n.io/build/build-and-manage-agents), standalone Preview Agents currently have significant infrastructure constraints: knowledge bases on self-hosted instances require configuring an external shared Daytona sandbox connection (`N8N_SANDBOX_URL`), and **Queue mode (Redis multi-worker scaling) is not yet supported for standalone Preview Agents**.
+
+### 3. Where n8n Shows Its Limits
+
+1. **High cognitive load for non-engineers:** Configuring an n8n workflow agent requires understanding JSON path expressions (`{{ $json.body.sessionId }}`), LangChain sub-node lifecycles, webhook authentication, and vector chunking parameters. Non-technical operations or marketing teammates rarely build or debug n8n agents without engineering support.
+2. **Task-runner Code nodes, not a full agent computer:** Standard n8n `Code` nodes execute short JavaScript or Python data transformations inside a task runner. They do not give the agent a persistent Linux workstation, full CLI toolchain (`git`, `gh`, headless Chromium), and coding agent harness out of the box.
+3. **Fair-code licensing and the €667/month Business cliff:** n8n's **Sustainable Use License** is source-available fair-code, not an OSI-approved open-source license like MIT or Apache 2.0. Furthermore, self-hosted teams that need built-in SSO/SAML, LDAP, Git-backed version control, multiple deployment environments, or supported multi-worker enterprise governance face a steep jump from Cloud Pro (`€50/month`) to Business (`€667/month` billed annually).
+
+## Head-to-Head Comparison Across 6 Core Dimensions
+
+### 1. Builder Experience: Plain-Language Self-Assembly vs Sub-Node Engineering
+
+The day-to-day authoring experience is the sharpest divide between the two platforms:
+
+- **In Gumloop**, a growth marketer or operations lead can open the Agent tab, write three paragraphs of plain-language instructions, attach HubSpot, Slack, and Google Drive connectors, and turn on `Edit Own Instructions` and `AI Skill Editing`. When the agent makes a mistake in chat, the builder tells it in plain English what to fix, and the agent updates its own instructions or saves a reusable skill file.
+- **In n8n**, an automation engineer designs an execution graph. If an agent needs conversation history, you add a `Postgres Chat Memory` sub-node and map the `sessionId` expression. If an API returns nested pagination, you drop in a `Loop Over Items` node and a JavaScript `Code` node. That explicitness eliminates hidden magic in production pipelines, but makes simple coworker agents slower to spin up and harder for non-technical teammates to maintain.
+
+### 2. Agent Loop, Code Sandboxes, and Browser Automation
+
+| Capability                 | Gumloop                                                                                                | n8n                                                                                                             | Agenta                                                                                                                    |
+| :------------------------- | :----------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------ |
+| **Core Agent Runtime**     | Proprietary cloud agent loop + `Auto` 5-tier model router                                              | LangChain.js `Tools Agent` cluster node + Preview Agent loop                                                    | Coding agent harnesses (`Claude Code`, `Codex`, `Pi`)                                                                     |
+| **Isolated Computer / VM** | Built-in per-conversation cloud VM (`30-min` foreground / `6-hr` background shell & Python)            | Task-runner JS/Python `Code` nodes; Preview Agent knowledge base requires external sandbox setup on self-hosted | Built-in isolated [Daytona](https://www.daytona.io/) sandbox per agent with full Linux shell, Python, Node, and CLI tools |
+| **Browser Automation**     | Managed Cloud Browser with saved logins and 1Password integration                                      | Requires wiring external Playwright/Puppeteer containers or scraping APIs (Firecrawl, Browserbase)              | Headless Chromium via Playwright inside the agent's sandbox plus Browserbase / MCP integrations                           |
+| **Persistent Agent Files** | `.workspace/agent/` (team) and `.workspace/personal/` (user), auto-deleted after 14 days of inactivity | No native per-agent filesystem in standard workflows (must wire S3, Postgres, or host volume mounts)            | Permanent shared agent file storage (AI Drive) across sessions plus temporary per-session scratch files                   |
+
+Read our deeper breakdown in [AI Agent Sandboxes Compared](/blog/ai-agent-sandboxes-compared) for how isolated agent VMs differ from workflow code runners.
+
+### 3. Integrations, MCP Support, and Company Knowledge
+
+Both Gumloop and n8n support the **Model Context Protocol (MCP)**, both as MCP clients (letting agents call external MCP servers) and as MCP servers (exposing workflows or agents to tools like Claude Desktop or Cursor):
+
+- **Gumloop** ships 300+ first-party OAuth connectors, one-click Company Brain indexing across Google Drive, Notion, Slack, GitHub, and Confluence, and a hosted MCP server endpoint (`https://mcp.gumloop.com/gumloop/mcp`).
+- **n8n** ships 1,000+ workflow nodes, native `MCP Client Tool` and `MCP Server Trigger` nodes, and limitless custom REST, GraphQL, and webhook plumbing. However, building a Company Brain equivalent in n8n requires assembling your own ingestion workflow with document loaders, text splitters, embedding sub-nodes, and an external vector database such as Qdrant or Pinecone. (For teams standardizing MCP governance across agents, see [MCP Gateway Architecture and Options](/blog/mcp-gateway-architecture-and-options).)
+
+### 4. Pricing Economics: 4-Part Credit Meter vs Per-Execution Tiers
+
+Pricing is where Gumloop and n8n diverge most dramatically once an automation moves from prototype to daily team usage.
+
+#### How Gumloop Bills (`1 credit = $0.005`)
+
+Per Gumloop's [Credits & Plans documentation](https://docs.gumloop.com/core-concepts/credits), Gumloop does **not** have a permanent free plan. New workspaces receive a one-time 14-day Pro trial (credit card required) with 2,500 trial credits, which automatically converts into the **Pro plan at $37/month** (`20,000 credits/month`, made up of 7,400 list credits at `$0.005/credit` plus 12,600 bonus credits, with unlimited seats and no monthly credit rollover on Pro).
+
+Every Gumloop agent turn sums four separate charges:
+
+1. **Chat & Reasoning:** Provider token cost divided by `$0.005` (waived when using your own BYOK API key for the model).
+2. **Tool Calls:** `1 credit` (`$0.005`) per successful connector call, plus any third-party data enrichment charge.
+3. **Compute:** `5 credits per session-minute` (`$0.025/minute`) of active processing from prompt receipt to final answer (minimum `1 credit` per response; waived on Enterprise VPC).
+4. **Orchestration Fee:** `8%` of `(Chat & Reasoning + Compute + Tool Calls)` (or `16%` on BYOK workflow tiers where applicable), plus `2 credits` per Company Brain search.
+
+#### How n8n Bills (Per Completed Workflow Execution)
+
+Per [n8n's pricing page](https://n8n.io/pricing/), n8n charges for **one execution per completed workflow run**, regardless of whether that workflow executes 3 nodes or 150 nodes in a loop, and charges **zero markup on your BYOK LLM tokens**:
+
+- **Self-Hosted Community Edition:** **$0** (unlimited executions and users on your own server; you pay only your VPS/cloud hosting and LLM provider API bills).
+- **n8n Cloud Starter:** **€20/month** billed annually (`~$24/month`, `2,500 workflow executions/month`, 5 concurrent executions, 1 shared project, unlimited users).
+- **n8n Cloud Pro:** **€50/month** billed annually (`10,000+ workflow executions/month`, up to 50 concurrent executions, 3 shared projects, 7-day execution insights).
+- **n8n Business (Cloud or Self-Hosted):** **€667/month** billed annually (`40,000 executions/month`, 6 shared projects, SSO/SAML and LDAP, Git version control, environments, and Redis Queue mode).
+
+#### Worked Cost Comparison: 3 Realistic Monthly Workloads
+
+| Workload Scenario                                                                                                                                     | Gumloop Monthly Estimate                                                                                                                   | n8n Cloud Monthly Estimate                                                                                                              | Self-Hosted (n8n Community or Agenta Open Source)                                                                              |
+| :---------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+| **Scenario A: 3,000 multi-step webhook enrichments/mo** (15 API/tool steps per run, light LLM extraction, ~30 sec runtime each)                       | **~$112 to $148/mo** (~60,000 to 75,000 credits across 45,000 tool calls, 1,500 compute minutes, model tokens, and 8% orchestration fee)   | **€50/mo (~$55/mo)** on Cloud Pro (counts as 3,000 workflow executions total, regardless of the 15 steps per run) + raw BYOK LLM tokens | **$0 software license** + ~$20 to $40/mo cloud VM + raw BYOK LLM tokens                                                        |
+| **Scenario B: 15 teammates chatting with AI coworkers daily** (~600 deep research, Python sandbox, and Slack/Drive turns/mo averaging 3 minutes each) | **$37 to $75/mo** on Gumloop Pro (unlimited seats included; consumes ~15,000 to 35,000 credits depending on model tier selected by `Auto`) | **€20 to €50/mo** on Cloud Starter/Pro + external vector DB and sandbox hosting costs (requires engineering time to maintain sub-nodes) | **$0 software license** on Agenta Open Source (or **$29/mo** on Agenta Cloud Starter with unlimited seats and BYOK model keys) |
+| **Scenario C: 25-person organization requiring self-hosting, SSO, RBAC, and Git version control**                                                     | **Custom Enterprise VPC contract** (not available on the $37/mo Pro plan)                                                                  | **€667/mo (~$730/mo)** billed annually on n8n Business                                                                                  | **$0 forever** on **Agenta Open Source** (SSO, RBAC, and version history included in the MIT-licensed self-hosted edition)     |
+
+### 5. Hosting, Licensing, and Data Sovereignty
+
+For security-conscious teams, the licensing distinction between Gumloop, n8n, and Agenta determines where you can deploy and what you can build:
+
+- **Gumloop (Proprietary SaaS):** Closed-source and hosted by Gumloop (`AgentHub Inc.`). Standard Pro teams cannot self-host the platform or the code sandbox; dedicated VPC hosting requires an Enterprise agreement.
+- **n8n (Sustainable Use License):** Source-available fair-code. You can inspect the code on GitHub and self-host the Community Edition via Docker or Kubernetes for internal company automation. However, the Sustainable Use License prohibits commercial redistribution or embedding n8n as a paid product feature without a custom Enterprise license, and enterprise governance features (SSO, LDAP, Git sync, environments) live inside proprietary license gates.
+- **Agenta (MIT License):** True OSI-approved open source ([GitHub repository](https://github.com/Agenta-AI/agenta)). You can self-host Agenta with Docker Compose or Helm on Kubernetes for free, with **unlimited users, projects, agents, automations, role-based access control (RBAC), and SSO included in the free open-source edition**. For a step-by-step deployment walkthrough, see [How to Self-Host a Company AI Platform](/blog/how-to-self-host-company-ai-platform).
+
+### 6. Governance, Human Approvals, and Observability
+
+- **Gumloop** shines in end-user access ergonomics: per-connector approval rules (`Ask for writes/deletes`, `Ask each time`, `Always allow`, `Custom`), clear distinction between User-Owned and Agent-Owned OAuth credentials, plus built-in agent **Evaluations** and post-run **Reflections**.
+- **n8n** provides step-by-step execution payload inspection (allowing engineers to pin test JSON data on any node and replay from a failed step), `Human in the Loop` approval nodes across Slack/Email, metric-based workflow evaluations, and OpenTelemetry / LangSmith tracing on self-hosted instances.
+
+## Where Agenta Fits: The Open-Source AI Coworker Alternative to Gumloop and n8n
+
+![Agenta open-source AI coworker and agent workspace](/blog/gumloop-vs-n8n/agenta.webp)
+
+When teams evaluate Gumloop vs n8n, they frequently realize they are being asked to choose between **usability for non-technical teammates** (Gumloop) and **open self-hosted infrastructure control** (n8n):
+
+- If you pick **Gumloop**, your marketing, sales, and operations leads can build plain-language agents in an afternoon, but engineering cannot self-host the platform under an open-source license, durable sandbox files expire after 14 days, and multi-step runs trigger four-part credit charges.
+- If you pick **n8n**, your engineers can self-host deterministic pipelines and pay per execution, but non-technical teammates hit a wall of LangChain.js sub-nodes, JSON expressions, and external vector/sandbox plumbing.
+
+**[Agenta](https://agenta.ai) is built to give teams both.** It is an MIT-licensed open-source AI coworker platform that is as accessible as Gumloop for non-technical and semi-technical builders while giving engineering teams deeper execution power and cleaner open-source governance than n8n:
+
+1. **Powered by Real Coding Agent Harnesses (`Claude Code`, `Codex`, `Pi`):** Instead of wiring brittle node graphs or calling a sidecar script tool, every Agenta agent runs on a battle-tested coding agent harness ([Claude Code](https://code.claude.com/docs/en/overview), [OpenAI Codex](https://developers.openai.com/codex/cli), or [Pi](https://shittycodingagent.ai/)). Your agent can reason through multi-step problems, write and test code, inspect files, call `gh` and `git`, and recover from errors autonomously.
+2. **Isolated Daytona Computer and Browser per Agent:** Every Agenta agent gets its own isolated [Daytona](https://www.daytona.io/) sandbox with a full Linux environment, headless Chromium browser, persistent shared agent files (**AI Drive**) that survive across sessions without 14-day auto-deletion, and temporary session scratch files.
+3. **Plain-Language Building with Reusable Skills and Triggers:** Non-technical teammates create and refine agents through conversation or clean workspace tabs using plain-language instructions, reusable skills from the open agent ecosystem, 1,000+ managed integrations, custom MCP servers, cron schedules, and event subscriptions.
+4. **Deploy Everywhere Your Team Works:** Publish any Agenta agent in one click to **Slack**, **Telegram**, **WhatsApp** (see [How to Connect AI Agents to Slack and Telegram](/blog/how-to-connect-ai-agents-to-slack-and-telegram)), or embed it directly inside your product or internal portal via `Publish > Embed`.
+5. **Versioned Configuration, Playground, and Evaluations:** Because Agenta treats every instruction, skill, tool permission, and model setting as a versioned configuration revision, teams can compare variants side by side in the Playground, inspect full execution traces, and run automated evaluations before rolling changes out to the company.
+6. **Transparent Open-Source and Cloud Pricing:** Self-host Agenta free forever under the MIT license (with unlimited users, SSO, and RBAC included), or start on **Agenta Cloud Hobby for $0 forever** (`500` signup bonus credits + `75` free credits a day on up to 10 days a month) and scale to **Starter at $29/month** with unlimited team members and zero per-seat fees. When you connect your own LLM API key or ChatGPT subscription on Agenta Cloud, model tokens consume zero Agenta credits.
+
+![Decision Matrix: Choosing Between Gumloop, n8n, and Agenta](/blog/gumloop-vs-n8n/gumloop-vs-n8n-decision-matrix.webp)
+
+## Real-World Scenarios: Which Platform Should You Choose?
+
+### Choose Gumloop if:
+
+- Your primary builders are **non-technical GTM, marketing, or operations teammates** who want a hosted cloud workspace with zero infrastructure setup.
+- You want built-in **Company Brain** indexing across Google Drive, Notion, and Slack plus a managed Cloud Browser with 1Password login support out of the box.
+- You are comfortable with proprietary US cloud hosting and a credit model starting at **$37/month** after the 14-day trial.
+
+### Choose n8n if:
+
+- Your primary builders are **developers, data engineers, or technical RevOps specialists** who think in deterministic DAGs, webhooks, and JSON payloads.
+- You run **high-frequency, multi-step API syncs** (for example, 10,000 webhook runs a month where each run executes 25 deterministic CRM and database steps) and want each full pipeline run to count as a single workflow execution.
+- You want explicit node-level control over LangChain.js memory buffers, retrievers, and custom JavaScript steps on your own Docker or Kubernetes servers.
+
+### Choose Agenta if:
+
+- You want **non-technical and technical teammates building together in plain language** (like Gumloop), without giving up **MIT-licensed open-source self-hosting**, RBAC, or SSO.
+- Your agents need **real coding agent harnesses** (`Claude Code`, `Codex`, `Pi`) and isolated **Daytona sandboxes** with permanent shared agent drives to research, write code, open pull requests, generate reports, and operate internal tools.
+- You want to deploy AI coworkers across **Slack, Telegram, WhatsApp, and embedded web widgets** with tool-level human approvals, version history, and evaluations. (Compare more platforms in our guide to the [Best Agentic AI Tools](/blog/best-agentic-ai-tools).)
