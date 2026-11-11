@@ -118,11 +118,11 @@ import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
 import type {ComposerAttachment} from "./useComposerAttachments"
-import {useSettledToolEffects} from "./useSettledToolEffects"
 import {useMountGeneration} from "./useMountGeneration"
 import {useServerSessionInputs} from "./useServerSessionInputs"
 import {useSessionChat} from "./useSessionChat"
 import {useSessionLivePreview} from "./useSessionLivePreview"
+import {useSettledToolEffects} from "./useSettledToolEffects"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the stamped in-chat
  * error; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to a
