@@ -23,6 +23,7 @@ from oss.src.core.gateway.catalog.dtos import (
 )
 from oss.src.core.gateway.catalog.interfaces import CatalogGatewayInterface
 from oss.src.core.gateway.connections.exceptions import AdapterError
+from oss.src.core.gateway.providers.composio.client import composio_http_client
 from oss.src.core.gateway.providers.composio.errors import composio_error_detail
 from oss.src.utils.env import env
 
@@ -44,7 +45,7 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
     ):
         self.api_key = api_key
         self.api_url = (api_url or env.composio.api_url).rstrip("/")
-        self._client = httpx.AsyncClient(timeout=30.0)
+        self._client = composio_http_client()
 
     async def close(self) -> None:
         await self._client.aclose()

@@ -12,6 +12,7 @@ from oss.src.core.gateway.connections.dtos import (
 )
 from oss.src.core.gateway.connections.interfaces import ConnectionsGatewayInterface
 from oss.src.core.gateway.connections.exceptions import AdapterError
+from oss.src.core.gateway.providers.composio.client import composio_http_client
 from oss.src.core.gateway.providers.composio.errors import composio_error_detail
 from oss.src.utils.env import env
 
@@ -113,7 +114,7 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
         self.api_url = (api_url or env.composio.api_url).rstrip("/")
         # Shared client — one connection pool for the adapter's lifetime.
         # Call close() on shutdown (wired in entrypoints/routers.py lifespan).
-        self._client = httpx.AsyncClient(timeout=30.0)
+        self._client = composio_http_client()
 
     async def close(self) -> None:
         """Close the shared HTTP client and release connection pool resources."""
