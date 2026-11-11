@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from oss.src.core.gateway.providers.composio.client import composio_timeout
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.triggers.dtos import (
     TriggerCatalogEvent,
@@ -76,7 +77,7 @@ class ComposioTriggersCatalogClient:
                 f"{self.api_url}/triggers_types",
                 headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
                 params=params,
-                timeout=30.0,
+                timeout=composio_timeout(30.0),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -140,7 +141,7 @@ class ComposioTriggersCatalogClient:
                         "Content-Type": "application/json",
                     },
                     params=params,
-                    timeout=30.0,
+                    timeout=composio_timeout(30.0),
                 )
                 resp.raise_for_status()
                 data = resp.json()
@@ -198,7 +199,7 @@ class ComposioTriggersCatalogClient:
             resp = await self._client.get(
                 f"{self.api_url}/triggers_types/{event_key}",
                 headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
-                timeout=15.0,
+                timeout=composio_timeout(15.0),
             )
             if resp.status_code == 404:
                 return None

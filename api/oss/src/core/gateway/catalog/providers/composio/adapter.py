@@ -23,7 +23,10 @@ from oss.src.core.gateway.catalog.dtos import (
 )
 from oss.src.core.gateway.catalog.interfaces import CatalogGatewayInterface
 from oss.src.core.gateway.connections.exceptions import AdapterError
-from oss.src.core.gateway.providers.composio.client import composio_http_client
+from oss.src.core.gateway.providers.composio.client import (
+    composio_http_client,
+    composio_timeout,
+)
 from oss.src.core.gateway.providers.composio.errors import composio_error_detail
 from oss.src.utils.env import env
 
@@ -59,7 +62,7 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
                 f"{self.api_url}/toolkits",
                 headers=self._headers(),
                 params={"limit": 1},
-                timeout=10.0,
+                timeout=composio_timeout(10.0),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -92,7 +95,7 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
             resp = await self._client.get(
                 f"{self.api_url}/toolkits/{integration_key}",
                 headers=self._headers(),
-                timeout=15.0,
+                timeout=composio_timeout(15.0),
             )
             if resp.status_code == 404:
                 return None
@@ -140,7 +143,7 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
                 f"{self.api_url}/toolkits",
                 headers=self._headers(),
                 params=params,
-                timeout=30.0,
+                timeout=composio_timeout(30.0),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -186,7 +189,7 @@ class ComposioCatalogAdapter(CatalogGatewayInterface):
                 f"{self.api_url}/toolkits",
                 headers=self._headers(),
                 params={"limit": self._CATEGORY_SAMPLE_SIZE, "sort_by": "usage"},
-                timeout=30.0,
+                timeout=composio_timeout(30.0),
             )
             resp.raise_for_status()
             data = resp.json()
