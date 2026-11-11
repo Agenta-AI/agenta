@@ -1,0 +1,384 @@
+---
+slug: how-to-build-an-ai-agent
+title: "How to Build an AI Agent: A Step-by-Step Guide for Teams and Agencies (2026)"
+description: "Learn how to build, test, and deploy a working AI agent in 8 steps: scope a bounded job, structure instructions and skills, connect tools with approval gates, and ship to Slack or a client workspace."
+category: Article
+date: 2026-04-20
+author: mahmoud-mabrouk
+heroImage: /blog/how-to-build-an-ai-agent/hero.webp
+ogImage: /blog/how-to-build-an-ai-agent/hero.webp
+readingTime: 14 min read
+tags:
+  - AI Agents
+  - AI Coworker
+  - Low-Code AI
+  - AI Automation
+  - Open Source
+faq:
+  - question: "Do I need to write Python code to build a production AI agent?"
+    answer: "No. You do not need to write a custom Python agent loop from scratch to ship a production AI agent. In an agent workspace like Agenta, the execution harness (Claude Code, Pi, or Codex) already runs the perception, tool-calling, file-management, and context-compaction loop inside an isolated Daytona sandbox. Your job is to configure the agent's standing instructions, reusable skills, connected tools, shared reference files, and approval boundaries in plain English."
+  - question: "What is the difference between agent instructions, skills, and files?"
+    answer: "Instructions, skills, and files solve different parts of the context budget. Standing instructions load in full at the start of every session and hold the role, audience, tone, and rules that apply to every task. Skills are task-specific procedures where the model initially sees only the skill's name and trigger description, loading the full step-by-step handbook only when a matching request arrives. Files live in temporary session storage (for today's uploads and scratch work) or persistent shared agent storage (for brand guides, approved examples, and past reports) and cost zero context tokens until the agent opens them."
+  - question: "How many tools should I give my first AI agent?"
+    answer: "Start with 2 to 8 focused tool actions that directly support one bounded job. Giving a new agent 30 or 40 unfocused actions across multiple apps increases tool-selection errors and widens your security surface. Connect only the specific read and write actions the job requires, and add more tools later when real test cases expose a gap."
+  - question: "How should tool permissions differ between interactive chat and scheduled automations?"
+    answer: "In an interactive chat, setting read actions to run automatically and write or send actions to ask for approval first is the safest default because a human is present to click approve in one second. In an unattended automation that runs on a 6:00 AM cron schedule or webhook event, nobody is watching the chat to answer an approval prompt, so any action set to ask first will stall the run. For unattended automations, pre-authorize the specific delivery action the agent needs (such as posting to a designated Slack channel or saving to a shared folder) and block destructive actions outright."
+  - question: "Why should I choose the agent harness, model, and credential separately?"
+    answer: "A language model only replies to messages and requests tool calls, while the harness is the runtime program that executes those tools, manages files in the sandbox, and compacts long conversations. Keeping the harness (Claude Code, Pi, or Codex), the model, and the credential separate means you can switch models for a better cost or speed tradeoff, or route traffic through AWS Bedrock, Google Vertex AI, an API key, or a personal Claude Pro/Max or ChatGPT Plus/Pro subscription, as a simple configuration change without rebuilding your agent."
+  - question: "How can an automation agency hand off an AI agent to a client without per-seat SaaS fees?"
+    answer: "With Agenta, you have three clean handoff paths depending on how the client works. You can connect the agent directly to the client's Slack, Telegram, or WhatsApp workspace, embed it as a branded chat widget on their website or internal portal using an iframe snippet, or invite their whole team into a shared Agenta project. Agenta Cloud Starter ($29/month) includes unlimited projects and unlimited team members with no per-seat price, and the MIT-licensed open-source edition can be self-hosted on the client's own cloud via Docker Compose or Kubernetes Helm."
+---
+
+Most first AI agents fail for one of two reasons. Either the builder starts with a vague wish like "build an agent that runs our marketing," or they spend two weeks wiring a 40-node visual flowchart that breaks the first time a customer email arrives in an unexpected format.
+
+A reliable production AI agent sits between those two extremes. You do not need to write a custom Python orchestration loop from scratch, and you do not need to hardcode every branch in a node graph. Instead, you define a **stable, bounded job** and give an agent runtime six structured pieces: standing instructions, on-demand skills, a focused set of tools, persistent reference files, clear approval permissions, and an execution harness.
+
+You build a working AI agent in 2026 in this order:
+
+1. **Scope one bounded job** with a clear input, a clear finish line, and 2 to 8 tool actions.
+2. **Write lean standing instructions** that define the agent's role, audience, and rules without bloating the prompt.
+3. **Package repeatable processes into skills and shared files** using progressive disclosure so context stays sharp.
+4. **Connect tools and configure permission gates** (`Allow`, `Ask`, or `Deny`) for read versus write actions.
+5. **Select your harness, model, and credential separately** inside an isolated sandbox.
+6. **Stress-test the agent on 10 real cases** (easy, messy, and out-of-bounds) before live deployment.
+7. **Wire scheduled or event-driven automations** once interactive runs are consistent.
+8. **Publish and hand off the agent** in Slack, Telegram, WhatsApp, a website embed, or a shared client workspace.
+
+This guide walks through each step with copy-pasteable blueprints and a real working example built for operations teams and automation agencies using [Agenta](https://agenta.ai), an [open-source AI coworker platform](https://agenta.ai).
+
+---
+
+## Chatbot vs. Fixed Automation vs. AI Agent: When Do You Actually Need an Agent?
+
+Before opening an agent builder, verify that your problem actually calls for an agent. Many agency and internal workflows are better solved by a deterministic two-step rule, while others fail in traditional automation tools because they require reading messy inputs and exercising judgment.
+
+| Dimension                       | Standard Chatbot                                                    | Fixed Workflow Automation                                                | AI Agent (Coworker & Automation)                                                                          |
+| :------------------------------ | :------------------------------------------------------------------ | :----------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------- |
+| **What it does**                | Answers questions and drafts text inside a single conversation turn | Executes a fixed rule (`When X happens, do Y, then Z`)                   | Works toward a defined goal across multiple steps using tools and files                                   |
+| **Who decides the steps**       | The human user, turn by turn                                        | The builder, hardcoded in advance on a node canvas                       | The agent runtime, dynamically choosing tools within boundaries you set                                   |
+| **How it handles messy inputs** | Asks the user or guesses from general training data                 | Breaks when a field is missing or an API payload changes shape           | Reads context, checks reference files, retries or adapts, and escalates edge cases                        |
+| **Memory & file scope**         | Limited to the current chat thread                                  | Stateless pass-through between nodes                                     | Temporary session files for today's task plus persistent shared agent files across runs                   |
+| **Best use case**               | One-off brainstorming, summarizing a pasted document, ad-hoc Q&A    | Copying a Stripe receipt to Google Drive or syncing two database columns | Researching inbound leads, checking CRM history, drafting personalized outreach, and routing for approval |
+
+If the steps never change and require zero judgment, build a fixed rule. If the task requires reading unstructured documents, cross-referencing company knowledge, calling several tools depending on what it finds, and pausing for human sign-off before taking an external action, build an AI agent.
+
+---
+
+## The 6 Building Blocks of a Production AI Agent
+
+When you build an agent in a workspace like [Agenta](https://agenta.ai), you are not writing glue code to parse JSON tool calls. You are configuring a coworker that combines **job context** with an **execution runtime**.
+
+![AI Agent Anatomy and Progressive Disclosure](/blog/how-to-build-an-ai-agent/agent-anatomy-and-progressive-disclosure.webp)
+
+Every production agent is made of six parts that work together:
+
+| Building Block                  | What It Contributes                                                                 | When It Loads into Context                                                       | Client Lead-Triage Example                                                                                                                                                                   |
+| :------------------------------ | :---------------------------------------------------------------------------------- | :------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. Standing Instructions**    | The agent's role, goals, standing context, and non-negotiable working rules         | Loaded in full at the start of every session                                     | Define the agency's client, ICP qualification rules, tone, and escalation policy                                                                                                             |
+| **2. Skills**                   | Step-by-step handbooks for specific, repeatable types of tasks                      | Only name and description load initially; full body loads on demand when matched | A `qualify-inbound-lead` skill explaining how to score a company and format the Slack brief                                                                                                  |
+| **3. Files & Knowledge**        | Reference documents, brand guides, approved examples, and working scratch files     | Costs zero context tokens until the agent opens and reads the file               | Persistent shared files for pricing tiers and approved email examples; session files for today's CSV                                                                                         |
+| **4. Tools & Integrations**     | Actions the agent can take in connected apps, workflows, or MCP servers             | Tool names, descriptions, and input schemas are visible to the model             | HubSpot lookup, web search, Slack channel post, and custom CRM MCP server                                                                                                                    |
+| **5. Permissions**              | Rules deciding which tool calls run automatically, ask for approval, or are refused | Checked by the platform before any tool call executes                            | Allow HubSpot reads and web search; require approval before updating CRM stage or sending messages                                                                                           |
+| **6. Harness, Model & Sandbox** | The runtime program that drives the model loop, executes tools, and isolates files  | Active throughout the run inside an isolated Daytona container                   | [Claude Code](https://code.claude.com/docs/en/overview), [Pi](https://shittycodingagent.ai/), or [Codex](https://developers.openai.com/codex/cli) paired with your chosen LLM and credential |
+
+Separating these six layers solves the biggest hidden failure mode in agent engineering: **context window bloat**. When builders stuff every SOP, email template, and pricing table into one giant system prompt, every single turn costs more tokens and the model misses key rules buried in the middle. Using **progressive disclosure** keeps your standing instructions short while giving the agent access to dozens of skills and hundreds of persistent files on demand.
+
+---
+
+## Step 1: Scope One Bounded Job (and Fill Out the Pre-Build Blueprint)
+
+The fastest way to derail an agent build is scoping a department instead of a job. "Automate customer support" or "run outbound sales" is a collection of ten different jobs with different tools, risk profiles, and finish lines.
+
+Pick your first agent job by checking four criteria:
+
+1. **Bounded input:** The run starts with one recognizable input (an inbound form submission, a support ticket, a weekly analytics export, or a meeting transcript).
+2. **Bounded output:** Anyone on the team can look at the result and agree that the task is finished (a formatted Slack brief with an approval button, a draft PR, or a scored CRM record).
+3. **2 to 8 tool actions maximum:** Models choose tools reliably when each action has a distinct purpose. Once a single agent has 25 overlapping tools, tool-selection accuracy drops sharply.
+4. **Measurable success criteria:** You can verify whether the agent succeeded via acceptance rate, time saved per run, or escalation accuracy.
+
+### Five Proven First-Agent Jobs for Agencies and Teams
+
+- **Inbound lead research and CRM triage:** When a prospect submits a demo form, research their company domain, check HubSpot for existing account history, score fit against the ICP rubric, post a summary card in `#sales-inbound`, and draft a personalized reply for the account executive to approve.
+- **Weekly client campaign performance digest:** Every Monday at 7:00 AM, pull campaign metrics from analytics and ad accounts, compare week-over-week conversions, flag the two largest shifts, save the markdown report in the agent's shared files, and post the summary to the client's Slack channel.
+- **Customer support tier-1 triage and draft response:** Read new support tickets, search the product documentation and past resolved issues, attach the root-cause category, and either draft a cited answer for agent review or escalate billing and security tickets immediately.
+- **Content brief and SEO review coworker:** Research live search results for a target keyword, check the company's existing content inventory to prevent duplicate topics, and draft a structured brief with verified proof points for editorial approval.
+- **Meeting transcript to project task router:** Read a client discovery call transcript, extract agreed deliverables and owners, match them against the agency's standard project template, and propose Jira or Linear issues for the project manager to approve.
+
+### Copy-Paste Pre-Build Specification Template
+
+Before you configure anything in the UI, fill out this eight-line specification. We will use the **Inbound Lead Research & Triage Coworker** as our running example across the rest of this guide:
+
+```markdown
+Job Name: Inbound Lead Research & Triage Coworker
+Goal (1 sentence): Research every new demo request, check HubSpot history, score ICP fit, and post a ready-to-send reply draft in #sales-inbound for rep approval.
+Trigger: Webhook event from website demo form (or manual mention in #sales-inbound).
+Inputs: Prospect name, work email, company domain, team size, and free-text message.
+Allowed Read Tools: Web search, company website fetch, HubSpot contact/company lookup.
+Approval-Gated Write Tools: HubSpot deal creation, Gmail draft creation, external message send.
+Forbidden Actions: Never email a prospect directly without human approval; never overwrite existing HubSpot deal owners.
+Definition of Done: A structured lead brief + draft email is posted in #sales-inbound and logged in the shared lead-log folder.
+```
+
+---
+
+## Step 2: Write Lean Standing Instructions (Using Progressive Disclosure)
+
+Your agent's **standing instructions** (often called the system prompt) are sent to the model at the start of every session. They turn a general-purpose model into a specialist coworker that already knows your company, your client, and your rules.
+
+Keep your standing instructions under 40 to 60 lines. Put only the facts and rules that apply to **every single turn** in the instructions, and use one-line pointers to direct the agent to skills and shared files for task-specific details.
+
+Here is a complete, production-ready instruction template you can adapt in [Agenta](https://agenta.ai):
+
+```markdown
+# Role
+
+You are the Inbound Lead Research & Triage Coworker for Northstar Automation Agency.
+You help the revenue team qualify new demo requests quickly and prepare accurate, evidence-backed outreach drafts.
+
+## Who You Work With
+
+You work alongside account executives and agency delivery leads in the Agenta workspace and in the #sales-inbound Slack channel.
+
+## Standing Rules
+
+1. Verify before claiming: Look up every prospect's company website and HubSpot record before scoring fit. If a lookup returns no data, state "unknown" rather than guessing company size or tech stack.
+2. Respect account ownership: If HubSpot shows an active deal or an assigned account owner, tag that owner in Slack and do not create a duplicate record.
+3. Approval boundary: You may read HubSpot records and search the web automatically. Always ask for approval before creating a HubSpot deal or sending any external message.
+4. Concise communication: Lead with the qualification score (Tier 1, Tier 2, or Disqualified), three bullet points of evidence, and the proposed next action.
+
+## Progressive Disclosure Map (Where to Find Details)
+
+- When qualifying an inbound lead or scoring ICP fit, load the `qualify-inbound-lead` skill.
+- Before drafting a prospect reply, read `icp-rubric.md` and `approved-outreach-examples.md` in your shared agent files and follow their structure.
+- After completing a lead review, append a one-line summary to `lead-triage-log.md` in your shared agent files.
+```
+
+Notice how the bottom section acts as an index. Spending three lines in your standing instructions to point at `icp-rubric.md` and `approved-outreach-examples.md` keeps your per-turn prompt tiny while giving the agent access to detailed reference documents whenever it needs them.
+
+You can write these instructions directly in the configuration editor, or build the agent through conversation in the Agenta playground and ask the agent to update its own configuration as you refine the rules together. Every edit is saved as a versioned configuration revision so you can inspect or roll back changes at any time.
+
+---
+
+## Step 3: Package Repeatable Procedures as Skills and Shared Agent Files
+
+Once your standing instructions are in place, separate your **procedural know-how** (skills) from your **reference library** (files).
+
+### How to Write a Skill That Fires Reliably
+
+A **skill** is a modular handbook for one recognizable kind of task. When a session starts, the model sees only the **name** and **description** of each installed skill. It loads the full body of the skill only when the current task matches that description.
+
+Because the description decides whether the agent loads the skill, always write the description around **the trigger situation**, not just the topic:
+
+- **Weak skill description (names only the subject):** `Instructions for qualifying sales leads.`
+- **Strong skill description (names the situation and inputs):** `Use when a new inbound demo request, form submission, or prospect domain arrives and needs company research, HubSpot lookup, ICP tier scoring, and a drafted outreach reply.`
+
+Inside the skill body, list the exact sequence of steps and the output template:
+
+```markdown
+name: qualify-inbound-lead
+description: Use when a new inbound demo request, form submission, or prospect domain arrives and needs company research, HubSpot lookup, ICP tier scoring, and a drafted outreach reply.
+
+# Procedure: Qualify Inbound Lead
+
+1. Check Existing CRM Context
+   - Search HubSpot by the prospect's email address and company domain.
+   - Record whether the company is an existing customer, an open opportunity, or net-new.
+
+2. Research Public Company Signals
+   - Fetch the company homepage and pricing or careers page.
+   - Identify what the company sells, their approximate headcount, and whether they serve B2B clients.
+
+3. Score Against the ICP Rubric
+   - Read `icp-rubric.md` in your shared agent files.
+   - Assign Tier 1 (Strong Fit), Tier 2 (Needs Discovery), or Disqualified, citing the exact rubric rule.
+
+4. Prepare the Triage Brief and Outreach Draft
+   - If Tier 1 or Tier 2, read `approved-outreach-examples.md` in your shared agent files and draft a 4-sentence reply referencing their actual business.
+   - Format the output using the Slack Triage Card template below.
+```
+
+### How to Use Temporary Session Files vs. Persistent Shared Agent Files
+
+In Agenta, every agent has two distinct file areas inside its workspace:
+
+| File Scope                        | Analogy                 | Persistence                                                              | What Belongs Here                                                                                  |
+| :-------------------------------- | :---------------------- | :----------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| **Session Files**                 | Today's desk            | Belongs to one conversation only; a new session starts with a clean desk | Uploaded CSVs for a one-off request, scratch drafts in progress, intermediate downloads            |
+| **Shared Agent Files (AI Drive)** | The team's shared shelf | Persists across every session for that agent                             | Brand voice guides, ICP rubrics, approved outreach examples, finished reports, and running indexes |
+
+This two-folder design makes continuous improvement practical for non-engineers. When your team edits a drafted email and approves it, tell the agent in chat: _"Save this approved version to our outreach examples in your shared files, and remember to keep first paragraphs under two sentences."_ The agent saves the example to its persistent shelf and updates its configuration, so the next session benefits automatically.
+
+---
+
+## Step 4: Connect Tools and Set Read vs. Write Permission Gates
+
+Tools let your agent act outside the chat. In [Agenta](https://agenta.ai), tools come from three sources:
+
+1. **Built-in integrations (1,000+ apps):** Connect HubSpot, Slack, Gmail, Notion, Jira, Linear, Google Analytics, or GitHub and choose the specific actions the agent should have.
+2. **Referenced workflows:** Expose an existing team workflow as a single tool with typed inputs and outputs.
+3. **MCP servers (Model Context Protocol):** Connect any internal API, database, or third-party service that exposes an MCP endpoint, with authentication managed at the project level.
+
+### Give the Agent Action-Level Tools, Not Blanket App Access
+
+Connecting an integration does not mean handing the agent every destructive action in that app. A GitHub or HubSpot integration provides separate tools for reading a record, creating a record, and deleting or closing a record. Start by enabling only the 4 to 6 actions your skill actually calls.
+
+### Configure Permission Boundaries (`Allow`, `Ask`, `Deny`)
+
+Reading data and changing external systems carry very different risks. Agenta evaluates permissions before every tool call and gives each action one of three answers:
+
+- **Allow (go ahead):** The tool runs immediately on its own. Use this for read-only lookups such as searching HubSpot, reading analytics, or fetching a web page.
+- **Ask (require approval first):** The agent reads and thinks on its own, then pauses right before executing the tool call, shows you the exact arguments (such as the recipient and message body), and waits for a human to click **Approve** or **Deny**.
+- **Deny (refuse):** The action is blocked completely.
+
+By default, a new agent in Agenta allows read-only actions to run automatically and asks for approval before any action that writes or sends data.
+
+### Crucial Rule: Interactive Chat Approvals vs. Unattended Automations
+
+The cost of an approval depends on whether a human is in the conversation:
+
+- **In an interactive chat (Playground, Slack thread, or Website Embed):** An approval takes one second. The agent finishes all the research, pauses at the send step, and continues the moment you click **Approve**.
+- **In an unattended automation (such as a 6:00 AM scheduled run):** Nobody is in the chat to click approve. If a required tool is set to **Ask**, the unattended run will pause and wait instead of finishing.
+
+When you prepare an agent for an unattended schedule or webhook trigger, decide up front which low-risk delivery action it may execute without asking (such as posting the finished report to `#sales-inbound` or saving a draft into HubSpot) and keep external customer-facing sends blocked or routed as drafts for human review.
+
+---
+
+## Step 5: Choose Your Harness, Model, and Credential Separately
+
+Many builders confuse the **language model** with the **agent runtime**. Understanding the difference saves days of debugging when you scale an agent into production.
+
+- **What the model does:** A large language model takes a list of messages and returns a message. It cannot open a file, run a bash script, call an API, or compact a long conversation on its own; it can only ask for a tool call in its reply.
+- **What the harness does:** The harness is the runtime program that drives the model in a loop. It loads your instructions, sends available tool schemas and skill descriptions to the model, executes the tool calls the model requests inside an isolated computer and browser environment (**Daytona** sandbox), feeds the tool output back to the model, and compacts older turns when a long conversation approaches the context limit.
+
+In [Agenta](https://agenta.ai), you choose the **harness**, the **model**, and the **credential** as three independent settings:
+
+| Agenta Harness                                              | How It Works & Supported Models                                                                                                                                      | Best Fit                                                                                |
+| :---------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------- |
+| **[Claude Code](https://code.claude.com/docs/en/overview)** | Runs Anthropic's Claude models via Anthropic directly, AWS Bedrock, Google Vertex AI, a custom gateway, or a personal Claude Pro or Max subscription                 | Deep multi-step research, document synthesis, coding, and file-heavy coworker tasks     |
+| **[Pi](https://shittycodingagent.ai/)**                     | Multi-provider harness supporting OpenAI, Anthropic, Google Gemini, Mistral, Groq, MiniMax, Together AI, OpenRouter, xAI, Ollama, and any OpenAI-compatible endpoint | Teams and agencies that want full model flexibility across providers or custom gateways |
+| **[Codex](https://developers.openai.com/codex/cli)**        | Runs OpenAI models (`GPT-5.6 Sol`, `Terra`, `Luna`, `GPT-5.5`, and `GPT-5.2`) directly through OpenAI or a personal ChatGPT subscription                             | Fast software engineering, structured tool execution, and OpenAI-standardized teams     |
+
+All three harnesses connect to your project's MCP servers and shared agent files. Note one technical detail if you attach large MCP servers: if an MCP server paginates its tool list, [Pi](https://shittycodingagent.ai/) and [Claude Code](https://code.claude.com/docs/en/overview) fetch all pages, whereas [Codex](https://developers.openai.com/codex/cli) reads only the first page of tools.
+
+Because the harness, model, and credential are decoupled, switching from one model to another (or moving from a personal Claude Pro/Max subscription during prototyping to an AWS Bedrock or BYOK API key for client production) is a single configuration change. Your instructions, skills, tools, files, and permissions stay untouched.
+
+---
+
+## Step 6: Stress-Test Your Agent with a 10-Case Evaluation Set Before Launch
+
+Never connect an agent to a live client channel after testing only two friendly prompts. Before you automate or hand off the agent, run a structured **10-case stress test** using real historical inputs.
+
+![The 8-Step AI Agent Build and Client Handoff Lifecycle](/blog/how-to-build-an-ai-agent/eight-step-agent-build-lifecycle.webp)
+
+Divide your 10 test cases into three buckets:
+
+| Test Bucket                        | Count   | What to Feed the Agent                                                                                                                                                          | What You Are Verifying                                                                                                |
+| :--------------------------------- | :------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------- |
+| **1. Routine Happy Path**          | 4 cases | Clean, standard requests that match the core job (for example, 4 real B2B demo requests with valid domains)                                                                     | Does the agent load the right skill, call tools in the expected order, and follow the output template?                |
+| **2. Messy Real-World Inputs**     | 3 cases | Incomplete or noisy inputs (a personal `@gmail.com` address with a company name in the message, a dead website URL, or a duplicate CRM contact)                                 | Does the agent handle tool errors gracefully and report `"unknown"` instead of inventing company facts?               |
+| **3. Boundary & Escalation Cases** | 3 cases | Inputs the agent must refuse or escalate (an existing enterprise customer asking for urgent support, a competitor domain, or a prompt asking it to email the prospect directly) | Does the permission gate pause/refuse unauthorized writes, and does the agent escalate according to its instructions? |
+
+### How to Fix Failures Without Breaking Working Cases
+
+When a test case fails, inspect the full run trace (every tool call, tool response, and reasoning step) and fix the root cause in this exact order:
+
+1. **Tighten the tool description or input schema first:** If the agent called the wrong tool or passed a malformed query, clarify the tool's description.
+2. **Update the skill steps second:** If the agent skipped a lookup step or formatted the output poorly, refine the numbered steps or template inside the skill.
+3. **Sharpen the standing instructions third:** Add a standing rule only if the mistake applies across all tasks.
+4. **Fold feedback in directly from chat:** In Agenta, you can correct the agent right in the playground conversation (_"When a lead uses a personal Gmail address, search LinkedIn and the message body for their company name before marking the domain unknown; update your skill so you do this next time"_) and verify the new configuration version against your failed test case.
+
+---
+
+## Step 7: Turn Interactive Work into Scheduled or Event-Driven Automations
+
+Once your agent handles 10 test cases reliably in interactive chat, you can turn it into an **automation** that runs on a schedule or reacts to app events.
+
+An automation in Agenta is not a separate workflow you have to rebuild. It is the exact same agent (with its instructions, skills, tools, and shared files), started automatically by a **cron schedule** or an **app-event subscription**.
+
+### Checklist for Unattended Automation Runs
+
+Because no human is sitting in the chat during an automated run, your automation setup must answer three things up front:
+
+1. **Write a self-contained opening message:** In chat, you can say _"Run the weekly report."_ In a scheduled automation, write the complete assignment:
+   > _"Summarize new inbound leads added to HubSpot in the past 24 hours. Score any unscored leads using the `qualify-inbound-lead` skill, append the results to `lead-triage-log.md` in your shared files, and post the daily digest to `#sales-inbound`."_
+2. **Name an explicit output destination and a fallback:** In the playground, the answer appears on your screen. An automated run needs a tool to deliver its output where your team works (such as a Slack channel, a HubSpot note, or a shared file). Always include a fallback rule in the prompt: _"If posting to Slack fails, save the finished digest to `reports/pending/` in your shared files."_
+3. **Check who the automation runs as:** In Agenta, an automation runs with the access permissions of the user or API key that created or last saved it. Every run is logged with its full conversation and tool trace in the automation's run history so you can audit what happened and why.
+
+---
+
+## Step 8: Publish to Slack, Website Embeds, and Client Workspaces
+
+The final step is putting the agent where your team or your agency's client actually works. Instead of forcing business users to learn a technical developer console, [Agenta](https://agenta.ai) lets you publish one agent across four delivery surfaces from the **Publish** panel:
+
+### 1. Deploy as a Slack, Telegram, or WhatsApp Teammate (`Publish -> Slack`)
+
+Connecting your agent to Slack takes less than five minutes:
+
+1. Open your agent's chat, click **Publish**, and click **Add** next to **Slack**.
+2. Enter the assistant's display **Name** (for example, `Inbound Lead Triage`), **Handle** (`@leadtriage`), and **Description**.
+3. Copy the pre-filled **Slack App Manifest** generated by Agenta, click **Create New App -> From a manifest** in Slack, and install it to the workspace.
+4. Paste the **App ID**, **Signing Secret**, and **Bot User OAuth Token** into Agenta and click **Connect app**.
+5. Choose whether the agent answers in **Direct messages**, **Channels** (all invited channels or an explicit allowlist under **Advanced**), and whether **Everyone** or **Specific people** can message it.
+
+When a teammate mentions `@leadtriage` in `#sales-inbound`, the agent reacts with 👀 while it researches the lead and changes the reaction to ✅ once it posts the finished triage brief in the thread. You can publish the same agent to **Telegram** and **WhatsApp** from the same **Publish** panel.
+
+### 2. Embed a Chat Widget on a Client Website or Internal Portal (`Publish -> Embed`)
+
+If you are building a customer-facing assistant or an internal operations copilot inside a client's web app, open **Publish -> Embed** and click **Create embed**:
+
+- **Customize appearance and security:** Set the widget name, avatar, greeting, up to four starter prompts, theme, accent hex color, and turn on **Only allow embedding the agent on specific domains** (such as `https://portal.clientdomain.com`).
+- **Paste the iframe snippet:** Drop the generated `<iframe>` into the host page, or click **Copy prompt** to hand your coding assistant the exact integration instructions.
+- **Pass per-user identity and live page context:** Use the browser `postMessage` bridge (`agenta:ready` -> `agenta:init` and `agenta:context`) to pass a cryptographic per-user `visitorKey` (32 to 256 characters, minimum 128 bits of entropy), the user's `displayName`, and live JSON page context so each signed-in user keeps their own conversation history across devices.
+
+### 3. Choose the Right Agency Client Handoff & Licensing Model
+
+For automation agencies and consultants, how you hand off the workspace determines your margins and client retention:
+
+| Handoff Model                                        | How It Works in Agenta                                                                                                                                                 | Licensing & Cost Structure                                                                                                                                     | Best For                                                                                                              |
+| :--------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- |
+| **Channel-Only Delivery (Slack / Telegram / Embed)** | Agency manages the agent in an isolated Agenta project; client team interacts entirely in their own Slack workspace or embedded web portal                             | Covered under the agency's workspace credits (`$29/mo` Starter includes unlimited projects)                                                                    | Retainer clients who want a turnkey AI coworker inside Slack without managing another dashboard                       |
+| **Shared Client Cloud Workspace**                    | Client creates an Agenta Cloud workspace (`Hobby` `$0` forever or `Starter` `$29/month`); agency builds the agent, shares it with the project, and transfers ownership | `$0/mo` on Hobby (2 members) or `$29/mo` on Starter with **unlimited team members and no per-seat price** (2,900 credits/month; `$10` per 1,000 extra credits) | SMB and mid-market clients where 10 to 50 employees need access to shared agents and chats without per-user seat fees |
+| **Client-Owned Self-Hosted Deployment**              | Deploy the MIT-licensed open-source Agenta stack (`Agenta-AI/agenta`) on the client's AWS, GCP, Azure, or Hetzner VM via Docker Compose or Kubernetes Helm             | **Free forever** open-source license with unlimited users, projects, agents, RBAC, and SSO; client brings their own model API keys or subscriptions            | Regulated enterprises, healthcare, finance, and privacy-sensitive clients requiring full infrastructure ownership     |
+
+---
+
+## Pre-Launch Checklist: Verify Your Agent in 5 Minutes
+
+Before announcing your new agent to your team or handing it over to a client, run through this final verification checklist:
+
+- [ ] **Single bounded job:** Input trigger, allowed tools (2 to 8 actions), and definition of done are written down.
+- [ ] **Lean standing instructions:** Instructions are under 60 lines and use progressive disclosure pointers to skills and shared files rather than pasting giant templates inline.
+- [ ] **Trigger-based skill descriptions:** Every skill description starts with _when_ the agent should load it (`Use when...`), not just a noun phrase.
+- [ ] **Read vs. write permissions checked:** Read tools are set to `Allow`; external sends or destructive writes are set to `Ask` (for interactive chat) or scoped to safe draft/channel actions (for unattended schedules).
+- [ ] **10-case stress test passed:** Verified against 4 happy-path cases, 3 messy/missing-data cases (confirming the agent says `"unknown"` instead of guessing), and 3 boundary/escalation cases.
+- [ ] **Unattended fallback defined:** Any scheduled or event-driven automation includes a self-contained prompt, an explicit delivery channel, and a shared-file fallback path if external delivery fails.
+
+To build and deploy your first agent using the workflow in this guide, [start for free on Agenta Cloud](https://cloud.agenta.ai/) or explore the [open-source repository on GitHub](https://github.com/Agenta-AI/agenta).
+
+---
+
+## Frequently Asked Questions
+
+### Do I need to write Python code to build a production AI agent?
+
+No. You do not need to write a custom Python agent loop from scratch to ship a production AI agent. In an agent workspace like Agenta, the execution harness ([Claude Code](https://code.claude.com/docs/en/overview), [Pi](https://shittycodingagent.ai/), or [Codex](https://developers.openai.com/codex/cli)) already runs the perception, tool-calling, file-management, and context-compaction loop inside an isolated Daytona sandbox. Your job is to configure the agent's standing instructions, reusable skills, connected tools, shared reference files, and approval boundaries in plain English.
+
+### What is the difference between agent instructions, skills, and files?
+
+Instructions, skills, and files solve different parts of the context budget. Standing instructions load in full at the start of every session and hold the role, audience, tone, and rules that apply to every task. Skills are task-specific procedures where the model initially sees only the skill's name and trigger description, loading the full step-by-step handbook only when a matching request arrives. Files live in temporary session storage (for today's uploads and scratch work) or persistent shared agent storage (for brand guides, approved examples, and past reports) and cost zero context tokens until the agent opens them.
+
+### How many tools should I give my first AI agent?
+
+Start with 2 to 8 focused tool actions that directly support one bounded job. Giving a new agent 30 or 40 unfocused actions across multiple apps increases tool-selection errors and widens your security surface. Connect only the specific read and write actions the job requires, and add more tools later when real test cases expose a gap.
+
+### How should tool permissions differ between interactive chat and scheduled automations?
+
+In an interactive chat, setting read actions to run automatically and write or send actions to ask for approval first is the safest default because a human is present to click approve in one second. In an unattended automation that runs on a 6:00 AM cron schedule or webhook event, nobody is watching the chat to answer an approval prompt, so any action set to ask first will stall the run. For unattended automations, pre-authorize the specific delivery action the agent needs (such as posting to a designated Slack channel or saving to a shared folder) and block destructive actions outright.
+
+### Why should I choose the agent harness, model, and credential separately?
+
+A language model only replies to messages and requests tool calls, while the harness is the runtime program that executes those tools, manages files in the sandbox, and compacts long conversations. Keeping the harness ([Claude Code](https://code.claude.com/docs/en/overview), [Pi](https://shittycodingagent.ai/), or [Codex](https://developers.openai.com/codex/cli)), the model, and the credential separate means you can switch models for a better cost or speed tradeoff, or route traffic through AWS Bedrock, Google Vertex AI, an API key, or a personal Claude Pro/Max or ChatGPT Plus/Pro subscription, as a simple configuration change without rebuilding your agent.
+
+### How can an automation agency hand off an AI agent to a client without per-seat SaaS fees?
+
+With Agenta, you have three clean handoff paths depending on how the client works. You can connect the agent directly to the client's Slack, Telegram, or WhatsApp workspace, embed it as a branded chat widget on their website or internal portal using an iframe snippet, or invite their whole team into a shared Agenta project. Agenta Cloud Starter (`$29/month`) includes unlimited projects and unlimited team members with no per-seat price, and the MIT-licensed open-source edition can be self-hosted on the client's own cloud via Docker Compose or Kubernetes Helm.
