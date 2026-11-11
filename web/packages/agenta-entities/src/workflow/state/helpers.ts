@@ -45,7 +45,8 @@ export function agentFlagsQueryOptions(projectId: string | null) {
 
             return fetchWorkflowAgentFlags(projectId, ids, {lowPriority: true})
         },
-        staleTime: 30_000,
+        // Only a commit can flip these, and every commit invalidates this key.
+        staleTime: 5 * 60_000,
     }
 }
 

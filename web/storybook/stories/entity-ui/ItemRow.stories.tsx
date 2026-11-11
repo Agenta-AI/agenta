@@ -1,5 +1,6 @@
 import type {ReactNode} from "react"
 
+import {NEEDS_SETUP_LABEL, needsSetupReasonLabel} from "@agenta/entities/workflow"
 import {CaretRight, FileText, Plugs, Trash} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Tag as AntTag, Tooltip as AntTooltip, Typography as AntTypography} from "antd"
@@ -7,6 +8,8 @@ import {Tag as AntTag, Tooltip as AntTooltip, Typography as AntTypography} from 
 // Imported from source: the DrillInView barrel does not re-export these rows.
 import {
     describeInstruction,
+    describeMcp,
+    describeSkill,
     type ItemDescriptor,
 } from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"
 import {
@@ -77,6 +80,42 @@ const GATEWAY: ItemDescriptor = {
     typeLabel: "app tool",
     subtitle: "A connected-app action",
 }
+
+// The stored MCP shape (what `buildMcpAgentItem` writes), through the real classifier. A saved
+// item names its connection by slug and carries no URL, so the row shows the name alone.
+const MCP = describeMcp({
+    name: "linear",
+    connection: {type: "gateway", namespace: "custom", slug: "linear"},
+    policy: {tools: {mode: "all"}},
+})
+// An inline server still carries its address, which the row shows under the name.
+const MCP_WITH_URL = describeMcp({
+    name: "internal_docs",
+    connection: {url: "https://mcp.example.com/mcp"},
+})
+// The rail's status for a server whose sign-in lapsed (`needsSetupStatus` for `needs_sign_in`).
+const MCP_SIGN_IN_EXPIRED: ItemRowStatus = {
+    tone: "incomplete",
+    label: NEEDS_SETUP_LABEL,
+    reason: needsSetupReasonLabel("needs_sign_in") ?? undefined,
+    needsSetup: true,
+}
+
+// Skills through the real classifier: an inline package, a registry reference and a built-in.
+const SKILL = describeSkill({
+    name: "laptop-replacement-policy",
+    description: "When and how an employee gets a new laptop",
+    body: "...",
+})
+const SKILL_PINNED = describeSkill({
+    "@ag.embed": {"@ag.references": {workflow_revision: {slug: "pr-review-9c1d", version: "3"}}},
+    name: "pr-review",
+    description: "Review a pull request against the team checklist",
+})
+const SKILL_BUILTIN = describeSkill({
+    "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+    name: "web-search",
+})
 
 const NO_DESC: ItemDescriptor = {
     name: "list_files",
@@ -485,6 +524,7 @@ export const SectionStack: Story = {
                     status={STATUSES.invalid}
                 />
             </div>
+            <ItemRow descriptor={MCP} onEdit={noop} onRemove={noop} />
             <ItemRow descriptor={NO_DESC} onEdit={noop} locked />
             <InstructionsFileRow
                 filename={INSTRUCTIONS_FILE}
@@ -492,6 +532,32 @@ export const SectionStack: Story = {
                 onOpen={noop}
                 status={STATUSES.edited}
             />
+        </div>
+    ),
+}
+
+/** MCP server rows: the neutral server mark, the name in the sans font, and the needs-setup state. */
+export const McpServerRows: Story = {
+    args: {descriptor: MCP},
+    render: () => (
+        <div className="flex max-w-[560px] flex-col gap-2">
+            <ItemRow descriptor={MCP} onEdit={noop} onRemove={noop} />
+            <ItemRow descriptor={MCP_WITH_URL} onEdit={noop} onRemove={noop} />
+            <ItemRow descriptor={MCP} onEdit={noop} status={MCP_SIGN_IN_EXPIRED} />
+            <ItemRow descriptor={MCP} onEdit={noop} status={STATUSES.new} />
+        </div>
+    ),
+}
+
+/** Skill rows: the one skill mark, the readable title, and the "Agenta" tag on a built-in. */
+export const SkillRows: Story = {
+    args: {descriptor: SKILL},
+    render: () => (
+        <div className="flex max-w-[560px] flex-col gap-2">
+            <ItemRow descriptor={SKILL} onEdit={noop} onRemove={noop} />
+            <ItemRow descriptor={SKILL_PINNED} onEdit={noop} onRemove={noop} />
+            <ItemRow descriptor={SKILL_BUILTIN} onEdit={noop} disabled />
+            <ItemRow descriptor={MCP} onEdit={noop} onRemove={noop} />
         </div>
     ),
 }

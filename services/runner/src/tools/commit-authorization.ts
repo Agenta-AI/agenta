@@ -44,6 +44,7 @@ import {
   type ManifestDiffEntry,
 } from "./approval-manifest.ts";
 import { digestOf, type WorkspaceReader } from "./workspace-reader.ts";
+import { RunCredentialExpiredError } from "./run-credential.ts";
 
 /** Contract 6.2. Bounds one commit. */
 export const MAX_MARKERS_PER_CALL = 8;
@@ -321,6 +322,7 @@ export class CommitAuthorizer {
           target: operation.target,
         });
       } catch (error) {
+        if (error instanceof RunCredentialExpiredError) throw error;
         // Fail closed. "Unavailable" never means "there is none": a `set` replaces a field that
         // already holds a string, so an old text always exists somewhere. Presenting a fetch
         // failure as a complete-content approval would invite the human to approve a
@@ -360,7 +362,10 @@ export class CommitAuthorizer {
     toolName: string;
     toolCallId: string;
     args: unknown;
-  }): Promise<{ ok: true; args: unknown } | { ok: false; reason: string }> {
+  }): Promise<
+    | { ok: true; args: unknown }
+    | { ok: false; reason: string }
+  > {
     const required = this.markersIn(input.args);
     if (required.length === 0) return { ok: true, args: input.args };
 
@@ -427,6 +432,12 @@ export class CommitAuthorizer {
       // surviving member is left for a retry: a retry re-mints the whole set, so the human
       // re-approves the whole commit.
       this.options.store.discardAll(recordKey);
+      if (error instanceof RunCredentialExpiredError) {
+        this.options.log?.(
+          `[commit-auth] refused tool=${input.toolName} call=${input.toolCallId} code=${error.envelope.code}`,
+        );
+        return { ok: false, reason: error.message };
+      }
       const failure = toCommitError(error);
       this.options.log?.(
         `[commit-auth] refused tool=${input.toolName} call=${input.toolCallId} code=${failure.code}`,

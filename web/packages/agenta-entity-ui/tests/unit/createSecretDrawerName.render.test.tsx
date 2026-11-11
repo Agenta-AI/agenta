@@ -9,10 +9,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
 
-vi.mock("@agenta/ui/shared-editor", () => ({
-    SharedEditor: () => createElement("div", {"data-testid": "shared-editor"}),
-}))
-
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: () => [],

@@ -10,11 +10,7 @@
 import {useCallback, useMemo} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {
-    buildSkillEmbedEntry as buildEntry,
-    type SkillEmbedTarget,
-    type SkillRegistryItem,
-} from "@agenta/skills"
+import {buildSkillEmbedEntry as buildEntry, type SkillEmbedTarget} from "@agenta/skills"
 import {skillsListDataAtom, skillsListQueryAtom} from "@agenta/skills/state"
 import type {SkillsPickerHostProps} from "@agenta/ui/drill-in"
 import {useAtomValue} from "jotai"
@@ -23,32 +19,12 @@ import {useAtomValue} from "jotai"
 const buildSkillEmbedEntry = (target: SkillEmbedTarget): Record<string, unknown> =>
     buildEntry(target) as unknown as Record<string, unknown>
 
+import {pickerEmbedEntry, toPickerItem} from "./pickerOptions"
 import {toSourceInfo} from "./registrySections"
 import {SkillCreateDrawer} from "./SkillCreateDrawer"
 import {SkillPickerDrawer, type SkillAddChoice} from "./SkillPickerDrawer"
 import type {SkillListItem} from "./types"
 import {useSkillCreateEntry} from "./useSkillCreateEntry"
-
-/** Embed identity is the WORKFLOW slug (builtins: `__ag__…`); display is the skill name. */
-const toPickerItem = (
-    item: SkillRegistryItem,
-    origin: SkillListItem["origin"],
-    added: Map<string, {pinnedVersion?: string}>,
-): SkillListItem | null => {
-    const slug = item.workflow_slug ?? undefined
-    if (!slug) return null
-    const addedEntry = added.get(slug)
-    return {
-        id: item.workflow_id ?? item.id ?? slug,
-        slug,
-        name: item.name ?? item.skill_name ?? slug,
-        description: item.description ?? item.skill_description ?? undefined,
-        origin,
-        version: item.version?.replace(/^v/, "") ?? undefined,
-        added: Boolean(addedEntry),
-        pinnedVersion: addedEntry?.pinnedVersion,
-    }
-}
 
 export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsPickerHostProps) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
@@ -76,18 +52,7 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
 
     const handleAdd = useCallback(
         (choices: SkillAddChoice[]) => {
-            onAdd(
-                choices.map(({skill, mode}) =>
-                    buildSkillEmbedEntry({
-                        slug: skill.slug,
-                        workflowId: skill.id || undefined,
-                        name: skill.name,
-                        description: skill.description,
-                        mode,
-                        version: skill.version,
-                    }),
-                ),
-            )
+            onAdd(choices.map(({skill, mode}) => pickerEmbedEntry(skill, mode)))
         },
         [onAdd],
     )

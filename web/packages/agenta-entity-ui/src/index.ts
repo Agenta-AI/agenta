@@ -179,7 +179,6 @@ export {
     TOOL_PROVIDERS_META,
     TOOL_SPECS,
     ObjectSchemaControl,
-    CollapsibleObjectControl,
     SchemaPropertyRenderer,
     // Schema Utilities
     resolveAnyOfSchema,

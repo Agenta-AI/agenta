@@ -26,10 +26,10 @@ import {
     Cpu,
     DotsThree,
     FileText,
-    GraduationCap,
+    Compass,
+    HardDrives,
     Minus,
     PencilSimple,
-    Plugs,
     Plus,
     Robot,
     SlidersHorizontal,
@@ -98,8 +98,8 @@ export const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
     subagents: <Robot />,
     instructions: <FileText />,
     model: <Cpu />,
-    mcps: <Plugs />,
-    skills: <GraduationCap />,
+    mcps: <HardDrives />,
+    skills: <Compass />,
     params: <SlidersHorizontal />,
 }
 

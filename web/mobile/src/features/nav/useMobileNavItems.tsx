@@ -39,7 +39,7 @@ import {
     CircleIcon,
     GearIcon,
     GithubLogoIcon,
-    GraduationCapIcon,
+    CompassIcon,
     HouseIcon,
     KeyboardIcon,
     LightningIcon,
@@ -283,7 +283,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: SKILLS_SIDEBAR_KEY,
                 title: "Skills",
-                icon: createElement(GraduationCapIcon, {size: 16}),
+                icon: createElement(CompassIcon, {size: 16}),
                 link: `${projectURL}/skills`,
             },
             {

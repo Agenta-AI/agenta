@@ -30,8 +30,10 @@ vi.mock("@agenta/entities/session", async () => {
     return {...local, ...fresh, fetchSessionRecordsAtom: atom(null, async () => undefined)}
 })
 vi.mock("@agenta/chat/state", async () => {
+    const {atom} = await import("jotai")
     const fresh = await import("../../../packages/agenta-entities/src/session/core/freshSessions")
-    return {markSessionFresh: fresh.markSessionFresh}
+    const statusAtom = atom("idle")
+    return {markSessionFresh: fresh.markSessionFresh, sessionStatusAtomFamily: () => statusAtom}
 })
 vi.mock("@agenta/shared/state", async () => {
     const {atom} = await import("jotai")

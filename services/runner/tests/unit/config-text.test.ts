@@ -22,6 +22,7 @@ import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import { buildConfigTextFetcher } from "../../src/tools/config-text.ts";
+import { fixedToolCallback } from "../utils/tool-callback.ts";
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
 const VARIANT = "019c-variant";
@@ -76,7 +77,7 @@ const readConfigResponse = (overrides: Record<string, unknown> = {}) => ({
 
 const fetcher = () =>
   buildConfigTextFetcher({
-    callback: { endpoint: ENDPOINT, authorization: "ApiKey secret" } as never,
+    callback: fixedToolCallback({ endpoint: ENDPOINT, authorization: "ApiKey secret" }),
     runContext,
   });
 
@@ -182,7 +183,7 @@ describe("the fetcher refuses rather than diff against the wrong side", () => {
     // handler's own refusal.
     const sent = stub(readConfigResponse(), OK);
     const noVariant = buildConfigTextFetcher({
-      callback: { endpoint: ENDPOINT, authorization: "ApiKey secret" } as never,
+      callback: fixedToolCallback({ endpoint: ENDPOINT, authorization: "ApiKey secret" }),
       runContext: { workflow: {} } as never,
     });
 

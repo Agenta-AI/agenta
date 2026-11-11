@@ -1887,6 +1887,13 @@ class GitDAO(GitDAOInterface):
                     self.ArtifactDBE.project_id == project_id,  # type: ignore
                     or_(
                         self.ArtifactDBE.name.ilike(f"%{artifact_search}%"),  # type: ignore
+                        # The UI shows `laptop-replacement-policy` as "Laptop Replacement
+                        # Policy", so a search for the shown words must match it too.
+                        func.replace(
+                            func.replace(self.ArtifactDBE.name, "-", " "),  # type: ignore
+                            "_",
+                            " ",
+                        ).ilike(f"%{artifact_search}%"),
                         self.ArtifactDBE.description.ilike(  # type: ignore
                             f"%{artifact_search}%"
                         ),

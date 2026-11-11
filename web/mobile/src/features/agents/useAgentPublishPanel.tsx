@@ -27,6 +27,7 @@ export const useAgentPublishPanel = ({
     projectId,
     workspaceId,
     side,
+    channelsEnabled,
 }: {
     agentId: string
     agentName?: string
@@ -38,10 +39,13 @@ export const useAgentPublishPanel = ({
     workspaceId: string
     /** Where the panel opens on a phone; the playground passes `right`. */
     side?: "responsive" | "right"
+    /** False holds the channels read back until the host opens something that shows them. */
+    channelsEnabled?: boolean
 }) => {
     const {basePath} = useRouter()
     const {connections, loading, loadError, actions} = useAgentChannels(agentId, {
         resolveAgentName,
+        enabled: channelsEnabled,
     })
     const panel = useChannelPanel({
         agentId,

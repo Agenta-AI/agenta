@@ -1,19 +1,11 @@
-import {useState} from "react"
-
-import {
-    CollapsibleObjectControl,
-    ObjectSchemaControl,
-    SchemaPropertyRenderer,
-} from "@agenta/entity-ui/drill-in"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {ObjectSchemaControl, SchemaPropertyRenderer} from "@agenta/entity-ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Button as AntButton, Tooltip as AntTooltip, Typography} from "antd"
+import {Typography} from "antd"
 import clsx from "clsx"
 
 // ObjectSchemaControl — renders every property of an object inline through
-// SchemaPropertyRenderer. antd surface: `Typography.Text` (labels + placeholders),
-// `Tooltip` (the schema description on the header) and, in CollapsibleObjectControl, the
-// `Button type="text"` caret toggle.
+// SchemaPropertyRenderer. antd surface: `Typography.Text` (labels + placeholders) and
+// `Tooltip` (the schema description on the header).
 const meta = {
     title: "@agenta/entity-ui/DrillIn/ObjectSchemaControl",
     component: ObjectSchemaControl,
@@ -22,7 +14,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Inline object renderer. antd `Typography.Text` → `<span>` + tokens, antd `Tooltip` → Radix `Tooltip`, antd `Button type="text"` → `@agenta/ui` `Button variant="ghost"`.',
+                    "Inline object renderer. antd `Typography.Text` → `<span>` + tokens, antd `Tooltip` → Radix `Tooltip`.",
             },
         },
     },
@@ -114,30 +106,6 @@ export const DisabledInline: Story = {
     },
 }
 
-/** CollapsibleObjectControl — collapsed (caret-right) and expanded (caret-down). */
-export const Collapsible: Story = {
-    args: {schema: LLM_CONFIG_SCHEMA, label: "LLM configuration", value: {}, onChange: noop},
-    render: () => (
-        <div className="flex max-w-[560px] flex-col gap-6">
-            <CollapsibleObjectControl
-                schema={LLM_CONFIG_SCHEMA}
-                label="Collapsed"
-                value={LLM_CONFIG_VALUE}
-                onChange={noop}
-                SchemaPropertyRenderer={SchemaPropertyRenderer}
-            />
-            <CollapsibleObjectControl
-                schema={LLM_CONFIG_SCHEMA}
-                label="Expanded"
-                value={LLM_CONFIG_VALUE}
-                onChange={noop}
-                defaultCollapsed={false}
-                SchemaPropertyRenderer={SchemaPropertyRenderer}
-            />
-        </div>
-    ),
-}
-
 // ---------------------------------------------------------------------------
 // Parity: the migrated antd surfaces
 // ---------------------------------------------------------------------------
@@ -185,30 +153,6 @@ function AntdNoProperties({label}: {label: string}) {
     )
 }
 
-/** Pre-migration collapsible toggle, verbatim (antd Tooltip + `Button type="text"`). */
-function AntdCollapsibleToggle({label}: {label: string}) {
-    const [isCollapsed, setIsCollapsed] = useState(true)
-    // Same outer wrapper CollapsibleObjectControl renders, so the two crops are the
-    // same box (without it the antd cell is the bare 89px button and the agenta cell the
-    // full-width wrapper — a meaningless pair).
-    return (
-        <div className={clsx("flex flex-col gap-2")}>
-            <AntTooltip title="Model settings applied to every run." placement="right">
-                <AntButton
-                    type="text"
-                    className="flex items-center gap-1.5 px-0 h-auto"
-                    onClick={() => setIsCollapsed((v) => !v)}
-                >
-                    <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
-                        {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
-                    </span>
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                </AntButton>
-            </AntTooltip>
-        </div>
-    )
-}
-
 export const AntdVsAgenta: Story = {
     args: {schema: LLM_CONFIG_SCHEMA, label: "LLM configuration", value: {}, onChange: noop},
     render: () => (
@@ -234,20 +178,6 @@ export const AntdVsAgenta: Story = {
                     </Typography.Text>
                 }
                 s={<span className="text-sm font-medium text-colorText">LLM configuration</span>}
-            />
-            <Row
-                label="collapsible toggle (collapsed)"
-                a={<AntdCollapsibleToggle label="Collapsed" />}
-                s={
-                    <CollapsibleObjectControl
-                        schema={LLM_CONFIG_SCHEMA}
-                        label="Collapsed"
-                        description="Model settings applied to every run."
-                        value={LLM_CONFIG_VALUE}
-                        onChange={noop}
-                        SchemaPropertyRenderer={SchemaPropertyRenderer}
-                    />
-                }
             />
         </div>
     ),

@@ -28,6 +28,7 @@ from oss.src.core.channels.render.dtos import RenderItem, RenderPart
 from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
 from oss.src.core.channels.render.render import (
     extract_answer_text,
+    extract_final_answer,
     render_indicator,
     FAILED_START_TEXT,
     WORKING_TEXT,
@@ -673,11 +674,7 @@ class ChannelsOutboxWorker:
                 project_id=project_id, session_id=session_id, turn_id=turn_id
             )
             has_answer = bool(
-                any(
-                    (message.get("content") or "") != ""
-                    for message in (folded.get("messages") or [])
-                    if message.get("role") == "assistant"
-                )
+                extract_final_answer(folded.get("messages") or [])
                 or folded.get("pending_interaction")
             )
             if has_answer or attempt == _EMPTY_FOLD_ATTEMPTS - 1:

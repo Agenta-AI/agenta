@@ -43,6 +43,7 @@ import {
 } from "../engines/sandbox_agent.ts";
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
 import { SESSION_TURN_IN_USE_MESSAGE } from "../sessions/admission.ts";
+import type { PlatformCredentialSource } from "../sessions/auth.ts";
 import {
   teardownDisposition,
   type TeardownReason,
@@ -206,7 +207,7 @@ export interface KeepaliveEngine {
     signal?: AbortSignal,
     presignedMount?: MountCredentials | null,
     clientGone?: () => boolean,
-    credential?: () => string,
+    credentialLease?: PlatformCredentialSource,
   ): Promise<AgentRunResult>;
 }
 
@@ -216,8 +217,8 @@ export interface KeepaliveContext {
   config: KeepaliveConfig;
   /** Reports a mid-turn client disconnect on the streaming edge (see `RunAgentOptions`). */
   clientGone?: () => boolean;
-  /** Latest session credential accessor supplied by the alive watchdog. */
-  credential?: () => string;
+  /** The alive watchdog's credential lease. */
+  credentialLease?: PlatformCredentialSource;
   /**
    * Called once with this run's project scope, as soon as it is known.
    *
@@ -267,10 +268,10 @@ export async function runWithKeepalive(
   signal: AbortSignal | undefined,
   ctx: KeepaliveContext,
 ): Promise<AgentRunResult> {
-  const { engine, pool, config, clientGone, credential, credentialWait } = ctx;
+  const { engine, pool, config, clientGone, credentialLease, credentialWait } = ctx;
   // Before the fingerprint, the live model change and the env all read it (see the helper).
   normalizeRequestModel(request);
-  const turnCredential = credential ? { credential } : {};
+  const turnCredential = credentialLease ? { credentialLease } : {};
   const sessionId = request.sessionId?.trim();
   // Every execution carries an id: callers that omit `turnId` get one minted here, so the
   // turns-ledger append and interaction rows are never written without their execution id.
@@ -300,7 +301,7 @@ export async function runWithKeepalive(
       signal,
       undefined,
       clientGone,
-      credential,
+      credentialLease,
     );
   }
 
@@ -323,7 +324,7 @@ export async function runWithKeepalive(
       signal,
       signed,
       clientGone,
-      credential,
+      credentialLease,
     );
   }
   const key = scope.key;
@@ -623,7 +624,7 @@ export async function runWithKeepalive(
   const confirmTurnLogCurrent = async (
     existing: LiveSession<SessionEnvironment>,
   ): Promise<"current" | "moved" | AgentRunResult> => {
-    const authorization = credential?.() || runCredential(request);
+    const authorization = credentialLease?.credential() || runCredential(request);
     if (!authorization || !request.streamId) return "current";
     let read: LatestTurnIndexRead;
     try {
