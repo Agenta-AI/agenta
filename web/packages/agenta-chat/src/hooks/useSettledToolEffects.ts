@@ -44,3 +44,6 @@ export function useSettledToolEffects({
         for (const effect of effects) INVALIDATE[effect]()
     }, [messages, sessionId, record])
 }
+
+/** Old name, kept because the abandoned `web/oss` build still imports it. */
+export const useFileActivityDetector = useSettledToolEffects
