@@ -14,7 +14,9 @@ import json
 from types import SimpleNamespace
 from uuid import uuid4
 
+import httpx
 import pytest
+from agenta.sdk.agents.platform.workflow import REFERENCE_TOOL_TIMEOUT_MS
 
 from oss.tests.pytest.utils.principals import make_envelope
 from fastapi import HTTPException
@@ -36,13 +38,16 @@ class FakeWorkflowsService:
         self._raises = raises
         self.calls: list[dict] = []
 
-    async def invoke_workflow(self, *, project_id, user_id, request, envelope):
+    async def invoke_workflow(
+        self, *, project_id, user_id, request, envelope, timeout=None
+    ):
         self.calls.append(
             {
                 "project_id": project_id,
                 "user_id": user_id,
                 "request": request,
                 "envelope": envelope,
+                "timeout": timeout,
             }
         )
         if self._raises is not None:
@@ -193,6 +198,26 @@ async def test_invoke_exception_surfaces_as_502():
             body=_call("workflow.variant.wf", {}),
         )
     assert caught.value.status_code == 502
+
+
+async def test_invoke_waits_as_long_as_the_tool_spec_limit():
+    workflows = FakeWorkflowsService(outputs={})
+    await _router(workflows)._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.wf", {}),
+    )
+    assert workflows.calls[0]["timeout"] == REFERENCE_TOOL_TIMEOUT_MS / 1000
+
+
+async def test_invoke_timeout_surfaces_as_504():
+    workflows = FakeWorkflowsService(raises=httpx.ReadTimeout("slow"))
+    with pytest.raises(HTTPException) as caught:
+        await _router(workflows)._call_workflow_tool(
+            request=_request(),
+            body=_call("workflow.variant.wf", {}),
+        )
+    assert caught.value.status_code == 504
+    assert caught.value.detail == "Workflow tool 'wf' did not answer within 30 minutes."
 
 
 async def test_missing_workflows_service_returns_501():

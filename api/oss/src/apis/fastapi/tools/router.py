@@ -13,6 +13,8 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from agenta.sdk.agents.platform.workflow import REFERENCE_TOOL_TIMEOUT_MS
+
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.apis.fastapi.shared.personal import require_person, signed_in_person
@@ -2065,7 +2067,17 @@ class ToolsRouter:
                 user_id=UUID(request.state.user_id),
                 request=invoke_request,
                 envelope=child,
+                timeout=REFERENCE_TOOL_TIMEOUT_MS / 1000,
             )
+        except httpx.TimeoutException as e:
+            log.warning("Workflow tool '%s' timed out", slug)
+            raise HTTPException(
+                status_code=504,
+                detail=(
+                    f"Workflow tool '{slug}' did not answer within "
+                    f"{REFERENCE_TOOL_TIMEOUT_MS // 60_000} minutes."
+                ),
+            ) from e
         except Exception as e:
             log.error("Workflow tool invocation failed", exc_info=True)
             raise HTTPException(
