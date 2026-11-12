@@ -20,7 +20,7 @@ const orgJsonLd = {
   url: "https://agenta.ai",
   logo: new URL("/logos/Agenta-logo-full-dark.svg", Astro.site).toString(),
   description:
-    "The open-source workspace for building, evaluating, and shipping AI agents and automations.",
+    "The open-source agent platform for building, running and deploying AI agents and automations.",
   sameAs: [
     "https://github.com/Agenta-AI/agenta",
     "https://www.linkedin.com/company/agenta-ai/",
@@ -32,15 +32,15 @@ const orgJsonLd = {
 
 <Site
   cta={{
-    eyebrow: "Start building",
+    eyebrow: "Get started",
     title: "Start building your first agent",
     body: "Pick one job someone repeats every week. Describe it, connect the apps it needs, and the agent runs it on its own.",
     secondaryLabel: "Read the docs",
     secondaryHref: "https://docs.agenta.ai/",
   }}
   sticky
-  title="Agenta — The open-source workspace for your agents"
-  description="Agenta is the open-source workspace for your agents. Build agents through chat, improve them with feedback, and share them with your whole team — self-hosted or in the cloud."
+  title="Agenta — The open-source agent platform"
+  description="Agenta is the open-source agent platform. Build agents and automations by chatting with them, work with them in the Agenta workspace, or deploy them to Slack, WhatsApp, Telegram or your website. Self-hosted or in the cloud."
 >
   <Fragment slot="head">
     <script
@@ -82,7 +82,8 @@ const orgJsonLd = {
       const items = [...document.querySelectorAll("[data-lp-fit]")];
       const fit = () => {
         for (const el of items) {
-          const design = Number(el.dataset.lpFit);
+          // A section can lower the design width per breakpoint with --lp-fit-design.
+          const design = Number(getComputedStyle(el).getPropertyValue("--lp-fit-design")) || Number(el.dataset.lpFit);
           let parent = el.parentElement;
           while (parent && getComputedStyle(parent).display === "contents") parent = parent.parentElement;
           if (!parent || !design) continue;
@@ -105,12 +106,33 @@ const orgJsonLd = {
           }
         }
       };
-      fit();
-      document.fonts?.ready.then(fit);
-      addEventListener("load", fit, { once: true });
+      // "Do the work in chat": the sticky stage keeps the frame at its design
+      // height and scales the grid down when the screen is too short for it.
+      const stage = document.querySelector(".sx-hiw .hw-stage");
+      const grid = stage?.querySelector(".hw-grid");
+      const head = stage?.querySelector(".hw-hd");
+      const fitStage = () => {
+        if (!stage || !grid || !head) return;
+        grid.style.removeProperty("transform");
+        grid.style.removeProperty("margin-bottom");
+        if (innerWidth <= 860) return;
+        const hs = getComputedStyle(head);
+        const avail = stage.clientHeight - head.offsetHeight - parseFloat(hs.marginBottom) - 24;
+        const natural = grid.offsetHeight;
+        if (avail > 0 && natural > avail) {
+          const scale = Math.max(0.6, avail / natural);
+          grid.style.transformOrigin = "top center";
+          grid.style.transform = `scale(${scale})`;
+          grid.style.marginBottom = `${-natural * (1 - scale)}px`;
+        }
+      };
+      const fitAll = () => { fit(); fitStage(); };
+      fitAll();
+      document.fonts?.ready.then(fitAll);
+      addEventListener("load", fitAll, { once: true });
       let frame = 0;
       addEventListener("resize", () => {
-        if (!frame) frame = requestAnimationFrame(() => { frame = 0; fit(); });
+        if (!frame) frame = requestAnimationFrame(() => { frame = 0; fitAll(); });
       }, { passive: true });
     })();
   </script>

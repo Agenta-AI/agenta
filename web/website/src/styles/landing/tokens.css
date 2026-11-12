@@ -25,6 +25,7 @@
   --lp-page: var(--paper-120);
   --lp-ink-bg: var(--ink-900);
   --lp-glass: rgba(255, 255, 255, 0.5);
+  --lp-glass-strong: rgba(255, 255, 255, 0.7);
   --lp-key-glow: #fff;
 
   /* lines */
@@ -61,6 +62,7 @@
   --lp-page: var(--ag-d-bg-0);
   --lp-ink-bg: var(--ag-d-text-hi);
   --lp-glass: rgba(255, 255, 255, 0.04);
+  --lp-glass-strong: rgba(255, 255, 255, 0.06);
   --lp-key-glow: rgba(255, 255, 255, 0.06);
 
   --lp-line: var(--ag-d-border);

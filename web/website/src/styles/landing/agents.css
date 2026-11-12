@@ -302,12 +302,12 @@ html body .lp section.s5.s5 { background:var(--lp-surface) !important; }
   100% { transform:none; opacity:1; z-index:3; }
 }
 @keyframes r3_sh7Dot { 
-  0%, 30% { width:18px; border-radius:3px; background:var(--carbon-950); }
+  0%, 30% { width:18px; border-radius:3px; background:var(--lp-text); }
   33%, 97% { width:6px; border-radius:50%; background:var(--lp-line-strong); }
-  100% { width:18px; border-radius:3px; background:var(--carbon-950); }
+  100% { width:18px; border-radius:3px; background:var(--lp-text); }
 }
 @keyframes r3_sh7Chip { 
   0%, 30% { background:var(--lp-surface); color:var(--lp-text); box-shadow:rgb(var(--lp-ink-rgb) / 0.2) 0px 0px 0px 1px; }
-  33%, 97% { background:rgba(255, 255, 255, 0.7); color:var(--lp-body); box-shadow:rgb(var(--lp-ink-rgb) / 0.08) 0px 0px 0px 1px; }
+  33%, 97% { background:var(--lp-glass-strong); color:var(--lp-body); box-shadow:rgb(var(--lp-ink-rgb) / 0.08) 0px 0px 0px 1px; }
   100% { background:var(--lp-surface); color:var(--lp-text); box-shadow:rgb(var(--lp-ink-rgb) / 0.2) 0px 0px 0px 1px; }
 }

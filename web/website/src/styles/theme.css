@@ -39,7 +39,7 @@
   /* Scrolled nav pill: paper-0 at 72%, so the backdrop blur behind it reads.
      The previous #EBE9E6 is not a palette value and sat darker than the bands
      it floats over. */
-  --th-glass: rgba(255, 255, 255, 0.85);
+  --th-glass: rgba(255, 255, 255, 0.94);
   --th-menu-bg: var(--paper-0); /* dropdown / mobile menu panel    */
 
   /* ── borders ─────────────────────────────────────────────── */

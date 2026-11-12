@@ -327,6 +327,10 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     const open = menu?.classList.toggle("is-open");
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
   });
+  document.addEventListener("pointerdown", (e) => {
+    const t = e.target as Node;
+    if (menu?.classList.contains("is-open") && !menu.contains(t) && !toggle?.contains(t)) closeMenu();
+  });
   // Close when a menu entry is tapped (in-page anchors and same-tab navigations
   // wouldn't otherwise dismiss the now-fixed overlay).
   menu?.querySelectorAll("a").forEach((a) =>
@@ -343,15 +347,14 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
 
   // Mega menus. Hover (with an intent delay) opens a menu. "Templates" is also
   // a link: a mouse click goes to /marketplace, a first tap on a touch screen
-  // opens the menu and a second tap follows the link. Keyboard focus on the
-  // trigger opens it, so Tab walks into the panel; Escape and outside clicks
-  // close it. The item under the pointer or focus picks the preview.
+  // opens the menu and a second tap follows the link. From the keyboard, the
+  // Down arrow opens a menu (Enter also toggles Resources); Escape and taps
+  // outside close it. The item under the pointer or focus picks the preview.
   {
     const menus = [...document.querySelectorAll<HTMLElement>(".ag-navdd[data-mega]")];
     const finePointer = matchMedia("(hover: hover) and (pointer: fine)");
     const triggerOf = (dd: HTMLElement) => dd.querySelector<HTMLElement>(":scope > .ag-navlink");
     const timers = new Map<HTMLElement, number>();
-    let refocusing = false;
     const schedule = (dd: HTMLElement, fn: () => void, ms: number) => {
       clearTimeout(timers.get(dd));
       timers.set(dd, window.setTimeout(fn, ms));
@@ -395,11 +398,6 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
         const open = !isOpen || dd.dataset.openedBy === "hover";
         closeAll(dd);
         setOpen(dd, open, "click");
-      });
-      trigger?.addEventListener("focus", () => {
-        if (refocusing || !trigger.matches(":focus-visible")) return;
-        closeAll(dd);
-        setOpen(dd, true, "click");
       });
       trigger?.addEventListener("keydown", (e) => {
         if (e.key !== "ArrowDown") return;
@@ -445,13 +443,10 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       if (!open) return;
       const hadFocus = open.contains(document.activeElement);
       setOpen(open, false);
-      if (hadFocus) {
-        refocusing = true;
-        triggerOf(open)?.focus();
-        refocusing = false;
-      }
+      if (hadFocus) triggerOf(open)?.focus();
     });
-    document.addEventListener("click", (e) => {
+    // pointerdown, not click: iOS does not send click for taps on plain content.
+    document.addEventListener("pointerdown", (e) => {
       if (!menus.some((m) => m.contains(e.target as Node))) closeAll();
     });
   }
