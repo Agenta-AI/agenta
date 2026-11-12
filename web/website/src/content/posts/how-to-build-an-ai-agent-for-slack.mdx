@@ -42,11 +42,11 @@ This guide walks through how to design, configure, permission, test, and hand of
 
 Before wiring the agent, it helps to compare the three main implementation paths and see where each one fits:
 
-| Approach                                                        | Setup Effort                                                            | Multi-App Actions & Sandboxes                                                                     | Human Approval in Threads                                                         | Client Handoff & Hosting                                                                      |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| **Native Slack AI & Slackbot Skills**                           | Minutes (requires paid Slack add-on)                                    | Limited to Slack context and supported MCP clients; no isolated code/browser sandbox              | Basic prompt confirmation                                                         | Tied to a single Slack workspace and per-user Slack licensing                                 |
-| **DIY Slack Bolt SDK + LLM Server**                             | 1 to 3 weeks (Node.js/Python, Socket Mode or webhooks, custom state DB) | Unlimited if you code and host every integration and sandbox yourself                             | Must build custom Block Kit callback routes and state persistence                 | Full code ownership, but high maintenance and no visual admin UI for non-engineers            |
-| **Low-Code AI Coworker Platform ([Agenta](https://agenta.ai))** | 15 to 30 minutes via pre-filled Slack app manifest or one-click connect | 1,000+ app integrations, MCP servers, persistent shared files, and isolated **Daytona** sandboxes | Built-in `Allow` / `Ask` / `Deny` policies with interactive thread approval cards | Unlimited team members on Starter (`$29/mo`), project ownership transfer, or MIT self-hosting |
+| Approach                                               | Setup Effort                                       | Sandboxes, Files & Approvals                                                                         | Client Handoff & Hosting                                                          |
+| ------------------------------------------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Native Slack AI**                                    | Minutes (paid add-on)                              | Channel Q&A and basic MCP clients; no code sandbox or shared file workspace                          | Tied to one Slack workspace and per-user Slack seats                              |
+| **DIY Slack Bolt SDK**                                 | 1 to 3 weeks of custom backend code                | Unlimited if you build and host sandboxes, file stores, and Block Kit approval callbacks yourself    | Full code control, high maintenance, no visual admin UI                           |
+| **AI Coworker Platform ([Agenta](https://agenta.ai))** | 15 to 30 minutes via manifest or one-click connect | 1,000+ integrations, MCP servers, persistent files, **Daytona** sandboxes, and thread approval cards | Unlimited team members on Starter ($29/mo), project transfer, or MIT self-hosting |
 
 If all you need is summarizing long public channels inside Slack, native Slack AI is enough. If you want an agent that can inspect external tools, read PDFs and screenshots dropped into a thread, run Python or browser checks inside an isolated cloud sandbox, pause for approval before mutating systems of record, and reuse the exact same configuration across Telegram, WhatsApp, and an embedded website widget, an [AI coworker platform](/blog/ai-coworker-platforms-for-business) saves weeks of custom backend code.
 
@@ -222,11 +222,11 @@ You do not need to hunt through Slack's OAuth scope screens or manually paste ev
 
 Copy three values from your newly created Slack app into Agenta's **Connect** step:
 
-| Agenta Field             | Where to Find It in Slack App Settings             | Common Pitfall to Avoid                                                   |
-| ------------------------ | -------------------------------------------------- | ------------------------------------------------------------------------- |
-| **App ID**               | **Basic Information** -> App Credentials           | Starts with `A` (e.g., `A07...`). Do **not** paste the Client ID.         |
-| **Signing Secret**       | **Basic Information** -> App Credentials           | Used to verify that every incoming event genuinely came from Slack.       |
-| **Bot User OAuth Token** | **Install App** -> OAuth Tokens for Your Workspace | Starts with `xoxb-`. Generated once you install the app to the workspace. |
+| Agenta Field             | Slack App Settings Location              | Key Detail                                  |
+| ------------------------ | ---------------------------------------- | ------------------------------------------- |
+| **App ID**               | **Basic Information** -> App Credentials | Starts with `A` (not the Client ID)         |
+| **Signing Secret**       | **Basic Information** -> App Credentials | Verifies incoming Slack webhook signatures  |
+| **Bot User OAuth Token** | **Install App** -> OAuth Tokens          | Starts with `xoxb-` after workspace install |
 
 Click **Connect app**. Agenta verifies the handshake with Slack before saving and masks all three credentials afterward. The Slack panel now shows your bot as **Live**.
 
@@ -274,10 +274,10 @@ Here is the operational rule that saves hours of debugging: **an approval card t
 
 Match your permission settings to how the run starts:
 
-| Run Mode                                           | How It Starts                                        | Read Tools            | Channel Post Tool                                               | External System Writes (CRM / Tickets / Email)                                                              |
-| -------------------------------------------------- | ---------------------------------------------------- | --------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **Interactive Slack Mention (`@opstriage`)**       | Teammate `@mentions` or DMs the bot in Slack         | `Allow` (`READ-ONLY`) | Automatic thread reply                                          | `Ask` (human clicks **Approve** in the thread)                                                              |
-| **Unattended Schedule or Webhook (`Automations`)** | UTC schedule or app event in `Sidebar > Automations` | `Allow` (`READ-ONLY`) | `Allow` (so the digest posts to `#ops-alerts` without stalling) | Draft-only in Slack or `Deny` (let a human review the digest and reply `@opstriage go ahead` in the thread) |
+| Run Mode                  | Trigger Source                               | Read & Post Permissions                              | External System Writes (CRM / Tickets / Email)                          |
+| ------------------------- | -------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Interactive Mention**   | Teammate mentions or DMs the bot in Slack    | Read-only tools allowed; automatic thread reply      | Set to **Ask** so a human clicks **Approve** in the thread              |
+| **Unattended Automation** | UTC schedule or app event in **Automations** | Read-only tools and Slack post tool set to **Allow** | Draft summary in Slack first; human replies in thread to approve writes |
 
 Every scheduled or event-driven run records its full conversation and tool call trace in `Sidebar > Automations -> Run history`, so you can inspect exactly what happened if a morning digest looks off.
 
