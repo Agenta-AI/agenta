@@ -66,9 +66,12 @@
   --ink-900: #242424;
   --ink-700: #343434;
   --ink-600: #676770;
-  --ink-500: #848b8c;
+  /* Text greys meet WCAG AA (4.5:1) on every paper surface, white down to
+     paper-150. The Framer originals (#848b8c, #a3a19f) measured 3.5:1 and 2.6:1. */
+  --ink-500: #676e6f;
   --ink-450: #595f61;
-  --ink-300: #a3a19f;
+  --ink-300: #6e6c6a;
+  --ink-250: #a3a19f; /* decoration only (underlines), never text */
 
   /* paper (warm white scale) */
   --paper-0: #ffffff;
@@ -85,8 +88,8 @@
   --paper-line: #e5e0dd; /* every hairline: section + nav    */
   /* Landing redesign board ("Landing · iteration 1"), app mock-up greys. */
   --ink-650: #484644;
-  --ink-400: #8e8e8e;
-  --ink-350: #919191;
+  --ink-400: #6c6c6c;
+  --ink-350: #6c6c6c;
   --paper-250: #e7e5e3;
   --paper-300: #dcd5d1;
   --yellow-border: #e2e224; /* Framer: the primary button's border */

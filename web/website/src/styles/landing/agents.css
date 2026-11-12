@@ -59,7 +59,7 @@
 .sx-share .tgh7 em { font-style:normal; font-size:10px; color:var(--lp-dim); }
 .sx-share .tav7 { justify-self:end; width:26px; height:26px; border-radius:50%; background:var(--lp-fixed-ink); box-shadow:inset 0 0 0 1px var(--lp-line); display:inline-flex; align-items:center; justify-content:center; }
 .sx-share .tgb { flex:1 1 0%; padding:10px; display:flex; flex-direction:column; gap:7px; background:var(--lp-surface-4); }
-.sx-share .day { align-self:center; font-size:10px; color:var(--paper-0); background:rgba(142, 142, 142, 0.35); border-radius:999px; padding:2px 8px; margin-bottom:2px; }
+.sx-share .day { align-self:center; font-size:10px; color:var(--lp-body); background:var(--lp-surface-4); border-radius:999px; padding:2px 8px; margin-bottom:2px; }
 .sx-share .bub { max-width:82%; padding:6px 9px 4px; border-radius:13px; font-size:12px; line-height:16px; box-shadow:rgba(0, 0, 0, 0.06) 0px 1px 1px; }
 .sx-share .bub em { display:block; text-align:right; font-style:normal; font-size:9px; color:var(--lp-dim); margin-top:1px; }
 .sx-share .bub.me { align-self:flex-end; background:var(--lp-surface); border-bottom-right-radius:4px; }

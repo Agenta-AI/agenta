@@ -47,8 +47,9 @@
   --lp-text: var(--ag-d-text-hi);
   --lp-text-2: rgba(248, 245, 239, 0.82);
   --lp-body: var(--ag-d-text);
-  --lp-mut: var(--ag-d-text-mut);
-  --lp-dim: var(--ag-d-text-mut);
+  /* Raised from 50% so small labels on raised chips stay readable. */
+  --lp-mut: rgba(248, 245, 239, 0.62);
+  --lp-dim: rgba(248, 245, 239, 0.56);
   --lp-on-ink: var(--ag-d-bg-0);
 
   --lp-surface: var(--ag-d-bg-2);

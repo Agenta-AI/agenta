@@ -362,3 +362,7 @@
     gap: 32px;
   }
 }
+/* The selected category's count sits on the active tint; keep it at 4.5:1. */
+.ag-mkt-cat[aria-pressed="true"] .ag-mkt-row__count {
+  color: var(--th-text-body);
+}

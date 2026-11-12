@@ -90,7 +90,7 @@
   /* Prose links: light = ink text with a faint underline (mockup);
      dark = brand yellow. */
   --th-link: var(--ink-900);
-  --th-accent-underline: var(--ink-300);
+  --th-accent-underline: var(--ink-250);
 
   /* ── prose code ──────────────────────────────────────────── */
   --th-code-bg: var(--paper-150);

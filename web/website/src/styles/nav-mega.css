@@ -174,7 +174,7 @@ a.ag-mega__head:focus-visible svg {
 .ag-art .p.y { background:var(--yellow-400); box-shadow:rgba(255, 255, 255, 0.7) 0px 2px 0px inset, var(--yellow-border) 0px 0px 0px 1px; }
 .ag-art .p.dark { background:var(--ink-900); color:rgb(246, 245, 243); padding:0px 14px; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; }
 .ag-art .p .gl { width:20px; height:20px; border-radius:6px; background:var(--lp-surface-3); display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; color:var(--lp-text); }
-.ag-art .p.y .gl { background:rgba(255, 255, 255, 0.65); }
+.ag-art .p.y .gl { background:rgba(255, 255, 255, 0.65); color:var(--lp-fixed-ink); }
 .ag-art .p.ghost .gl { background:rgba(255, 255, 255, 0.6); }
 .ag-art .gl .d { width:6px; height:6px; border-radius:2px; background:var(--lp-ink-bg); }
 .ag-art .gl .l { width:9px; height:2px; border-radius:1px; background:var(--lp-ink-bg); box-shadow:rgb(36, 36, 36) 0px -3px 0px, rgb(145, 145, 145) 0px 3px 0px; }
@@ -406,3 +406,4 @@ a.ag-mega__head:focus-visible svg {
   outline-offset: 2px;
   border-radius: 8px;
 }
+.ag-art .p.y .gl .d { background:var(--lp-fixed-ink); }

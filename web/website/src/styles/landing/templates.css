@@ -19,7 +19,7 @@
 .sx-site .p.y { background:var(--yellow-400); box-shadow:rgba(255, 255, 255, 0.7) 0px 2px 0px inset, var(--yellow-border) 0px 0px 0px 1px; color:var(--ink-900) !important;}
 .sx-site .p.dark { background:var(--lp-ink-bg); color:rgb(246, 245, 243); padding:0px 14px; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; }
 .sx-site .p .gl { width:20px; height:20px; border-radius:6px; background:var(--lp-surface-3); display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; color:var(--lp-text); }
-.sx-site .p.y .gl { background:rgba(255, 255, 255, 0.65); }
+.sx-site .p.y .gl { background:rgba(255, 255, 255, 0.65); color:var(--lp-fixed-ink); }
 .sx-site .p.ghost .gl { background:rgba(255, 255, 255, 0.6); }
 .sx-site .gl .d { width:6px; height:6px; border-radius:2px; background:var(--lp-ink-bg); }
 .sx-site .gl .r { width:7px; height:7px; border-radius:50%; box-shadow:var(--lp-dim) 0px 0px 0px 1.4px inset; }
@@ -70,3 +70,6 @@ html body .lp .sx-site .tplx .c:hover { background:var(--lp-surface-3) !importan
 .lp a.btn.btn-o, .lp .sx-site .ag-btn--outline, .lp .sx-site .tplx .ag-btn--outline { background:linear-gradient(var(--lp-surface-5) 0%, var(--lp-page) 100%) !important; border:1px solid var(--lp-frame) !important; box-shadow:var(--lp-key-glow) 0px 3px 6px inset !important; color:var(--lp-text) !important; }
 .lp .sx-site .tplx .ag-btn--outline { height:36px !important; padding:0px 12px !important; border-radius:8px !important; font:500 14px / 20px var(--font-sans) !important; }
 html body .lp section.tplx .chat .p.dark { background:var(--lp-surface) !important; color:var(--lp-text) !important; box-shadow:rgb(229, 229, 227) 0px 0px 0px 1px !important; }
+/* The connector-line rule above also caught the icons inside chips; they draw in the chip's ink. */
+.sx-site .tplx .art .gl svg path, .sx-site .tplx .art .gl svg circle { stroke:currentColor !important; }
+.sx-site .p.y .gl .d { background:var(--lp-fixed-ink); }
