@@ -209,15 +209,37 @@ async def test_invoke_waits_as_long_as_the_tool_spec_limit():
     assert workflows.calls[0]["timeout"] == REFERENCE_TOOL_TIMEOUT_MS / 1000
 
 
-async def test_invoke_timeout_surfaces_as_504():
+async def test_invoke_timeout_is_a_tool_error_the_model_can_read():
+    # Not an HTTP error: the runner shows the model only the status code of a non-2xx answer.
     workflows = FakeWorkflowsService(raises=httpx.ReadTimeout("slow"))
-    with pytest.raises(HTTPException) as caught:
-        await _router(workflows)._call_workflow_tool(
-            request=_request(),
-            body=_call("workflow.variant.wf", {}),
-        )
-    assert caught.value.status_code == 504
-    assert caught.value.detail == "Workflow tool 'wf' did not answer within 30 minutes."
+    response = await _router(workflows)._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.wf", {}),
+    )
+    assert response.call.status.code == "STATUS_CODE_ERROR"
+    assert (
+        response.call.status.message
+        == "Workflow tool 'wf' did not answer within 30 minutes."
+    )
+
+
+async def test_invoke_has_a_wall_clock_limit(monkeypatch):
+    # httpx limits each phase, not the whole call; the router caps the whole call.
+    import asyncio
+
+    import oss.src.apis.fastapi.tools.router as router_module
+
+    monkeypatch.setattr(router_module, "REFERENCE_TOOL_TIMEOUT_MS", 50)
+
+    class SlowWorkflows(FakeWorkflowsService):
+        async def invoke_workflow(self, **kwargs):
+            await asyncio.sleep(5)
+
+    response = await _router(SlowWorkflows())._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.wf", {}),
+    )
+    assert response.call.status.code == "STATUS_CODE_ERROR"
 
 
 async def test_missing_workflows_service_returns_501():

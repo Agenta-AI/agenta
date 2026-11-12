@@ -1,5 +1,6 @@
 import html as html_lib
 from inspect import isawaitable
+import asyncio
 import json
 import re
 from datetime import datetime, timezone
@@ -2061,23 +2062,40 @@ class ToolsRouter:
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=child, refusal=refusal)
 
+        limit_s = REFERENCE_TOOL_TIMEOUT_MS / 1000
         try:
-            response = await self.workflows_service.invoke_workflow(
-                project_id=project_id,
-                user_id=UUID(request.state.user_id),
-                request=invoke_request,
-                envelope=child,
-                timeout=REFERENCE_TOOL_TIMEOUT_MS / 1000,
-            )
-        except httpx.TimeoutException as e:
+            # httpx applies `timeout` to each phase (connect, write, each read), so a slow
+            # child that sends bytes now and then could run past it. The outer limit caps the
+            # whole call, so this answer reaches the runner before its own fetch gives up.
+            async with asyncio.timeout(limit_s):
+                response = await self.workflows_service.invoke_workflow(
+                    project_id=project_id,
+                    user_id=UUID(request.state.user_id),
+                    request=invoke_request,
+                    envelope=child,
+                    timeout=limit_s,
+                )
+        except (httpx.TimeoutException, TimeoutError):
+            # A tool result, not an HTTP error: the runner shows the model only the status code
+            # of a non-2xx answer, and this message is what tells it the child was too slow.
             log.warning("Workflow tool '%s' timed out", slug)
-            raise HTTPException(
-                status_code=504,
-                detail=(
-                    f"Workflow tool '{slug}' did not answer within "
-                    f"{REFERENCE_TOOL_TIMEOUT_MS // 60_000} minutes."
-                ),
-            ) from e
+            return ToolCallResponse(
+                call=ToolResult(
+                    id=uuid4(),
+                    data=ToolResultData(
+                        tool_call_id=body.data.id,
+                        content="",
+                    ),
+                    status=Status(
+                        timestamp=datetime.now(timezone.utc),
+                        code="STATUS_CODE_ERROR",
+                        message=(
+                            f"Workflow tool '{slug}' did not answer within "
+                            f"{REFERENCE_TOOL_TIMEOUT_MS // 60_000} minutes."
+                        ),
+                    ),
+                )
+            )
         except Exception as e:
             log.error("Workflow tool invocation failed", exc_info=True)
             raise HTTPException(
