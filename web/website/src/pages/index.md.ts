@@ -7,6 +7,8 @@ import { markdownResponse, page } from "../lib/markdown";
 import {
   ABOUT,
   API,
+  CAPABILITIES,
+  GLOSSARY,
   HOSTING,
   HOW_TO_CALL,
   LINKS,
@@ -22,6 +24,14 @@ ${TAGLINE.replace(/\n/g, " ")}
 ## What you can do
 
 ${ABOUT.map((item) => `- ${item}`).join("\n")}
+
+## Capabilities
+
+${CAPABILITIES.map((item) => `- ${item}`).join("\n")}
+
+## Glossary
+
+${GLOSSARY.map((item) => `- ${item}`).join("\n")}
 
 ## When to use Agenta
 

@@ -3,20 +3,59 @@
 // /llms.txt (src/pages/llms.txt.ts) and the homepage markdown twin
 // (src/pages/index.md.ts) both render from these constants, so the copy an
 // agent reads can never drift between the two. Keep it true to the landing
-// page — this is not a place to invent claims.
+// page (src/components/landing/*): same positioning, same section names, same
+// product words. This is not a place to invent claims.
 
 export const SITE_URL = "https://agenta.ai";
 
-export const TAGLINE = `Agenta is the open-source workspace for your agents: build agents through chat,
-improve them with feedback, and share them with your whole team. Open source and
-self-hostable, or hosted in the cloud.`;
+/** The positioning line. Matches the landing H1, page title and footer. */
+export const POSITIONING = "The open-source agent platform";
+
+export const TAGLINE = `Agenta is the open-source agent platform. Build agents and automations by
+chatting with them, work with them in the Agenta workspace, or deploy them to
+Slack, Microsoft Teams, Discord, WhatsApp, Telegram or your website, for your
+team and your clients. Self-hosted or in the cloud.`;
 
 export const ABOUT: string[] = [
-  "Build agents through chat: describe the job, give the agent context and tools, and improve it through real work and feedback.",
-  "Share agents with your team, and run them on a schedule or when an event happens in a connected app.",
-  "Consequential actions can wait for human approval before they run.",
-  "Prompts, skills, and tools are versioned like code, so you can roll back to any revision.",
-  "MIT-licensed and yours to run: self-host on your own infrastructure to keep your agents and data with you.",
+  "Do the work in chat, then automate it: ask an agent for a job in plain words, watch it work with your apps and files, and put it on a schedule with one more message.",
+  "Work with your agents in a shared workspace: run several sessions side by side, share conversations and files, and work with the same agent together.",
+  "Deploy where people already are: publish an agent to Slack, Microsoft Teams, Discord, WhatsApp or Telegram, or embed it as a chat widget on a website.",
+  "Start from a template: ready-made agents for engineering, sales, marketing, support, knowledge and operations work, which you connect to your apps and change.",
+  "Everything an agent needs: any model or your own ChatGPT or Claude subscription, 1,000+ integrations, an MCP gateway, a browser and files for each agent, schedules and triggers, a secret vault, and instructions that improve when you correct the agent.",
+  "Stay in control: approvals before consequential actions, private or shared access per agent, and analytics per agent for runs and spend.",
+  "Open source (MIT) and self-hostable on your own infrastructure, or hosted at cloud.agenta.ai.",
+];
+
+/**
+ * Capabilities, one line each, named with the words the product and the
+ * landing page use, so an agent searching for a feature finds it here.
+ */
+export const CAPABILITIES: string[] = [
+  "Chat-built agents: describe the job in chat, and Agenta builds the agent: its instructions (AGENTS.md), skills, tools and connected apps.",
+  "Automations: run an agent on a schedule (cron) or when a trigger happens in a connected app, for example a new Zendesk ticket or a Slack mention. Every run is logged.",
+  "Channels: Slack, Microsoft Teams, Discord, WhatsApp, Telegram, and a website chat widget (embed).",
+  "Shared workspace: sessions, shared conversations, agent files (drive), and several people working with one agent.",
+  "Models: use the ChatGPT or Claude plan you already pay for, any API key (OpenAI, Anthropic, Google Gemini, xAI, OpenRouter), or self-hosted models through Ollama. Pick the model per agent.",
+  "Integrations: 1,000+ apps (Slack, Notion, GitHub, HubSpot, Google Drive, Linear, Zendesk and more) and MCP servers through the MCP gateway, shared with the team or connected for one person.",
+  "Agent computer: each agent gets its own browser for research and its own files.",
+  "Secret vault: store credentials once; tools use them and the values never show in chats or logs.",
+  "Agents that learn: when you correct an agent in chat it updates its instructions, and every change is a new version you can roll back.",
+  "Approvals: choose which actions run on their own and which wait for a person.",
+  "Access: keep an agent private or share it with your team.",
+  "Analytics: runs, success rate and spend per agent.",
+  "Templates: a catalog of ready-made agents, browsable at https://agenta.ai/marketplace.",
+  "Self-hosting: MIT license, Docker Compose, Kubernetes (beta).",
+];
+
+/** Product words, so a search for one finds the others. */
+export const GLOSSARY: string[] = [
+  "Agent: an AI worker defined by instructions, a model, tools, skills and connected apps.",
+  "Automation: an agent run that starts on a schedule or from a trigger, without a person in chat.",
+  "Trigger: an event in a connected app that runs an agent.",
+  "Template: a ready-made agent you copy into your workspace and change.",
+  "Channel: where people talk to a deployed agent (Slack, Teams, Discord, WhatsApp, Telegram, website widget).",
+  "Session: one conversation with an agent; sessions can be shared.",
+  "Revision: a saved version of an agent; you can roll back to any revision.",
 ];
 
 export const LINKS: Array<{ label: string; href: string; note: string }> = [
@@ -25,6 +64,16 @@ export const LINKS: Array<{ label: string; href: string; note: string }> = [
     label: "Documentation",
     href: "https://docs.agenta.ai",
     note: "guides and API reference",
+  },
+  {
+    label: "Templates",
+    href: `${SITE_URL}/marketplace`,
+    note: "the template catalog, filterable by category and app",
+  },
+  {
+    label: "Self-hosting",
+    href: "https://docs.agenta.ai/self-host/quick-start",
+    note: "run Agenta on your own infrastructure",
   },
   {
     label: "GitHub",
@@ -41,7 +90,7 @@ export const LINKS: Array<{ label: string; href: string; note: string }> = [
 
 export const HOSTING: string[] = [
   "Cloud: hosted at https://cloud.agenta.ai — start free, no infrastructure to run.",
-  "Self-hosted: run Agenta on your own infrastructure under the MIT license.",
+  "Self-hosted: run Agenta on your own infrastructure under the MIT license (Docker Compose, or Kubernetes in beta).",
 ];
 
 /**
@@ -53,17 +102,18 @@ export const HOSTING: string[] = [
  * product, and keep the "not a fit" list honest.
  */
 export const WHEN_TO_USE: string[] = [
-  "Build an agent from a plain-language description, then improve it with feedback from real runs.",
-  "Version prompts, skills, and tools like code, and roll back to any earlier revision.",
-  "Evaluate a change against a test set before it ships, with LLM-as-a-judge or your own evaluators.",
-  "Trace every run to see each step, its cost, and where it failed.",
-  "Run an agent on a schedule, or when an event happens in a connected app.",
-  "Put a human approval step in front of consequential actions.",
+  "Build an agent from a plain-language description, then improve it by correcting it in chat.",
+  "Turn a job someone repeats every week into an automation that runs on a schedule or when an event happens in a connected app.",
+  "Give a team, or a client, an agent they reach in Slack, Teams, Discord, WhatsApp, Telegram or on a website.",
+  "Start from a template for a common job (PR review, lead qualification, support replies, SEO content and more) and adapt it.",
+  "Put a human approval step in front of consequential actions, such as sending an email.",
+  "Version an agent's instructions, skills and tools, and roll back to any earlier revision.",
+  "Inspect each run's steps, cost and errors, and compare versions in the playground.",
 ];
 
 export const WHEN_NOT_TO_USE: string[] = [
-  "A single model call with no versioning, evaluation, or tracing: call the model provider directly.",
-  "Hosting or serving a model. Agenta orchestrates and observes agents; it is not an inference provider.",
+  "A single model call with no tools, automation or versioning: call the model provider directly.",
+  "Hosting or serving a model. Agenta builds, runs and observes agents; it is not an inference provider.",
 ];
 
 /** How an agent actually calls Agenta. */
