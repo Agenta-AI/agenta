@@ -255,3 +255,13 @@
   max-width: none !important;
   flex: 0 0 auto !important;
 }
+
+/* ── dark-mode fixes for drawn logos ─────────────────────────────── */
+/* The mock app's leaf logo follows the text colour instead of a fixed ink. */
+.lp .r3 .r3-rs-logo svg path {
+  fill: currentColor;
+}
+/* Single-colour brand marks on themed chips. */
+[data-theme="dark"] .lp img[src$="/logos/apps/github.svg"] {
+  filter: invert(1);
+}

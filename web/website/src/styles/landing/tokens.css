@@ -34,6 +34,11 @@
   --lp-line-strong: var(--paper-300);
   --lp-frame: var(--paper-line);
 
+  /* Fixed colours that never flip with the theme (text on yellow, white on
+     the always-dark mock-up chips). Declared here so no section can shadow them. */
+  --lp-fixed-ink: var(--ink-900);
+  --lp-fixed-white: var(--paper-0);
+
   /* ink as channels, for tints: rgb(var(--lp-ink-rgb) / 0.04) */
   --lp-ink-rgb: 36 36 36;
 }

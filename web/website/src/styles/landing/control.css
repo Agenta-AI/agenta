@@ -11,11 +11,11 @@
 .ntx b { font:400 24px / 1.2 "GT Alpina", serif; }
 .ntx p { margin:0px; font-size:14px; line-height:21px; color:var(--lp-mut); max-width:420px; }
 .ncard { background:var(--lp-surface); border-radius:12px; box-shadow:rgba(63, 70, 75, 0.1) 0px 0px 0px 1px, rgba(63, 70, 75, 0.1) 0px 1px 3px; font-size:12.5px; line-height:18px; color:var(--lp-text); overflow:hidden; }
-.nag { width:22px; height:22px; border-radius:6px; background:var(--lp-ink-bg); display:inline-flex; align-items:center; justify-content:center; }
+.nag { width:22px; height:22px; border-radius:6px; background:var(--lp-fixed-ink); box-shadow:inset 0 0 0 1px var(--lp-line); display:inline-flex; align-items:center; justify-content:center; }
 .aph { display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--lp-line-soft); }
 .aph b { font-weight:500; }
-.wt { margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:11px; color:rgb(103, 103, 112); background:rgba(242, 242, 92, 0.22); border-radius:5px; padding:2px 7px; }
-.wt i { width:6px; height:6px; border-radius:50%; background:rgb(72, 70, 68); }
+.wt { margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--lp-body); background:rgba(242, 242, 92, 0.22); border-radius:5px; padding:2px 7px; }
+.wt i { width:6px; height:6px; border-radius:50%; background:var(--lp-text-2); }
 .apb { padding:12px 14px 14px; display:flex; flex-direction:column; gap:10px; }
 .mail { padding:10px 12px; border-radius:9px; background:var(--lp-surface-2); box-shadow:var(--lp-line) 0px 0px 0px 1px inset; color:var(--lp-text-2); }
 .acts { display:flex; gap:6px; }

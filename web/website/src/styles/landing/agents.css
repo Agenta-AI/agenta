@@ -32,7 +32,7 @@
 .sx-share .av7.b { background:var(--lp-surface-6); }
 .sx-share .av7.y { background:var(--yellow-400); color:var(--ink-900);}
 .sx-share .av7.r { background:var(--lp-line-strong); }
-.sx-share .av7.k { background:var(--lp-ink-bg); border-radius:5px; }
+.sx-share .av7.k { background:var(--lp-fixed-ink); border-radius:5px; box-shadow:inset 0 0 0 1px var(--lp-line); }
 .sx-share .d3 { display:inline-flex; gap:3px; }
 .sx-share .d3 i { width:5px; height:5px; border-radius:50%; background:var(--lp-dim); animation:1s ease 0s infinite normal none running sh5Dot; }
 .sx-share .d3 i:nth-child(2) { animation-delay:0.15s; }
@@ -57,9 +57,9 @@
 .sx-share .tgh7 div { display:flex; flex-direction:column; align-items:center; }
 .sx-share .tgh7 b { font-size:12.5px; font-weight:600; }
 .sx-share .tgh7 em { font-style:normal; font-size:10px; color:var(--lp-dim); }
-.sx-share .tav7 { justify-self:end; width:26px; height:26px; border-radius:50%; background:var(--lp-ink-bg); display:inline-flex; align-items:center; justify-content:center; }
+.sx-share .tav7 { justify-self:end; width:26px; height:26px; border-radius:50%; background:var(--lp-fixed-ink); box-shadow:inset 0 0 0 1px var(--lp-line); display:inline-flex; align-items:center; justify-content:center; }
 .sx-share .tgb { flex:1 1 0%; padding:10px; display:flex; flex-direction:column; gap:7px; background:var(--lp-surface-4); }
-.sx-share .day { align-self:center; font-size:10px; color:var(--lp-on-ink); background:rgba(142, 142, 142, 0.35); border-radius:999px; padding:2px 8px; margin-bottom:2px; }
+.sx-share .day { align-self:center; font-size:10px; color:var(--paper-0); background:rgba(142, 142, 142, 0.35); border-radius:999px; padding:2px 8px; margin-bottom:2px; }
 .sx-share .bub { max-width:82%; padding:6px 9px 4px; border-radius:13px; font-size:12px; line-height:16px; box-shadow:rgba(0, 0, 0, 0.06) 0px 1px 1px; }
 .sx-share .bub em { display:block; text-align:right; font-style:normal; font-size:9px; color:var(--lp-dim); margin-top:1px; }
 .sx-share .bub.me { align-self:flex-end; background:var(--lp-surface); border-bottom-right-radius:4px; }
@@ -102,7 +102,7 @@
 .sx-share .wah div { display:flex; flex-direction:column; }
 .sx-share .wah b { font-size:12.5px; font-weight:600; }
 .sx-share .wah em { font-style:normal; font-size:10px; color:var(--lp-body); }
-.sx-share .tav7.g { width:26px; height:26px; border-radius:50%; background:var(--lp-ink-bg); display:inline-flex; align-items:center; justify-content:center; }
+.sx-share .tav7.g { width:26px; height:26px; border-radius:50%; background:var(--lp-fixed-ink); box-shadow:inset 0 0 0 1px var(--lp-line); display:inline-flex; align-items:center; justify-content:center; }
 .sx-share .wab { flex:1 1 0%; padding:12px 10px; display:flex; flex-direction:column; gap:7px; background-image:radial-gradient(circle, rgba(0, 0, 0, 0.035) 1px, transparent 1.5px); background-size:14px 14px; }
 .sx-share .wb7 { max-width:82%; padding:6px 9px 4px; border-radius:8px; background:var(--lp-surface); font-size:12px; line-height:16px; box-shadow:rgba(0, 0, 0, 0.12) 0px 1px 0.5px; }
 .sx-share .wb7.me { align-self:flex-end; background:var(--lp-surface); }
@@ -114,7 +114,7 @@
 .sx-share .brw2 { left:22px; top:8px; width:calc(100% - 82px); height:366px; }
 .sx-share .nav7 { display:flex; align-items:center; gap:16px; height:42px; padding:0px 18px; border-bottom:1px solid var(--lp-line-soft); font-size:12px; color:var(--lp-body); }
 .sx-share .lg7 { display:inline-flex; align-items:center; gap:7px; font-weight:600; color:var(--lp-text); margin-right:8px; }
-.sx-share .lg7 i { width:16px; height:16px; border-radius:5px; background:var(--lp-ink-bg); }
+.sx-share .lg7 i { width:16px; height:16px; border-radius:5px; background:var(--lp-fixed-ink); box-shadow:inset 0 0 0 1px var(--lp-line); }
 .sx-share .btn8 { margin-left:auto; margin-right:22px; height:26px; padding:0px 10px; border-radius:6px; box-shadow:var(--lp-line) 0px 0px 0px 1px inset; display:inline-flex; align-items:center; color:var(--lp-text); }
 .sx-share .pg8 { padding:18px 20px; display:flex; flex-direction:column; gap:6px; max-width:300px; }
 .sx-share .pg8 b { font:400 20px / 1.2 "GT Alpina", serif; }

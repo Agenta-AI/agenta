@@ -146,8 +146,9 @@
   --th-text-hi: #f7f6f4;
   --th-text-body: rgba(255, 255, 255, 0.6);
   --th-text-prose: rgba(255, 255, 255, 0.72);
-  --th-text-mut: rgba(255, 255, 255, 0.45);
-  --th-text-dim: rgba(255, 255, 255, 0.38);
+  /* Muted and faint text keep 4.5:1 on the darkest surfaces. */
+  --th-text-mut: rgba(255, 255, 255, 0.55);
+  --th-text-dim: rgba(255, 255, 255, 0.5);
   --th-nav-text: rgba(255, 255, 255, 0.7);
 
   --th-hover: rgba(255, 255, 255, 0.05);

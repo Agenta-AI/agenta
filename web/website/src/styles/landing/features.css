@@ -39,7 +39,7 @@
 .sx-feat .lchat { width:240px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
 .sx-feat .lq { align-self:flex-end; padding:7px 10px; border-radius:10px 10px 3px; background:var(--lp-surface-4); font-size:12.5px; }
 .sx-feat .la { display:flex; gap:7px; align-items:center; font-size:12.5px; color:var(--lp-text-2); }
-.sx-feat .lav { width:18px; height:18px; border-radius:5px; background:var(--lp-ink-bg); flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; }
+.sx-feat .lav { width:18px; height:18px; border-radius:5px; background:var(--lp-fixed-ink); box-shadow:inset 0 0 0 1px var(--lp-line); flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; }
 .sx-feat .vh { position:relative; display:flex; flex-direction:column; gap:10px; padding-left:22px; }
 .sx-feat .vh::before { content: ""; position:absolute; left:5px; top:18px; bottom:18px; width:1px; background:var(--lp-surface-6); }
 .sx-feat .vr { position:relative; display:flex; align-items:center; }
@@ -116,3 +116,6 @@
 .sx-feat .kd:not(.last)::after { content: ""; position:absolute; left:0px; top:13px; bottom:0px; border-left:1px solid var(--lp-line); }
 html body .lp section.fgx, html body .lp .sx-feat .fgx .grid > div { background:var(--lp-surface-3) !important; }
 html body .lp section.fgx .bxh .abr { height:16px !important; line-height:16px !important; padding:0px 6px !important; font-size:9px !important; border-radius:4px !important; align-self:center !important; }
+[data-theme="dark"] .sx-feat .pl .hl em { color:var(--lp-body); }
+/* Icons on yellow tiles draw in the tile's ink, not the theme text colour. */
+.sx-feat .tic svg, .sx-feat .hub svg { stroke:currentColor; }
