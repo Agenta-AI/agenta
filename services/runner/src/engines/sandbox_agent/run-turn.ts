@@ -55,8 +55,8 @@ import {
   buildGateDescriptor,
 } from "./acp-interactions.ts";
 import {
-  bareToolName,
   buildClientToolRelay,
+  internalToolName,
   relayWritesPausedAnswer,
 } from "./client-tools.ts";
 import { buildExecutableToolGate } from "./executable-tools.ts";
@@ -915,10 +915,12 @@ export async function runTurn(
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
     // the approval card and the guard cannot disagree about a tool's permission/readOnly.
     const specsByName = toolSpecsByName(plan.tools.toolSpecs);
-    // The limit one tool call gets: a tool whose spec has its own budget (a reference tool) may
-    // run that long, every other call keeps the run's tool-call limit.
-    const toolBudgetMs = (toolName: string | undefined): number | undefined =>
-      toolName ? specsByName.get(bareToolName(toolName))?.timeoutMs : undefined;
+    // The limit one tool call gets: a runner tool whose spec has its own budget (a reference
+    // tool) may run that long, every other call keeps the run's tool-call limit.
+    const toolBudgetMs = (toolName: string | undefined): number | undefined => {
+      const name = toolName ? internalToolName(toolName) : undefined;
+      return name ? specsByName.get(name)?.timeoutMs : undefined;
+    };
     const callLimitMs = (toolName: string | undefined): number =>
       toolCallLimitMs(resolvedRunLimits.toolCallMs, toolBudgetMs(toolName));
     const approvedExecutionSeeds = new Map<string, ParkedApprovedExecution>(
@@ -1150,6 +1152,9 @@ export async function runTurn(
         kind: seed.toolName,
         rawInput: seed.args,
       });
+      // The harness announced this call in an earlier turn and will not announce it again, so
+      // this turn's watchdog starts it here (it otherwise never sees the call as open).
+      runLimits.noteToolCallStart(seed.toolCallId, toolBudgetMs(seed.toolName));
       pause.markAllowedExecution(seed.toolCallId);
       executionGrants.grant(seed.toolName, seed.args);
     };
@@ -1601,6 +1606,11 @@ export async function runTurn(
             toolName: decision.toolName,
             args: decision.args,
           });
+          // Same as `seedApprovedExecution`: the approved call runs now, without a new announcement.
+          runLimits.noteToolCallStart(
+            decision.toolCallId,
+            toolBudgetMs(decision.toolName),
+          );
           pause.markAllowedExecution(decision.toolCallId);
           executionGrants.grant(decision.toolName, decision.args);
         }

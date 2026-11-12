@@ -480,6 +480,8 @@ describe("a tool with its own time budget (reference tools, #8271)", () => {
           _meta: { claudeCode: { toolName: "mcp__agenta-tools__ask_researcher" } },
         },
         { sessionUpdate: "tool_call", toolCallId: "call-shell", title: "Bash", kind: "execute" },
+        // The same bare name on a user's MCP server is not the runner's tool.
+        { sessionUpdate: "tool_call", toolCallId: "call-other-server", title: "mcp.external.ask_researcher" },
       ],
     });
     const request: AgentRunRequest = {
@@ -495,6 +497,7 @@ describe("a tool with its own time budget (reference tools, #8271)", () => {
     assert.deepEqual(toolCallStarts, [
       ["call-child", 1_800_000],
       ["call-shell", undefined],
+      ["call-other-server", undefined],
     ]);
     // The message names the limit of the call that tripped, not the run-wide one.
     assert.equal(result.ok, false);

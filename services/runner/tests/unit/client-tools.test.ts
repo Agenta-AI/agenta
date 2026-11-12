@@ -21,6 +21,7 @@ import type { ClientToolRelayRequest } from "../../src/tools/client-tool-relay.t
 import {
   bareToolName,
   buildClientToolRelay,
+  internalToolName,
   createToolCallCorrelationIndex,
   emitClientToolInteraction,
   relayWritesPausedAnswer,
@@ -30,6 +31,16 @@ describe("bareToolName", () => {
   it("strips Claude and Codex MCP prefixes at the first server boundary", () => {
     assert.equal(bareToolName("mcp__agenta-tools__foo"), "foo");
     assert.equal(bareToolName("mcp.agenta-tools.foo"), "foo");
+  });
+});
+
+describe("internalToolName", () => {
+  it("names a tool the runner serves, and nothing for another MCP server's tool", () => {
+    assert.equal(internalToolName("mcp__agenta-tools__foo"), "foo");
+    assert.equal(internalToolName("mcp.agenta-tools.foo"), "foo");
+    assert.equal(internalToolName("foo"), "foo"); // a Pi custom tool
+    assert.equal(internalToolName("mcp__external__foo"), undefined);
+    assert.equal(internalToolName("mcp.external.foo"), undefined);
   });
 });
 
