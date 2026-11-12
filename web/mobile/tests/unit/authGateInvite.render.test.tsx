@@ -16,7 +16,10 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
     useQuery: () => ({data: state.session}),
 }))
 
+import {getDefaultStore} from "jotai"
+
 import {AuthGate} from "@/features/app/AuthGate"
+import {postAuthBootAtom} from "@/features/app/postAuthBoot"
 import {readPendingInvite} from "@/features/invite/pendingInvite"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -46,6 +49,7 @@ beforeEach(() => {
     })
     state.replace.mockReset().mockResolvedValue(true)
     state.session = {kind: "ok"}
+    getDefaultStore().set(postAuthBootAtom, null)
     root = createRoot(document.createElement("div"))
 })
 
@@ -79,5 +83,22 @@ describe("an invite link on /auth", () => {
         route(true, {email: "a@b.c"})
         await render()
         expect(readPendingInvite()).toBeNull()
+    })
+
+    it("does not duplicate post-auth navigation while the boot loader is active", async () => {
+        getDefaultStore().set(postAuthBootAtom, {account: "new", startedAt: Date.now()})
+        route(true, {})
+
+        await render()
+
+        expect(state.replace).not.toHaveBeenCalled()
+    })
+
+    it("still redirects a directly opened /auth route for an authenticated session", async () => {
+        route(true, {})
+
+        await render()
+
+        expect(state.replace).toHaveBeenCalledWith("/")
     })
 })

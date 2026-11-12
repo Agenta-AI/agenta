@@ -2,12 +2,14 @@ import {useEffect} from "react"
 
 import {readInviteParams} from "@agenta/auth"
 import {useQuery} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {rememberInvite} from "@/features/invite/pendingInvite"
 import {fetchProjects, rememberTemplateKey} from "@/lib/context"
 
 import {authRedirectTarget, shouldCheckSession, type SessionVerdict} from "./authRoute"
+import {postAuthBootAtom} from "./postAuthBoot"
 
 /**
  * Null-rendering: routes a signed-out session to the sign-in page from ANY screen, and a session
@@ -25,6 +27,7 @@ import {authRedirectTarget, shouldCheckSession, type SessionVerdict} from "./aut
  */
 export const AuthGate = () => {
     const router = useRouter()
+    const postAuthBoot = useAtomValue(postAuthBootAtom)
     const enabled = shouldCheckSession(router.pathname)
 
     const {data} = useQuery({
@@ -45,7 +48,10 @@ export const AuthGate = () => {
             : data?.kind === "ok"
               ? "ok"
               : "unknown"
-    const target = authRedirectTarget(verdict, router.pathname)
+    const target =
+        postAuthBoot && router.pathname === "/auth" && verdict === "ok"
+            ? null
+            : authRedirectTarget(verdict, router.pathname)
     useEffect(() => {
         // Next fills the query after the first render; a redirect before that loses what it holds.
         if (!router.isReady) return
