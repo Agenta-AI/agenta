@@ -488,91 +488,11 @@ html,
   font: var(--text-caption);
 }
 
-/* ── nav dropdowns (Resources / Community) ───────────────────────────
-   Open on hover and on keyboard focus (focus-within). The panel sits flush
-   under the trigger; a transparent bridge (padding-top on the panel wrapper)
-   spans the gap so crossing the cursor never closes it. A short open delay is
-   hover-intent: brushing past doesn't flash the menu open. */
+/* ── nav menu triggers (the mega menus live in styles/nav-mega.css) ── */
 .ag-navdd {
   position: relative;
   display: inline-flex;
 }
-.ag-navdd-panel {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  padding-top: 8px;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-4px);
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease,
-    visibility 0.16s ease;
-  transition-delay: 0.12s;
-  z-index: 60;
-}
-.ag-navdd:hover .ag-navdd-panel,
-.ag-navdd:focus-within .ag-navdd-panel {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  transition-delay: 0s;
-}
-.ag-navdd-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 264px;
-  padding: 8px;
-  border-radius: 14px;
-  background: var(--th-menu-bg);
-  box-shadow: var(--th-menu-shadow);
-}
-.ag-navdd-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 10px;
-  border-radius: 10px;
-  text-decoration: none;
-  transition: background 0.16s ease;
-}
-.ag-navdd-item:hover {
-  background: var(--th-hover);
-}
-.ag-navdd-ico {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  background: var(--th-ctl-bg);
-  box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
-  color: var(--th-text-prose);
-}
-.ag-navdd-title {
-  font: var(--text-label);
-  color: var(--th-text-hi);
-  line-height: 1.25;
-}
-.ag-navdd-desc {
-  font: var(--text-caption);
-  color: var(--th-text-mut);
-  line-height: 1.25;
-}
-/* Chevron flips when its menu is open, like agenta.ai. */
-.ag-navdd:hover .ag-navdd-chev,
-.ag-navdd:focus-within .ag-navdd-chev {
-  transform: rotate(180deg);
-}
-.ag-navdd-chev {
-  display: inline-flex;
-  transition: transform 0.16s ease;
-}
-
 /* ── mobile menu (replaces the DC sc-if/menuOpen state) ─────── */
 .ag-menu {
   display: none;

@@ -15,7 +15,7 @@ html body .lp, html body .lp .sx-hiw { overflow:visible !important; }
 .sx-hiw .hw .hw-hd { max-width:600px; margin:0px auto 56px; gap:12px; }
 .sx-hiw .hw .hw-grid { display:grid; grid-template-columns:minmax(240px, 340px) minmax(0px, 1fr); gap:56px; width:min(1072px, 100%); margin:0px auto; align-items:center; }
 .sx-hiw .hw .hw-acc { display:flex; flex-direction:column; text-align:left; }
-.sx-hiw .hw .hw-beat { position:relative; padding:24px 2px; border-top:1px solid var(--lp-line); cursor:pointer; }
+.sx-hiw .hw .hw-beat { position:relative; padding:24px 2px; border-top:1px solid var(--lp-line); }
 .sx-hiw .hw .hw-beat:last-child { border-bottom:1px solid var(--lp-line); }
 .sx-hiw .hw .hw-bar { position:absolute; left:0px; right:0px; top:-1px; height:1px; background:var(--lp-ink-bg); transform-origin:0px 0px; transform:scaleX(0); }
 .sx-hiw .hw .hw-bh { display:flex; align-items:center; justify-content:space-between; gap:16px; }

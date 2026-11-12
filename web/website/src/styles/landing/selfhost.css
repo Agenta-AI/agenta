@@ -8,5 +8,5 @@ html body .lp .ossx section.nsec {
   padding-bottom: 0 !important;
 }
 html body .lp .ossx .rv2-oss h2 {
-  color: #f7f6f4 !important;
+  color: var(--text-on-dark-heading) !important;
 }

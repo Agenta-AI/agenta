@@ -4,6 +4,7 @@ import Button from "./Button.astro";
 import TemplatePreviewArt from "./nav/TemplatePreviewArt.astro";
 import ResourcePreviewArt from "./nav/ResourcePreviewArt.astro";
 import { templates, templateByKey } from "../lib/templates";
+import { NAV_TEMPLATE_PICKS } from "../lib/landingTemplates";
 import { byDateDesc } from "../lib/blog";
 import "../styles/landing/tokens.css";
 import "../styles/nav-mega.css";
@@ -21,17 +22,7 @@ const GET_STARTED = "https://cloud.agenta.ai/";
 
 const pricing = { label: "Pricing", href: "/pricing" };
 
-// Templates menu: one column per catalog category, three picks each, with the
-// count and links taken from the template catalog.
-const TEMPLATE_PICKS: { category: string; label: string; keys: string[] }[] = [
-  { category: "Engineering", label: "Engineering", keys: ["pr-reviewer", "incident-responder", "error-triage"] },
-  { category: "Sales", label: "Sales", keys: ["lead-qualifier", "meeting-followup", "pipeline-digest"] },
-  { category: "Marketing", label: "Marketing", keys: ["seo-content-agent"] },
-  { category: "Support", label: "Support", keys: ["support-triage", "support-reply-drafter", "bug-report-router"] },
-  { category: "Knowledge", label: "Knowledge", keys: ["docs-qa", "knowledge-chatbot", "onboarding-buddy"] },
-  { category: "Ops", label: "Operations", keys: ["standup-summarizer", "weekly-report", "cross-tool-sync"] },
-];
-const templateGroups = TEMPLATE_PICKS.map((g) => ({
+const templateGroups = NAV_TEMPLATE_PICKS.map((g) => ({
   ...g,
   href: `/marketplace?category=${encodeURIComponent(g.category)}`,
   count: templates.filter((t) => t.category === g.category).length,
@@ -324,14 +315,6 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     { passive: true },
   );
 
-  // Nav-pill: landing only. Toggles `.nav-scrolled` on <html> past 24px so the
-  // sticky bar floats into the glass pill (styles in global.css). Wired ONLY when
-  // a `nav[data-pill]` is present — inner pages render a static bar with no pill,
-  // so nothing runs and `.nav-scrolled` never toggles.
-  // Driven by a passive scroll listener (not an always-on rAF loop), so it does
-  // no work while the page is idle; each scroll burst coalesces into one read per
-  // frame via rAF, with the state check gated on an actual crossing of the 24px
-  // threshold to avoid redundant classList writes.
   // Mega menus: hover (with intent delay) or click opens, Escape and outside
   // clicks close, and the item under the pointer or focus picks the preview.
   {
@@ -367,20 +350,32 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       const btn = dd.querySelector<HTMLButtonElement>(":scope > button");
       const panel = dd.querySelector<HTMLElement>(".ag-mega");
       btn?.addEventListener("click", () => {
-        const open = !dd.hasAttribute("data-open");
+        clearTimeout(timers.get(dd));
+        // A click on a menu that hover just opened keeps it open.
+        const open = !dd.hasAttribute("data-open") || dd.dataset.openedBy === "hover";
         closeAll(dd);
         setOpen(dd, open);
+        dd.dataset.openedBy = "click";
       });
       dd.addEventListener("mouseenter", () => {
         if (!finePointer.matches) return;
+        if (dd.hasAttribute("data-open")) {
+          clearTimeout(timers.get(dd));
+          return;
+        }
         schedule(dd, () => {
           closeAll(dd);
           setOpen(dd, true);
+          dd.dataset.openedBy = "hover";
         }, menus.some((m) => m.hasAttribute("data-open")) ? 0 : 80);
       });
       dd.addEventListener("mouseleave", () => {
         if (!finePointer.matches) return;
-        schedule(dd, () => setOpen(dd, false), 120);
+        schedule(dd, () => {
+          // Keep a menu open while keyboard focus is inside it.
+          if (dd.contains(document.activeElement) && dd.matches(":has(:focus-visible)")) return;
+          setOpen(dd, false);
+        }, 120);
       });
       dd.addEventListener("focusout", () =>
         requestAnimationFrame(() => {
@@ -390,6 +385,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       panel?.querySelectorAll<HTMLElement>("[data-preview]").forEach((item) => {
         item.addEventListener("mouseenter", () => pick(panel, item));
         item.addEventListener("focus", () => {
+          if (!dd.hasAttribute("data-open")) dd.dataset.openedBy = "click";
           setOpen(dd, true);
           pick(panel, item);
         });
@@ -399,8 +395,9 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       if (e.key !== "Escape") return;
       const open = menus.find((m) => m.hasAttribute("data-open"));
       if (!open) return;
+      const hadFocus = open.contains(document.activeElement);
       setOpen(open, false);
-      open.querySelector<HTMLButtonElement>(":scope > button")?.focus();
+      if (hadFocus) open.querySelector<HTMLButtonElement>(":scope > button")?.focus();
     });
     document.addEventListener("click", (e) => {
       if (!menus.some((m) => m.contains(e.target as Node))) closeAll();

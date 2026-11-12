@@ -90,6 +90,8 @@ const orgJsonLd = {
         }
       };
       fit();
+      document.fonts?.ready.then(fit);
+      addEventListener("load", fit, { once: true });
       let frame = 0;
       addEventListener("resize", () => {
         if (!frame) frame = requestAnimationFrame(() => { frame = 0; fit(); });

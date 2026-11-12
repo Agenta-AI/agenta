@@ -103,6 +103,10 @@
   --carbon-700: #3c3a38;
   --carbon-750: #413f3e; /* Framer: mid dark section         */
   --carbon-950: #1e1d1c; /* Framer: deep dark section        */
+  --carbon-1000: #0b0a0c; /* landing self-host terminal       */
+  /* Template preview art backgrounds (nav Templates menu, landing board). */
+  --art-night: #181010;
+  --art-wine: #5e0908;
 
   /* semantic text */
   --text-heading: var(--ink-900);
