@@ -921,8 +921,11 @@ export async function runTurn(
       const name = toolName ? internalToolName(toolName) : undefined;
       return name ? specsByName.get(name)?.timeoutMs : undefined;
     };
-    const callLimitMs = (toolName: string | undefined): number =>
-      toolCallLimitMs(resolvedRunLimits.toolCallMs, toolBudgetMs(toolName));
+    // How long to wait for an approved call to close: the same bound the watchdog uses (the
+    // call's limit plus the grace), so a result that lands inside the grace is not lost.
+    const callClosureWaitMs = (toolName: string | undefined): number =>
+      toolCallLimitMs(resolvedRunLimits.toolCallMs, toolBudgetMs(toolName)) +
+      (resolvedRunLimits.toolCallGraceMs ?? 0);
     const approvedExecutionSeeds = new Map<string, ParkedApprovedExecution>(
       carriedApprovedExecutions.map((seed) => [seed.toolCallId, seed]),
     );
@@ -1659,7 +1662,7 @@ export async function runTurn(
             answeredAllowed.map((decision) =>
               waitForToolCallClosure(
                 decision.toolCallId,
-                callLimitMs(decision.toolName),
+                callClosureWaitMs(decision.toolName),
               ),
             ),
           );
@@ -1797,7 +1800,7 @@ export async function runTurn(
           openAllowedExecutions.map(async (toolCallId) => {
             const closed = await waitForToolCallClosure(
               toolCallId,
-              callLimitMs(approvedExecutionSeeds.get(toolCallId)?.toolName),
+              callClosureWaitMs(approvedExecutionSeeds.get(toolCallId)?.toolName),
             );
             if (closed) return;
             run.settleOpenToolCalls(
