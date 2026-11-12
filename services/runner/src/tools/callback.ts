@@ -10,6 +10,8 @@
  * one place means a change to the /tools/call contract is a one-line edit, not several.
  */
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
+import type { Agent } from "undici";
+
 import type { GatewayCallContext } from "./gateway-policy.ts";
 import {
   RunCredentialExpiredError,
@@ -204,6 +206,35 @@ export interface CallAgentaToolOptions {
   sanitizeErrorContent?: (content: string) => string;
 }
 
+/**
+ * Node's `fetch` gives up when response headers take longer than undici's default
+ * `headersTimeout` (300 s), whatever the call's own signal allows. A reference tool waits up to
+ * 30 minutes for a child agent and the API sends no headers until the child answers, so a call
+ * whose budget is longer than that goes through a dispatcher with the transport limits off. The
+ * call's signal (its budget, combined with the turn's stop) is then the only limit. Shorter calls
+ * keep the global `fetch`.
+ */
+const UNDICI_DEFAULT_HEADERS_TIMEOUT_MS = 300_000;
+let longWait:
+  | Promise<{ dispatcher: Agent; fetch: typeof import("undici").fetch }>
+  | undefined;
+
+async function fetchForBudget(budgetMs: number): Promise<typeof fetch> {
+  if (budgetMs <= UNDICI_DEFAULT_HEADERS_TIMEOUT_MS) return fetch;
+  // Loaded on first use, so the Pi extension that bundles this module pays for undici only on a
+  // long call.
+  longWait ??= import("undici").then(({ Agent, fetch: undiciFetch }) => ({
+    dispatcher: new Agent({ headersTimeout: 0, bodyTimeout: 0 }),
+    fetch: undiciFetch,
+  }));
+  const { dispatcher, fetch: undiciFetch } = await longWait;
+  return ((input: string, init?: RequestInit) =>
+    undiciFetch(input, {
+      ...(init as Parameters<typeof undiciFetch>[1]),
+      dispatcher,
+    })) as unknown as typeof fetch;
+}
+
 function callbackFetchTimeoutMs(timeoutMs: number | undefined): number {
   // A positive spec timeout caps the server-side child run. The host fetch gets
   // a short grace window so digest/span work produced after the child ceiling
@@ -230,9 +261,8 @@ export async function callAgentaTool(
   if (authorization) headers["authorization"] = authorization;
   if (options.runKind) headers["x-agenta-run-kind"] = options.runKind;
 
-  const timeoutSignal = AbortSignal.timeout(
-    callbackFetchTimeoutMs(options.timeoutMs),
-  );
+  const budgetMs = callbackFetchTimeoutMs(options.timeoutMs);
+  const timeoutSignal = AbortSignal.timeout(budgetMs);
   const anyOf = (AbortSignal as any).any;
   const combined =
     options.signal && typeof anyOf === "function"
@@ -246,7 +276,9 @@ export async function callAgentaTool(
 
   let response: Response;
   try {
-    response = await fetch(endpoint, {
+    response = await (
+      await fetchForBudget(budgetMs)
+    )(endpoint, {
       method: "POST",
       headers,
       body: JSON.stringify({

@@ -2079,22 +2079,18 @@ class ToolsRouter:
             # A tool result, not an HTTP error: the runner shows the model only the status code
             # of a non-2xx answer, and this message is what tells it the child was too slow.
             log.warning("Workflow tool '%s' timed out", slug)
-            return ToolCallResponse(
-                call=ToolResult(
-                    id=uuid4(),
-                    data=ToolResultData(
-                        tool_call_id=body.data.id,
-                        content="",
+            # Not retryable: the child may still be running, and a replay can repeat its
+            # side effects.
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="workflow_tool_timeout",
+                    message=(
+                        f"Workflow tool '{slug}' did not answer within "
+                        f"{REFERENCE_TOOL_TIMEOUT_MS // 60_000} minutes."
                     ),
-                    status=Status(
-                        timestamp=datetime.now(timezone.utc),
-                        code="STATUS_CODE_ERROR",
-                        message=(
-                            f"Workflow tool '{slug}' did not answer within "
-                            f"{REFERENCE_TOOL_TIMEOUT_MS // 60_000} minutes."
-                        ),
-                    ),
-                )
+                    retryable=False,
+                ),
             )
         except Exception as e:
             log.error("Workflow tool invocation failed", exc_info=True)

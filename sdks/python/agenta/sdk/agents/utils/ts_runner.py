@@ -23,12 +23,14 @@ from agenta.sdk.utils.logging import get_module_logger
 # one-shot (dev-only) result transports there is a single request, so idle and total coincide.
 #
 # A tool call sends no record while it runs, so this must stay wider than the longest silent
-# tool call the runner allows: its tool-call limit (AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS, 300 s on
-# Agenta Cloud) plus the grace before its watchdog ends the turn (TOOL_CALL_GRACE_MS, 120 s in
-# run-limits.ts). Below that, a slow command is cut here as "agent run failed" before the runner
-# can stop it and hand the agent its timeout result. A runner configured with a longer tool-call
-# limit needs this raised to match.
-DEFAULT_RUNNER_TIMEOUT_SECONDS = 480.0
+# tool call the runner allows: its tool-call limit (AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS, 30 min by
+# default in run-limits.ts) plus the grace before its watchdog ends the turn (TOOL_CALL_GRACE_MS,
+# 120 s). Below that, a slow command is cut here as "agent run failed" before the runner can stop
+# it and hand the agent its timeout result. A reference tool (another agent called as a tool)
+# waits up to that whole limit (REFERENCE_TOOL_TIMEOUT_MS in agents/platform/workflow.py). The
+# default is that limit, the grace and one more minute. A runner configured with a longer
+# tool-call limit needs this raised to match.
+DEFAULT_RUNNER_TIMEOUT_SECONDS = 30 * 60.0 + 120.0 + 60.0
 
 RUNNER_TIMEOUT_SECONDS = float(
     os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", str(DEFAULT_RUNNER_TIMEOUT_SECONDS))

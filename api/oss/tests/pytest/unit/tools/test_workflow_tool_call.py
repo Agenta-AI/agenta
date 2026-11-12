@@ -221,6 +221,9 @@ async def test_invoke_timeout_is_a_tool_error_the_model_can_read():
         response.call.status.message
         == "Workflow tool 'wf' did not answer within 30 minutes."
     )
+    error = json.loads(response.call.data.content)
+    assert error["code"] == "workflow_tool_timeout"
+    assert error["retryable"] is False
 
 
 async def test_invoke_has_a_wall_clock_limit(monkeypatch):
