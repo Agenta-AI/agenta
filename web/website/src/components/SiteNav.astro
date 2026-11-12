@@ -205,6 +205,17 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
   </div>
 </nav>
 
+<noscript>
+  <style>
+    /* Without JavaScript the hamburger cannot open the menu, so phones show
+       the menu inline under the bar instead. */
+    @media (max-width: 860px) {
+      #ag-menu-toggle { display: none !important; }
+      .ag-mobile-menu { display: flex !important; position: static !important; }
+    }
+  </style>
+</noscript>
+
 <div
   class="ag-mobile-menu"
   id="ag-mobile-menu"
