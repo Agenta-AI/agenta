@@ -45,7 +45,10 @@ describe("an approved call that runs on a resume", () => {
       harness: "claude",
       sandbox: "local",
       telemetry: { exporters: { otlp: { headers: { authorization: "ApiKey test-cred" } } } },
-      customTools: [{ name: "ask_researcher", callRef: "ref-1", timeoutMs: 1_800_000 }],
+      customTools: [
+        { name: "ask_researcher", callRef: "ref-1", timeoutMs: 1_800_000 },
+        { name: "mcp__writer", callRef: "ref-2", timeoutMs: 1_800_000 },
+      ],
       messages: [{ role: "user", content: "ask the researcher" }],
     };
     const acquired = await acquireEnvironment(request, deps);
@@ -58,6 +61,8 @@ describe("an approved call that runs on a resume", () => {
           decision("call-child", "mcp__agenta-tools__ask_researcher"),
           decision("call-other-server", "mcp__external__ask_researcher"),
           decision("call-write", "Write"),
+          // A Pi custom tool whose own name starts with `mcp__`.
+          decision("call-pi-named", "mcp__writer"),
         ],
         carriedForward: [],
       },
@@ -68,6 +73,7 @@ describe("an approved call that runs on a resume", () => {
       // Same bare name on a user's MCP server: not the runner's tool, so no budget.
       ["call-other-server", undefined],
       ["call-write", undefined],
+      ["call-pi-named", 1_800_000],
     ]);
   });
 });

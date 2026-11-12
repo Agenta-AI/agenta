@@ -917,8 +917,11 @@ export async function runTurn(
     const specsByName = toolSpecsByName(plan.tools.toolSpecs);
     // The limit one tool call gets: a runner tool whose spec has its own budget (a reference
     // tool) may run that long, every other call keeps the run's tool-call limit.
+    // An exact spec name comes first: Pi emits its custom tools under their own name, which may
+    // itself start with `mcp__`.
     const toolBudgetMs = (toolName: string | undefined): number | undefined => {
-      const name = toolName ? internalToolName(toolName) : undefined;
+      if (!toolName) return undefined;
+      const name = specsByName.has(toolName) ? toolName : internalToolName(toolName);
       return name ? specsByName.get(name)?.timeoutMs : undefined;
     };
     // How long to wait for an approved call to close: the same bound the watchdog uses (the
