@@ -1,12 +1,15 @@
 ---
 import Site from "../layouts/Site.astro";
-import Hero from "../components/Hero.astro";
-import TemplateSection from "../components/TemplateSection.astro";
-import HowItWorks from "../components/HowItWorks.astro";
-import BuiltForWork from "../components/BuiltForWork.astro";
-import FromTheTeam from "../components/FromTheTeam.astro";
-import OpenSource from "../components/OpenSource.astro";
-import StayInControl from "../components/StayInControl.astro";
+import "../styles/landing/tokens.css";
+import "../styles/landing/base.css";
+import LandingHero from "../components/landing/LandingHero.astro";
+import WorkInChat from "../components/landing/WorkInChat.astro";
+import WorkWithAgents from "../components/landing/WorkWithAgents.astro";
+import TemplatesShowcase from "../components/landing/TemplatesShowcase.astro";
+import EverythingYouNeed from "../components/landing/EverythingYouNeed.astro";
+import StayInControl from "../components/landing/StayInControl.astro";
+import SelfHost from "../components/landing/SelfHost.astro";
+import "../styles/landing/responsive.css";
 
 // Organization structured data (schema.org JSON-LD). Emitted only on the landing
 // page so crawlers attach the knowledge-panel entity to the site root.
@@ -30,8 +33,8 @@ const orgJsonLd = {
 <Site
   cta={{
     eyebrow: "Start building",
-    title: "Hire your first coworker today",
-    body: "Pick one job you keep doing by hand. Ten minutes from now, a coworker is doing it with you.",
+    title: "Start building your first agent",
+    body: "Pick one job someone repeats every week. Describe it, connect the apps it needs, and the agent runs it on its own.",
     secondaryLabel: "Read the docs",
     secondaryHref: "https://docs.agenta.ai/",
   }}
@@ -47,11 +50,50 @@ const orgJsonLd = {
     />
   </Fragment>
 
-  <Hero />
-  <TemplateSection />
-  <BuiltForWork />
-  <HowItWorks />
-  <FromTheTeam />
-  <StayInControl />
-  <OpenSource />
+  <div class="lp">
+    <LandingHero />
+    <WorkInChat />
+    <WorkWithAgents />
+    <TemplatesShowcase />
+    <EverythingYouNeed />
+    <StayInControl />
+    <SelfHost />
+  </div>
+  <script is:inline>
+    // Scale fixed-size mock-ups ([data-lp-fit] = design width in px) down to
+    // their column on narrow screens. Inline so it runs before first paint.
+    (() => {
+      const items = [...document.querySelectorAll("[data-lp-fit]")];
+      const fit = () => {
+        for (const el of items) {
+          const design = Number(el.dataset.lpFit);
+          let parent = el.parentElement;
+          while (parent && getComputedStyle(parent).display === "contents") parent = parent.parentElement;
+          if (!parent || !design) continue;
+          const cs = getComputedStyle(parent);
+          const avail = parent.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          const st = el.style;
+          st.removeProperty("transform");
+          st.removeProperty("margin-right");
+          st.removeProperty("margin-bottom");
+          if (avail > 0 && avail < design) {
+            // transform, not zoom: WebKit clamps small text inside zoom.
+            const scale = avail / design;
+            el.dataset.lpFitted = "";
+            st.setProperty("--lp-fit-w", design + "px");
+            st.transform = `scale(${scale})`;
+            st.marginRight = `${-design * (1 - scale)}px`;
+            st.marginBottom = `${-el.offsetHeight * (1 - scale)}px`;
+          } else {
+            delete el.dataset.lpFitted;
+          }
+        }
+      };
+      fit();
+      let frame = 0;
+      addEventListener("resize", () => {
+        if (!frame) frame = requestAnimationFrame(() => { frame = 0; fit(); });
+      }, { passive: true });
+    })();
+  </script>
 </Site>

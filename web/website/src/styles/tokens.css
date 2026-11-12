@@ -83,6 +83,12 @@
   --paper-80: #f7f6f5; /* Framer: tab track, button top stop */
   --paper-120: #f1eeec; /* page ground / outer frame        */
   --paper-line: #e5e0dd; /* every hairline: section + nav    */
+  /* Landing redesign board ("Landing · iteration 1"), app mock-up greys. */
+  --ink-650: #484644;
+  --ink-400: #8e8e8e;
+  --ink-350: #919191;
+  --paper-250: #e7e5e3;
+  --paper-300: #dcd5d1;
   --yellow-border: #e2e224; /* Framer: the primary button's border */
   --carbon-border: #9c9693; /* Framer: the dark button's border    */
 

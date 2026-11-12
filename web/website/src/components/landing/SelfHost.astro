@@ -1,0 +1,51 @@
+---
+import "../../styles/landing/selfhost.css";
+---
+
+<div class="ossx"><section class="nsec"><div class="rv2-oss" style="display:flex;justify-content:center;padding:80px 0">
+<div style="width:min(1120px,100%);display:grid;grid-template-columns:420px 1fr;gap:72px;padding:0 28px;box-sizing:border-box;align-items:center;text-align:left">
+<div style="display:flex;flex-direction:column;gap:24px">
+<h2 style="margin:0;font:300 44px/1.1 var(--font-display);color:#F7F6F4;text-wrap:pretty">Self-host Agenta on your infrastructure</h2>
+<span style="font:400 16px/24px Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,.55)">MIT-licensed. Keep your agents and data on your own premises. No lock-in.</span>
+<div style="display:flex;gap:10px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font:500 12.5px/1 Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,.75);text-decoration:none">MIT license</span><a style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font:500 12.5px/1 Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,.75);text-decoration:none" href="https://docs.agenta.ai/self-host/quick-start" target="_blank" rel="noopener">Docker Compose</a><a style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font:500 12.5px/1 Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,.75);text-decoration:none" href="https://docs.agenta.ai/self-host/guides/deploy-to-kubernetes" target="_blank" rel="noopener">Helm charts</a></div>
+<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:6px">
+<a href="https://github.com/Agenta-AI/agenta" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;height:40px;padding:0 16px;box-sizing:border-box;border-radius:8px;border:1px solid var(--yellow-border);background:linear-gradient(180deg,var(--yellow-400) 0%,#eeee40 100%);box-shadow:inset 0 3px 6px #fff;font:500 14px/20px Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#242424;text-decoration:none;white-space:nowrap">Explore on GitHub</a>
+<a href="https://docs.agenta.ai/self-host/quick-start" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:8px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);font:500 14px/1 Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#F7F6F4;text-decoration:none;white-space:nowrap">Self-hosting docs</a>
+</div></div>
+<div style="border-radius:12px;background:#0B0A0C;box-shadow:0 0 0 1px rgba(255,255,255,.1);overflow:hidden">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08)">
+<span style="font:400 12px/1 'Geist Mono',monospace;color:rgba(255,255,255,.4)">self-host with your coding agent</span>
+<button type="button" class="lp-copy" data-copy-prompt style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:0;border-radius:7px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font:500 11.5px/1 var(--font-sans);color:rgba(255,255,255,.7);cursor:pointer"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="12"><rect height="14" rx="2" width="14" x="8" y="8"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><span data-copy-label>Copy prompt</span></button></div>
+<div style="padding:24px 22px 28px;display:flex;flex-direction:column;gap:12px;font:400 14px/1.6 'Geist Mono',monospace">
+<span style="color:rgba(255,255,255,.35)"># Paste into Claude Code. It walks you through setup and testing.</span>
+<span style="color:#F7F6F4"><span style="color:rgba(255,255,255,.35)">$ </span>npx skills add Agenta-AI/agenta-skills</span>
+<span style="color:#F7F6F4"><span style="color:rgba(255,255,255,.35)">&gt; </span>Help me self-host Agenta with this repository.</span>
+<span style="color:rgba(242,242,92,.9)">→ Agenta running at agenta.acme.com</span>
+</div></div></div></div>
+</section></div>
+
+<style>
+  .lp-copy:hover { color: #fff !important; }
+  .lp-copy:focus-visible { outline: 2px solid var(--yellow-400); outline-offset: 2px; }
+</style>
+
+<script>
+  const PROMPT =
+    "Paste this into Claude Code (or your coding agent) and it will walk you through setup and testing:\n1. Install the Agenta self-hosting skill: npx skills add Agenta-AI/agenta-skills\n2. Help me self-host Agenta with its repository.";
+  document.querySelectorAll<HTMLButtonElement>("[data-copy-prompt]").forEach((btn) => {
+    const label = btn.querySelector<HTMLElement>("[data-copy-label]");
+    let timer = 0;
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(PROMPT);
+      } catch {
+        return;
+      }
+      if (label) label.textContent = "Copied";
+      clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (label) label.textContent = "Copy prompt";
+      }, 1600);
+    });
+  });
+</script>

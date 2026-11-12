@@ -1,0 +1,206 @@
+/* Landing — tablet and phone layouts. The design board only draws 1440px, so
+   these rules are ours: grids stack, gutters shrink, and fixed-size product
+   mock-ups ([data-lp-fit]) are scaled to the column by the fit script in
+   pages/index.astro. Loaded after every section stylesheet. */
+
+/* iOS text autosizing inflates the small text inside the mock-ups and breaks
+   their layout; the page already sets its own sizes. */
+.lp {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ── tablet ──────────────────────────────────────────────────── */
+@media (max-width: 1167px) {
+  /* The design hides the hero demo below 1167px; keep it, full width. */
+  html body .lp .r3 .r3-ag-hero .r3-ag-app-frame {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 1100px) {
+  html body .lp .sx-share .g5,
+  html body .lp .ctlx .ngrid.three {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  html body .lp .sx-share .s5.hl .t5:nth-child(2n) {
+    border-left: 0;
+  }
+  html body .lp .sx-site .tplx .lp-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  html body .lp .ossx .rv2-oss {
+    padding: 72px 24px !important;
+  }
+  html body .lp .ossx .rv2-oss > div {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 40px !important;
+    width: 100% !important;
+  }
+  html body .lp .ossx .rv2-oss > div > div {
+    width: auto !important;
+    max-width: 100% !important;
+  }
+  .lp .ctlx .nv3 {
+    height: auto;
+    min-height: 340px;
+  }
+}
+
+/* ── phone ───────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  html body .lp section.fg,
+  html body .lp section.s5,
+  html body .lp .sx-site section.tplx,
+  html body .lp section.fgx,
+  html body .lp section.nsec {
+    padding-top: 72px !important;
+    padding-bottom: 72px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  html body .lp .ossx section.nsec {
+    padding: 0 !important;
+  }
+  html body .lp section h2,
+  html body .lp .sx-site .tplx .ag-sectitle {
+    font-size: 34px !important;
+    line-height: 38px !important;
+  }
+  .lp .fg-hd,
+  .lp .nhd,
+  .lp .fgx .hd {
+    margin-bottom: 40px !important;
+  }
+
+  /* hero demo: drop the app sidebar, keep the run */
+  html body .lp .r3 .r3-ag-hero {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  html body .lp .r3 .r3-aw.r3-aw-full {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  html body .lp .r3 .r3-rs {
+    display: none !important;
+  }
+  html body .lp .r3 .r3-ag-hero .r3-ag-app-frame {
+    height: 560px !important;
+  }
+  html body .lp .r3 .r3-ap-thread {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  html body .lp .r3 .r3-ap-comp {
+    margin-left: 12px !important;
+    margin-right: 12px !important;
+  }
+  html body .lp .r3 .r3-hx-toast {
+    right: 12px !important;
+    left: auto !important;
+    max-width: calc(100% - 24px);
+  }
+
+  /* Do the work in chat: no sticky scroll stage on phones. The beats play on
+     a loop instead (see the timeline override below). */
+  html body .lp .sx-hiw section.hw {
+    height: auto !important;
+    padding: 72px 16px !important;
+  }
+  html body .lp .sx-hiw section.hw .hw-stage {
+    position: static;
+    height: auto;
+  }
+  .sx-hiw .hw .hw-hd {
+    margin-bottom: 32px;
+  }
+  .sx-hiw .hw .hw-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .sx-hiw .hw .hw-bt {
+    font-size: 23px;
+  }
+  .sx-hiw .hw .hw-beat {
+    padding: 18px 2px;
+  }
+  .sx-hiw .hw .hw-thread {
+    padding: 20px 16px 8px;
+  }
+  .sx-hiw .hw .hw-comp {
+    margin: 0 12px 12px;
+  }
+  .sx-hiw .hw [style*="animation-timeline"] {
+    animation-timeline: auto !important;
+    animation-range: normal !important;
+    animation-duration: 16s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* Work with your agents */
+  html body .lp .sx-share .s5.hl .tx5 {
+    padding: 28px 20px 0;
+  }
+  html body .lp .sx-share .vs5 {
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-bottom: 24px !important;
+  }
+
+  /* Templates */
+  html body .lp .sx-site .tplx .lp-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Everything you need */
+  .lp .sx-feat .grid > div > .txt {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  /* Stay in control */
+  .lp .ctlx .ngrid.three .nc .ntx {
+    padding: 28px 20px 0;
+  }
+  .lp .ctlx .nv3 {
+    padding: 24px 16px 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  .sx-hiw .hw .hw-files {
+    display: none;
+  }
+  html body .lp .r3 .r3-hx-toast {
+    display: none !important;
+  }
+  html body .lp .ossx .rv2-oss h2 {
+    font-size: 34px !important;
+    line-height: 38px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Agents that learn: chat card above the version history. */
+  .lp .sx-feat .lrn {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .lp .sx-feat .grid > div:last-child > .art {
+    height: auto !important;
+    padding-top: 8px;
+    padding-bottom: 24px;
+  }
+}
+
+/* Scaled mock-ups: the fit script sets --lp-fit-w and a scale transform. */
+.lp [data-lp-fit][data-lp-fitted] {
+  transform-origin: top left;
+  width: var(--lp-fit-w) !important;
+  max-width: none !important;
+  flex: 0 0 auto !important;
+}

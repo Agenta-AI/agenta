@@ -1,0 +1,67 @@
+/* Landing page tokens (--lp-*).
+   The landing sections draw small product mock-ups (app frames, chats, cards).
+   Their colours come only from these tokens, so one file decides both themes.
+   Light values are the design board's values ("Landing · iteration 1").
+   Dark values come from the site's dark palette in tokens-dark.css.
+   Sections that are dark or yellow in both themes (Self-host, CTA) use the raw
+   palette instead (--carbon-*, --yellow-*). */
+
+:root {
+  /* text */
+  --lp-text: var(--ink-900);
+  --lp-text-2: var(--ink-650);
+  --lp-body: var(--ink-600);
+  --lp-mut: var(--ink-400);
+  --lp-dim: var(--ink-350);
+  --lp-on-ink: var(--paper-0);
+
+  /* surfaces, from the card up to the band */
+  --lp-surface: var(--paper-0);
+  --lp-surface-2: var(--paper-50);
+  --lp-surface-3: var(--paper-100);
+  --lp-surface-4: var(--paper-150);
+  --lp-surface-5: var(--paper-80);
+  --lp-surface-6: var(--paper-200);
+  --lp-page: var(--paper-120);
+  --lp-ink-bg: var(--ink-900);
+  --lp-glass: rgba(255, 255, 255, 0.5);
+  --lp-key-glow: #fff;
+
+  /* lines */
+  --lp-line: var(--paper-200);
+  --lp-line-soft: var(--paper-150);
+  --lp-line-2: var(--paper-250);
+  --lp-line-strong: var(--paper-300);
+  --lp-frame: var(--paper-line);
+
+  /* ink as channels, for tints: rgb(var(--lp-ink-rgb) / 0.04) */
+  --lp-ink-rgb: 36 36 36;
+}
+
+[data-theme="dark"] {
+  --lp-text: var(--ag-d-text-hi);
+  --lp-text-2: rgba(248, 245, 239, 0.82);
+  --lp-body: var(--ag-d-text);
+  --lp-mut: var(--ag-d-text-mut);
+  --lp-dim: var(--ag-d-text-mut);
+  --lp-on-ink: var(--ag-d-bg-0);
+
+  --lp-surface: var(--ag-d-bg-2);
+  --lp-surface-2: var(--ag-d-bg-3);
+  --lp-surface-3: var(--ag-d-bg-1);
+  --lp-surface-4: var(--ag-d-bg-4);
+  --lp-surface-5: var(--ag-d-bg-1);
+  --lp-surface-6: var(--ag-d-bg-4);
+  --lp-page: var(--ag-d-bg-0);
+  --lp-ink-bg: var(--ag-d-text-hi);
+  --lp-glass: rgba(255, 255, 255, 0.04);
+  --lp-key-glow: rgba(255, 255, 255, 0.06);
+
+  --lp-line: var(--ag-d-border);
+  --lp-line-soft: var(--ag-d-border-subtle);
+  --lp-line-2: var(--ag-d-border);
+  --lp-line-strong: var(--ag-d-border-strong);
+  --lp-frame: rgba(255, 255, 255, 0.07);
+
+  --lp-ink-rgb: 247 244 238;
+}

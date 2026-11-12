@@ -1,0 +1,158 @@
+---
+// Preview art for the Resources menu, one per item (ported from the landing
+// design board). Brand cards keep their brand colours in both themes.
+import { categoryGradient, formatDate, type Post } from "../../lib/blog";
+
+interface Props {
+  item: "blog" | "docs" | "changelog" | "slack" | "github" | "x" | "linkedin" | "contrib";
+  post?: Post;
+}
+const { item, post } = Astro.props;
+
+const leaf =
+  "M115.504 95.9335C115.221 98.4384 116.607 99.1695 118.671 98.2233C124.787 95.4184 149.253 82.6572 162.347 82.6572C166.663 82.6572 184.04 84.7181 149.838 117.918C121.062 145.85 113.265 139.835 111.236 137.807C105.889 132.459 108.817 117.798 109.715 110.453C110.039 107.807 109.134 106.985 106.571 108.131C83.5096 118.441 40.4169 140 16.5021 140C-29.3433 140 33.8427 64.9164 43.6743 52.9651C76.3083 13.2951 97.3726 0 109.234 0C130.713 0 121.893 39.2078 115.504 95.9335Z";
+---
+
+{
+  item === "blog" && post && (
+    <Fragment>
+      <div class="cv" style={post.data.heroImage ? undefined : `background:${categoryGradient(post.data.category)}`}>
+        {post.data.heroImage && <img src={post.data.heroImage} alt="" loading="lazy" decoding="async" />}
+      </div>
+      <b>{post.data.title}</b>
+      <span class="rm">From the blog · {formatDate(post.data.date)}</span>
+    </Fragment>
+  )
+}
+{
+  item === "docs" && (
+    <Fragment>
+      <div class="cv dw">
+        <div class="dbar"><i /><i /><i /><span>docs.agenta.ai</span></div>
+        <div class="dbody">
+          <div class="dside">
+            <span class="on">What is Agenta?</span><span>Concepts</span><span>Guides</span><span>Self-host</span>
+          </div>
+          <div class="dmain">
+            <b>What is Agenta?</b>
+            <p>Agenta is a workspace where you and your team build agents and automations.</p>
+            <em>What can I do with Agenta?</em><i class="ln" /><i class="ln s" />
+          </div>
+        </div>
+      </div>
+      <b>What is Agenta?</b>
+      <span class="rm">Start here: build agents by chatting with them.</span>
+    </Fragment>
+  )
+}
+{
+  item === "changelog" && (
+    <Fragment>
+      <div class="cv dw">
+        <div class="dbar"><i /><i /><i /><span>docs.agenta.ai/changelog</span></div>
+        <div class="dbody">
+          <div class="dside">
+            <span class="on">Latest</span><span>Releases</span><span>Roadmap</span>
+          </div>
+          <div class="dmain">
+            <b>What's new</b>
+            <p>New releases every week: features, fixes and improvements.</p>
+            <i class="ln" /><i class="ln s" /><i class="ln" />
+          </div>
+        </div>
+      </div>
+      <b>Changelog</b>
+      <span class="rm">See what shipped in each release.</span>
+    </Fragment>
+  )
+}
+{
+  item === "slack" && (
+    <Fragment>
+      <div class="cv bc" style="background:#4a154b;color:#fff">
+        <div class="bl">
+          <svg width="26" height="26" viewBox="0 0 122.8 122.8" aria-hidden="true">
+            <path d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9v12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V77.6z" fill="#e01e5a" />
+            <path d="M45.2 25.8c-7.1 0-12.9-5.8-12.9-12.9S38.1 0 45.2 0s12.9 5.8 12.9 12.9v12.9H45.2zm0 6.5c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H12.9C5.8 58.1 0 52.3 0 45.2s5.8-12.9 12.9-12.9h32.3z" fill="#36c5f0" />
+            <path d="M97 45.2c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9-5.8 12.9-12.9 12.9H97V45.2zm-6.5 0c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V12.9C64.7 5.8 70.5 0 77.6 0s12.9 5.8 12.9 12.9v32.3z" fill="#2eb67d" />
+            <path d="M77.6 97c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9-12.9-5.8-12.9-12.9V97h12.9zm0-6.5c-7.1 0-12.9-5.8-12.9-12.9s5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H77.6z" fill="#ecb22e" />
+          </svg>
+          <span class="lx">+</span>
+          <svg width="26" height="22" viewBox="0 0 171 140" aria-hidden="true"><path d={leaf} fill="#fff" /></svg>
+        </div>
+        <span class="bh">Agenta community</span>
+      </div>
+      <b>Join the Slack community</b>
+      <span class="rm">Ask questions and share what you built.</span>
+    </Fragment>
+  )
+}
+{
+  item === "github" && (
+    <Fragment>
+      <div class="cv bc" style="background:#0d1117;color:#fff">
+        <div class="bl">
+          <svg width="26" height="26" viewBox="0 0 16 16" aria-hidden="true">
+            <path fill="#fff" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+          </svg>
+          <span class="lx">+</span>
+          <svg width="26" height="22" viewBox="0 0 171 140" aria-hidden="true"><path d={leaf} fill="#fff" /></svg>
+        </div>
+        <span class="bh">github.com/Agenta-AI/agenta</span>
+      </div>
+      <b>Agenta on GitHub</b>
+      <span class="rm">Open source. Read the code and contribute.</span>
+    </Fragment>
+  )
+}
+{
+  item === "x" && (
+    <Fragment>
+      <div class="cv bc" style="background:#000;color:#fff">
+        <div class="bl">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#fff" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+          </svg>
+          <span class="lx">+</span>
+          <svg width="26" height="22" viewBox="0 0 171 140" aria-hidden="true"><path d={leaf} fill="#fff" /></svg>
+        </div>
+        <span class="bh">x.com/agenta_ai</span>
+      </div>
+      <b>Follow Agenta on X</b>
+      <span class="rm">Launches, release notes and agent tips as they ship.</span>
+    </Fragment>
+  )
+}
+{
+  item === "linkedin" && (
+    <Fragment>
+      <div class="cv bc" style="background:#0a66c2;color:#fff">
+        <div class="bl">
+          <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#fff" d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45z" />
+          </svg>
+          <span class="lx">+</span>
+          <svg width="26" height="22" viewBox="0 0 171 140" aria-hidden="true"><path d={leaf} fill="#fff" /></svg>
+        </div>
+        <span class="bh">linkedin.com/company/agenta-ai</span>
+      </div>
+      <b>Follow Agenta on LinkedIn</b>
+      <span class="rm">Company news and stories from teams running agents.</span>
+    </Fragment>
+  )
+}
+{
+  item === "contrib" && (
+    <Fragment>
+      <div class="cv bc" style="background:var(--yellow-400);color:var(--ink-900)">
+        <div class="bl">
+          <svg width="28" height="24" viewBox="0 0 171 140" aria-hidden="true"><path d={leaf} fill="var(--ink-900)" /></svg>
+          <span class="tp">Your template</span>
+        </div>
+        <span class="bh">Agenta template library</span>
+      </div>
+      <b>Contribute a template</b>
+      <span class="rm">Turn an agent you built into a template for every team.</span>
+    </Fragment>
+  )
+}
