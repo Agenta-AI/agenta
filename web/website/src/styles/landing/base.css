@@ -18,3 +18,12 @@ section.fg, section.s5, .sx-site section.tplx, section.fgx, section.nsec { paddi
 .lp section h2, .lp .sx-site .tplw h2, .lp .sx-site .tplx .ag-sectitle, .lp .ctax .ca .ctaH { font-weight:300 !important; font-size:48px !important; line-height:52px !important; color:var(--lp-text) !important; }
 .lp .hx-sub, .lp section h2 + p, .lp .sx-site .tplw h2 + p, .lp .sx-site .tplx .ag-sectitle + p, .lp .nhd p, .lp .ctax .csub { font-size:16px !important; line-height:24px !important; color:var(--lp-body) !important; }
 html body .lp section.s5 .g5, html body .lp section.fgx .grid, html body .lp .ctlx .ngrid, html body .lp .lp-tpl .ag-tpl, html body .lp .tplx .grid, html body .lp section.tp .grid { border-left:1px solid var(--lp-line) !important; border-right:1px solid var(--lp-line) !important; }
+
+/* Section animations wait until the section is on screen (script in
+   pages/index.astro sets data-lp-anim on .lp and data-lp-in on each section). */
+.lp[data-lp-anim] > :not([data-lp-in]),
+.lp[data-lp-anim] > :not([data-lp-in]) *,
+.lp[data-lp-anim] > :not([data-lp-in]) *::before,
+.lp[data-lp-anim] > :not([data-lp-in]) *::after {
+  animation-play-state: paused !important;
+}

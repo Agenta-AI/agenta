@@ -10,6 +10,41 @@
   text-size-adjust: 100%;
 }
 
+/* ── short and mid screens ───────────────────────────────────── */
+/* The "Do the work in chat" stage is sticky; size it to the screen so its
+   frame is never cut on laptops or tablets shorter than the 1000px design. */
+@media (min-width: 861px) {
+  /* 96px clears the floating nav pill. */
+  html body .lp .sx-hiw section.hw .hw-stage {
+    top: 96px;
+    height: calc(100vh - 96px);
+    height: calc(100svh - 96px);
+    max-height: 1000px;
+  }
+  .sx-hiw .hw .hw-frame {
+    height: clamp(340px, calc(100svh - 380px), 520px);
+  }
+  .sx-hiw .hw .hw-hd {
+    margin-bottom: clamp(24px, 5svh, 56px);
+  }
+}
+
+/* The hero's "automation created" toast sits over the run; keep the table
+   clear of it once the frame narrows. */
+@media (max-width: 1320px) and (min-width: 601px) {
+  html body .lp .r3 .r3-hx-venues {
+    max-width: calc(100% - 268px) !important;
+  }
+}
+@media (max-width: 1100px) and (min-width: 861px) {
+  html body .lp .r3 .r3-rs {
+    display: none !important;
+  }
+  html body .lp .r3 .r3-aw.r3-aw-full {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
 /* ── tablet ──────────────────────────────────────────────────── */
 @media (max-width: 1167px) {
   /* The design hides the hero demo below 1167px; keep it, full width. */
@@ -22,13 +57,6 @@
 }
 
 @media (max-width: 1100px) {
-  html body .lp .sx-share .g5,
-  html body .lp .ctlx .ngrid.three {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-  html body .lp .sx-share .s5.hl .t5:nth-child(2n) {
-    border-left: 0;
-  }
   html body .lp .sx-site .tplx .lp-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
@@ -52,6 +80,13 @@
 
 /* ── phone ───────────────────────────────────────────────────── */
 @media (max-width: 860px) {
+  html body .lp .sx-share .g5,
+  html body .lp .ctlx .ngrid.three {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  html body .lp .sx-share .s5.hl .t5:nth-child(2n) {
+    border-left: 0;
+  }
   html body .lp section.fg,
   html body .lp section.s5,
   html body .lp .sx-site section.tplx,
@@ -138,6 +173,22 @@
     animation-range: normal !important;
     animation-duration: 16s !important;
     animation-iteration-count: infinite !important;
+  }
+
+  /* Wide single-column cells (tablet portrait): centre the mock-ups at
+     their design width instead of stretching or hugging the left edge. */
+  html body .lp .sx-share .t5 > [data-lp-fit]:not([data-lp-fitted]),
+  html body .lp .sx-share .t5 > .r3 > [data-lp-fit]:not([data-lp-fitted]) {
+    width: 100%;
+    max-width: 615px;
+    align-self: center;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  html body .lp .ctlx .nc > [data-lp-fit]:not([data-lp-fitted]) {
+    width: 100%;
+    max-width: 440px;
+    align-self: center;
   }
 
   /* Work with your agents */

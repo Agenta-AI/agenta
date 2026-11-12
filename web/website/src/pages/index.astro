@@ -60,6 +60,22 @@ const orgJsonLd = {
     <SelfHost />
   </div>
   <script is:inline>
+    // Hold each section's animations at their first frame until the section
+    // scrolls into view; pause them again while it is off screen.
+    (() => {
+      const root = document.querySelector(".lp");
+      if (!root || !("IntersectionObserver" in window)) return;
+      root.setAttribute("data-lp-anim", "");
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) e.target.toggleAttribute("data-lp-in", e.isIntersecting);
+        },
+        { rootMargin: "0px 0px -15% 0px" },
+      );
+      for (const section of root.children) if (section.tagName !== "SCRIPT") io.observe(section);
+    })();
+  </script>
+  <script is:inline>
     // Scale fixed-size mock-ups ([data-lp-fit] = design width in px) down to
     // their column on narrow screens. Inline so it runs before first paint.
     (() => {

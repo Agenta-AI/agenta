@@ -136,10 +136,10 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     <a class="ag-navlink" href={pricing.href} style={linkStyle}>{pricing.label}</a>
 
     <div class="ag-navdd" data-mega>
-      <button class="ag-navlink" type="button" style={triggerStyle} aria-expanded="false" aria-controls="ag-mega-templates">
+      <a class="ag-navlink" href="/marketplace" style={linkStyle} aria-haspopup="true" aria-expanded="false" aria-controls="ag-mega-templates">
         Templates
-      </button>
-      <div class="ag-mega" id="ag-mega-templates" role="region" aria-label="Templates">
+      </a>
+      <div class="ag-mega ag-art" id="ag-mega-templates" role="region" aria-label="Templates">
         <div class="ag-mega__cols">
           {
             templateGroups.map((g) => (
@@ -176,7 +176,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       <button class="ag-navlink" type="button" style={triggerStyle} aria-expanded="false" aria-controls="ag-mega-resources">
         Resources
       </button>
-      <div class="ag-mega ag-mega--narrow" id="ag-mega-resources" role="region" aria-label="Resources">
+      <div class="ag-mega ag-mega--narrow ag-art" id="ag-mega-resources" role="region" aria-label="Resources">
         <div class="ag-mega__cols">
           {
             resourceGroups.map((g) => (
@@ -213,28 +213,54 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
   <a class="ag-mm-link" href={pricing.href}>{pricing.label}</a>
   <details class="ag-mm-group">
     <summary class="ag-mm-link">Templates<span class="ag-mm-chev" set:html={chevron} /></summary>
-    <div class="ag-mm-body">
+    <div class="ag-mm-panel ag-art">
+      <div class="ag-mm-chips" role="tablist" aria-label="Template categories">
+        {
+          templateGroups.map((g, i) => (
+            <button type="button" class="ag-mm-chip" role="tab" id={`ag-mm-tab-${i}`} aria-controls={`ag-mm-rail-${i}`} aria-selected={i === 0 ? "true" : "false"} tabindex={i === 0 ? 0 : -1} data-mm-tab={i}>
+              {g.label}<em>{g.count}</em>
+            </button>
+          ))
+        }
+      </div>
       {
-        templateGroups.map((g) => (
-          <div class="ag-mm-sub">
-            <a class="ag-mm-head" href={g.href}>{g.label}<em>{g.count}</em></a>
-            {g.items.map((t) => <a class="ag-mm-item" href={t.href}>{t.name}</a>)}
+        templateGroups.map((g, i) => (
+          <div class="ag-mm-tabpanel" role="tabpanel" id={`ag-mm-rail-${i}`} aria-labelledby={`ag-mm-tab-${i}`} hidden={i > 0}>
+            <div class="ag-mm-rail">
+              {g.items.map((t) => (
+                <a class="ag-mm-card spv" href={t.href}>
+                  <TemplatePreviewArt templateKey={t.key} />
+                  <h4>{t.name}</h4>
+                  <p>{t.summary}</p>
+                </a>
+              ))}
+            </div>
+            <a class="ag-mm-more" href={g.href}>All {g.label} templates<span set:html={arrow} /></a>
           </div>
         ))
       }
-      <a class="ag-mm-all" href="/marketplace">See all {templates.length} templates</a>
+      <a class="ag-mm-all" href="/marketplace">See all {templates.length} templates<span set:html={arrow} /></a>
     </div>
   </details>
   <details class="ag-mm-group">
     <summary class="ag-mm-link">Resources<span class="ag-mm-chev" set:html={chevron} /></summary>
-    <div class="ag-mm-body">
+    <div class="ag-mm-panel ag-art">
+      <div class="ag-mm-cols">
+        {
+          resourceGroups.map((g) => (
+            <div class="ag-mm-col">
+              <p class="ag-mm-head">{g.label}</p>
+              {g.items.map((it) => <a class="ag-mm-item" href={it.href} {...ext(it.external)}>{it.label}</a>)}
+            </div>
+          ))
+        }
+      </div>
       {
-        resourceGroups.map((g) => (
-          <div class="ag-mm-sub">
-            <span class="ag-mm-head">{g.label}</span>
-            {g.items.map((it) => <a class="ag-mm-item" href={it.href} {...ext(it.external)}>{it.label}</a>)}
-          </div>
-        ))
+        latestPost && (
+          <a class="ag-mm-post rv" href={`/blog/${latestPost.id}`}>
+            <ResourcePreviewArt item="blog" post={latestPost} />
+          </a>
+        )
       }
     </div>
   </details>
@@ -315,29 +341,21 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     { passive: true },
   );
 
-  // Mega menus: hover (with intent delay) or click opens, Escape and outside
-  // clicks close, and the item under the pointer or focus picks the preview.
+  // Mega menus. Hover (with an intent delay) opens a menu. "Templates" is also
+  // a link: a mouse click goes to /marketplace, a first tap on a touch screen
+  // opens the menu and a second tap follows the link. Keyboard focus on the
+  // trigger opens it, so Tab walks into the panel; Escape and outside clicks
+  // close it. The item under the pointer or focus picks the preview.
   {
     const menus = [...document.querySelectorAll<HTMLElement>(".ag-navdd[data-mega]")];
     const finePointer = matchMedia("(hover: hover) and (pointer: fine)");
+    const triggerOf = (dd: HTMLElement) => dd.querySelector<HTMLElement>(":scope > .ag-navlink");
     const timers = new Map<HTMLElement, number>();
+    let refocusing = false;
     const schedule = (dd: HTMLElement, fn: () => void, ms: number) => {
       clearTimeout(timers.get(dd));
       timers.set(dd, window.setTimeout(fn, ms));
     };
-    const setOpen = (dd: HTMLElement, open: boolean) => {
-      const btn = dd.querySelector<HTMLButtonElement>(":scope > button");
-      if (open === dd.hasAttribute("data-open")) return;
-      dd.toggleAttribute("data-open", open);
-      btn?.setAttribute("aria-expanded", String(open));
-      if (open) {
-        const panel = dd.querySelector<HTMLElement>(".ag-mega");
-        const first = panel?.querySelector<HTMLElement>("[data-preview]");
-        panel?.removeAttribute("data-picked");
-        if (panel && first) pick(panel, first, false);
-      }
-    };
-    const closeAll = (except?: HTMLElement) => menus.forEach((m) => m !== except && setOpen(m, false));
     const pick = (panel: HTMLElement, item: HTMLElement, byUser = true) => {
       const key = item.dataset.preview;
       panel.querySelectorAll<HTMLElement>("[data-preview]").forEach((el) => el.toggleAttribute("data-active", el === item));
@@ -346,16 +364,48 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       });
       if (byUser) panel.setAttribute("data-picked", "");
     };
+    const setOpen = (dd: HTMLElement, open: boolean, by?: "hover" | "click") => {
+      if (by) dd.dataset.openedBy = by;
+      if (open === dd.hasAttribute("data-open")) return;
+      dd.toggleAttribute("data-open", open);
+      triggerOf(dd)?.setAttribute("aria-expanded", String(open));
+      if (open) {
+        const panel = dd.querySelector<HTMLElement>(".ag-mega");
+        const first = panel?.querySelector<HTMLElement>("[data-preview]");
+        panel?.removeAttribute("data-picked");
+        if (panel && first) pick(panel, first, false);
+      }
+    };
+    const closeAll = (except?: HTMLElement) => menus.forEach((m) => m !== except && setOpen(m, false));
     menus.forEach((dd) => {
-      const btn = dd.querySelector<HTMLButtonElement>(":scope > button");
+      const trigger = triggerOf(dd);
       const panel = dd.querySelector<HTMLElement>(".ag-mega");
-      btn?.addEventListener("click", () => {
+      const isLink = trigger instanceof HTMLAnchorElement;
+      trigger?.addEventListener("click", (e) => {
         clearTimeout(timers.get(dd));
+        const isOpen = dd.hasAttribute("data-open");
+        if (isLink) {
+          if (finePointer.matches || isOpen) return;
+          e.preventDefault();
+          closeAll(dd);
+          setOpen(dd, true, "click");
+          return;
+        }
         // A click on a menu that hover just opened keeps it open.
-        const open = !dd.hasAttribute("data-open") || dd.dataset.openedBy === "hover";
+        const open = !isOpen || dd.dataset.openedBy === "hover";
         closeAll(dd);
-        setOpen(dd, open);
-        dd.dataset.openedBy = "click";
+        setOpen(dd, open, "click");
+      });
+      trigger?.addEventListener("focus", () => {
+        if (refocusing || !trigger.matches(":focus-visible")) return;
+        closeAll(dd);
+        setOpen(dd, true, "click");
+      });
+      trigger?.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowDown") return;
+        e.preventDefault();
+        setOpen(dd, true, "click");
+        panel?.querySelector<HTMLElement>("a")?.focus();
       });
       dd.addEventListener("mouseenter", () => {
         if (!finePointer.matches) return;
@@ -365,15 +415,14 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
         }
         schedule(dd, () => {
           closeAll(dd);
-          setOpen(dd, true);
-          dd.dataset.openedBy = "hover";
+          setOpen(dd, true, "hover");
         }, menus.some((m) => m.hasAttribute("data-open")) ? 0 : 80);
       });
       dd.addEventListener("mouseleave", () => {
         if (!finePointer.matches) return;
         schedule(dd, () => {
           // Keep a menu open while keyboard focus is inside it.
-          if (dd.contains(document.activeElement) && dd.matches(":has(:focus-visible)")) return;
+          if (dd.matches(":has(:focus-visible)")) return;
           setOpen(dd, false);
         }, 120);
       });
@@ -385,8 +434,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       panel?.querySelectorAll<HTMLElement>("[data-preview]").forEach((item) => {
         item.addEventListener("mouseenter", () => pick(panel, item));
         item.addEventListener("focus", () => {
-          if (!dd.hasAttribute("data-open")) dd.dataset.openedBy = "click";
-          setOpen(dd, true);
+          setOpen(dd, true, dd.hasAttribute("data-open") ? undefined : "click");
           pick(panel, item);
         });
       });
@@ -397,12 +445,42 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       if (!open) return;
       const hadFocus = open.contains(document.activeElement);
       setOpen(open, false);
-      if (hadFocus) open.querySelector<HTMLButtonElement>(":scope > button")?.focus();
+      if (hadFocus) {
+        refocusing = true;
+        triggerOf(open)?.focus();
+        refocusing = false;
+      }
     });
     document.addEventListener("click", (e) => {
       if (!menus.some((m) => m.contains(e.target as Node))) closeAll();
     });
   }
+
+  // Mobile menu: template category chips switch the card rail.
+  {
+    const tabs = [...document.querySelectorAll<HTMLButtonElement>("[data-mm-tab]")];
+    const select = (tab: HTMLButtonElement, focus = false) => {
+      tabs.forEach((t) => {
+        const on = t === tab;
+        t.setAttribute("aria-selected", String(on));
+        t.tabIndex = on ? 0 : -1;
+        const panel = document.getElementById(t.getAttribute("aria-controls") ?? "");
+        if (panel) panel.hidden = !on;
+      });
+      if (focus) tab.focus();
+      tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+    tabs.forEach((tab, i) => {
+      tab.addEventListener("click", () => select(tab));
+      tab.addEventListener("keydown", (e) => {
+        const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (!step) return;
+        e.preventDefault();
+        select(tabs[(i + step + tabs.length) % tabs.length], true);
+      });
+    });
+  }
+
 
   // Nav-pill: landing only. The rAF loop toggles `.nav-scrolled` on <html> past
   // 24px so the sticky bar floats into the glass pill (styles in global.css). It

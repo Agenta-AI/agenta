@@ -112,7 +112,7 @@ const linkStyle =
       {
         comparisonModes.map(({ cls, data }) => {
           const cols = data.columns.length;
-          const COLS = `grid-template-columns:1.4fr repeat(${cols}, 1fr);`;
+          const COLS = `grid-template-columns:1.4fr repeat(${cols}, 1fr);column-gap:16px;`;
           // Phone column template + min-width (used via CSS vars in the <=760 media
           // query): a narrower sticky label track + fixed-width value columns so the
           // pinned Features column never overlaps the plan columns it scrolls past.

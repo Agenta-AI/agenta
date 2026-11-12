@@ -1248,3 +1248,37 @@ html,
   white-space: nowrap;
   border: 0;
 }
+
+/* ── phone tap targets and tables (site audit 2026-11) ───────────────── */
+@media (max-width: 600px) {
+  /* Footer, breadcrumb, back and contact links: at least 32px to tap. */
+  .ag-foot-link,
+  .ag-mkt-crumb a,
+  .ag-deflist a,
+  .ag-backlink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+  }
+  .ag-foot-cols > div {
+    gap: 4px !important;
+  }
+  .ag-btn--sm {
+    min-height: 36px;
+  }
+  /* Comparison tables scroll sideways instead of squeezing a column to one
+     word per line. */
+  .ag-prose table {
+    font-size: 14px;
+  }
+  .ag-prose th,
+  .ag-prose td {
+    min-width: 150px;
+  }
+  .ag-prose th:first-child,
+  .ag-prose td:first-child {
+    min-width: 0;
+    max-width: 150px;
+    white-space: normal;
+  }
+}
