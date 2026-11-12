@@ -55,6 +55,7 @@ import {
   buildGateDescriptor,
 } from "./acp-interactions.ts";
 import {
+  bareToolName,
   buildClientToolRelay,
   relayWritesPausedAnswer,
 } from "./client-tools.ts";
@@ -119,6 +120,7 @@ import {
 import {
   createRunLimits,
   resolveRunLimits,
+  toolCallLimitMs,
   type RunLimitKind,
 } from "./run-limits.ts";
 import {
@@ -511,7 +513,7 @@ export async function runTurn(
       : undefined;
     limitStopSettled = endedAs === "cancelled";
   };
-  runLimits.onTrip((reason, kind) => {
+  runLimits.onTrip((reason, kind, limitMs) => {
     runLimitReason = reason;
     runLimitKind = kind;
     if (kind === "total" && resolvedRunLimits.turnLimitMessage) {
@@ -521,15 +523,7 @@ export async function runTurn(
       );
     } else {
       // The log keeps `reason`; the person reads which limit ended the turn.
-      runLimitPublicError = runLimitError(
-        kind,
-        {
-          total: resolvedRunLimits.totalMs,
-          idle: resolvedRunLimits.idleMs,
-          ttfb: resolvedRunLimits.ttfbMs,
-          "tool-call": resolvedRunLimits.toolCallMs,
-        }[kind],
-      );
+      runLimitPublicError = runLimitError(kind, limitMs);
     }
     runLimitTrip?.();
   });
@@ -918,6 +912,15 @@ export async function runTurn(
     void pause.signal.then(() => runLimits.notePaused());
 
     const openToolCallIds = (): string[] => run.openToolCallIds?.() ?? [];
+    // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
+    // the approval card and the guard cannot disagree about a tool's permission/readOnly.
+    const specsByName = toolSpecsByName(plan.tools.toolSpecs);
+    // The limit one tool call gets: a tool whose spec has its own budget (a reference tool) may
+    // run that long, every other call keeps the run's tool-call limit.
+    const toolBudgetMs = (toolName: string | undefined): number | undefined =>
+      toolName ? specsByName.get(bareToolName(toolName))?.timeoutMs : undefined;
+    const callLimitMs = (toolName: string | undefined): number =>
+      toolCallLimitMs(resolvedRunLimits.toolCallMs, toolBudgetMs(toolName));
     const approvedExecutionSeeds = new Map<string, ParkedApprovedExecution>(
       carriedApprovedExecutions.map((seed) => [seed.toolCallId, seed]),
     );
@@ -1017,9 +1020,14 @@ export async function runTurn(
           sessionUpdate?: unknown;
           toolCallId?: unknown;
           status?: unknown;
+          title?: unknown;
         };
         if (rawFrame?.sessionUpdate === "tool_call" && rawFrame.toolCallId) {
-          runLimits.noteToolCallStart(String(rawFrame.toolCallId));
+          const name = acpToolName(rawFrame);
+          runLimits.noteToolCallStart(
+            String(rawFrame.toolCallId),
+            toolBudgetMs(name ?? (typeof rawFrame.title === "string" ? rawFrame.title : undefined)),
+          );
         } else if (
           rawFrame?.sessionUpdate === "tool_call_update" &&
           rawFrame.toolCallId &&
@@ -1258,9 +1266,6 @@ export async function runTurn(
       await Promise.all(settling);
     };
     const mcpPermissions = mcpPermissionsFromRequest(request, logger);
-    // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
-    // the approval card and the guard cannot disagree about a tool's permission/readOnly.
-    const specsByName = toolSpecsByName(plan.tools.toolSpecs);
     const settleBufferedPausedCompletions = (): void => {
       for (const [toolCallId, update] of [
         ...bufferedPausedCompletedFrames.entries(),
@@ -1637,12 +1642,15 @@ export async function runTurn(
       // impossible and the paused-settle's park-and-carry branch owns those spans.
       if (opts.resume && opts.resume.carriedForward.length > 0) {
         if (!plan.isPi) {
-          const answeredAllowedIds = decisions
-            .filter((decision) => decision.reply === "once")
-            .map((decision) => decision.toolCallId);
+          const answeredAllowed = decisions.filter(
+            (decision) => decision.reply === "once",
+          );
           await Promise.all(
-            answeredAllowedIds.map((toolCallId) =>
-              waitForToolCallClosure(toolCallId, resolvedRunLimits.toolCallMs),
+            answeredAllowed.map((decision) =>
+              waitForToolCallClosure(
+                decision.toolCallId,
+                callLimitMs(decision.toolName),
+              ),
             ),
           );
         }
@@ -1779,7 +1787,7 @@ export async function runTurn(
           openAllowedExecutions.map(async (toolCallId) => {
             const closed = await waitForToolCallClosure(
               toolCallId,
-              resolvedRunLimits.toolCallMs,
+              callLimitMs(approvedExecutionSeeds.get(toolCallId)?.toolName),
             );
             if (closed) return;
             run.settleOpenToolCalls(

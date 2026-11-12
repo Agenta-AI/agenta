@@ -301,9 +301,16 @@ function fakeLimitedTurn(options: {
   nativeHistorySaved?: () => boolean;
   /** Emitted while the harness settles the cancel, before the prompt answers. */
   updateOnCancel?: unknown;
+  /** Emitted after the prompt starts, before the limit trips. */
+  updatesBeforeTrip?: unknown[];
+  /** The limit the trip reports; 300000 when absent. */
+  limitMs?: number;
 }) {
   const fake = fakeFailingSandbox(async () => true);
-  let trip: ((reason: string, kind: "total" | "idle" | "ttfb" | "tool-call") => void) | undefined;
+  let trip:
+    | ((reason: string, kind: "total" | "idle" | "ttfb" | "tool-call", limitMs: number) => void)
+    | undefined;
+  const toolCallStarts: Array<[string, number | undefined]> = [];
   let endPrompt: ((value: unknown) => void) | undefined;
   const cancels: string[] = [];
   let sessionEvent: ((event: unknown) => void) | undefined;
@@ -315,7 +322,12 @@ function fakeLimitedTurn(options: {
     },
     onPermissionRequest() {},
     prompt() {
-      queueMicrotask(() => trip?.("limit tripped", options.kind));
+      queueMicrotask(() => {
+        for (const update of options.updatesBeforeTrip ?? []) {
+          sessionEvent?.({ payload: { params: { update } } });
+        }
+        trip?.("limit tripped", options.kind, options.limitMs ?? 300_000);
+      });
       return new Promise((resolve) => {
         endPrompt = resolve;
       });
@@ -348,13 +360,15 @@ function fakeLimitedTurn(options: {
     onTrip(handler: typeof trip) {
       trip = handler;
     },
-    noteToolCallStart() {},
+    noteToolCallStart(id: string, budgetMs?: number) {
+      toolCallStarts.push([id, budgetMs]);
+    },
     noteToolCallEnd() {},
     noteProgress() {},
     notePaused() {},
     dispose() {},
   })) as any;
-  return { ...fake, cancels };
+  return { ...fake, cancels, toolCallStarts };
 }
 
 describe("a turn a time limit ended", () => {
@@ -447,5 +461,43 @@ describe("a turn a time limit ended", () => {
     await runSandboxAgent(failRequest, undefined, undefined, deps);
 
     assert.deepEqual(cancels, []);
+  });
+});
+
+describe("a tool with its own time budget (reference tools, #8271)", () => {
+  beforeEach(() => vi.stubEnv("AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS", "50"));
+
+  it("hands the tool's budget to the tool-call watchdog, and no budget for other tools", async () => {
+    const { deps, toolCallStarts } = fakeLimitedTurn({
+      kind: "tool-call",
+      cancelSettles: true,
+      limitMs: 1_800_000,
+      updatesBeforeTrip: [
+        {
+          sessionUpdate: "tool_call",
+          toolCallId: "call-child",
+          title: "ask_researcher",
+          _meta: { claudeCode: { toolName: "mcp__agenta-tools__ask_researcher" } },
+        },
+        { sessionUpdate: "tool_call", toolCallId: "call-shell", title: "Bash", kind: "execute" },
+      ],
+    });
+    const request: AgentRunRequest = {
+      ...failRequest,
+      sandbox: "local",
+      customTools: [
+        { name: "ask_researcher", callRef: "ref-1", timeoutMs: 1_800_000 },
+      ] as any,
+    };
+
+    const result = await runSandboxAgent(request, undefined, undefined, deps);
+
+    assert.deepEqual(toolCallStarts, [
+      ["call-child", 1_800_000],
+      ["call-shell", undefined],
+    ]);
+    // The message names the limit of the call that tripped, not the run-wide one.
+    assert.equal(result.ok, false);
+    assert.match(String(result.error), /ran longer than 30 minutes/);
   });
 });
