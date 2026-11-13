@@ -29,7 +29,8 @@ cal.com demo page, GitHub repo description, topics and social preview, GitHub or
 
 Not surfaces: `web/oss/` and `web/ee/` (abandoned app, never edit), `docs/build/`
 (generated), `docs/drafts/` and `docs/blog/announcement-assets/` (unpublished drafts),
-`docs/design/`, `openspec/`, `plans/`, tests.
+`docs/versioned_docs/` (frozen v1.0 docs, never edit), `docs/design/`, `openspec/`,
+`plans/`, tests.
 
 ## Procedure
 
