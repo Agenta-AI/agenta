@@ -36,6 +36,7 @@ from .models import (
     MissingSecretPolicy,
     PermissionMode,
     PlatformToolConfig,
+    RETIRED_AGENTA_TOOLS,
     ReferenceToolConfig,
     ResolvedGatewayPolicy,
     ResolvedToolSet,
@@ -190,7 +191,19 @@ def _drop_duplicate_reserved_client_tools(
 
 
 # Their binding reads the run's session ID, so a run without one cannot call them.
-_SESSION_TOOLS = frozenset({"get_current_session", "rename_session"})
+_SESSION_TOOLS = frozenset({"get_current_session"})
+
+
+def _drop_retired_tools(tool_configs: Sequence[ToolConfig]) -> List[ToolConfig]:
+    """The run's tools without the retired Agenta tools a saved agent may still list."""
+    return [
+        tool_config
+        for tool_config in tool_configs
+        if not (
+            isinstance(tool_config, PlatformToolConfig)
+            and tool_config.op in RETIRED_AGENTA_TOOLS
+        )
+    ]
 
 
 def _expand_agenta_tools(
@@ -205,6 +218,8 @@ def _expand_agenta_tools(
         if not isinstance(entry, AgentaToolsConfig):
             continue
         for op, permission in entry.tools.items():
+            if op in RETIRED_AGENTA_TOOLS:
+                continue
             if op not in AGENTA_TOOLS:
                 log.warning("agenta_tools: %r is not an Agenta tool; ignored", op)
                 continue
@@ -266,7 +281,9 @@ class ToolResolver:
         permission_default: PermissionMode = "allow_reads",
         session_id: Optional[str] = None,
     ) -> ResolvedToolSet:
-        tool_configs = _drop_duplicate_reserved_client_tools(tool_configs)
+        tool_configs = _drop_duplicate_reserved_client_tools(
+            _drop_retired_tools(tool_configs)
+        )
         _validate_declared_config_names(tool_configs)
         agenta_configs = _expand_agenta_tools(tool_configs, session_id=session_id)
         for tool_config in tool_configs:

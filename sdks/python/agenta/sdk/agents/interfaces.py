@@ -214,10 +214,7 @@ class Environment:
             ),
             trace=session_config.trace,
             run_context=session_config.run_context,
-            turn_context=session_context_guidance(
-                session_config.session_context,
-                [spec.name for spec in session_config.tool_specs],
-            ),
+            turn_context=session_context_guidance(session_config.session_context),
             session_id=session_config.session_id,
             detached=session_config.detached,
             turn_id=session_config.turn_id,

@@ -67,6 +67,8 @@ from agenta.sdk.agents.platform import (
 )
 
 from agenta.sdk.agents.fold import fold, trim_to_trailing_unit
+from agenta.sdk.agents.naming import SessionNaming, start_session_naming
+from agenta.sdk.agents.platform_instructions import is_placeholder_agent_name
 from agenta.sdk.agents.tracing import (
     record_sandbox as ambient_record_sandbox,
     record_usage as ambient_record_usage,
@@ -671,6 +673,23 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             value = request_meta.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
 
+        # A new, unnamed session gets its names from a small call beside the turn, so the
+        # agent's own model writes the reply first.
+        naming = None
+        if (
+            session_context is not None
+            and session_context.first_turn is True
+            and not session_context.session_name
+        ):
+            naming = start_session_naming(
+                messages=msgs,
+                session_id=session_id,
+                workflow_id=workflow_id,
+                name_agent=is_placeholder_agent_name(session_context.agent_name),
+                resolved_connection=resolved_connection,
+                resolve_connection=comp.resolve_connection,
+            )
+
         session_config = SessionConfig(
             agent=agent_template,
             resolved_connection=resolved_connection,
@@ -707,6 +726,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                     msgs,
                     record_usage=record_usage,
                     record_sandbox=record_sandbox,
+                    naming=naming,
                 ),
             )
         with redaction_context(redactor):
@@ -717,6 +737,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                 trim=flags.trim,
                 record_usage=record_usage,
                 record_sandbox=record_sandbox,
+                naming=naming,
             )
 
     return _agent
@@ -743,6 +764,7 @@ async def agent_event_stream(
     *,
     record_usage: RecordUsageFn = ambient_record_usage,
     record_sandbox: RecordSandboxFn = ambient_record_sandbox,
+    naming: Optional[SessionNaming] = None,
 ):
     """Run one streaming turn, yielding the live `{type, data}` agenta event wire."""
     await harness.setup()
@@ -751,6 +773,8 @@ async def agent_event_stream(
     try:
         event_stop_reason: Optional[str] = None
         async for event in run:
+            if naming is not None:
+                naming.runner_started()
             if event.type == "error":
                 error_streamed = True
             if event.type == "done":
@@ -787,6 +811,8 @@ async def agent_event_stream(
                 },
             }
     finally:
+        if naming is not None:
+            naming.turn_ended()
         try:
             result = run.result()
             record_usage(result.usage)
@@ -804,6 +830,7 @@ async def agent_batch(
     trim: Optional[bool] = None,
     record_usage: RecordUsageFn = ambient_record_usage,
     record_sandbox: RecordSandboxFn = ambient_record_sandbox,
+    naming: Optional[SessionNaming] = None,
 ) -> Dict[str, Any]:
     """Drain the same stream, fold it into the real turn, trim when asked."""
     await harness.setup()
@@ -811,6 +838,8 @@ async def agent_batch(
     try:
         run = await harness.stream(session_config, msgs)
         async for event in run:
+            if naming is not None:
+                naming.runner_started()
             events.append(
                 get_active_redactor().redact_json(
                     {"type": event.type, "data": event.data}, sink="agent_event"
@@ -818,6 +847,8 @@ async def agent_batch(
             )
         result = run.result()
     finally:
+        if naming is not None:
+            naming.turn_ended()
         await harness.cleanup()
     record_usage(result.usage)
     record_sandbox(result.sandbox)

@@ -57,7 +57,7 @@ import time
 import uuid
 from typing import Any, Callable
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
 GATE_RESOURCES = REPO_ROOT / ".agents/skills/agent-release-gate/resources"
 HERE = pathlib.Path(__file__).resolve().parent
 SCENARIO_DIR = HERE / "scenarios"
