@@ -3,6 +3,7 @@ the PostHog payload resolves, the email rules, the velocity caps, the free-mail 
 and what a refusal logs."""
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -85,7 +86,7 @@ class TestMintPolicyResolution:
         self.monkeypatch.setattr(
             signup_policy,
             "_load_posthog",
-            lambda: self._posthog_with(dict(self._PAYLOAD)),
+            AsyncMock(side_effect=lambda: self._posthog_with(dict(self._PAYLOAD))),
         )
 
         policy = await signup_policy.resolve_mint_policy()
@@ -103,7 +104,9 @@ class TestMintPolicyResolution:
         self.cache[("starter_credits_bridge:policy", (("ff", flag),))] = dict(
             self._PAYLOAD
         )
-        self.monkeypatch.setattr(signup_policy, "_load_posthog", self._broken_posthog)
+        self.monkeypatch.setattr(
+            signup_policy, "_load_posthog", AsyncMock(side_effect=self._broken_posthog)
+        )
 
         policy = await signup_policy.resolve_mint_policy()
 
@@ -116,7 +119,9 @@ class TestMintPolicyResolution:
         self.monkeypatch.setattr(
             signup_policy,
             "_load_posthog",
-            lambda: self._posthog_with(json.dumps(self._PAYLOAD)),
+            AsyncMock(
+                side_effect=lambda: self._posthog_with(json.dumps(self._PAYLOAD))
+            ),
         )
 
         policy = await signup_policy.resolve_mint_policy()
@@ -128,7 +133,9 @@ class TestMintPolicyResolution:
         # No deployment can raise a cap or a grant on its own: the payload is it.
         payload = dict(self._PAYLOAD, grant_usd=7.5)
         self.monkeypatch.setattr(
-            signup_policy, "_load_posthog", lambda: self._posthog_with(payload)
+            signup_policy,
+            "_load_posthog",
+            AsyncMock(side_effect=lambda: self._posthog_with(payload)),
         )
 
         policy = await signup_policy.resolve_mint_policy()
@@ -155,7 +162,11 @@ class TestMintPolicyResolution:
                 "PostHog must not be consulted when the deployment configured none"
             )
 
-        self.monkeypatch.setattr(signup_policy, "_load_posthog", _must_not_be_consulted)
+        self.monkeypatch.setattr(
+            signup_policy,
+            "_load_posthog",
+            AsyncMock(side_effect=_must_not_be_consulted),
+        )
 
     def test_enabled_cannot_tell_a_stock_checkout_from_a_configured_one(self):
         # The trap that made an earlier version of this fallback unreachable: the
@@ -203,7 +214,9 @@ class TestMintPolicyResolution:
         # The fallback is only for a deployment that configured no PostHog. Here one
         # is configured, and a missing payload is a real "no policy" signal.
         self.monkeypatch.setattr(
-            signup_policy, "_load_posthog", lambda: self._posthog_with(None)
+            signup_policy,
+            "_load_posthog",
+            AsyncMock(side_effect=lambda: self._posthog_with(None)),
         )
 
         assert await signup_policy.resolve_mint_policy() is None
@@ -211,7 +224,9 @@ class TestMintPolicyResolution:
     async def test_a_configured_posthog_that_will_not_load_still_fails_closed(self):
         # Configured, but the client cannot be built: on such a deployment that is a
         # fault to fail closed on, never a reason to grant credits on dev values.
-        self.monkeypatch.setattr(signup_policy, "_load_posthog", lambda: None)
+        self.monkeypatch.setattr(
+            signup_policy, "_load_posthog", AsyncMock(side_effect=lambda: None)
+        )
 
         assert await signup_policy.resolve_mint_policy() is None
 
@@ -219,7 +234,9 @@ class TestMintPolicyResolution:
         partial = dict(self._PAYLOAD)
         del partial["grant_usd"]
         self.monkeypatch.setattr(
-            signup_policy, "_load_posthog", lambda: self._posthog_with(partial)
+            signup_policy,
+            "_load_posthog",
+            AsyncMock(side_effect=lambda: self._posthog_with(partial)),
         )
 
         assert await signup_policy.resolve_mint_policy() is None
@@ -228,7 +245,9 @@ class TestMintPolicyResolution:
         payload = dict(self._PAYLOAD)
         payload["surprise"] = 1
         self.monkeypatch.setattr(
-            signup_policy, "_load_posthog", lambda: self._posthog_with(payload)
+            signup_policy,
+            "_load_posthog",
+            AsyncMock(side_effect=lambda: self._posthog_with(payload)),
         )
 
         assert await signup_policy.resolve_mint_policy() is None
@@ -237,7 +256,9 @@ class TestMintPolicyResolution:
         payload = dict(self._PAYLOAD)
         payload["grant_usd"] = float("inf")
         self.monkeypatch.setattr(
-            signup_policy, "_load_posthog", lambda: self._posthog_with(payload)
+            signup_policy,
+            "_load_posthog",
+            AsyncMock(side_effect=lambda: self._posthog_with(payload)),
         )
 
         assert await signup_policy.resolve_mint_policy() is None
@@ -246,11 +267,13 @@ class TestMintPolicyResolution:
         self.monkeypatch.setattr(
             signup_policy,
             "_load_posthog",
-            lambda: self._posthog_with(dict(self._PAYLOAD)),
+            AsyncMock(side_effect=lambda: self._posthog_with(dict(self._PAYLOAD))),
         )
         assert await signup_policy.resolve_mint_policy() is not None
 
-        self.monkeypatch.setattr(signup_policy, "_load_posthog", self._broken_posthog)
+        self.monkeypatch.setattr(
+            signup_policy, "_load_posthog", AsyncMock(side_effect=self._broken_posthog)
+        )
         policy = await signup_policy.resolve_mint_policy()
 
         assert policy is not None
@@ -262,12 +285,14 @@ class TestMintPolicyResolution:
         self.monkeypatch.setattr(
             signup_policy,
             "_load_posthog",
-            lambda: self._posthog_with(dict(self._PAYLOAD)),
+            AsyncMock(side_effect=lambda: self._posthog_with(dict(self._PAYLOAD))),
         )
         assert await signup_policy.resolve_mint_policy() is not None
 
         self.monkeypatch.setattr(
-            signup_policy, "_load_posthog", lambda: self._posthog_with("{not json")
+            signup_policy,
+            "_load_posthog",
+            AsyncMock(side_effect=lambda: self._posthog_with("{not json")),
         )
 
         assert await signup_policy.resolve_mint_policy() is None

@@ -16,7 +16,8 @@ import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
-import {capture, captureIntent} from "@/features/analytics/client"
+import {capture, captureIntent, isCloudTelemetry} from "@/features/analytics/client"
+import {useInstanceTelemetry} from "@/features/analytics/useInstanceTelemetry"
 import {newId} from "@/lib/ids"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
@@ -32,7 +33,7 @@ import {
 } from "./onboardingDraft"
 import {OnboardingFlow} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingInvited, isOnboardingPending} from "./onboardingPending"
-import {personProperties, signupSurveyProperties} from "./onboardingQuestions"
+import {personProperties, signupSurveyProperties, withoutWriteIns} from "./onboardingQuestions"
 import {isFixedStep, onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
@@ -51,7 +52,7 @@ export const OnboardingFlowHost = ({
     /** The local draft agent Create commits; `null` while it is still being minted. */
     entityId: string | null
     userId: string | null
-    /** Answers the signup survey's email question. */
+    /** Answers the signup survey's email question on cloud. */
     userEmail: string | null
     /** Where Skip leads. */
     homeUrl: string
@@ -97,6 +98,9 @@ export const OnboardingFlowHost = ({
     const attachments = useComposerAttachments({sessionId})
     const store = useStore()
     const draftKey = onboardingDraftKey(userId ?? "anonymous")
+    const telemetry = useInstanceTelemetry(userId)
+    // Self-hosted surveys go out without the email answer.
+    const surveyEmail = telemetry && isCloudTelemetry(telemetry) ? userEmail : null
     const track = (event: string, properties?: Record<string, unknown>) => {
         if (!preview) capture(event, properties)
     }
@@ -120,13 +124,18 @@ export const OnboardingFlowHost = ({
     }
 
     const onStepCompleted = (step: OnboardingStep, draft: OnboardingDraft) => {
+        // Self-hosted events carry the chosen answers, never a line the user typed.
+        const answers =
+            telemetry && isCloudTelemetry(telemetry)
+                ? draft.answers
+                : withoutWriteIns(draft.answers)
         track("onboarding_step_completed", {
             step: stepIndex(step) + 1,
             step_key: step,
-            $set: personProperties(draft.answers),
+            $set: personProperties(answers),
         })
         if (step === steps.findLast((shown) => !isFixedStep(shown))) {
-            track("survey sent", signupSurveyProperties(draft.answers, userEmail))
+            track("survey sent", signupSurveyProperties(answers, surveyEmail))
         }
     }
 

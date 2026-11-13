@@ -1,0 +1,150 @@
+---
+title: Telemetry
+sidebar_label: Telemetry
+description: Every event a self-hosted Agenta instance sends to Agenta, the fields in each, and how to turn them off
+slug: /self-host/telemetry
+sidebar_position: 3
+---
+
+A self-hosted Agenta instance sends a small set of events to Agenta's PostHog project. This page lists every event, every field in it, and the setting that stops it. It covers self-hosted instances only. Agenta Cloud is described in [Privacy and data handling](/administration/security/privacy).
+
+No event carries an email address, a user name, an organization or project name, the address of your instance, or any content (prompts, traces, test sets).
+
+PostHog receives each event over the network, from your server or from the user's browser. Like any server, it sees the network address the request comes from.
+
+## What is sent
+
+| Event | When | Stopped by `AGENTA_TELEMETRY_ENABLED=false` |
+|---|---|---|
+| [Install ping](#install-ping) | Once per instance, after the first organization exists | No |
+| [Product events from the API](#product-events-from-the-api) | When a user uses a feature | Yes |
+| [Product events from the browser](#product-events-from-the-browser) | Page views and named actions in the app | Yes |
+
+## Turn telemetry off
+
+Set the switch on the API and restart it.
+
+- Docker Compose: add `AGENTA_TELEMETRY_ENABLED=false` to your `.env` file.
+- Helm: set `telemetry.enabled: false` in your values file.
+
+At start, the API logs one line that says whether telemetry is on and why:
+
+```
+Telemetry is off (AGENTA_TELEMETRY_ENABLED=false). The install ping still runs once. What is sent: https://docs.agenta.ai/self-host/telemetry
+```
+
+With the switch off:
+
+- The API sends no product events and reads no feature flags from PostHog. Sign-up blocklists then come only from `AGENTA_ACCESS_BLOCKED_DOMAINS` and `AGENTA_ACCESS_BLOCKED_EMAILS`. A blocklist the API read from PostHog before the restart stays in its cache until the cache entry expires (60 seconds by default).
+- The browser does not load the analytics script and sends nothing.
+- The install ping still runs once. It carries only the instance id.
+- A browser tab that was open before the restart keeps sending until it reloads.
+
+## Instance id
+
+Each instance has one random id (a UUID). The database migration creates it, and every API container that uses the same database uses the same id. It is not made from a host name, an address, an email, or a secret. A new, empty database gets a new id.
+
+## Install ping
+
+Event name: `instance_installed`. The API sends it once per instance id, after the first organization exists. It checks at every start and after each new organization. It stops when PostHog accepts the event. If the send fails (for example, the instance has no outbound network), the API logs one warning and tries again at the next start.
+
+The distinct id is the instance id. The event has these properties and no others:
+
+| Property | Value |
+|---|---|
+| `$geoip_disable` | `true`. PostHog does not look up a location. |
+| `$ip` | Empty. The event itself carries no IP address. |
+
+The API removes the properties the PostHog library adds on its own (its name and version, the Python version and the operating system).
+
+## Product events from the API
+
+The API sends one event when a user calls one of the routes below. The distinct id is `<instance id>:<user id>`, where the user id is the user's id in your database. The id stays the same when the user changes their email or signs in from another device.
+
+| Event | Sent when a user |
+|---|---|
+| `app_created` | creates an application |
+| `app_variant_created` | creates a variant |
+| `app_revision_created` | commits a configuration |
+| `environment_revision_created` | deploys to an environment |
+| `app_revision_fetched` | fetches a configuration with an API key |
+| `testset_created` | creates a test set |
+| `testsets_fetched` | lists test sets |
+| `testset_updated` | changes a test set |
+| `evaluator_created` | creates an evaluator |
+| `evaluator_updated` | changes an evaluator |
+| `evaluation_created` | starts an evaluation |
+| `spans_created` | sends traces |
+| `spans_fetched` | reads traces |
+| `query_created` | creates a query |
+| `user_invitation_sent_v1` | invites a member |
+| `invitation_created` | sends an invitation again |
+| `user_signed_up_v1` | signs up |
+
+Each of these events has these properties:
+
+| Property | Value |
+|---|---|
+| `path` | The route that was called, such as `/apps` |
+| `method` | The HTTP method |
+| `status_code` | The HTTP status of the answer |
+| `auth_method` | `ApiKey`, `Bearer`, `Secret` or `Session` |
+| `project_id` | The project id, when the route has one |
+| `workspace_id` | The workspace id, when the route has one |
+| `organization_id` | The organization id, when the route has one |
+
+The PostHog library also adds to each of these events its own name and version (`$lib`, `$lib_version`), the Python version, the operating system, and `$geoip_disable` (`true`, so PostHog does not look up a location).
+
+`user_signed_up_v1` has these properties instead:
+
+| Property | Value |
+|---|---|
+| `source` | `auth` |
+| `is_ee` | `true` on the enterprise edition |
+| `cloud_region` | `Other` on a self-hosted instance |
+
+The first time a user reaches a feature, the API also marks it on the user with an `$identify` event. Each mark is set to `true`:
+
+| Mark | Set when a user first |
+|---|---|
+| `activated_prompt_management` | fetches a configuration with an API key |
+| `activated_online_evaluation` | creates a query |
+| `activated_observability` | sends traces with an API key |
+| `activated_evaluation` | starts an evaluation |
+| `activated_playground` | creates a variant |
+| `invited_user_v1` | invites a member |
+
+To check new sign-ups against the blocklists, the API reads the `blocked-domains` and `blocked-emails` feature flags from PostHog, unless `AGENTA_ACCESS_BLOCKED_DOMAINS` and `AGENTA_ACCESS_BLOCKED_EMAILS` are set. The PostHog library records each read as a `$feature_flag_called` event under the fixed distinct id `user distinct id`. The read carries no user data. The API caches the answer for 60 seconds by default (`AGENTA_ACCESS_BLOCKLIST_CACHE_TTL`).
+
+## Product events from the browser
+
+The browser asks the API whether telemetry is on before it loads the analytics script. When it is on, the browser uses the same distinct id as the API and names the instance as a PostHog group of type `instance`. It sends no email or user name.
+
+| Event | Sent when a user |
+|---|---|
+| `$pageview` | opens a page |
+| `user_device_theme` | opens the app for the first time on a device (property: light or dark theme) |
+| `onboarding_started` | starts the setup questions |
+| `onboarding_step_completed` | answers a setup question (properties: the step and the chosen answers; a typed "Other" answer is sent as `Other`, without the text) |
+| `survey sent` | finishes the setup questions (properties: the chosen answers, in the same form) |
+| `onboarding_create_clicked`, `onboarding_agent_created`, `onboarding_skipped` | creates the first agent or skips that step |
+| `first_agent_intent` | picks a template or writes a first message (property: a category, never the text) |
+| `agent_create_failed` | fails to create an agent (properties: the reason, the kind of item and the time it took) |
+
+The PostHog browser library adds the page path, the browser, the operating system and the screen size. Agenta removes the page address, the host and the referrer from every event, and turns off GeoIP. Automatic click capture, heatmaps, session recordings and error capture are off. The browser reads no feature flags and no remote settings from PostHog.
+
+## Update check
+
+The update check downloads `https://agenta.ai/releases.json` at most every 12 hours. It sends no instance id, no version and no other data. Like any download, the feed server sees the network address the request comes from. Turn it off with `AGENTA_UPDATE_CHECK_ENABLED=false`.
+
+## Settings
+
+| Variable | Default | Effect |
+|---|---|---|
+| `AGENTA_TELEMETRY_ENABLED` | `true` | `false` stops every event except the install ping. |
+| `AGENTA_DEPLOYMENT_METHOD` | unset | `compose`, `helm` or `railway`. The example env files and the templates set it. |
+| `AGENTA_UPDATE_CHECK_ENABLED` | `true` | `false` stops the update check. It does not follow `AGENTA_TELEMETRY_ENABLED`. |
+| `POSTHOG_API_KEY` | Agenta's project key | The PostHog project the events go to. |
+| `POSTHOG_API_URL` | Agenta's PostHog proxy | The PostHog address the events go to. |
+
+All settings are listed in [Configuration](/self-host/configuration#telemetry).

@@ -1533,6 +1533,20 @@ SendGrid is used only when SMTP is not fully configured.
 | `SUPERTOKENS_TENANT` | `supertokens.tenant` | `supertokens.tenant` |
 | `SUPERTOKENS_URI_CORE` | `supertokens.uri_core` | `supertokens.uriCore` |
 
+## telemetry
+
+What a self-hosted instance sends to Agenta, and what each setting stops, is on the
+[telemetry page](/self-host/telemetry).
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_TELEMETRY_ENABLED` | `telemetry.enabled` | `telemetry.enabled` |
+| `AGENTA_DEPLOYMENT_METHOD` | `telemetry.deployment_method` | _(set to `helm` by the chart)_ |
+
+`AGENTA_TELEMETRY_ENABLED` defaults to `true`. Set it to `false` to stop every event
+except the one-time install ping. `AGENTA_DEPLOYMENT_METHOD` is `compose`, `helm`,
+`railway`, or unset. The example env files and templates set it for you.
+
 ## Deprecated environment variables
 
 The following legacy names still work via fallback (the Pydantic env loader

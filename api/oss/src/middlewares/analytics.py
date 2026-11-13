@@ -2,10 +2,11 @@ import re
 import traceback
 from datetime import datetime
 from typing import Callable, Optional
+from uuid import UUID
 
 from fastapi import Request
+from oss.src.core.telemetry.service import distinct_id_for
 from oss.src.utils.caching import get_cache, set_cache
-from oss.src.utils.common import is_oss
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.lazy import _load_posthog
@@ -57,7 +58,7 @@ async def _set_activation_property(
     if not distinct_id:
         return
 
-    posthog = _load_posthog()
+    posthog = await _load_posthog()
     if posthog is None:
         return
 
@@ -106,33 +107,6 @@ async def _set_activation_property(
 
     except Exception as e:
         log.error(f"Error setting activation property '{property_name}': {e}")
-
-
-def capture_oss_deployment_created(user_email: str, organization_id: str):
-    """
-    Captures the 'oss_deployment_created' event in PostHog.
-    This event is triggered when the first user signs up in an OSS instance.
-    No-op if PostHog is not configured.
-    """
-
-    if is_oss():
-        posthog = _load_posthog()
-        if posthog is None:
-            return
-
-        try:
-            posthog.capture(
-                distinct_id=user_email,
-                event="oss_deployment_created",
-                properties={
-                    "organization_id": organization_id,
-                    "deployment_type": "oss",
-                    "$set": {"email": user_email},
-                },
-            )
-            log.info(f"Captured 'oss_deployment_created' event for {user_email}")
-        except Exception as e:
-            log.error(f"Error capturing 'oss_deployment_created' event: {e}")
 
 
 async def analytics_middleware(request: Request, call_next: Callable):
@@ -191,7 +165,8 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 properties["organization_id"] = request.state.organization_id
 
             if (
-                hasattr(request.state, "organization_name")
+                env.stripe.enabled
+                and hasattr(request.state, "organization_name")
                 and request.state.organization_name
             ):
                 properties["organization_name"] = request.state.organization_name
@@ -238,17 +213,13 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 )
                 # --------------------------------------------------------------
 
-            distinct_id = None
-
-            try:
-                distinct_id = request.state.user_email
-            except Exception:  # pylint: disable=bare-except
-                pass
+            distinct_id = await _request_distinct_id(request)
 
             if distinct_id:
-                posthog = _load_posthog()
+                posthog = await _load_posthog()
                 if posthog is not None:
-                    properties["$set"] = {"email": distinct_id}
+                    if env.stripe.enabled:
+                        properties["$set"] = {"email": distinct_id}
 
                     posthog.capture(
                         distinct_id=distinct_id,
@@ -281,6 +252,20 @@ async def analytics_middleware(request: Request, call_next: Callable):
     except Exception:
         log.error("Analytics middleware error: %s", traceback.format_exc())
         return response
+
+
+async def _request_distinct_id(request: Request) -> Optional[str]:
+    """Cloud: the email. Self-hosted: `<instance_id>:<user_id>`, never the email."""
+
+    email = getattr(request.state, "user_email", None)
+    if not email:
+        return None
+    if env.stripe.enabled:
+        return email
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        return None
+    return await distinct_id_for(UUID(str(user_id)), email)
 
 
 def _get_event_name_from_path(

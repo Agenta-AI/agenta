@@ -1,10 +1,14 @@
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {
+    adoptInstanceIdentity,
     analyticsIdentity,
     captureFirstAgentIntent,
     classifyAgentIntent,
     generateOrRetrieveDistinctId,
+    isCloudTelemetry,
+    parseInstanceTelemetry,
+    stripInstanceUrl,
 } from "../../src/analytics"
 
 afterEach(() => vi.unstubAllGlobals())
@@ -32,14 +36,93 @@ describe("shared desktop and mobile analytics", () => {
         expect(generateOrRetrieveDistinctId()).toBe(generateOrRetrieveDistinctId())
     })
 
-    it("uses email on cloud, the visitor ID on OSS, and preserves person properties", () => {
+    it("uses email and person properties on cloud, and the API's id alone when self-hosted", () => {
         const user = {email: "person@example.test", username: "Person"}
         expect(analyticsIdentity(user, true, "visitor")).toEqual({id: user.email, properties: user})
-        expect(analyticsIdentity(user, false, "visitor")).toEqual({id: "visitor", properties: user})
+        expect(analyticsIdentity(user, false, "instance:user")).toEqual({
+            id: "instance:user",
+            properties: undefined,
+        })
         expect(analyticsIdentity(null, true, "visitor")).toEqual({
             id: "visitor",
             properties: undefined,
         })
+    })
+
+    it("removes every address and referrer posthog-js adds on a self-hosted event", () => {
+        const event = {
+            event: "$pageview",
+            properties: {
+                $current_url: "https://agenta.internal/m/w/1",
+                $host: "agenta.internal",
+                $referrer: "https://intranet.internal/",
+                $referring_domain: "intranet.internal",
+                $session_entry_url: "https://agenta.internal/m",
+                $session_entry_host: "agenta.internal",
+                $session_entry_referrer: "https://intranet.internal/",
+                $session_entry_referring_domain: "intranet.internal",
+                $pathname: "/m/w/1",
+                $browser: "Chrome",
+            },
+            $set: {$current_url: "https://agenta.internal/m"},
+            $set_once: {
+                $initial_person_info: {
+                    r: "https://intranet.internal/",
+                    u: "https://agenta.internal/m",
+                },
+                $initial_current_url: "https://agenta.internal/m",
+            },
+        }
+        const sent = stripInstanceUrl(event)
+        expect(JSON.stringify(sent)).not.toContain("internal")
+        expect(sent?.properties).toEqual({
+            $pathname: "/m/w/1",
+            $browser: "Chrome",
+            $geoip_disable: true,
+        })
+    })
+
+    it("answers cloud only when telemetry is on and names no instance group", () => {
+        expect(
+            isCloudTelemetry(
+                parseInstanceTelemetry({enabled: true, distinct_id: "a@b.c", groups: null}),
+            ),
+        ).toBe(true)
+        expect(
+            isCloudTelemetry(
+                parseInstanceTelemetry({
+                    enabled: true,
+                    distinct_id: "i:u",
+                    groups: {instance: "i"},
+                }),
+            ),
+        ).toBe(false)
+        expect(
+            isCloudTelemetry(
+                parseInstanceTelemetry({enabled: false, distinct_id: null, groups: null}),
+            ),
+        ).toBe(false)
+        expect(parseInstanceTelemetry(undefined)).toEqual({
+            enabled: false,
+            distinct_id: null,
+            groups: null,
+        })
+    })
+
+    it("starts over before it identifies a browser that holds another id", () => {
+        const calls: string[] = []
+        const client = {
+            get_distinct_id: () => "person@example.test",
+            reset: () => calls.push("reset"),
+            identify: (id: string) => calls.push(`identify ${id}`),
+            group: (type: string, key: string) => calls.push(`group ${type} ${key}`),
+        }
+        adoptInstanceIdentity(client, {
+            enabled: true,
+            distinct_id: "instance-1:user-1",
+            groups: {instance: "instance-1"},
+        })
+        expect(calls).toEqual(["reset", "identify instance-1:user-1", "group instance instance-1"])
     })
 
     it("classifies text without sending it as an event property", () => {

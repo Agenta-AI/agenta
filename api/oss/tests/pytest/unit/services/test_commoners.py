@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import httpx
@@ -140,6 +140,8 @@ def _owner(monkeypatch):
         auth_helper, "_get_posthog_string_entries", AsyncMock(return_value=set())
     )
     monkeypatch.setattr(commoners, "is_ee", lambda: False)
+    install_ping = MagicMock()
+    monkeypatch.setattr(commoners, "schedule_install_ping", install_ping)
 
     created = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
     monkeypatch.setattr(commoners, "create_organization", created)
@@ -156,7 +158,9 @@ def _owner(monkeypatch):
         )
         return user
 
-    return SimpleNamespace(set_user=_set_user, created=created, access=access)
+    return SimpleNamespace(
+        set_user=_set_user, created=created, access=access, install_ping=install_ping
+    )
 
 
 @pytest.mark.asyncio
@@ -188,6 +192,7 @@ async def test_create_organization_allows_below_the_owned_limit(monkeypatch, _ow
     await commoners.create_organization_for_user(user_id=user.id)
 
     _owner.created.assert_awaited_once()
+    _owner.install_ping.assert_called_once_with()
 
 
 @pytest.mark.asyncio
@@ -197,3 +202,15 @@ async def test_create_organization_has_no_limit_when_unset(_owner):
     await commoners.create_organization_for_user(user_id=user.id)
 
     _owner.created.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_signup_organization_schedules_the_install_ping(_owner):
+    user = _owner.set_user("user@example.com")
+
+    await commoners.create_organization_for_signup(
+        user_id=user.id, organization_email=user.email
+    )
+
+    _owner.created.assert_awaited_once()
+    _owner.install_ping.assert_called_once_with()

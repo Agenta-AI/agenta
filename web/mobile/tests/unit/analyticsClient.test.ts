@@ -1,22 +1,20 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const state = vi.hoisted(() => ({key: "test-key", cloud: false, init: vi.fn(), reset: vi.fn()}))
+const state = vi.hoisted(() => ({key: "test-key", init: vi.fn(), reset: vi.fn()}))
 vi.mock("@/lib/env", () => ({getEnv: () => state.key}))
-vi.mock("@agenta/shared/api/env", () => ({isEE: () => state.cloud}))
 vi.mock("posthog-js", () => ({default: {init: state.init, reset: state.reset}}))
 
 beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
     state.key = "test-key"
-    state.cloud = false
     state.init.mockImplementation((_key, config) => config.loaded({reset: state.reset}))
 })
 
 describe("loading PostHog", () => {
     it("uses desktop OSS persistence and deduplicates concurrent loads", async () => {
         const {loadPostHog} = await import("@/features/analytics/client")
-        const [a, b] = await Promise.all([loadPostHog(), loadPostHog()])
+        const [a, b] = await Promise.all([loadPostHog(false), loadPostHog(false)])
         expect(a).toBe(b)
         expect(state.init).toHaveBeenCalledTimes(1)
         expect(state.init.mock.calls[0][1]).toMatchObject({persistence: "localStorage+cookie"})
@@ -26,7 +24,7 @@ describe("loading PostHog", () => {
     it("never initializes when the project key is empty", async () => {
         state.key = ""
         const {loadPostHog} = await import("@/features/analytics/client")
-        expect(await loadPostHog()).toBeNull()
+        expect(await loadPostHog(false)).toBeNull()
         expect(state.init).not.toHaveBeenCalled()
     })
 
@@ -36,8 +34,8 @@ describe("loading PostHog", () => {
         })
         const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined)
         const {loadPostHog} = await import("@/features/analytics/client")
-        expect(await loadPostHog()).toBeNull()
-        expect(await loadPostHog()).toBeNull()
+        expect(await loadPostHog(false)).toBeNull()
+        expect(await loadPostHog(false)).toBeNull()
         expect(state.init).toHaveBeenCalledTimes(3)
         warning.mockRestore()
     })
@@ -47,13 +45,13 @@ describe("loading PostHog", () => {
             throw new Error("temporary")
         })
         const {loadPostHog} = await import("@/features/analytics/client")
-        expect(await loadPostHog()).not.toBeNull()
+        expect(await loadPostHog(false)).not.toBeNull()
         expect(state.init).toHaveBeenCalledTimes(2)
     })
 
     it("resets an SDK load that was in flight during logout", async () => {
         const {loadPostHog, resetAnalytics} = await import("@/features/analytics/client")
-        const loading = loadPostHog()
+        const loading = loadPostHog(false)
         await resetAnalytics()
         await loading
         expect(state.reset).toHaveBeenCalledTimes(1)
