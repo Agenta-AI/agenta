@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
@@ -34,6 +35,35 @@ class RecordsDAOInterface:
         project_id: UUID,
         session_id: str,
     ) -> List[SessionRecord]:
+        raise NotImplementedError
+
+    async def get_turn_tool_calls(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+    ) -> List[SessionRecord]:
+        raise NotImplementedError
+
+    async def get_latest_user_message(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        at_or_before: Optional[datetime],
+    ) -> Optional[SessionRecord]:
+        raise NotImplementedError
+
+    async def get_recent_messages(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        at_or_before: Optional[datetime],
+        limit: int,
+    ) -> List[SessionRecord]:
+        """The last `limit` user and agent messages at or before a time, oldest first."""
         raise NotImplementedError
 
     async def get_records_page(

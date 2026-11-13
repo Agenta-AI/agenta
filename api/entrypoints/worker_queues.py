@@ -128,6 +128,7 @@ from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
+from oss.src.tasks.asyncio.sessions.failure_reporter import AgentFailureReporter
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
 from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
@@ -297,6 +298,11 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         workflows_service=workflows_service,
         run_admission=_run_admission(workflows_service),
         dispatch_fn=_dispatch_detached_run,
+        failure_reporter=AgentFailureReporter(
+            records_dao=RecordsDAO(engine=get_analytics_engine()),
+            streams_dao=session_streams_dao,
+            turns_dao=SessionTurnsDAO(engine=transactions_engine),
+        ),
     )
     TriggersWorker(
         broker=broker, dispatcher=triggers_dispatcher, triggers_dao=triggers_dao

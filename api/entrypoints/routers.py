@@ -189,6 +189,7 @@ from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.service import TriggersService
 from oss.src.apis.fastapi.triggers.router import TriggersRouter
+from oss.src.tasks.asyncio.sessions.failure_reporter import AgentFailureReporter
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
@@ -1133,6 +1134,11 @@ _triggers_dispatcher = TriggersDispatcher(
     workflows_service=workflows_service,
     run_admission=run_admission,
     dispatch_fn=_dispatch_detached_run,
+    failure_reporter=AgentFailureReporter(
+        records_dao=records_dao,
+        streams_dao=session_streams_dao,
+        turns_dao=session_turns_dao,
+    ),
 )
 
 _triggers_worker = TriggersWorker(

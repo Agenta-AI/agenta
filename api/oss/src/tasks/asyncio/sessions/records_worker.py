@@ -6,6 +6,7 @@ from sqlalchemy.exc import DataError, DBAPIError, IntegrityError
 
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.dtos import SessionRecord, TERMINAL_RECORD_TYPE
+from oss.src.tasks.asyncio.sessions.failure_reporter import AgentFailureReporter
 from oss.src.tasks.asyncio.sessions.streaming import publish_turn_ended
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.events import durable_events_from_records
@@ -140,7 +141,8 @@ class RecordsWorker(StreamConsumer):
     4. EE: L2 quota check per org (Counter.RECORDS_INGESTED)
     5. Append record events to DB
     6. Reconcile HITL gates orphaned by a finished turn
-    7. ACK + DEL only the messages whose Postgres write committed — StreamConsumer
+    7. Report agent failures in the committed records to PostHog, once per batch
+    8. ACK + DEL only the messages whose Postgres write committed — StreamConsumer
 
     A message id leaves this worker in the acknowledged list for exactly three reasons: its
     write committed, it could not be decoded, or its org is over quota. Everything else stays
@@ -163,6 +165,7 @@ class RecordsWorker(StreamConsumer):
         max_batch_mb: int = 50,
         watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
         interactions_service: Optional[SessionInteractionsService] = None,
+        failure_reporter: Optional[AgentFailureReporter] = None,
         reclaim_min_idle_ms: int = 30_000,
         max_deliveries: int = 5,
     ):
@@ -186,6 +189,7 @@ class RecordsWorker(StreamConsumer):
         # Absent disables gate reconciliation (minimal test compositions), which only loses the
         # safety net — never the append.
         self.interactions_service = interactions_service
+        self.failure_reporter = failure_reporter
         self._permanent_failure_ids: set[bytes] = set()
 
     async def reconcile_orphaned_gates(
@@ -393,6 +397,8 @@ class RecordsWorker(StreamConsumer):
 
         batches = list(groups.values())
         total_appended = 0
+        reported_records: List[SessionRecord] = []
+        organization_ids: Dict[UUID, Optional[UUID]] = {}
 
         org_allowed: Dict[UUID, bool] = {}
         # Orgs whose quota question could not be answered. Their records are not over quota,
@@ -462,6 +468,10 @@ class RecordsWorker(StreamConsumer):
             )
             total_appended += len(results)
             acked_ids.extend(committed_ids)
+            reported_records.extend(
+                result for result in results if isinstance(result, SessionRecord)
+            )
+            organization_ids[project_batch["project_id"]] = org_id
 
             if not committed_ids:
                 continue
@@ -547,5 +557,11 @@ class RecordsWorker(StreamConsumer):
                             project_id=project_id,
                             session_id=session_id,
                         )
+
+        if self.failure_reporter is not None and reported_records:
+            await self.failure_reporter.report(
+                records=reported_records,
+                organization_ids=organization_ids,
+            )
 
         return total_appended, acked_ids
