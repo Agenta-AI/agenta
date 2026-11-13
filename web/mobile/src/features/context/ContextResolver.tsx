@@ -9,6 +9,8 @@ import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
 import {readPendingInvite} from "@/features/invite/pendingInvite"
 import {
     fetchProjects,
+    licenseUrl,
+    peekLicenseKey,
     projectHomeUrl,
     projectTemplateUrl,
     readDesktopLastUsed,
@@ -27,6 +29,8 @@ interface ContextResolverProps {
      * on `/m/` and `/m/w`, which resolve across the whole tree.
      */
     workspaceId?: string
+    /** Where to forward inside the resolved project. Defaults to the project home. */
+    forwardTo?: (target: LastContext) => string
 }
 
 /**
@@ -37,7 +41,7 @@ interface ContextResolverProps {
  * Also the body of every `/w/...` index gate, collapsed into one resolver because mobile answers
  * all of them from the same project list.
  */
-export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
+export const ContextResolver = ({workspaceId, forwardTo}: ContextResolverProps = {}) => {
     const router = useRouter()
     // useState initializer: read once, client-only (SSR renders the loading branch).
     const [stored] = useState<LastContext | null>(() =>
@@ -94,7 +98,14 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
                 peekTemplateKey()
         }
         const templateKey = templateKeyRef.current
-        const next = templateKey ? projectTemplateUrl(target, templateKey) : projectHomeUrl(target)
+        // A license activation link that a sign-in interrupted goes back to the License page.
+        const next = templateKey
+            ? projectTemplateUrl(target, templateKey)
+            : forwardTo
+              ? forwardTo(target)
+              : peekLicenseKey()
+                ? licenseUrl(target)
+                : projectHomeUrl(target)
         // A gate that forwards to itself would loop; nothing here ever resolves to its own
         // path, but the guard keeps that true if a route is added under a project home.
         if (router.asPath.split("?")[0] === next) return

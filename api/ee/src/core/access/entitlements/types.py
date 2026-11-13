@@ -23,6 +23,10 @@ class DefaultPlan(str, Enum):
     CLOUD_V0_AGENTA_AI = "cloud_v0_agenta_ai"
     #
     SELF_HOSTED_ENTERPRISE = "self_hosted_enterprise"
+    # Without Stripe: the plan with no valid license key, and the plan of a free
+    # registration key. Neither has an enterprise flag.
+    SELF_HOSTED_COMMUNITY = "self_hosted_community"
+    SELF_HOSTED_REGISTERED = "self_hosted_registered"
 
 
 # Permission slugs that the OWNER role always implies. `"*"` is the wildcard
@@ -665,6 +669,82 @@ DEFAULT_ENTITLEMENTS = {
             Flag.ACCESS: True,
             Flag.DOMAINS: True,
             Flag.SSO: True,
+        },
+        Tracker.COUNTERS: {
+            Counter.EVALUATIONS_RUN: Quota(
+                strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
+                scope=Scope.USER,
+                period=Period.DAILY,
+            ),
+            Counter.CREDITS_CONSUMED: Quota(
+                strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.EVENTS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+        },
+        Tracker.GAUGES: {
+            Gauge.USERS: Quota(
+                strict=True,
+            ),
+        },
+    },
+    DefaultPlan.SELF_HOSTED_COMMUNITY: {
+        Tracker.FLAGS: {
+            Flag.RBAC: False,
+            Flag.AUDIT: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
+        },
+        Tracker.COUNTERS: {
+            Counter.EVALUATIONS_RUN: Quota(
+                strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.TRACES_RETRIEVED: Quota(
+                strict=True,
+                scope=Scope.USER,
+                period=Period.DAILY,
+            ),
+            Counter.CREDITS_CONSUMED: Quota(
+                strict=True,
+                period=Period.MONTHLY,
+            ),
+            Counter.EVENTS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
+        },
+        Tracker.GAUGES: {
+            Gauge.USERS: Quota(
+                strict=True,
+            ),
+        },
+    },
+    DefaultPlan.SELF_HOSTED_REGISTERED: {
+        Tracker.FLAGS: {
+            Flag.RBAC: False,
+            Flag.AUDIT: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
         },
         Tracker.COUNTERS: {
             Counter.EVALUATIONS_RUN: Quota(

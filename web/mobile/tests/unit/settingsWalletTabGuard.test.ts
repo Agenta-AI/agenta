@@ -32,6 +32,9 @@ vi.mock("../../src/features/settings/useSettingsOrg", () => ({
         retry: () => undefined,
     }),
 }))
+vi.mock("../../src/features/settings/useInstanceLicense", () => ({
+    useInstanceLicense: () => ({isInstanceAdmin: false}),
+}))
 vi.mock("../../src/features/wallet/useWalletSummary", () => ({
     useWalletSummary: () => ({data: {mode: "enforce"}}),
 }))

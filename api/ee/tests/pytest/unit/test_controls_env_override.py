@@ -164,7 +164,8 @@ class TestPlansOverride:
             env_extra=self._CONSISTENT_OVERRIDE,
         )
         lines = out.splitlines()
-        assert lines[0] == "only_plan"
+        # Without Stripe the free self-hosted plans are always in the map.
+        assert lines[0] == "only_plan,self_hosted_community,self_hosted_registered"
         assert lines[1] == "Test"
         assert lines[2] == "1"
         assert lines[3] == "only_plan"
@@ -199,7 +200,7 @@ class TestPlansOverride:
             env_extra={"AGENTA_ACCESS_PLANS": '{"x":{"description":"y"}}'},
         )
         lines = out.splitlines()
-        assert lines[0] == "['x']"
+        assert lines[0] == "['self_hosted_community', 'self_hosted_registered', 'x']"
         assert lines[1] == "{}"
 
 

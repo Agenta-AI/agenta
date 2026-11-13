@@ -13,6 +13,7 @@ import {useRouter} from "next/router"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 import {useWalletSummary} from "../wallet/useWalletSummary"
 
+import {useInstanceLicense} from "./useInstanceLicense"
 import {useOrganizationOwner} from "./useOrganizationOwner"
 
 /** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
@@ -32,6 +33,7 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "projects",
     "organization",
     "auditLog",
+    "license",
     "account",
     "preferences",
 ]
@@ -76,6 +78,7 @@ const useSettingsAccess = ({projectId, analytics, owner}: RoleReach): SettingsAc
     const mcpGatewayEnabled = isMcpGatewayEnabled()
     const walletsEnabled = isWalletsEnabled()
     const walletEnforced = useWalletSummary(projectId, {poll: false}).data?.mode === "enforce"
+    const {isInstanceAdmin} = useInstanceLicense(projectId)
 
     return useMemo(
         () => ({
@@ -95,6 +98,8 @@ const useSettingsAccess = ({projectId, analytics, owner}: RoleReach): SettingsAc
             isOwner: owner.isOwner,
             walletsEnabled,
             walletEnforced,
+            // The License tab is listed only for the instance admin; the API decides who that is.
+            isInstanceAdmin,
         }),
         [
             analytics.allowed,
@@ -105,6 +110,7 @@ const useSettingsAccess = ({projectId, analytics, owner}: RoleReach): SettingsAc
             mcpGatewayEnabled,
             walletsEnabled,
             walletEnforced,
+            isInstanceAdmin,
         ],
     )
 }
@@ -153,5 +159,8 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     // link to it would render a surface whose every action fails.
     if (requested === "mcpEndpoints" && !access.canShowMcpEndpoints)
         return DEFAULT_MOBILE_SETTINGS_TAB
+    // Open to every reader without billing, so an activation link tells a reader who is not the
+    // instance admin why nothing happened; the page itself holds no data for them.
+    if (requested === "license" && access.billingEnabled) return DEFAULT_MOBILE_SETTINGS_TAB
     return requested as SettingsTabKey
 }

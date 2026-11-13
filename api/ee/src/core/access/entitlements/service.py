@@ -5,9 +5,11 @@ from uuid import UUID
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 from oss.src.utils.context import get_auth_scope
+from oss.src.utils.env import env
 
 from fastapi.responses import JSONResponse
 from ee.src.core.subscriptions.service import SubscriptionsService
+from ee.src.core.licenses.service import instance_plan
 from oss.src.services import db_manager
 from ee.src.core.access.entitlements.types import (
     PROJECT_LIMIT_MESSAGE,
@@ -295,6 +297,11 @@ async def _subscription_data(organization_id) -> dict:
             key=cache_key,
             value=subscription_data,
         )
+
+    if not env.stripe.enabled:
+        # The plan is the instance plan, read on every call: a cached plan could be
+        # older than the license key.
+        subscription_data = {**subscription_data, "plan": await instance_plan()}
 
     return subscription_data
 

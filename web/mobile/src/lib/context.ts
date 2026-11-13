@@ -1,5 +1,6 @@
 import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getProjectsClient} from "@agenta/sdk/resources"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {z} from "zod"
 
 import {refreshSessionOutcome} from "./auth"
@@ -117,6 +118,57 @@ export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =
 
 export const billingUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=billing`
+
+export const licenseUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=license`
+
+const PENDING_LICENSE_KEY = "agenta:mobile:pending-license-key"
+
+/**
+ * Keep the key of a license activation link out of the address bar, where analytics events
+ * would carry it, and across sign-in, which drops the URL. Session storage: the key stays in
+ * this tab only.
+ */
+export function rememberLicenseKey(key: string): void {
+    try {
+        sessionStorage.setItem(PENDING_LICENSE_KEY, key)
+    } catch {
+        // storage unavailable — the link must be opened again after sign-in
+    }
+}
+
+/**
+ * Move the `#key=` of an activation link into session storage and out of the address bar. The
+ * `/m/settings` page calls this during its first render: before analytics loads and sends the
+ * page address, and before a sign-in redirect drops it. With billing on there is no instance
+ * license, so the key is only removed.
+ */
+export function takeLicenseLinkKey(): void {
+    if (typeof window === "undefined") return
+    const key = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("key")?.trim()
+    if (!key) return
+    if (!isBillingEnabled()) rememberLicenseKey(key)
+    const {pathname, search} = window.location
+    window.history.replaceState(window.history.state, "", `${pathname}${search}`)
+}
+
+/** The remembered activation link key, or "" when none is kept. */
+export function peekLicenseKey(): string {
+    try {
+        return sessionStorage.getItem(PENDING_LICENSE_KEY)?.trim() ?? ""
+    } catch {
+        return ""
+    }
+}
+
+/** Forget the activation link key; the License page calls this once it holds the key. */
+export function forgetLicenseKey(): void {
+    try {
+        sessionStorage.removeItem(PENDING_LICENSE_KEY)
+    } catch {
+        // storage unavailable — nothing was kept
+    }
+}
 
 /**
  * The `/w/<segment>` a project routes under: its organization id. Workspace removal step 2

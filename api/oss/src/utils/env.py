@@ -1590,6 +1590,19 @@ class IdentityConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# license — the self-hosted license key. `AGENTA_LICENSE` names the edition, not this.
+# ---------------------------------------------------------------------------
+
+
+class LicenseConfig(BaseModel):
+    """License key set by the operator. It takes priority over a key added in the app."""
+
+    key: str | None = (os.getenv("AGENTA_LICENSE_KEY") or "").strip() or None
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # llm — provider API keys (top-level by vendor).
 # ---------------------------------------------------------------------------
 
@@ -2452,6 +2465,7 @@ class EnvironSettings(BaseModel):
     gateway_credentials: GatewayCredentialsConfig = GatewayCredentialsConfig()
     gateway_egress: GatewayEgressConfig = GatewayEgressConfig()
     identity: IdentityConfig = IdentityConfig()
+    license: LicenseConfig = LicenseConfig()
     llm: LLMConfig = LLMConfig()
     llm_gateway: LLMGatewayConfig = LLMGatewayConfig()
     loops: LoopsConfig = LoopsConfig()

@@ -14,6 +14,7 @@ export type SettingsTabKey =
     | "organizationGeneral"
     | "organization"
     | "auditLog"
+    | "license"
     | "billing"
     | "credits"
     | "account"
@@ -41,6 +42,8 @@ export interface SettingsAccess {
     walletsEnabled?: boolean
     /** Whether credits stop this organization's work (its wallet is enforced). */
     walletEnforced?: boolean
+    /** Whether the reader manages this self-hosted instance's license. */
+    isInstanceAdmin?: boolean
 }
 
 /** A tertiary docs link rendered at the far right of a settings page header. */
@@ -181,6 +184,11 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         description: "Review changes made across your organization.",
     },
     {
+        key: "license",
+        scope: "organization",
+        description: "The license and plan of this instance, for every organization on it.",
+    },
+    {
         key: "account",
         scope: "personal",
         description:
@@ -217,6 +225,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     organizationGeneral: "Organizations",
     organization: "Access & Security",
     auditLog: "Audit Log",
+    license: "License",
     credits: "Credits",
     account: "Account",
     preferences: "Preferences",
@@ -254,6 +263,9 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.isEE && access.isOwner
         case "auditLog":
             return access.isEE && access.canViewEvents
+        // Self-hosted only: with billing on, plans come from Stripe.
+        case "license":
+            return !access.billingEnabled && Boolean(access.isInstanceAdmin)
         case "billing":
             return access.isEE && (access.canViewBilling ?? access.isOwner)
         case "analytics":

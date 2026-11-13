@@ -116,6 +116,11 @@ def _setup(monkeypatch, *, plan, subscription_id, prices):
     stripe = FakeStripe(subscription_id or "sub_none", prices)
 
     monkeypatch.setattr(billing_router_module, "_load_stripe", lambda: stripe)
+    monkeypatch.setattr(
+        type(subscriptions_service_module.env.stripe),
+        "enabled",
+        property(lambda self: True),
+    )
     monkeypatch.setattr(subscriptions_service_module, "_load_stripe", lambda: stripe)
     monkeypatch.setattr(subscriptions_service_module, "get_free_plan", lambda: HOBBY)
     monkeypatch.setattr(billing_router_module, "get_free_plan", lambda: HOBBY)
