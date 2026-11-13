@@ -15,6 +15,10 @@ harness capability record (`capabilities.py`).
 Design and rationale:
 `docs/design/agent-workflows/projects/model-catalog-schema/{design.md,plan.md}`.
 
+The set of model ids each vault provider accepts comes from `supported_llm_models` in
+`sdks/python/agenta/sdk/utils/assets.py`, which the `update-llm-model-list` skill owns. Update that
+list first when a new model ships.
+
 ## What it owns
 
 Four JSON data files under `sdks/python/agenta/sdk/agents/data/`, loaded by

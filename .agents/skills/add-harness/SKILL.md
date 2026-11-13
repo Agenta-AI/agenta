@@ -129,8 +129,8 @@ them; Codex was cheap because it fails only the permission-vocabulary one.
 - Bootstrap through the UI as the first act (signup, project, API key into the
   worktree `.env`): it doubles as a smoke test of main and catches UI regressions
   free of charge.
-- Design workspace per `plan-feature` (research.md, spike/findings.md, design.md,
-  decisions.md, plan.md, status.md, reports/). The decision register is the no-
+- Design workspace as an OpenSpec change (`openspec-propose`: proposal.md, design.md,
+  specs/, tasks.md), plus research.md, spike/findings.md, decisions.md and reports/. The decision register is the no-
   implicit-decisions mechanism: anything that is not an obvious copy of an existing
   harness pattern is proposed there and waits.
 - Vertical slices in this order: managed-key text-only run, Agenta tools, permissions

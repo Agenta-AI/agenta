@@ -9,6 +9,14 @@ description: Audit and update the supported LLM model list in assets.py against 
 
 The canonical model list lives in `sdks/python/agenta/sdk/utils/assets.py` → `supported_llm_models`.
 It drives the model dropdown in the playground, cost metadata, and the `model_to_provider_mapping`.
+The agent side reads it too: the LLM gateway catalog (`api/oss/src/core/gateways/llms/catalog.py`)
+builds its endpoints from it, and `sdks/python/agenta/sdk/agents/capabilities.py` uses it as the
+set of model ids each vault provider (an Agenta-stored key) accepts for the Pi harness.
+
+This skill owns only which model ids each provider key accepts. The harness catalog (labels,
+descriptions, pricing and ratings per harness, and the Codex, Claude and subscription models)
+belongs to the `sync-model-catalog` skill. When a new model ships, run this skill first, then
+`sync-model-catalog`.
 
 The authoritative external source is **`litellm.model_cost`** (2 600+ entries), which mirrors
 <https://models.litellm.ai/>.

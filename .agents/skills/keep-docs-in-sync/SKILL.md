@@ -1,6 +1,6 @@
 ---
 name: keep-docs-in-sync
-description: Keep documentation in sync with a code or contract change in the SAME PR. Use whenever you change an interface, wire field, endpoint, config field, default, harness/backend value, or runtime behavior, and after any implement-feature slice that lands such a change. Triggers - "keep docs in sync", "update the docs too", "the docs drifted", "document this change", "did we update the inventory". Maps a change to every doc that describes it (design docs, the agent-workflows documentation/ pages, the interface inventory + its index, AGENTS.md, skills) and enforces one source of truth.
+description: Keep documentation in sync with a code or contract change in the SAME PR. Use whenever you change an interface, wire field, endpoint, config field, default, harness/backend value, or runtime behavior, and after any OpenSpec task (`openspec-apply-change`) that lands such a change. Triggers - "keep docs in sync", "update the docs too", "the docs drifted", "document this change", "did we update the inventory". Maps a change to every doc that describes it (design docs, the agent-workflows documentation/ pages, the interface inventory + its index, AGENTS.md, skills) and enforces one source of truth.
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash
 user-invocable: true
 ---
@@ -12,8 +12,8 @@ is the source of truth, and a doc that has drifted from the code is worse than n
 as authoritative while it is wrong. This skill turns "also update the docs" into a concrete map
 so nothing is missed.
 
-Run this at the end of any change that moves an interface, and inside `implement-feature`
-Phase 5.
+Run this at the end of any change that moves an interface, and before you mark an OpenSpec
+change done with `openspec-apply-change`.
 
 When the change reshaped an interface (new or moved fields, not just a rename), run the
 `design-interfaces` skill first, so the inventory records a shape already reviewed by semantic
