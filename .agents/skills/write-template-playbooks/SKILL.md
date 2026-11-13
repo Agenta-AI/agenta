@@ -13,9 +13,13 @@ user-invocable: true
 
 # Write a template playbook
 
-A playbook is one markdown file under `references/agent-templates/<key>.md` in the
-build-an-agent skill. The builder agent reads the one that matches the user's ask, then follows
-it to configure that specific agent. Your job: encode the use-case thinking so a Sonnet-class
+The builder agent reads a playbook as `references/agent-templates/<key>.md` in the
+build-an-agent skill, then follows it to configure that specific agent. That path is virtual: it
+is generated at runtime. To add or edit a playbook, edit a `TemplateEntry` in the `ENTRIES` list
+of the right category module, `sdks/python/agenta/sdk/agents/adapters/agent_templates/<category>.py`
+(`engineering`, `support`, `sales`, `monitoring`, `knowledge` or `ops`). The entry's `body` is the
+playbook Markdown, and its `key` becomes `<key>.md`. The generated `index.md` picks the entry up
+automatically. Your job: encode the use-case thinking so a Sonnet-class
 model can execute it. You get one inventory row as input (name, one-line pitch, integrations,
 trigger). Turn it into a spec-conforming playbook.
 
@@ -66,8 +70,8 @@ ending on the terminal action. Include the output-format shape.
 
 ## Verify
 1. test_run with a blunt test message; read the verdict and the tools line, not a 200.
-2. If a trigger: fire an artificial test message first; then ask the user to run the real
-   trigger test (Lightning "Test event" for a subscription, Play "Run" for a schedule).
+2. If a trigger: send an artificial test message first; then ask the user to run the real
+   trigger test with the "Run now" button on the automation.
 
 ## Closing report
 What the agent became, what is connected, what is scheduled, what you verified, what still
@@ -101,9 +105,10 @@ These are counterintuitive and every first draft gets them backwards. State them
    So exploration does NOT require commit-and-stop-turn. Explore the real repo or workspace
    with new tools before committing anything. Commit-and-stop is only a fallback for when the
    flow cannot carry the delta.
-3. **The trigger-test affordance is Lightning "Test event"** (event subscriptions) or Play
-   "Run" (schedules). It is never a flask icon. The flask is for Evaluations. Write the correct
-   copy in every Verify section.
+3. **The trigger-test affordance is the "Run now" button** (Play icon) on the automation's
+   detail screen, also in the automation's actions menu. It works for event automations and
+   schedules alike, and starts a new session with the automation's message. It is never a
+   flask icon. The flask is for Evaluations. Write the correct copy in every Verify section.
 
 ## What a playbook NEVER contains
 

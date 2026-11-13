@@ -9,7 +9,7 @@ Tests exist to catch a change that hurts a user. Do three things in order.
 
 ## 1. List the risks first
 
-Before you write a test, write a short risk list. Put it in the PR body under "What the tests cover". Ask what this change can break for a user. Order the answers by cost:
+Before you write a test, write a short risk list. Put it in the PR body under the "## Tests" section. Ask what this change can break for a user. Order the answers by cost:
 
 1. Saved data is lost, changed, or sent wrong (commit, rename, delete, discard, import).
 2. The wrong scope or permission: another project's data, a hidden view, a role that must not see it.

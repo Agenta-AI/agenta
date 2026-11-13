@@ -5,61 +5,38 @@ description: Review one code change for agent slop and rate it Low, Medium, or H
 
 # Review a change for slop
 
-You review one change and report how much slop it adds. You do not edit code, and you do
-not post anything.
+You review one code change and report how much slop it adds.
 
-## Inputs
-
-The caller gives you these. If the caller leaves one out, work it out and say what you used.
-
-- **Checkout path.** A checkout of the repo at the head commit. Read code there.
-- **Base.** The commit the change starts from. For a PR, use the merge base of the PR head
-  and its base branch, never the current tip of the base branch.
-- **Head.** The last commit of the change.
-- **Context file (optional).** Decisions that are already settled: findings that were fixed,
-  rejected with a reason, or deferred, and product rules from the owner. Do not raise a
-  settled point again unless the fix is wrong or incomplete. Then say why.
-
-Read the change with `git -C <checkout> diff <base> <head>`. Add `-- <path>` to read one file.
+Follow `../shared/references/review-contract.md` for the inputs, the shared rules, and the
+report shape. This lens accepts code targets only.
 
 ## What to look for
 
-Read `lens.md` in this skill's directory and apply it. It defines slop, what to look for, and
-how to choose the rating.
+Read `lens.md` in this skill's directory and apply it. It defines slop and what to look for.
 
-## Rules
+## Rating
 
-- Read-only. Do not install dependencies, and do not run builds, type checks, linters, or
-  tests. Judge tests by reading them next to the code they test.
-- Judge the final diff, not the commit history.
-- Do not charge the change for problems in code it does not touch.
+Base the rating on:
+
+1. **Severity:** how much the problem can break or burden.
+2. **Prevalence:** how much of the change has the problem.
+3. **Avoidability:** whether the repo already had a simpler or established way to do it.
+
+- **Low:** no real slop, or only small isolated issues that do not weaken the main
+  implementation.
+- **Medium:** a central wrong assumption, repeated low-trust work, weak checks for important
+  behavior, or meaningful avoidable rework. The implementation can still be fixed without
+  replacing its core.
+- **High:** slop is widespread, the core approach is wrong or misleading, and much of it
+  should be rewritten or removed.
+
+## Lens rules
+
 - Raise a finding only with a concrete trigger you can reach, or a clear maintenance cost.
 
-## Output format
+## Report
 
-Write the report in plain English, in exactly this shape:
-
-```markdown
-# Slop review
-
-Base: <base sha>
-Head: <head sha>
-
-## Findings
-
-### 1. <one-line title>
-- Severity: High | Medium | Low
-- Where: <file>:<line> (more locations if needed)
-- What is wrong: <the behavior or maintenance problem, and how to reach it>
-- Smallest fix: <the smallest change that removes the problem>
-
-(more findings, most severe first; write "No findings." if there are none)
-
-## Rationale
-
-<the two strongest reasons for the rating, as concrete behavior or architecture problems>
-
-Rating: Low | Medium | High
-```
-
-The last line must be `Rating: <value>` with nothing after it, so a script can read it.
+- Title: `# Slop review`.
+- What is wrong: the behavior or maintenance problem, and how to reach it.
+- Closing section: `## Rationale`, with the two strongest reasons for the rating, as concrete
+  behavior or architecture problems, not surface signals.

@@ -14,14 +14,15 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
   from there. Do not install a local copy of a component the kit already has —
   `button` in particular lives ONLY in `@agenta/ui` (Nova preset on the shared
   `control-*` scale), so there is one button.
-- Use `Input`, `SkeletonBlock` and `Sheet` from `@agenta/ui/ui`. A local
-  `src/components/ui/sheet.tsx` still backs `ChannelsPanelSheet` only; do not import it
-  anywhere else, and do not add other local duplicates of kit components.
+- Use `Input`, `SkeletonBlock` and `Sheet` from `@agenta/ui/ui`. The app has no
+  local copies of kit components today, and `src/components/ui/` does not exist.
+  Do not add local duplicates of kit components.
 - Otherwise install via the CLI from `web/mobile/`:
   `pnpm dlx shadcn@latest add <component>`.
-- Components land in `src/components/ui/` (aliases in `components.json`). They
-  are owned code: you may adapt them, but keep diffs minimal and expressed in
-  semantic tokens so upstream refreshes stay cheap.
+- The CLI creates `src/components/ui/` for the new component (the `ui` alias in
+  `components.json`). Installed components are owned code: you may adapt them,
+  but keep diffs minimal and expressed in semantic tokens so upstream refreshes
+  stay cheap.
 - The CLI adds any peer deps (e.g. `@radix-ui/react-slot`) to
   `web/mobile/package.json` — commit the manifest and `web/pnpm-lock.yaml`
   changes together with the component.
@@ -42,7 +43,8 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
   but touch nothing else in `web/oss`.
 - To change a color: edit `palette.ts` (if the design-system value is wrong) or
   the ROLE MAP in the script (if the mapping is wrong), then run
-  `pnpm --filter @agenta/mobile generate:tokens` and commit the regenerated CSS.
+  `pnpm generate:tailwind-tokens` in `web/` and commit the regenerated files.
+  That script also runs the mobile token bridge.
 - Never edit `theme.generated.css` directly; never introduce raw hex values in
   components — if a needed role is missing, extend the bridge.
 - Dark mode is the `.dark` class on `<html>` (`@custom-variant dark` in
@@ -52,8 +54,8 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
 
 ## Extending components
 
-- Wrap, don't fork: feature-specific variants live in `src/features/*` as thin
-  wrappers over `components/ui/*` primitives (cva variants where appropriate).
+- Wrap, do not fork: feature-specific variants live in `src/features/*` as thin
+  wrappers over the `@agenta/ui/ui` primitives (cva variants where appropriate).
 - Use the `cn` util from `@/lib/utils` for all class merging.
 
 ## Chat UI
