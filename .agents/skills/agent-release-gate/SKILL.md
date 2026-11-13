@@ -15,12 +15,15 @@ user-invocable: true
 # Agent release gate
 
 Product-level sanity QA for the agent runtime, one layer below the playground UI. The question
-is not "is every detail right" — it is "**if a user opens the product and does the obvious first
+is not "is every detail right". It is "**if a user opens the product and does the obvious first
 things, do they work?**" This is the gate a release passes before shipping.
 
 Every check asserts on the **wire** (the SSE frame types the browser sees) and on **side effects**
-(the file really persisted, the revision really incremented) — never on what the model says. That
+(the file really persisted, the revision really incremented), never on what the model says. That
 makes it deployment-agnostic: point it at any stack and the assertions still hold.
+
+Dated incidents, version facts, verification logs and pass rates that explain why the rules below
+exist are in `docs/design/agent-workflows/projects/qa/release-gate-history.md`.
 
 ## Run it
 
@@ -37,29 +40,27 @@ uv run resources/qa_product.py --cell C1 --only chat              # one journey
 uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-store  # continuity
 ```
 
-**EXPORT the three variables, do not just set them.** The driver falls back to an env FILE when
-`AGENTA_*` is absent from its environment, which is helpful interactively and dangerous in a
-release run: a credentials file of bare `KEY=value` lines sourced with `. file` sets the shell
-only, the child `uv run` process inherits nothing, and the driver silently runs the whole gate
-against WHATEVER DEPLOYMENT the fallback file names. The failure surfaces as `401 Invalid
-credentials` from a stage whose key you just watched answer 200, or worse as a green run
-recorded against the wrong stack. Use `set -a` around the source, or `export` each variable,
-and confirm the stage in the results before trusting them. (Cost a staging gate run on
-2026-08-28; the fallback degrades to "wrong deployment", never to "no credentials".)
+**EXPORT the three variables, do not just set them.** When `AGENTA_*` is absent from its
+environment, the driver falls back to an env FILE. A credentials file of bare `KEY=value` lines
+sourced with `. file` sets the shell only, so the child `uv run` process inherits nothing and the
+driver silently runs against whatever deployment the fallback file names. The failure shows as
+`401 Invalid credentials` from a stage whose key answered 200, or as a green run recorded against
+the wrong stack. Use `set -a` around the source, or `export` each variable, and confirm the stage
+in the results before you trust them.
 
 Paths are relative to this skill's directory. The deployment's vault must hold the provider keys
 the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset the driver stops
 immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
 `--all` includes cells P2, P2b, and P3 (a custom OpenAI-compatible provider, with P2 and P2b
-running locally and P3 on Daytona), which need a vault slug passed via `--custom-slug`; the driver fails
-fast if it's missing. `--custom-name` is also required because `model_keys` is built from the
-display name rather than the stable slug. Custom-provider cells skip the credential-rotation
+running locally and P3 on Daytona), which need a vault slug passed via `--custom-slug`; the driver
+fails fast if it's missing. `--custom-name` is also required because `model_keys` is built from
+the display name rather than the stable slug. Custom-provider cells skip the credential-rotation
 journey because their value is write-only and cannot be safely restored. Cells S1, S2 and C1
-additionally need
-the subscription sidecar logged in on the target deployment — see `resources/coverage.md` for what
-each cell requires. The Daytona cells (C2, C4, P3, X2) additionally run the `secret_opaque`
-journey and need the runner's Daytona API key to manage Secrets, because credential hiding is on
-by default; without it those cells fail at sandbox creation with an error naming the permission.
+additionally need the subscription sidecar logged in on the target deployment. See
+`resources/coverage.md` for what each cell requires. The Daytona cells (C2, C4, P3, X2)
+additionally run the `secret_opaque` journey and need the runner's Daytona API key to manage
+Secrets, because credential hiding is on by default; without it those cells fail at sandbox
+creation with an error naming the permission.
 
 **The one flag a release conductor must not skip past.** The continuity journeys
 (`warm`, `cold1`, `cold2`) only mean anything on a **store-backed** deployment: with no object
@@ -93,35 +94,23 @@ chmod +x /tmp/replace-runner.sh
 export AGENTA_QA_RUNNER_REPLACE_CMD=/tmp/replace-runner.sh
 ```
 
-Bound the health wait and exit non-zero when it lapses, as above. The driver caps the hook at
-180 seconds and reports the timeout, but a hook that spins silently until that cap burns the
-budget and tells you nothing; a hook that gives up at 120 seconds and prints the container's
-actual status tells you whether the replacement crashed, is still starting, or came back
-unhealthy.
+Bound the health wait and exit non-zero with the container's status when it lapses, as above.
+The driver caps the hook at 180 seconds, but a hook that spins until that cap tells you nothing. A
+hook without the explicit start leaves the runner down, and every later cell fails for an
+unrelated reason. The session-control hook cells follow the same rule:
+`DockerComposeHooks.kill_runner` uses `compose restart -t 0`, with `ensure_runner_healthy` in a
+`finally` as the backstop.
 
-This is not theoretical. A hook without the explicit start left the runner down for about seven
-minutes mid-gate on 2026-09-10, and every cell after it failed for a reason that had nothing to
-do with what it was testing. With the start and the health wait, later cold2 and hook cells
-restored the runner in about forty seconds each. The same rule governs the session-control hook
-cells, and `DockerComposeHooks.kill_runner` already implements it as `compose restart -t 0`
-rather than a bare kill, with `ensure_runner_healthy` in a `finally` as the backstop.
-
-**The cells that end with a human step: H1 and H2.** They test the HOSTED subscription connection
-— the user's own ChatGPT subscription, signed in once through the product and delivered to
-whichever sandbox runs the turn. S1 and S2 read a login the operator mounted into the runner by
-hand, so they prove the self-hosted case only, and nothing else in the matrix sees the store, the
-delivery, the refresh push-back, or the per-project isolation. Both cells need a connected
-subscription in the target project and SKIP, with the reason, when there is none. Their `refresh`
-journey expires the stored login itself and needs the stack for that (`--db-container`,
-`--stack-env` for the crypt key, and `--redis-container` so the API's cached vault read does not
-hide the expiry), and their `dead` journey needs a reachable runner replica (`--runner`). Run
-`dead` LAST:
-proving the failure a user meets means killing the login, and only a person can sign in again.
-For a release that changes subscription login storage or publication, `--release-base` forces the
-`refresh` journey even when `--only` names another journey. A successful chat alone does not prove
-that the rotated login reached the durable vault.
-The `relogin_needed` journey always SKIPs and its reason carries the steps. Full runbook and
-ordering: `resources/coverage.md`.
+**The cells that end with a human step: H1 and H2.** They test the HOSTED subscription connection:
+the user's own ChatGPT subscription, signed in once through the product and delivered to the
+sandbox. S1 and S2 read a login mounted by hand, so they prove the self-hosted case only. H1 and
+H2 SKIP, with the reason, when the project has no connected subscription. Their `refresh` journey
+expires the stored login and needs `--db-container`, `--stack-env` (crypt key) and
+`--redis-container` (so the cached vault read does not hide the expiry). Their `dead` journey needs
+`--runner`. Run `dead` LAST: it kills the login, and only a person can sign in again. When a
+release changes subscription login storage or publication, `--release-base` forces `refresh` even
+against `--only`, because a successful chat does not prove the rotated login reached the vault.
+`relogin_needed` always SKIPs and its reason carries the steps. Runbook: `resources/coverage.md`.
 
 **The flag that makes the gate fit the release: `--release-base`.** The matrix is fixed, so
 without it a release that reworked a subsystem gets exactly the coverage of a release that did
@@ -134,15 +123,12 @@ uv run resources/qa_product.py --all --release-base origin/main --require-store 
 uv run resources/path_triggers.py --release-base origin/main                      # preview only, runs nothing
 ```
 
-A mandatory cell that lives in `qa_product.py` is added to the run even when `--cell` did not ask
-for it. A mandatory cell that is a standalone `matrix_*.py` script is a separate process the
-driver cannot observe, so it is printed, written to `mandatory.json`, and listed in `summary.md`
-under "Mandatory for this release" — **the release is not green until each of those has a recorded
-result of its own.** If a rule names a cell that does not exist, the driver stops before running
-anything and says so: the release changed code a rule protects and the coverage was never
-written, which is the one outcome that must never read as green. Add `--changed-path` to state
-paths by hand where the checkout is not the release branch. With no `--release-base` and no
-`--changed-path` nothing changes, so every existing invocation behaves exactly as before.
+A mandatory cell in `qa_product.py` is added to the run even when `--cell` did not ask for it. A
+mandatory standalone script is a separate process the driver cannot observe, so it is printed,
+written to `mandatory.json`, and listed in `summary.md` under "Mandatory for this release". **The
+release is not green until each of those has a recorded result of its own.** If a rule names a
+cell that does not exist, the driver stops before running anything. Add `--changed-path` to state
+paths by hand where the checkout is not the release branch. With neither flag, nothing changes.
 
 Adding a rule is one line in `PATH_TRIGGERS` (a glob, and the cells it makes mandatory) plus the
 cell it names. Matching is `fnmatch` over the whole repo-relative path, so `*` crosses directory
@@ -152,7 +138,7 @@ separators and `a/b/*` covers the whole subtree; write `**` so a subtree rule re
 a per-cell markdown table lands with the full JSON in `./qa-gate-runs/<timestamp>/` (override the
 location with `AGENTA_QA_RUNS_DIR`). Runs are written to the current working directory, never into
 the skill. `SKIP` is expected where a journey does not apply to a cell (for example `mcp` on any Pi
-cell — user MCP is Claude-only). Any `FAIL` blocks the release until triaged.
+cell, because user MCP is Claude-only). Any `FAIL` blocks the release until triaged.
 
 **A SKIPped integration test in a security- or concurrency-bearing area is a FAILURE in your
 summary line, not green.** State it as "N passed, M skipped OF WHICH k are untested claims" and
@@ -162,15 +148,15 @@ outright) survived 1911 green tests before a human hit it as his first live acti
 
 **The two journeys that run many things at once: `burst` and `crosstalk`.** Every other journey
 drives one run at a time, so the gate only ever saw faults that reproduce on a quiet deployment.
-The credential-delivery fault of AGE-4249 does not: about one production first message in five
-failed because some fresh Daytona sandboxes start without their Secret substitution wiring, and
-per cold sandbox that is roughly an 8 percent fault. `burst` sends 16 first messages at the same
-time on 16 brand new sessions, so the run buys 16 cold starts instead of one. `crosstalk` runs 3
-two-turn conversations with long output beside 2 approval flows, and checks that no stream carries
-another session's nonce, except on the codex harness, where the gate rides a platform tool with
-empty arguments, so the approval command carries no nonce and isolation is not checked there
-(`nonce_checked=false`). Both are Daytona-only by default and skip elsewhere; both report the
-runner's stable error code per run, so a `credential_delivery_failed` names itself.
+The credential-delivery fault of AGE-4249 does not: some fresh Daytona sandboxes start without
+their Secret substitution wiring, roughly an 8 percent fault per cold sandbox. `burst` sends 16
+first messages at the same time on 16 brand new sessions, so the run buys 16 cold starts instead
+of one. `crosstalk` runs 3 two-turn conversations with long output beside 2 approval flows, and
+checks that no stream carries another session's nonce, except on the codex harness, where the
+gate rides a platform tool with empty arguments, so the approval command carries no nonce and
+isolation is not checked there (`nonce_checked=false`). Both are Daytona-only by default and skip
+elsewhere; both report the runner's stable error code per run, so a `credential_delivery_failed`
+names itself.
 
 ```bash
 uv run resources/qa_product.py --cell C4 --only burst --only crosstalk
@@ -184,67 +170,58 @@ uv run resources/test_qa_product_concurrency.py                               # 
 A PASS is a sample, not an all-clear, and the result says so in its own reason line. A FAIL is
 proof.
 
-Each concurrent run holds its own Daytona sandbox, about 5 GiB of the organization's disk, and a
-parked sandbox keeps counting until its auto-delete window closes, so a burst of 16 is about 80
-GiB in flight. The counts are `--burst-size` (default 16), `--crosstalk-conversations` (default 3)
-and `--crosstalk-approvals` (default 2). The cap is 32 concurrent runs: 32 for the burst size, and
-32 for the two crosstalk counts TOGETHER, because what costs disk is what runs at once. When the
-provider refuses on capacity the journey reports SKIP with a loud reason, never a PASS or a FAIL,
-because nothing about the product was measured. `--concurrency-timeout` (default 300s) bounds one
-TURN and rides into the stream as an absolute deadline, so a two-turn crosstalk run gets twice
-that and a stream that never ends is abandoned rather than followed.
+Each concurrent run holds a Daytona sandbox of about 5 GiB until its auto-delete window closes, so
+a burst of 16 is about 80 GiB. The counts are `--burst-size` (default 16),
+`--crosstalk-conversations` (default 3) and `--crosstalk-approvals` (default 2). The cap is 32
+concurrent runs, for the burst size and for the two crosstalk counts together. When every failed run is a capacity refusal,
+the cell is a loud SKIP, never a PASS or a FAIL. When any run failed for another reason, the cell
+is a FAIL and the refused runs count as failed. `--concurrency-timeout` (default 300s) bounds one TURN as
+an absolute deadline, so a two-turn crosstalk run gets twice that.
 
 A release that changes `services/runner/src/engines/sandbox_agent/**` or
 `services/runner/src/providers/daytona*` makes the Daytona cells C2, C4 and X2 mandatory through
 `path_triggers.py`, and forces `burst` and `crosstalk` into the run even when `--only` named
-something else. That is how these journeys reach a release that needs them.
+something else.
 
-**Before a human gets a deployment URL, run `resources/qa_commit_approval.py` too.** It is not
-part of `qa_product.py`'s cell × journey matrix — none of that matrix's journeys drive a live turn
-against a REAL, saved workflow revision (the `commit` journey only exercises the REST API; `chat`,
-`tool`, `approve`/`deny` all run against an inline, unsaved config), so nothing else in the gate
-observes the S3b single-use execution-authorization gate actually firing around a real config
-mutation. This script does: create a real workflow + revision, invoke a live agent turn that calls
-`read_config` then `commit_revision`, expect the pause, approve it in-band, and verify the new
-revision landed with REST fetch-back. Treat a FAIL here as blocking, the same as any other gate
-FAIL.
+**Before a human gets a deployment URL, run `resources/qa_commit_approval.py` too.** None of the
+journeys in `qa_product.py` drive a live turn against a REAL, saved workflow revision (the
+`commit` journey only exercises the REST API; `chat`, `tool`, `approve`/`deny` all run against an
+inline, unsaved config). So nothing else in the gate sees the single-use execution-authorization
+gate act around a real config mutation. This script creates a real workflow and revision, invokes
+a live agent turn that calls `read_config` then `commit_revision`, expects the pause, approves it
+in-band, and verifies the new revision landed with REST fetch-back. A FAIL here blocks the
+release.
 
 ## Tiers: coached vs. mechanism-blind
 
-Every cell in this gate (`qa_product.py`'s journeys, `qa_commit_approval.py`,
-`qa_probe.py`, and all `matrix_w*.py` cells) declares which of two tiers it belongs to, in its
-own docstring:
+Every cell in this gate declares which of two tiers it belongs to, in its own docstring:
 
-- **Coached (backend-path test).** The prompt names the mechanism verbatim — which tool, which
+- **Coached (backend-path test).** The prompt names the mechanism verbatim: which tool, which
   operation, which target path. This proves OUR CODE works (the gate, the base check, the
   authorization handoff, the sandbox path) when the right call is made. It proves NOTHING about
-  whether a model finds that call from a plain-language human ask.
-- **Mechanism-blind (model-behavior test).** The prompt is phrased the way a real user types —
-  no tool names, no operation names, no schema hints. Only these cells license a claim about
-  what the model can do unprompted.
+  whether a model finds that call from a plain-language human ask. Cells marked mechanical make
+  no model call that matters, or no model call at all.
+- **Mechanism-blind (model-behavior test).** The prompt is phrased the way a real user types,
+  with no tool names, no operation names and no schema hints. Only these cells license a claim
+  about what the model can do unprompted.
 
-**Rule: claims of model behavior may only cite mechanism-blind cells.** Most cells in this
-directory are coached tier — they test backend paths, correctly, but do not stand in for
-model-discovery evidence. The gap this rule exists to close, found live: asked in plain words to
-"add the skill I saved in your folder," Haiku invented a nonexistent marker syntax
-(`{"@ag.embed": {"@ag.references": ...}}`) and the engine accepted it as literal data — a failure
-none of the coached cells (including `matrix_w7.py`, whose prompt names `@ag.file` outright)
-could ever have caught, because they never test whether the model reaches for the real mechanism
-on its own. `resources/matrix_g1_guidance_discovery.py` is this directory's first mechanism-blind
-cell, promoted after the platform-guidance fix closed that exact gap; it reuses `qa_matrix_lib.py`
-the same way the separate one-shot benchmark (Tier B) does — check there before writing a new
-mechanism-blind cell from scratch, to avoid duplicating scaffolding.
+**Rule: claims of model behavior may only cite mechanism-blind cells.** Most cells here are coached
+and test backend paths correctly, but they do not stand in for model-discovery evidence. Asked in
+plain words to "add the skill I saved in your folder", a model once invented a nonexistent marker
+syntax (`{"@ag.embed": {"@ag.references": ...}}`) and the engine accepted it as literal data. No
+coached cell could catch that, because none tests whether the model reaches for the real mechanism
+on its own. `resources/matrix_g1_guidance_discovery.py` is the first mechanism-blind cell. It
+reuses `qa_matrix_lib.py` the same way the one-shot config-editing benchmark (Tier B,
+`docs/design/agent-config-editing/benchmark/bench_lib.py`) does. Check both before you write a new
+mechanism-blind cell from scratch.
 
 ## Session control cells
 
-`resources/session_control.py` is a second, standalone driver: sixteen cells that cover Stop,
-durable commands, and the runner's recovery paths (park/resume, watchdog quarantine). It drives
-the same product endpoint and asserts on the same wire, but it needs its own account bootstrap,
-so it runs as a separate process rather than as `qa_product.py` cells. See
-`resources/path_triggers.py` for the exact mandatory-cell mechanism.
+`resources/session_control.py` is a second, standalone driver with its own account bootstrap:
+sixteen cells that cover Stop, durable commands, and the runner's recovery paths (park/resume,
+watchdog quarantine), on the same product endpoint and wire.
 
-**These cells are MANDATORY** — run them, not just the standing gate — whenever the release diff
-touches any of:
+**These cells are MANDATORY** whenever the release diff touches any of:
 
 - `services/runner/src/sessions/**`
 - `services/runner/src/engines/sandbox_agent/**`
@@ -261,17 +238,16 @@ uv run resources/session_control.py --cells all --harness pi_core --sandbox loca
 Add `--project <docker-compose project name>` to run the eight cells that need direct Docker and
 Postgres access (`sandbox-gone`, `records-outage`, `restart-after-stop`, `runner-gone`,
 `runner-gone-late`, `post-stop-row`, `codex-child`, `stale-tail`) and the abort-log subcheck inside
-`stop-after-finish`. Without `--project`, those eight cells SKIP with a named reason. The
-`stop-after-finish` HTTP check still runs, but only its abort-log subcheck is unavailable. The
-other eight cells
-(`stop-warm`, `double-send`, `stale-stop`, `stop-approval`, `stop-after-finish`,
-`repeat-stop`, `concurrent-stops`, `stop-during-completion`) run over HTTP alone against any
-deployment. Add
+`stop-after-finish`. Without `--project`, those eight cells SKIP with a named reason. They need a
+docker-compose project on the same host as the runner, so they cannot run on a cloud stage; plan
+them against the local stack. The other eight cells (`stop-warm`, `double-send`, `stale-stop`,
+`stop-approval`, `stop-after-finish`, `repeat-stop`, `concurrent-stops`,
+`stop-during-completion`) run over HTTP alone against any deployment. Add
 `--resume <path to a prior run's results.json>` to pick a lost run back up: any cell already
 recorded there is loaded instead of re-run.
 
 Results land in a timestamped folder under `~/agenta-qa-evidence/` (override with
-`AGENTA_QA_RUNS_DIR`), as `results.json` and `summary.md` — the same PASS/FAIL/SKIP shape as the
+`AGENTA_QA_RUNS_DIR`), as `results.json` and `summary.md`, in the same PASS/FAIL/SKIP shape as the
 rest of the gate. When a release path makes session control mandatory, pass that artifact to the
 standing gate with `--session-control-results <path>`: a missing or incomplete artifact stops the
 gate before the matrix runs, and a recorded FAIL makes the final gate exit nonzero.
@@ -279,30 +255,28 @@ gate before the matrix runs, and a recorded FAIL makes the final gate exit nonze
 **Environment, by name.** Same three-variable discipline as the rest of the gate, no env-file
 fallback:
 
-- `AGENTA_BASE` — the deployment origin.
-- `AGENTA_ADMIN_KEY` — mints the ephemeral account this driver runs under. Lives in
+- `AGENTA_BASE`: the deployment origin.
+- `AGENTA_ADMIN_KEY`: mints the ephemeral account this driver runs under. Lives in
   `~/.agenta-qa-secrets.env`.
-- `QA_OPENAI_API_KEY` — stocked into that account's vault so the `pi_core` and `codex` harnesses
+- `QA_OPENAI_API_KEY`: stocked into that account's vault so the `pi_core` and `codex` harnesses
   have a provider key. Lives in `~/.agenta-qa-openai.env`.
-- `ANTHROPIC_API_KEY` — only required for `--harness claude`, stocked into the same vault the
+- `ANTHROPIC_API_KEY`: only required for `--harness claude`, stocked into the same vault the
   same way. Lives in `~/.agenta-qa-secrets.env`. A pi_core- or codex-only run does not need it.
 
 **Run `--harness claude` on a custom connection** (for example when the Anthropic key has no
 credit). Set these, and `ANTHROPIC_API_KEY` is no longer needed:
 
-- `AGENTA_QA_CLAUDE_MODEL` — the model key, `<connection name>/custom/<model slug>`, e.g.
+- `AGENTA_QA_CLAUDE_MODEL`: the model key, `<connection name>/custom/<model slug>`, e.g.
   `orclaude/custom/anthropic/claude-haiku-4.5`.
-- `AGENTA_QA_CLAUDE_PROVIDER` — the protocol the connection speaks; default `anthropic`.
-- `AGENTA_QA_CLAUDE_CONNECTION_SLUG` — the vault slug the agent config names.
-- `AGENTA_QA_CLAUDE_CUSTOM_URL` and `AGENTA_QA_CLAUDE_CUSTOM_KEY` — the connection's base URL
+- `AGENTA_QA_CLAUDE_PROVIDER`: the protocol the connection speaks; default `anthropic`.
+- `AGENTA_QA_CLAUDE_CONNECTION_SLUG`: the vault slug the agent config names.
+- `AGENTA_QA_CLAUDE_CUSTOM_URL` and `AGENTA_QA_CLAUDE_CUSTOM_KEY`: the connection's base URL
   and key (for OpenRouter: `https://openrouter.ai/api` and `OPENROUTER_API_KEY` from
   `~/.agenta-qa-secrets.env`).
 
-The driver mints a fresh account on every run, so a slug copied from another project's vault does
-not exist there. Bootstrap creates the custom connection in the minted vault under the slug you
-give, from the model key, URL and key. `AGENTA_QA_CLAUDE_MODEL` and `AGENTA_QA_CLAUDE_PROVIDER`
-also work alone, to change the model on the vault Anthropic key. `results.json` records the model
-the run used.
+The driver mints a fresh account per run and creates the custom connection in that vault under
+the slug you give. `AGENTA_QA_CLAUDE_MODEL` and `AGENTA_QA_CLAUDE_PROVIDER` also work alone, to
+change the model on the vault Anthropic key. `results.json` records the model the run used.
 
 **The long-turn prompt is not a bare `sleep N`.** Claude Code refuses a standalone long sleep
 (`Blocked: standalone sleep 45 ... use run_in_background`), the turn ends in seconds, and a later
@@ -314,53 +288,38 @@ as a bare `echo` whatever the permission policy says, so no approval parks and t
 `no pending approval was seen before the Stop`. `runner.kind` is not the cause: the SDK reads only
 `runner.permissions.default`.
 
-A Daytona run additionally needs a Secrets-capable Daytona key on the runner; the key in most
-session env files returns 403 on the Secrets endpoint, so check that before trusting a Daytona
-result.
+**`stop-approval` sends an `Idempotency-Key`.** The durable approval path validates that header
+before it decides whether the execution is still continuable, so an answer without it comes back
+422 and never reaches the 409 the cell asserts. The cell sends a stable key derived from the
+interaction id, and two tests in `test_session_control.py` pin both halves. The general rule: when
+a gate asserts a specific status code on a durable endpoint, send the headers the browser sends,
+or the assertion measures the validation layer instead of the behavior.
 
-**`stop-approval` sends an `Idempotency-Key`, and it has to (fixed after the v0.117.0 run).** The
-cell answers an approval after a Stop and asserts the answer is refused with a 409. The durable
-approval path validates the `Idempotency-Key` header BEFORE it decides whether the execution is
-still continuable, so an answer without that header comes back 422 and can never reach the 409.
-A real browser always sends one, so nothing user-facing was ever affected — but for one release
-this read as a product FAIL on a stage where the product was fine, and clearing it cost a
-hand-run diagnostic. The cell now sends a stable key derived from the interaction id, a 422 there
-names the missing header in its own failure line, and two tests in `test_session_control.py` pin
-both halves. The general lesson is wider than this cell: when a gate asserts a specific status
-code on a durable endpoint, send the headers the browser sends, or the assertion measures the
-validation layer instead of the behavior.
+A Daytona run additionally needs a Secrets-capable Daytona key on the runner; the key in most
+session env files returns 403 on the Secrets endpoint, so check that before you trust a Daytona
+result.
 
 ## Running the gate against a preview stage
 
 The cells were written on a dev box, where the operator's own Claude and Codex logins are mounted
-and the local sandbox is free. A cloud stage is neither of those things, and the mismatch does not
-announce itself as an environment problem — it arrives as a red cell that reads like a release
-regression. Three facts, all measured on the v0.117.0 preview stages, settle most of it.
+and the local sandbox is free. A cloud stage is neither, and the mismatch arrives as a red cell
+that reads like a release regression. Check these before you plan a stage run:
 
-**Each stage runs exactly one kind of sandbox, and they are opposites.** oss.preview is
-local-sandbox-only by design, the OSS default posture, and refuses Daytona. Staging is the mirror
-image: it refuses the LOCAL sandbox with a 403 naming
-`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`. So no local-sandbox cell can run on staging at all, and
-no Daytona cell can run on oss.preview. For the hosted-subscription pair that means H1, which is
-local, can only run on oss.preview, and H2, which is Daytona, can only run on staging. The reverse
-pairing cannot be made to work by fixing anything.
-
-**Pre-flight Daytona with one cheap sandbox create before planning around it.** The organization's
-availability changes with its credit balance, and a suspended organization 403s at sandbox create,
-which looks nothing like the cell's subject. One probe cell answers the question for the whole run.
-
-**The managed provider keys on a stage may be out of credit.** Both stages' vault Anthropic and
-OpenAI keys were exhausted during the v0.117.0 run, so every managed-key cell was blocked on
-billing rather than on the product, and the Claude legs of several scripts could not run at all.
-The funded path on those stages was the custom OpenAI-compatible connection fronting OpenRouter.
-Check the vault before scheduling cells around it, and read an exhausted-key red as blocked
-coverage, never as a pass and never as a regression.
+- **Which sandbox kinds the stage allows.** A stage can refuse the local sandbox (a 403 naming
+  `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`) or refuse Daytona. A local-sandbox cell cannot run on
+  a stage that refuses local, and a Daytona cell cannot run on a stage that refuses Daytona. H1
+  is local and H2 is Daytona, so they may need different stages.
+- **Whether Daytona answers.** Pre-flight with one cheap sandbox create. A suspended organization
+  returns 403 at sandbox create, which looks nothing like the cell's subject.
+- **Whether the managed provider keys have credit.** Read an exhausted-key red as blocked
+  coverage, never as a pass and never as a regression. A custom OpenAI-compatible connection to
+  OpenRouter is a funded alternative.
 
 **Overriding the cell shape without touching an assertion.** `qa_matrix_lib.agent_config` and
 `qa_commit_approval.py` default to Claude on the operator's mounted subscription on a local
 sandbox, which no stage can serve; left alone they die with `runtime_provided local run requires a
-mounted subscription`. Both now read the shape from the environment, the same way
-`matrix_gw1_gateway_tools.py` always has, so the client-tool cell (`matrix_l4_*`) and the
+mounted subscription`. Both read the shape from the environment, the same way
+`matrix_gw1_gateway_tools.py` does, so the client-tool cell (`matrix_l4_*`) and the
 commit-approval script run on any stage:
 
 ```bash
@@ -372,407 +331,178 @@ export AGENTA_QA_MODEL=<model id>
 export AGENTA_QA_PROVIDER=<provider>
 ```
 
-Read the resulting passes for what they are. A green client-tool round trip on pi_core against a
-real provider proves that surface on that harness; it is not evidence about the claude harness,
-which no remote stage can currently run.
-
-**Eight session-control cells cannot run on a cloud stage at all.** The hook cells
-(`sandbox-gone`, `records-outage`, `restart-after-stop`, `runner-gone`, `runner-gone-late`,
-`post-stop-row`, `codex-child`, `stale-tail`) need `--project`, a docker-compose project on the
-same host as the runner. Plan them against the local stack from the start rather than discovering
-it mid-run.
+A green client-tool round trip on pi_core against a real provider proves that surface on that
+harness. It is not evidence about the claude harness.
 
 ### Calling the runner's `/run` directly
 
-Most cells drive the product endpoint, which is the point. A few diagnostics post to the runner's
-own `/run`, and that contract moved in v0.117.0:
+Most cells drive the product endpoint. A few diagnostics post to the runner's own `/run`:
 
-- The runner requires a shared token, sent as an `X-Agenta-Runner-Token` header and matching the
-  stack's `AGENTA_RUNNER_TOKEN`. Without it the container refuses to start at all.
-- A top-level `credentialMode` is rejected outright with "Legacy top-level model credential fields
-  are not supported". The credential now rides a `modelConnection` object carrying `provider`,
-  `deployment`, `credentialMode` and `credentials`.
-- A single fresh user message is the last-message-only shape, so the runner tries to rebuild the
-  conversation from the durable record log and fails with "record log is unreadable". Send a short
-  multi-turn history instead. This bites direct callers only; the product endpoint carries the
-  transcript itself.
-- `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini` and `gpt-5.3-codex-spark` are refused by ChatGPT accounts
-  ("not supported when using Codex with a ChatGPT account"). Use `gpt-5.6-luna` for subscription
-  cells.
-- The runner's health endpoint advertises `pi_core` and `claude` only. `codex` dispatches and
-  answers normally; the list is a stale hardcoded constant. No cell should gate on it.
+- Send the shared token as an `X-Agenta-Runner-Token` header matching the stack's
+  `AGENTA_RUNNER_TOKEN`.
+- Send the credential in a `modelConnection` object (`provider`, `deployment`, `credentialMode`,
+  `credentials`). A top-level `credentialMode` is rejected.
+- Send a short multi-turn history, not a single fresh user message. A single message is the
+  last-message-only shape, and the runner then tries to rebuild the conversation from the durable
+  record log.
+- Check that a ChatGPT account accepts the model before you use it in a subscription cell.
+- Do not gate a cell on the harness list in the runner's health endpoint.
 
 ## When results lie
 
 The runtime **fails open**: a component can break, get logged, and the turn still succeeds with a
 normal-looking answer. A green turn is therefore not proof on its own. Before trusting a pass,
-read `resources/LESSONS.md` — every trap there produced a green test that proved nothing. The three
+read `resources/LESSONS.md`: every trap there produced a green test that proved nothing. The three
 that bite hardest: replay conversation history byte-faithfully (tool parts included) or every turn
 silently goes cold; re-run any prior blocker-level finding after a redeploy before believing it;
 and a multi-turn check that never leaves the warm daemon, on a deployment with no object store,
 proves nothing about the durable working directory (LESSONS #16).
 
-## Resources (read on demand)
+## Resources
 
-- `resources/coverage.md` — the cells (harness × sandbox × auth), the journeys (chat, mount, tool,
-  approve, deny, commit, warm, cold1, cold2, mcp) with a one-line meaning for each, the continuity
-  tiers and their method, and a table of what each cell needs beyond the three env vars.
-- `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
-- `resources/qa_product.py` — the gate driver (cells × journeys).
-- `resources/matrix_gw1_gateway_tools.py` — **[coached, with one mechanism-blind leg]** the
-  gateway tool surface against a real provider: search filters by policy (the denied key never
-  reaches the model), an allowed tool executes unattended with a genuine provider result, and an
-  ask-tier tool parks with the right stored identity and is answered through the **interactions
-  API** — the durable plane a reloaded browser uses, which no other cell covers. The fixed
-  matrix proves approvals with a builtin, so nothing else notices when the compiled policy and
-  the enforced policy drift apart. Defaults to the no-auth `text_to_pdf` connection; `--integration`
-  and `--connection` point it elsewhere. SKIPs, naming the fixture, when no valid connection
-  exists, and SKIPs rather than failing the release when the model provider itself errors.
-  Made mandatory by the gateway rule in `path_triggers.py`.
-- `resources/path_triggers.py` — the path-scoped rules: one dict mapping a path glob to the cells
-  a release must run when its diff touches that glob, plus the two functions the driver calls.
-  Runs standalone as a preview (`--release-base <ref>`). Add a rule here whenever new coverage is
-  only meaningful for changes in one part of the tree.
-- `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
-  product path answers at all before running the full gate.
-- `resources/qa_commit_approval.py` — **[coached]** the mandatory pre-handoff commit-approval
-  round trip (see above). Self-contained; does not import `qa_product.py`. Its default shape is
-  Claude on the operator subscription on a local sandbox, which no preview stage can serve — the
-  `AGENTA_QA_*` variables under "Running the gate against a preview stage" move it.
-- `resources/qa_matrix_lib.py` — shared helpers (session/turn plumbing, workflow/revision REST
-  calls, the multi-round approval loop) for the `matrix_w*.py` adversarial cells below. Import
-  only, no CLI. It also holds the two cross-cutting invariants every cell should fold into its
-  verdict — `check_no_blank_success_on_refusal` and `check_no_silent_turn` (see below). **If you
-  write a new cell, wire `check_no_silent_turn` into its PASS condition.** `agent_config` reads
-  its model, provider, connection mode and slug, harness and sandbox from the `AGENTA_QA_*`
-  variables, so a cell that builds its config through it runs on a cloud stage unchanged; a cell
-  that hardcodes its own config dict does not, and every one of those is deliberate.
-- `resources/matrix_w3.py` — **[coached, with a narrow mechanism-blind sliver]** two sessions,
-  disjoint edits; session B is given a stale `base_revision_id` and ZERO coaching on recovery.
-  Two-tier pass: autonomous correct recovery passes outright; a model that diagnoses the 409
-  correctly and asks before re-attempting a config write ALSO passes (that is desirable caution,
-  not a failure) once one bare "yes, retry" permission (no mechanics) completes the recovery.
-  Guards both the optimistic-concurrency base check and the instructive-error design (a 409 must
-  be readable without coaching). The initial action in both sessions is still coached — only the
-  RECOVERY step is mechanism-blind; don't cite this cell for "the model finds commit_revision
-  unprompted."
-- `resources/matrix_w4.py` — **[coached]** a pending approval whose base goes stale while it
-  waits (a second session commits first); the EXECUTE-time check must catch it, not just the
-  gate-time check.
-- `resources/matrix_w5.py` — **[coached]** interrupt a running turn (steer) then use the session
-  again. Caught a real bug: the durable mount never gets re-established after a steer, breaking
-  every subsequent turn on that session. Distinct from Mahmoud's own steer repro (that one is a
-  turn-currency/heartbeat bug; this is a mount-lifecycle bug) — keep the two separate when
-  triaging.
-- `resources/matrix_w7.py` — **[coached]** an agent writes a workspace file and commits it via an
-  `@ag.file` marker; asserts the approval manifest carries digest+bytes and the commit lands with
-  the exact bytes. Caught a real bug (fixed, PR #5763-adjacent runner fix): the gate approved
-  cleanly but execution always refused with `authorization_missing` — no file-marker commit could
-  land. Re-verified PASS after the fix. Note: `DEFERRED_NOT_EXECUTED` on a queued second tool
-  call is benign (another gate is already pending), not a real tool error — don't let it fail
-  this cell. Naming `@ag.file` verbatim in the prompt is correct for this cell's backend-path
-  purpose but means it cannot catch a model failing to find the marker syntax unprompted — see
-  Tiers above.
-- `resources/matrix_w1_daytona.py` — **[coached]** the commit round-trip on `sandbox=daytona`
-  (every other cell runs local). Needs a funded provider vault key (see the file's own docstring
-  for the exact vault-secret shape and the `provider_key` slug gotcha). PASS confirms
-  `DaytonaWorkspaceReader` and the placeholder-secrets flow live.
-- `resources/matrix_t8_saved_files.py` — **[coached]** T8: the Daytona remote agent mount (the
-  durable `agent-files/` folder the playground file drawer writes into), which needs the ngrok
-  tunnel the runner discovers at sandbox-acquire time. Writes a marker file into the mount via
-  the mounts API (`POST /mounts/agents/sign` + `PUT /mounts/{id}/files`) before the run, then
-  asserts the runner log line `remote agent mount active for artifact=<id>` appears, a tool
-  output actually carries the real marker content (not hallucinated), and the commit lands with
-  it. Verified PASS 3/3 runs after the tunnel-seat fix (2026-08-06); this line was absent on
-  every attempt before that fix landed.
-- `resources/matrix_t9_agent_tools.py` — **[coached]** T9: the runner restores the agent's own
-  tools from `agent-files/.tools/` before a session (`agent-tools-setup.ts`). Plants a
-  `setup.sh` and a `bin/qa-tool` through the mounts API, opens a fresh session, and asserts the
-  first tool call is the exact probe and its output payload carries both planted tokens, plus a
-  line `setup.sh` appended to `agent-files/.tools/runs.log`, read back through the mounts API
-  with no model in the loop, plus the `agent_tools_setup` stage for THIS session in the runner
-  log when `--runner-container` is given. `--sandbox local|daytona`, `--harness pi_core|claude`.
-  Mandatory (via `path_triggers.py`) when the restore step or the sandbox image recipes change.
-- `resources/matrix_w7_per_harness.py` — **[coached]** matrix_w7.py's exact scenario run
-  identically on all three harnesses (claude, codex, pi_core), each classified PASS/FAIL/SKIP
-  independently. Exists because W7 originally ran on Claude only, and that scenario-coverage gap
-  is exactly what let the Codex approve-then-fail P0 (2026-08-06) ship: commit_revision + file
-  marker + HITL approval on a harness this suite never exercised. claude uses subscription auth
-  (no vault dependency); codex and pi_core need a funded OpenAI `provider_key` vault secret
-  (mirrors cells X1/C3 in `qa_product.py`) and correctly SKIP with the exact reason when it's
-  missing or ambiguous — a SKIP here is an untested harness, not a pass, and must be named as such
-  in any release summary. `--only <harness>` runs a single leg without re-spending budget on the
-  others. Verified PASS on claude (2026-08-06). codex/pi initially SKIPPED on this shared preview
-  stack because its vault held zero — then, transiently, an ambiguous multiple — OpenAI candidates
-  (other concurrent agents' activity on the same shared project); resolved 2026-08-06 by stocking
-  one unambiguous OpenAI `provider_key` secret (no stale entries existed to remove). Re-verified
-  PASS on codex after stocking the key (session 58ce3a58-8d04-40ac-99e4-c44eaa5d7b06).
-- `resources/matrix_w7_daytona.py` — **[coached]** matrix_w7.py's exact scenario with
-  `sandbox=daytona` instead of local. The local-only original W7 is exactly why this bug hid: the
-  Daytona transport rejects NUL bytes in argv, which the `@ag.file` manifest walk was emitting, so
-  no workspace-file commit could EVER land on Daytona, on any harness, until the 2026-08-06 fix
-  (found during the same P0 triage, live-verified twice on codex+Daytona: sessions f3fa4335,
-  f2f22056). This cell is the sandbox-axis regression guard, staying on the claude harness. Needs
-  the same funded Anthropic vault key as `matrix_w1_daytona.py`. Verified PASS (2026-08-06).
-- `resources/matrix_invariant_commit_auth_refusal.py` — **[coached scenario; the invariant itself
-  is mechanism-level]** the generic invariant: no `tool_result` with empty output and
-  `isError:false` may exist for a call whose runner log says `[commit-auth] refused` (the
-  silent-blank-success class — the P0's actual failure shape, distinct from the scenario-coverage
-  gap `matrix_w7_per_harness.py` addresses). The check itself
-  (`qa_matrix_lib.check_no_blank_success_on_refusal`) reads the runner's own log line against the
-  wire outcome and is meant to be reusable by any cell that exercises marker-carrying commits, not
-  just this one. This cell's trigger is best-effort: run W7's flow, let the legitimate commit
-  consume its authorization record, then REPLAY the byte-identical approval-carrying request
-  (a duplicate submission) hoping to force a second, doomed `authorizeExecution` attempt. Verified
-  2026-08-06: the replay did NOT reproduce a refusal (the runner treats the identical replayed
-  history as already-resolved and answers conversationally instead of re-invoking the tool), so
-  the cell correctly SKIPped rather than claiming a false pass on an invariant it never exercised.
-  A reliable deterministic trigger (e.g. a genuine cold-resume stale-approval replay, or a crafted
-  duplicate `toolCallId`) is an open follow-up; until then, treat any SKIP from this cell as "the
-  invariant was not tested this run," never as green.
-- `qa_matrix_lib.check_no_silent_turn(turns)` — **[mechanism-level invariant; no cell of its
-  own]** no turn may come back completely bare: no text, no tool call, no approval gate, no file
-  or data payload, and no error. That combination is a swallowed provider failure (ASD-EST100) —
-  the model call is rejected, the error is dropped on the way back, and the turn is reported as a
-  clean empty finish, so the user sees a blank bubble with no reason anywhere. It matters most in
-  cells whose PASS depends on something NOT appearing (no error, no leak, no blank success): a
-  turn that produced nothing satisfies those by doing nothing at all. Its content definition
-  deliberately mirrors `content_parts_emitted` in the product's own Vercel egress
-  (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py`) — reasoning does NOT count, so a
-  turn that only thought is still a violation. Wired into `matrix_w7*.py`, `matrix_t8_saved_files.py`,
-  `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`,
-  `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py` and `matrix_w5.py` as
-  `... and not silent["violations"]`; add the same conjunct to any new cell. The one thing a cell
-  must exclude itself is a turn it deliberately aborted or interrupted, which legitimately ends
-  bare — `matrix_w5.py` shows the pattern (it checks only its post-interrupt turns).
-- `resources/matrix_g1_guidance_discovery.py` — **[mechanism-blind]** does the platform guidance
-  actually change what the model does? The trial prompt is Mahmoud's own verbatim phrasing from
-  the live session that found the bug ("can you add gstack-autoplan skill to your skills (i saved
-  it in your folder)") — no tool, operation, or marker syntax named. Before the guidance existed,
-  this exact phrasing made a model copy the skill into its own harness-local skills folder and
-  claim success without ever proposing a commit, 3/3 live (session b59cb549). Two parts per
-  harness/model/sandbox leg: PROBE reads the rendered instructions file out of the workspace and
-  asserts the fenced platform-guidance block and the skill-location sentence are really there;
-  TRIALS run the prompt N times, PASS only when a commit_revision gate fires, is approved, and the
-  STORED revision carries the skill (copying into the harness's own folder is a FAIL). Setup
-  gotchas baked into `qa_matrix_lib.py` (`PI_CORE_HARNESS_KIND`, `PI_CORE_HAIKU_MODEL`): the Pi
-  harness kind enum is `"pi_core"` (bare `"pi"` 500s), and `pi_core` rejects a bare `"haiku"` model
-  id (needs `"claude-haiku-4-5"`); codex accepts its curated short alias (`"gpt-5.6-luna"`) bare.
-  Both legs need `sandbox=daytona` + a vault key (codex: OpenAI; pi_core: the same Anthropic key
-  `matrix_w1_daytona.py` documents) and SKIP with the exact reason when the credential is missing
-  or ambiguous. `--only <leg>` runs a single leg without re-spending trial budget on the other.
-  Neither leg has yet scored a clean 4/4 live, and both failure modes are real, reproducible model
-  mechanics misses, not noise or infra flake — treat this cell's discovery rate as a genuine open
-  quality question, not a settled pass:
-  - **pi_core: 2/3** (2026-08-06). Trial 2's model ran `cp -r agent-files/gstack-autoplan
-    .agenta-imports/` (copying the whole directory) then referenced a marker path that didn't
-    match where the file landed; the engine correctly denied it fail-closed
-    (`approved-content resolution failed ...: gstack-autoplan/SKILL.md does not exist under
-    .agenta-imports/.; deny`). Not a product bug — the deny is doing its job — but evidence the
-    model fumbles the exact copy-then-reference mechanics some of the time.
-  - **codex: 2/3** (2026-08-06, re-verified after stocking a clean OpenAI vault key — the earlier
-    SKIP was purely the missing/ambiguous credential, now resolved). Trial 1 didn't attempt the
-    mechanism at all: zero gates approved, the model just replied "I can't add skills by simply
-    placing files in the skills folder; skills must be enabled through the agent configuration"
-    (session 4fa17164-3ada-4ef6-86b5-63bf1c64f10b) — it named the right concept but never called
-    read_config/commit_revision to act on it. Trials 2 and 3 passed cleanly (sessions
-    4c6a758b-39a3-4789-890e-06f3d68196b6, bf8a1283-667c-45c7-ab0d-b112e12106db).
+Tiers: **coached**, **mechanism-blind** and **mechanical** as defined above. "Always" means every
+release run. "Path rule" means `path_triggers.py` makes the cell mandatory when the release diff
+touches the paths that rule names.
 
-  Worth a call: whether the guidance text needs to be more directive (e.g. explicitly say "copy
-  the FILE, not the directory" and "always attempt the tool calls, don't just describe the
-  mechanism"), or whether ~2/3 is an acceptable bar for this feature's launch.
+| File | Tier | What it asserts | When mandatory |
+|---|---|---|---|
+| `coverage.md` | doc | The cells (harness × sandbox × auth), the journeys with a one-line meaning each, the continuity tiers, and what each cell needs beyond the three env vars. | Read before a run. |
+| `LESSONS.md` | doc | The traps. Read before you write or trust any agent QA test. | Read before a run. |
+| `qa_product.py` | mixed, per journey | The gate driver (cells × journeys). | Always. |
+| `path_triggers.py` | tooling | The path rules: glob to mandatory cells and forced journeys. `--release-base <ref>` previews. | Not a cell. Add a rule whenever a cell only matters for one part of the tree. |
+| `qa_probe.py` | coached | One turn on the product path answers at all. | Before the full gate. |
+| `qa_commit_approval.py` | coached | The commit-approval round trip against a real saved revision. Self-contained. `AGENTA_QA_*` moves its shape. | Before a human gets a deployment URL. |
+| `qa_matrix_lib.py` | library | Shared helpers for the `matrix_*.py` cells and the two invariants below. Import only. | Not a cell. |
+| `session_control.py` | coached | Stop, durable commands, park/resume, watchdog quarantine (sixteen cells). | Path rule: runner sessions, sandbox engine, API sessions. |
+| `matrix_gw1_gateway_tools.py` | coached, one mechanism-blind leg | Gateway search filters by policy, an allowed tool executes with a real provider result, an ask-tier tool parks and is answered through the interactions API. | Path rule: gateway tools. |
+| `matrix_w3.py` | coached, mechanism-blind recovery | Two sessions with disjoint edits; B gets a stale `base_revision_id` and must recover from the 409. | Optional. |
+| `matrix_w4.py` | coached | A pending approval whose base goes stale is caught at EXECUTE time. | Optional. |
+| `matrix_w5.py` | coached | A steered (interrupted) session still works on later turns, including its durable mount. | Optional. |
+| `matrix_w7.py` | coached | An `@ag.file` commit: manifest carries digest and bytes, the commit lands with the exact bytes. | Optional. |
+| `matrix_w7_per_harness.py` | coached | W7 on claude, codex and pi_core, each classified on its own. `--only <harness>`. | Optional. |
+| `matrix_w7_daytona.py` | coached | W7 on `sandbox=daytona` (claude harness). Sandbox-axis guard. | Optional. |
+| `matrix_w1_daytona.py` | coached | The commit round trip on Daytona: `DaytonaWorkspaceReader` and placeholder secrets. | Optional. |
+| `matrix_t8_saved_files.py` | coached | The Daytona remote agent mount: planted marker reaches tool output and the commit, runner logs `remote agent mount active for artifact=<id>`. | Optional. |
+| `matrix_t9_agent_tools.py` | coached | The runner restores `agent-files/.tools/` (`setup.sh`, `bin/qa-tool`) before a session. | Path rule: agent tools restore and image recipes. |
+| `matrix_invariant_commit_auth_refusal.py` | coached scenario, mechanism-level invariant | No empty `isError:false` tool result for a call the runner log refused (`[commit-auth] refused`). | Optional. |
+| `matrix_g1_guidance_discovery.py` | mechanism-blind | A plain-language ask to add a saved skill leads to an approved `commit_revision` whose stored revision carries the skill. | Optional. |
+| `matrix_b1_builtin_find.py` | coached | Each harness's native file search returns the planted filenames in the tool output payload. | Optional. |
+| `matrix_l1_lifecycle_routes.py` | mechanism-blind | The route the runner takes for each mid-conversation config change (one sandbox id = in place, two = rebuilt). | Always. |
+| `matrix_l2_approval_across_config_change.py` | coached | An approval answered with a config change in the same request: commit lands, row resolves, change takes effect next turn via a rebuild. | Always. |
+| `matrix_l3_abandoned_approval.py` | coached | A new message instead of an answer: gated tool does not run, row goes `cancelled`, session still works. | Always. |
+| `matrix_l4_client_tool_lifecycle.py` | coached | The client-tool round trip reaches the model and stores the `client_tool` interaction. | Nice to have. |
+| `matrix_l5_live_route_observed.py` | mechanism-blind, with a control | A mid-conversation instructions edit is observed by the harness, against a cold control. | Always. |
+| `matrix_n1_session_context.py` | journey, with two controls | The per-turn session facts (session name after a rename, agent display name) reach the agent; a forged `meta.session_context` is ignored. | Path rule: session context. |
+| `matrix_r1_two_replicas.py` | coached | Turn binding, Stop and follow-up routing, Kill by label and drain across two runner replicas. | Path rule: runner replicas. |
+| `matrix_c5_first_call_race.py` | mechanical | A placeholder 401 on a cold Daytona first call is reported as `credential_delivery_failed`, never as the user's missing key. | Every gate (LESSONS #18). |
+| `sweep_disagree.py` | mechanical | No untriaged `[reconcile] shadow ... DISAGREE` line in the runner log. Run after a gate session. | Every gate (LESSONS #18). |
+| `matrix_h1_bad_harness.py` | mechanical | A malformed harness is refused at some boundary and never runs as a defaulted turn. | Every gate (LESSONS #18). |
+| `check_secrets_teardown.py` | mechanical | No Daytona Secret created by the journey outlives its eviction. Needs `DAYTONA_API_KEY` or `AGENTA_RUNNER_DAYTONA_API_KEY`. Run alone. | Every gate (LESSONS #18). |
+| `matrix_s1_custom_secrets.py` | coached | A custom-secret binding reaches local and Daytona sandboxes, a rotation is seen next turn, removal is seen as absent. Values never printed. | Path rule: custom secrets. |
+| `matrix_i1_settlement.py` | mechanical | The interaction-card row lifecycle for every card kind: complete, decline, walk away, and `resolved` stays approval-only. | Optional. |
+| `matrix_i2_card_journeys.py` | mechanical | Six scripted interaction-card journeys across several cards. SKIPs whole when `TELEGRAM_BOT_TOKEN` is unset. | Optional. |
+| `qa_longctx.py` | coached | Long-context memory, Gmail tools, and concurrent-session bleed. Needs live Gmail and GitHub Composio connections. | Optional. |
+| `seeds/` | data | Representative green `results.json` files kept as regression-seed references. | Not a cell. |
+| `test_*.py` | offline unit tests | The gate's own logic (path rules, parsers, classifiers, session-control helpers). | Run after you change a resource script. |
 
-### Builtin capability cells (`matrix_b*.py`) — does the harness's own tooling still work
+**How to run the `test_*.py` files.** Run them with pytest from `resources/`, in any interpreter
+that has pytest and httpx, for example `uvx --with httpx pytest test_path_triggers_registry.py`.
+The `api/` environment also has both, so `uv run --no-sync pytest <path>` from `api/` works. Files
+with an inline `# /// script` header also run on their own with `uv run <file>`.
 
-- `resources/matrix_b1_builtin_find.py` — **[coached, harness-mechanism test]** one native
-  file-search call per harness (write three known marker files, then ask the model to locate
-  them via its own search capability — never a manual directory listing), asserting the exact
-  filenames come back in the TOOL OUTPUT payload, never the reply. Exists because nothing else in
-  the gate ever exercised a harness builtin: verify-runner's overnight diagnosis found Pi's
-  `find` builtin dead 52/52 across two benchmark runs (it shells out to the vendored `fd` binary
-  with a flag that only exists from fd 9 onward; the runner image ships fd 8.6.0) — a total
-  capability loss that sat invisible with nothing calling it. This cell closes that discoverability
-  gap for the class, not just this one instance. **Open discrepancy, not yet reconciled**: this
-  cell's own pi_core leg PASSED twice, live, with real filenames back
-  (2026-08-07, sessions dd9c51ef-92d0-4780-855e-da6f48e07d9f and
-  47f02ab1-61ec-4db8-a0d6-2d96e98b9188) — which does not match "52/52 failed". Either the break is
-  conditional on a flag/option this cell's simple case never exercises, or something already
-  changed; needs reconciling with verify-runner before Pi's `find` gets called either fixed or
-  still broken. **Codex SKIPs by design**, not tested: its exec output doesn't land in the
-  `tool-output-available` payload's `.output` field (the same quirk `qa_product.py`'s `j2_mount`
-  already names and skips codex for), so this cell's evidence extraction cannot see codex's real
-  results — a codex-shaped extraction is a follow-up. Claude PASSED cleanly on the two-turn
-  version (session 4081e9ee-11c1-4f12-8245-6c390f90e9d8). Needed two EXPLICIT turns (write, then
-  search) — one combined instruction left claude stopping after the write step without
-  attempting the search at all.
+### Cell notes
 
-### The lifecycle cells (`matrix_l*.py`) — cold ↔ warm, and what survives each transition
-
-These four cover the session-lifecycle work: which config changes are applied to a RUNNING
-sandbox and which tear it down, and what happens to a pending approval, a client tool and the
-durable mount across each transition. They all assert the STORED turn ledger
-(`POST /sessions/turns/query` → one `sandbox_id` per turn) or the STORED interaction rows
-(`POST /sessions/interactions/query`), never the SSE echo — nothing about warm-versus-rebuilt
-ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not evidence.
-
-- `resources/matrix_l1_lifecycle_routes.py` — **MANDATORY. [mechanism-blind]** the routing matrix
-  itself: for each kind of mid-conversation config change, assert the route the runner took. One
-  sandbox id = applied in place, two = rebuilt. Blocks on six cases: no change must stay warm; an
-  instructions edit, a permissions edit and a tool-catalog edit must escalate; and a
-  same-connection model switch must stay warm on BOTH claude and pi_core. The pi_core model case
-  (added 2026-08-29) is the standing trap for the wire-spelling bug class: the router once keyed
-  its table on the bare "pi" literal while the wire carries "pi_core", every playground model
-  switch silently rebuilt, and the claude-only case could not see it (#6364). This is the cell
-  that would have caught the `cold1` rot described below.
-- `resources/matrix_l2_approval_across_config_change.py` — **MANDATORY. [coached]** the killer
-  combination: an approval answered while a config change rides along in the SAME request. It is
-  the regression test for the applied-state bug (the pool used to stamp the INCOMING fingerprint
-  on the approval-resume path, so the next turn continued warm on an environment running
-  something else). Asserts the gated commit lands, the approval row ends `resolved`/`responded`,
-  and — the real tell — the config change is not swallowed: it takes effect on the FOLLOWING
-  turn, via a rebuild, in both the instructions and the permissions variant.
-- `resources/matrix_l3_abandoned_approval.py` — **MANDATORY. [coached]** the user sends a new
-  message instead of answering the card. Asserts the gated tool does NOT run (an unanswered
-  approval is not consent), the row is swept to `cancelled` rather than left `pending`, and the
-  session still works. `cancelled` vs `pending` is the loud-vs-silent distinction: a `pending` row
-  is a card sitting on the page that no process is waiting on.
-- `resources/matrix_l5_live_route_observed.py` — **MANDATORY. [mechanism-blind, with a control]**
-  the other half of L1: an instructions edit made mid-conversation must actually be OBSERVED by
-  the harness, not merely written to disk. Runs the same configuration on a fresh cold session as
-  a control, so a failure isolates the runner rather than blaming the model; when the control also
-  fails it reports INCONCLUSIVE instead of a confident wrong verdict. It asserts the edit, never
-  the route, so it stays meaningful if the facet is ever made live again. **Failed 2026-08-06
-  (claude/local) and now passes** — see the finding note below. Extended 2026-08-06 (overnight
-  gate run) to all three harnesses in one invocation (`--only <harness>` for a single leg) —
-  this MANDATORY blocker cell had only ever run on claude; codex and pi_core were a named gap.
-  Verified PASS on all three the same night the harness matrix landed.
-- `resources/matrix_l4_client_tool_lifecycle.py` — **nice-to-have. [coached]** the client-tool
-  round trip, and the only cell that covers client tools at all. Asserts the browser's result
-  reaches the model and the `client_tool` interaction is stored. It RECORDS rather than asserts
-  the sandbox count, which is two today: a client-tool pause is deliberately not parkable
-  (`"warm-hold": RESERVED, not built`, #5384), so every client-tool round trip currently costs a
-  rebuild. If that number ever reads one, the warm hold landed and the docstring needs updating.
-  It builds its config through `agent_config`, so the `AGENTA_QA_*` variables point it at a
-  cloud stage; it passed on pi_core over Daytona on staging and over the local sandbox on
-  oss.preview during the v0.117.0 run, and two sandboxes per round trip is still what it records.
-- `resources/matrix_n1_session_context.py` — **MANDATORY. [journey, with two controls]** the
-  per-turn session facts on the path the PRODUCT uses. Renames a session between two turns and
-  asks the agent for the name, asks the agent for its own display name, and posts a forged
-  `meta.session_context` that the service must ignore. Every expected value carries a random
-  token minted for the run and spoken nowhere in the conversation, so a transcript-derived
-  answer cannot match; the second ask is the exact shape of #6661, because by then the FIRST
-  name is in the transcript and the current one is only in the stored header. This is the one
-  cell that asserts on model prose, and it does so because nothing else can: `turnContext` is a
-  prompt string on the service-to-runner payload, the runner logs nothing, and it is
-  deliberately kept out of `request.messages` and out of persisted input. Two controls keep a
-  FAIL honest — an echo probe (a model that cannot repeat a literal token makes the cell report
-  INCONCLUSIVE) and a read-back of the stored header after every rename. Mandatory (via
-  `path_triggers.py`) when the SDK session-context module, the platform-prompt renderer, the
-  agent handler, or the API's session-context resolver changes. **The gate could not see this
-  class at all before v0.115.3**: #6661 shipped green because the API stamped the facts in its
-  invoke prelude, which never runs for a playground turn, and no cell renamed a session
-  mid-conversation or asserted on the facts.
-
-**Finding the lifecycle cells surfaced (2026-08-06, claude on local, reproduced 3×) — FIXED:** the
-`workspaceFiles` live route rewrote the instruction file and advanced applied state, but the
-running harness never re-read it. A warm session kept obeying the instructions it started with
-while the pool reported the NEW fingerprint, so every later turn matched and continued warm and the
-user's edit had no effect until something else evicted the session. A cold session with the
-identical configuration obeyed it immediately, which is what isolated the runner. This was the
-failure `desired-state.ts` refuses to allow for the `prompts` facet ("refreshing them and claiming
-the model saw the change would be a lie") reappearing on the facet that WAS made live — and note
-the direction: before the live route existed, an instructions edit forced a rebuild and therefore
-took effect on the next turn, so it was a regression in what the user sees, not a speedup.
-`matrix_l5_live_route_observed.py` is the repro.
-
-The fix withdrew the route: `workspaceFiles` now routes to `rebuild-sandbox` in the capability
-table, and `refresh-workspace` left `LIVE_ACTION_KINDS` so restoring the table alone fails closed.
-An instructions edit costs a sandbox again, which is what it cost before the optimisation. **L1's
-`instructions` case therefore expects TWO sandbox ids, and L2's first variant expects two as
-well** — if you are reading an old green from before 2026-08-06, those cells expected one. The
-intended next shape is refresh THEN reopen the session, which needs the reopen to build its
-session init from the incoming request first, and needs proving on L5 rather than asserting.
-
-**Why `cold1` changed (read before trusting an old green):** that tier used to force its eviction
-by editing `instructions.agents_md`, which the lifecycle work briefly made a LIVE route — the tier
-would have gone on passing while measuring warm reuse, and `park`'s "one sandbox id is meaningful"
-argument rests on `cold1` reporting two on the same deployment. It now moves `harness.permissions`
-(the `harnessSession` facet → `reopen-session`, deliberately not live) and ASSERTS two distinct
-sandbox ids. It stays there even though an instructions edit escalates again today: a forcing
-function should depend on a route that is escalated by POLICY, not by current capability. Any
-future forcing function needs the same check.
-
-**Known verification gap, recorded rather than pretended away:** the cold-resume
-stale-approval-regate path (`shouldRegateStaleApproval`, acp-interactions.ts — a stored `allow`
-for a marker call whose frozen bytes no longer exist must raise a FRESH gate, not execute on
-stale content) has unit coverage through the real wiring (the F8 tests) but no live wire-level
-cell. A scripted client cannot force "gate pending → environment evicted → gate answered"
-without violating the message-history contract real clients honor (confirmed: inserting an
-intervening turn triggers `approval-mismatch(history)` eviction correctly, but the runner then
-silently drops the stale decision on resume rather than raising a new card or executing —
-itself worth a second look, separate from the original regate question). Do not write a new
-wire cell for this without a different approach (e.g. a runner-side hook) than a pure HTTP
-client.
-
-*A candidate approach, found while building the `matrix_l*` cells and not yet tried:* a turn that
-raises an approval gate AND a client-tool pause together takes the `mixed-gate-no-park` branch in
-`session-coordinator.ts` (`approvalToPark` refuses when `nonParkablePauseCount > 0`), so the
-environment is destroyed with the approval still pending — "gate pending → environment evicted"
-without any intervening user turn and without touching the message history. Answering afterwards
-lands on a pool miss and takes the cold decision-map path, which is exactly the state
-`shouldRegateStaleApproval` guards. Worth a spike before concluding this needs a runner-side hook.
-- `resources/matrix_r1_two_replicas.py` — **[coached] runner replicas.** Needs a stack with TWO
-  runner containers and `--project <compose project>` plus `--stack-env <env file>` (runner token,
-  Daytona key). It decides which container served each turn from the containers' own logs
-  (`heartbeat OK session=<s> turn=<t>`, `hit-continue`), the turn ledger, the runner-token
-  streams read (`runner_replica_id`) and `session_commands.claimed_by`, never from the stream.
-  Phase 1 cells (`--cells phase1`): `warm-holder`, `approval-warm` (answered through the respond
-  route like `web/mobile`), `queued-input`, `stop-on-b`, `kill-from-non-holder`,
-  `duplicate-turn-id` (direct `/run` on both container addresses, mock harness) and
-  `inprocess-warm`. Phase 2 cells kill, stop or recreate a runner and SKIP without
-  `--allow-destructive`; `identity-mismatch` also needs `--worktree`, `--recreate-license`,
-  `--recreate-stage` and `--recreate-env-file` (no stack-specific defaults). **A release record
-  needs BOTH phases: `--cells all --allow-destructive`.** A phase-1-only run is partial
-  coverage, and a run where every selected cell SKIPs exits 2, never 0. Two traps it encodes:
-  Claude Code refuses a standalone `sleep N`, so its
-  long turns run `timeout N tail -f /dev/null`; and a queued input must carry only the trailing
-  user message, as the browser sends it, or the runner sees a history mismatch and goes cold.
-  `--subscription hosted` (plus `--subscription-slug`, `--subscription-sandbox daytona|inprocess`,
-  `--pi-model`) runs the six routing cells on Pi with the project's hosted ChatGPT connection
-  and SKIPs them all when that connection is not `ready`; `--subscription mounted` is the
-  operator's Pi login mounted into the runners, `inprocess` only. The other cells SKIP under a
-  subscription shape. Under
-  `hosted`, `hosted-both-pods` (phase 1), `hosted-refresh-across-pods` and
-  `hosted-restart-reconnect` (phase 2) check the hosted login itself on both pods from the pods'
-  `event=subscription.materialize|publish` lines and the row's `login_version` /
-  `login_generation`: both pods run on the login the request delivers, one refresh is pushed
-  back once and reused by the other pod, and a restarted pod needs no device login.
-  `--daytona-harness pi_core` runs the Daytona cells on Pi with the `--custom-name` /
-  `--custom-model` connection instead of Claude Code. `--kube-namespace <ns>` (with
-  `--kube-context`, `--kubeconfig`, `--kube-release`, optional `--kube-secret`) runs against a
-  Helm release with two runner pods: logs are followed per pod from the run start, Postgres is
-  read with `psql` inside an api pod, posts to a pod go through `kubectl port-forward`. There,
-  kill is a force pod delete (the Deployment starts a new pod, so the follow-up may run on B or
-  A's replacement), the drain is a graceful pod delete, `identity-mismatch` SKIPs, and two
-  kube-only phase 2 cells run: `rollout-during-turn` (`rollout restart` under a long turn) and
-  `drain-node-parked-approval` (cordon and drain A's node with a runner-only pod selector, through
-  the PodDisruptionBudget; always uncordoned).
-  Mandatory (via `path_triggers.py`) when the turn binding, Stop routing, follow-up routing, Kill
-  by label, or the drain changes.
-- `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
-  live Gmail and GitHub Composio connections in the target project; skip it otherwise.
-- `resources/seeds/` — representative green `results.json` files kept as regression-seed references.
+- **Two invariants in `qa_matrix_lib.py`.** `check_no_blank_success_on_refusal` reads the runner's
+  own log line against the wire outcome. `check_no_silent_turn(turns)` fails a turn that comes
+  back with no text, no tool call, no approval gate, no file or data payload and no error. That
+  turn is a swallowed provider failure: the user sees a blank bubble with no reason. Its content
+  definition mirrors `content_parts_emitted` in
+  `sdks/python/agenta/sdk/agents/adapters/vercel/stream.py`, so reasoning alone does not count.
+  **Wire `check_no_silent_turn` into the PASS condition of every new cell** as
+  `... and not silent["violations"]`. Exclude only a turn the cell aborted or interrupted on
+  purpose, as `matrix_w5.py` does.
+- **`agent_config`** reads model, provider, connection mode and slug, harness and sandbox from the
+  `AGENTA_QA_*` variables, so a cell that builds its config through it runs on a cloud stage. A
+  cell that hardcodes its config dict does not, and each of those is deliberate.
+- **A SKIP from a per-harness or per-sandbox leg is an untested leg, not a pass.** Name it as such
+  in any release summary. This holds for `matrix_w7_per_harness.py` (codex and pi_core need one
+  unambiguous funded OpenAI `provider_key` secret), `matrix_g1_guidance_discovery.py`,
+  `matrix_b1_builtin_find.py` and every cell with an `--only` leg.
+- **A SKIP from `matrix_invariant_commit_auth_refusal.py`** means the invariant was not tested
+  this run. Its replay trigger is best-effort; a deterministic trigger is an open follow-up.
+- **`matrix_w3.py`** passes on autonomous recovery, and also passes when the model diagnoses the
+  409 and asks first, once one bare "yes, retry" completes it. Only the recovery step is
+  mechanism-blind. Do not cite it for "the model finds `commit_revision` unprompted".
+- **`matrix_w5.py`** guards a mount-lifecycle bug (the durable mount is not re-established after a
+  steer). Keep it apart from the separate steer bug about turn currency and heartbeats when you
+  triage.
+- **`matrix_w7.py`**: `DEFERRED_NOT_EXECUTED` on a queued second tool call is benign (another gate
+  is already pending). Naming `@ag.file` in the prompt means the cell cannot catch a model that
+  fails to find the marker unprompted.
+- **`matrix_w1_daytona.py`** and **`matrix_w7_daytona.py`** need a funded Anthropic vault key. The
+  file's docstring gives the vault-secret shape and the `provider_key` slug gotcha.
+- **`matrix_g1_guidance_discovery.py`**: PROBE asserts the rendered instructions file holds the
+  platform-guidance block; TRIALS run the prompt N times and pass only when the stored revision
+  carries the skill. Copying into the harness's own folder is a FAIL. Setup gotchas live in
+  `qa_matrix_lib.py`: the Pi harness kind is `"pi_core"` (bare `"pi"` returns 500), `pi_core`
+  needs `"claude-haiku-4-5"` rather than `"haiku"`, and codex accepts its curated short alias
+  bare. Both legs need `sandbox=daytona` and a vault key. Treat its discovery rate as an open
+  quality question.
+- **`matrix_b1_builtin_find.py`** needs two explicit turns (write, then search). Codex SKIPs by
+  design, because its exec output does not land in the `tool-output-available` payload's `.output`
+  field.
+- **Lifecycle cells (`matrix_l*.py`)** assert the STORED turn ledger (`POST /sessions/turns/query`,
+  one `sandbox_id` per turn) or the stored interaction rows (`POST /sessions/interactions/query`),
+  never the SSE echo. An empty ledger FAILS a cell. L1 blocks on six cases: no change stays warm;
+  an instructions edit, a permissions edit and a tool-catalog edit escalate; a same-connection
+  model switch stays warm on BOTH claude and pi_core. An instructions edit rebuilds, so L1's
+  `instructions` case and L2's first variant expect TWO sandbox ids.
+- **`matrix_l4_client_tool_lifecycle.py`** records rather than asserts the sandbox count, which is
+  two today because a client-tool pause is not parkable (#5384). If it reads one, the warm hold
+  landed and the docstring needs an update.
+- **`matrix_l5_live_route_observed.py`** reports INCONCLUSIVE when the cold control also fails. It
+  asserts the edit, never the route. `--only <harness>` runs one leg.
+- **`matrix_n1_session_context.py`** is the one cell that asserts on model prose, because
+  `turnContext` is a prompt string the runner never logs. Every expected value carries a random
+  token spoken nowhere in the conversation. An echo probe makes the cell INCONCLUSIVE when the
+  model cannot repeat a literal token, and a read-back of the stored header follows every rename.
+- **`cold1` forcing function.** It moves `harness.permissions` (the `harnessSession` facet, which
+  goes to `reopen-session`) and asserts two distinct sandbox ids. A forcing function must depend
+  on a route that is escalated by POLICY, not by current capability.
+- **Stale-approval regate has no live cell.** `shouldRegateStaleApproval` has unit coverage only.
+  Do not write a pure HTTP cell for it; it needs a runner-side hook or the `mixed-gate-no-park`
+  approach described in the history file.
+- **`matrix_r1_two_replicas.py`** needs a stack with TWO runner containers, `--project <compose
+  project>` and `--stack-env <env file>`. It decides which container served a turn from the
+  containers' logs, the turn ledger, `runner_replica_id` and `session_commands.claimed_by`, never
+  from the stream. Phase 1 cells (`--cells phase1`): `warm-holder`, `approval-warm`,
+  `queued-input`, `stop-on-b`, `kill-from-non-holder`, `duplicate-turn-id`, `inprocess-warm`.
+  Phase 2 cells kill, stop or recreate a runner and SKIP without `--allow-destructive`;
+  `identity-mismatch` also needs `--worktree`, `--recreate-license`, `--recreate-stage` and
+  `--recreate-env-file`. **A release record needs BOTH phases: `--cells all --allow-destructive`.**
+  A run where every selected cell SKIPs exits 2. A queued input must carry only the trailing user
+  message, as the browser sends it. `--subscription hosted` (with `--subscription-slug`,
+  `--subscription-sandbox daytona|inprocess`, `--pi-model`) runs the routing cells on Pi with the
+  project's hosted ChatGPT connection, plus `hosted-both-pods`, `hosted-refresh-across-pods` and
+  `hosted-restart-reconnect`; `--subscription mounted` uses the operator's mounted Pi login,
+  `inprocess` only. `--daytona-harness pi_core` runs the Daytona cells on Pi with the
+  `--custom-name` / `--custom-model` connection. `--kube-namespace <ns>` (with `--kube-context`,
+  `--kubeconfig`, `--kube-release`, optional `--kube-secret`) runs against a Helm release with two
+  runner pods and adds `rollout-during-turn` and `drain-node-parked-approval`; there
+  `identity-mismatch` SKIPs.
 
 ## Contributing
 
 Before committing any resource script, run the repo-pinned ruff (`uv run --no-sync ruff format`
-then `uv run --no-sync ruff check` from the repo root covers it) — not `uvx`, whose pulled
+then `uv run --no-sync ruff check` from the repo root covers it), not `uvx`, whose pulled
 version has different defaults and produces a false block. Unformatted resource files break the
 repo-wide format CI job.
 
 When you add a cell, ask whether it is only meaningful for changes in one part of the tree. If it
 is, add the rule to `resources/path_triggers.py` in the same change. A cell whose subsystem can be
-rewritten without anyone remembering to run it is coverage on paper.
+rewritten without anyone remembering to run it is coverage on paper. Add a row to the Resources
+table in the same change.
 
 Release-night findings and the full evidence history are archived in
-`docs/design/agent-workflows/projects/qa/` (STATUS.md, findings.md, matrix.md).
+`docs/design/agent-workflows/projects/qa/` (`release-gate-history.md`, `findings.md`,
+`matrix.md`).

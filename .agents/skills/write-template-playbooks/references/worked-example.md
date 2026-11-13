@@ -1,12 +1,15 @@
 # Worked example: the changelog-writer playbook
 
 Copy from this. It is the seed playbook, already corrected against the runtime: `test_run`
-explores uncommitted tools through its delta, the trigger test is the Lightning "Test event"
-button (Play "Run" for schedules), and proposals ride each field's `default` so the form is
-one-click acceptable. Notice how each section is short, names exact tools, and ends the
+explores uncommitted tools through its delta, the trigger test is the automation's "Run now"
+button, and proposals ride each field's `default` so the form is one-click acceptable. Notice how each section is short, names exact tools, and ends the
 instructions on the terminal side effect.
 
-The fenced block below is the file that ships as `references/agent-templates/changelog-writer.md`.
+The fenced block below is an example adapted from the `body` of the `changelog-writer`
+`TemplateEntry` in `sdks/python/agenta/sdk/agents/adapters/agent_templates/engineering.py`. It
+is not a copy: the shipped body may still use older button copy, so update it when you touch
+that template. The builder agent reads it
+as `references/agent-templates/changelog-writer.md`.
 
 ```markdown
 # Changelog writer playbook
@@ -62,9 +65,8 @@ Output shape:
 1. test_run with a blunt message ("Draft release notes from the last 5 merged PRs") and read
    the verdict and the tools line, not a 200. An incomplete verdict means rewrite the
    instructions blunter and re-test.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the real
-   trigger test: the Lightning "Test event" button for a subscription, the Play "Run" button
-   for a schedule.
+2. Send an artificial trigger test message first. If that passes, ask the user to run the real
+   trigger test with the "Run now" button on the automation.
 3. Read back the published note to confirm the write landed.
 
 ## Closing report
@@ -76,8 +78,9 @@ authorize).
 ## What this example demonstrates
 
 - **Required vs researchable is explicit.** The repo and publish target are required (the agent
-  cannot proceed without them). The release process is researchable, so its enum leads with
-  "Use your best judgment."
+  cannot proceed without them). The publish target's enum defaults to "Figure it out from what's
+  connected.", and the release process is researchable, so the agent looks it up instead of
+  asking.
 - **Proposals ride the `default` field.** The repo guess becomes the field `default` when a
   prior read surfaces one; the recommended enum choice is set as the `default`, and the
   built-in Other… covers off-list answers.
@@ -86,5 +89,5 @@ authorize).
 - **The instructions template ends on the publish tool** and names each tool in order. It does
   not repeat the generic build loop or the config schema.
 - **Verify reads the verdict and the tools line**, two-phases the trigger test, and reads the
-  side effect back. The trigger affordance copy is the corrected Lightning "Test event" / Play
-  "Run", never a flask.
+  side effect back. The trigger affordance copy is the automation's "Run now" button, never a
+  flask.

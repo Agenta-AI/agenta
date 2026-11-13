@@ -15,6 +15,10 @@ harness capability record (`capabilities.py`).
 Design and rationale:
 `docs/design/agent-workflows/projects/model-catalog-schema/{design.md,plan.md}`.
 
+The set of model ids each vault provider accepts comes from `supported_llm_models` in
+`sdks/python/agenta/sdk/utils/assets.py`, which the `update-llm-model-list` skill owns. Update that
+list first when a new model ships.
+
 ## What it owns
 
 Four JSON data files under `sdks/python/agenta/sdk/agents/data/`, loaded by
@@ -87,15 +91,15 @@ such as `claude-fable-5-1[1m]` while keeping the same model family.
 Use the stable bare canonical id when the runner can safely widen it to the session's hinted option.
 For Fable, publish `claude-fable-5-1`: an API-key session offers it bare, and the runner resolves it
 to `claude-fable-5-1[1m]` on a subscription session, where that is the only offered variant. Drop an
-id the pinned build no longer offers at all (Claude Code 2.1.280 dropped `claude-fable-5`); keeping
-it publishes a picker option that fails at run time. Do not publish the friendly forms
+id the pinned build no longer offers at all; keeping it publishes a picker option that fails at run
+time. Do not publish the friendly forms
 `fable` or `fable[1m]`; the harness does not recognize that model family under those ids. Requires
 an authenticated Claude session, so this is a manual/periodic step, not a CI gate.
 
 ### 3. Refresh curated metadata from current public sources (before a release / on demand)
 
 Labels, descriptions, and ratings state a model's *current* standing, which a language model's
-training data gets wrong (the Anthropic frontier is Fable 5, above Opus, as of mid-2026). Look up the
+training data gets wrong. Look up the
 current lineup, pricing, and relative standing from the vendor's pages and announcements (WebSearch +
 WebFetch), then propose updated descriptions and ratings for a human to confirm. Never write a rating
 from memory. Validate the 1-5 range and flag any entry whose facts you could not verify. Ratings:

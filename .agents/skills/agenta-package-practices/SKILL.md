@@ -13,7 +13,9 @@ state primitives (molecules, bridges, pickers) or package unit tests.
 ## When to use this skill
 
 - Deciding whether new code belongs in `web/mobile` (the app layer) or a package.
-  `web/oss` and `web/ee` are the abandoned desktop app: never add code there.
+  All new frontend code lives in `web/mobile` and `web/packages`. The one file you still edit
+  in `web/oss` is the theme source `web/oss/src/styles/theme/palette.ts`; see
+  `mobile-shadcn-conventions` for the token workflow.
 - Choosing which of the `@agenta/*` packages owns a piece of code, or importing from one.
 - Building with molecules, the loadable bridge, or the EntityPicker.
 - Writing or fixing unit tests inside a package under `web/packages/*/tests/`.
@@ -134,21 +136,22 @@ import {...} from "@agenta/entity-ui/selection"   // EntityPicker and adapters
 
 ## Modals
 
-`EnhancedModal` from `@agenta/ui` is an antd-`Modal`-compatible facade over the
-`@agenta/ui` Radix `Dialog`, kept so existing call sites work unchanged. Use it
-instead of raw antd `Modal` in package code. In `web/mobile`, and for new
-surfaces, compose `Dialog`/`Sheet` from `@agenta/ui/ui` directly.
+Use `Dialog` (or `Sheet`) from `@agenta/ui/ui` for all new code. `EnhancedModal` from
+`@agenta/ui` is an antd-`Modal`-compatible facade over that `Dialog`. It exists so
+existing call sites work unchanged. Use it only at those call sites, and never use raw
+antd `Modal`. When you edit an existing `EnhancedModal`, follow this shape:
 
 ```typescript
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
+import {Button} from "@agenta/ui/ui"
 
 function MyModal({open, onClose}: {open: boolean; onClose: () => void}) {
     return (
         <EnhancedModal open={open} onCancel={onClose} title="Modal Title" footer={null}>
             <ModalContent>{/* Main content */}</ModalContent>
             <ModalFooter>
-                <Button onClick={onClose}>Cancel</Button>
-                <Button type="primary">Confirm</Button>
+                <Button variant="outline" onClick={onClose}>Cancel</Button>
+                <Button>Confirm</Button>
             </ModalFooter>
         </EnhancedModal>
     )
@@ -160,7 +163,7 @@ via `ModalFooter`, theme integration.
 
 ## Style utilities and presentational components
 
-When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
+Build and check every UI change in both light and dark themes (`web/AGENTS.md` § Styling).
 
 ```typescript
 import {cn, textColors, bgColors} from "@agenta/ui"
@@ -175,7 +178,7 @@ Section layout primitives from `@agenta/ui`:
 ```typescript
 import {
   SectionCard, SectionLabel, SectionHeaderRow, ConfigBlock, VersionBadge,
-  RevisionLabel, StatusTag, PanelHeader, SourceIndicator,
+  RevisionLabel, PanelHeader, SourceIndicator,
 } from "@agenta/ui"
 
 <SectionCard>
@@ -188,7 +191,7 @@ import {
 
 ```text
 Need a primitive (button, dialog, ...)? → @agenta/ui/ui
-Need a modal?                          → Dialog from @agenta/ui/ui (EnhancedModal for antd-style call sites)
+Need a modal?                          → Dialog from @agenta/ui/ui (EnhancedModal only at existing call sites)
 Class-name utils or theme colors?      → cn, textColors, bgColors from @agenta/ui
 Section layout primitives?             → SectionCard, SectionLabel, ConfigBlock from @agenta/ui
 Entity state management (molecules)?   → *Molecule from @agenta/entities/{entity}
@@ -222,7 +225,9 @@ Callback/effect  → molecule.get.* / molecule.set.*
 
 ```typescript
 import {testcaseMolecule} from "@agenta/entities/testcase"
+import {workflowMolecule} from "@agenta/entities/workflow"
 
+// useController exists on testcase, trace, and testset revision molecules
 function TestcaseEditor({id}: {id: string}) {
   const [state, dispatch] = testcaseMolecule.useController(id)
   if (state.isPending) return <Skeleton />
@@ -232,7 +237,7 @@ function TestcaseEditor({id}: {id: string}) {
 
 // Fine-grained subscription: only re-renders when isDirty changes
 function DirtyIndicator({id}: {id: string}) {
-  const isDirty = useAtomValue(testcaseMolecule.atoms.isDirty(id))
+  const isDirty = useAtomValue(workflowMolecule.atoms.isDirty(id))
   return isDirty ? <Badge>Modified</Badge> : null
 }
 ```
@@ -241,10 +246,10 @@ Imperative API for callbacks:
 
 ```typescript
 async function handleSave(id: string) {
-  const data = testcaseMolecule.get.data(id)
-  if (!data || !testcaseMolecule.get.isDirty(id)) return
+  const data = workflowMolecule.get.data(id)
+  if (!data || !workflowMolecule.get.isDirty(id)) return
   await api.save(data)
-  testcaseMolecule.set.discard(id)
+  workflowMolecule.set.discard(id)
 }
 ```
 
@@ -367,7 +372,7 @@ Why tests live in `tests/unit/`, not `src/`: the package build runs `tsc --noEmi
 `src/`. Test files in `src/**/__tests__/**` pull in deps not declared in the package's
 `dependencies`, which CI's stricter resolution fails on even though they resolve locally
 via hoisting. Test runners transpile independently of the package `tsconfig`, so moving
-tests out of `src/` does not change how they run. Reference: commit `1c0a900`.
+tests out of `src/` does not change how they run.
 
 ### Minimal vitest.config.ts
 

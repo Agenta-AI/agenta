@@ -5,10 +5,9 @@ description: Resolve findings by implementing the chosen fix path in code, tests
 
 # Resolve Findings
 
-Read these shared references when needed:
-
-- `../shared/references/findings.schema.md`
-- `../shared/references/findings.lifecycle.md`
+Read `../shared/references/findings.lifecycle.md` for the inputs, their defaults, and the
+rules all findings stages share. Read `../shared/references/findings.schema.md` for the shape
+of `findings.md`.
 
 ## Role
 
@@ -17,29 +16,6 @@ Resolve is execution mode from findings back into code, tests, and docs.
 - It may change production code for verification findings.
 - It may change tests or test harnesses for validation findings.
 - It should update the active findings record after implementation and rerun targeted checks when feasible.
-
-## Priority Input
-
-Accept a `priority` parameter from the prompt:
-
-- omitted priority: resolve the next highest remaining bucket only
-- explicit level: `P0`, `P1`, `P2`, or `P3`
-- `all`: resolve all remaining buckets
-
-Default:
-
-- `priority=next-highest`
-
-## Path Input
-
-Accept an optional `path` from the prompt.
-
-- If `path` is provided, use it as the local design or findings folder.
-- If `path` is omitted, infer it from the branch, subsystem, or matching docs and state the inferred value before starting.
-
-Default:
-
-- `path=infer`
 
 ## Workflow
 

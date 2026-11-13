@@ -22,9 +22,9 @@ web/mobile/
           <X>Skeleton.tsx     # mirrors the final layout geometry (no shift on swap)
           <X>Empty.tsx        # designed empty state with a call to action
           <X>Error.tsx        # error + retry affordance; preserves user input
-    components/               # app-wide shells: AgentaLogo, ContentRail, PageTitle,
-                              #   ScreenScaffold, StatusTag
-      ui/                     # local shadcn registry components (see mobile-shadcn-conventions)
+    components/               # app-wide shells: AgentaLogo, AnimatedNumber, AppTypeIcon,
+                              #   ContentRail, PageNotFound, PageTitle, ScreenScaffold, StatusTag
+                              #   (no ui/ folder: UI primitives come from @agenta/ui/ui)
     lib/                      # cn util, motion presets, api glue, context resolution
     styles/                   # globals.css, theme.generated.css (generated)
   scripts/                    # generate-shadcn-tokens.ts (token bridge)

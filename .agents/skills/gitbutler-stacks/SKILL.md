@@ -1,176 +1,154 @@
 ---
 name: gitbutler-stacks
-description: Hard-won GitButler mechanics for multi-lane work in this repo — committing to a specific lane in a stack, spreading a pile of edits back across an existing stack, ordering a stack and setting PR bases, and recovering from a scrambled workspace. Use when working with stacked branches, when `but rub`/`but absorb`/`but commit --only` mis-routes a change, when a stack collapses or a commit lands on the wrong lane, or when a hunk gets dropped. Not needed for ordinary single-lane work.
+description: GitButler mechanics for multi-lane work in this repo. Covers committing to a specific lane in a stack, spreading a pile of edits back across an existing stack, ordering a stack and setting PR bases, and recovering from a scrambled workspace. Use when working with stacked branches, when `but commit`, `but amend` or `but absorb` puts a change on the wrong lane, when a stack collapses or a commit lands on the wrong lane, or when a hunk gets dropped. Not needed for ordinary single-lane work.
 ---
 
 # GitButler stacks (Agenta)
 
-Everyday `but` usage — `but status`, `but commit`, `but push`, `but absorb` — is covered by
-the root `AGENTS.md`. This skill is the multi-lane layer: it only matters once you have a
-**stack** of branches, which is roughly 6% of the work here.
+The root `AGENTS.md` covers everyday `but` usage, syncing by rebase instead of merge, and
+oplog recovery. This skill covers the extra rules that apply once you have a stack of
+branches. All commands here match `but` 0.22.3. Check `but <command> --help` before you use a
+flag that this file does not show.
 
-**Read the first rule first.** Most of what follows exists to undo damage that only happens
-when edits are made first and assigned to lanes afterward. Committing each change to its lane
-as you go avoids nearly all of it.
+Most of the damage below happens when you make edits first and sort them into lanes later.
+Commit each change to its lane as you make it, and most of this file never applies.
 
 ## Prefer one lane at a time
 
-Land a lane before starting the next. A single lane per session needs none of the machinery
-below — no `--only` staging discipline, no stash isolation, no oplog restores. Reach for a
-stack only when a change genuinely depends on another in-flight branch's commits.
+Land a lane before you start the next. A single lane needs none of the steps below. Build a
+stack only when a change depends on the commits of another branch that is still in review.
 
-Sync a lane with **rebase, not merge**. Merge commits between branches are what collapse a
-series (see the first hard-won gotcha).
+## Committing to a specific lane
 
-## Committing to specific lanes in a stack (the part that bites)
+`but commit` with no change IDs commits every uncommitted change. In a stack, always name the
+changes and the branch:
 
-Changes are assigned to the **stack**, not to an individual branch. `but rub <file>
-<branch>` and `but commit <branch> --only` both operate on the stack's *assigned-changes*
-set — `--only` commits **whatever is currently assigned** to the named branch, regardless
-of which branch name you used when staging. So:
+```bash
+but status --json                       # read cliId for each filePath
+but diff                                # read hunk IDs when one file needs splitting
+but commit -b <branch> -m "message" <id> <id>
+```
 
-- **Never pre-stage multiple lanes' files and then commit them one lane at a time.** The
-  first `but commit --only` sweeps the entire assigned set into that one branch (the others
-  end up empty or scrambled). Instead, work **one lane at a time**: assign exactly that
-  lane's files → `but commit <branch> --only` → **verify** → then assign the next lane's
-  files. Keep the assigned set equal to exactly one lane's files at each commit.
-- **Verify every commit immediately:** `git show --stat --name-only <branch>`. If a file
-  from another lane leaked in, stop and fix before continuing.
-- **`but rub` by path goes stale after any mutation.** Every `but` mutation kicks a
-  background sync that invalidates the path index, so the *next* path-based
-  `but rub <path> ...` often fails with "Source '<path>' not found". Use the stable
-  **cliId** instead (the 2-4 char code in `but status` / `but status --json`):
-  `but rub <cliId> <target>`. cliIds survive across the sync; paths don't.
-- **Splitting one file across two stacked lanes** (e.g. `routers.py` where the lower lane
-  owns half the edit and the upper lane the other half): you cannot split mixed hunks
-  reliably. Instead use sequential working-tree states — make the file the lower lane's
-  version, commit it to the lower lane; then edit the file to add the upper lane's delta
-  and `but rub <fileCliId> <upperCommitCliId>` to amend that delta into the upper commit.
-- The **branch ref can diverge from the workspace-applied commit** mid-session (after
-  absorb/amend/rebase). The **working tree is the source of truth**; `but push` pushes the
-  applied state. Don't panic if `git diff <branch> -- <file>` shows a delta while
-  `git status` is clean — verify against `git show "<branch>:<file>"` and re-push.
+- Use `-b <branch>` to put the commit at the tip of that branch. Use `-A <commit>` or
+  `-B <commit>` to place it next to a specific commit. Only one targeting flag is allowed.
+- Check every commit at once with `git show --stat <branch>`. If a file from another lane is
+  in it, stop and fix it before you continue.
+- Read IDs from `but status --json` (`filePath` and `cliId` pairs). Do not grep the human
+  output, because the graph art breaks simple parsing. File and hunk IDs change after every
+  mutation, so read them again just before each command that uses them. A commit's change ID
+  stays stable when commits move; prefer it over the short prefix.
+- To add more changes to a commit that already exists, use
+  `but amend -t <commit-or-branch> <id>`. A branch target amends its tip commit; name the
+  commit to amend anything below the tip.
+- To split one file across two stacked lanes, use two working-tree states. First make the file
+  match the lower lane's version and commit it to the lower lane. Then add the upper lane's
+  edits and run `but amend -t <upper-commit> <file-id>`. Mixed hunks in one state do not split
+  reliably.
+- The branch ref can differ from the commit applied in the workspace after an amend, absorb
+  or rebase. The working tree is the source of truth. If `git diff <branch> -- <file>` shows a
+  delta while `git status` is clean, check `git show "<branch>:<file>"` before you act.
 
-## Spreading a pile of edits back across an existing stack (the reliable way)
+## Spreading a pile of edits back across an existing stack
 
-When you have a working tree full of changes that belong to *many* lanes of an
-already-pushed stack (e.g. a review-pass that fixes files across wp0…wp4), do NOT try to
-assign-and-commit lane by lane against the live working tree — `but rub`/`but commit
---only`/`but absorb` all route by **hunk dependency across the whole stack**, and they
-mis-route in three predictable ways that scramble the stack and waste hours:
+Sometimes the working tree holds changes for many lanes of a stack that is already pushed, for
+example after a review pass. Do not commit lane by lane against that full working tree.
+`but commit`, `but amend` and `but absorb` route hunks by their dependency on commits across
+the whole stack, and they put changes in the wrong place in three known ways:
 
-- **New (untracked) files ignore the target branch.** `but rub <newFileCliId> <lowerLane>`
-  dumps every untracked file into the **topmost** lane's staging group, not the one you
-  named. New files cannot be assigned to a lower lane at all.
-- **`but absorb` sends anything it can't attribute to the docs/top lane.** Renamed files,
-  new files, and hunks in line-regions the target lane's original commit never touched all
-  fall to the "last commit in the primary lane" fallback — silently the wrong lane.
-- **A multi-hunk file whose hunks belong to different commits won't commit whole.** `but
-  commit <lane>` / `-p <file>` commits the attributable hunks and **drops the rest**
-  ("Warning: Some selected changes could not be committed"), often leaving an empty
-  no-change commit. Splitting one file across lower+upper lanes is the §"Splitting one file
-  across two stacked lanes" case above.
+- **New files land on the top lane.** Untracked files have no commit to depend on. With the
+  old assignment model they always went to the topmost lane, whatever lane you named. Check
+  the commit after any new file.
+- **`but absorb` sends what it cannot attribute to a fallback.** `but absorb --help` says
+  that such changes go into "the topmost commit of the leftmost (first) branch". Renamed
+  files, new files, and hunks in regions the lane's commits never touched all take this path.
+  Run `but absorb --dry-run` first and read the plan.
+- **A file whose hunks belong to different commits does not commit whole.** The command
+  commits the hunks it can attribute and drops the rest with "Warning: Some selected changes
+  could not be committed". It can leave an empty commit behind.
 
-The technique that actually works — **git-stash isolation, one lane at a time:**
+Isolate one lane at a time with `git stash`:
 
-1. `but oplog snapshot -m "pristine"` then `git stash push -u` everything. Working tree
-   clean, every lane back at its remote tip. This snapshot is your only safe recovery
-   point — `but oplog restore` it whenever a step scrambles the stack (it does, often).
-2. For each lane, restore **only that lane's files** into the clean tree:
-   tracked-modified from `git checkout 'stash@{0}' -- <paths>`; **untracked/new** files
-   from the stash's untracked parent `git checkout 'stash@{0}^3' -- <paths>`; reproduce
-   deletes/renames with `git rm`. Verify with `git status` that ONLY that lane's files are
-   present — nothing else.
-3. Land them: if every hunk dependency-attributes cleanly to existing commits in that lane
-   (and the lane below), a blanket `but absorb` (no source — the tree holds only this
-   lane's files, so there's nothing to mis-route) puts each hunk in the right commit. If
-   the lane needs **new** files, use `but commit <lane>` instead (the new files have only
-   this lane to land in because the tree is isolated).
-4. **Verify the lane's tip TREE, not the diff** (commit history within a lane doesn't
-   matter; the resulting tree does): `git show <lane>:<file>` for each touched file, plus
-   `git ls-tree -r <lane> <dir>` for moves/deletes. Then check the lanes *above* it for
-   resurrected deletes / phantom files (the rebase re-materializes deleted dirs as
-   untracked — `rm -rf` that residue; it's noise, the tip tree is authoritative).
-5. Next lane. Push at the very end with `but push <lane> -f` and confirm every lane's
-   `git rev-parse <lane>` == `git ls-remote origin <lane>`.
+1. Run `but oplog snapshot -m "pristine"`, then `git stash push -u`. The working tree is now
+   clean, and each lane is at its remote tip. Restore this snapshot with
+   `but oplog restore <sha>` whenever a step scrambles the stack.
+2. For each lane, restore only that lane's files. Take tracked files with
+   `git checkout 'stash@{0}' -- <paths>`. Take untracked files from the stash's untracked
+   parent with `git checkout 'stash@{0}^3' -- <paths>`. Repeat deletes and renames with
+   `git rm`. When a file holds edits for two lanes, do not take the whole file: apply only this
+   lane's hunks (`git diff <base> 'stash@{0}' -- <path>`, cut to the hunks, then `git apply`).
+   Run `git status` and confirm that only this lane's changes are in the tree.
+3. Land them. If every hunk attributes to commits in this lane or the lane below, run
+   `but absorb --dry-run` and read the plan. Run `but absorb` only when every target in the
+   plan is a commit in this lane. A hunk that the plan sends to the lane below amends that
+   lane's commit and lands in its PR, so commit it with `but commit` instead. If the lane needs new files, use
+   `but commit -b <lane> -m "message" <id> ...` instead.
+4. Check the tree at the lane's tip, not the diff. Run `git show <lane>:<file>` for each
+   touched file and `git ls-tree -r <lane> <dir>` for moves and deletes. Then check the lanes
+   above for deleted files that came back. A rebase can recreate deleted directories as
+   untracked files. Remove that residue with `rm -rf`; the tip tree is what counts.
+5. Go to the next lane. When all lanes are done, push each one with
+   `but push <lane>`. A push also pushes the lane's workspace ancestors, and `but push` force
+   pushes a rebased lane by default. Before you push, compare each lane in the stack with
+   `git ls-remote --heads origin <lane>`, and ask the user before any push that is not a
+   fast-forward. Confirm each push with
+   `git rev-parse <lane>` against `git ls-remote --heads origin <lane>`.
 
-Unrelated fixes that depend on nothing in the stack (e.g. a stale test for code already on
-main) go on their **own parallel lane**: isolate just that file, `but commit -c <newlane>`.
+A fix that depends on nothing in the stack, such as a stale test for code already on main,
+goes on its own parallel lane. Isolate that file and run
+`but commit -b <new-lane> -m "message" <id>`. If `<new-lane>` does not exist, `but commit`
+creates it as an unstacked branch.
 
-## Stacks are linear; a fan-out is expressed through PR bases, not graph shape
+## Stacks are linear; express a fan-out through PR bases
 
-A GitButler **stack** is a linear series. `but branch new <name> --anchor <parent>` does NOT
-create a sibling of `<parent>` — it **inserts the new branch into the line** on top of it. So
-anchoring two branches on the same parent produces `parent → first → second`, not two children
-of `parent`. `but branch new <name>` with **no** anchor makes a separate parallel stack, but a
-parallel stack branches off the workspace base (main), so a branch that genuinely depends on an
-ancestor's commits can't live there with a clean diff.
+A GitButler stack is a linear series. `but branch new <name> -A <parent>` does not create a
+sibling of `<parent>`. It puts the new branch into the line on top of `<parent>`. Two branches
+created above the same parent form a line, not two children. `but branch new <name>` with no
+`-A` or `-B` makes a parallel stack on the workspace base (main). A branch that needs an
+ancestor's commits cannot live there with a clean diff.
 
-This matters when a design's dependency tree fans out (e.g. a web lane and an SDK lane that both
-depend on an API lane but not on each other). You cannot draw that fan-out in the git graph here.
-You don't need to. The clean per-PR diff is a **PR-base** property, not a graph-shape property:
-a stacked branch contains every commit below it, and GitHub shows only the delta against the base
-you set. So put everything in **one linear stack in dependency order** and set each PR's base to
-the branch directly below it. Order independent lanes however you like (sort by fewest conflicts);
-lanes that touch disjoint files (e.g. `web/**` vs `api/**`) can sit anywhere in the line.
+You cannot draw a fan-out (for example, a web lane and an SDK lane that both need an API lane)
+in this graph. You do not need to. A clean diff per PR comes from the PR base, not the graph
+shape. A stacked branch contains every commit below it, and GitHub shows only the delta
+against the base you set. Put all lanes in one linear stack in dependency order, and set each
+PR's base to the branch directly below it. Order independent lanes to reduce conflicts. Lanes
+that touch separate files, such as `web/**` and `api/**`, can sit anywhere in the line.
 
-- Build the line with `but move <branch> <target-branch>` (stacks `<branch>` on top of `<target>`)
-  and `but move <branch> zz` (tears `<branch>` off into its own parallel stack). Use these to
-  reorder after the fact; take a `but oplog snapshot` first.
-- **Verify the line by diffing, not by eyeballing the tree.** For each branch, run
-  `git diff --name-only <base>..<branch>` where `<base>` is the branch below it. The file list
-  must be exactly that lane's files. If a lower lane's files appear, the order is wrong (a lane got
-  inserted into another's ancestry) — `but move` it out of the way and re-diff.
-- A branch torn off to its own parallel stack (base = main) gives a **wrong** diff against an
-  ancestor branch: `git diff <ancestor>..<torn-off>` reverses the ancestor's own changes (their
-  merge base is main). That's the tell that the branch needs to be stacked, not parallel.
-- Set PR bases to match: bottom lane `--base main`, every other lane `--base <branch-below-it>`.
+- Reorder with `but move <branch> -A <target-branch>`, which stacks `<branch>` on top of
+  `<target-branch>`. Use `but move <branch> --unstack` to make it a parallel stack. `-B` only
+  works for commits and committed files, not branches. Run `but oplog snapshot -m "..."` first.
+- Check the line by diffing. For each branch, run `git diff --name-only <base>..<branch>`,
+  where `<base>` is the branch below it. The list must hold exactly that lane's files. If a
+  lower lane's files show up, the order is wrong. Move the branch and diff again.
+- A branch moved to its own parallel stack (base main) gives a wrong diff against an ancestor
+  branch. `git diff <ancestor>..<branch>` shows the ancestor's own changes in reverse, because
+  their merge base is main. This tells you the branch must be stacked, not parallel.
+- Set PR bases to match. The bottom lane uses `--base main` (or the open release branch).
+  Every other lane uses `--base <branch-below-it>`.
 
-## Hard-won gotchas (don't relearn these)
+## Gotchas
 
-- **GitButler series need linear history.** A stack of branches connected by
-  `git merge` commits (e.g. branches synced by merging a release in) can collapse
-  to a single series (the tip) when unapplied/re-applied — the intermediate
-  branches stop being addressable and you can't `but commit` to them. Prefer
-  GitButler's own stacking over merging branches into each other.
-- **Don't sync a behind lane with `unapply` → `git branch -f origin/<b>` →
-  `apply`.** Pointing a series at a merge-based origin ref flattens the stack.
-  There is no clean "fast-forward this series to its own remote" in the CLI when
-  origin is merge-based and ahead.
-- **`but pull` rebases applied branches on the TARGET (main), not on each
-  branch's own upstream.** It will not advance a series to `origin/<that-branch>`.
-- **Recovery: `but oplog list` then `but oplog restore <sha>`** rewinds the whole
-  workspace (including uncommitted changes) to any prior snapshot — this is how
-  you undo a botched unapply/apply and get a collapsed stack's series back. Take
-  a `but oplog snapshot -m "..."` before risky operations.
-- **A dropped-hunk commit can damage the working tree, not just the commit.**
-  When `but commit --only` warns "Some selected changes could not be committed",
-  check the FILE in the tree afterwards, not only the commit: the reconcile can
-  rewrite the working copy and silently lose the uncommitted hunks. Recover the
-  exact bytes from a snapshot's worktree subtree:
-  `git cat-file -p <oplog-sha>:worktree/<path>` (every oplog entry stores one).
-- **Hunks land on the lane whose commits own their line regions — put the file
-  there instead of fighting.** If a file's edits sit in regions a higher lane's
-  commit created, committing them to the lower lane drops them and `but absorb`
-  amends the higher lane's commit anyway (and an absorb that amends a LOWER
-  commit can leave a `{conflicted}` commit above it; if that happens, restore
-  the snapshot rather than uncommitting around it). Keep code and its tests
-  together on whichever lane attribution chooses.
-- **Parse cliIds from `but status --json`** (`filePath`/`cliId` pairs), never by
-  grepping the human output — the graph art breaks naive extraction and a wrong
-  token silently rubs the wrong thing. Commit cliIds also rotate after every
-  background sync, so re-read them in the same breath as the command that uses
-  them.
-- **Lane a test with the half that appears LAST, not the half you were thinking
-  about.** A test that drives two halves (a DAO and its wrapper, an API parser
-  and the SDK catalog) fails in isolation on every lane between them if it lands
-  below the upper half — and a green local run proves nothing, because the
-  working tree has all lanes applied. The cheap check before landing any new
-  test file: ask which lane's tip FIRST contains every symbol the test touches,
-  and put the test there. (Three instances in one day before this rule.)
-- **Remote-tracking refs go stale under `but push` and lie convincingly.**
-  `git show <remote>/<branch>:<file>` can show old content long after the push
-  landed (observed: the tracking ref pointing at neither the local ref nor the
-  real remote head). Verify pushes ONLY with `git ls-remote` against
-  `git rev-parse <branch>`, and inspect remote content via the commit object,
-  never via the remote-tracking shortcut.
+- **Merge commits collapse a series.** See the rebase rule in `AGENTS.md`. When you unapply
+  and apply a stack whose branches are joined by merge commits, it can collapse to one series
+  at the tip. The middle branches then stop accepting commits. Do not sync a lane that is
+  behind with `but unapply`, `git branch -f <b> origin/<b>`, `but apply`. Pointing a series at
+  a merge-based remote ref flattens the stack. Use `but oplog restore` to get the series back.
+- **`but pull` rebases applied branches onto the target branch.** It does not move a series
+  to `origin/<that-branch>`.
+- **A dropped hunk can damage the working tree, not only the commit.** After a "Some
+  selected changes could not be committed" warning, check the file in the tree. The reconcile
+  step can rewrite the working copy and lose the uncommitted hunks. Each oplog entry stores
+  the worktree, so recover the exact bytes with
+  `git cat-file -p <oplog-sha>:worktree/<path>`.
+- **Put a file on the lane whose commits own its line regions.** If the edits sit in regions
+  that a higher lane's commit created, a commit to the lower lane drops them, and
+  `but absorb` amends the higher lane's commit anyway. An absorb that amends a lower commit
+  can leave a conflicted commit above it. If that happens, restore the snapshot instead of
+  uncommitting around it. Keep code and its tests on the lane that attribution chooses.
+- **Put a test on the lane where all its symbols first exist.** A test that drives two
+  halves (a DAO and its wrapper, an API parser and the SDK catalog) fails on every lane
+  between them if it lands below the upper half. A green local run proves nothing, because
+  the working tree has all lanes applied. Before you land a new test file, find the lowest
+  lane whose tip contains every symbol the test uses, and put the test there.
+- **Remote-tracking refs can be stale after `but push`.** `git show origin/<branch>:<file>`
+  can show old content after the push landed. Check pushes only with `git ls-remote` against
+  `git rev-parse <branch>`, and read remote content through the commit object.

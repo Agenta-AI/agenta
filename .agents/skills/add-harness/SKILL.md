@@ -1,19 +1,21 @@
 ---
 name: add-harness
-description: Playbook for adding a new coding-agent harness to Agenta (Codex, Hermes, Gemini, OpenCode, ...). Use when starting, planning, or reviewing a new-harness project. Covers the readiness audit of prior art, the spike-first milestone plan, the full integration-surface checklist, the per-harness variance axes to probe, and the process/communication contract with Mahmoud. Living document: every harness project appends its lessons to resources/LESSONS.md.
+description: >-
+  Playbook for adding a new coding-agent harness to Agenta (Codex, Hermes, Gemini, OpenCode, ...). Use when starting, planning, or reviewing a new-harness project. Covers the readiness audit of prior art, the spike-first milestone plan, the full integration-surface checklist, the per-harness variance axes to probe, and the process and communication contract with the project owner. Living document: every harness project keeps a lessons log in its design folder and lifts the general lessons into this file.
 ---
 
 # Add a harness to Agenta
 
 A harness is the coding-agent program Agenta runs on behalf of a user (Pi, Claude
 Code, Codex, ...). This skill encodes how we add one: what to build, in what order,
-what to probe empirically first, and how to run the project so Mahmoud can steer it.
-It was extracted from the Codex harness project (2026-07, `docs/design/codex-harness/`
-in that project's worktree) and grows with every subsequent harness.
+what to probe empirically first, and how to run the project so the project owner can
+steer it. It was extracted from the Codex harness project, whose design workspace is
+`docs/design/codex-harness/`, and grows with every later harness.
 
-Read `resources/LESSONS.md` after this file: it is the append-only log of things that
-surprised us, per harness. If you are about to start a new harness project, the
-combination of this file plus the lessons log IS the project template.
+The "Lessons" section at the end holds the lessons that apply to any harness. The full
+Codex log, with the evidence behind each lesson, is `docs/design/codex-harness/lessons.md`.
+Each new harness project keeps its own log in its design folder, as `lessons.md`, and
+lifts any lesson that applies to every harness into this file.
 
 ## Step 0: audit prior art before writing anything
 
@@ -50,7 +52,7 @@ four standard questions, refined per harness:
    (`acp-interactions.ts`), so a new gate type needs the real frames.
 2. **Config split.** Where does the harness read its config? Can its home/config
    directory variable separate login state (mounted, read-write) from per-run config
-   (rendered fresh)? This decides the mount layout, which is a Mahmoud decision.
+   (rendered fresh)? This decides the mount layout, which is the project owner's decision.
 3. **Tool delivery.** Can the runner's internal `agenta-tools` MCP server reach the
    harness, over which channel (ACP session params vs config file), and can specific
    tools be pre-allowed/denied natively (the F-046 question: an "allow" tool must run
@@ -68,8 +70,8 @@ four standard questions, refined per harness:
 
 Everything unverified in the design stays marked "TO VERIFY IN SPIKE" until the spike
 answers it with a saved transcript. The spike ends in a findings memo plus a decision
-register, and the project stops at **Checkpoint 1**: Mahmoud rules on the mount
-layout, the human-in-the-loop posture, and the handling of anything the harness
+register, and the project stops at **Checkpoint 1**: the project owner rules on the
+mount layout, the human-in-the-loop posture, and the handling of anything the harness
 cannot express, before milestones that depend on those answers start.
 
 ## The integration surface (what every harness touches)
@@ -121,34 +123,71 @@ them; Codex was cheap because it fails only the permission-vocabulary one.
 
 ## Process (how the project runs)
 
-- One worktree per harness with its own deployment. Ports: pick a free Traefik/
-  Postgres pair (`deploy-worktree-testing` skill has the table), unique compose
-  project name. Fresh-worktree gotchas so far: `chmod -R o+w web/ee/public
-  web/oss/public` before the web container will boot; the repo gitignore is
-  allowlist-style for `.env*` so worktree `.env` files are safe for keys.
+- One worktree per harness with its own deployment. Follow "From a git worktree" in
+  `hosting/AGENTS.md`: a distinct `COMPOSE_PROJECT_NAME` and a per-worktree env file.
+  Pick ports that no other running stack holds. The repo gitignore is allowlist-style for
+  `.env*`, so worktree `.env` files are safe for keys. If the `web` container
+  restart-loops on a fresh worktree, check that it can write `__env.js`:
+  `web/entrypoint.sh` writes it into the mounted public directory and copies it to
+  `web/mobile/public/`, which serves it at `/m/__env.js`.
 - Bootstrap through the UI as the first act (signup, project, API key into the
   worktree `.env`): it doubles as a smoke test of main and catches UI regressions
   free of charge.
-- Design workspace per `plan-feature` (research.md, spike/findings.md, design.md,
-  decisions.md, plan.md, status.md, reports/). The decision register is the no-
+- Design workspace as an OpenSpec change (`openspec-propose`: proposal.md, design.md,
+  specs/, tasks.md), plus research.md, spike/findings.md, decisions.md and reports/. The decision register is the no-
   implicit-decisions mechanism: anything that is not an obvious copy of an existing
   harness pattern is proposed there and waits.
 - Vertical slices in this order: managed-key text-only run, Agenta tools, permissions
   plus human-in-the-loop, subscription auth, Daytona plus docs plus release gate.
   Risk always moves to the earliest slice that can kill it.
-- Implementation via Codex (gpt5.6-sol), review via Opus, then desloppify and
-  `/simplify`, after every milestone. Code quality bar: the adapter must read like
+- After every milestone, a reviewer who did not write the code reviews it, then the
+  implementer removes slop and simplifies. Code quality bar: the adapter must read like
   the Claude adapter it sits next to.
-- Every milestone ends with a written report for Mahmoud (`reports/`), live QA in the
-  worktree deployment, and a recording when the milestone has a visible behavior.
-  Merging is always Mahmoud's action.
+- Every milestone ends with a written report for the project owner (`reports/`), live
+  QA in the worktree deployment, and a recording when the milestone has a visible
+  behavior. Merging is always the project owner's action.
 
 ## Communication contract (learned, do not relearn)
 
-- Reports lead with what works now and what he can click; evidence follows.
+- Reports lead with what works now and what the project owner can click; evidence
+  follows.
 - Decision asks give context, then options with trade-offs, then a recommendation
   with the reason. One checkpoint per project phase beats scattered questions.
 - Never present a degraded behavior (something the harness cannot express) as done;
   present it as a register entry with options.
-- Full sentences, no fragments, no internal codenames without a plain-language
-  explanation, no em dashes.
+- Never put deployment IPs, hostnames, project ids or account emails in committed
+  reports or recordings. Use placeholders such as `http://<dev-host>:<port>`.
+
+## Lessons (apply to every harness)
+
+1. **Read the daemon's adapter registry first, and spike through the real daemon.** The
+   `sandbox-agent` daemon may already install the harness CLI and its ACP bridge. Probes
+   through the harness CLI alone miss the adapter's env channels and the exact
+   permission-frame shapes the runner must classify.
+2. **Enumerate credential mechanisms from source; never assume env-key auth.** Read the
+   harness's credential precedence function and table every branch. Prefer a channel that
+   reads the key from env at request time and writes nothing to disk: no file means no
+   delete step and no crash window.
+3. **Test the harness's state directory on the real durable mount.** SQLite with WAL wedges
+   on the S3-backed FUSE mount. Before you rework the mount layout, look for an upstream
+   knob that moves only the mount-hostile state off the mount. Keep that directory stable
+   per session and out of the config fingerprint inputs.
+4. **Treat the operator's login as read-only, and mount only the auth file.** Mounting a
+   whole login directory leaks the operator's config into product sessions. Symlink only the
+   credential file into a runner-owned home, and unlink the link at teardown, never the
+   target.
+5. **Map every config source the harness reads, including the workspace.** A harness can
+   read config layers from the user's repo, and some config merges cannot remove entries.
+6. **Probe the harness's own sandbox inside the target environment.** A nested sandbox can
+   fail inside a container, which changes the approval behavior.
+7. **Pin the bridge and the harness version in every image.** An unpinned bridge lets gate
+   shapes drift. The Daytona snapshot ships its own harness version and needs the same pin
+   as the runner image.
+8. **On Daytona, the daemon env is fixed at sandbox creation, and the credential home must
+   be in the VM.** Set config-dir env vars before the provider is built. Never write a key
+   onto the durable cwd.
+9. **Check name matching for the harness's MCP tool names.** Harnesses spell MCP tool names
+   differently, and every name match on the execution path must handle the new spelling.
+10. **Know which container runs which code.** The SDK runs in the services container and
+    the runner code in the runner container. Reverting the runner is not a valid control
+    for a file the SDK renders.
