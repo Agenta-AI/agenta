@@ -247,14 +247,14 @@ Run every new automation candidate through these five diagnostic questions:
 
 ### Summary Decision Matrix by Use Case
 
-| Common Business or Engineering Task                                    | Recommended Architecture              | Why This Pattern Fits Best                                                                                  |
-| ---------------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **Extract line items from a PDF invoice into JSON**                    | Single Augmented LLM Call             | Fixed input/output schema; no multi-step tool discovery needed                                              |
-| **Classify inbound tickets and route to 1 of 4 queues**                | AI Workflow (Routing)                 | Fast single classification step followed by deterministic queue assignment                                  |
-| **Generate, validate, and translate product changelog notes**          | AI Workflow (Prompt Chaining)         | Fixed linear sequence with programmatic validation gates between steps                                      |
-| **Triage customer bug reports with screenshots across CRM and Linear** | Hybrid AI Coworker (Agent + Rails)    | Needs dynamic cross-tool lookup and session attachment inspection, gated by `Ask` before creating tickets   |
-| **Daily scheduled SEO research, brief drafting, and PR creation**      | Hybrid AI Coworker (Scheduled Agent)  | Triggered by a deterministic UTC schedule (`Automations`), guided by reusable skills, verified in a sandbox |
-| **Open-ended codebase refactoring and test-fixing across a repo**      | Autonomous Agent in a Daytona Sandbox | File paths, test failures, and fixes cannot be mapped ahead of time; requires an iterative harness loop     |
+| Task                        | Recommended Architecture              | Why This Pattern Fits Best                                                                                                |
+| --------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Invoice JSON extraction** | Single Augmented LLM Call             | Extract PDF invoice fields into a fixed JSON schema in one structured call with no multi-step tool discovery              |
+| **Inbound ticket routing**  | AI Workflow (Routing)                 | Classify incoming support tickets in one step and route deterministically to 1 of 4 queues                                |
+| **Changelog generation**    | AI Workflow (Prompt Chaining)         | Draft, programmatically validate, and translate release notes in a fixed linear sequence                                  |
+| **Customer bug triage**     | Hybrid AI Coworker (Agent + Rails)    | Inspect screenshots and query CRM and Linear dynamically, gated by an `Ask` approval card before creating tickets         |
+| **Daily SEO automation**    | Hybrid AI Coworker (Scheduled Agent)  | Wake on a deterministic UTC schedule (`Automations`), follow reusable skills, verify in a sandbox, and post a review link |
+| **Repo-wide refactoring**   | Autonomous Agent in a Daytona Sandbox | Navigate unknown file paths, run test suites, and iterate on fixes inside an isolated cloud sandbox until checks pass     |
 
 If you are evaluating platforms to run both structured automations and interactive agents in one stack, explore our comparisons of the [best AI agent orchestration platforms](/blog/best-ai-agent-orchestration-platforms) and the [best open-source AI agent platforms](/blog/best-open-source-ai-agent-platforms).
 
