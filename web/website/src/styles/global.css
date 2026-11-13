@@ -205,6 +205,7 @@ nav[data-pill] {
     box-shadow 0.25s ease,
     border-radius 0.25s ease,
     width 0.25s ease,
+    height 0.25s ease,
     transform 0.25s ease;
 }
 .nav-scrolled .ag-nav-inner {
@@ -217,6 +218,12 @@ nav[data-pill] {
   box-shadow: var(--th-pill-shadow);
   -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
+}
+/* The pill is a little shorter than the bar; the flex shell keeps it centred. */
+@media (min-width: 861px) {
+  .nav-scrolled .ag-nav-inner {
+    height: 58px;
+  }
 }
 
 /* Center links: pinned to the shell's exact center in BOTH states. Absolute
@@ -255,8 +262,8 @@ nav[data-pill] {
    Framer runs a hairline from each edge of the nav's own column in to the
    pill, ending in a 4x9 rounded cap that meets the pill's outer ring. The
    rules are children of the SHELL, not of the pill, so they start exactly at
-   the column border and never spill past it. Their inner end lands 8px off
-   the pill box, which is where the pill's 8px outer ring sits, so cap and
+   the column border and never spill past it. Their inner end lands 5px off
+   the pill box, which is where the pill's 5px outer ring sits, so cap and
    ring meet. They fade in with the pill. */
 .ag-nav-rule {
   position: absolute;
@@ -275,11 +282,11 @@ nav[data-pill] {
 }
 .ag-nav-rule-l {
   left: 0;
-  right: calc(50% + var(--nav-pill-w) / 2 + 8px);
+  right: calc(50% + var(--nav-pill-w) / 2 + 5px);
 }
 .ag-nav-rule-r {
   right: 0;
-  left: calc(50% + var(--nav-pill-w) / 2 + 8px);
+  left: calc(50% + var(--nav-pill-w) / 2 + 5px);
 }
 .ag-nav-rule::before,
 .ag-nav-rule::after {
@@ -388,6 +395,14 @@ html,
    renders empty. */
 .ag-theme-btn:not([data-pref]) [data-ico="system"] {
   display: inline-flex;
+}
+
+/* Divider between the theme switcher and the nav buttons. */
+.ag-navsep {
+  width: 1px;
+  height: 20px;
+  background: var(--th-ctl-ring);
+  margin-right: -4px;
 }
 
 /* ── interactive affordances (the .dc.html used DC hover hooks) ─ */

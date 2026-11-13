@@ -20,6 +20,9 @@
     height: calc(100vh - 96px);
     height: calc(100svh - 96px);
     max-height: 1000px;
+    /* Breathing room above the heading and below the demo. */
+    box-sizing: border-box;
+    padding-block: clamp(40px, 7svh, 88px);
   }
   .sx-hiw .hw .hw-hd {
     margin-bottom: clamp(24px, 5svh, 56px);

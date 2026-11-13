@@ -73,6 +73,19 @@ const orgJsonLd = {
         { rootMargin: "0px 0px -15% 0px" },
       );
       for (const section of root.children) if (section.tagName !== "SCRIPT") io.observe(section);
+      // [data-lp-gate] demos wait until most of the demo is on screen, so the
+      // hero run starts when the reader scrolls to it, not on page load.
+      const gate = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            const seen = e.intersectionRect.height;
+            const need = 0.6 * Math.min(e.boundingClientRect.height, e.rootBounds?.height ?? innerHeight);
+            e.target.toggleAttribute("data-lp-in", e.isIntersecting && seen >= need);
+          }
+        },
+        { threshold: Array.from({ length: 21 }, (_, i) => i / 20) },
+      );
+      for (const el of root.querySelectorAll("[data-lp-gate]")) gate.observe(el);
     })();
   </script>
   <script is:inline>
@@ -117,7 +130,9 @@ const orgJsonLd = {
         grid.style.removeProperty("margin-bottom");
         if (innerWidth <= 860) return;
         const hs = getComputedStyle(head);
-        const avail = stage.clientHeight - head.offsetHeight - parseFloat(hs.marginBottom) - 24;
+        const ss = getComputedStyle(stage);
+        const pad = parseFloat(ss.paddingTop) + parseFloat(ss.paddingBottom);
+        const avail = stage.clientHeight - pad - head.offsetHeight - parseFloat(hs.marginBottom);
         const natural = grid.offsetHeight;
         if (avail > 0 && natural > avail) {
           const scale = Math.max(0.6, avail / natural);
