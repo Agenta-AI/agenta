@@ -1,6 +1,7 @@
 ---
 name: add-harness
-description: Playbook for adding a new coding-agent harness to Agenta (Codex, Hermes, Gemini, OpenCode, ...). Use when starting, planning, or reviewing a new-harness project. Covers the readiness audit of prior art, the spike-first milestone plan, the full integration-surface checklist, the per-harness variance axes to probe, and the process and communication contract with the project owner. Living document: every harness project keeps a lessons log in its design folder and lifts the general lessons into this file.
+description: >-
+  Playbook for adding a new coding-agent harness to Agenta (Codex, Hermes, Gemini, OpenCode, ...). Use when starting, planning, or reviewing a new-harness project. Covers the readiness audit of prior art, the spike-first milestone plan, the full integration-surface checklist, the per-harness variance axes to probe, and the process and communication contract with the project owner. Living document: every harness project keeps a lessons log in its design folder and lifts the general lessons into this file.
 ---
 
 # Add a harness to Agenta

@@ -55,7 +55,7 @@ If so, use the `but` CLI instead of raw `git branch`/`git commit`:
 - `but commit -b <branch> -m "..." <id> <id>` commits the named changes to that branch.
   Without IDs it commits every uncommitted change. Pre-commit hooks (ruff, prettier,
   gitleaks) run; if a hook reformats files the commit aborts, so run it again.
-- `but pr new` needs interactive forge auth; use `but push <branch> --no-verify` then
+- `but pr new` needs interactive forge auth; use `but push <branch>` then
   `gh pr create --head <branch> --base <parent-or-main>` instead. For stacked PRs,
   set `--base` to the parent branch so each PR shows only its own diff.
 - **`but push` prints NOTHING on success.** It is not a confirmation. Always verify
@@ -133,7 +133,7 @@ For comprehensive testing documentation, see
 ## PR instructions
 
 - If the user provides you with the issue id, title the PR:
-  `[issue-id] fix(frontend): <Title>` where `fix` is the type (fix, feat, chore, ci, doc,
+  `[issue-id] fix(frontend): <Title>` where `fix` is the type (fix, feat, chore, ci, docs,
   test, using better-branch) and `frontend` is the area, which could be API, SDK,
   frontend, docs, and so on.
 - For the PR body (structure, before/after, what to cut), the `write-pr-description`

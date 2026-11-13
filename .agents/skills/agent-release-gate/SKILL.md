@@ -173,8 +173,9 @@ proof.
 Each concurrent run holds a Daytona sandbox of about 5 GiB until its auto-delete window closes, so
 a burst of 16 is about 80 GiB. The counts are `--burst-size` (default 16),
 `--crosstalk-conversations` (default 3) and `--crosstalk-approvals` (default 2). The cap is 32
-concurrent runs, for the burst size and for the two crosstalk counts together. A capacity refusal
-is a loud SKIP, never a PASS or a FAIL. `--concurrency-timeout` (default 300s) bounds one TURN as
+concurrent runs, for the burst size and for the two crosstalk counts together. When every failed run is a capacity refusal,
+the cell is a loud SKIP, never a PASS or a FAIL. When any run failed for another reason, the cell
+is a FAIL and the refused runs count as failed. `--concurrency-timeout` (default 300s) bounds one TURN as
 an absolute deadline, so a two-turn crosstalk run gets twice that.
 
 A release that changes `services/runner/src/engines/sandbox_agent/**` or

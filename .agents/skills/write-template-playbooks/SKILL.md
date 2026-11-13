@@ -70,8 +70,9 @@ ending on the terminal action. Include the output-format shape.
 
 ## Verify
 1. test_run with a blunt test message; read the verdict and the tools line, not a 200.
-2. If a trigger: send an artificial test message first; then ask the user to run the real
-   trigger test with the "Run now" button on the automation.
+2. If a trigger: send an artificial test message first; then ask the user to press "Run now"
+   on the automation. For an event automation this replays the event path. For a schedule it
+   only runs the configured message in a new session and does not go through the scheduler.
 
 ## Closing report
 What the agent became, what is connected, what is scheduled, what you verified, what still
@@ -106,8 +107,9 @@ These are counterintuitive and every first draft gets them backwards. State them
    with new tools before committing anything. Commit-and-stop is only a fallback for when the
    flow cannot carry the delta.
 3. **The trigger-test affordance is the "Run now" button** (Play icon) on the automation's
-   detail screen, also in the automation's actions menu. It works for event automations and
-   schedules alike, and starts a new session with the automation's message. It is never a
+   detail screen, also in the automation's actions menu. It starts a new session with the
+   automation's message. For a schedule it does not go through the scheduler, so do not call
+   it a test of the schedule itself. It is never a
    flask icon. The flask is for Evaluations. Write the correct copy in every Verify section.
 
 ## What a playbook NEVER contains

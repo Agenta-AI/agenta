@@ -39,4 +39,5 @@ Base the rating on:
 - Title: `# Slop review`.
 - What is wrong: the behavior or maintenance problem, and how to reach it.
 - Closing section: `## Rationale`, with the two strongest reasons for the rating, as concrete
-  behavior or architecture problems, not surface signals.
+  behavior or architecture problems, not surface signals. For a Low rating with no findings,
+  say why the change is sound.

@@ -26,7 +26,7 @@ Drop the Checklist and Contributor Resources if the author is a core maintainer 
 
 The title states the actual change in plain words. Use the format from the "PR instructions" in the root `AGENTS.md`:
 
-- `<type>(<area>): <Title>`, where the type is `fix`, `feat`, `chore`, `ci`, `docs` or `test`, and the area is `frontend`, `api`, `sdk`, `runner`, `services`, `docs` and so on.
+- `<type>(<area>): <Title>`, where the type is one from the AGENTS.md list (`fix`, `feat`, `chore`, `ci`, `docs`, `test`), and the area is `frontend`, `api`, `sdk`, `runner`, `services`, `docs` and so on.
 - If the user gave you an issue id, put it first: `[AGE-1234] fix(frontend): <Title>`.
 - Write the title as an action in the present tense.
 - Keep it under about 70 characters. Detail goes in the body.

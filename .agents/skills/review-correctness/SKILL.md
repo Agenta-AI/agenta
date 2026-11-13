@@ -36,4 +36,4 @@ recovery (whether the user or an operator can see and fix it).
 - Title: `# Correctness review`.
 - What is wrong: the wrong behavior, the trigger that reaches it, and who sees it.
 - Closing section: `## Rationale`, with the two strongest reasons for the rating, as concrete
-  behavior problems.
+  behavior problems. For a Low rating with no findings, say why the changed behavior is sound.

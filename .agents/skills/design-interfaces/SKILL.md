@@ -1,6 +1,7 @@
 ---
 name: design-interfaces
-description: Design and review interface parameters by semantic role: classify each field by what it IS (data, config, policy, credentials, routing, metadata, protocol context), who owns it, when it changes, and whether a standard name exists, not by the feature it vaguely relates to. Use when designing or reviewing ANY interface shape - API request/response params, wire/protocol fields, config schemas, tool definitions, event payloads, function signatures with option bags. Triggers - designing a new endpoint/wire field/config block, reviewing a PR that adds or changes interface fields, "review the interfaces", any OpenSpec proposal or task that defines or changes a contract.
+description: >-
+  Design and review interface parameters by semantic role: classify each field by what it IS (data, config, policy, credentials, routing, metadata, protocol context), who owns it, when it changes, and whether a standard name exists, not by the feature it vaguely relates to. Use when designing or reviewing ANY interface shape - API request/response params, wire/protocol fields, config schemas, tool definitions, event payloads, function signatures with option bags. Triggers - designing a new endpoint/wire field/config block, reviewing a PR that adds or changes interface fields, "review the interfaces", any OpenSpec proposal or task that defines or changes a contract.
 user-invocable: true
 ---
 

@@ -8,7 +8,9 @@ extra fields or sections for its report.
 
 The caller names one target.
 
-- **Code (default).** A diff between two commits. Every lens accepts it.
+- **Code (default).** A diff between two commits, or the uncommitted changes in the working
+  tree (staged, unstaged and untracked files; read them with `but diff` or `git status` plus
+  `git diff HEAD`). Every lens accepts it.
 - **Design.** An OpenSpec change folder, a spec draft, or an architecture doc. Only the
   lenses that say so accept it (`review-naming` and `review-simplify`).
 

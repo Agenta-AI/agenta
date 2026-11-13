@@ -11,8 +11,8 @@ much it matters. The rules live in the `naming-and-resources` skill; this lens a
 Follow `../shared/references/review-contract.md` for the targets, the inputs, and the shared
 rules. This lens accepts code targets and design targets, with these additions:
 
-- **Code target.** The diff changes a contract: a table, column, index, route, DTO field, enum
-  value, config field or UI label.
+- **Code target.** Any diff. Check first the contracts it touches: a table, column, index,
+  route, DTO field, enum value, config field or UI label.
 - **Design target.** Check the proposal before any migration is written. When the doc
   describes existing code (an architecture map), review the names in the code it describes:
   folders, tables, modules, routes, types. The doc is the map, not the target.
