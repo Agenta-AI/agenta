@@ -1,5 +1,6 @@
 export * from "./attachments"
 export * from "./parts"
+export * from "./settledTools"
 export * from "./error"
 export * from "./toolSummary"
 export * from "./approvals"
