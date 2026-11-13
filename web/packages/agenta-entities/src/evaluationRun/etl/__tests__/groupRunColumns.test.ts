@@ -1,6 +1,6 @@
 /**
  * groupRunColumns — column-parity regression guard for the ETL scenario
- * table migration (docs/designs/eval-scenarios-table-integration.md, T2).
+ * table migration (docs/design/eval-scenarios-table-integration.md, T2).
  *
  * The backend-metadata column path (`usePreviewColumns`) and the run-graph
  * column path (`useEtlColumns` → `groupRunColumns`) must surface the SAME

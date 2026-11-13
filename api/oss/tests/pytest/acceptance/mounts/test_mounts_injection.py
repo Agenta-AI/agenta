@@ -14,7 +14,7 @@ SeaweedFS in the dev stack). Environments that require mount storage fail on a 5
 other environments skip these checks.
 
 The full runner round-trip (geesefs mount inside a live run, file visible across two turns)
-is a manual/live check on the dev stack; see docs/designs/sessions/mounts/extend/tasks.md M10.
+is a manual/live check on the dev stack; see docs/design/sessions/mounts/extend/tasks.md M10.
 """
 
 from uuid import uuid4

@@ -5,7 +5,7 @@ this same revision id, so a database migrated by either edition parks
 `alembic_version` at an id the other edition can resolve. All migrations from
 this point on live in the post-alignment chains (`alembic_version_oss`, and
 for EE also `alembic_version_ee`). See
-docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md.
+docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md.
 
 Revision ID: park00000000
 Revises: 4f5a6b7c8d9e

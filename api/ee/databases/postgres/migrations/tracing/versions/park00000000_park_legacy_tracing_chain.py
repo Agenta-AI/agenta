@@ -6,7 +6,7 @@ edition parks its `alembic_version` at an id the other edition can resolve.
 All tracing migrations from this point on live in the post-alignment chains
 (`alembic_version_oss`, and for EE also `alembic_version_ee`).
 Mirrors the core chain park (`park00000000`). See
-docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md.
+docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md.
 
 Revision ID: park00000000
 Revises: a4b5c6d7e8f9

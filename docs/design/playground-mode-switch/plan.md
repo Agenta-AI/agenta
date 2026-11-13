@@ -135,7 +135,7 @@ Goal: the design's end state. Chat holds N conversations, one visible.
 1. Unit: switch transforms (round-trip identity, metadata stripping,
    system-message exclusion), effective-mode selector, sync-gate row
    listing.
-2. E2E (Playwright, see docs/designs/testing): chat → completion → run →
+2. E2E (Playwright, see docs/design/testing): chat → completion → run →
    edit `messages` → switch back; completion → chat with three rows through
    the picker; sync gate on both paths (sync, and switch-without-syncing).
 3. Manual pass against the design boards for the new chrome.

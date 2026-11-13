@@ -4,7 +4,7 @@ Origin scan of branch `feat/add-access-controls-in-env-vars` (commits `c33134f45
 
 ## Sources
 
-- `docs/designs/dynamic-access-and-billing/{research,gap,proposal,tasks}.md`
+- `docs/design/dynamic-access-and-billing/{research,gap,proposal,tasks}.md`
 - `api/oss/src/utils/env.py`
 - `api/ee/src/core/entitlements/{controls.py,types.py,service.py}`
 - `api/ee/src/core/subscriptions/{settings.py,service.py,types.py}`
@@ -117,9 +117,9 @@ _None._
 - Status: fixed
 - Category: Consistency
 - Summary: After the FIND-021 pricing reshape, the trial-flow config collapsed into a per-entry `{trial: N}` marker on `AGENTA_BILLING_PRICING`; `BillingSettings` no longer carries `trial_plan` / `trial_days`. `summary.md` was updated, but [research.md:135-137](research.md#L135-L137) and [research.md:258](research.md#L258) still list `AGENTA_BILLING_TRIAL_PLAN` and `AGENTA_BILLING_TRIAL_DAYS` in the env-vars table as if shipped. The PR description body may also still reference them (Copilot flagged both). Operators reading the design folder will configure removed env vars.
-- Evidence: `grep -n "AGENTA_BILLING_TRIAL_PLAN\|AGENTA_BILLING_TRIAL_DAYS" docs/designs/dynamic-access-and-billing/research.md` → lines 135, 136, 258. `summary.md` line 13 already explains the collapse; `migrate_stripe_pricing.py` is the annotation helper.
+- Evidence: `grep -n "AGENTA_BILLING_TRIAL_PLAN\|AGENTA_BILLING_TRIAL_DAYS" docs/design/dynamic-access-and-billing/research.md` → lines 135, 136, 258. `summary.md` line 13 already explains the collapse; `migrate_stripe_pricing.py` is the annotation helper.
 - Files:
-  - [docs/designs/dynamic-access-and-billing/research.md](research.md)
+  - [docs/design/dynamic-access-and-billing/research.md](research.md)
   - PR #4330 description (manual edit on GitHub)
 - Cause: Same drift class as FIND-014 / FIND-022 — design-doc updates lagged the shipped code reshape.
 - Explanation: Pure docs-vs-code drift. The trial flow is now expressed exclusively via the per-pricing-entry `{trial: N}` marker; no env-var path exists.
@@ -127,7 +127,7 @@ _None._
   - In [research.md](research.md): drop the two `AGENTA_BILLING_TRIAL_*` rows from the env-vars table (lines 135-137), drop the trial-vars bullet at line 258, and re-state the per-pricing-entry `{trial: N}` marker as the only shipped trial configuration. Cross-reference `summary.md` line 13 / 27 wording for consistency.
   - Edit the PR #4330 description body on GitHub to remove `AGENTA_BILLING_TRIAL_PLAN` / `AGENTA_BILLING_TRIAL_DAYS` from any "Env vars" section and replace with the `{trial: N}` marker description.
 - Resolution: Removed the two `AGENTA_BILLING_TRIAL_*` rows from the env-vars table in [research.md](research.md) and replaced the "Trial vars" sub-section with a "Trial marker" sub-section that describes the per-pricing-entry `{trial: N}` shape. `grep` for either env var across this design folder is now clean. The PR body still needs a manual edit on GitHub (out-of-band; user direction marked the doc fix as sufficient since these vars were "never released").
-- Sources: PR #4330 Copilot review (suppressed comment 1, commit `91a60dd6`, 2026-05-19T14:38:28Z); [docs/designs/dynamic-access-and-billing/research.md:131-134](research.md#L131-L134).
+- Sources: PR #4330 Copilot review (suppressed comment 1, commit `91a60dd6`, 2026-05-19T14:38:28Z); [docs/design/dynamic-access-and-billing/research.md:131-134](research.md#L131-L134).
 
 ### FIND-033 — [CLOSED] `_expand_permissions` in `converters.py` drops every non-wildcard slug when `*` is mixed with other entries
 
@@ -312,7 +312,7 @@ _None._
   - [api/ee/src/core/meters/service.py](../../../api/ee/src/core/meters/service.py) (runtime — `event_name` source, `get_stripe_meter_price` call)
   - [api/ee/src/core/subscriptions/settings.py](../../../api/ee/src/core/subscriptions/settings.py) (validator + `get_stripe_meter_price` impl)
   - [api/ee/src/core/entitlements/types.py](../../../api/ee/src/core/entitlements/types.py) (Counter / Gauge enums)
-  - [docs/designs/dynamic-access-and-billing/migrate_stripe_pricing.py](migrate_stripe_pricing.py) (converter)
+  - [docs/design/dynamic-access-and-billing/migrate_stripe_pricing.py](migrate_stripe_pricing.py) (converter)
 - Cause: The meters reshape renamed internal Counter values (e.g. `traces` → `traces_ingested`), but the Stripe-side meter event names and operator-facing pricing-config keys remained at the original names. The two surfaces are not the same — the internal slug is a code identifier, the Stripe meter name is an external configuration the operator owns — but the current code treats them as identical by passing `meter.key.value` to Stripe and as the lookup key into `stripe.meters`.
 - Explanation: Without a mapping, the meters reshape can never land without an externally-coordinated Stripe-dashboard rename for every deployment that previously had a `"traces"` meter configured. With a mapping, the internal slug stays canonical and the Stripe-side name stays stable; operators do not need to touch their Stripe configuration when Agenta renames internal Counter values, and existing pricing JSON continues to validate.
 - Suggested Fix (user-suggested approach: add a mapping as a global var):
@@ -354,21 +354,21 @@ _None._
 - Confidence: high
 - Status: fixed
 - Category: Consistency
-- Summary: Three documents in `docs/designs/data-retention/` and `docs/design/ee-self-hosting/` still reference the pre-reshape enum members `Counter.EVENTS.retention` and `Counter.TRACES.retention`. The shipped enum uses the `_INGESTED` suffix (`Counter.EVENTS_INGESTED`, `Counter.TRACES_INGESTED`). Operators grepping for these symbols when reading retention design notes won't find them in the code.
+- Summary: Three documents in `docs/design/data-retention/` and `docs/design/ee-self-hosting/` still reference the pre-reshape enum members `Counter.EVENTS.retention` and `Counter.TRACES.retention`. The shipped enum uses the `_INGESTED` suffix (`Counter.EVENTS_INGESTED`, `Counter.TRACES_INGESTED`). Operators grepping for these symbols when reading retention design notes won't find them in the code.
 - Evidence:
-  - [docs/designs/data-retention/README.md:34, :36](../data-retention/README.md) — references `Counter.EVENTS.retention` and `Counter.TRACES.retention`.
-  - [docs/designs/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md) — same legacy names per Copilot's note.
+  - [docs/design/data-retention/README.md:34, :36](../data-retention/README.md) — references `Counter.EVENTS.retention` and `Counter.TRACES.retention`.
+  - [docs/design/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md) — same legacy names per Copilot's note.
   - [docs/design/ee-self-hosting/research.md:531](../../design/ee-self-hosting/research.md#L531) — `Counter.TRACES.retention` and `Counter.EVENTS.retention` in the new "Span and event retention" section.
 - Files:
-  - [docs/designs/data-retention/README.md](../data-retention/README.md)
-  - [docs/designs/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md)
+  - [docs/design/data-retention/README.md](../data-retention/README.md)
+  - [docs/design/data-retention/data-retention-periods.initial.specs.md](../data-retention/data-retention-periods.initial.specs.md)
   - [docs/design/ee-self-hosting/research.md](../../design/ee-self-hosting/research.md)
 - Cause: Doc-vs-code drift after the meters reshape renamed `Counter.TRACES` → `Counter.TRACES_INGESTED` and added `Counter.EVENTS_INGESTED`. The retention design docs were written against the pre-reshape names and not updated.
 - Explanation: Same class as FIND-014 — the dynamic-access-and-billing design folder was already brought in sync; this finding extends the cleanup to the adjacent `data-retention` and `ee-self-hosting` design folders. Each file gets a mechanical `Counter.EVENTS` → `Counter.EVENTS_INGESTED` and `Counter.TRACES` → `Counter.TRACES_INGESTED` rename, plus a sanity check that no other stale enum references remain.
 - Suggested Fix:
   - Sed-style rename across the three files: `Counter.EVENTS` → `Counter.EVENTS_INGESTED`, `Counter.TRACES` → `Counter.TRACES_INGESTED` (carefully — only when the context is enum member access, not when the string slug `events` / `traces` is being discussed as a config value).
   - Grep `docs/` for any remaining `Counter\.\(EVENTS\|TRACES\|EVALUATIONS\|CREDITS\)\b` references that aren't `_INGESTED` / `_RUN` / `_CONSUMED` / `_RETRIEVED` and address them too.
-- Resolution: Applied the mechanical rename across the three files: `docs/designs/data-retention/README.md` lines 27 and 34 (`Counter.TRACES.retention` → `Counter.TRACES_INGESTED.retention`, `Counter.EVENTS.retention` → `Counter.EVENTS_INGESTED.retention`); `docs/designs/data-retention/data-retention-periods.initial.specs.md` line 72 (`Counter.TRACES` → `Counter.TRACES_INGESTED`); `docs/design/ee-self-hosting/research.md` lines 528, 531, and the entitlement-endpoint table at lines 604–611 (trace + event retention enum names updated). Grep for `Counter\.(EVENTS|TRACES|EVALUATIONS|CREDITS)\b` outside of `_INGESTED` / `_RUN` / `_CONSUMED` / `_RETRIEVED` forms returns clean.
+- Resolution: Applied the mechanical rename across the three files: `docs/design/data-retention/README.md` lines 27 and 34 (`Counter.TRACES.retention` → `Counter.TRACES_INGESTED.retention`, `Counter.EVENTS.retention` → `Counter.EVENTS_INGESTED.retention`); `docs/design/data-retention/data-retention-periods.initial.specs.md` line 72 (`Counter.TRACES` → `Counter.TRACES_INGESTED`); `docs/design/ee-self-hosting/research.md` lines 528, 531, and the entitlement-endpoint table at lines 604–611 (trace + event retention enum names updated). Grep for `Counter\.(EVENTS|TRACES|EVALUATIONS|CREDITS)\b` outside of `_INGESTED` / `_RUN` / `_CONSUMED` / `_RETRIEVED` forms returns clean.
 - Sources: PR #4330 Copilot review (comment ids 3260473592 + 3260473627, threads `PRRT_kwDOJbjazM6C5oDW` + `PRRT_kwDOJbjazM6C5oDv`).
 
 ### FIND-023 — [CLOSED] `test_access_controls.py` uses pre-reshape `Counter.TRACES` / `monthly=True` / `Flag.HOOKS`
@@ -417,7 +417,7 @@ _None._
 - Confidence: high
 - Status: fixed
 - Category: Consistency
-- Summary: Copilot review (PR #4330, comment id `3260614199`, review id `4312094586`, targeting [`api/ee/src/core/subscriptions/settings.py:130`](../../../api/ee/src/core/subscriptions/settings.py#L130) at the time of the review) flagged that an error message in `_normalize_pricing_entry` directed operators to `scripts/migrate_stripe_pricing.py` for legacy-to-new pricing conversion, while the converter actually ships at `docs/designs/dynamic-access-and-billing/migrate_stripe_pricing.py`. Operators hitting the validation error on the legacy shape would look in a `scripts/` directory that doesn't exist.
+- Summary: Copilot review (PR #4330, comment id `3260614199`, review id `4312094586`, targeting [`api/ee/src/core/subscriptions/settings.py:130`](../../../api/ee/src/core/subscriptions/settings.py#L130) at the time of the review) flagged that an error message in `_normalize_pricing_entry` directed operators to `scripts/migrate_stripe_pricing.py` for legacy-to-new pricing conversion, while the converter actually ships at `docs/design/dynamic-access-and-billing/migrate_stripe_pricing.py`. Operators hitting the validation error on the legacy shape would look in a `scripts/` directory that doesn't exist.
 - Evidence:
   - Copilot comment body (`gh api repos/Agenta-AI/agenta/pulls/comments/3260614199`): "Operators hitting this validation error during the legacy-to-new-pricing migration will look in a `scripts/` directory that doesn't exist. Update the path in the error message to match the script's actual location."
   - Post-FIND-021 rewrite of [`subscriptions/settings.py`](../../../api/ee/src/core/subscriptions/settings.py) no longer contains any reference to `scripts/migrate_stripe_pricing.py` — `grep -rn "scripts/migrate_stripe_pricing" .` returns no matches.
@@ -425,8 +425,8 @@ _None._
   - [api/ee/src/core/subscriptions/settings.py](../../../api/ee/src/core/subscriptions/settings.py)
 - Cause: Pre-FIND-021 versions of `_normalize_pricing_entry` carried a legacy-shape detection branch with an error message that referenced the wrong path. The branch was rewritten end-to-end as part of the FIND-021 pricing reshape (flat shape with operator-owned slot names, reserved `free` / `trial` markers, no internal-enum validation of slot names), so the legacy-detection branch and its stale error message no longer exist.
 - Explanation: The defect was real at review time; it is no longer present because the FIND-021 rewrite removed the surrounding code. Resolving as a side-effect of FIND-021 (not a no-op — the same operator-facing failure mode is just unreachable now). No follow-up needed in code.
-- Suggested Fix: None — already resolved by the FIND-021 rewrite. If a future change re-introduces a legacy-detection branch, the error message must point at `docs/designs/dynamic-access-and-billing/migrate_stripe_pricing.py` (or wherever the converter then lives).
-- Resolution: Verified via `grep -rn "scripts/migrate_stripe_pricing" .` returning no matches across the repo. The pricing validator now operates on the flat shape and never emits a legacy-conversion hint; the helper at `docs/designs/dynamic-access-and-billing/migrate_stripe_pricing.py` is documented in `summary.md` and `findings.md` as the annotation tool for `free` / `trial` markers.
+- Suggested Fix: None — already resolved by the FIND-021 rewrite. If a future change re-introduces a legacy-detection branch, the error message must point at `docs/design/dynamic-access-and-billing/migrate_stripe_pricing.py` (or wherever the converter then lives).
+- Resolution: Verified via `grep -rn "scripts/migrate_stripe_pricing" .` returning no matches across the repo. The pricing validator now operates on the flat shape and never emits a legacy-conversion hint; the helper at `docs/design/dynamic-access-and-billing/migrate_stripe_pricing.py` is documented in `summary.md` and `findings.md` as the annotation tool for `free` / `trial` markers.
 - Sources: PR #4330 Copilot review (comment id `3260614199`, review id `4312094586`).
 
 ### FIND-025 — [CLOSED] `a1b2c3d4e5f7` migration docstring `Revises:` header out of sync with actual `down_revision`

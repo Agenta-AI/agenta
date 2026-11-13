@@ -3,7 +3,7 @@
  * `sdks/python/agenta/sdk/redaction/redactor.py` (+ env seeding in
  * `sdks/python/agenta/sdk/redaction/seed.py`).
  *
- * Slice 1 (docs/designs/online-redaction): exact-match against a per-run deny-set of known live
+ * Slice 1 (docs/design/online-redaction): exact-match against a per-run deny-set of known live
  * secrets, wired at every sink (errors, records, spans, logs). Shape/entropy passes (Slice 2)
  * are declared as no-op extension points (`shapePass` / `entropyPass`) so activating them later
  * is a wiring change, not a redesign.

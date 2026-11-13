@@ -330,7 +330,7 @@ To pass `actor_user_id`, the four service writers take an optional keyword `acto
 | --- | --- |
 | `docs/design/sharing-program/` | Keep this folder and the OpenSpec change in step with the code at merge. |
 | `api/AGENTS.md` | Add under "API Architecture Patterns" a short "Project membership and access" entry: membership is decided only by `MembershipsService.resolve`; membership writes go only through the four `MembershipsService` writers; `check_action_access` delegates to `AccessService`, and every process registers it with `bootstrap_access()`; no new code reads `workspace_members` or `project_members` to decide access. |
-| `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md` | OSS to EE: run `--materialize` after `ee0000000002`. EE to OSS: access expands to every project with the organization role. |
+| `docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md` | OSS to EE: run `--materialize` after `ee0000000002`. EE to OSS: access expands to every project with the organization role. |
 | Self-host docs and release notes | OSS: every organization member is in every project with their organization role. Project create, update and delete need a permission. `AGENTA_DEMOS` is removed. Self-hosted EE: run `--apply` before the upgrade. |
 | `api/oss/src/utils/env.py` | Delete `ExtrasConfig.demos` (and `ExtrasConfig`, `extras` if empty). No new variable. |
 | `hosting/docker-compose/{oss,ee}/env.{oss,ee}.{dev,gh}.example` | Delete the commented `AGENTA_EXTRAS_DEMOS` lines. |

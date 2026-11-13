@@ -62,7 +62,7 @@ function buildRegexes(templateFormat: TemplateFormat) {
         // History: JP's `17df11cca3` regex narrowed mustache to alphanumeric
         // tokens only, which killed `#`/`^`/`&` section-opener typeahead
         // (Mahmoud QA 2026-06-01). A follow-up re-admitted those three.
-        // Phase 1 of `docs/designs/mustache-section-support.md` (2026-06-02)
+        // Phase 1 of `docs/design/mustache-section-support.md` (2026-06-02)
         // extends this further: ALL well-formed tags tokenise — the
         // discovery walker handles the variable-vs-structural distinction,
         // not the editor regex. This gives Mahmoud's structural-tag

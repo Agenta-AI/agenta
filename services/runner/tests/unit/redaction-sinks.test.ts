@@ -1,5 +1,5 @@
 /**
- * Slice 1 of docs/designs/online-redaction: the known-value pass wired at the runner's two
+ * Slice 1 of docs/design/online-redaction: the known-value pass wired at the runner's two
  * durable/exported sinks — the persisted transcript (WP1.4) and the exported OTel spans (WP1.5),
  * seeded from the per-run deny-set (WP1.1).
  *

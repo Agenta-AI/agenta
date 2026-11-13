@@ -5,7 +5,7 @@
  * scoped workflow* and drops runs where it was only a grader. When the scoped
  * workflow is graded far more often than it's evaluated, most fetched runs get
  * dropped client-side — the "low hit-ratio" case the eval-filtering RFC's meter
- * is built to detect (docs/designs/eval-filtering.md §D2 + §C3).
+ * is built to detect (docs/design/eval-filtering.md §D2 + §C3).
  *
  * A low rolling ratio is the signal that the backend role-aware reference
  * filter (v2) is warranted. The FE already encodes the role as the reference

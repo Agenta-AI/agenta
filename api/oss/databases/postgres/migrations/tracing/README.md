@@ -7,7 +7,7 @@
 > When running the commands below, swap `-w .../tracing` for the corresponding active
 > chain working directory (`-w .../tracing_oss` or `-w .../tracing_ee`).
 > See the parked `core/README.md` banner and
-> `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+> `docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md`.
 
 Generic single-database configuration with an async dbapi.
 
