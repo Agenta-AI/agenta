@@ -71,13 +71,13 @@ if fails:
 else:
     print("All models valid ✓")
 SCRIPT
-cd sdks/python && uv run python /tmp/check_agenta_models.py
+(cd sdks/python && uv run python /tmp/check_agenta_models.py)
 ```
 
 Alternatively, run the pytest unit test from `sdks/python`:
 
 ```bash
-cd sdks/python && uv run pytest oss/tests/pytest/unit/test_supported_llm_models.py -v
+(cd sdks/python && uv run pytest oss/tests/pytest/unit/test_supported_llm_models.py -v)
 ```
 
 The test suite pins the price map bundled with the locked litellm (`LITELLM_LOCAL_MODEL_COST_MAP=True`
@@ -140,7 +140,7 @@ report("OPENAI", OAI, AGENTA_OPENAI)
 report("GEMINI", [m for m in mc if m.startswith("gemini/") and not noise(m)],
        AGENTA_GEMINI, prefix="gemini/")
 SCRIPT
-cd sdks/python && uv run python /tmp/find_missing.py
+(cd sdks/python && uv run python /tmp/find_missing.py)
 ```
 
 **Fill in the `AGENTA_*` sets from the current `assets.py`** before running.
@@ -177,11 +177,7 @@ File: `sdks/python/agenta/sdk/utils/assets.py`
 Format and lint inside the SDK folder, as `AGENTS.md` says, then validate the list again:
 
 ```bash
-cd sdks/python
-ruff format
-ruff check --fix
-
-uv run python /tmp/check_agenta_models.py
+(cd sdks/python && ruff format && ruff check --fix && uv run python /tmp/check_agenta_models.py)
 ```
 
 All checks must pass before committing.

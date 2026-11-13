@@ -5,8 +5,10 @@ explores uncommitted tools through its delta, the trigger test is the automation
 button, and proposals ride each field's `default` so the form is one-click acceptable. Notice how each section is short, names exact tools, and ends the
 instructions on the terminal side effect.
 
-The fenced block below is the `body` of the `changelog-writer` `TemplateEntry` in
-`sdks/python/agenta/sdk/agents/adapters/agent_templates/engineering.py`. The builder agent reads it
+The fenced block below is an example adapted from the `body` of the `changelog-writer`
+`TemplateEntry` in `sdks/python/agenta/sdk/agents/adapters/agent_templates/engineering.py`. It
+is not a copy: the shipped body may still use older button copy, so update it when you touch
+that template. The builder agent reads it
 as `references/agent-templates/changelog-writer.md`.
 
 ```markdown

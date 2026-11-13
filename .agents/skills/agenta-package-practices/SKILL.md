@@ -13,7 +13,9 @@ state primitives (molecules, bridges, pickers) or package unit tests.
 ## When to use this skill
 
 - Deciding whether new code belongs in `web/mobile` (the app layer) or a package.
-  All frontend code lives in `web/mobile` and `web/packages`.
+  All new frontend code lives in `web/mobile` and `web/packages`. The one file you still edit
+  in `web/oss` is the theme source `web/oss/src/styles/theme/palette.ts`; see
+  `mobile-shadcn-conventions` for the token workflow.
 - Choosing which of the `@agenta/*` packages owns a piece of code, or importing from one.
 - Building with molecules, the loadable bridge, or the EntityPicker.
 - Writing or fixing unit tests inside a package under `web/packages/*/tests/`.

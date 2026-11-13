@@ -74,18 +74,23 @@ Isolate one lane at a time with `git stash`:
 2. For each lane, restore only that lane's files. Take tracked files with
    `git checkout 'stash@{0}' -- <paths>`. Take untracked files from the stash's untracked
    parent with `git checkout 'stash@{0}^3' -- <paths>`. Repeat deletes and renames with
-   `git rm`. Run `git status` and confirm that only this lane's files are changed.
+   `git rm`. When a file holds edits for two lanes, do not take the whole file: apply only this
+   lane's hunks (`git diff <base> 'stash@{0}' -- <path>`, cut to the hunks, then `git apply`).
+   Run `git status` and confirm that only this lane's changes are in the tree.
 3. Land them. If every hunk attributes to commits in this lane or the lane below, run
-   `but absorb --dry-run`, then `but absorb`. The tree holds only this lane's files, so
-   nothing can go to the wrong lane. If the lane needs new files, use
+   `but absorb --dry-run` and read the plan. Run `but absorb` only when every target in the
+   plan is a commit in this lane. A hunk that the plan sends to the lane below amends that
+   lane's commit and lands in its PR, so commit it with `but commit` instead. If the lane needs new files, use
    `but commit -b <lane> -m "message" <id> ...` instead.
 4. Check the tree at the lane's tip, not the diff. Run `git show <lane>:<file>` for each
    touched file and `git ls-tree -r <lane> <dir>` for moves and deletes. Then check the lanes
    above for deleted files that came back. A rebase can recreate deleted directories as
    untracked files. Remove that residue with `rm -rf`; the tip tree is what counts.
 5. Go to the next lane. When all lanes are done, push each one with
-   `but push <lane> --no-verify`. A rebased lane that is already on the remote needs a force
-   push. Ask the user before any force push. Confirm each push with
+   `but push <lane>`. A push also pushes the lane's workspace ancestors, and `but push` force
+   pushes a rebased lane by default. Before you push, compare each lane in the stack with
+   `git ls-remote --heads origin <lane>`, and ask the user before any push that is not a
+   fast-forward. Confirm each push with
    `git rev-parse <lane>` against `git ls-remote --heads origin <lane>`.
 
 A fix that depends on nothing in the stack, such as a stale test for code already on main,

@@ -28,7 +28,8 @@ share.
   artifacts.
 - **`url`.** With a PR URL, sync reads remote PR state as well as local state, and triage uses
   it when it needs GitHub context or runs `sync-findings`. Without one, both stay local.
-- **`priority`.** With no value, resolve only the highest remaining bucket, in the order `P0`,
+- **`priority`.** Map a `High`, `Medium` or `Low` severity to `P1`, `P2` or `P3` first, as
+  `findings.schema.md` defines. With no value, resolve only the highest remaining bucket, in the order `P0`,
   `P1`, `P2`, `P3`. With one level, resolve only that bucket. With `all`, resolve every
   remaining bucket.
 
@@ -44,5 +45,6 @@ share.
   uncertainty, or fix path unclear, ask the next concrete question in the same turn. Do not
   leave a finding at `open` or `needs-user-decision` without asking the question that blocks
   the next step. When several findings are unclear, batch the questions by finding ID.
-- Scan reading does not count as validation. Only `test-codebase` runs validation.
+- Scan reading does not count as validation. `test-codebase` runs validation. `resolve-findings`
+  may also run the checks that prove its own fix.
 - Ask the user before any change to GitHub, such as a reply to a thread or a resolved thread.

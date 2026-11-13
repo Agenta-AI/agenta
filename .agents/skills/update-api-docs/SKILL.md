@@ -50,8 +50,7 @@ or edit the frozen v1.0 docs under `docs/versioned_docs/version-1.0/`.
 The docs package uses pnpm (`"packageManager"` in `docs/package.json`, and `docs/pnpm-lock.yaml`). On a fresh clone, or if `docusaurus` is not found, install the dependencies:
 
 ```bash
-cd docs
-pnpm install --frozen-lockfile
+(cd docs && pnpm install --frozen-lockfile)
 ```
 
 ### 2. Run the update script
@@ -60,19 +59,18 @@ The wrapper script at `docs/scripts/update-api-docs.sh` downloads the OpenAPI
 spec, replaces the local file, and regenerates the docs in one step.
 
 ```bash
-cd docs
 
 # Default: fetch from production (https://cloud.agenta.ai/api/openapi.json)
-pnpm update-api-docs
+(cd docs && pnpm update-api-docs)
 
 # The same production URL, named explicitly
-pnpm update-api-docs:live
+(cd docs && pnpm update-api-docs:live)
 
 # From a locally running API (http://localhost/api/openapi.json)
-pnpm update-api-docs:local
+(cd docs && pnpm update-api-docs:local)
 
 # From a local file
-pnpm update-api-docs:file /path/to/openapi.json
+(cd docs && pnpm update-api-docs:file /path/to/openapi.json)
 ```
 
 The script writes the spec to `docs/docs/reference/openapi.json`, then runs the
@@ -89,8 +87,7 @@ This generates:
 Start the dev server to preview:
 
 ```bash
-cd docs
-pnpm start
+(cd docs && pnpm start)
 ```
 
 Then visit `http://localhost:5000/docs/reference/api` to check that the API docs render correctly.
@@ -116,8 +113,7 @@ Commit only if the user asks. Use GitButler (`but`), as the root `AGENTS.md` say
 
 The clean and generate commands require the config ID. Use:
 ```bash
-pnpm run clean-api-docs agenta
-pnpm run gen-api-docs agenta
+(cd docs && pnpm run clean-api-docs agenta && pnpm run gen-api-docs agenta)
 ```
 
 ### "docusaurus: not found" error

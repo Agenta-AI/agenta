@@ -243,7 +243,7 @@ In a domain PR, your job is the source-of-truth changes:
 - `Field(description=...)` on request/response models.
 - The concept page under `docs/docs/reference/api-guide/`.
 
-Leave the auto-MDX regen to the downstream flow. If `but status` shows uncommitted changes under `docs/docs/reference/api/`, discard them before you commit. Run `but status` to get the CLI IDs of those files, then run `but discard <id> <id>`. Don't use raw `git checkout` or `git restore`, because this repo uses GitButler.
+Leave the auto-MDX regen to the downstream flow. If your task regenerated files under `docs/docs/reference/api/`, discard those files before you commit. Run `but status` to get their CLI IDs, then run `but discard <id> <id>` on those IDs only. Ask before you discard any other change under that path, because it can be another contributor's work. Don't use raw `git checkout` or `git restore`, because this repo uses GitButler.
 
 ## 9. Before you ship
 
