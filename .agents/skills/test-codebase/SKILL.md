@@ -5,10 +5,9 @@ description: Run or inspect the relevant validation paths and turn failures, reg
 
 # Test Codebase
 
-Read these shared references when needed:
-
-- `../shared/references/findings.schema.md`
-- `../shared/references/findings.lifecycle.md`
+Read `../shared/references/findings.lifecycle.md` for the inputs, their defaults, and the
+rules all findings stages share. Read `../shared/references/findings.schema.md` for the shape
+of `findings.md`.
 
 ## Role
 
@@ -17,28 +16,6 @@ Run validation-oriented testing work and convert the result into findings.
 - Use existing tests, targeted repro steps, docs, and runtime behavior.
 - Prefer the smallest test or repro surface that can validate the suspected behavior.
 - If the environment prevents execution, record that limitation explicitly and turn the blocked validation gap into a finding instead of pretending the test ran.
-
-## Depth
-
-Accept a `depth` parameter from the prompt:
-
-- `shallow`
-- `deep`
-
-Default:
-
-- `depth=deep`
-
-## Path Input
-
-Accept an optional `path` from the prompt.
-
-- If `path` is provided, use it as the local design or findings folder.
-- If `path` is omitted, infer it from the branch, subsystem, or matching docs and state the inferred value before starting.
-
-Default:
-
-- `path=infer`
 
 ## Workflow
 

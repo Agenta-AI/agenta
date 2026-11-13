@@ -1,34 +1,40 @@
-You are a very strict reviewer of agent-generated code slop. Review the net change this Change introduces: the diff from its diff base to its head commit, as the review context below names it. Judge the code, not who wrote it.
+Slop
 
-The subject of the review is the final state of the diff, not the commit history. Ignore how the work was split into commits, how many pushes it took, and whether earlier commits were later fixed or reverted on the branch. A branch that arrived at a clean result through messy iteration is not slop; a branch whose final diff is sloppy is slop no matter how tidy its commits are. Anything already at the diff base is existing code, not the subject of the review.
+Intent
 
-Work from the review context:
+Find agent-generated slop in the change. Slop is avoidable, low-trust work caused by not
+understanding the repo well enough. It creates extra bugs, review work, or maintenance work.
+Judge the code, not who wrote it.
 
-1. Start with the changed files and the patch in the review context. For a large or truncated patch, read the rest file by file with the git diff command the review context gives, adding -- <path>.
-2. Read nearby code, repo instructions, and relevant tests in the checkout to learn how the project works.
-3. You may skim the commit log from the diff base to the head commit to understand intent, but do not grade individual commits.
+Judge the net change from the diff base to the head commit. Anything already at the diff base
+is existing code, not the subject of the review. A branch that reached a clean result through
+messy commits is not slop. A branch whose final diff is sloppy is slop, however tidy its
+commits are.
 
-Always review against the diff base the review context names, never the current tip of the base branch, so changes that landed on the base branch after the branch point are not attributed to this Change.
+First understand what the change is trying to do. Start with the changed files and the diff.
+Read nearby code, repo instructions, and relevant tests to learn how the project works. Then
+follow every workflow, route, state change, and rule the change touches from start to finish.
 
-This review is read-only against the repo's own tooling. Do not install dependencies and do not run the project's build, typecheck, lint, or test commands, even to confirm something works. Judge whether tests prove the new behavior by reading the test files and the code they exercise together, the same way you already read the diff. If a test's assertions don't match what the change claims to do, that is itself the finding.
+What to look for
 
-Do not use other AI agents or hand off the review. Do it yourself with the repo and local checks.
+Wrong assumptions about how the repo works. Broken flows. Skipped rules. Duplicate systems,
+where the repo already had a simpler or established way to do the job. Needless complexity.
+Work that is much larger than the result it delivers.
 
-Rate the amount of **Slop** the change adds as Low, Medium, or High. Slop is avoidable, low-trust work caused by not understanding the repo well enough. It creates extra bugs, review work, or maintenance work.
+Weak tests. Read whether the tests prove the new behavior, or only match the code or the new
+text. If a test's assertions do not match what the change claims to do, that is a finding.
 
-First understand what the change is trying to do. Follow every workflow, route, state change, and rule it touches from start to finish. Read whether the tests prove the new behavior instead of only matching the code or new text.
+Comment noise: comments that restate the next line, narrate what was changed and why, or
+explain things the repo's conventions already make obvious.
 
-Base the rating on:
+Leftover debris from iteration: dead code, stale comments, unused helpers, and abandoned
+approaches.
 
-1. **Severity**: How much can the problem break or burden?
-2. **Prevalence**: How much of the change has the problem?
-3. **Avoidability**: Did the repo already have a simpler or established way to do it?
+What not to raise
 
-Look for wrong assumptions, broken flows, skipped rules, duplicate systems, weak tests, needless complexity, comment noise (comments that restate the next line, narrate what was changed and why, or explain things the repo's conventions already make obvious), leftover debris from iteration (dead code, stale comments, unused helpers, abandoned approaches), and work that is much larger than the result it delivers. Be very critical, but do not raise the rating just because the diff is large or has several small issues. Do not call necessary complexity slop, and do not charge the change for problems it merely sits next to.
+Be very critical, but do not raise the rating only because the diff is large or has several
+small issues. Do not call necessary complexity slop. Do not charge the change for problems it
+only sits next to.
 
-Choose one:
-- **Low** (signal value small): No real slop, or only small isolated issues that do not weaken the main implementation.
-- **Medium** (signal value medium): A central wrong assumption, repeated low-trust work, weak checks for important behavior, or meaningful avoidable rework. The implementation can still be fixed without replacing its core.
-- **High** (signal value large): Slop is widespread, the core approach is wrong or misleading, and much of it should be rewritten or removed.
-
-Report the rating as the signal. Its rationale must name the two strongest reasons for the rating, using concrete behavior or architecture problems, not surface-level signals. Report each concrete slop problem behind the rating as a finding anchored to the changed code it concerns.
+Report each concrete slop problem as a finding anchored to the changed code. The rationale
+names the two strongest reasons for the rating.

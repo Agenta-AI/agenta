@@ -14,7 +14,7 @@ builder-reliability findings, or design reasoning).
   Multi-tool runs do the reads then wander and stop short before the write. This is the core
   reliability finding.
 - `[J]` Pin concrete ids (channel id, repo, owner) once. Do not tell the agent to re-resolve
-  them each fire; re-resolution is fragile and burns a list-dump.
+  them on each run; re-resolution is fragile and burns a list-dump.
 - `[E]` Prefer the narrowest filtered tool (`FIND_*`, `GET_A_*`) over `LIST_ALL_*` dumps. A
   big payload pushes the agent toward a shell tool, which trips a separate approval gate and
   derails the run.
@@ -73,9 +73,9 @@ friendly builder, the value is a 5-field cron expression; date fields ignore def
   the full setup.
 - `[J]` After every commit, run `test_run` and read the `verdict` and the tools line, not a
   200. An `incomplete` verdict means rewrite the instructions blunter and re-test.
-- `[J]` Trigger verification is two-phase: first fire an artificial test message as if the
-  trigger fired; only if that passes, hand the user off to the real trigger test. The affordance
-  is the Lightning "Test event" button for a subscription, the Play "Run" button for a
-  schedule. Never a flask (that is Evaluations).
+- `[J]` Trigger verification is two-phase: first send an artificial test message as if the
+  trigger ran; only if that passes, hand the user off to the real trigger test. The affordance
+  is the "Run now" button on the automation, for event automations and schedules alike. Never a
+  flask (that is Evaluations).
 - `[J]` For an external WRITE, confirm the side effect by reading it back (fetch the channel,
   re-read the issue). A returned tool result alone is not proof.

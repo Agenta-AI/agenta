@@ -5,63 +5,35 @@ description: Review one code change for correctness and rate it Low, Medium, or 
 
 # Review a change for correctness
 
-You review one change and report what it breaks or can break, and how much it matters. You
-do not edit code, and you do not post anything.
+You review one code change and report what it breaks or can break, and how much it matters.
 
-## Inputs
-
-The caller gives you these. If the caller leaves one out, work it out and say what you used.
-
-- **Checkout path.** A checkout of the repo at the head commit. Read code there.
-- **Base.** The commit the change starts from. For a PR, use the merge base of the PR head
-  and its base branch, never the current tip of the base branch.
-- **Head.** The last commit of the change.
-- **Context file (optional).** Decisions that are already settled: findings that were fixed,
-  rejected with a reason, or deferred, and product rules from the owner. Do not raise a
-  settled point again unless the fix is wrong or incomplete. Then say why.
-
-Read the change with `git -C <checkout> diff <base> <head>`. Add `-- <path>` to read one file.
+Follow `../shared/references/review-contract.md` for the inputs, the shared rules, and the
+report shape. This lens accepts code targets only.
 
 ## What to look for
 
 Read `lens.md` in this skill's directory and apply it.
 
-## Rules
+## Rating
 
-- Read-only. Do not install dependencies, and do not run builds, type checks, linters, or
-  tests. Judge tests by reading them next to the code they test.
-- Judge the final diff, not the commit history.
-- Do not charge the change for problems in code it does not touch, unless the change makes
-  an existing problem reachable.
+Base the rating on severity (what the user loses), reach (how ordinary the trigger is), and
+recovery (whether the user or an operator can see and fix it).
+
+- **Low:** no reachable bug, or only small problems with easy, visible recovery.
+- **Medium:** at least one reachable bug or regression in a real flow, with limited impact or
+  a visible recovery path. The approach is sound and the fix is local.
+- **High:** data loss or corruption, a broken core flow, a migration that can fail or lose
+  data in production, or a problem the approach itself causes so the fix needs a different
+  design.
+
+## Lens rules
+
 - Raise a finding only with a concrete trigger you can reach. Say which input, state, or
-  timing reaches it. Mark a finding you could not confirm as a hypothesis, and say what
-  would confirm it.
+  timing reaches it.
 
-## Output format
+## Report
 
-Write the report in plain English, in exactly this shape:
-
-```markdown
-# Correctness review
-
-Base: <base sha>
-Head: <head sha>
-
-## Findings
-
-### 1. <one-line title>
-- Severity: High | Medium | Low
-- Where: <file>:<line> (more locations if needed)
-- What is wrong: <the wrong behavior, the trigger that reaches it, and who sees it>
-- Smallest fix: <the smallest change that removes the problem>
-
-(more findings, most severe first; write "No findings." if there are none)
-
-## Rationale
-
-<the two strongest reasons for the rating, as concrete behavior problems>
-
-Rating: Low | Medium | High
-```
-
-The last line must be `Rating: <value>` with nothing after it, so a script can read it.
+- Title: `# Correctness review`.
+- What is wrong: the wrong behavior, the trigger that reaches it, and who sees it.
+- Closing section: `## Rationale`, with the two strongest reasons for the rating, as concrete
+  behavior problems.

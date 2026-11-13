@@ -1,38 +1,74 @@
-# Findings Skills
+# Agent skills
 
-This folder contains the canonical skill definitions for findings-driven review work in this repo.
+This folder holds the repo's agent skills. Each skill is a folder with a `SKILL.md`. Its
+frontmatter `description` says when an agent loads it. `shared/` holds references that
+several skills use and is not a skill.
 
-The workflow is organized around five generic skills:
+## How skills are wired
 
-1. `scan-codebase`
-2. `test-codebase`
-3. `sync-findings`
-4. `triage-findings`
-5. `resolve-findings`
+- The source of each skill is `.agents/skills/<name>/`. Codex reads this folder.
+- `.claude/skills/<name>` is a symlink to `../../.agents/skills/<name>`. Claude Code reads it.
+- The root `.gitignore` ignores both folders and allowlists each skill. A new skill needs two
+  allowlist lines, `!.agents/skills/<name>/` and `!.claude/skills/<name>`, plus the symlink:
+  `ln -s ../../.agents/skills/<name> .claude/skills/<name>`.
+- When a new file does not show in `git status`, run `git check-ignore -v <file>` to find the
+  missing allowlist line.
 
-The split is by activity, not by a CR/QA lane name:
+## Frontend
 
-- `scan-codebase` is verification-oriented review from code and docs into findings
-- `test-codebase` is validation-oriented execution from tests and runtime behavior into findings
-- `sync-findings` keeps GitHub and the findings record aligned
-- `triage-findings` is the discussion and planning layer
-- `resolve-findings` is the execution layer back into code, tests, and docs
+- `agenta-package-practices`: where frontend code goes (package or `web/mobile`) and how to
+  use the `@agenta/*` packages.
+- `mobile-app-structure`: feature folders, the `states/` convention, and data flow in
+  `web/mobile`.
+- `mobile-motion-patterns`: motion presets, when to animate, and reduced motion in
+  `web/mobile`.
+- `mobile-shadcn-conventions`: how `web/mobile` installs, themes and extends shadcn/ui, and
+  builds chat UI on `@agenta/chat`.
+- `test-design`: what to test and how to write tests for `web/mobile` and the `@agenta/*`
+  packages.
+- `verify-agenta-mobile`: drive the real app at `localhost:3000/m` in a browser and capture
+  proof.
 
-All skills accept optional `path=`.
+## Agent runtime and release
 
-- If `path` is provided, use that local design or findings folder.
-- If `path` is omitted, infer it and state the inferred value before starting.
+- `add-harness`: playbook for adding a new coding-agent harness to Agenta.
+- `agent-release-gate`: wire-level QA harness for the agent runtime, run before an
+  agent-workflows release.
+- `sync-model-catalog`: refresh harness catalogs, provider model lists and recommended
+  defaults.
+- `update-llm-model-list`: audit the supported LLM model list in `assets.py` against
+  litellm's registry.
+- `write-template-playbooks`: write a per-use-case template playbook for the build-an-agent
+  skill.
 
-Preferred master document:
+## Design and naming
 
-- `findings.md`
+- `design-interfaces`: classify interface fields by semantic role, for APIs, wire fields,
+  configs and tool definitions.
+- `naming-and-resources`: pick the name of a concept in every layer and give every stored item
+  kind the same resource shape.
 
-Shared references:
+## Review
 
-- `shared/references/findings.schema.md`
-- `shared/references/findings.lifecycle.md`
+The four lenses share one contract: `shared/references/review-contract.md`.
 
-## Diagram
+- `review-correctness`: bugs, regressions, broken flows, concurrency, and migrations.
+- `review-naming`: naming, consistency and layering in a change or a design.
+- `review-simplify`: needless complexity in a change or a design.
+- `review-slop`: avoidable, low-trust agent work in a change.
+- `prepare-pr-review`: a plain-language review briefing for a GitHub PR.
+
+## Findings
+
+The five findings skills share one record (`findings.md`). The inputs, their defaults and the
+shared rules are in `shared/references/findings.lifecycle.md`. The record's shape is in
+`shared/references/findings.schema.md`.
+
+- `scan-codebase`: a fresh-context scan of code and docs that records findings.
+- `test-codebase`: run or inspect validation and record failures and missing coverage.
+- `sync-findings`: align the record with local artifacts and, when asked, a GitHub PR.
+- `triage-findings`: decide the next step with the user and turn findings into a plan.
+- `resolve-findings`: implement the chosen fixes, one priority bucket at a time.
 
 ```text
                  Git / PR / Review Threads
@@ -51,163 +87,24 @@ Code + Docs -- scan-codebase --> Findings <-- test-codebase -- Tests / Runtime /
                            Code / Tests / Docs
 ```
 
-## Invocation
+## Writing and announcements
 
-For Codex:
+- `style-editing`: make prose plain and clear, with Williams' revision principles.
+- `write-issue`: write and file Linear issues the Agenta way.
+- `write-pr-description`: write PR titles and descriptions.
+- `create-changelog-announcement`: write and publish changelog entries and the in-app What's
+  New data.
+- `write-social-announcement`: social posts for LinkedIn, X and Slack about a release or
+  feature.
+- `update-public-surfaces`: carry one change (a name, tagline, link or logo) to every
+  user-facing place in the repo.
 
-- invoke a skill with `$skill-name`
-- `.agents/skills/` is the canonical source, but Codex auto-discovers from `~/.codex/skills`
-- if a skill does not appear under `$`, refresh the symlink or install it into `~/.codex/skills` and reload Codex
+## Docs
 
-For Claude:
+- `write-docs`: style, voice and structure for the v2.0 docs under `docs/docs/`.
+- `keep-docs-in-sync`: update the docs in the same PR as a code or contract change.
+- `update-api-docs`: regenerate the API reference from the production OpenAPI spec.
 
-- invoke a project skill with `/project:skill-name` when your Claude client exposes project skills that way
-- otherwise use the Claude project skills picker after reloading the project
-- `.claude/skills/` contains the Claude-facing wrappers for the canonical skills in `.agents/skills/`
+## Repo operations
 
-## Skills
-
-### `scan-codebase`
-
-Use for a fresh-context scan of code and docs that turns review observations into findings.
-
-Parameters:
-
-- `path=<local-folder>` optional
-- `depth=deep` by default
-- supported values: `shallow`, `deep`
-
-Use when:
-
-- you want a review pass anchored in current code and docs
-- you want verification findings before planning
-- you want to surface missing tests or coverage gaps as review findings without running tests yet
-
-For Codex:
-
-```text
-$scan-codebase
-```
-
-For Claude:
-
-```text
-/project:scan-codebase
-```
-
-### `test-codebase`
-
-Use to run or inspect the relevant validation paths and turn failures, regressions, or missing coverage into findings.
-
-Parameters:
-
-- `path=<local-folder>` optional
-- `depth=deep` by default
-- supported values: `shallow`, `deep`
-
-Use when:
-
-- you want validation findings from actual test execution or targeted repro
-- you want to confirm whether missing or broken behavior is observable
-- you want missing test coverage turned into findings
-
-For Codex:
-
-```text
-$test-codebase
-```
-
-For Claude:
-
-```text
-/project:test-codebase
-```
-
-### `sync-findings`
-
-Use to sync the findings record against local review artifacts and optionally a GitHub PR.
-
-Parameters:
-
-- `path=<local-folder>` optional
-- `url=<github-pr-url>` for remote + local sync
-- omitted `url` means local-only sync
-
-Use when:
-
-- you want findings updated from open PR comments or local notes
-- you want clearly closed threads acknowledged and resolved
-- you want the master findings file to match current GitHub state and current local code state
-
-For Codex:
-
-```text
-$sync-findings
-```
-
-For Claude:
-
-```text
-/project:sync-findings
-```
-
-### `triage-findings`
-
-Use to coordinate the next review or testing actions with the user and turn findings into a plan.
-
-Parameters:
-
-- `path=<local-folder>` optional
-- `url=<github-pr-url>` optional when PR context matters
-
-Use when:
-
-- you need follow-up questions answered before acting
-- you need to decide whether to run `scan-codebase`, `test-codebase`, or `sync-findings`
-- you need severity, confidence, status, owner questions, and next action clarified
-
-For Codex:
-
-```text
-$triage-findings
-```
-
-For Claude:
-
-```text
-/project:triage-findings
-```
-
-### `resolve-findings`
-
-Use to implement the chosen fix path for findings and update the findings record afterward.
-
-Parameters:
-
-- `path=<local-folder>` optional
-- default `priority=next-highest`
-- explicit values: `P0`, `P1`, `P2`, `P3`, `all`
-
-Default behavior:
-
-- if unresolved findings exist at `P0`, resolve `P0` on this run
-- if `P0` is exhausted, the next run resolves `P1`
-- then `P2`, then `P3`
-
-Use when:
-
-- findings are implementation-ready or nearly so
-- you want code, test, and docs changes applied
-- you want targeted verification or validation rerun after the fix
-
-For Codex:
-
-```text
-$resolve-findings
-```
-
-For Claude:
-
-```text
-/project:resolve-findings
-```
+- `gitbutler-stacks`: GitButler mechanics for stacked lanes, PR bases and workspace recovery.

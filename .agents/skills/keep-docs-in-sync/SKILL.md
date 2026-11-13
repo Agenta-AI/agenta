@@ -25,7 +25,7 @@ You changed one of these, so a doc somewhere now describes the old reality:
 
 - a wire field, endpoint, request/response shape, event, or capability
 - a harness or backend value, an enum, or a default
-- a config field the playground renders, or a catalog type marker
+- a config field the agent config pane renders (`web/mobile/src/features/chat/ConfigPane.tsx`), or a catalog type marker
 - a runtime behavior (what is enforced, what is wired, what is a no-op)
 - a file or symbol that a doc cites by path or line number
 
@@ -55,8 +55,8 @@ If none of these moved, you probably do not need this skill.
      column: stable / evolving / declared-not-wired).
    - the relevant `AGENTS.md` / `CLAUDE.md` (e.g. `services/runner/AGENTS.md` for the wire
      contract) and any skill that names the thing.
-   - the project workspace under `docs/design/<project>/` (`status.md` to "landed", plus the
-     plan/research if they now mislead).
+   - the project workspace under `docs/design/<project>/` (`status.md` to "landed", or the
+     OpenSpec change's `tasks.md`, plus the plan/research if they now mislead).
 
 3. **Update each in the same change.** Edit them in the PR that makes the code change, not in a
    follow-up. If you removed a thing, delete its page and its index row, not just its prose.
@@ -87,4 +87,5 @@ read.
 - [ ] Duplication resolved by a cross-link, not a second copy.
 - [ ] External integrations described as existing and unchanged unless you actually changed them.
 - [ ] Old names re-grepped to zero; touched citations still resolve.
-- [ ] `status.md` in the project workspace reflects what landed and what deferred.
+- [ ] `status.md` in the project workspace, or the OpenSpec change's `tasks.md`, reflects what
+      landed and what deferred.
