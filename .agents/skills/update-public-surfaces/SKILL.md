@@ -44,14 +44,21 @@ Not surfaces: `docs/build/`
    `zt-1zsafop5i…, zt-2yewk6o2b… → zt-37pnbp5s6…`. If you cannot work out the old forms,
    ask before you search.
 
-2. **Search every surface.** One pattern per old form, with the noisy folders excluded:
+2. **Search every surface.** One search per old form, with the noisy folders excluded.
+   Search the old form as literal text (`-F`, in single quotes), so a `?` in a URL or a
+   `$` in a price is not read as regex or shell syntax:
 
    ```bash
-   rg -n -i "<old form>" web/website/src web/website/public README*.md CONTRIBUTING.md .github \
-     docs/docs docs/versioned_docs docs/blog/entries docs/src docs/docusaurus.config.ts \
-     web/packages/agenta-navigation/src sdks/python/README.md sdks/python/pyproject.toml \
-     -g '!docs/build/**' -g '!web/oss/**' -g '!web/ee/**'
+   rg -n -i -F -g '!docs/build/**' -- '<old form>' \
+     web/mobile/src web/mobile/public web/website/src web/website/public README*.md CONTRIBUTING.md .github \
+     docs/docs docs/blog/entries docs/src docs/docusaurus.config.ts \
+     web/packages/agenta-navigation/src sdks/python/README.md sdks/python/pyproject.toml
    ```
+
+   A phrase of several words can wrap onto the next line in markdown, and a literal
+   search then misses it. For a phrase, also run a multiline search that allows any
+   whitespace between the words, for example
+   `rg -n -i -U 'prompt\s+management'` on the same paths.
 
    Images and logos do not show up in a text search. If the change is visual, list the
    image files on each surface and say which ones look affected.
@@ -96,7 +103,6 @@ Not surfaces: `docs/build/`
   dated before 2026-07-01 already show an "earlier era" notice (`web/website/src/lib/blog.ts`),
   so old product wording there is usually fine to leave. Ask once for the group, and list
   the posts. Dead links in them are not a question; fix them.
-- **`docs/versioned_docs/`.** Ask whether the old version is still published or frozen.
 - **A hidden component** (a flag such as `SHOW_INLINE_CTA = false`) with stale copy: rewrite
   and keep hidden, rewrite and show, or leave.
 - **Translated README prose** that needs real translation, not a swapped link.
