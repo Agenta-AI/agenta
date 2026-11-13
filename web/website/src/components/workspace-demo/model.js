@@ -542,75 +542,11 @@ export function deriveWorkspace(state, setState, onLive) {
       skills: skillsAll.slice(4),
     },
   ];
-  // Playground
-  const configOpen = st.configOpen !== false;
-  const TABC =
-    "display:inline-flex;height:28px;max-width:200px;flex:0 0 auto;align-items:center;gap:6px;border-radius:6px;border:none;cursor:default;padding:0 10px;margin-right:5px;font:400 13px/1 var(--font-sans);";
-  const tabTasks = activePlaygroundGroup?.tasks ?? [activeSession];
-  const tabs2 = tabTasks.map((task, index) => ({
-    ...ss,
-    ...task,
-    open: task.live
-      ? () => onLive?.()
-      : () => setState({ playgroundTask: task.ask }),
-    style:
-      TABC +
-      (task.ask && ss.ask === task.ask
-        ? "background:var(--ag-colorFillSecondary);color:" +
-          FG +
-          ";font-weight:500;"
-        : "background:transparent;color:" + MF + ";"),
-  }));
-  const ssAutos = AUTOS.filter((au) => au.agent === ss.title);
-  const ssFull = {
-    ...ss,
-    autos: ssAutos.length
-      ? ssAutos
-      : AUTOS.filter((automation) => automation.area === ss.area),
-    configIntegrations: [...new Set([...ss.tools, "Slack"])],
-    configSkills: skillsAll
-      .filter((skill) =>
-        (ss.area === "Marketing"
-          ? ["research-brief", "draft-article", "publish-digest"]
-          : ss.area === "Sales"
-            ? ["score-fit", "publish-digest", "schedule-run"]
-            : ss.area === "Support"
-              ? ["classify-ticket", "publish-digest", "schedule-run"]
-              : ["review-diff", "publish-digest", "schedule-run"]
-        ).includes(skill.slug),
-      )
-      .map((skill) => ({
-        ...skill,
-        open: () =>
-          setState({
-            view: "skills",
-            skill: skillsAll.indexOf(skill),
-            skillVersion: "v4",
-          }),
-      })),
-    subagents: sessions
-      .filter((agent) => agent.area === ss.area && agent.title !== ss.title)
-      .slice(0, 2),
-    autoCount:
-      (ssAutos.length || 1) +
-      (ssAutos.length === 1 || !ssAutos.length
-        ? " automation"
-        : " automations"),
-    fileCount: 3,
-    files: [
-      {
-        name: ss.tools[0].toLowerCase() + "-notes.md",
-        when: whens[st.session ?? 0],
-      },
-      { name: "AGENTS.md", when: "1w ago" },
-      { name: "context/" + ss.area.toLowerCase() + ".md", when: "2w ago" },
-    ],
-  };
   return {
     nav,
     view,
     railGroups: visibleRailGroups,
-    ss: ssFull,
+    ss,
     homeAgent: sessions[homeSel],
     homeRows,
     agentRows: sessions.slice(0, 10),
@@ -624,10 +560,5 @@ export function deriveWorkspace(state, setState, onLive) {
     sk: skillsAll[st.skill ?? 0],
     closeSkill: () => setState({ skill: null }),
     sessionRows: sessions.slice(0, 12),
-    configOpen,
-    configClosed: !configOpen,
-    toggleConfig: () => setState({ configOpen: !configOpen }),
-    splitCols: configOpen ? "320px minmax(0,1fr)" : "minmax(0,1fr)",
-    tabs2,
   };
 }

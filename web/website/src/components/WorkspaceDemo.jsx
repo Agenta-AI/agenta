@@ -1,4 +1,3 @@
-import PlaygroundSettings from "./workspace-demo/PlaygroundSettings.jsx";
 import {
   ArrowLeft,
   ArrowRight,
@@ -23,6 +22,8 @@ import {
   GraduationCap,
   House,
   Lightning,
+  Paperclip,
+  Microphone,
   ListBullets,
   MagnifyingGlass,
   Plugs,
@@ -122,8 +123,6 @@ export default class WorkspaceDemo extends Component {
     homePicker: false,
     homeAgent: 0,
     sampleName: "Alex",
-    configOpen: true,
-    stepsOpen: true,
     historyOpen: false,
     ...this.props.initialState,
   };
@@ -147,19 +146,11 @@ export default class WorkspaceDemo extends Component {
       sk,
       closeSkill,
       sessionRows,
-      configOpen,
-      configClosed,
-      toggleConfig,
-      splitCols,
-      tabs2,
     } = deriveWorkspace(
       this.state,
       (patch) => this.setState(patch),
       this.props.onLive ?? this.onLive,
     );
-    const stepsOpen = this.state.stepsOpen;
-    const stepsRot = stepsOpen ? "rotate(90deg)" : "rotate(0deg)";
-    const toggleSteps = () => this.setState({ stepsOpen: !stepsOpen });
 
     return (
       <div
@@ -168,7 +159,6 @@ export default class WorkspaceDemo extends Component {
           this.frame = node;
         }}
         data-sidebar-collapsed={this.state.sidebarCollapsed || false}
-        data-mobile-config={this.state.mobileConfig || false}
         aria-label="Interactive Agenta workspace demo"
         style={css(
           `position:relative;z-index:6;width:min(1120px,100%);height:680px;border-radius:12px;border:1px solid var(--border);box-shadow:0 0 0 6px var(--muted),0 0 0 7px var(--border),var(--ag-boxShadowSecondary);display:grid;grid-template-columns:255px minmax(0,1fr);overflow:hidden;text-align:left;font-family:var(--font-sans);color:var(--foreground);background:var(--background);`,
@@ -186,20 +176,6 @@ export default class WorkspaceDemo extends Component {
                 {name[0].toUpperCase() + name.slice(1)}
               </button>
             ),
-          )}
-          {view.playground && (
-            <button
-              type="button"
-              aria-pressed={this.state.mobileConfig || false}
-              onClick={() =>
-                this.setState({
-                  mobileConfig: !this.state.mobileConfig,
-                  configOpen: true,
-                })
-              }
-            >
-              Configuration
-            </button>
           )}
         </nav>
         <div
@@ -2004,351 +1980,71 @@ export default class WorkspaceDemo extends Component {
             </>
           )}
           {view.playground && (
-            <>
-              <div
-                style={css(
-                  `display:flex;min-height:41px;flex:0 0 auto;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--ag-shell-line);background:var(--ag-surface-raised);padding:8px 10px;`,
-                )}
-              >
-                <div
-                  style={css(
-                    `display:flex;min-width:0;align-items:center;gap:8px;`,
-                  )}
-                >
-                  <span style={css(ss.chipStyle)}>{ss.initials}</span>
-                  <span
-                    style={css(
-                      `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 16px/18px var(--font-sans);color:var(--foreground);`,
-                    )}
-                  >
-                    {ss.title}
+            // Same layout as the landing hero's animated session (the .r3-*
+            // classes in styles/landing/hero.css): agent header, thread, composer.
+            <div className="r3-aw-main" style={css(`flex:1;min-height:0;`)}>
+              <div className="r3-pf-top">
+                <span className="r3-pf-agent">
+                  <span className="r3-pf-aico">
+                    <CalendarBlank
+                      size={14}
+                      weight="regular"
+                      aria-hidden="true"
+                    />
                   </span>
-                  <span
-                    style={css(
-                      `margin:0 4px;height:20px;width:1px;flex:0 0 auto;background:var(--ag-colorBorderSecondary);`,
-                    )}
-                  ></span>
-                  <span
-                    style={css(
-                      `display:inline-flex;align-items:center;gap:6px;font:400 13px/1 var(--font-sans);color:var(--muted-foreground);`,
-                    )}
-                  >
-                    <span
-                      style={css(
-                        `border-radius:4px;background:var(--ag-colorFillTertiary);padding:3px 6px;font:500 12px/1 var(--font-mono);color:var(--foreground);`,
-                      )}
-                    >
-                      {ss.version}
-                    </span>
-                    <span
-                      style={css(
-                        `display:inline-flex;align-items:center;gap:5px;`,
-                      )}
-                    >
-                      <span
-                        style={css(
-                          `width:6px;height:6px;border-radius:50%;background:var(--success);`,
-                        )}
-                      ></span>
-                      {`Saved`}
-                    </span>
-                  </span>
-                </div>
-                <div
-                  style={css(
-                    `display:flex;min-width:0;flex:1;align-items:center;justify-content:flex-end;gap:8px;`,
-                  )}
-                >
-                  <span
-                    style={css(
-                      `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
-                    )}
-                  >
-                    <Question size={15} weight="regular" aria-hidden="true" />
-                  </span>
-                </div>
+                  <b>{ss.title}</b>
+                </span>
               </div>
-              <div
-                className={`ag-app-split`}
-                style={css(
-                  `display:grid;grid-template-columns:${splitCols};flex:1;min-height:0;background:var(--ag-surface-app);`,
-                )}
-              >
-                {configOpen && (
-                  <PlaygroundSettings
-                    key={ss.title}
-                    agent={ss}
-                    onHide={() =>
-                      this.setState({ configOpen: false, mobileConfig: false })
-                    }
-                  />
-                )}
-                <div
-                  style={css(
-                    `display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--ag-surface-canvas);`,
-                  )}
-                >
-                  <div
-                    style={css(
-                      `display:flex;height:40px;flex:0 0 auto;align-items:center;gap:6px;padding:0 10px;border-bottom:1px solid var(--ag-shell-line);`,
-                    )}
-                  >
-                    {configClosed && (
-                      <>
-                        <button
-                          type={`button`}
-                          aria-label={
-                            configOpen
-                              ? "Hide configuration"
-                              : "Show configuration"
-                          }
-                          aria-expanded={configOpen}
-                          onClick={toggleConfig}
-                          aria-label={`Show configuration`}
-                          style={css(
-                            `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;border:none;background:transparent;cursor:default;color:var(--muted-foreground);`,
-                          )}
-                        >
-                          <CaretDoubleRight
-                            size={14}
-                            weight="regular"
-                            aria-hidden="true"
-                          />
-                        </button>
-                      </>
-                    )}
-                    <div
-                      className={`ag-scroll-x`}
-                      style={css(
-                        `display:flex;min-width:0;flex:1;align-items:center;overflow-x:auto;scrollbar-width:none;`,
-                      )}
-                    >
-                      {tabs2.map((t, index7) => (
-                        <Fragment key={index7}>
-                          <button
-                            type={`button`}
-                            onClick={t.open}
-                            style={css(t.style)}
-                          >
-                            <span
-                              style={css(
-                                `width:6px;height:6px;flex:0 0 auto;border-radius:50%;background:${t.dot};`,
-                              )}
-                            ></span>
-                            <span
-                              style={css(
-                                `min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                              )}
-                            >
-                              {t.name ?? t.ask}
-                            </span>
-                          </button>
-                        </Fragment>
-                      ))}
-                      <span
-                        style={css(
-                          `display:inline-flex;width:28px;height:28px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
-                        )}
-                      >
-                        <Plus size={14} weight="regular" aria-hidden="true" />
+              <div className="r3-ap-thread" style={css(`overflow-y:auto;`)}>
+                <div className="r3-ap-user">
+                  <p>{ss.ask}</p>
+                </div>
+                <div className="r3-ap-worked r3-hx-wk">
+                  <span>
+                    {ss.worked}
+                    <CaretDown size={13} weight="regular" aria-hidden="true" />
+                  </span>
+                </div>
+                <div className="r3-ap-tl r3-hx-tl">
+                  {ss.steps.map((st, index11) => (
+                    <div className="r3-ap-step" key={index11}>
+                      <span className="r3-ap-node">
+                        <span>
+                          <span style={css(st.logoStyle)}></span>
+                        </span>
+                      </span>
+                      <span className="r3-ap-st">
+                        {`${st.pre} `}
+                        <b>{st.bold}</b>
+                        {st.post ? ` ${st.post}` : ""}
+                      </span>
+                      <span className="r3-ap-c">
+                        <CaretDown
+                          size={13}
+                          weight="regular"
+                          aria-hidden="true"
+                        />
                       </span>
                     </div>
-                    <span
-                      style={css(
-                        `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
-                      )}
-                    >
-                      <ClockCounterClockwise
-                        size={14}
-                        weight="regular"
-                        aria-hidden="true"
-                      />
-                    </span>
-                    <span
-                      style={css(
-                        `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
-                      )}
-                    >
-                      <CaretDoubleLeft
-                        size={14}
-                        weight="regular"
-                        aria-hidden="true"
-                      />
-                    </span>
-                  </div>
-                  <div
-                    style={css(
-                      `flex:1;min-height:0;overflow-y:auto;padding:28px 24px 16px;`,
-                    )}
-                  >
-                    <div
-                      style={css(
-                        `max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:22px;font:400 14px/1.5 var(--font-sans);`,
-                      )}
-                    >
-                      <div
-                        style={css(`display:flex;justify-content:flex-end;`)}
-                      >
-                        <div
-                          style={css(
-                            `max-width:70%;background:var(--ag-user-bubble-bg);border:1px solid var(--ag-user-bubble-border);border-radius:8px;padding:8px 12px;color:var(--foreground);`,
-                          )}
-                        >
-                          {ss.ask}
-                        </div>
-                      </div>
-                      <div
-                        style={css(
-                          `display:flex;flex-direction:column;gap:20px;`,
-                        )}
-                      >
-                        <div>
-                          <button
-                            type={`button`}
-                            aria-expanded={stepsOpen}
-                            onClick={toggleSteps}
-                            style={css(
-                              `display:flex;align-items:center;gap:14px;padding:6px 0;border:none;background:transparent;cursor:default;width:fit-content;font:400 14px/1 var(--font-sans);color:var(--muted-foreground);`,
-                            )}
-                          >
-                            {ss.worked}
-                            <span
-                              style={css(
-                                `display:inline-flex;align-items:center;gap:8px;color:var(--placeholder);`,
-                              )}
-                            >
-                              {`· `}
-                              <span
-                                style={css(
-                                  `display:inline-flex;align-items:center;gap:5px;`,
-                                )}
-                              >
-                                <FileText
-                                  size={13}
-                                  weight="regular"
-                                  aria-hidden="true"
-                                />
-                                {ss.files1}
-                              </span>
-                            </span>
-                            <span
-                              style={css(
-                                `display:inline-flex;color:var(--placeholder);transform:${stepsRot};transition:transform .2s;`,
-                              )}
-                            >
-                              <CaretRight
-                                size={10}
-                                weight="regular"
-                                aria-hidden="true"
-                              />
-                            </span>
-                          </button>
-                          {stepsOpen && (
-                            <>
-                              <div
-                                style={css(
-                                  `position:relative;margin:20px 0 6px;display:flex;flex-direction:column;gap:18px;`,
-                                )}
-                              >
-                                <div
-                                  aria-hidden={`true`}
-                                  style={css(
-                                    `position:absolute;left:11.5px;top:14px;bottom:14px;width:1px;background:var(--ag-colorBorderSecondary);`,
-                                  )}
-                                ></div>
-                                {ss.steps.map((st, index11) => (
-                                  <Fragment key={index11}>
-                                    <div
-                                      style={css(
-                                        `display:flex;gap:14px;align-items:center;padding:3px 6px;margin-left:-6px;`,
-                                      )}
-                                    >
-                                      <span
-                                        style={css(
-                                          `position:relative;z-index:1;width:24px;height:24px;flex:0 0 auto;border-radius:50%;background:var(--background);border:1px solid var(--ag-colorBorderSecondary);display:flex;align-items:center;justify-content:center;color:var(--muted-foreground);`,
-                                        )}
-                                      >
-                                        <span style={css(st.logoStyle)}></span>
-                                      </span>
-                                      <span
-                                        style={css(
-                                          `color:var(--foreground);min-width:0;`,
-                                        )}
-                                      >
-                                        {`${st.pre} `}
-                                        <span style={css(`font-weight:500;`)}>
-                                          {st.bold}
-                                        </span>
-                                        {` ${st.post}`}
-                                      </span>
-                                      <span
-                                        style={css(
-                                          `display:inline-flex;color:var(--placeholder);transform:rotate(90deg);margin-left:2px;`,
-                                        )}
-                                      >
-                                        <CaretRight
-                                          size={9}
-                                          weight="regular"
-                                          aria-hidden="true"
-                                        />
-                                      </span>
-                                    </div>
-                                  </Fragment>
-                                ))}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        <div
-                          style={css(`color:var(--foreground);max-width:72ch;`)}
-                        >
-                          {ss.reply}
-                        </div>
-                        <div
-                          style={css(
-                            `display:flex;align-items:center;gap:10px;color:var(--placeholder);font:400 12px/1 var(--font-sans);`,
-                          )}
-                        >
-                          <span>{ss.meta}</span>
-                          <span>{`·`}</span>
-                          <Copy size={13} weight="regular" aria-hidden="true" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={css(`flex:0 0 auto;padding:0 24px 20px;`)}>
-                    <div
-                      style={css(
-                        `max-width:880px;margin:0 auto;display:flex;flex-direction:column;min-height:72px;border-radius:12px;border:1px solid var(--ag-composer-border);background:var(--ag-surface-chat);box-shadow:var(--ag-surface-chat-shadow);`,
-                      )}
-                    >
-                      <div
-                        style={css(
-                          `flex:1;padding:12px 14px;font:400 14px/20px var(--font-sans);color:var(--ag-composer-placeholder);`,
-                        )}
-                      >{`Message ${ss.title}…`}</div>
-                      <div
-                        style={css(
-                          `display:flex;align-items:center;justify-content:flex-end;padding:0 8px 8px;`,
-                        )}
-                      >
-                        <span
-                          style={css(
-                            `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:999px;background:var(--ag-send-disabled-bg);color:var(--ag-send-disabled-fg);`,
-                          )}
-                        >
-                          <ArrowUp
-                            size={14}
-                            weight="regular"
-                            aria-hidden="true"
-                          />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  ))}
+                </div>
+                <div className="r3-ap-prose">
+                  <p>{ss.reply}</p>
                 </div>
               </div>
-            </>
+              <div className="r3-ap-comp r3-hx-comp">
+                <div className="r3-hx-field">
+                  <span className="r3-hx-ph">Ask the agent…</span>
+                </div>
+                <div>
+                  <Microphone size={16} weight="regular" aria-hidden="true" />
+                  <Paperclip size={16} weight="regular" aria-hidden="true" />
+                  <span className="r3-ap-send">
+                    <ArrowUp size={14} weight="bold" aria-hidden="true" />
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
