@@ -409,3 +409,10 @@
   68.32% { opacity:1; }
   100% { opacity:1; }
 }
+
+/* Sidebar rows that open the interactive demo. */
+.r3 .r3-rs [data-lp-go] { cursor:pointer; }
+.r3 .r3-rs [data-lp-go]:hover { background:var(--lp-glass-strong); }
+.r3 .r3-rs [data-lp-go]:focus-visible { outline:2px solid var(--th-focus, var(--lp-text)); outline-offset:-2px; }
+.r3 .r3-ag-hero .r3-ag-app-frame[hidden], .lp-demo-live[hidden] { display:none !important; }
+.lp-demo-live { width:min(1120px,100%); position:relative; z-index:6; }
