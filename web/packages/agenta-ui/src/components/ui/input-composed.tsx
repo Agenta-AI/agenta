@@ -124,7 +124,7 @@ export function InputAffix({
  * SearchInput — a prefixed, clearable input.
  *
  * NOT a reproduction of antd's `Input.Search`, which also renders a trailing search
- * button; that button was deliberately dropped. See docs/design/antd-migration/migrations/Input.md.
+ * button; that button was deliberately dropped.
  */
 export function SearchInput({prefix, ...props}: InputAffixProps) {
     return (
