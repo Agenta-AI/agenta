@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from oss.src.core.gateway.providers.composio.client import composio_timeout
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.tools.dtos import (
     ToolAuthScheme,
@@ -86,7 +87,7 @@ class ComposioCatalogClient:
                 f"{self.api_url}/toolkits/{integration_key}",
                 headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
                 params={"version": version},
-                timeout=15.0,
+                timeout=composio_timeout(15.0),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -122,7 +123,7 @@ class ComposioCatalogClient:
                 f"{self.api_url}/toolkits",
                 headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
                 params={"limit": 1},
-                timeout=10.0,
+                timeout=composio_timeout(10.0),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -152,7 +153,7 @@ class ComposioCatalogClient:
             resp = await self._client.get(
                 f"{self.api_url}/toolkits/{integration_key}",
                 headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
-                timeout=15.0,
+                timeout=composio_timeout(15.0),
             )
             if resp.status_code == 404:
                 return None
@@ -209,7 +210,7 @@ class ComposioCatalogClient:
                 f"{self.api_url}/toolkits",
                 headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
                 params=params,
-                timeout=30.0,
+                timeout=composio_timeout(30.0),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -307,7 +308,7 @@ class ComposioCatalogClient:
                 f"{self.api_url}/tools",
                 headers={"x-api-key": self.api_key, "Content-Type": "application/json"},
                 params=params,
-                timeout=30.0,
+                timeout=composio_timeout(30.0),
             )
             resp.raise_for_status()
             data = resp.json()
