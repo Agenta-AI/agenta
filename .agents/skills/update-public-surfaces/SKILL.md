@@ -52,13 +52,16 @@ Not surfaces: `docs/build/`
    rg -n -i -F -g '!docs/build/**' -- '<old form>' \
      web/mobile/src web/mobile/public web/website/src web/website/public README*.md CONTRIBUTING.md .github \
      docs/docs docs/blog/entries docs/src docs/docusaurus.config.ts \
-     web/packages/agenta-navigation/src sdks/python/README.md sdks/python/pyproject.toml
+     web/packages sdks/python/README.md sdks/python/pyproject.toml
    ```
 
    A phrase of several words can wrap onto the next line in markdown, and a literal
    search then misses it. For a phrase, also run a multiline search that allows any
    whitespace between the words, for example
    `rg -n -i -U 'prompt\s+management'` on the same paths.
+
+   Hits in `web/packages` other than `supportLinks.ts` are product UI strings. Put them in
+   the Ask group (see "When to ask").
 
    Images and logos do not show up in a text search. If the change is visual, list the
    image files on each surface and say which ones look affected.
