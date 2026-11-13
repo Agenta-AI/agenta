@@ -190,7 +190,7 @@ def upgrade() -> None:
     # supporting `MeterScope` / `MeterPeriod` / `Meters` value objects)
     # rather than freezing a copy of the canonicalization rules inside
     # this migration. The trade-off is documented in
-    # `docs/designs/extend-meters/proposal.md` under the canonicalizer
+    # `docs/design/extend-meters/proposal.md` under the canonicalizer
     # trust model: the runtime is the *single* source of truth for meter
     # identity. Carrying a duplicate implementation in this migration
     # would re-introduce the exact dual-source-of-truth problem that

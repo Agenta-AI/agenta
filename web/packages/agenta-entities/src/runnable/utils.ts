@@ -785,7 +785,7 @@ export function extractTemplateVariables(
     //   (`repo`) with raw JSON (array of objects, single object, or scalar
     //   per their template's intent); the runtime resolves the inner names
     //   at render time. Full scope-aware discovery is Phase 2 — see
-    //   `docs/designs/mustache-section-support.md`.
+    //   `docs/design/mustache-section-support.md`.
     //
     // For CURLY (and the JINJA2 scan above), none of those prefix characters are valid in
     // identifiers — those formats have no section semantics, no implicit
@@ -800,7 +800,7 @@ export function extractTemplateVariables(
     // structurally at render time.
     // Mustache: defer to the structural parser
     // (`@agenta/shared/utils/mustache#parseMustache`) and emit scope-aware
-    // variable PATHS. Phase 2 of `docs/designs/mustache-section-support.md`.
+    // variable PATHS. Phase 2 of `docs/design/mustache-section-support.md`.
     //
     //   `{{#repo}}{{name}}{{/repo}}`        → ['repo', 'repo.name']
     //   `{{#org}}{{#users}}{{name}}{{/users}}{{/org}}`

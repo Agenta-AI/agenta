@@ -165,7 +165,7 @@ discovers an ngrok tunnel through the agent API at `http://ngrok:4040/api/tunnel
 public URL as `--endpoint` (`mount.ts:546-578`, `environment.ts:905-915`). The compose profile is
 `with-tunnel` (`hosting/docker-compose/ee/docker-compose.dev.yml:697-737`). In Agenta cloud the
 store is real AWS S3, the sandbox reaches it directly, and no tunnel is used
-(`docs/designs/platform/mounts-nondev-wiring/specs.md:116-124`). `storeReachableFromSandbox`
+(`docs/design/platform/mounts-nondev-wiring/specs.md:116-124`). `storeReachableFromSandbox`
 decides which case applies (`mount.ts:195-216`). With neither a reachable store nor a tunnel the
 mount is refused, and the refusal is announced to the operator and to the model
 (`environment.ts:882-925`).

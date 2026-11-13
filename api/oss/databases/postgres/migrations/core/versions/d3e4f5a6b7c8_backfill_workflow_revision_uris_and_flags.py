@@ -9,7 +9,7 @@ content in artifacts, variants, and revisions.
 Phase 1 — rows with no URI get a URI assigned from flags/URL heuristics.
 Phase 2 — rows with an existing URI get flags and legacy fields normalized.
 
-See docs/designs/runnables/migrations.sql for the full row-by-row analysis.
+See docs/design/runnables/migrations.sql for the full row-by-row analysis.
 
 Revision ID: d3e4f5a6b7c8
 Revises: b1c2d3e4f5a6

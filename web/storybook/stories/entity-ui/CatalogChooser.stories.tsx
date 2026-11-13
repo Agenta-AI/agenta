@@ -3,10 +3,8 @@ import {useState} from "react"
 import {CatalogChooser, type CatalogChooserProps} from "@agenta/entity-ui/drawers/shared"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// CatalogChooser — the Composio app/source chooser (rail + grid + detail). A full antd parity
-// pair would mean duplicating the 1000-line pre-migration file, so this is a plain-args
-// showcase: static adapter hooks feed the grid/rail so the migrated primitives (InputAffix
-// search, Buttons, Spinner, Tooltip dots) render without a backend. Drill in by clicking.
+// CatalogChooser — the Composio app/source chooser (rail + grid + detail). Static adapter
+// hooks feed the grid/rail so the component renders without a backend. Drill in by clicking.
 const meta = {
     title: "@agenta/entity-ui/Drawers/CatalogChooser",
     component: CatalogChooser,
@@ -15,7 +13,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The shared catalog chooser. antd `Input prefix/allowClear` → `InputAffix`, `Spin` → `Spinner`, `Tooltip` → `@agenta/ui` Tooltip, `Button` → `@agenta/ui` Button. Showcase story (no parity pair — the pre-migration body is the whole file).",
+                    "The shared catalog chooser: a rail of sources, a searchable app grid, and a detail view.",
             },
         },
     },

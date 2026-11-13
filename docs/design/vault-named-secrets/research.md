@@ -48,7 +48,7 @@ Facts to copy exactly:
    there is **no EE duplicate**. The actual head was `oss000000004`; the new revision is
    `oss000000005_add_custom_secret_kind.py`. (The old "duplicate into both `core/` trees"
    note was the pre-convergence layout.) See
-   `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+   `docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md`.
 
 ## Runtime consumption today (left untouched this iteration)
 

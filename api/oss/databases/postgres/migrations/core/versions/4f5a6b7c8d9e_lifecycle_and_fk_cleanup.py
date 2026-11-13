@@ -5,7 +5,7 @@ all fully nullable, created_at with a server default. Lifecycle actor columns
 carry no FKs (organizations' three and api_keys.created_by_id are dropped).
 Owning-scope FKs are added where missing (webhook_deliveries, secrets) and
 membership/invitation user FKs get explicit ON DELETE behavior. Per
-docs/designs/oss-ee-convergence/db-integrity-audit.md.
+docs/design/oss-ee-convergence/db-integrity-audit.md.
 
 Revision ID: 4f5a6b7c8d9e
 Revises: 3d4e5f6a7b8c

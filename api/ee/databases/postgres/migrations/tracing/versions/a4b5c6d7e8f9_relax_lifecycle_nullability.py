@@ -1,7 +1,7 @@
 """relax lifecycle nullability on tracing tables
 
 All six lifecycle columns are fully nullable by convention (see
-docs/designs/oss-ee-convergence/db-integrity-audit.md); spans and events
+docs/design/oss-ee-convergence/db-integrity-audit.md); spans and events
 carried NOT NULL on created_at (and spans on created_by_id).
 
 Revision ID: a4b5c6d7e8f9

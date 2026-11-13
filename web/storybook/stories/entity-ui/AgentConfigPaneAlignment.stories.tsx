@@ -128,10 +128,7 @@ const FilesCount = () => {
 const Pane = () => {
     const [open, setOpen] = useState<Record<string, boolean>>({tools: true, subagents: true})
     return (
-        <div
-            data-vrt-subject
-            className="flex w-[420px] flex-col border border-solid border-colorBorderSecondary bg-[var(--ag-surface-section-content)]"
-        >
+        <div className="flex w-[420px] flex-col border border-solid border-colorBorderSecondary bg-[var(--ag-surface-section-content)]">
             <AgentRegionHeaderBar title="Configuration" sticky={false} />
             <div className="px-4">
                 <AgentTemplateSectionList

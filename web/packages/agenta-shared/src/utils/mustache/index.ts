@@ -6,7 +6,7 @@
  * (sections → array-of-objects), and editor validation decorations
  * (unbalanced sections).
  *
- * Authority: `docs/designs/mustache-section-support.md` Phase 2.
+ * Authority: `docs/design/mustache-section-support.md` Phase 2.
  */
 
 export {parseMustache, walkMustache} from "./parser"

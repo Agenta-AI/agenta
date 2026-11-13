@@ -1,12 +1,9 @@
 import {AddItemMenu, type AddItemGroup} from "@agenta/entity-ui/drawers/shared"
-import {Calendar, Lightning, Plus, Wrench} from "@phosphor-icons/react"
+import {Calendar, Lightning, Wrench} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Button as AntButton} from "antd"
 
-// AddItemMenu — the shared "+ add" popover for config sections. antd `Dropdown popupRender`
-// → `@agenta/ui` Popover (the panel chrome moved onto PopoverContent; the antd Dropdown
-// wrapper was chrome-less). The closed default trigger (antd text icon Button → ghost icon
-// Button) is the VRT pair; the open panel is interactive — click the trigger in Playground.
+// AddItemMenu — the shared "+ add" popover for config sections. The closed default trigger is
+// shown in Variants; the open panel is interactive — click the trigger in Playground.
 const meta = {
     title: "@agenta/entity-ui/Drawers/AddItemMenu",
     component: AddItemMenu,
@@ -15,7 +12,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Grouped add-menu (icon, title, subtitle, chevron for drawer-opening rows). antd `Dropdown` with a custom `popupRender` panel → controlled `@agenta/ui` Popover carrying the same panel chrome; the default `+` trigger maps antd text/icon Button → ghost `size="icon"` Button.',
+                    "Grouped add-menu (icon, title, subtitle, chevron for drawer-opening rows) in a popover. The default `+` trigger is a ghost icon button.",
             },
         },
     },
@@ -65,46 +62,23 @@ const groups: AddItemGroup[] = [
     },
 ]
 
-// The closed trigger is the only resting-state surface — antd's text icon Button vs the
-// migrated default trigger (a closed AddItemMenu renders exactly its trigger).
-export const AntdVsAgenta: Story = {
+// The closed trigger is the only resting-state surface (a closed AddItemMenu renders exactly
+// its trigger).
+export const Variants: Story = {
     args: {groups},
     render: () => (
         <div className="flex max-w-[700px] flex-col">
-            <div className="grid grid-cols-[10rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
+            <div className="grid grid-cols-[10rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
                 <div className="text-xs text-colorTextSecondary">trigger (closed)</div>
-                <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-colorTextSecondary">antd</span>
-                    <span className="inline-flex" data-vrt-subject>
-                        <AntButton type="text" icon={<Plus size={16} />} aria-label="Add" />
-                    </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-colorTextSecondary">agenta</span>
-                    <span className="inline-flex" data-vrt-subject>
-                        <AddItemMenu groups={groups} />
-                    </span>
-                </div>
+                <span className="inline-flex">
+                    <AddItemMenu groups={groups} />
+                </span>
             </div>
-            <div className="grid grid-cols-[10rem_1fr_1fr] items-start gap-4 py-3">
+            <div className="grid grid-cols-[10rem_1fr] items-start gap-4 py-3">
                 <div className="text-xs text-colorTextSecondary">trigger · disabled</div>
-                <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-colorTextSecondary">antd</span>
-                    <span className="inline-flex" data-vrt-subject>
-                        <AntButton
-                            type="text"
-                            icon={<Plus size={16} />}
-                            aria-label="Add"
-                            disabled
-                        />
-                    </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-colorTextSecondary">agenta</span>
-                    <span className="inline-flex" data-vrt-subject>
-                        <AddItemMenu groups={groups} disabled />
-                    </span>
-                </div>
+                <span className="inline-flex">
+                    <AddItemMenu groups={groups} disabled />
+                </span>
             </div>
         </div>
     ),

@@ -83,7 +83,7 @@ the same id" guidance was the pre-convergence layout. The `core` chain is now **
 `park00000000` (the alignment point); new core migrations live in the post-alignment
 **`core_oss`** chain (version table `alembic_version_oss`), which **EE ships and runs from
 the OSS tree** — one copy, no EE duplicate. `secretkind_enum` is a shared/OSS object, so it
-belongs here. See `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+belongs here. See `docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md`.
 
 Implemented as a single revision
 `api/oss/databases/postgres/migrations/core_oss/versions/oss000000005_add_custom_secret_kind.py`,

@@ -3,9 +3,6 @@ import {useRef, useState} from "react"
 import {ScrollSentinel} from "@agenta/ui/components"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// ScrollSentinel — an invisible IntersectionObserver marker that calls `onVisible` when scrolled
-// into view (infinite-scroll prefetch). It has no standalone visual, so it is demonstrated inside a
-// live scroll list. No antd counterpart.
 const meta = {
     title: "@agenta/ui/Presentational/Layout/ScrollSentinel",
     component: ScrollSentinel,
@@ -14,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "An invisible IntersectionObserver marker that calls onVisible when scrolled into view (infinite-scroll prefetch). A pure @agenta/ui behavior primitive with no antd counterpart.\n\n**Used in:** 5 places — the shared catalog chooser and gateway catalog drawer, the tool catalog and tool execution drawers, and the trigger events drawer (all `@agenta/entity-ui`).",
+                    "An invisible IntersectionObserver marker that calls onVisible when scrolled into view (infinite-scroll prefetch). A pure @agenta/ui behavior primitive.\n\n**Used in:** 5 places — the shared catalog chooser and gateway catalog drawer, the tool catalog and tool execution drawers, and the trigger events drawer (all `@agenta/entity-ui`).",
             },
         },
     },
@@ -63,20 +60,11 @@ const Demo = () => {
     )
 }
 
-export const AgentaOnly: Story = {
+export const Variants: Story = {
     render: () => (
-        <div className="grid grid-cols-[12rem_1fr_1fr] items-start gap-4">
+        <div className="grid grid-cols-[12rem_1fr] items-start gap-4">
             <div className="text-xs text-colorTextSecondary">infinite scroll list</div>
-            <div className="flex items-center gap-2">
-                <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-                <span className="text-[10px] italic text-colorTextSecondary">
-                    no single antd counterpart (composite of @agenta/ui primitives / layout)
-                </span>
-            </div>
-            <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-colorTextSecondary">agenta</span>
-                <Demo />
-            </div>
+            <Demo />
         </div>
     ),
 }

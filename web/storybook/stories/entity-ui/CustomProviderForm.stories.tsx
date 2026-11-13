@@ -5,17 +5,10 @@ import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
- * Showcase story (agenta only — NOT a pixel pair) for the antd→@agenta/ui migration of
- * `CustomProviderForm`. The pre-migration component was built on an antd `Form` instance
- * shared with the host, so an antd half would need the full 380-line form + `Form.useForm`
- * duplicated in the story — a reconstruction, not a baseline (GOTCHAS: "a wrong baseline is
- * worse than no baseline"). Its leaves are covered by the primitive parity stories
- * (Input/Textarea/Button/SelectLLMProvider) and by `ModelNameInput`'s own parity story.
- *
- * The migration replaced antd `Form`/`Form.Item`/`Form.List`/`useWatch` with controlled
- * state + submit-time validation, and the shared `FormInstance` with the imperative
- * `CustomProviderFormHandle` (`formRef.submit()/reset()`); the footer buttons here drive it
- * exactly the way the ConfigureProviderDrawer host does.
+ * Showcase story for `CustomProviderForm`. The form uses controlled state with submit-time
+ * validation, and exposes an imperative `CustomProviderFormHandle`
+ * (`formRef.submit()/reset()`); the footer buttons here drive it exactly the way the
+ * ConfigureProviderDrawer host does.
  */
 const meta = {
     title: "@agenta/entity-ui/SecretProvider/CustomProviderForm",

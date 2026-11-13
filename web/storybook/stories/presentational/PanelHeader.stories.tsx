@@ -3,8 +3,6 @@ import {Button} from "@agenta/ui/ui"
 import {Lightning} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// PanelHeader is a config-panel header row (EntityIconLabel on the left, actions on the right,
-// bordered/sticky container). Pure presentational, no antd counterpart.
 const meta = {
     title: "@agenta/ui/Presentational/Layout/PanelHeader",
     component: PanelHeader,
@@ -24,17 +22,12 @@ type Story = StoryObj
 
 const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
     <div className="grid grid-cols-[16rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
-        <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-colorTextSecondary">{label}</span>
-            <span className="text-[10px] text-colorTextSecondary">
-                no single antd counterpart (composite; uses plain spans internally)
-            </span>
-        </div>
+        <div className="text-xs text-colorTextSecondary">{label}</div>
         <div className="w-[420px] border border-colorBorderSecondary">{children}</div>
     </div>
 )
 
-export const AgentaOnly: Story = {
+export const Variants: Story = {
     render: () => (
         <div className="flex max-w-[760px] flex-col">
             <Row label="label + version">

@@ -108,7 +108,7 @@ In the tools domain (`core/tools/` service code, dispatched from the tool-call p
    internal `Secret` token (`workflows/service.py:2054-2062`), POST
    `{service_url}/invoke`. One non-streaming call is enough since #5064 (invoke
    negotiation; canonical contract in
-   [docs/designs/invoke-negotiations/specs.md](../../../../designs/invoke-negotiations/specs.md)).
+   [docs/design/invoke-negotiations/specs.md](../../../../design/invoke-negotiations/specs.md)).
    The batch response carries the full turn by default
    (`x-ag-messages-transcript: full`): `data.outputs.messages` holds the assistant
    text plus a `role: "tool"` entry for every tool call (`tool_call_id`, `tool_name`,

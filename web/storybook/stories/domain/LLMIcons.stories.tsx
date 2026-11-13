@@ -3,8 +3,8 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
  * LLMIcons — the SVG icon set for LLM providers (OpenAI, Anthropic, Google, etc.).
- * `LLMIconMap` maps a provider display name to its icon component. This is an
- * agenta-only showcase (no antd counterpart): a gallery grid of every icon.
+ * `LLMIconMap` maps a provider display name to its icon component. Rendered as a
+ * gallery grid of every icon.
  */
 const meta = {
     title: "@agenta/ui/Domain/LLMIcons",
@@ -13,7 +13,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The SVG icon set for LLM providers; `LLMIconMap` maps a provider display name to its icon component. An agenta-only gallery rendered off the static icon map (no single component to document).",
+                    "The SVG icon set for LLM providers; `LLMIconMap` maps a provider display name to its icon component. A gallery rendered off the static icon map.",
             },
         },
     },

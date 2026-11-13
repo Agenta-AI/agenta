@@ -536,7 +536,7 @@ counting against the records replaces the mechanism.
 
 ### Tests
 
-Conventions in `docs/designs/testing/README.md`. API tests live under `api/oss/tests/pytest/` split
+Conventions in `docs/design/testing/README.md`. API tests live under `api/oss/tests/pytest/` split
 into `unit/`, `integration/`, and `acceptance/`; acceptance tests mint ephemeral accounts through the
 `authed_api` fixture built on `cls_account` (`api/oss/tests/pytest/utils/api.py`, `utils/accounts.py`).
 

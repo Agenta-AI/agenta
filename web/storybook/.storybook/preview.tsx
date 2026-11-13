@@ -32,9 +32,7 @@ class StoryErrorBoundary extends React.Component<{children: React.ReactNode}, {e
         return this.props.children
     }
 }
-// Pulls the real theme-variables.css + tailwind layers (globals imports them and
-// declares the `@layer tailwind-base, antd` ordering that lets antd win over
-// Tailwind base — reproducing that ordering is what makes renders pixel-faithful).
+// The /m app's real global stylesheet (Tailwind v4 + palette tokens).
 import "./styles.css"
 
 const preview: Preview = {
@@ -56,7 +54,6 @@ const preview: Preview = {
                         "Domain",
                         ["Overview", "*"],
                     ],
-                    "antd",
                     "*",
                 ],
             },

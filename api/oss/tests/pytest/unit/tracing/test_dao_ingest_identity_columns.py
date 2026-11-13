@@ -3,7 +3,7 @@ identity columns.
 
 No live DB: a fake AsyncSession captures the compiled upsert statement so the
 DAO's ON CONFLICT DO UPDATE values can be asserted without Postgres. See
-docs/designs/testing/testing.boundaries.specs.md, boundary 3.
+docs/design/testing/testing.boundaries.specs.md, boundary 3.
 """
 
 from contextlib import asynccontextmanager

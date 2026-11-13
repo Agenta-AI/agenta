@@ -7,7 +7,7 @@ Owning-scope FKs are added where missing (webhook_deliveries, secrets) and
 membership/invitation user FKs get explicit ON DELETE behavior. EE billing
 FKs are repaired: subscriptions gains its missing FK to organizations and
 meters is retargeted from subscriptions to organizations, both CASCADE. Per
-docs/designs/oss-ee-convergence/db-integrity-audit.md.
+docs/design/oss-ee-convergence/db-integrity-audit.md.
 
 Revision ID: 5a6b7c8d9e0f
 Revises: 4e5f6a7b8c9d

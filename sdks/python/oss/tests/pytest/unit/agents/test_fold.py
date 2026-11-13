@@ -1,7 +1,7 @@
 """Unit tests for `agenta.sdk.agents.fold`: batch = fold(stream), by construction.
 
 Pure-function tests over the canonical agenta event vocabulary — no harness, no
-backend, no HTTP. See docs/designs/invoke-negotiations/specs.md for the contract.
+backend, no HTTP. See docs/design/invoke-negotiations/specs.md for the contract.
 """
 
 from __future__ import annotations
