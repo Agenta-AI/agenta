@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: Use when writing or editing documentation pages (concept pages, how-to guides, API reference prose, tutorials) under docs/. Provides the writing style, voice, and structural rules for Agenta docs. Apply this skill before drafting any new docs page, and include it in the brief for any subagent tasked with writing docs.
+description: Use when writing or editing the current (v2.0) Agenta documentation under docs/docs/ (concept pages, guides, tutorials, self-host pages, API reference prose). The v2.0 docs describe the agent product. Never edit the frozen v1.0 docs under docs/versioned_docs/. Provides the writing style, voice, and structural rules for Agenta docs. Apply this skill before drafting any new docs page, and include it in the brief for any subagent tasked with writing docs.
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash
 user-invocable: true
 ---
@@ -8,6 +8,22 @@ user-invocable: true
 # Write Docs
 
 A short, living set of rules for writing documentation in this repo. Update as we learn what works.
+
+## Scope: the v2.0 docs only
+
+The docs site has two versions (see `docs/docusaurus.config.ts`):
+
+| Version | Path | Status |
+|---|---|---|
+| v2.0 (current, the agent product) | `docs/docs/` | The only version you write or edit. Served at `/docs/`. |
+| v1.0 (the previous LLMOps product) | `docs/versioned_docs/version-1.0/` | Frozen. Never edit it, never copy from it, never link new pages to it. |
+
+The v2.0 sections are `getting-started/`, `concepts/` (agents, instructions, skills, tools,
+files, permissions, automations, harnesses and models), `guides/`, `tutorials/`, `self-host/`,
+`administration/` and `reference/`. Put a new page in the section that matches its doc type
+(§1), and copy the frontmatter and layout of a sibling page.
+
+For prose rules beyond the docs-specific ones here, use the `style-editing` skill.
 
 ## 0. Write for a reader in a situation
 
@@ -121,7 +137,7 @@ troubleshooting keyed to the symptom they will actually see, so the rest never r
 - BAD (prerequisite): "Docker installed on your machine." Obvious. Cut it, or make it one line.
 - BAD (prerequisite): three paragraphs on `/var/run/docker.sock` ownership and `usermod -aG docker`
   before the reader can run anything. Most readers already have daemon access.
-- GOOD (troubleshooting): "**`permission denied ... /var/run/docker.sock`** — your user cannot reach
+- GOOD (troubleshooting): "**`permission denied ... /var/run/docker.sock`**: your user cannot reach
   the Docker daemon. Run as root, use `sudo`, or `sudo usermod -aG docker $USER` then open a new
   shell. (docker-group membership is root-equivalent on the host.)"
 
@@ -153,10 +169,10 @@ Before writing, decide which of the four types you are writing. Don't mix them i
 
 | Type | Purpose | Reader is… | Example |
 |---|---|---|---|
-| **Tutorial** | Teach a skill through a guided run | Learning | "Build your first Agenta application" |
-| **How-to** | Accomplish a specific task | Working, already competent | "How to deploy a variant to production" |
-| **Reference** | Look up facts during work | Working | API endpoint pages, config option lists |
-| **Explanation** | Understand the why | Studying | "How versioning works in Agenta" |
+| **Tutorial** | Teach a skill through a guided run | Learning | `tutorials/01-build-your-first-ai-coworker.mdx` |
+| **How-to** | Accomplish a specific task | Working, already competent | `guides/12-connect-slack.mdx` |
+| **Reference** | Look up facts during work | Working | API endpoint pages, `self-host/reference/` |
+| **Explanation** | Understand the why | Studying | `concepts/06-permissions.mdx` |
 
 Quick test: **Is the reader learning or working? Do they need procedures, facts, or context?** If you can't answer, pick the type before drafting.
 
@@ -168,15 +184,15 @@ Don't pollute a page with another type. Link out instead. A how-to that explains
 
 **Voice:**
 - Active voice.
-- Short, punchy sentences by default.
-- Complete sentences unless brevity clearly wins.
+- Short, plain sentences. Not a stack of punchy fragments (see `style-editing`).
+- Complete sentences.
 - 11th-grade English for non-technical wording.
 - Conditional imperatives in how-tos: "If you want X, do Y."
 
 **Words to avoid:** "comprehensive", "powerful", "seamlessly", "easily", "simply", "robust", "leverage". Marketing words.
 
 **Punctuation:**
-- **Never use em dashes (—).** Use a period, parentheses, or a semicolon.
+- **Never use em dashes.** Use a period, parentheses, or "and".
 - Bold and bullets sparingly; only when they aid scanning.
 
 **Length:**
@@ -190,9 +206,9 @@ Docs use the words customers see in the UI and API. Internal vocabulary stays in
 
 | Don't write | Write |
 |---|---|
-| runnable | application / workflow / evaluator (whichever applies) |
-| loadable | testset revision |
-| artifact / variant / revision (without context) | Use the words, but link the first occurrence to the versioning concept page |
+| runnable / workflow (for an agent) | agent |
+| fire / fires (for a trigger) | runs ("the automation runs revision v3") |
+| artifact / variant / revision (without context) | Use "revision", and link the first occurrence to the agent concept page |
 
 If a page introduces a term, link to its concept page on first use.
 
@@ -206,7 +222,7 @@ If a page introduces a term, link to its concept page on first use.
 ## 5. How-to specific rules
 
 When writing a how-to:
-- Title is the user's goal, not the feature name. "How to invoke a deployed variant" beats "Using the invoke endpoint".
+- Title is the user's goal, not the feature name. "Connect Slack" beats "Slack channel adapter".
 - Only actions on the page. No teaching, no rationale digressions. Link out for those.
 - Branch where reality branches. "If your app uses chat, do X. Otherwise do Y."
 - Start at a meaningful entry point. Don't repeat setup from a prerequisite page; link to it.
@@ -246,7 +262,7 @@ Leave the auto-MDX regen to the downstream flow. If your `git status` shows chan
 
 - Run the docs build (`npm run build` in `docs/`) and fix any errors.
 - For API doc changes: run `ruff format` then `ruff check --fix` in `api/`.
-- For changelog pages: see `.claude/skills/create-changelog-announcement/SKILL.md` for the dual-entry format and build rules.
+- For changelog pages: see the `create-changelog-announcement` skill for the dual-entry format and build rules.
 - PR title convention: `docs(docs): …` for guide-only, `docs(api): …` for endpoint docstrings, mixed if both. If you have an issue id, prefix: `[issue-id] docs(...): …`.
 
 ## 10. Iterate
@@ -263,14 +279,14 @@ Use this as the starting point when delegating doc-writing to a subagent. Fill i
 You are writing [domain] documentation for Agenta.
 
 Read first, in order:
-1. .claude/skills/write-docs/SKILL.md (this file — the style rules you must follow)
-2. tmp-docs-analysis/plan.md (project plan: scope, ordering, PR shape)
-3. tmp-docs-analysis/concept-map/<domain>.md (domain research; if it exists)
-4. The landed concept pages this work links to (e.g., 04-versioning.mdx)
+1. .agents/skills/write-docs/SKILL.md (the docs rules you must follow; v2.0 docs under docs/docs/ only)
+2. .agents/skills/style-editing/SKILL.md (the prose rules)
+3. [The plan or OpenSpec change for this work, if any]
+4. The landed concept pages this work links to (e.g., docs/docs/concepts/01-agents.mdx)
 5. The repo AGENTS.md sections on PR titles and lint commands
 
 What to produce:
-- [Concept page path, e.g., docs/docs/reference/api/06-workflows.mdx]
+- [Page path under docs/docs/, e.g., docs/docs/guides/12-connect-slack.mdx or docs/docs/reference/api-guide/06-workflows.mdx]
 - Docstrings + Field(description=...) for [domain] endpoints in api/oss/src/apis/fastapi/<domain>/
 
 Doc type:
@@ -292,5 +308,6 @@ Ship:
 - Run the docs build in docs/ before commit.
 
 Out of scope:
+- The frozen v1.0 docs under docs/versioned_docs/.
 - [List anything explicitly excluded, e.g., admin endpoints, preview endpoints]
 ```

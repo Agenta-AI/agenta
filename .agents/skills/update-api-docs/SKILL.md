@@ -23,6 +23,13 @@ The API documentation is generated from an OpenAPI spec using `docusaurus-plugin
 | Generated sidebar | `docs/docs/reference/api/sidebar.ts` |
 | Docusaurus config | `docs/docusaurus.config.ts` |
 
+All paths are relative to the repo root. The plugin config in `docusaurus.config.ts` uses
+paths relative to `docs/` (`docs/reference/openapi.json` there means
+`docs/docs/reference/openapi.json` here).
+
+The API reference lives only in the current (v2.0) docs under `docs/docs/`. Never regenerate
+or edit the frozen v1.0 docs under `docs/versioned_docs/version-1.0/`.
+
 ## Steps
 
 ### 1. Run the update script
