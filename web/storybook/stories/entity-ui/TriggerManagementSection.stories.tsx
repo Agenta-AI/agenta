@@ -20,10 +20,8 @@ import {
  * them) and the `projectIdAtom`/`sessionAtom` gates. Entity ids are story-scoped, so two
  * stories cannot address the same `atomFamily(id)` entry.
  *
- * antd → `@agenta/ui`: the header "+" is a Radix Tooltip over a ghost icon `Button`, and
- * each row's "⋯" menu is a `DropdownMenu` built from composed `DropdownMenuItem` JSX
- * (the `MenuProps["items"]` arrays this section used to build are gone, along with the
- * antd type leak they carried into `TriggerRow` / `SubscriptionChildRow`).
+ * The header "+" is a Radix Tooltip over a ghost icon `Button`, and each row's "⋯" menu is a
+ * `DropdownMenu` built from composed `DropdownMenuItem` JSX.
  */
 const meta = {
     title: "@agenta/entity-ui/DrillIn/TriggerManagementSection",
@@ -77,14 +75,7 @@ const populated = (scope: StoryScope) => {
 
 const withEntityId = (scope: StoryScope) => ({entityId: triggerSectionIds(scope).revisionId})
 
-// Showcase (no antd half), so there is no `.grid` parity layout. `data-vrt-subject` is the
-// harness's readiness marker: without it the a11y run has nothing visible to wait for and
-// times out before axe ever sees the section. The VRT ignores it outside a `.grid` row.
-const Frame = (children: React.ReactNode) => (
-    <div data-vrt-subject className="w-[420px]">
-        {children}
-    </div>
-)
+const Frame = (children: React.ReactNode) => <div className="w-[420px]">{children}</div>
 
 /** Both accordions populated: a Slack provider group with two subscriptions + two schedules. */
 export const WithTriggers: Story = {

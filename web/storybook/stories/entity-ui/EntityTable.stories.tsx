@@ -6,10 +6,9 @@ import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
 
 /**
  * EntityTable — the generic entity list (controller-driven, rendered by the
- * InfiniteVirtualTable shell). The migration swapped the selection column's antd
- * `Checkbox`/`Radio` for the `@agenta/ui` `Checkbox` and a per-row single-item
- * `RadioGroup` — multi-select shows checkboxes + a select-all header (indeterminate
- * while partially selected), single-select shows radios and no header control.
+ * InfiniteVirtualTable shell). Multi-select shows checkboxes + a select-all header
+ * (indeterminate while partially selected), single-select shows radios and no header
+ * control.
  *
  * Data comes through the controller's LOCAL mode (`useLocal` + `localRows` +
  * `getCellValue`), the same public config `TestcaseTable` uses — no product code is
@@ -26,7 +25,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Generic entity table with optional selection. antd `Checkbox`/`Radio` in the selection column → `@agenta/ui` `Checkbox`/`RadioGroup`.",
+                    "Generic entity table with optional selection. Multi-select uses checkboxes, single-select uses radios.",
             },
         },
     },

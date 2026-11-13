@@ -83,7 +83,7 @@ export const Grouped: Story = {
     },
 }
 
-/** Error skin (antd `status="error"` / a failed `Form.Item` rule) — red border, text and arrow. */
+/** Error skin (a failed validation) — red border, text and arrow. */
 export const Invalid: Story = {
     render: () => (
         <div className="flex w-[320px] flex-col gap-3">

@@ -57,9 +57,7 @@ const baseRunProps = {
 const Row = ({label, children}: {label: string; children: ReactNode}) => (
     <div className="grid grid-cols-[12rem_1fr] items-center gap-4 border-b border-colorBorderSecondary py-2">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="min-w-0" data-vrt-subject>
-            {children}
-        </div>
+        <div className="min-w-0">{children}</div>
     </div>
 )
 
@@ -118,7 +116,7 @@ function Panel({render}: {render: (c: HTMLElement) => ReactNode}) {
     )
 }
 
-/** The "⋯" actions menu forced open (run action + the container items) for VRT. */
+/** The "⋯" actions menu forced open (run action + the container items). */
 export const OpenState: Story = {
     args: {
         primary: "Ops escalations",

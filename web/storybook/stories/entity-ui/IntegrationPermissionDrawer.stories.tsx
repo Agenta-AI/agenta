@@ -53,7 +53,7 @@ function DrawerHost({
 }) {
     const [open, setOpen] = useState(true)
     return (
-        <div data-vrt-subject className="min-h-[560px]">
+        <div className="min-h-[560px]">
             <Button variant="outline" onClick={() => setOpen(true)}>
                 Open permissions
             </Button>

@@ -2,45 +2,29 @@ import {useCallback, useState} from "react"
 
 import {Cascader, type CascaderOption} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Cascader as AntCascader} from "antd"
 
-// Phase-0 parity story: the REAL antd Cascader behind the app theme, side by side with the
-// @agenta/ui re-skin that replaces it.
 const meta = {
     title: "@agenta/ui/Primitives/Forms/Cascader",
-    component: AntCascader,
-    subcomponents: {"Cascader (@agenta/ui)": Cascader},
+    component: Cascader,
     parameters: {
         docs: {
             description: {
                 component:
-                    "antd `Cascader` shown beside the `@agenta/ui` Cascader that replaces it. The agenta version covers the subset the app actually uses: `options`, `value`, `onChange`, `loadData`, `loading`, `changeOnSelect`, `expandTrigger`, `displayRender`, `placeholder`, `allowClear`, `showSearch`, `disabled`, plus `columnMaxWidth` in place of antd's `popupMenuColumnStyle`.\n\n**Used in:** 3 places — the EE audit-log filters (`ee/src/components/pages/settings/AuditLog`), the add-to-testset drawer testset selector, and the entity picker cascader variant.",
+                    "A multi-level dropdown selector. Props: `options`, `value`, `onChange`, `loadData`, `loading`, `changeOnSelect`, `expandTrigger`, `displayRender`, `placeholder`, `allowClear`, `showSearch`, `disabled` and `columnMaxWidth`.\n\n**Used in:** 3 places — the EE audit-log filters (`ee/src/components/pages/settings/AuditLog`), the add-to-testset drawer testset selector, and the entity picker cascader variant.",
             },
         },
     },
-} satisfies Meta<typeof AntCascader>
+} satisfies Meta<typeof Cascader>
 
 export default meta
 type Story = StoryObj
 
-// antd Cascader defaults to controlWidth 184px, so the antd half needs `w-full` like the app's call-sites.
 const CONTROL_BOX = "w-[260px] shrink-0"
 
-const Row = ({label, a, s}: {label: string; a: React.ReactNode; s: React.ReactNode}) => (
-    <div className="grid grid-cols-[13rem_auto_auto] items-start gap-4 border-b border-colorBorderSecondary py-3">
+const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
+    <div className="grid grid-cols-[13rem_auto] items-start gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-2">
-            <span className="w-12 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject className={CONTROL_BOX}>
-                {a}
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-12 shrink-0 text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject className={CONTROL_BOX}>
-                {s}
-            </div>
-        </div>
+        <div className={CONTROL_BOX}>{children}</div>
     </div>
 )
 
@@ -118,234 +102,125 @@ function useLazyTestsets() {
 }
 
 const Basic = () => {
-    const [ant, setAnt] = useState<string[]>()
-    const [ag, setAg] = useState<string[]>()
+    const [value, setValue] = useState<string[]>()
     return (
-        <Row
-            label="static options · showSearch"
-            a={
-                <AntCascader
-                    className="w-full"
-                    showSearch
-                    placeholder="Event"
-                    options={EVENTS}
-                    value={ant}
-                    onChange={(v) => setAnt(v as string[])}
-                />
-            }
-            s={
-                <Cascader
-                    showSearch
-                    aria-label="Event (static)"
-                    placeholder="Event"
-                    options={EVENTS}
-                    value={ag}
-                    onChange={setAg}
-                />
-            }
-        />
+        <Row label="static options · showSearch">
+            <Cascader
+                showSearch
+                aria-label="Event (static)"
+                placeholder="Event"
+                options={EVENTS}
+                value={value}
+                onChange={setValue}
+            />
+        </Row>
     )
 }
 
 const HoverExpand = () => {
-    const [ant, setAnt] = useState<string[]>()
-    const [ag, setAg] = useState<string[]>()
+    const [value, setValue] = useState<string[]>()
     return (
-        <Row
-            label='expandTrigger="hover"'
-            a={
-                <AntCascader
-                    className="w-full"
-                    expandTrigger="hover"
-                    placeholder="Hover to expand"
-                    options={EVENTS}
-                    value={ant}
-                    onChange={(v) => setAnt(v as string[])}
-                />
-            }
-            s={
-                <Cascader
-                    expandTrigger="hover"
-                    aria-label="Event (hover expand)"
-                    placeholder="Hover to expand"
-                    options={EVENTS}
-                    value={ag}
-                    onChange={setAg}
-                />
-            }
-        />
+        <Row label='expandTrigger="hover"'>
+            <Cascader
+                expandTrigger="hover"
+                aria-label="Event (hover expand)"
+                placeholder="Hover to expand"
+                options={EVENTS}
+                value={value}
+                onChange={setValue}
+            />
+        </Row>
     )
 }
 
 const ChangeOnSelect = () => {
-    const [ant, setAnt] = useState<string[]>()
-    const [ag, setAg] = useState<string[]>()
+    const [value, setValue] = useState<string[]>()
     return (
-        <Row
-            label="changeOnSelect (commits every level)"
-            a={
-                <AntCascader
-                    className="w-full"
-                    changeOnSelect
-                    placeholder="Any level"
-                    options={EVENTS}
-                    value={ant}
-                    onChange={(v) => setAnt(v as string[])}
-                />
-            }
-            s={
-                <Cascader
-                    changeOnSelect
-                    aria-label="Event (changeOnSelect)"
-                    placeholder="Any level"
-                    options={EVENTS}
-                    value={ag}
-                    onChange={setAg}
-                />
-            }
-        />
+        <Row label="changeOnSelect (commits every level)">
+            <Cascader
+                changeOnSelect
+                aria-label="Event (changeOnSelect)"
+                placeholder="Any level"
+                options={EVENTS}
+                value={value}
+                onChange={setValue}
+            />
+        </Row>
     )
 }
 
 const DisplayRender = () => {
-    const [ant, setAnt] = useState<string[]>(["evaluations", "evaluations.runs"])
-    const [ag, setAg] = useState<string[]>(["evaluations", "evaluations.runs"])
+    const [value, setValue] = useState<string[]>(["evaluations", "evaluations.runs"])
     const render = (labels: string[]) => <span className="font-mono">{labels.join(".")}</span>
     return (
-        <Row
-            label="displayRender (dotted, mono)"
-            a={
-                <AntCascader
-                    className="w-full"
-                    changeOnSelect
-                    displayRender={render}
-                    options={EVENTS}
-                    value={ant}
-                    onChange={(v) => setAnt(v as string[])}
-                />
-            }
-            s={
-                <Cascader
-                    changeOnSelect
-                    aria-label="Event (displayRender)"
-                    displayRender={render}
-                    options={EVENTS}
-                    value={ag}
-                    onChange={setAg}
-                />
-            }
-        />
+        <Row label="displayRender (dotted, mono)">
+            <Cascader
+                changeOnSelect
+                aria-label="Event (displayRender)"
+                displayRender={render}
+                options={EVENTS}
+                value={value}
+                onChange={setValue}
+            />
+        </Row>
     )
 }
 
 const AllowClear = () => {
-    const [ant, setAnt] = useState<string[]>(["applications", "applications.variants"])
-    const [ag, setAg] = useState<string[]>(["applications", "applications.variants"])
+    const [value, setValue] = useState<string[]>(["applications", "applications.variants"])
     return (
-        <Row
-            label="allowClear"
-            a={
-                <AntCascader
-                    className="w-full"
-                    allowClear
-                    changeOnSelect
-                    options={EVENTS}
-                    value={ant}
-                    onChange={(v) => setAnt((v ?? []) as string[])}
-                />
-            }
-            s={
-                <Cascader
-                    allowClear
-                    changeOnSelect
-                    aria-label="Event (allowClear)"
-                    options={EVENTS}
-                    value={ag}
-                    onChange={setAg}
-                />
-            }
-        />
+        <Row label="allowClear">
+            <Cascader
+                allowClear
+                changeOnSelect
+                aria-label="Event (allowClear)"
+                options={EVENTS}
+                value={value}
+                onChange={setValue}
+            />
+        </Row>
     )
 }
 
 const LazyLoad = () => {
-    const antTree = useLazyTestsets()
-    const agTree = useLazyTestsets()
-    const [ant, setAnt] = useState<string[]>()
-    const [ag, setAg] = useState<string[]>()
+    const tree = useLazyTestsets()
+    const [value, setValue] = useState<string[]>()
     return (
-        <Row
-            label="loadData (lazy children, 700ms)"
-            a={
-                <AntCascader
-                    className="w-full"
-                    showSearch
-                    changeOnSelect
-                    expandTrigger="hover"
-                    placeholder="Select testset"
-                    options={antTree.options}
-                    loadData={(sel) => antTree.loadData(sel as {value: string}[])}
-                    value={ant}
-                    onChange={(v) => setAnt(v as string[])}
-                    popupMenuColumnStyle={{maxWidth: 200}}
-                />
-            }
-            s={
-                <Cascader
-                    showSearch
-                    changeOnSelect
-                    expandTrigger="hover"
-                    aria-label="Testset (lazy)"
-                    placeholder="Select testset"
-                    options={agTree.options}
-                    loadData={agTree.loadData}
-                    value={ag}
-                    onChange={setAg}
-                    columnMaxWidth={200}
-                />
-            }
-        />
+        <Row label="loadData (lazy children, 700ms)">
+            <Cascader
+                showSearch
+                changeOnSelect
+                expandTrigger="hover"
+                aria-label="Testset (lazy)"
+                placeholder="Select testset"
+                options={tree.options}
+                loadData={tree.loadData}
+                value={value}
+                onChange={setValue}
+                columnMaxWidth={200}
+            />
+        </Row>
     )
 }
 
-export const AntdVsAgenta: Story = {
+export const Variants: Story = {
     render: () => (
-        <div className="flex max-w-[900px] flex-col">
+        <div className="flex max-w-[640px] flex-col">
             <Basic />
             <HoverExpand />
             <ChangeOnSelect />
             <DisplayRender />
             <AllowClear />
             <LazyLoad />
-            <Row
-                label="loading (root options pending)"
-                a={<AntCascader className="w-full" loading placeholder="Loading" options={[]} />}
-                s={<Cascader loading aria-label="Loading" placeholder="Loading" options={[]} />}
-            />
-            <Row
-                label="disabled"
-                a={
-                    <AntCascader
-                        className="w-full"
-                        disabled
-                        placeholder="Disabled"
-                        options={EVENTS}
-                    />
-                }
-                s={
-                    <Cascader
-                        disabled
-                        aria-label="Disabled"
-                        placeholder="Disabled"
-                        options={EVENTS}
-                    />
-                }
-            />
-            <Row
-                label="empty options"
-                a={<AntCascader className="w-full" placeholder="Nothing here" options={[]} />}
-                s={<Cascader aria-label="Empty" placeholder="Nothing here" options={[]} />}
-            />
+            <Row label="loading (root options pending)">
+                <Cascader loading aria-label="Loading" placeholder="Loading" options={[]} />
+            </Row>
+            <Row label="disabled">
+                <Cascader disabled aria-label="Disabled" placeholder="Disabled" options={EVENTS} />
+            </Row>
+            <Row label="empty options">
+                <Cascader aria-label="Empty" placeholder="Nothing here" options={[]} />
+            </Row>
         </div>
     ),
 }

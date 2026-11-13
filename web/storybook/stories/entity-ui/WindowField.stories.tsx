@@ -6,9 +6,6 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 // WindowField — the schedule drawer's optional [start, end) bounds, under Advanced. Each row is
 // one shadcn DateTimePicker (Calendar popover + time field sharing a value), so a window keeps
 // the precision the stored UTC instant carries.
-//
-// The antd `DatePicker showTime` parity harness this file used to carry retired once @agenta/ui
-// gained a real Calendar primitive — there is no longer a native-input deviation to document.
 const meta = {
     title: "@agenta/entity-ui/GatewayTrigger/WindowField",
     component: WindowField,
