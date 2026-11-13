@@ -1,0 +1,283 @@
+---
+slug: ai-workflows-vs-ai-agents
+title: "AI Workflows vs. AI Agents: Architecture, Patterns, and When to Use Each"
+description: "Understand the architectural difference between AI workflows and AI agents, the 5 production workflow patterns, error and cost trade-offs, and how to combine deterministic guardrails with an autonomous agent harness."
+category: Article
+date: 2026-04-22
+author: mahmoud-mabrouk
+heroImage: /blog/ai-workflows-vs-ai-agents/hero.webp
+ogImage: /blog/ai-workflows-vs-ai-agents/hero.webp
+readingTime: 13 min read
+tags:
+  - AI Agents
+  - AI Workflows
+  - Agentic AI
+  - AI Orchestration
+  - AI Coworker
+  - Open Source
+faq:
+  - question: "What is the main difference between an AI workflow and an AI agent?"
+    answer: "The core difference is who decides the next step at runtime. In an AI workflow, your application code or visual node graph defines the execution sequence ahead of time, and the language model only performs reasoning inside individual steps. In an AI agent, the model and its execution harness dynamically decide which tools to call, in what order, and when the task is complete based on what each step returns."
+  - question: "When should I use a single LLM call instead of a workflow or an agent?"
+    answer: "Use a single augmented LLM call whenever one prompt with relevant context, file retrieval, or structured output formatting can solve the task reliably. Summarizing a meeting transcript, extracting invoice fields into JSON, or classifying a support ticket rarely needs a multi-step workflow or an autonomous agent loop."
+  - question: "Are Anthropic's orchestrator-workers and evaluator-optimizer patterns workflows or agents?"
+    answer: "Anthropic classifies both as workflows because the outer control loop remains governed by predefined code paths. In orchestrator-workers, a central model splits a task into subtasks at runtime, but deterministic application logic dispatches the workers and merges their outputs. In evaluator-optimizer, two model calls iterate inside an explicit, bounded review loop rather than choosing arbitrary tools on an open-ended path."
+  - question: "How do you keep an AI agent from looping or making unauthorized changes in production?"
+    answer: "Wrap the agent harness inside deterministic operational rails: run code and browser tasks inside an isolated Daytona cloud sandbox, keep standing instructions short while loading step-by-step procedures on demand through reusable skills, and enforce tool permission policies where read-only lookups run automatically (Allow reads) while state-changing actions pause for a one-click human approval card (Ask)."
+  - question: "Can the same AI agent run both interactive chat requests and scheduled background workflows?"
+    answer: "Yes. On an AI coworker platform like Agenta, you configure an agent's instructions, reusable skills, shared reference files, and tool permissions once. You can then interact with that agent in Slack, Telegram, WhatsApp, or an embedded website widget, and wake the exact same agent up unattended via scheduled UTC cron runs or connected-app event triggers."
+---
+
+Teams building with large language models usually get burned at one of two extremes.
+
+Either they wire a 45-node visual pipeline in [n8n](https://n8n.io/), [Make](https://www.make.com/), or [Zapier](https://zapier.com/) that works on clean test data and breaks the first time a customer attaches a screenshot instead of filling out a form field. Or they hand a vague prompt and twenty write-enabled API tools to an unconstrained agent loop, only to watch it burn 80,000 tokens and take fourteen tool calls to finish a three-step job.
+
+Both failures come from treating **AI workflows** and **AI agents** as interchangeable labels for "automation with an LLM inside."
+
+They are two distinct architectures with different runtime owners, failure modes, latency profiles, and governance requirements. The clearest architectural split comes from [Anthropic's _Building Effective Agents_ engineering guide](https://www.anthropic.com/research/building-effective-agents):
+
+- **AI workflows** are systems where LLMs and tools are orchestrated through predefined code paths or explicit node graphs. Your code decides what happens next.
+- **AI agents** are systems where LLMs dynamically direct their own processes and tool usage, maintaining control over how they accomplish a goal as new information appears at runtime.
+
+This guide breaks down the architectural difference between AI workflows and AI agents, the five composable workflow patterns, how a production agent harness loop works, the real engineering trade-offs around compounding errors and token cost, and how modern teams combine workflow guardrails with agent autonomy using [Agenta](https://agenta.ai), an open-source AI coworker platform.
+
+## AI Workflows vs. AI Agents at a Glance
+
+If you want the quick engineering test before diving into the patterns, ask one question: **Who decides which step runs next at runtime?**
+
+| Dimension                     | AI Workflows (Deterministic Control Flow)                                           | AI Agents (Model-Driven Control Flow)                                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Who owns the control flow** | Application code, state machine, or visual DAG                                      | The language model and its execution harness                                                              |
+| **Execution path**            | Fixed and known before the run starts (including explicit `if/else` branches)       | Discovered at runtime based on what each tool call or file lookup returns                                 |
+| **Best input shape**          | Structured payloads, forms, webhook JSON, and predictable documents                 | Open-ended requests, multi-turn chat threads, screenshots, PDFs, and ambiguous reports                    |
+| **Tool usage**                | Specific tools are bound to specific nodes in a fixed sequence                      | The agent selects which tools to call, in what order, and with what arguments                             |
+| **Context and memory**        | Typically stateless per run; state is passed explicitly between steps               | Stateful across turns using session files, persistent shared agent files, and context compaction          |
+| **Error handling**            | Fails fast on unexpected inputs unless a retry branch was coded ahead of time       | Can inspect an error message, adjust query parameters, and try an alternative path                        |
+| **Latency and token cost**    | Predictable (fixed number of LLM calls per execution)                               | Variable (scales with the number of reasoning and tool-calling turns required)                            |
+| **Ideal use cases**           | Invoice extraction, ticket classification, translation pipelines, fixed ETL routing | Customer bug triage, multi-source research, coding and PR workflows, interactive Slack/Telegram coworkers |
+
+---
+
+## What Is an AI Workflow? (And the 5 Patterns That Power Production Pipelines)
+
+An AI workflow embeds one or more LLM calls inside a deterministic program.
+
+Both AI workflows and AI agents build on the same foundational primitive: **an augmented LLM**, meaning a language model connected to retrieval, external tools (increasingly standardized through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)), and structured output schemas. What makes a system a _workflow_ is that the developer scripts the exact order of operations before the model ever runs.
+
+Across production engineering teams and frameworks like [LangGraph](https://docs.langchain.com/oss/python/langgraph/workflows-agents), five composable workflow patterns handle the vast majority of structured AI automation:
+
+### 1. Prompt Chaining
+
+Prompt chaining splits a well-defined job into a fixed sequence of smaller LLM calls, where step 2 consumes the output of step 1. Between steps, your application code can run deterministic validation gates (checking JSON schema compliance, word count, or banned terms) before allowing the chain to continue.
+
+- **Best for:** Multi-stage content drafting (generate outline -> verify outline criteria in code -> write draft -> format into MDX), contract clause extraction followed by policy comparison, or localized copy translation.
+- **Why it works:** Each prompt handles one narrow responsibility instead of trying to reason, format, and validate inside a single giant system prompt.
+
+### 2. Routing
+
+Routing classifies an incoming request first and directs it to a specialized downstream prompt, model tier, or deterministic handler.
+
+- **Best for:** Customer support intake (routing billing refunds to a Stripe lookup flow, technical bug reports to an engineering triage flow, and simple FAQ questions to a fast, low-cost model), or multi-domain enterprise search.
+- **Why it works:** Optimizing a single prompt for five different intent categories usually degrades accuracy on all five. Routing isolates each path cleanly.
+
+### 3. Parallelization
+
+Parallelization runs multiple independent LLM calls concurrently and aggregates their outputs in code. It takes two main forms:
+
+- **Sectioning:** Breaking a task into independent slices that run at the same time (for example, evaluating a pull request with three parallel checks: one for security vulnerabilities, one for test coverage, and one for style rules).
+- **Voting:** Running the same verification prompt multiple times (or across different models) and requiring majority agreement before flagging a high-cost compliance alert.
+
+### 4. Orchestrator-Workers
+
+In the orchestrator-workers pattern, a central planner LLM analyzes the input and dynamically breaks it into a list of subtasks, dispatches those subtasks to parallel worker LLM calls, and synthesizes the returned results into a final output.
+
+- **Best for:** Updating a codebase where the number of affected files depends on the change request, or compiling a due-diligence brief across several data sources.
+- **Why it is still a workflow:** Even though the subtask list is decided at runtime, the outer orchestration loop (fan-out to workers, state reduction, and synthesis) follows a fixed graph defined in code.
+
+### 5. Evaluator-Optimizer
+
+One LLM call generates a draft or solution, and a second evaluator LLM grades that output against explicit rubric criteria. If the evaluator rejects the draft, it returns structured feedback to the generator in a bounded loop (for example, up to 3 iterations) until the criteria pass.
+
+- **Best for:** Query translation into SQL where a validator checks syntax and schema match, legal or policy redlining, and high-precision translation.
+
+### Where deterministic workflows hit a wall
+
+AI workflows are hard to beat when you can draw the complete flowchart on a whiteboard before writing code. Your token spend is capped, every branch is unit-testable, and compliance teams can inspect the exact graph.
+
+The trouble starts when real-world inputs refuse to stay inside the flowchart. In visual builders like n8n, Make, or Zapier, handling edge cases requires adding more conditional branches, regex parsers, and fallback routers. Before long, a 6-step automation turns into a 50-node spiderweb (if you have hit that ceiling, see our breakdown of the [best n8n alternatives for AI agents](/blog/best-n8n-alternatives-for-ai-agents)). When a task requires inspecting an unfamiliar CSV, reading a screenshot dropped into a Slack thread, checking three internal tools depending on what the screenshot shows, and asking a human before taking action, predefined code paths break down.
+
+---
+
+## What Is an AI Agent? (How the Harness Loop Works at Runtime)
+
+An AI agent removes the hardcoded flowchart and hands step-by-step control to the model. Instead of scripting _how_ to solve the request, you give the agent a role, standing rules, a set of tools, and a goal, and let it decide which actions to take at runtime.
+
+![Architectural comparison of predefined AI workflow control flow versus a dynamic AI agent harness loop with sandboxes, files, and human approval gates](/blog/ai-workflows-vs-ai-agents/workflow-vs-agent-control-flow.webp)
+
+### A model is not an agent without a harness
+
+One of the most common misconceptions in AI engineering is talking about an LLM as if the model itself reads files or calls APIs.
+
+A language model does only one thing: it receives a list of messages and returns a message. When it wants to search Linear, inspect a spreadsheet, or send a Slack message, all it can do is emit a structured tool request in its reply.
+
+The **agent harness** is the runtime program that drives the model in an execution loop:
+
+1. **Assemble runtime context:** The harness sends the conversation history to the model along with your standing **instructions**, the list of connected **tools**, and the name and one-sentence trigger description of each available **reusable skill**.
+2. **Execute requested tools:** When the model replies with a tool call (or a shell/browser command), the harness checks the agent's permission rules, runs the tool inside an isolated execution environment, and captures the output or error.
+3. **Feed observations back:** The harness appends the tool result to the conversation and sends it back to the model so it can decide the next step.
+4. **Compact long sessions and finish:** When a multi-step investigation grows past the model's context budget, the harness automatically compacts earlier turns so the session can continue without failing, and exits the loop once the model delivers the final answer.
+
+In [Agenta](https://agenta.ai), the harness, the language model, and the provider credential are three separate configuration choices. You can run the same agent configuration on any of three battle-tested harnesses:
+
+- **[Claude Code](https://code.claude.com/docs/en/overview):** Runs Anthropic's Claude models directly, through AWS Bedrock or Google Vertex AI, through your own gateway, or using a Claude Pro or Max subscription.
+- **[Pi](https://shittycodingagent.ai/):** Works across models from OpenAI, Anthropic, Google Gemini, Mistral, Groq, MiniMax, Together AI, OpenRouter, xAI, and any OpenAI-compatible endpoint.
+- **[Codex](https://developers.openai.com/codex/cli):** Runs OpenAI's reasoning models directly.
+
+Because the harness, model, and credential are decoupled, switching models when pricing or latency changes is a single dropdown update rather than a code rewrite.
+
+### How a production agent manages knowledge without blowing up the context window
+
+Unconstrained prototype agents often fail because developers stuff every standard operating procedure (SOP), brand doc, and database schema into the system prompt. Every turn then pays a massive token tax, and the model starts ignoring instructions buried in the middle.
+
+Production agents solve this by splitting context into three layers:
+
+1. **Plain-language instructions (always loaded):** Short standing rules (under 60 to 100 lines) that define who the agent is, how it communicates, and its core boundaries on every turn.
+2. **Reusable skills (loaded on demand):** A skill is a task handbook for a specific recurring process, such as preparing a launch brief or triaging an incident. At the start of a session, the model sees _only_ each skill's name and short description. It loads the full step-by-step body only when the current request matches that skill. An agent can carry twenty specialized skills without bloating its initial context window.
+3. **Temporary session files vs. persistent shared agent files (zero tokens until opened):**
+   - **Session files** hold the material for the task happening right now: a CSV uploaded in chat, a screenshot attached in Slack, or an intermediate draft.
+   - **Shared agent files** persist across every conversation and scheduled run for that agent: product specs, SLA policies, approved examples, and prior reports. Because files sit on disk inside the agent's workspace, they add **zero tokens** to the prompt until the agent explicitly opens the file it needs.
+
+---
+
+## Error Handling, Latency, and Token Cost: The Real Engineering Trade-Offs
+
+Choosing between a workflow and an agent is ultimately a trade-off between **upfront rigidity** and **runtime variance**. Here is how the engineering numbers play out in production.
+
+### 1. Compounding errors vs. runtime recovery
+
+Deterministic workflows and autonomous agents fail in opposite ways:
+
+- **How workflows fail (brittle schema and edge-case breaks):** If step 2 of a 5-step workflow expects a company domain in a webhook payload, and the user submits only a brand name or an image screenshot, step 2 returns null and steps 3 through 5 fail or produce garbage. The pipeline cannot improvise a web search to resolve the company domain unless a developer explicitly wired a fallback node for that exact case.
+- **How unconstrained agents fail (trajectory drift and retry loops):** Because an agent chooses each step based on the prior step's output, a bad assumption on turn 2 can steer turns 3 through 8 down the wrong path. Even if each autonomous step succeeds 95% of the time, an unguided 10-step chain succeeds end-to-end only about 60% of the time (`0.95^10 = 0.598`).
+
+The fix is not going back to brittle regex workflows. The fix is giving the agent an isolated execution sandbox so it can verify its own work (for example, running a script or checking a URL in a headless browser inside a [Daytona](https://www.daytona.io/) cloud sandbox) while bounding its procedure with a reusable skill and explicit tool permissions.
+
+### 2. Latency and token economics
+
+A single augmented LLM call takes 1 to 3 seconds. A 3-step prompt-chaining workflow takes 4 to 8 seconds and uses a predictable number of input and output tokens every run.
+
+An autonomous agent runs a multi-turn loop: each tool call requires a model inference pass to select the tool, network/compute time to execute the tool, and another inference pass to read the result. As reported in [Anthropic's multi-agent engineering research](https://www.anthropic.com/research/building-effective-agents), standalone agent runs typically consume around 4x the tokens of a single chat turn, and unconstrained multi-agent swarms can reach 15x.
+
+That means you should never pay the agent latency and token premium for a task where a fixed 2-step workflow produces the exact same output. Save autonomous turns for steps where runtime investigation actually replaces 15 to 45 minutes of human work.
+
+### 3. Governance and tool permissions (`Allow reads` vs. `Ask`)
+
+In a hardcoded workflow, safety comes from restricting which API endpoints are wired into the graph. In an agent, the model has access to a toolkit, so governance must be enforced by the runtime platform before any tool executes.
+
+| Architecture                              | How Errors Are Handled                                                  | Cost & Latency Profile                           | How Destructive Actions Are Prevented                                                |
+| ----------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| **Pure Deterministic Workflow**           | Fails fast or follows pre-coded retry branches                          | Lowest latency; fixed token count per run        | Only pre-wired nodes can execute                                                     |
+| **Unconstrained Autonomous Agent**        | Retries and adapts dynamically, but risks long loops without boundaries | High variance; unbounded turns if left unchecked | Relies on prompt instructions alone (unsafe for production writes)                   |
+| **Bounded AI Coworker (Hybrid Approach)** | Adapts to messy inputs inside a skill procedure and isolated sandbox    | Moderate, bounded by on-demand skills and files  | Enforced at the runtime layer via `Allow reads`, per-tool `Ask` approval, and `Deny` |
+
+---
+
+## Why the Best Production Systems Combine Both (Workflow Rails Around an Agent Harness)
+
+Once teams put AI systems into daily operations, the binary debate between "workflows" and "agents" disappears. **The most reliable production systems put an autonomous agent harness inside deterministic workflow rails.**
+
+Consider a concrete operational job: **Customer Bug Escalation and Support Triage** (we walk through building this end-to-end in our guide on [how to build an AI agent for Slack](/blog/how-to-build-an-ai-agent-for-slack)).
+
+Suppose an account manager posts in `#client-support`:
+
+> _"Acme Corp just hit a 502 error exporting CSV reports over 50k rows. Screenshot of the console trace attached. Are we already tracking this in Linear, what is their SLA window, and can we open an engineering ticket and draft a customer update?"_
+
+Look at what happens across three architectures:
+
+1. **In a pure node-and-wire workflow (n8n / Make / Zapier):** The workflow triggers on the Slack message, tries to regex-match an email address or ticket ID, misses the error details inside the attached PNG screenshot, and either fails or posts a generic summary.
+2. **In an unconstrained DIY agent ([CrewAI](https://www.crewai.com/) or custom loop without permission gates):** The agent reads the screenshot and searches Linear, but decides on its own to create a duplicate P0 ticket and fire an unreviewed email to the customer.
+3. **In a bounded hybrid coworker on [Agenta](https://agenta.ai):**
+   - **Workflow rails define the trigger, procedure, and approval boundary:** The run starts only when `@mentioned` in an allowlisted Slack channel (or on a scheduled UTC cron trigger). The agent loads its `support-triage` **reusable skill**, which specifies the exact 5-step investigation order.
+   - **Agent autonomy handles the messy investigation:** Inside its isolated **Daytona** cloud sandbox (with configurable network egress and filesystem rules), the agent inspects the attached screenshot as a **temporary session file**, checks the SLA policy stored in **persistent shared agent files**, and runs read-only lookups across HubSpot, Linear, and GitHub.
+   - **Deterministic permission gates protect systems of record:** Because the agent's baseline permission policy (`Configuration -> Advanced -> Permissions`) is set to **`Allow reads`** and the Linear/HubSpot write tools are set to **`Ask`**, all read lookups run automatically while the write call pauses immediately and posts an interactive **Approve / Deny** card directly in the Slack thread.
+
+### One agent configuration across interactive chat and unattended workflow runs
+
+In traditional stacks, teams end up building two separate systems: a background cron pipeline in n8n or Airflow for scheduled reports, and a separate chat bot for interactive team questions.
+
+In an [AI coworker platform](/blog/ai-coworker-platforms-for-business) like Agenta (see also our step-by-step tutorial on [how to build an AI agent](/blog/how-to-build-an-ai-agent)), an **automation is the exact same agent you already use in conversation, started a different way**:
+
+- **Interactive surfaces (`Publish` panel):** Deploy the agent to **Slack**, **Telegram**, **WhatsApp**, or an **embeddable website chat widget** (`Publish -> Embed` with domain allowlists and user context passed via `postMessage`). When a teammate or user messages the agent, it works interactively and pauses on `Ask`-gated tools for one-click human approval.
+- **Unattended workflow runs (`Sidebar > Automations`):** Start the exact same agent **On a schedule** (hourly, daily, weekly, monthly, or custom UTC cron) or **When something happens** in a connected app (such as a new GitHub issue or CRM row). The automation sends a self-contained instruction (plus the event payload), uses `Allow`-permitted read and delivery tools to post its finished digest to a Slack channel or shared file, and logs the full execution trace in **Run history**.
+
+---
+
+## A 5-Question Decision Framework: When to Use Each
+
+Before you start wiring nodes or configuring an agent, climb the **AI Complexity Ladder** only as far as your task actually requires.
+
+![The 4-stage AI Complexity Ladder from a single augmented LLM call to deterministic workflows, autonomous agents, and a bounded hybrid coworker](/blog/ai-workflows-vs-ai-agents/complexity-ladder-and-hybrid-pattern.webp)
+
+Run every new automation candidate through these five diagnostic questions:
+
+### 1. Can you draw the exact step-by-step flowchart before the model sees the input?
+
+- **Yes, in 1 step:** Use a **single augmented LLM call** with structured output.
+- **Yes, in 2 to 6 fixed steps:** Use an **AI workflow** (prompt chaining, routing, or parallelization).
+- **No, step 2 depends on what step 1 discovers:** Use an **AI agent** (or a hybrid coworker guided by a reusable skill).
+
+### 2. How structured and predictable is the incoming data?
+
+- If the input is a strict JSON webhook from Stripe or a standardized web form, a deterministic workflow is fast, cheap, and easy to validate.
+- If the input arrives as natural language in Slack or Telegram, accompanied by screenshots, PDFs, spreadsheets, or follow-up clarifications in a thread, use an agent with session file support and an isolated sandbox.
+
+### 3. Does the task require investigating multiple tools or verifying work in a sandbox?
+
+- When the system needs to search docs, query a CRM, inspect a GitHub repository, run a Python calculation or headless browser check, and adapt if the first search returns zero results, hardcoded workflows fracture into unmaintainable branch trees. An agent harness ([Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://developers.openai.com/codex/cli), or [Pi](https://shittycodingagent.ai/)) running in a Daytona sandbox handles multi-step discovery naturally.
+
+### 4. What is your latency target and per-run token budget?
+
+- Synchronous user-facing UI actions that must return in under 2 seconds (such as autocomplete, inline text rewrite, or instant search routing) belong in a single model call or a parallel routing workflow.
+- Asynchronous coworker tasks where a teammate mentions an agent in Slack, or a scheduled morning automation compiles a competitive intelligence report over 30 to 90 seconds, easily justify a multi-step agent loop.
+
+### 5. What is the blast radius if the system makes a wrong write call?
+
+- Low-risk internal drafts (saving a Markdown brief to shared files or posting a draft to an internal review channel) can run with `Allow` permissions.
+- High-consequence external actions (sending an email to a customer, mutating CRM records, publishing content, or deleting data) should never run in an unguarded agent loop. Put a deterministic **`Ask`** permission gate on those tools so the agent does 95% of the research and drafting automatically, and a human approves the final write with one click.
+
+### Summary Decision Matrix by Use Case
+
+| Common Business or Engineering Task                                    | Recommended Architecture              | Why This Pattern Fits Best                                                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Extract line items from a PDF invoice into JSON**                    | Single Augmented LLM Call             | Fixed input/output schema; no multi-step tool discovery needed                                              |
+| **Classify inbound tickets and route to 1 of 4 queues**                | AI Workflow (Routing)                 | Fast single classification step followed by deterministic queue assignment                                  |
+| **Generate, validate, and translate product changelog notes**          | AI Workflow (Prompt Chaining)         | Fixed linear sequence with programmatic validation gates between steps                                      |
+| **Triage customer bug reports with screenshots across CRM and Linear** | Hybrid AI Coworker (Agent + Rails)    | Needs dynamic cross-tool lookup and session attachment inspection, gated by `Ask` before creating tickets   |
+| **Daily scheduled SEO research, brief drafting, and PR creation**      | Hybrid AI Coworker (Scheduled Agent)  | Triggered by a deterministic UTC schedule (`Automations`), guided by reusable skills, verified in a sandbox |
+| **Open-ended codebase refactoring and test-fixing across a repo**      | Autonomous Agent in a Daytona Sandbox | File paths, test failures, and fixes cannot be mapped ahead of time; requires an iterative harness loop     |
+
+If you are evaluating platforms to run both structured automations and interactive agents in one stack, explore our comparisons of the [best AI agent orchestration platforms](/blog/best-ai-agent-orchestration-platforms) and the [best open-source AI agent platforms](/blog/best-open-source-ai-agent-platforms).
+
+---
+
+## Frequently Asked Questions
+
+### What is the main difference between an AI workflow and an AI agent?
+
+The core difference is who decides the next step at runtime. In an AI workflow, your application code or visual node graph defines the execution sequence ahead of time, and the language model only performs reasoning inside individual steps. In an AI agent, the model and its execution harness dynamically decide which tools to call, in what order, and when the task is complete based on what each step returns.
+
+### When should I use a single LLM call instead of a workflow or an agent?
+
+Use a single augmented LLM call whenever one prompt with relevant context, file retrieval, or structured output formatting can solve the task reliably. Summarizing a meeting transcript, extracting invoice fields into JSON, or classifying a support ticket rarely needs a multi-step workflow or an autonomous agent loop.
+
+### Are Anthropic's orchestrator-workers and evaluator-optimizer patterns workflows or agents?
+
+Anthropic classifies both as workflows because the outer control loop remains governed by predefined code paths. In orchestrator-workers, a central model splits a task into subtasks at runtime, but deterministic application logic dispatches the workers and merges their outputs. In evaluator-optimizer, two model calls iterate inside an explicit, bounded review loop rather than choosing arbitrary tools on an open-ended path.
+
+### How do you keep an AI agent from looping or making unauthorized changes in production?
+
+Wrap the agent harness inside deterministic operational rails: run code and browser tasks inside an isolated Daytona cloud sandbox, keep standing instructions short while loading step-by-step procedures on demand through reusable skills, and enforce tool permission policies where read-only lookups run automatically (`Allow reads`) while state-changing actions pause for a one-click human approval card (`Ask`).
+
+### Can the same AI agent run both interactive chat requests and scheduled background workflows?
+
+Yes. On an AI coworker platform like Agenta, you configure an agent's instructions, reusable skills, shared reference files, and tool permissions once. You can then interact with that agent in Slack, Telegram, WhatsApp, or an embedded website widget, and wake the exact same agent up unattended via scheduled UTC cron runs or connected-app event triggers.
