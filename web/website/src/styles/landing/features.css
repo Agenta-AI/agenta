@@ -92,7 +92,7 @@
 .sx-feat .mcps .avs i { width:20px; height:20px; border-radius:50%; font:600 8.5px / 20px var(--font-sans); text-align:center; box-shadow:var(--lp-surface) 0px 0px 0px 2px; background:var(--lp-surface-6); }
 .sx-feat .mcps .avs i + i { margin-left:-6px; }
 .sx-feat .mcps .avs i:nth-child(2) { background:var(--yellow-400); color:var(--ink-900);}
-.sx-feat .mcps .avs i:nth-child(3) { background:var(--lp-line-strong); }
+.sx-feat .mcps .avs i:nth-child(3) { background:var(--lp-avatar); }
 .sx-feat .abr { margin-left:auto; font-size:9.5px; font-weight:500; color:var(--lp-body); background:var(--lp-surface-4); border-radius:4px; padding:2px 5px; }
 .sx-feat .rd2 { display:flex; align-items:center; gap:6px; margin:0px; font-size:10.5px; color:var(--lp-body); }
 .sx-feat .rd2 i { width:6px; height:6px; border-radius:50%; background:var(--yellow-400); box-shadow:rgba(242, 242, 92, 0.25) 0px 0px 0px 3px; color:var(--ink-900);}

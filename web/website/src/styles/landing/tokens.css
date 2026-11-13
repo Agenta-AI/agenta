@@ -34,6 +34,8 @@
   --lp-line-2: var(--paper-250);
   --lp-line-strong: var(--paper-300);
   --lp-frame: var(--paper-line);
+  /* Opaque grey for stacked avatars; a translucent fill shows the one below. */
+  --lp-avatar: var(--paper-300);
 
   /* Fixed colours that never flip with the theme (text on yellow, white on
      the always-dark mock-up chips). Declared here so no section can shadow them. */
@@ -70,6 +72,9 @@
   --lp-line-2: var(--ag-d-border);
   --lp-line-strong: var(--ag-d-border-strong);
   --lp-frame: rgba(255, 255, 255, 0.07);
+  /* --lp-line-strong composited onto the card, so it reads the same but hides
+     what is under it. */
+  --lp-avatar: color-mix(in srgb, rgb(252, 248, 240) 16%, var(--ag-d-bg-2));
 
   --lp-ink-rgb: 247 244 238;
 }
