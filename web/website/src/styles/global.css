@@ -402,7 +402,11 @@ html,
   width: 1px;
   height: 20px;
   background: var(--th-ctl-ring);
-  margin-right: -4px;
+}
+/* The 30px button pads its 16px icon by 7px; pull the divider in by that much
+   so the icon and "Book a demo" sit the same 12px from it. */
+.ag-theme-btn:has(+ .ag-navsep) {
+  margin-right: -7px;
 }
 
 /* ── interactive affordances (the .dc.html used DC hover hooks) ─ */
