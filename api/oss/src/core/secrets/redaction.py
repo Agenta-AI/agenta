@@ -43,7 +43,14 @@ CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
     "custom_secret": ("secret", ("content",)),
     "channel_secret": (
         "channel",
-        ("bot_token", "signing_secret", "webhook_secret", "access_token", "app_secret"),
+        (
+            "bot_token",
+            "signing_secret",
+            "webhook_secret",
+            "access_token",
+            "app_secret",
+            "client_secret",
+        ),
     ),
     "oauth_provider": ("provider", ("client_secret",)),
     "oauth_grant": ("grant", ("access_token", "refresh_token")),
