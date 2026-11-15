@@ -66,6 +66,44 @@ def _same_origin(one: str, other: str) -> bool:
     return origin != "://" and origin == _origin(other)
 
 
+def _resource_path(url: str) -> str:
+    """The path of a URL, with the trailing slash removed. `/` and nothing are the same."""
+    return (urlparse(url).path or "").rstrip("/")
+
+
+def _describes_same_resource(prm_resource: str, server_url: str) -> bool:
+    """Whether a protected-resource document describes the resource at `server_url`.
+
+    Same origin is not enough. One origin can host several resources, and an MCP
+    deployment routinely does: a key-authenticated server at `/key/mcp` beside an
+    OAuth-protected one at `/oauth/mcp` is exactly that. A document found at the origin's
+    own well-known URL that names `/oauth/mcp` says nothing about `/key/mcp`, and taking
+    it made the probe run OAuth discovery for the key surface and report `oauth` for a
+    server that wants a header (`providers/mock/app.py` serves both paths, which is how
+    this was found in QA).
+
+    Three shapes count, and the first is the leniency this check has always had:
+
+    * An origin-level identifier (`https://host/`, the shape real deployments publish for
+      a server the tenant calls at `https://host/mcp`).
+    * The same path as `server_url`, which is what RFC 9728 s3.3 states.
+    * A path that contains `server_url`'s path at a segment boundary, for a server that
+      names a broader resource than the address it is called on (`https://host/tenant`
+      for `https://host/tenant/mcp`).
+
+    Anything else is a different resource on the same origin, and the caller refuses it.
+    """
+    if not _same_origin(prm_resource, server_url):
+        return False
+    resource_path = _resource_path(prm_resource)
+    if not resource_path:
+        return True
+    server_path = _resource_path(server_url)
+    if resource_path == server_path:
+        return True
+    return server_path.startswith(f"{resource_path}/")
+
+
 def _normalized(url: str) -> str:
     """An issuer identifier with its optional trailing slash removed.
 
@@ -194,14 +232,17 @@ def _check_protected_resource(
 ) -> None:
     """RFC 9728 s3.3: the document must describe the resource that was asked about.
 
-    Compared by origin rather than by the string identity the RFC states, because a
-    tenant registers a server by the URL it is called on (`https://host/mcp`) while the
-    document names the resource identifier (`https://host/`). Origin equality is what
-    the security property needs: it is the hop from "the tenant registered this host" to
-    "this host's document may name an authorization server" that must not be crossable by
-    a third party.
+    Compared by origin AND path rather than by the string identity the RFC states,
+    because a tenant registers a server by the URL it is called on (`https://host/mcp`)
+    while the document names the resource identifier (`https://host/`). `_describes_same_resource`
+    is where that relaxation is bounded: an origin-level identifier and the address's own
+    path both pass, a document naming a DIFFERENT path on the same origin does not, since
+    one origin can host a key-authenticated server and an OAuth-protected one side by side.
+    Origin equality is what the security property needs: it is the hop from "the tenant
+    registered this host" to "this host's document may name an authorization server" that
+    must not be crossable by a third party.
     """
-    if not _same_origin(str(prm.resource), server_url):
+    if not _describes_same_resource(str(prm.resource), server_url):
         raise MCPOAuthDiscoveryError(
             server_url=server_url,
             detail=(
