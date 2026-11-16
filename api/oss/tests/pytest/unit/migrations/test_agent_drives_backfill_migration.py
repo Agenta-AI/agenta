@@ -13,7 +13,7 @@ import asyncpg
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 
-DATABASE_NAME = "agenta_m4_agent_drives"
+DATABASE_NAME = "agenta_agent_drives_backfill"
 ADMIN_DSN = "postgresql://username:password@localhost:5444/postgres"
 DATABASE_DSN = f"postgresql://username:password@localhost:5444/{DATABASE_NAME}"
 SQLALCHEMY_URL = (
@@ -99,6 +99,7 @@ async def _run():
         ),
         "null_keys": (AGENT, _data({"has_session_drive": None, "drives": None})),
         "null_character": (AGENT, _data({"harness": harness}, prompt="a\u0000b")),
+        "non_ascii": (AGENT, _data({"harness": harness}, prompt="café 日本")),
         "both": (AGENT, _data({"has_session_drive": True, "drives": []})),
         "not_agent": (NOT_AGENT, _data({"harness": harness})),
         "no_flags": (None, _data({"harness": harness})),
@@ -114,7 +115,7 @@ async def _run():
                 project,
                 ids[name],
                 None if flags is None else json.dumps(flags),
-                None if data is None else json.dumps(data),
+                None if data is None else json.dumps(data, ensure_ascii=False),
             )
 
         async def raw(name):
@@ -127,7 +128,7 @@ async def _run():
 
         before = await snapshot()
 
-        assert await _backfill(revision) == 5
+        assert await _backfill(revision) == 6
 
         def data(name):
             return json.loads(after[name])
@@ -149,6 +150,11 @@ async def _run():
         # jsonb refuses a null character; the row is still merged and keeps it
         assert data("null_character") == _data(
             {"harness": harness, **DEFAULTS}, prompt="a\u0000b"
+        )
+        # non-ASCII text stays as stored, not turned into escapes
+        assert "café 日本" in after["non_ascii"]
+        assert data("non_ascii") == _data(
+            {"harness": harness, **DEFAULTS}, prompt="café 日本"
         )
         # rows the backfill must not touch keep their stored text
         for name in (

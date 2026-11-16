@@ -57,13 +57,14 @@ def _with_drives(text: str) -> Optional[str]:
     agent = parameters.get("agent") if isinstance(parameters, dict) else None
     if not isinstance(agent, dict):
         return None
-    if agent.get("has_session_drive") is not None and agent.get("drives") is not None:
-        return None
+    changed = False
     if agent.get("has_session_drive") is None:
         agent["has_session_drive"] = True
+        changed = True
     if agent.get("drives") is None:
         agent["drives"] = [{"kind": "agent"}]
-    return json.dumps(data)
+        changed = True
+    return json.dumps(data, ensure_ascii=False) if changed else None
 
 
 def _backfill(connection, *, batch_size: int = BATCH_SIZE) -> int:
