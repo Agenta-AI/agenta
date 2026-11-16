@@ -161,5 +161,21 @@
       }
     }
   },
-  "turnContext": "## This session\n\nThis session is named \"Q3 notes\"."
+  "turnContext": "## This session\n\nThis session is named \"Q3 notes\".",
+  "drives": [
+    {
+      "kind": "agent"
+    },
+    {
+      "kind": "project",
+      "slug": "price-lists",
+      "access": "read"
+    },
+    {
+      "kind": "project",
+      "slug": "team-notes",
+      "access": "read-write"
+    }
+  ],
+  "hasSessionDrive": true
 }

@@ -49,5 +49,11 @@
         "accountId": "acct-1"
       }
     }
-  }
+  },
+  "drives": [
+    {
+      "kind": "agent"
+    }
+  ],
+  "hasSessionDrive": true
 }

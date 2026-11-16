@@ -95,5 +95,11 @@
     "run": {
       "kind": "test"
     }
-  }
+  },
+  "drives": [
+    {
+      "kind": "agent"
+    }
+  ],
+  "hasSessionDrive": true
 }

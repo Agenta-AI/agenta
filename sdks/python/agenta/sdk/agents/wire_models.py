@@ -501,6 +501,15 @@ class WireSandboxPermission(_WireModel):
     enforcement: Literal["strict", "best_effort"] = "strict"
 
 
+class WireAgentDrive(_WireModel):
+    """One configured drive entry (mirrors ``AgentDrive.to_wire``). A ``project`` entry carries
+    its ``slug`` and its ``access``; an ``agent`` entry carries neither."""
+
+    kind: Literal["agent", "project"]
+    slug: Optional[str] = None
+    access: Optional[Literal["read-write", "read"]] = None
+
+
 class WireHarnessFile(_WireModel):
     """One file the active harness's config renders into the session cwd before a run."""
 
@@ -646,6 +655,10 @@ class WireRunRequest(_WireModel):
     harness_files: Optional[List[WireHarnessFile]] = Field(
         default=None, alias="harnessFiles"
     )
+    # The durable drives the configuration names, and whether the session keeps its working
+    # folder in the store. Optional: a request without ``drives`` comes from an older service.
+    drives: Optional[List[WireAgentDrive]] = None
+    has_session_drive: Optional[bool] = Field(default=None, alias="hasSessionDrive")
     # The post-hydration config this turn runs, opaque to the runner: it echoes the blob onto
     # the interaction row of any HITL gate the turn parks, so the answering client can replay
     # the exact config instead of re-hydrating references. Session runs only.

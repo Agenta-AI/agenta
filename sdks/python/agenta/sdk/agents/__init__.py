@@ -57,8 +57,13 @@ from .connections import (
     UnsupportedProviderError,
 )
 from .dtos import (
+    AgentDrive,
     AgentTemplate,
     AgentTemplateShapeError,
+    InvalidAgentDrivesError,
+    MAX_AGENT_DRIVES,
+    validate_agent_drives,
+    validate_has_session_drive,
     AGENT_INSTRUCTIONS_SHAPE_HINT,
     InvalidAgentInstructionsError,
     validate_agent_instructions,
@@ -300,6 +305,11 @@ __all__ = [
     "AGENT_INSTRUCTIONS_SHAPE_HINT",
     "InvalidAgentInstructionsError",
     "validate_agent_instructions",
+    "AgentDrive",
+    "InvalidAgentDrivesError",
+    "MAX_AGENT_DRIVES",
+    "validate_agent_drives",
+    "validate_has_session_drive",
     # Adapters
     "SandboxAgentBackend",
     "LocalBackend",

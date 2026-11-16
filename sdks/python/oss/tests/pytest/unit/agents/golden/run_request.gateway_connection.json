@@ -101,5 +101,11 @@
         }
       }
     }
-  }
+  },
+  "drives": [
+    {
+      "kind": "agent"
+    }
+  ],
+  "hasSessionDrive": true
 }
