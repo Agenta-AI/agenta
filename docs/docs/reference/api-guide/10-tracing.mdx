@@ -164,6 +164,7 @@ Spans carry an OTel `attributes` dict. Agenta owns the `ag` subtree.
 | `ag.flags`, `ag.tags`, `ag.meta` | Filtering and labelling dicts. |
 | `ag.exception` | Structured exception payload. |
 | `ag.session.id`, `ag.user.id` | Optional session and user identifiers. |
+| `ag.turn.id` | Optional id of the session turn that made the span. Agenta's agent runner writes it, with `ag.session.id`, on every span of an agent run. |
 
 Query responses return the namespace as a nested object:
 
@@ -198,6 +199,17 @@ Two endpoints query spans, each returning a different shape:
 Both accept the same filter and windowing parameters. See [Windowing](/reference/api-guide/query-pattern#windowing) for cursor details.
 
 The legacy `/tracing/traces/query` and `/tracing/spans/query` paths are deprecated; use the paths above.
+
+Each span stores its own `ag.session.id` and `ag.turn.id` in the columns `session_id` and `turn_id`. To get every span of one turn, across traces, query spans with a condition on `turn_id`:
+
+```json
+{
+  "focus": "span",
+  "filter": {"conditions": [{"field": "turn_id", "operator": "is", "value": "<turn id>"}]}
+}
+```
+
+Use the field `session_id` in the same way to get every span of one session. A run that resumes after a person approves a tool call keeps the turn id of the paused run, so the query returns the spans of both runs.
 
 ## Examples
 
