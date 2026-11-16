@@ -11,11 +11,13 @@
     "invalidSlug": "Use somente letras minúsculas (a-z) e hifens (-) no slug",
     "issuerAndClientRequired": "A URL do emissor e o ID do cliente são obrigatórios",
     "issuerUrl": "URL do emissor",
+    "issuerUrlPlaceholder": "https://idp.example.com",
     "saveFailed": "Não foi possível salvar o provedor",
     "saveProvider": "Salvar provedor",
     "saving": "Salvando…",
     "scopes": "Escopos",
     "scopesHint": "Separe os escopos com vírgulas",
     "slug": "Slug",
-    "slugHint": "Somente letras minúsculas e hifens"
+    "slugHint": "Somente letras minúsculas e hifens",
+    "slugPlaceholder": "okta"
 }

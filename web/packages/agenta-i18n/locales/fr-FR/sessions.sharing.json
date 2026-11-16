@@ -47,8 +47,8 @@
     "stopSharing": "Arrêter le partage",
     "stopTitle": "Arrêter le partage ?",
     "tooltipNotShareable": "Vous pourrez partager ce chat après son premier message.",
-    "tooltipPeople_many": "Partagé avec {{count}} personnes",
     "tooltipPeople_one": "Partagé avec {{count}} personne",
+    "tooltipPeople_many": "Partagé avec {{count}} personnes",
     "tooltipPeople_other": "Partagé avec {{count}} personnes",
     "tooltipPrivate": "Privé",
     "tooltipProject": "Tout le monde dans le projet peut consulter et envoyer"

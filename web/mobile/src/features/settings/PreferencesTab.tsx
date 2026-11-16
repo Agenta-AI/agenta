@@ -10,7 +10,7 @@ import {
 } from "@agenta/settings-ui"
 import {desktopEscapeHref, writeClassicModeCookie} from "@agenta/shared/hooks"
 import {betaDeveloperModeFlagAtom, classicModeEnabledAtom} from "@agenta/shared/state"
-import {THEME_OPTIONS, useThemeMode} from "@agenta/ui/theme"
+import {useThemeMode, useThemeOptions} from "@agenta/ui/theme"
 import {useAtom, useSetAtom} from "jotai"
 
 import {developerViewPreviewSwitchesAtom} from "@/features/developer/developerViewAccess"
@@ -42,13 +42,14 @@ const VIEW_TEXT = {
 export const PreferencesTab = () => {
     const t = useT(settingsDeveloperViewsCatalog)
     const {themeMode, setMode} = useThemeMode()
+    const themeOptions = useThemeOptions()
     const theme = useMemo<ThemePickerProps>(
         () => ({
-            options: THEME_OPTIONS,
+            options: themeOptions,
             mode: themeMode,
             onSelect: (mode) => setMode(mode as typeof themeMode),
         }),
-        [themeMode, setMode],
+        [themeMode, setMode, themeOptions],
     )
     const setClassicMode = useSetAtom(classicModeEnabledAtom)
     const [betaDeveloperMode, setBetaDeveloperMode] = useAtom(betaDeveloperModeFlagAtom)

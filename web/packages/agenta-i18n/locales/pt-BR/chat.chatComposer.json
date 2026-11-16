@@ -8,7 +8,7 @@
     "placeholderQuoted": "O que deve mudar na parte citada?",
     "placeholderTouch": "Pergunte ao agente…",
     "placeholderWaiting": "Responda acima ou digite uma mensagem",
-    "quotesAttached_many": "{{count}} citações anexadas",
     "quotesAttached_one": "{{count}} citação anexada",
+    "quotesAttached_many": "{{count}} citações anexadas",
     "quotesAttached_other": "{{count}} citações anexadas"
 }

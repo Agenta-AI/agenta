@@ -10,6 +10,7 @@
     "emptyBody": "Verbinden Sie einen Server per URL. Sie melden sich einmal an oder fügen einen Schlüssel hinzu. Danach können Agents in diesem Projekt ihn hinzufügen und festlegen, was er ausführen darf.",
     "emptyTitle": "Keine MCP-Server verbunden",
     "notSignedIn": "Nicht angemeldet",
+    "oauth": "OAuth",
     "removeFailed": "Der MCP-Server konnte nicht entfernt werden.",
     "removeMessage": "{{name}} wird aus diesem Projekt entfernt. Agents, die ihn verwenden, funktionieren nicht mehr. Wenn Sie später erneut verbinden, wird eine neue Verbindung erstellt.",
     "removeTitle": "Server entfernen",

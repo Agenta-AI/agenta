@@ -5,6 +5,7 @@
     "authentication": "Authentification",
     "authorizationHeader": "En-tête Authorization",
     "authorizationHint": "Envoyé comme en-tête Authorization à chaque requête.",
+    "authorizationPlaceholder": "Bearer …",
     "configurationDeployed": "Configuration déployée",
     "description": "Agenta envoie l’événement à votre point de terminaison et réessaie en cas d’échec.",
     "editTitle": "Modifier l’abonnement",
@@ -18,5 +19,6 @@
     "saving": "Enregistrement…",
     "signatureHint": "Agenta signe chaque requête avec un secret affiché une seule fois après votre abonnement.",
     "signedPayload": "Charge utile signée",
-    "subscribe": "S’abonner"
+    "subscribe": "S’abonner",
+    "urlPlaceholder": "https://example.com/hooks/agenta"
 }

@@ -2,7 +2,7 @@
     "pause": "Pausar {{name}}",
     "play": "Reproduzir {{name}}",
     "view": "Ver {{name}}",
-    "viewMore_many": "Ver mais {{count}} arquivos",
     "viewMore_one": "Ver mais {{count}} arquivo",
+    "viewMore_many": "Ver mais {{count}} arquivos",
     "viewMore_other": "Ver mais {{count}} arquivos"
 }

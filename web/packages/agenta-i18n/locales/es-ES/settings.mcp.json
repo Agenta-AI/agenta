@@ -10,6 +10,7 @@
     "emptyBody": "Conecta un servidor mediante su URL. Inicias sesión o añades una clave una sola vez; después, los agentes de este proyecto pueden añadirlo y elegir qué puede ejecutar.",
     "emptyTitle": "No hay servidores MCP conectados",
     "notSignedIn": "Sin iniciar sesión",
+    "oauth": "OAuth",
     "removeFailed": "No se ha podido quitar el servidor MCP.",
     "removeMessage": "{{name}} se quita de este proyecto. Los agentes configurados para usarlo dejan de funcionar y, si lo vuelves a conectar más adelante, se crea una conexión nueva.",
     "removeTitle": "Quitar servidor",

@@ -33,7 +33,7 @@
     "download": "ダウンロード",
     "restore": "復元",
     "archive": "アーカイブ",
-    "archiveTitle": "{{slug}} をアーカイブしますか?",
+    "archiveTitle": "{{name}} をアーカイブしますか?",
     "archiveMessage": "レジストリから削除され、エージェントは実行できなくなります。名前は予約されたままで、復元すると履歴がすべて戻ります。",
     "filterAria": "スキルを絞り込む",
     "filterSource": "ソース",

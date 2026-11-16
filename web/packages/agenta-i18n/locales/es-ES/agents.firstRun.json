@@ -5,6 +5,8 @@
     "creating": "Creando agente",
     "hideTemplates": "No volver a mostrar",
     "importHint": "Busca plantillas de agente en un repositorio público de GitHub.",
+    "importNoneFound": "No se han encontrado plantillas de agente en este repositorio.",
+    "importFoundLabel": "Plantillas de agente encontradas",
     "importTitle": "Importar un agente desde un repositorio",
     "newAgentTitle": "Nuevo agente",
     "nextTemplates": "Plantillas siguientes",

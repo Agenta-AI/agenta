@@ -5,6 +5,8 @@
     "creating": "エージェントを作成中",
     "hideTemplates": "今後表示しない",
     "importHint": "公開 GitHub リポジトリからエージェントのテンプレートを探します。",
+    "importNoneFound": "このリポジトリにエージェントのテンプレートが見つかりません。",
+    "importFoundLabel": "見つかったエージェントのテンプレート",
     "importTitle": "リポジトリからエージェントをインポート",
     "newAgentTitle": "新しいエージェント",
     "nextTemplates": "次のテンプレート",

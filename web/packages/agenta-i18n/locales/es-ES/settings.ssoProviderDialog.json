@@ -11,11 +11,13 @@
     "invalidSlug": "Usa solo letras minúsculas (a-z) y guiones (-) en el slug",
     "issuerAndClientRequired": "La URL del emisor y el ID de cliente son obligatorios",
     "issuerUrl": "URL del emisor",
+    "issuerUrlPlaceholder": "https://idp.example.com",
     "saveFailed": "No se ha podido guardar el proveedor",
     "saveProvider": "Guardar proveedor",
     "saving": "Guardando…",
     "scopes": "Ámbitos",
     "scopesHint": "Separa los ámbitos con comas",
     "slug": "Slug",
-    "slugHint": "Solo letras minúsculas y guiones"
+    "slugHint": "Solo letras minúsculas y guiones",
+    "slugPlaceholder": "okta"
 }

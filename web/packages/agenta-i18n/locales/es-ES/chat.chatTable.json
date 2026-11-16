@@ -1,13 +1,13 @@
 {
-    "columns_many": "{{count}} columnas",
     "columns_one": "{{count}} columna",
+    "columns_many": "{{count}} columnas",
     "columns_other": "{{count}} columnas",
     "copied": "Copiado",
     "copyAsMarkdown": "Copiar como Markdown",
     "downloadCsv": "Descargar CSV",
     "expand": "Expandir",
-    "rows_many": "{{count}} filas",
     "rows_one": "{{count}} fila",
+    "rows_many": "{{count}} filas",
     "rows_other": "{{count}} filas",
     "summary": "{{rows}} · {{columns}}"
 }

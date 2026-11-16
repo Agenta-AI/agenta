@@ -35,7 +35,7 @@
     "download": "Descargar",
     "restore": "Restaurar",
     "archive": "Archivar",
-    "archiveTitle": "¿Archivar {{slug}}?",
+    "archiveTitle": "¿Archivar {{name}}?",
     "archiveMessage": "Sale del registro y los agentes ya no pueden ejecutarla. Su nombre sigue reservado y, al restaurarla, recupera todo su historial.",
     "filterAria": "Filtrar skills",
     "filterSource": "Origen",

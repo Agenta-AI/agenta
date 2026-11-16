@@ -34,7 +34,7 @@
     "download": "Download",
     "restore": "Restore",
     "archive": "Archive",
-    "archiveTitle": "Archive {{slug}}?",
+    "archiveTitle": "Archive {{name}}?",
     "archiveMessage": "It leaves the registry and agents can no longer run it. Its name stays reserved, and restoring it brings back its full history.",
     "filterAria": "Filter skills",
     "filterSource": "Source",

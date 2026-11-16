@@ -11,11 +11,13 @@
     "invalidSlug": "Verwenden Sie für den Slug nur Kleinbuchstaben (a-z) und Bindestriche (-)",
     "issuerAndClientRequired": "Issuer-URL und Client-ID sind erforderlich",
     "issuerUrl": "Issuer-URL",
+    "issuerUrlPlaceholder": "https://idp.example.com",
     "saveFailed": "Der Anbieter konnte nicht gespeichert werden",
     "saveProvider": "Anbieter speichern",
     "saving": "Wird gespeichert…",
     "scopes": "Scopes",
     "scopesHint": "Trennen Sie Scopes mit Kommas",
     "slug": "Slug",
-    "slugHint": "Nur Kleinbuchstaben und Bindestriche"
+    "slugHint": "Nur Kleinbuchstaben und Bindestriche",
+    "slugPlaceholder": "okta"
 }

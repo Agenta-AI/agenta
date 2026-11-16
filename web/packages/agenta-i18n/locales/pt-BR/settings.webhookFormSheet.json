@@ -5,6 +5,7 @@
     "authentication": "Autenticação",
     "authorizationHeader": "Cabeçalho Authorization",
     "authorizationHint": "Enviado como o cabeçalho Authorization em todas as requisições.",
+    "authorizationPlaceholder": "Bearer …",
     "configurationDeployed": "Configuração implantada",
     "description": "A Agenta envia o evento ao seu endpoint e tenta de novo em caso de falha.",
     "editTitle": "Editar inscrição",
@@ -18,5 +19,6 @@
     "saving": "Salvando…",
     "signatureHint": "A Agenta assina cada requisição com um segredo exibido uma única vez depois que você se inscreve.",
     "signedPayload": "Payload assinado",
-    "subscribe": "Inscrever"
+    "subscribe": "Inscrever",
+    "urlPlaceholder": "https://example.com/hooks/agenta"
 }

@@ -1,5 +1,6 @@
 {
     "appearance": "Aparência",
+    "beta": "Beta",
     "betaDeveloperMode": "Usar o novo modo de desenvolvedor beta",
     "betaDeveloperModeDescription": "O modo de desenvolvedor permanece no novo app e mostra a seção Desenvolvedor, em vez de abrir o app clássico.",
     "channelDebug": "Depuração de canais",

@@ -35,7 +35,7 @@
     "download": "Télécharger",
     "restore": "Restaurer",
     "archive": "Archiver",
-    "archiveTitle": "Archiver {{slug}} ?",
+    "archiveTitle": "Archiver {{name}} ?",
     "archiveMessage": "Il quitte le registre et les agents ne peuvent plus l’exécuter. Son nom reste réservé et, une fois restauré, il retrouve tout son historique.",
     "filterAria": "Filtrer les skills",
     "filterSource": "Source",

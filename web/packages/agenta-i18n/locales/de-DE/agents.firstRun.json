@@ -5,6 +5,8 @@
     "creating": "Agent wird erstellt",
     "hideTemplates": "Nicht mehr anzeigen",
     "importHint": "Durchsuchen Sie ein öffentliches GitHub-Repository nach Agent-Vorlagen.",
+    "importNoneFound": "In diesem Repository wurden keine Agent-Vorlagen gefunden.",
+    "importFoundLabel": "Gefundene Agent-Vorlagen",
     "importTitle": "Agent aus einem Repository importieren",
     "newAgentTitle": "Neuer Agent",
     "nextTemplates": "Nächste Vorlagen",

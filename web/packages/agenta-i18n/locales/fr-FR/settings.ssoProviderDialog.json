@@ -11,11 +11,13 @@
     "invalidSlug": "Utilisez uniquement des lettres minuscules (a-z) et des tirets (-) pour le slug",
     "issuerAndClientRequired": "L’URL de l’émetteur et l’ID client sont obligatoires",
     "issuerUrl": "URL de l’émetteur",
+    "issuerUrlPlaceholder": "https://idp.example.com",
     "saveFailed": "Impossible d’enregistrer le fournisseur",
     "saveProvider": "Enregistrer le fournisseur",
     "saving": "Enregistrement…",
     "scopes": "Scopes",
     "scopesHint": "Séparez les scopes par des virgules",
     "slug": "Slug",
-    "slugHint": "Lettres minuscules et tirets uniquement"
+    "slugHint": "Lettres minuscules et tirets uniquement",
+    "slugPlaceholder": "okta"
 }

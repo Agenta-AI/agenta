@@ -33,7 +33,7 @@
     "download": "下载",
     "restore": "恢复",
     "archive": "归档",
-    "archiveTitle": "归档 {{slug}}？",
+    "archiveTitle": "归档 {{name}}？",
     "archiveMessage": "它会从注册表中移除，Agent 将无法再运行它。它的名称会继续被保留，恢复后会带回完整的历史记录。",
     "filterAria": "筛选 Skill",
     "filterSource": "来源",

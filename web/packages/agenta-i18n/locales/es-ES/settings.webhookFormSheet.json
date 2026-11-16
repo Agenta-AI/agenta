@@ -5,6 +5,7 @@
     "authentication": "Autenticación",
     "authorizationHeader": "Encabezado Authorization",
     "authorizationHint": "Se envía como encabezado Authorization en cada solicitud.",
+    "authorizationPlaceholder": "Bearer …",
     "configurationDeployed": "Configuración desplegada",
     "description": "Agenta envía el evento a tu endpoint y reintenta si falla.",
     "editTitle": "Editar suscripción",
@@ -18,5 +19,6 @@
     "saving": "Guardando…",
     "signatureHint": "Agenta firma cada solicitud con un secreto que se muestra una sola vez después de suscribirte.",
     "signedPayload": "Carga útil firmada",
-    "subscribe": "Suscribirse"
+    "subscribe": "Suscribirse",
+    "urlPlaceholder": "https://example.com/hooks/agenta"
 }

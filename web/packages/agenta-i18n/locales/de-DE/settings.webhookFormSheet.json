@@ -4,6 +4,7 @@
     "authentication": "Authentifizierung",
     "authorizationHeader": "Authorization-Header",
     "authorizationHint": "Wird bei jeder Anfrage als Authorization-Header gesendet.",
+    "authorizationPlaceholder": "Bearer …",
     "configurationDeployed": "Konfiguration bereitgestellt",
     "description": "Agenta sendet das Event an Ihren Endpunkt und wiederholt es bei Fehlern.",
     "editTitle": "Abonnement bearbeiten",
@@ -17,5 +18,6 @@
     "saving": "Wird gespeichert…",
     "signatureHint": "Agenta signiert jede Anfrage mit einem Secret, das nach dem Abonnieren einmal angezeigt wird.",
     "signedPayload": "Signierte Nutzlast",
-    "subscribe": "Abonnieren"
+    "subscribe": "Abonnieren",
+    "urlPlaceholder": "https://example.com/hooks/agenta"
 }

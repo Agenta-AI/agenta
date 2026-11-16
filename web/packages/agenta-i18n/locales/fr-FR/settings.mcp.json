@@ -10,6 +10,7 @@
     "emptyBody": "Connectez un serveur par son URL. Vous vous connectez ou ajoutez une clé une seule fois ; les agents de ce projet peuvent ensuite l’ajouter et choisir ce qu’il peut exécuter.",
     "emptyTitle": "Aucun serveur MCP connecté",
     "notSignedIn": "Non connecté",
+    "oauth": "OAuth",
     "removeFailed": "Impossible de retirer le serveur MCP.",
     "removeMessage": "{{name}} est retiré de ce projet. Les agents configurés pour l’utiliser cessent de fonctionner, et une reconnexion ultérieure crée une nouvelle connexion.",
     "removeTitle": "Retirer le serveur",

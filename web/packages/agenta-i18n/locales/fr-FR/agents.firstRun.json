@@ -5,6 +5,8 @@
     "creating": "Création de l’agent",
     "hideTemplates": "Ne plus afficher",
     "importHint": "Analysez un dépôt GitHub public à la recherche de modèles d’agent.",
+    "importNoneFound": "Aucun modèle d’agent trouvé dans ce dépôt.",
+    "importFoundLabel": "Modèles d’agent trouvés",
     "importTitle": "Importer un agent depuis un dépôt",
     "newAgentTitle": "Nouvel agent",
     "nextTemplates": "Modèles suivants",

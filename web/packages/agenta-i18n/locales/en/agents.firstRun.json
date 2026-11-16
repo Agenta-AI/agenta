@@ -5,6 +5,8 @@
     "creating": "Creating agent",
     "hideTemplates": "Don't show again",
     "importHint": "Scan a public GitHub repository for agent templates.",
+    "importNoneFound": "No agent templates found in this repository.",
+    "importFoundLabel": "Agent templates found",
     "importTitle": "Import an agent from a repo",
     "newAgentTitle": "New agent",
     "nextTemplates": "Next templates",

@@ -5,6 +5,8 @@
     "creating": "正在创建 Agent",
     "hideTemplates": "不再显示",
     "importHint": "扫描公开的 GitHub 仓库，查找 Agent 模板。",
+    "importNoneFound": "此仓库中没有找到 Agent 模板。",
+    "importFoundLabel": "找到的 Agent 模板",
     "importTitle": "从仓库导入 Agent",
     "newAgentTitle": "新建 Agent",
     "nextTemplates": "下一组模板",

@@ -8,7 +8,7 @@
     "placeholderQuoted": "Que faut-il changer dans le passage cité ?",
     "placeholderTouch": "Demandez à l’agent…",
     "placeholderWaiting": "Répondez ci-dessus ou saisissez plutôt un message",
-    "quotesAttached_many": "{{count}} citations jointes",
     "quotesAttached_one": "{{count}} citation jointe",
+    "quotesAttached_many": "{{count}} citations jointes",
     "quotesAttached_other": "{{count}} citations jointes"
 }

@@ -4,7 +4,9 @@
     "addOwnBot": "Ajouter votre propre bot",
     "addWorkspace": "Ajouter un autre espace de travail",
     "bots": "Bots",
-    "connectedCount": "{{count}} connecté(s)",
+    "connectedCount_one": "{{count}} connecté",
+    "connectedCount_many": "{{count}} connectés",
+    "connectedCount_other": "{{count}} connectés",
     "numbers": "Numéros",
     "workspaces": "Espaces de travail"
 }

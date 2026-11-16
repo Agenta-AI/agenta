@@ -1,6 +1,3 @@
-import {useT} from "@agenta/i18n"
-import commonCatalog from "@agenta/i18n/catalogs/common"
-import settingsThemePickerCatalog from "@agenta/i18n/catalogs/settings.themePicker"
 import {Label, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 import clsx from "clsx"
 
@@ -60,16 +57,6 @@ const ThemeThumbnail = ({mode}: {mode: string}) => (
  * and how it is applied, so the sidebar fly-out and this page stay one set of choices.
  */
 export const ThemePicker = ({options, mode, onSelect}: ThemePickerProps) => {
-    const t = useT(commonCatalog, settingsThemePickerCatalog)
-    // The host's label stays for a mode this picker has no text for.
-    const labelOf = (option: ThemeChoice) =>
-        option.mode === "light"
-            ? t("common.light")
-            : option.mode === "dark"
-              ? t("common.dark")
-              : option.mode === "system"
-                ? t("settings.themePicker.systemDefault")
-                : option.label
     return (
         <RadioGroup
             value={mode}
@@ -88,8 +75,8 @@ export const ThemePicker = ({options, mode, onSelect}: ThemePickerProps) => {
                 >
                     <ThemeThumbnail mode={option.mode} />
                     <span className="flex items-center gap-2">
-                        <RadioGroupItem value={option.mode} aria-label={labelOf(option)} />
-                        <span className="text-colorText">{labelOf(option)}</span>
+                        <RadioGroupItem value={option.mode} aria-label={option.label} />
+                        <span className="text-colorText">{option.label}</span>
                     </span>
                 </Label>
             ))}

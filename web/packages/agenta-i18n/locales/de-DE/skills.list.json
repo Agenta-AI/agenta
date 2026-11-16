@@ -34,7 +34,7 @@
     "download": "Herunterladen",
     "restore": "Wiederherstellen",
     "archive": "Archivieren",
-    "archiveTitle": "{{slug}} archivieren?",
+    "archiveTitle": "{{name}} archivieren?",
     "archiveMessage": "Er verschwindet aus der Registry und Agents können ihn nicht mehr ausführen. Sein Name bleibt reserviert, und beim Wiederherstellen kehrt der gesamte Verlauf zurück.",
     "filterAria": "Skills filtern",
     "filterSource": "Quelle",
