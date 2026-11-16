@@ -224,6 +224,16 @@ class AgentDriveNotFoundError(AgentDriveError):
     code = "drive_not_found"
 
 
+class ProjectMountLookupMissing(WorkflowError):
+    """The service was built without the project mount lookup, so it cannot check that a
+    project drive exists. A wiring fault of the server, never the caller's."""
+
+    def __init__(self, message: Optional[str] = None):
+        super().__init__(
+            message or "Project drives cannot be checked: no project mount lookup."
+        )
+
+
 class WorkflowServiceUrlMissing(WorkflowError):
     """Raised when a revision has no runnable service URL to invoke (batch or detached)."""
 

@@ -19,7 +19,10 @@ from oss.src.core.workflows.types import (
     AgentDriveError,
     AgentDriveNotFoundError,
     InvalidAgentDriveEntryError,
+    ProjectMountLookupMissing,
 )
+from oss.src.core.mounts.service import project_mount_lookup
+from oss.src.core.mounts.types import MountSlugReserved
 
 
 def _commit(**agent):
@@ -193,3 +196,41 @@ async def test_the_routes_answer_422_with_the_envelope(error):
         await route()
     assert caught.value.status_code == 422
     assert caught.value.detail["code"] == error.code
+
+
+@pytest.mark.asyncio
+async def test_a_project_entry_without_a_lookup_fails_closed():
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_revision.return_value = None
+    service = WorkflowsService(workflows_dao=workflows_dao)
+    with pytest.raises(ProjectMountLookupMissing):
+        await service.commit_workflow_revision(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=_commit(
+                drives=[{"kind": "project", "slug": "price-lists"}]
+            ),
+        )
+    workflows_dao.commit_revision.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_without_a_project_entry_no_lookup_is_needed():
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_revision.return_value = None
+    workflows_dao.commit_revision.return_value = None
+    service = WorkflowsService(workflows_dao=workflows_dao)
+    await service.commit_workflow_revision(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflow_revision_commit=_commit(drives=[{"kind": "agent"}]),
+    )
+    workflows_dao.commit_revision.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_the_shared_lookup_reads_a_reserved_slug_as_missing():
+    mounts_service = AsyncMock()
+    mounts_service.fetch_project_mount.side_effect = MountSlugReserved("__ag__x")
+    lookup = project_mount_lookup(mounts_service)
+    assert await lookup(project_id=uuid4(), slug="__ag__x") is None

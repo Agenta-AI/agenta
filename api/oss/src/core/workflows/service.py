@@ -186,6 +186,7 @@ from oss.src.core.workflows.types import (
     InvalidAgentHarnessError,
     InvalidAgentConnectionError,
     InvalidAgentInstructionsError,
+    ProjectMountLookupMissing,
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
@@ -524,12 +525,11 @@ class WorkflowsService:
         drives = _agent_drives(data)
         if not drives:
             return
-        if self._project_mount_lookup is None:
-            log.warning("workflows: no project mount lookup; drive slugs not checked")
-            return
         for index, drive in enumerate(drives):
             if drive.kind != "project":
                 continue
+            if self._project_mount_lookup is None:
+                raise ProjectMountLookupMissing()
             if await self._project_mount_lookup(project_id=project_id, slug=drive.slug):
                 continue
             raise AgentDriveNotFoundError(

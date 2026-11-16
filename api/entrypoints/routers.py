@@ -249,8 +249,7 @@ from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
 
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
-from oss.src.core.mounts.service import MountsService
-from oss.src.core.mounts.types import MountSlugReserved
+from oss.src.core.mounts.service import MountsService, project_mount_lookup
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.sessions.mounts.service import SessionMountsService
 from entrypoints.session_attachments import attachment_limits
@@ -1166,17 +1165,7 @@ session_mounts_service = SessionMountsService(
     mounts_service=mounts_service,
 )
 
-
-async def _fetch_project_mount(*, project_id, slug):
-    try:
-        return await mounts_service.fetch_project_mount(
-            project_id=project_id, slug=slug
-        )
-    except MountSlugReserved:
-        return None
-
-
-workflows_service.set_project_mount_lookup(_fetch_project_mount)
+workflows_service.set_project_mount_lookup(project_mount_lookup(mounts_service))
 
 session_attachments_service = SessionAttachmentsService(
     attachments_dao=session_attachments_dao,
