@@ -16,6 +16,8 @@
  */
 import {useCallback, useMemo} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
 import {
     AutosizeTextarea,
     Combobox,
@@ -27,8 +29,6 @@ import {
 } from "@agenta/ui/ui"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
-import {useT, type CatalogKey} from "@agenta/i18n"
-import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
 
 type NetworkMode = "on" | "off" | "allowlist"
 type FilesystemMode = "on" | "readonly" | "off"
@@ -130,7 +130,10 @@ export function SandboxPermissionControl({
                     onValueChange={(v) => write({networkMode: v as NetworkMode})}
                     disabled={disabled}
                 >
-                    <SelectTrigger className="w-full" aria-label={t("entityUi.permissions.networkEgress")}>
+                    <SelectTrigger
+                        className="w-full"
+                        aria-label={t("entityUi.permissions.networkEgress")}
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -205,7 +208,10 @@ export function SandboxPermissionControl({
                     onValueChange={(v) => write({enforcement: v as Enforcement})}
                     disabled={disabled}
                 >
-                    <SelectTrigger className="w-full" aria-label={t("entityUi.permissions.enforcement")}>
+                    <SelectTrigger
+                        className="w-full"
+                        aria-label={t("entityUi.permissions.enforcement")}
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

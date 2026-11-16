@@ -14,11 +14,11 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
 import {Combobox, Textarea} from "@agenta/ui/ui"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
-import {createT, useT, type CatalogKey} from "@agenta/i18n"
-import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
 
 const tNow = createT(permissionsCatalog)
 

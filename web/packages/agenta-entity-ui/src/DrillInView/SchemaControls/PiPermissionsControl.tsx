@@ -14,6 +14,9 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
+
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import {ChipsInput} from "../../gatewayTool/components/schemaFormControls"
 
@@ -23,8 +26,6 @@ import {
     writePiPermissionRules,
     type PiPermissionList,
 } from "./piPermissions"
-import {useT, type CatalogKey} from "@agenta/i18n"
-import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
 
 export interface PiPermissionsControlProps {
     /** The harness `permissions` object (`harness.permissions`); may be absent. */

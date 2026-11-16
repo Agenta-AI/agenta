@@ -21,7 +21,6 @@ const t = createT(drillInCatalog)
 // ============================================================================
 
 export function MoleculeDrillInBreadcrumb() {
-
     const {
         currentPath,
         rootTitle,

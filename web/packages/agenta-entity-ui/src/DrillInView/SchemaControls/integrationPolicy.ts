@@ -15,9 +15,10 @@
  * place that computes an effective permission; a second copy of the compiler in TypeScript would
  * read an agent-wide mode this module does not own and the two would drift.
  */
-import type {GatewayConnectionPermissions, GatewayPermission} from "./toolUtils"
 import {createT, type CatalogKey} from "@agenta/i18n"
 import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
+
+import type {GatewayConnectionPermissions, GatewayPermission} from "./toolUtils"
 
 const t = createT(permissionsCatalog)
 
@@ -215,7 +216,11 @@ const toolOption = (
 })
 
 export const TOOL_PERMISSION_OPTIONS: ToolPermissionOption[] = [
-    toolOption("ask", "entityUi.permissions.presetAlwaysAsk", "entityUi.permissions.presetAlwaysAskHelp"),
+    toolOption(
+        "ask",
+        "entityUi.permissions.presetAlwaysAsk",
+        "entityUi.permissions.presetAlwaysAskHelp",
+    ),
     toolOption("allow", "entityUi.permissions.allow", "entityUi.permissions.toolAllowHelp"),
     toolOption("deny", "entityUi.permissions.deny", "entityUi.permissions.toolDenyHelp"),
     toolOption(
