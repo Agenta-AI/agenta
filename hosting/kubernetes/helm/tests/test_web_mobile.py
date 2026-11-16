@@ -211,12 +211,13 @@ def assert_stale_web_values_are_ignored() -> None:
     )
     assert components(docs, "web") == []
     assert not any(
-        doc.get("metadata", {}).get("name", "").endswith("-web")
-        for doc in docs
+        doc.get("metadata", {}).get("name", "").endswith("-web") for doc in docs
     )
     root_path = next(path for path in ingress_paths(docs) if path["path"] == "/")
     assert root_path["pathType"] == "ImplementationSpecific"
-    assert root_path["backend"]["service"]["name"] == "mobile-chart-test-agenta-web-mobile"
+    assert (
+        root_path["backend"]["service"]["name"] == "mobile-chart-test-agenta-web-mobile"
+    )
 
 
 def test_web_mobile_is_deployed_and_routed() -> None:
