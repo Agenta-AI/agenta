@@ -20,15 +20,14 @@ baseline.
 - Deploy quickly using existing public images for Agenta core services.
 - Keep deployment scriptable and repeatable.
 - Use a single public gateway domain with path routing:
-  - `/` -> web
-  - `/m`, `/m/*` -> web-mobile (no prefix strip: the app is built with basePath `/m`)
+  - `/` and `/m/*` -> web-mobile (no prefix strip: the app is built with basePath `/m`;
+    it redirects `/` to `/m` and old desktop URLs to their `/m` pages)
   - `/api/` -> api
   - `/services/` -> services
 
 ## Layout
 
 - `gateway/` - lightweight Nginx gateway image for Railway
-- `web/` - web wrapper image and runtime config
 - `api/` - api wrapper image with explicit gunicorn command
 - `services/` - services wrapper image with explicit gunicorn command
 - `runner/` - agent runner image

@@ -31,7 +31,6 @@ railway up hosting/railway/oss/worker-queues --path-as-root --service worker-que
 railway up hosting/railway/oss/runner --path-as-root --service runner --detach
 railway up hosting/railway/oss/services --path-as-root --service services --detach
 railway up hosting/railway/oss/cron --path-as-root --service cron --detach
-railway up hosting/railway/oss/web --path-as-root --service web --detach
 
 # Give private DNS records and container startups time to settle.
 sleep 45

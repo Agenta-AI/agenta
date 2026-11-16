@@ -25,7 +25,7 @@
 #      A single Postgres first-deploy timeout is retried once (proven
 #      transient for volume-backed services in a fresh clone); a second
 #      timeout is fatal.
-#   4. Smoke-checks /w, /api/health and /services/health through the clone's
+#   4. Smoke-checks /m, /api/health and /services/health through the clone's
 #      own gateway domain (same endpoints as scripts/smoke.sh, without the
 #      Railway CLI dependency).
 #
@@ -61,8 +61,8 @@
 #                             from secrets.RAILWAY_TOKEN — never named
 #                             RAILWAY_TOKEN, the CLI treats that name as
 #                             project-scoped).
-#   AGENTA_API_IMAGE_REPO / AGENTA_WEB_IMAGE_REPO /
-#   AGENTA_WEB_MOBILE_IMAGE_REPO / AGENTA_SERVICES_IMAGE_REPO /
+#   AGENTA_API_IMAGE_REPO / AGENTA_WEB_MOBILE_IMAGE_REPO /
+#   AGENTA_SERVICES_IMAGE_REPO /
 #   AGENTA_RUNNER_IMAGE_REPO  Image repository overrides.
 #   RW_INFRA_WAIT_SECONDS     Postgres wait per attempt (default 420).
 #   RW_ALEMBIC_WAIT_SECONDS   Alembic wait (default 420).
@@ -117,17 +117,16 @@ if [ "$VERIFY_ONLY" = false ]; then
 fi
 
 API_REPO="${AGENTA_API_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-api}"
-WEB_REPO="${AGENTA_WEB_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-web}"
 WEB_MOBILE_REPO="${AGENTA_WEB_MOBILE_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-web-mobile}"
 SERVICES_REPO="${AGENTA_SERVICES_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-services}"
 RUNNER_REPO="${AGENTA_RUNNER_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-runner}"
 
-# The nine image-patched app services; the api image backs five of them.
-APP_SERVICES=(api worker-streams worker-queues cron alembic web web-mobile services runner)
+# The eight image-patched app services; the api image backs five of them.
+APP_SERVICES=(api worker-streams worker-queues cron alembic web-mobile services runner)
 # supertokens must deploy AFTER alembic: it needs the agenta_oss_supertokens
 # database that alembic's startCommand creates (spike finding Q12).
 INFRA_SERVICES=(Postgres redis seaweedfs)
-LATE_SERVICES=(supertokens api worker-streams worker-queues runner services cron web web-mobile gateway)
+LATE_SERVICES=(supertokens api worker-streams worker-queues runner services cron web-mobile gateway)
 ALL_SERVICES=("${INFRA_SERVICES[@]}" alembic "${LATE_SERVICES[@]}")
 
 # Services a clone may legitimately not have yet. Adding a service to the
@@ -135,8 +134,7 @@ ALL_SERVICES=("${INFRA_SERVICES[@]}" alembic "${LATE_SERVICES[@]}")
 # environment (template/README.md step 4, "Apply on merge"), so during that
 # window a clone of the OLD template has no such service. A preview must
 # deploy anyway instead of dying on a missing serviceId; every other service
-# staying absent is still fatal. Empty today: web-mobile is in the template and
-# is required like every other app service.
+# staying absent is still fatal. Empty today.
 OPTIONAL_SERVICES=()
 # Filled in by patch_commit_images / deploy_all for the run summary.
 MISSING_SERVICES=""
@@ -159,7 +157,6 @@ emit_output() {
 image_for() {
     case "$1" in
         api | worker-streams | worker-queues | cron | alembic) printf '%s:%s' "$API_REPO" "$IMAGE_TAG" ;;
-        web) printf '%s:%s' "$WEB_REPO" "$IMAGE_TAG" ;;
         web-mobile) printf '%s:%s' "$WEB_MOBILE_REPO" "$IMAGE_TAG" ;;
         services) printf '%s:%s' "$SERVICES_REPO" "$IMAGE_TAG" ;;
         runner) printf '%s:%s' "$RUNNER_REPO" "$IMAGE_TAG" ;;
@@ -232,9 +229,8 @@ apply_ci_auth_key() {
     # Every service legacy configure.sh gave the key to: the workers use it for
     # internal calls while processing evaluation runs, so partial coverage
     # split-brains auth and evaluations finish with status "errors". web-mobile
-    # carries AGENTA_AUTH_KEY for the same reason web does (same image
-    # entrypoint, same runtime config), so it needs the CI key too.
-    for svc in web web-mobile api services worker-queues worker-streams cron alembic; do
+    # carries AGENTA_AUTH_KEY in its runtime config, so it needs the CI key too.
+    for svc in web-mobile api services worker-queues worker-streams cron alembic; do
         svc_id="$(clone_service_id "$svc")"
         if [ -z "$svc_id" ]; then
             # A service the clone does not have yet (see OPTIONAL_SERVICES) is
@@ -339,7 +335,7 @@ required_missing_services() {
 #
 # Checks every REQUIRED service by name rather than counting instances. A count
 # is unsound once the set has an optional member: a converged clone that has
-# web-mobile plus 12 of its 13 required services also totals 13, so a count
+# an optional service plus 11 of its 12 required services also totals 12, so a count
 # check would return while a required service was still missing and the deploy
 # loop would fail instead of waiting.
 wait_clone_populated() {
@@ -597,7 +593,7 @@ check_endpoint() {
 smoke_check() {
     local base="https://${GATEWAY_DOMAIN}" path
     printf 'Smoke-checking %s\n' "$base"
-    for path in /w /api/health /services/health; do
+    for path in /m /api/health /services/health; do
         check_endpoint "$base" "$path" || return 1
     done
 }
@@ -634,7 +630,7 @@ main() {
         apply_ci_runtime_key || die "could not apply the CI runtime key to the clone"
         t_created=$(( $(now) - t0 ))
 
-        # Domain BEFORE app deploys: web/api render
+        # Domain BEFORE app deploys: web-mobile/api render
         # ${{gateway.RAILWAY_PUBLIC_DOMAIN}} into their env at container start.
         ensure_gateway_domain || die "could not ensure a gateway domain"
         deploy_all || die "deploy did not reach green"
@@ -648,7 +644,7 @@ main() {
     total_s=$(( $(now) - t0 ))
     calls=$(( $(rw_call_count) - calls_before ))
 
-    local preview_url="https://${GATEWAY_DOMAIN}/w"
+    local preview_url="https://${GATEWAY_DOMAIN}/m"
     local logs_url="https://railway.com/project/${PROJECT_ID}/logs?environmentId=${CLONE_ENV_ID}"
     printf 'Preview ready (%s): %s\n' "$clone_mode" "$preview_url"
     if [ -n "$MISSING_SERVICES" ]; then

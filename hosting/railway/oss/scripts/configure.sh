@@ -394,24 +394,11 @@ main() {
     local pg_sync_supertokens
     pg_sync_supertokens="postgresql://${pg_user_ref}:${pg_password_ref}@${pg_host_ref}:${pg_port_ref}/agenta_oss_supertokens"
 
-    set_vars web \
-        AGENTA_WEB_URL="https://${public_domain_ref}" \
-        AGENTA_API_URL="https://${public_domain_ref}/api" \
-        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
-        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
-        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY"
-
-    set_optional_vars web \
-        "POSTHOG_API_KEY=${POSTHOG_API_KEY:-}" \
-        "SENDGRID_API_KEY=${SENDGRID_API_KEY:-}"
-
     # bootstrap.sh creates web-mobile with every environment. An environment
-    # bootstrapped before that may still lack it; the web image now redirects
-    # phones to /m unconditionally (no gate), so a missing web-mobile there is
-    # a broken deploy, not a supported opt-out. Require it and point at the
-    # fix instead of silently configuring web without it.
+    # bootstrapped before that may still lack it, and web-mobile is the only
+    # frontend: the gateway sends / and /m to it. Require it and point at the fix.
     if ! railway service web-mobile >/dev/null 2>&1; then
-        printf "Service 'web-mobile' is missing from the Railway environment, but web now redirects phones to /m unconditionally.\n" >&2
+        printf "Service 'web-mobile' is missing from the Railway environment, and it is the only frontend.\n" >&2
         printf "Fix: re-run bootstrap.sh for this environment to create web-mobile, then re-run configure.sh.\n" >&2
         exit 1
     fi
@@ -561,9 +548,6 @@ main() {
 
     unset_vars alembic AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
 
-    # The old gate keys are gone; clear any stale value.
-    unset_vars web AGENTA_MOBILE_GATE AGENTA_MOBILE_REVERSE_GATE AGENTA_MOBILE_ENABLED AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
-
     set_vars supertokens \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
         POSTGRESQL_CONNECTION_URI="$pg_sync_supertokens"
@@ -596,8 +580,8 @@ main() {
     # merely left unset, because an earlier run of this script may have stored
     # one. The template declares the same policy (template/template.json).
     #
-    # gateway: it proxies / to web, and the web app answers / with a 308
-    # redirect to /w (web/oss/next.config.ts). Railway counts a 308 as a
+    # gateway: it proxies / to web-mobile, which answers / with a 307
+    # redirect to /m (web/mobile/next.config.ts). Railway counts a 307 as a
     # failed probe, so the deployment never goes green. The gateway can carry
     # a healthcheck again once the wrapper image serves its own 200 endpoint,
     # for example location = /healthz.

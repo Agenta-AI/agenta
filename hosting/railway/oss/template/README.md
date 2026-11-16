@@ -88,13 +88,13 @@ variables query per service) against the token's 1000/hour Hobby budget.
 
 Four tag parameters in `template.json`:
 
-- `app_tag` — the five Agenta app images (`agenta-api`, `agenta-web`,
+- `app_tag` — the four Agenta app images (`agenta-api`,
   `agenta-web-mobile`, `agenta-services`, `agenta-runner`), pinned to a release
   tag. Clones patch these to `pr-<n>-<sha>` tags per PR via
   `environmentPatchCommit`. Overridable via `--app-tag` or
   `AGENTA_TEMPLATE_APP_TAG`. **`agenta-web-mobile` was first published at
   `v0.111.0`**, so an `app_tag` older than that leaves `web-mobile` unable to
-  pull its image; keep the parameter on a release that shipped all five.
+  pull its image; keep the parameter on a release that shipped all four.
 - `gateway_tag` / `redis_tag` / `seaweedfs_tag` — one content-addressed tag
   per preview wrapper image
   (`ghcr.io/agenta-ai/agenta-preview-{gateway,redis,seaweedfs}`, built by
@@ -173,20 +173,19 @@ deployments are irrelevant to clones — clones copy config, not deployments).
 
 - **startCommand:** services whose image owns its entrypoint (Postgres,
   supertokens, and the three wrapper images) must have it empty/unset. The
-  nine app services carry explicit startCommands because one image backs
+  eight app services carry explicit startCommands because one image backs
   several services (`agenta-api` alone backs api, worker-streams,
-  worker-queues, cron, alembic) and because `web` and `web-mobile` share an
-  entrypoint but start different servers.
-- **Mobile app:** `web-mobile` serves `/m`. The gateway routes `/m` and `/m/*`
-  to it with **no** prefix strip, because the Next app is built with
-  `basePath: "/m"` and owns the prefix. A phone is redirected from a desktop
-  route to `/m`, and a reviewer on a laptop can open `/m` directly. The
-  service is part of every environment.
+  worker-queues, cron, alembic).
+- **Web app:** `web-mobile` is the only frontend. The gateway routes every path
+  that `/api` and `/services` do not claim to it with **no** prefix strip,
+  because the Next app is built with `basePath: "/m"` and owns the prefix. It
+  redirects `/` to `/m` and old desktop URLs (`/w/...`, `/auth/...`) to their
+  `/m` pages. The service is part of every environment.
 - **Healthchecks:** set only on `api` and `services`, which both serve
   `/health`. Two services have none on purpose, and `../scripts/configure.sh`
   clears the same two.
-  - `gateway`: it proxies `/` to `web`, and the web app answers `/` with a 308
-    redirect to `/w` (`web/oss/next.config.ts`). Railway counts a 308 as a
+  - `gateway`: it proxies `/` to `web-mobile`, which answers `/` with a 307
+    redirect to `/m` (`web/mobile/next.config.ts`). Railway counts a 307 as a
     failed probe, so a healthcheck on `/` never goes green and the gateway
     deployment of every clone ends FAILED. The gateway can carry a healthcheck
     again once the wrapper image serves its own 200 endpoint (for example

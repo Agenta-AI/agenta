@@ -91,8 +91,8 @@ repair_path() {
     fi
 
     case "$path" in
-        "/w")
-            railway service web >/dev/null && railway redeploy --service web --environment "$ENV_NAME" --yes >/dev/null
+        "/m")
+            railway service web-mobile >/dev/null && railway redeploy --service web-mobile --environment "$ENV_NAME" --yes >/dev/null
             railway service gateway >/dev/null && railway redeploy --service gateway --environment "$ENV_NAME" --yes >/dev/null
             ;;
         "/api/health")
@@ -127,8 +127,75 @@ check_with_repair() {
     return 1
 }
 
-check_with_repair "/w"
+# Follow the 307 hops of one legacy desktop URL until it reaches an /m page that is not
+# /m/legacy, and print that page's path and query. Every hop must be a 307: a cached
+# 301 or 308 would outlive a later move of the app (spec legacy-desktop-urls).
+legacy_landing() {
+    local url="${BASE}$1"
+    local out code location
+    for _ in 1 2 3 4 5; do
+        out="$(curl -sS -o /dev/null --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" \
+            -w '%{http_code} %{redirect_url}' "$url")" || return 1
+        code="${out%% *}"
+        location="$(printf '%s' "${out#* }" | sed -E 's#^https?://[^/]+##')"
+        if [ "$code" != "307" ]; then
+            printf 'status %s at %s' "$code" "$url"
+            return 1
+        fi
+        case "$location" in
+            /m/legacy/* | /m/legacy) ;;
+            /m/)
+                printf '/m'
+                return 0
+                ;;
+            /m | /m/* | /m\?*)
+                printf '%s' "$location"
+                return 0
+                ;;
+        esac
+        url="${BASE}${location}"
+    done
+    printf 'more than 5 redirects from %s' "$1"
+    return 1
+}
+
+check_legacy_urls() {
+    local failures=0
+    local path expected landed
+    while IFS='|' read -r path expected; do
+        [ -n "$path" ] || continue
+        if landed="$(legacy_landing "$path")" && [ "$landed" = "$expected" ]; then
+            printf "OK: %s -> %s\n" "$path" "$landed"
+        else
+            printf "FAILED: %s -> %s (want %s)\n" "$path" "$landed" "$expected" >&2
+            failures=$((failures + 1))
+        fi
+    done <<'TABLE'
+/|/m
+/auth/callback/sso:acme:okta?code=c&state=s|/m/auth/callback/sso:acme:okta?code=c&state=s
+/auth/reset-password?token=t&tenantId=public|/m/auth/reset-password?token=t&tenantId=public
+/auth?token=t&email=e&organization_id=o&workspace_id=w&project_id=p|/m/auth?token=t&email=e&organization_id=o&workspace_id=w&project_id=p
+/auth?auth_error=sso_required|/m/auth?auth_error=sso_required
+/w/smoke-ws/p/smoke-proj/observability?trace=smoke-trace|/m/w/smoke-ws/p/smoke-proj/observability?trace=smoke-trace
+/w/smoke-ws/p/smoke-proj/evaluations/results/smoke-run|/m/w/smoke-ws/p/smoke-proj/evaluations/results/smoke-run
+/smoke-unknown-desktop-path|/m
+TABLE
+
+    for path in /favicon.ico /robots.txt; do
+        if curl -fsSL -o /dev/null --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" "${BASE}${path}"; then
+            printf "OK: %s\n" "$path"
+        else
+            printf "FAILED: %s does not resolve to a file\n" "$path" >&2
+            failures=$((failures + 1))
+        fi
+    done
+
+    [ "$failures" -eq 0 ]
+}
+
+check_with_repair "/m"
 check_with_repair "/api/health"
 check_with_repair "/services/health"
+check_legacy_urls
 
 printf "Smoke checks passed for %s\n" "$BASE"

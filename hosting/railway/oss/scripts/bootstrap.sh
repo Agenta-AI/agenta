@@ -13,10 +13,8 @@ PROJECT_NAME="${RAILWAY_PROJECT_NAME:-agenta-oss-railway}"
 ENV_NAME="${RAILWAY_ENVIRONMENT_NAME:-staging}"
 SOURCE_COMPOSE_FILE="${RAILWAY_SOURCE_COMPOSE_FILE:-$(railway_source_compose_file "$ROOT_DIR")}"
 
-WEB_IMAGE="${AGENTA_WEB_IMAGE:-ghcr.io/agenta-ai/agenta-web:latest}"
+# web-mobile is the only frontend: the gateway sends / and /m to it.
 WEB_MOBILE_IMAGE="${AGENTA_WEB_MOBILE_IMAGE:-ghcr.io/agenta-ai/agenta-web-mobile:latest}"
-# The mobile app (/m) ships with every environment, so bootstrap always creates
-# web-mobile. Template clones get it from template.json.
 API_IMAGE="${AGENTA_API_IMAGE:-ghcr.io/agenta-ai/agenta-api:latest}"
 SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-ghcr.io/agenta-ai/agenta-services:latest}"
 RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-ghcr.io/agenta-ai/agenta-runner:latest}"
@@ -273,7 +271,6 @@ main() {
         add_service gateway
     fi
 
-    add_service_image web "$WEB_IMAGE"
     add_service_image web-mobile "$WEB_MOBILE_IMAGE"
     add_service_image api "$API_IMAGE"
     add_service_image services "$SERVICES_IMAGE"

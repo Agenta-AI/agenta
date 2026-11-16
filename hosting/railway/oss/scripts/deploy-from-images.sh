@@ -31,15 +31,12 @@ REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE"
 SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}"
 
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
-AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
-# Optional here only because an environment bootstrapped before web-mobile became
-# standard may still lack the service; bootstrap.sh now always creates it.
 AGENTA_WEB_MOBILE_IMAGE="${AGENTA_WEB_MOBILE_IMAGE:-}"
 AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-}"
 AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-}"
 
-if [ -z "$AGENTA_API_IMAGE" ] || [ -z "$AGENTA_WEB_IMAGE" ] || [ -z "$AGENTA_SERVICES_IMAGE" ] || [ -z "$AGENTA_RUNNER_IMAGE" ]; then
-    printf "AGENTA_API_IMAGE, AGENTA_WEB_IMAGE, AGENTA_SERVICES_IMAGE, and AGENTA_RUNNER_IMAGE are required\n" >&2
+if [ -z "$AGENTA_API_IMAGE" ] || [ -z "$AGENTA_WEB_MOBILE_IMAGE" ] || [ -z "$AGENTA_SERVICES_IMAGE" ] || [ -z "$AGENTA_RUNNER_IMAGE" ]; then
+    printf "AGENTA_API_IMAGE, AGENTA_WEB_MOBILE_IMAGE, AGENTA_SERVICES_IMAGE, and AGENTA_RUNNER_IMAGE are required\n" >&2
     exit 1
 fi
 
@@ -201,19 +198,6 @@ CMD ["node_modules/.bin/tsx", "src/server.ts"]
 EOF
 }
 
-render_web_wrapper() {
-    local dir="$TMP_DIR/web"
-    mkdir -p "$dir"
-    cat > "$dir/Dockerfile" <<EOF
-FROM ${AGENTA_WEB_IMAGE}
-
-ENV HOSTNAME=0.0.0.0
-ENV AGENTA_LICENSE=oss
-
-CMD ["sh", "-lc", "/app/entrypoint.sh node /app/oss/server.js"]
-EOF
-}
-
 render_web_mobile_wrapper() {
     local dir="$TMP_DIR/web-mobile"
     mkdir -p "$dir"
@@ -277,10 +261,7 @@ EOF
 render_api_wrapper
 render_services_wrapper
 render_runner_wrapper
-render_web_wrapper
-if [ -n "$AGENTA_WEB_MOBILE_IMAGE" ]; then
-    render_web_mobile_wrapper
-fi
+render_web_mobile_wrapper
 render_alembic_wrapper
 render_redis_wrapper
 render_seaweedfs_wrapper
@@ -320,11 +301,7 @@ railway_call up "$TMP_DIR/worker-queues" --path-as-root --service worker-queues 
 railway_call up "$TMP_DIR/runner" --path-as-root --service runner --detach
 railway_call up "$TMP_DIR/services" --path-as-root --service services --detach
 railway_call up "$TMP_DIR/cron" --path-as-root --service cron --detach
-railway_call up "$TMP_DIR/web" --path-as-root --service web --detach
-# Deploy the mobile app only when both the image and the service are present.
-if [ -n "$AGENTA_WEB_MOBILE_IMAGE" ] && railway_call service web-mobile >/dev/null 2>&1; then
-    railway_call up "$TMP_DIR/web-mobile" --path-as-root --service web-mobile --detach
-fi
+railway_call up "$TMP_DIR/web-mobile" --path-as-root --service web-mobile --detach
 
 sleep "$APP_SETTLE_SECONDS"
 "$ROOT_DIR/hosting/railway/oss/scripts/deploy-gateway.sh"

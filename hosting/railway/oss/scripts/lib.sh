@@ -320,7 +320,7 @@ install_error_trap() {
 dump_railway_logs() {
     local services=("$@")
     if [ "${#services[@]}" -eq 0 ]; then
-        services=(Postgres redis alembic api supertokens web)
+        services=(Postgres redis alembic api supertokens web-mobile)
     fi
 
     local lines="${RAILWAY_LOG_TAIL:-50}"

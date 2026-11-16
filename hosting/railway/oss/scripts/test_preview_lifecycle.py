@@ -77,7 +77,7 @@ class RailwayFake:
         self.created.append((pr, tag, timeout))
         if self.fail_create:
             raise RuntimeError("partial creation failed")
-        return "https://preview.example/w"
+        return "https://preview.example/m"
 
     def delete(self, pr, identity):
         if self.fail_delete:
@@ -430,7 +430,7 @@ class LifecycleTests(unittest.TestCase):
         for item in [
             SHA,
             "UTC",
-            "https://preview.example/w",
+            "https://preview.example/m",
             "/preview",
             "disposable",
             "actions/runs/1",
