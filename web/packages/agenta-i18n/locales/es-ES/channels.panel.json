@@ -1,0 +1,15 @@
+{
+    "addSlackWorkspace": "Añadir un espacio de trabajo de Slack",
+    "addTelegramBot": "Añadir un bot de Telegram",
+    "addWhatsAppNumber": "Añadir un número de WhatsApp",
+    "agent": "Agente",
+    "agentLive": "{{name}} · {{count}} activos",
+    "chooseAgent": "Elige el agente que responde",
+    "connectChannel": "Conectar un canal",
+    "connectPlatform": "Conectar {{platform}}",
+    "embed": "Incrustar",
+    "noIdYet": "Esta conexión todavía no tiene id.",
+    "publish": "Publicar",
+    "yourAgent": "tu agente",
+    "yourWorkspace": "tu espacio de trabajo"
+}

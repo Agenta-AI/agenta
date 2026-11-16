@@ -1,0 +1,22 @@
+{
+    "alsoSubscribed_one": "También está suscrito a {{count}} evento que esta hoja no puede mostrar. Se conservan a menos que elijas aquí un evento distinto.",
+    "alsoSubscribed_many": "También está suscrito a {{count}} de eventos que esta hoja no puede mostrar. Se conservan a menos que elijas aquí un evento distinto.",
+    "alsoSubscribed_other": "También está suscrito a {{count}} eventos que esta hoja no puede mostrar. Se conservan a menos que elijas aquí un evento distinto.",
+    "authentication": "Autenticación",
+    "authorizationHeader": "Encabezado Authorization",
+    "authorizationHint": "Se envía como encabezado Authorization en cada solicitud.",
+    "configurationDeployed": "Configuración desplegada",
+    "description": "Agenta envía el evento a tu endpoint y reintenta si falla.",
+    "editTitle": "Editar suscripción",
+    "endpointUrl": "URL del endpoint",
+    "event": "Evento",
+    "headerValue": "Valor del encabezado",
+    "headerValueHint": "Déjalo en blanco para conservar el valor almacenado.",
+    "nameHint": "Opcional: cómo aparece la suscripción en la lista.",
+    "namePlaceholder": "Notificador de despliegues",
+    "saveFailed": "No se ha podido guardar la suscripción",
+    "saving": "Guardando…",
+    "signatureHint": "Agenta firma cada solicitud con un secreto que se muestra una sola vez después de suscribirte.",
+    "signedPayload": "Carga útil firmada",
+    "subscribe": "Suscribirse"
+}

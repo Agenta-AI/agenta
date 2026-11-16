@@ -1,0 +1,13 @@
+{
+    "emptyDescription": "Suscribe un endpoint para recibir eventos de flujos de trabajo como solicitudes HTTP firmadas.",
+    "emptyTitle": "Todavía no hay webhooks",
+    "events": "Eventos",
+    "paused": "Webhook en pausa",
+    "pausedStatus": "En pausa",
+    "resumed": "Webhook reanudado",
+    "subscribe": "Suscribirse",
+    "target": "Destino",
+    "test": "Probar",
+    "updateFailed": "No se ha podido actualizar el webhook",
+    "webhookActions": "Acciones del webhook"
+}
