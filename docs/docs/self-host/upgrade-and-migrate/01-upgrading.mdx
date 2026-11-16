@@ -16,6 +16,54 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading past 0.128.13: the `web` service is removed
+
+The release after 0.128.13 removes the `web` service (image `agenta-web`), the old desktop web app. The `web-mobile` service (image `agenta-web-mobile`) is now the only web app. It answers every path that the API and services do not: `/` redirects to `/m`, and old desktop links (`/w/...`, `/auth/...`, links in emails and in traces logged by older SDKs) redirect to the matching `/m` page. The API, workers, services, runner and databases do not change.
+
+If you deploy with the compose files, Helm chart or Railway scripts from this repository, and every image runs the same tag, upgrade as usual. Read on only for the deployment you run.
+
+### Docker Compose
+
+`run.sh` removes the old `web` container on its own. If you start the stack with `docker compose` directly, add `--remove-orphans` once so the old container stops:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-traefik up -d --remove-orphans
+```
+
+If you keep your own compose file or reverse proxy, update the compose file and the `agenta-web-mobile` tag in the same change:
+
+- Delete the `web` service.
+- Route every path that `/api` and `/services` do not claim to `web-mobile` on port `3000`. Do not strip a prefix: the app owns `/m`.
+- Set `agenta-web-mobile` to the new release tag. An older `agenta-web-mobile` image does not answer `/`, so the root returns `404` until both change.
+
+### Helm
+
+`helm upgrade` deletes the `web` Deployment and Service. `ingress.paths.web` keeps its name and its `pathType`, and now routes `/` to `web-mobile`. A top-level `web` block in your values file is ignored, so the upgrade does not fail on it. Two keys under `web` need a move to keep their effect:
+
+- `web.service.annotations`, for example the GKE `cloud.google.com/neg` annotation, goes to `webMobile.service.annotations`.
+- `web.image.tag` goes to `webMobile.image.tag` if you pin image tags.
+
+### Railway
+
+`deploy-from-images.sh` now requires `AGENTA_WEB_MOBILE_IMAGE` and no longer reads `AGENTA_WEB_IMAGE`:
+
+```bash
+export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:<new-tag>"
+export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:<new-tag>"
+export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:<new-tag>"
+export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:<new-tag>"
+
+./hosting/railway/oss/scripts/deploy-from-images.sh
+```
+
+The gateway now sends `/` to `web-mobile`. The scripts do not delete the `web` service. It keeps running with no route to it. Delete it in the Railway project when you no longer need to roll back.
+
+### Roll back
+
+- **Docker Compose:** restore the compose file and image tags of the previous release, then start the stack with them. If you use your own compose file, restore its `web` service and its route to `/`.
+- **Helm:** run `helm rollback agenta` to the previous revision. It recreates the `web` Deployment and Service and the `/` route to them.
+- **Railway:** check out the previous release of this repository and run its `deploy-from-images.sh` with the previous image tags, including `AGENTA_WEB_IMAGE`. Its gateway routes `/` to `web` again.
+
 ## Upgrading to 0.128.2: old workspace ids stop working
 
 This release stops reading the old workspace data. The tables stay in the database until a later release drops them. It adds two data migrations: one for projects, one for usage meters (Enterprise). Both repeat the 0.127.0 migrations for data that 0.126.0 pods wrote during that upgrade.
@@ -435,7 +483,7 @@ To pin to a specific version, set the image tags in your `values.yaml`:
 api:
   image:
     tag: "v0.86.8"
-web:
+webMobile:
   image:
     tag: "v0.86.8"
 services:
