@@ -58,10 +58,12 @@ describe("folderArchiveMounts", () => {
         projectDrives: [prices],
     }
 
-    it("zips the drives folder as its session files plus each project drive under its slug", () => {
+    // The API names a member by its mount path under the prefix: the cwd source scoped to `drives`
+    // yields `drives/notes.md`, so a project drive must sit at `drives/<slug>/` beside it.
+    it("zips the drives folder with each project drive at drives/<slug>/, beside its session files", () => {
         expect(folderArchiveMounts(drive, "drives")).toEqual([
             {mountId: "m-cwd", prefix: "", path: "drives"},
-            {mountId: "m-prices", prefix: "price-lists", path: ""},
+            {mountId: "m-prices", prefix: "drives/price-lists", path: ""},
         ])
     })
 
@@ -74,7 +76,7 @@ describe("folderArchiveMounts", () => {
     it("zips the drives folder of a session with no mount from the project drives", () => {
         expect(
             folderArchiveMounts({resolveMount: () => null, projectDrives: [prices]}, "drives"),
-        ).toEqual([{mountId: "m-prices", prefix: "price-lists", path: ""}])
+        ).toEqual([{mountId: "m-prices", prefix: "drives/price-lists", path: ""}])
     })
 })
 

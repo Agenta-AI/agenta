@@ -66,7 +66,8 @@ export function useCopyDrivePath(): (path: string) => void {
 }
 
 /** The archive of a presented folder: the mount that backs it, plus every project drive folded in
- * below it (the `drives/` folder holds them), each under its folder relative to the download. */
+ * below it (the `drives/` folder holds them). The API keeps the source folder in each member path
+ * (`drives/notes.md`), so each project drive goes under its full folder, `drives/<slug>/`. */
 export const folderArchiveMounts = (
     drive: Pick<SessionDriveData, "resolveMount" | "projectDrives">,
     path: string,
@@ -78,7 +79,7 @@ export const folderArchiveMounts = (
     for (const project of drive.projectDrives ?? []) {
         const dir = projectDriveDir(project.slug)
         if (path && dir.startsWith(`${path}/`))
-            out.push({mountId: project.mount.id, prefix: dir.slice(path.length + 1), path: ""})
+            out.push({mountId: project.mount.id, prefix: dir, path: ""})
     }
     return out
 }
