@@ -37,10 +37,9 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
 
 - shadcn variables (`--background`, `--primary`, ...) are NOT hand-maintained.
   They are generated into `src/styles/theme.generated.css` from
-  `web/oss/src/styles/theme/palette.ts` by `scripts/generate-shadcn-tokens.ts`.
-  The script also reads `controlScale.ts` from the same folder. That theme
-  folder is the one part of `web/oss` still in use: edit it for color changes,
-  but touch nothing else in `web/oss`.
+  `web/packages/agenta-ui/src/styles/theme/palette.ts` by
+  `scripts/generate-shadcn-tokens.ts`. The script also reads `controlScale.ts` from the
+  same folder.
 - To change a color: edit `palette.ts` (if the design-system value is wrong) or
   the ROLE MAP in the script (if the mapping is wrong), then run
   `pnpm generate:tailwind-tokens` in `web/` and commit the regenerated files.
