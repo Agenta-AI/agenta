@@ -2,7 +2,7 @@ import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
 import types
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -46,8 +46,8 @@ async def test_edit_returns_updated_references_and_links():
     service._fetch_parsed_trace = AsyncMock(
         return_value=SimpleNamespace(span=SimpleNamespace(attributes={}))
     )
-    service._build_annotation = lambda parsed_trace: (
-        Annotation(
+    service._build_annotation = Mock(
+        return_value=Annotation(
             trace_id="old-trace",
             span_id="old-span",
             created_at=datetime.now(timezone.utc),

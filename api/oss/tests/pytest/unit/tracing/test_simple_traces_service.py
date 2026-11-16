@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -29,8 +29,8 @@ async def test_edit_uses_incoming_references_and_links():
         tracing_service=tracing_service,
         annotation_general_fields_service=AsyncMock(),
     )
-    service._build_from_parsed = lambda parsed: (
-        SimpleTrace(
+    service._build_from_parsed = Mock(
+        return_value=SimpleTrace(
             trace_id="old-trace",
             span_id="old-span",
             created_at=datetime.now(timezone.utc),
