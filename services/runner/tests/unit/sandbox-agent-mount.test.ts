@@ -365,6 +365,31 @@ describe("mountStorage", () => {
     assert.ok(!seenArgs.some((a) => a.includes("SCOPED-SK")));
   });
 
+  it("mounts read-only with -o ro only when asked", async () => {
+    const argsFor = async (readOnly?: boolean) => {
+      let seenArgs: string[] = [];
+      await mountStorage("/work/cwd", CREDS, {
+        checkMounted: notMountedThenAlive(),
+        runGeesefs: async (args) => {
+          seenArgs = args;
+        },
+        unmountDeps: {
+          runUnmount: async () => {},
+          checkMountpoint: async () => "gone",
+        },
+        ...(readOnly === undefined ? {} : { geesefs: { readOnly } }),
+        log: SILENT,
+      });
+      return seenArgs;
+    };
+    const ro = await argsFor(true);
+    const roAt = ro.indexOf("ro");
+    assert.ok(roAt > 0 && ro[roAt - 1] === "-o");
+    assert.deepEqual(ro.slice(-2), ["agenta-store:mounts/proj-1/mount-9", "/work/cwd"]);
+    assert.ok(!(await argsFor()).includes("ro"));
+    assert.ok(!(await argsFor(false)).includes("ro"));
+  });
+
   it("omits --endpoint for AWS S3 (empty endpoint)", async () => {
     let seenArgs: string[] = [];
     await mountStorage(

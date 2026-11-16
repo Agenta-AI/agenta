@@ -229,6 +229,8 @@ export interface GeesefsOptions {
    * read for good, and the reader cannot be killed.
    */
   readRetryAttempts?: number;
+  /** Mount read-only (`-o ro`): a write fails at once instead of being refused by the store later. */
+  readOnly?: boolean;
 }
 
 /**
@@ -265,6 +267,7 @@ function geesefsArgs(
     ...(foreground ? ["-f"] : []),
     "-o",
     "allow_other",
+    ...(options.readOnly ? ["-o", "ro"] : []),
     `${creds.bucket}:${creds.prefix}`,
     cwd,
   ];
