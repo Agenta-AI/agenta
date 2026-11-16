@@ -77,7 +77,7 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
         // e.g. a hover). Re-run across the next frames + a few timeouts to settle on the real rects.
         recompute()
         const raf = requestAnimationFrame(recompute)
-        const timers = [60, 180, 360].map((t) => window.setTimeout(recompute, t))
+        const timers = [60, 180, 360].map((delay) => window.setTimeout(recompute, delay))
         const onMove = () => recompute()
         // capture: the editor scrolls in an inner container, not the window
         window.addEventListener("scroll", onMove, true)

@@ -1,0 +1,23 @@
+{
+    "searchProviderTools": "搜索 {{provider}} 工具",
+    "noToolsFound": "未找到工具",
+    "failedToLoadSchema": "加载工具操作 Schema 失败",
+    "searchActions": "搜索操作",
+    "actionCount_other": "{{count}} 个操作",
+    "noActionsFound": "未找到操作",
+    "searchIntegrations": "搜索集成",
+    "builtInTools": "内置工具",
+    "noBuiltInMatches": "没有匹配的内置工具",
+    "thirdPartyTools": "第三方工具",
+    "browseThirdParty": "浏览第三方工具",
+    "noConnectedTools": "没有已连接的工具",
+    "customTools": "自定义工具",
+    "createInlineTool": "创建内联函数工具",
+    "referenceWorkflow": "引用工作流",
+    "runWorkflowAsTool": "将工作流作为工具运行",
+    "hoverToBrowse": "将鼠标悬停在供应商或已连接的集成上以浏览工具。",
+    "tool": "工具",
+    "addTool": "添加工具",
+    "subscriptionTag": "订阅",
+    "organizationTag": "组织"
+}

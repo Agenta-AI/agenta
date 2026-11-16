@@ -29,6 +29,8 @@ import {
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
 import {needsSetupReasonLabel, requirementForItem} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import {Tag} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -56,6 +58,7 @@ export interface McpServerFormViewProps {
 }
 
 export function McpServerFormView({value, onChange, disabled}: McpServerFormViewProps) {
+    const t = useT(toolFormCatalog)
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     /**
      * Which journey is open, because two controls here open the same sheet for opposite
@@ -98,7 +101,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
 
     return (
         <div className="flex flex-col gap-3">
-            <RailField label="Connection" align="center">
+            <RailField label={t("entityUi.toolForm.connection")} align="center">
                 <Select
                     value={selectedSlug && selected ? selectedSlug : undefined}
                     onValueChange={(slug) => {
@@ -107,20 +110,23 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     }}
                     disabled={disabled}
                 >
-                    <SelectTrigger className="w-full" aria-label="Connection">
+                    <SelectTrigger
+                        className="w-full"
+                        aria-label={t("entityUi.toolForm.connection")}
+                    >
                         <SelectValue
                             placeholder={
                                 // An unsaved item the server has not checked keeps the local wording.
                                 selectedSlug && !selected && !requirement
-                                    ? "This connection is no longer available"
-                                    : "Select a connection"
+                                    ? t("entityUi.toolForm.connectionUnavailable")
+                                    : t("entityUi.toolForm.selectConnection")
                             }
                         />
                     </SelectTrigger>
                     <SelectContent>
                         {endpoints.length === 0 ? (
                             <div className="px-3 py-input-y-ghost text-field-md text-colorTextSecondary">
-                                No MCP connections yet
+                                {t("entityUi.toolForm.noMcpConnections")}
                             </div>
                         ) : (
                             endpoints.map((endpoint) => (
@@ -142,20 +148,20 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                             className="min-h-control w-full justify-start gap-2 rounded-control-sm px-3 py-1 text-field-md font-normal"
                         >
                             <Plus size={13} className="shrink-0" />
-                            Connect MCP
+                            {t("entityUi.toolForm.connectMcp")}
                         </Button>
                     </SelectContent>
                 </Select>
             </RailField>
 
             {requirement ? (
-                <RailField label="Status" align="center">
+                <RailField label={t("entityUi.toolForm.status")} align="center">
                     <NeedsSetupTag reason={needsSetupReasonLabel(requirement.reason)} />
                 </RailField>
             ) : null}
 
             {selected && !requirement ? (
-                <RailField label="Status" align="center">
+                <RailField label={t("entityUi.toolForm.status")} align="center">
                     <div className="flex min-w-0 items-center gap-2">
                         <Tag
                             tone={getMcpConnectionState(selected) === "ready" ? "green" : "gold"}
@@ -176,8 +182,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
             {prefix ? (
                 <RailField
                     label={railInfoLabel(
-                        "Tool prefix",
-                        "What the model sees on this server's tools. Frozen when the connection was chosen, so renaming the connection does not rename tools here.",
+                        t("entityUi.toolForm.toolPrefix"),
+                        t("entityUi.toolForm.toolPrefixHint"),
                     )}
                     align="center"
                 >
@@ -187,7 +193,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 </RailField>
             ) : null}
 
-            <RailField label="Permissions" align="center">
+            <RailField label={t("entityUi.toolForm.permissions")} align="center">
                 {/* A link out, not the editor inline. The per-tool table is the densest
                     surface in the feature and it was nested two panels deep inside the
                     shallowest one; it is now one destination that the rail row reaches
@@ -198,7 +204,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     disabled={disabled || !selected?.slug}
                     onClick={() => setPermissionsOpen(true)}
                 >
-                    Set permissions
+                    {t("entityUi.toolForm.setPermissions")}
                 </Button>
             </RailField>
 
@@ -206,14 +212,13 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 // Saved before connections had their own identity. It still resolves, and
                 // re-picking it here moves it onto the current shape.
                 <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">
-                    This server was configured before connections were shared across agents. Select
-                    it again above to link it to a connection.
+                    {t("entityUi.toolForm.legacyServer")}
                 </p>
             ) : null}
 
             {prefix === RESERVED_TOOL_PREFIX ? (
                 <p className="m-0 text-xs text-[var(--ag-colorError)]">
-                    That prefix is reserved. Rename the connection and select it again.
+                    {t("entityUi.toolForm.prefixReserved")}
                 </p>
             ) : null}
 
