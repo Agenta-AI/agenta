@@ -111,7 +111,7 @@ function routeFor(pathname: string, search: string): string | null {
     const templateQuery = templateQueryFrom(search)
 
     // The mobile root resolves last-used workspace/project (same resolution as post-login).
-    if (/^\/w(\/[^/]+(\/p\/?)?)?\/?$/.test(pathname)) return `/m/${templateQuery}`
+    if (/^\/w(\/[^/]+(\/p\/?)?)?\/?$/.test(pathname)) return `/m${templateQuery}`
 
     const match = pathname.match(PROJECT_PATH_RE)
     if (!match) return null
@@ -204,5 +204,5 @@ export function legacyTarget(pathname: string, search: string): {target: string;
     // The `/m` root still opens a website template link (`/?template=`) on its setup step.
     return route
         ? {target: route, matched: true}
-        : {target: `/m/${templateQueryFrom(search)}`, matched: false}
+        : {target: `/m${templateQueryFrom(search)}`, matched: false}
 }

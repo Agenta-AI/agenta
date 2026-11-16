@@ -44,7 +44,7 @@ describe("root URLs at /legacy", () => {
         try {
             const res = legacy("/w/ws1/p/pr1/apps/archived?token=secret")
             expect(res.status).toBe(307)
-            expect(res.headers.get("location")).toBe("http://localhost:3000/m/")
+            expect(res.headers.get("location")).toBe("http://localhost:3000/m")
             expect(warn).toHaveBeenCalledTimes(1)
             expect(String(warn.mock.calls[0][0])).toContain("/w/ws1/p/pr1/apps/archived")
             expect(String(warn.mock.calls[0][0])).not.toContain("secret")

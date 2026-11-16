@@ -80,12 +80,12 @@ describe("legacyTarget: links and the /m root", () => {
         ["/w/ws1/p/pr1/evaluations/results/run1", "/m/w/ws1/p/pr1/evaluations/results/run1"],
         // organization_service.py emails this link.
         ["/w/org1/p/pr1/settings?tab=workspace", "/m/w/org1/p/pr1/settings?tab=workspace"],
-        ["/settings", "/m/"],
+        ["/settings", "/m"],
         ["/workspaces/accept?token=t&organization_id=o1", "/m/auth?token=t&organization_id=o1"],
         ["/workspaces/accept", "/m/invite"],
-        ["/post-signup", "/m/"],
-        ["/ws1/apps/app1", "/m/"],
-        ["/no/such/page?secret=s", "/m/"],
+        ["/post-signup", "/m"],
+        ["/ws1/apps/app1", "/m"],
+        ["/no/such/page?secret=s", "/m"],
         [
             "/auth?token=t&email=a%40b.c&organization_id=o&workspace_id=w&project_id=p",
             "/m/auth?token=t&email=a%40b.c&organization_id=o&workspace_id=w&project_id=p",
@@ -107,7 +107,7 @@ describe("legacyTarget: links and the /m root", () => {
     })
 
     it("keeps a website template link that opens the app root", () => {
-        expect(map("/?template=pr-reviewer")).toBe("/m/?template=pr-reviewer")
+        expect(map("/?template=pr-reviewer")).toBe("/m?template=pr-reviewer")
         expect(route("/w/ws1/p/pr1/apps", "?template=pr-reviewer")).toBe(
             "/m/w/ws1/p/pr1/agents/new?template=pr-reviewer",
         )
