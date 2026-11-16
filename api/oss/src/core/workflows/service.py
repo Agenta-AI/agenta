@@ -54,6 +54,7 @@ from agenta.sdk.agents import (
     InvalidHarnessKindError,
     InvalidAgentDrivesError as AgentDrivesShapeError,
     InvalidAgentInstructionsError as AgentInstructionsShapeError,
+    InvalidSessionDriveError as SessionDriveShapeError,
     validate_agent_drives,
     validate_agent_instructions,
     validate_has_session_drive,
@@ -182,7 +183,8 @@ from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
     AgentDriveNotFoundError,
     AgentReferenceUnresolved,
-    InvalidAgentDriveEntryError,
+    InvalidAgentDrivesError,
+    InvalidSessionDriveError,
     InvalidAgentHarnessError,
     InvalidAgentConnectionError,
     InvalidAgentInstructionsError,
@@ -385,8 +387,8 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
 def _agent_drives(data: Any) -> Optional[List[Any]]:
     """The parsed drive entries of an agent commit, or None for a workflow that is not an agent.
 
-    The entry rules are the SDK's ``validate_agent_drives``; a broken entry answers
-    ``invalid_drive_entry``.
+    The rules are the SDK's: a broken entry answers ``invalid_drive_entry``, a broken
+    ``has_session_drive`` answers ``invalid_session_drive``.
     """
     if hasattr(data, "model_dump"):
         data = data.model_dump(mode="json", exclude_none=True)
@@ -397,13 +399,25 @@ def _agent_drives(data: Any) -> Optional[List[Any]]:
         return None
     try:
         validate_has_session_drive(agent.get("has_session_drive"))
+    except SessionDriveShapeError as e:
+        raise InvalidSessionDriveError(
+            field="has_session_drive",
+            value=e.value,
+            message="has_session_drive must be true or false.",
+            next_step=(
+                "Set parameters.agent.has_session_drive to true or false, then commit again."
+            ),
+        ) from e
+    try:
         return validate_agent_drives(agent.get("drives"))
     except AgentDrivesShapeError as e:
-        raise InvalidAgentDriveEntryError(
+        raise InvalidAgentDrivesError(
             field=e.field,
             value=e.value,
-            message=f"The drive list is not valid: {e.field} {e.reason}.",
-            next_step="Correct agent.drives as the message says, then commit again.",
+            message=f"The drive list is not valid: parameters.agent.{e.field} {e.reason}.",
+            next_step=(
+                "Correct parameters.agent.drives as the message says, then commit again."
+            ),
         ) from e
 
 
@@ -518,7 +532,7 @@ class WorkflowsService:
         composition root, because the mounts service depends on this service."""
         self._project_mount_lookup = lookup
 
-    async def _reject_unusable_agent_drives(
+    async def reject_unusable_agent_drives(
         self, *, project_id: UUID, data: Any
     ) -> None:
         """Refuse an agent commit whose drive list breaks a rule or names a missing drive."""
@@ -3311,7 +3325,7 @@ class WorkflowsService:
             workflow_revision_commit=workflow_revision_commit,
         )
 
-        await self._reject_unusable_agent_drives(
+        await self.reject_unusable_agent_drives(
             project_id=project_id,
             data=_revision_commit.data,
         )
@@ -4449,6 +4463,18 @@ class SimpleWorkflowsService:
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
         _reject_unrunnable_agent_connection(simple_workflow_create.data)
 
+        # Drives are live state: checked before this call's first write, never on a replay
+        # that writes nothing, so a drive archived after a completed create does not fail it.
+        drives_checked = False
+
+        async def check_drives_before_write() -> None:
+            nonlocal drives_checked
+            if not drives_checked:
+                await self.workflows_service.reject_unusable_agent_drives(
+                    project_id=project_id, data=simple_workflow_create.data
+                )
+                drives_checked = True
+
         workflow_id = resource_identity(
             project_id,
             namespace,
@@ -4490,6 +4516,7 @@ class SimpleWorkflowsService:
                 workflow_flags = WorkflowFlags(
                     **WorkflowsService._dump_flags(request.flags)
                 )
+                await check_drives_before_write()
                 try:
                     workflow = await self.workflows_service.create_workflow(
                         project_id=project_id,
@@ -4533,6 +4560,7 @@ class SimpleWorkflowsService:
                 workflow_variant_ref=Reference(slug=variant_slug),
             )
             if variant is None:
+                await check_drives_before_write()
                 try:
                     variant = await self.workflows_service.create_workflow_variant(
                         project_id=project_id,
@@ -4565,6 +4593,7 @@ class SimpleWorkflowsService:
                 workflow_revision_ref=Reference(slug=blank_slug),
             )
             if blank is None:
+                await check_drives_before_write()
                 try:
                     blank = await self.workflows_service.commit_workflow_revision(
                         project_id=project_id,
@@ -4602,6 +4631,7 @@ class SimpleWorkflowsService:
                 workflow_revision_ref=Reference(slug=content_slug),
             )
             if content is None:
+                await check_drives_before_write()
                 try:
                     content = await self.workflows_service.commit_workflow_revision(
                         project_id=project_id,
@@ -4686,6 +4716,9 @@ class SimpleWorkflowsService:
         # artifact, variant, and blank revision behind.
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
         _reject_unrunnable_agent_connection(simple_workflow_create.data)
+        await self.workflows_service.reject_unusable_agent_drives(
+            project_id=project_id, data=simple_workflow_create.data
+        )
 
         simple_workflow_flags = SimpleWorkflowFlags(
             **WorkflowsService._dump_flags(simple_workflow_create.flags)
@@ -4936,6 +4969,44 @@ class SimpleWorkflowsService:
         if workflow is None:
             return None
 
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+        )
+
+        if workflow_variant is None:
+            return None
+
+        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
+
+        # The data the commit stores, chosen once and checked before the first write.
+        workflow_revision_data = None
+        if should_commit_revision:
+            if simple_workflow_edit.data:
+                workflow_revision_data = WorkflowRevisionData(
+                    **simple_workflow_edit.data.model_dump(mode="json"),
+                )
+            else:
+                latest_workflow_revision = (
+                    await self.workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        #
+                        workflow_variant_ref=Reference(id=workflow_variant.id),
+                    )
+                )
+
+                if latest_workflow_revision is None:
+                    return None
+
+                workflow_revision_data = latest_workflow_revision.data
+
+            await self.workflows_service.reject_unusable_agent_drives(
+                project_id=project_id, data=workflow_revision_data
+            )
+
         workflow_edit = WorkflowEdit(
             id=simple_workflow_edit.id,
             #
@@ -4971,39 +5042,8 @@ class SimpleWorkflowsService:
         if workflow is None:
             return None
 
-        workflow_variant: Optional[
-            WorkflowVariant
-        ] = await self.workflows_service.fetch_workflow_variant(
-            project_id=project_id,
-            #
-            workflow_ref=workflow_ref,
-        )
-
-        if workflow_variant is None:
-            return None
-
-        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
-
         if should_commit_revision:
             workflow_revision_slug = uuid4().hex[-12:]
-
-            if simple_workflow_edit.data:
-                workflow_revision_data = WorkflowRevisionData(
-                    **simple_workflow_edit.data.model_dump(mode="json"),
-                )
-            else:
-                latest_workflow_revision = (
-                    await self.workflows_service.fetch_workflow_revision(
-                        project_id=project_id,
-                        #
-                        workflow_variant_ref=Reference(id=workflow_variant.id),
-                    )
-                )
-
-                if latest_workflow_revision is None:
-                    return None
-
-                workflow_revision_data = latest_workflow_revision.data
 
             workflow_revision_commit = WorkflowRevisionCommit(
                 slug=workflow_revision_slug,

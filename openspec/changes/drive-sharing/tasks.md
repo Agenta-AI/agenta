@@ -10,24 +10,24 @@ Release 1 has four parts. The SDK and agent service part (section 2) fixes the s
 
 ## 1. API (release 1)
 
-- [ ] 1.1 Add a read-only form of the STS session policy in `api/oss/src/core/store/storage.py` (`_scope_policy` with a `read_only` flag: `GetObject`, `GetObjectAttributes`, the bucket metadata actions and the scoped `ListBucket`), and pass it through `sign_temp_credentials` and `MountsService.sign_mount_credentials`.
-- [ ] 1.2 Add `MountsService.fetch_project_mount(slug)`: reject reserved slugs, return an active row with no session and no agent, or none. It never creates.
-- [ ] 1.3 Add `POST /mounts/projects/sign?slug=&access=` (operation id `sign_project_mount_credentials`) in `api/oss/src/apis/fastapi/mounts/router.py`, registered before `/{mount_id}`, with `USE_MOUNTS`; 404 for a missing or archived drive. `POST /mounts/agents/sign` does not change (the agent drive is always read-write).
-- [ ] 1.4 Add an optional `slugs` filter to `MountQuery` and the DAO's `query_mounts`.
-- [ ] 1.5 Add the save check in the async body of `commit_workflow_revision` in `api/oss/src/core/workflows/service.py` (not in the pure `_build_revision_commit`): call the SDK's `validate_agent_drives` (code `invalid_drive_entry`), then check that each project slug has an active project mount, through a callable that wraps `MountsService.fetch_project_mount`, which the workflows service receives at construction (the mounts service already depends on the workflows service) (code `drive_not_found`). Both errors use the agent-facing envelope and map to HTTP 422 in the workflows router, as `InvalidAgentHarnessError` does.
-- [ ] 1.6 Add `["parameters", "agent", "drives"]` and `["parameters", "agent", "has_session_drive"]` to the refused paths of `AGENT_COMMIT_SCOPE` in `api/oss/src/core/workflows/change_set.py`.
-- [ ] 1.7 Fix the docstring of `sign_mount_credentials` that says the credentials expire in minutes.
-- [ ] 1.8 Unit tests: the read-only policy; the sign route (reserved slugs, other projects, missing and archived drives, no creation); the `slugs` filter; the save check (both codes, envelope, every entry rule); the refused commit paths.
+- [x] 1.1 Add a read-only form of the STS session policy in `api/oss/src/core/store/storage.py` (`_scope_policy` with a `read_only` flag: `GetObject`, `GetObjectAttributes`, the bucket metadata actions and the scoped `ListBucket`), and pass it through `sign_temp_credentials` and `MountsService.sign_mount_credentials`.
+- [x] 1.2 Add `MountsService.fetch_project_mount(slug)`: reject reserved slugs, return an active row with no session and no agent, or none. It never creates.
+- [x] 1.3 Add `POST /mounts/projects/sign?slug=&access=` (operation id `sign_project_mount_credentials`) in `api/oss/src/apis/fastapi/mounts/router.py`, registered before `/{mount_id}`, with `USE_MOUNTS`; 404 for a missing or archived drive. `POST /mounts/agents/sign` does not change (the agent drive is always read-write).
+- [x] 1.4 Add an optional `slugs` filter to `MountQuery` and the DAO's `query_mounts`.
+- [x] 1.5 Add the save check in the async body of `commit_workflow_revision` in `api/oss/src/core/workflows/service.py` (not in the pure `_build_revision_commit`): call the SDK's `validate_agent_drives` (code `invalid_drive_entry`), then check that each project slug has an active project mount, through a callable that wraps `MountsService.fetch_project_mount`, set by the composition root with `set_project_mount_lookup` (the mounts service already depends on the workflows service) (code `drive_not_found`). Both errors use the agent-facing envelope and map to HTTP 422 in the workflows router, as `InvalidAgentHarnessError` does.
+- [x] 1.6 Add `["parameters", "agent", "drives"]` and `["parameters", "agent", "has_session_drive"]` to the refused paths of `AGENT_COMMIT_SCOPE` in `api/oss/src/core/workflows/change_set.py`.
+- [x] 1.7 Fix the docstring of `sign_mount_credentials` that says the credentials expire in minutes.
+- [x] 1.8 Unit tests: the read-only policy; the sign route (reserved slugs, other projects, missing and archived drives, no creation); the `slugs` filter; the save check (both codes, envelope, every entry rule); the refused commit paths.
 - [ ] 1.9 Acceptance test in `api/oss/tests/pytest/acceptance/mounts/`: read-only credentials read and list, and fail to put and delete, on the test store. Record whether SeaweedFS honors the policy.
-- [ ] 1.10 Regenerate the Fern client from an EE spec.
+- [x] 1.10 Regenerate the Fern client from an EE spec.
 
 ## 2. SDK and agent service (release 1, first)
 
-- [ ] 2.1 In `sdks/python/agenta/sdk/agents/dtos.py`: the drive entry model `AgentDrive` (`kind`, `slug`, `access`; `access` only on project entries), `validate_agent_drives` (the one owner of the entry rules), `AgentTemplate.drives` and `AgentTemplate.has_session_drive`; parse them in `from_params`; read a configuration without them as `[{ "kind": "agent" }]` and `true`; refuse broken entries with `AgentTemplateShapeError`.
-- [ ] 2.2 Put `drives` (with `access` filled in) and `hasSessionDrive` on the `/run` payload; mirror them in `sdks/python/agenta/sdk/agents/utils/wire.py` and the golden fixtures; update `test_wire_contract.py`.
-- [ ] 2.3 Add both keys to `AgentTemplateSchema` and to `build_agent_v0_default` (so new agents state them) in `sdks/python/agenta/sdk/utils/types.py`, and to `_AGENT_TEMPLATE_KEYS` in `sdks/python/agenta/sdk/middlewares/running/vault.py`.
-- [ ] 2.4 In `sdks/python/agenta/sdk/agents/platform_instructions.py`: allow links to `drives/<slug>/`, and add the variant for an agent without an agent drive.
-- [ ] 2.5 Unit tests for parsing, the read-time default, every entry rule, the wire, the schema, the default template and the vault recognition.
+- [x] 2.1 In `sdks/python/agenta/sdk/agents/dtos.py`: the drive entry model `AgentDrive` (`kind`, `slug`, `access`; `access` only on project entries), `validate_agent_drives` (the one owner of the entry rules), `AgentTemplate.drives` and `AgentTemplate.has_session_drive`; parse them in `from_params`; read a configuration without them as `[{ "kind": "agent" }]` and `true`; refuse broken entries with `AgentTemplateShapeError`.
+- [x] 2.2 Put `drives` (with `access` filled in) and `hasSessionDrive` on the `/run` payload; mirror them in `sdks/python/agenta/sdk/agents/utils/wire.py` and the golden fixtures; update `test_wire_contract.py`.
+- [x] 2.3 Add both keys to `AgentTemplateSchema` and to `build_agent_v0_default` (so new agents state them) in `sdks/python/agenta/sdk/utils/types.py`, and to `_AGENT_TEMPLATE_KEYS` in `sdks/python/agenta/sdk/middlewares/running/vault.py`.
+- [x] 2.4 In `sdks/python/agenta/sdk/agents/platform_instructions.py`: allow links to `drives/<slug>/`, and add the variant for an agent without an agent drive.
+- [x] 2.5 Unit tests for parsing, the read-time default, every entry rule, the wire, the schema, the default template and the vault recognition.
 
 ## 3. Runner (release 1)
 
@@ -55,7 +55,7 @@ Release 1 has four parts. The SDK and agent service part (section 2) fixes the s
 
 - [ ] 5.1 On the local deployment, per backend (`local`, `inprocess`; `daytona` within the rules for cloud sandboxes): two agents read one drive; two agents share a read-write drive and see each other's files after the upload and a cache refresh.
 - [ ] 5.2 Per backend: a write to a read drive fails with a read-only error, from a file tool and from a shell command, and the store holds no change.
-- [ ] 5.3 Per backend: an existing agent saved before the release runs exactly as before; an agent with an empty list has no `agent-files/`; `has_session_drive: false` gives a throwaway folder.
+- [ ] 5.3 Per backend: an existing agent saved before the release runs exactly as before; an agent with an empty list has no `agent-files/`; `has_session_drive: false` gives a throwaway folder on `local` and `daytona`, and the refusal `session_drive_required` on `inprocess`.
 - [ ] 5.4 Saving an agent that names a missing drive answers 422 `drive_not_found`; the agent's own commit tool cannot change `drives`.
 - [ ] 5.5 Measure the cold start with zero, one and three project drives on each backend and record the numbers in this change.
 - [ ] 5.6 Ship release 1 in this order: the API, then the runner, then the agent service. No configuration with the new keys is saved before the agent service runs release 1.

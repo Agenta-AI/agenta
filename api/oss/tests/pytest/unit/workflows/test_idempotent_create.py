@@ -3,6 +3,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.workflows.types import AgentDriveNotFoundError
+
 from oss.src.core.sharing.dtos import (
     OWNERLESS_PROJECT_POLICY,
     AccessPolicy,
@@ -63,6 +65,15 @@ class _MemoryWorkflows:
         self.failed = False
         self.create_access = []
         self.commit_owners = []
+        self.drive_checks = 0
+        self.drive_missing = False
+
+    async def reject_unusable_agent_drives(self, *, project_id, data):
+        self.drive_checks += 1
+        if self.drive_missing:
+            raise AgentDriveNotFoundError(
+                field="drives[0].slug", value="gone", message="m", next_step="n"
+            )
 
     def _maybe_fail(self, stage):
         if self.fail_stage == stage and not self.failed:
@@ -423,3 +434,30 @@ async def test_create_idempotent_passes_the_owner_when_the_create_wrote_no_row()
     )
 
     assert store.commit_owners == [USER_ID, USER_ID]
+
+
+@pytest.mark.asyncio
+async def test_a_completed_create_replays_after_its_drive_is_archived():
+    service, store = _service()
+    first = await service.create_idempotent(**_kwargs())
+    store.drive_missing = True
+    store.drive_checks = 0
+
+    replay = await service.create_idempotent(**_kwargs())
+
+    assert replay.replayed is True
+    assert replay.workflow.revision_id == first.workflow.revision_id
+    assert store.drive_checks == 0
+
+
+@pytest.mark.asyncio
+async def test_a_fresh_create_with_a_missing_drive_writes_nothing():
+    service, store = _service()
+    store.drive_missing = True
+
+    with pytest.raises(AgentDriveNotFoundError):
+        await service.create_idempotent(**_kwargs())
+
+    assert store.artifacts == {}
+    assert store.variants == {}
+    assert store.revisions == {}

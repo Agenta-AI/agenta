@@ -59,6 +59,8 @@ const KNOWN_REQUEST_KEYS = [
   "sandboxPermission",
   "sandboxCredentials",
   "harnessFiles",
+  "drives",
+  "hasSessionDrive",
   "turnId",
   "detached",
   "projectId",
@@ -112,6 +114,22 @@ describe("wire contract: requests (vs Python golden)", () => {
       }
     });
   }
+
+  it("pi_core request: carries the configured drives, access filled in on project entries", () => {
+    const req = loadGolden("run_request.pi_core.json") as AgentRunRequest;
+    assert.deepEqual(req.drives, [
+      { kind: "agent" },
+      { kind: "project", slug: "price-lists", access: "read" },
+      { kind: "project", slug: "team-notes", access: "read-write" },
+    ]);
+    assert.equal(req.hasSessionDrive, true);
+  });
+
+  it("codex request: an empty drive list and no session drive", () => {
+    const req = loadGolden("run_request.codex.json") as AgentRunRequest;
+    assert.deepEqual(req.drives, []);
+    assert.equal(req.hasSessionDrive, false);
+  });
 
   it("attachment request: carries the resource handle and resolved modalities", () => {
     const req = loadGolden("run_request.attachment.json") as AgentRunRequest;

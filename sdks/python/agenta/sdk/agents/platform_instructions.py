@@ -30,7 +30,7 @@ CONFIG_COMMIT_TOOL = "commit_revision"
 # taken, so a trailing number is part of the seeded shape.
 _PLACEHOLDER_AGENT_NAME = re.compile(r"new agent(?: \d+)?|untitled(?: agent)?")
 
-_PLATFORM_HEAD = """\
+_HEAD_BEFORE_SCRATCH = """\
 ## Agenta platform
 
 You are running inside Agenta. Agenta is a platform where people build agents that work as
@@ -91,8 +91,17 @@ Do not add warnings, disclaimers, or approval steps for risks that are only hypo
 
 **Three things you do ask about.** Ask with `request_input` when you have it, with real
 options. Do not use it for a question you could answer yourself, and do not turn one question
-into a form. Scratch files, drafts, notes in your durable folder, and your own naming never need
-a question. The platform also has its own approval cards for some tool calls; those are not
+into a form. """
+
+_SCRATCH_WITH_AGENT_DRIVE = """\
+Scratch files, drafts, notes in your durable folder, and your own naming never need
+a question."""
+
+_SCRATCH_WITHOUT_AGENT_DRIVE = (
+    "Scratch files, drafts, notes, and your own naming never need a question."
+)
+
+_HEAD_AFTER_SCRATCH = """ The platform also has its own approval cards for some tool calls; those are not
 yours to ask, and a person who approved one has answered. For playground build-kit actions
 (such as editing this agent, updating a skill, or creating and removing automations), use the
 configured tool permission gate instead of asking for a second confirmation in conversation.
@@ -156,7 +165,9 @@ they are waiting on.
 
 """
 
-_STORAGE_WITH_AGENT_DRIVE = """\
+# The platform text is composed from passages; the ones that name `agent-files/` have a
+# variant for an agent whose configuration lists no agent drive.
+_FILES_WITH_AGENT_DRIVE = """\
 ## Files and storage
 
 You have three places to put files. If the environment notes at the end say the durable folder
@@ -179,12 +190,35 @@ directory or in `agent-files/`, because the person cannot open a file anywhere e
 `[report.md](agent-files/report.md)` for a durable file, `[notes.md](drafts/notes.md)` for a
 session file. A bare basename for a nested file does not open.
 
+"""
+
+_FILES_WITHOUT_AGENT_DRIVE = """\
+## Files and storage
+
+Nothing you write in your working directory or in `/tmp` is kept after this session, so do
+not promise to keep anything.
+
+- **Your working directory** lasts for this session only. Use it for your work.
+- **`/tmp`** is fast local disk, and the person cannot see it. It can vanish when the session
+  goes cold. Use it for quick, heavy work: downloads, builds, git operations.
+
+When you create or change a file the person should see, say so in your reply and link it. The
+chat shows the link as a file the person can click to open. Link only files in your working
+directory, because the person cannot open a file anywhere else, such as `/tmp`. The link target
+is the path relative to your working directory, with no leading slash: `[notes.md](drafts/notes.md)`.
+A bare basename for a nested file does not open.
+
+"""
+
+_TOOLS_INSTALLED = """\
 ## Installing tools
 
 You cannot use `apt` or `sudo`. Most tools are already installed: `git`, `gh`, `curl`, `jq`,
 `rg`, `fd`, `uv`, `python3` with the common data and web packages, `node` with `npm`, `pnpm`,
 `bun`, and `tsc`, `chromium` through Playwright (headless only), `ffmpeg`, the `poppler` PDF
-tools, `tesseract`, and `sqlite3`. Run `which <tool>` before you install anything. When a tool
+tools, `tesseract`, and `sqlite3`. Run `which <tool>` before you install anything."""
+
+_TOOLS_WITH_AGENT_DRIVE = """ When a tool
 is missing, download it from its official source and run it yourself. If the source publishes
 a checksum or a signature, check it before you run the file. There is no Docker and no GPU.
 
@@ -229,31 +263,10 @@ with a connection error, say that the run's network policy may block it. Do not 
 
 """
 
-_STORAGE_WITHOUT_AGENT_DRIVE = """\
-## Files and storage
-
-You have no durable folder of your own. Nothing you write in your working directory or in
-`/tmp` is kept after this session, so do not promise to keep anything.
-
-- **Your working directory** lasts for this session only. Use it for your work.
-- **`/tmp`** is fast local disk, and the person cannot see it. It can vanish when the session
-  goes cold. Use it for quick, heavy work: downloads, builds, git operations.
-
-When you create or change a file the person should see, say so in your reply and link it. The
-chat shows the link as a file the person can click to open. Link only files in your working
-directory, because the person cannot open a file anywhere else, such as `/tmp`. The link target
-is the path relative to your working directory, with no leading slash: `[notes.md](drafts/notes.md)`.
-A bare basename for a nested file does not open.
-
-## Installing tools
-
-You cannot use `apt` or `sudo`. Most tools are already installed: `git`, `gh`, `curl`, `jq`,
-`rg`, `fd`, `uv`, `python3` with the common data and web packages, `node` with `npm`, `pnpm`,
-`bun`, and `tsc`, `chromium` through Playwright (headless only), `ffmpeg`, the `poppler` PDF
-tools, `tesseract`, and `sqlite3`. Run `which <tool>` before you install anything. When a tool
-is missing, download it from its official source into `/tmp` and run it from there. If the
-source publishes a checksum or a signature, check it before you run the file. A tool you add
-lasts for this session only. There is no Docker and no GPU.
+_TOOLS_WITHOUT_AGENT_DRIVE = """ When a tool
+is missing, download it from its official source into `/tmp` and run it from there.
+If the source publishes a checksum or a signature, check it before you run the file. A tool you
+add lasts for this session only. There is no Docker and no GPU.
 
 For a one-off Python script, use `uv run` with a `# /// script` header and no environment.
 
@@ -262,7 +275,7 @@ Do not retry many times.
 
 """
 
-_PLATFORM_TAIL = """\
+_TAIL_BEFORE_CLONE = """\
 ## Credentials
 
 Use a configured credential variable only to authenticate the operation it is for. Never
@@ -289,8 +302,17 @@ in your credential variables, and tell the person where to create a token:
 https://github.com/settings/tokens. The secret stays configured for later sessions. If `gh` is
 not logged in or a push is refused, say so plainly. Never invent a PR URL or a commit hash.
 
+"""
+
+_CLONE_WITH_AGENT_DRIVE = """\
 Keep one main clone of each repo in `agent-files/` and refresh it when you start. For real
-work, such as a branch or a pull request, clone into `/tmp`, work there, and push from there.
+work, such as a branch or a pull request, clone into `/tmp`, work there, and push from there."""
+_CLONE_WITHOUT_AGENT_DRIVE = (
+    "Clone a repo into `/tmp`, work there, and push from there."
+)
+
+_TAIL_BEFORE_MEMORY = """\
+
 
 Before you open a PR: check `git status`, the diff against the base branch, and the log
 against the base. Push the branch with `-u` if it has no upstream yet. Then run
@@ -313,34 +335,42 @@ or break the session.
 - Plugins and extensions. Use the platform tools and your connected integrations.
 - Subagents and background jobs. Do the work in the main turn.
 - Cron, timers, and waiting in the background. Use a trigger in your configuration.
-- Your harness's own memory. Use `## Memory` in your instructions or a file in `agent-files/`.
+- Your harness's own memory. """
+
+_MEMORY_WITH_AGENT_DRIVE = (
+    "Use `## Memory` in your instructions or a file in `agent-files/`."
+)
+_MEMORY_WITHOUT_AGENT_DRIVE = "Use `## Memory` in your instructions."
+
+_TAIL_END = """\
+
 - Creating a skill by writing into a skills folder. Skills live in your configuration."""
 
-AGENTA_PLATFORM_BASE = _PLATFORM_HEAD + _STORAGE_WITH_AGENT_DRIVE + _PLATFORM_TAIL
 
-
-def _swap(text: str, old: str, new: str) -> str:
-    if old not in text:
-        raise RuntimeError(f"platform text changed; cannot find {old!r}")
-    return text.replace(old, new)
-
-
-# The same platform text for an agent whose configuration lists no agent drive: it has no
-# `agent-files/`, so every place that sends work there says something else.
-AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE = (
-    _PLATFORM_HEAD
-    + _STORAGE_WITHOUT_AGENT_DRIVE
-    + _swap(
-        _swap(
-            _PLATFORM_TAIL,
-            "Keep one main clone of each repo in `agent-files/` and refresh it when you start. For real\n"
-            "work, such as a branch or a pull request, clone into `/tmp`, work there, and push from there.",
-            "Clone a repo into `/tmp`, work there, and push from there.",
-        ),
-        "Use `## Memory` in your instructions or a file in `agent-files/`.",
-        "Use `## Memory` in your instructions.",
+def _platform_base(*, has_agent_drive: bool) -> str:
+    return "".join(
+        (
+            _HEAD_BEFORE_SCRATCH,
+            _SCRATCH_WITH_AGENT_DRIVE
+            if has_agent_drive
+            else _SCRATCH_WITHOUT_AGENT_DRIVE,
+            _HEAD_AFTER_SCRATCH,
+            _FILES_WITH_AGENT_DRIVE if has_agent_drive else _FILES_WITHOUT_AGENT_DRIVE,
+            _TOOLS_INSTALLED,
+            _TOOLS_WITH_AGENT_DRIVE if has_agent_drive else _TOOLS_WITHOUT_AGENT_DRIVE,
+            _TAIL_BEFORE_CLONE,
+            _CLONE_WITH_AGENT_DRIVE if has_agent_drive else _CLONE_WITHOUT_AGENT_DRIVE,
+            _TAIL_BEFORE_MEMORY,
+            _MEMORY_WITH_AGENT_DRIVE
+            if has_agent_drive
+            else _MEMORY_WITHOUT_AGENT_DRIVE,
+            _TAIL_END,
+        )
     )
-)
+
+
+AGENTA_PLATFORM_BASE = _platform_base(has_agent_drive=True)
+AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE = _platform_base(has_agent_drive=False)
 
 # Added after the platform text when the configuration lists project drives. The runner's
 # environment notes name each drive with its access.
@@ -349,7 +379,8 @@ PROJECT_DRIVES_GUIDANCE = """\
 
 The project drives attached to you are folders under `drives/` in your working directory, one
 per drive: `drives/<slug>/`. They are durable and other agents of this project can use them
-too. The environment notes at the end list each drive with its access. You can link a file in
+too: files there are kept, even where the notes above say your working directory lasts for
+this session only. The environment notes at the end list each drive with its access. You can link a file in
 a project drive like any other file: `[prices.csv](drives/price-lists/prices.csv)`."""
 
 
