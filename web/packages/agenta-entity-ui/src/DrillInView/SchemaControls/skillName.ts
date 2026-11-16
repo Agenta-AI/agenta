@@ -5,10 +5,6 @@
  * plain JSON to the backend) and then fails the whole agent run on first invoke, so the checks
  * have to exist here too. Keep the constants in sync with the pydantic field bounds.
  */
-import {createT} from "@agenta/i18n"
-import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
-
-const t = createT(skillFormCatalog)
 
 /** Lowercase alphanumerics joined by single hyphens: the harness uses it as a dir name and `/skill:name`. */
 export const SKILL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
@@ -17,7 +13,7 @@ export const SKILL_DESCRIPTION_MAX = 1024
 export const SKILL_BODY_MAX = 50_000
 
 /** Shown for a non-string value, which pydantic rejects rather than coerces. */
-export const notTextMessage = (): string => t("entityUi.skillTemplate.mustBeText")
+export const NOT_TEXT = "Must be text."
 
 /** Best-effort slug for a human-written name, offered as a one-click fix. */
 export function slugifySkillName(name: string): string {
@@ -37,21 +33,19 @@ export function slugifySkillName(name: string): string {
  * message so a new skill drawer does not open shouting at the user — Save stays blocked either way.
  */
 export function skillNameError(rawName: unknown, {touched = true} = {}): string | undefined {
-    if (rawName === undefined || rawName === null)
-        return touched ? t("entityUi.skillTemplate.required") : undefined
+    if (rawName === undefined || rawName === null) return touched ? "Required." : undefined
     // Rejected, not coerced: `name` is a pydantic `str`, which refuses 123 outright, while
     // String(123) would sail through the slug pattern below.
-    if (typeof rawName !== "string") return notTextMessage()
+    if (typeof rawName !== "string") return NOT_TEXT
     // Checked UNTRIMMED: the form stores what was typed, so trimming here would pass a value the
     // SDK's pattern later rejects.
     const name = rawName
-    if (!name.trim()) return touched ? t("entityUi.skillTemplate.required") : undefined
-    if ([...name].length > SKILL_NAME_MAX)
-        return t("entityUi.skillTemplate.maxCharacters", {max: SKILL_NAME_MAX})
+    if (!name.trim()) return touched ? "Required." : undefined
+    if ([...name].length > SKILL_NAME_MAX) return `Max ${SKILL_NAME_MAX} characters.`
     if (SKILL_NAME_PATTERN.test(name)) return undefined
     // "weather " looks fine, so the generic rule would read like a false positive.
-    if (SKILL_NAME_PATTERN.test(name.trim())) return t("entityUi.skillTemplate.noLeadingTrailingSpaces")
-    return t("entityUi.skillTemplate.lowercaseOnly")
+    if (SKILL_NAME_PATTERN.test(name.trim())) return "No leading or trailing spaces."
+    return "Lowercase, digits and hyphens only."
 }
 
 /** True when `name` is a valid skill slug. */

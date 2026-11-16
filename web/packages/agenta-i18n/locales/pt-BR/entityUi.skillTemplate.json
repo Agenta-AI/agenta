@@ -1,9 +1,4 @@
 {
-    "maxCharacters": "Máximo de {{max}} caracteres.",
-    "mustBeText": "Deve ser texto.",
-    "required": "Obrigatório.",
-    "noLeadingTrailingSpaces": "Sem espaços no início ou no fim.",
-    "lowercaseOnly": "Apenas letras minúsculas, dígitos e hífens.",
     "skillReference": "Referência de habilidade",
     "skill": "Habilidade",
     "remove": "Remover",

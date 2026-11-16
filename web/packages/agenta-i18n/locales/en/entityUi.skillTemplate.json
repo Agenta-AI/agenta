@@ -1,9 +1,4 @@
 {
-    "maxCharacters": "Max {{max}} characters.",
-    "mustBeText": "Must be text.",
-    "required": "Required.",
-    "noLeadingTrailingSpaces": "No leading or trailing spaces.",
-    "lowercaseOnly": "Lowercase, digits and hyphens only.",
     "skillReference": "Skill reference",
     "skill": "Skill",
     "remove": "Remove",

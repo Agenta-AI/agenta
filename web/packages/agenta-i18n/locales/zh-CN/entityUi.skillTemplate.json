@@ -1,9 +1,4 @@
 {
-    "maxCharacters": "最多 {{max}} 个字符。",
-    "mustBeText": "必须是文本。",
-    "required": "必填。",
-    "noLeadingTrailingSpaces": "开头和结尾不能有空格。",
-    "lowercaseOnly": "只能使用小写字母、数字和连字符。",
     "skillReference": "Skill 引用",
     "skill": "Skill",
     "remove": "移除",
