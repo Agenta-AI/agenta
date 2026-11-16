@@ -32,6 +32,10 @@ from agenta.sdk.models.tracing import (  # noqa: F401
     AgSessionAttributes,
     AgTurnAttributes,
     AgUserAttributes,
+    AnnotationScope,
+    AnnotationPartyType,
+    AgAnnotationPartyAttributes,
+    AgAnnotationAttributes,
     AgAttributes,
     OTelStatusCode,
     OTelSpanKind,
@@ -338,7 +342,7 @@ class SimpleTrace(Link, Lifecycle):
     links: SimpleTraceLinks
 
 
-class SimpleTraceCreate(BaseModel):
+class SimpleTraceCreateBase(BaseModel):
     origin: SimpleTraceOrigin = SimpleTraceOrigin.CUSTOM
     kind: SimpleTraceKind = SimpleTraceKind.ADHOC
     channel: SimpleTraceChannel = SimpleTraceChannel.API
@@ -350,6 +354,14 @@ class SimpleTraceCreate(BaseModel):
 
     references: SimpleTraceReferences
     links: SimpleTraceLinks
+
+
+class SimpleTraceCreate(SimpleTraceCreateBase):
+    # What the annotation judges. `turn_id` is the session turn's id, the value of
+    # `ag.turn.id` on its spans; the platform prefers the stored subject span's own values.
+    scope: Optional[AnnotationScope] = None
+    session_id: Optional[str] = None
+    turn_id: Optional[str] = None
 
 
 class SimpleTraceEdit(BaseModel):

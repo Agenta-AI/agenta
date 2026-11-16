@@ -46,8 +46,9 @@ def build_simple_trace_attributes(
     meta: Optional[Meta],
     data: Data,
     references: Mapping[str, Any],
+    general: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    return parse_into_attributes(
+    attributes = parse_into_attributes(
         type={"span": "task"},
         flags=dict(flags) if flags else None,
         tags=tags,
@@ -55,6 +56,9 @@ def build_simple_trace_attributes(
         data=data,
         references=dict(references),
     )
+    if general:
+        attributes["ag"].update(general)
+    return attributes
 
 
 def build_otel_links(links: Optional[SimpleTraceLinks]) -> Optional[OTelLinks]:
@@ -74,13 +78,18 @@ def build_otel_links(links: Optional[SimpleTraceLinks]) -> Optional[OTelLinks]:
             OTelLink(
                 trace_id=link.trace_id,
                 span_id=link.span_id,
-                attributes={"key": "key"},  # type: ignore
+                attributes={"key": link_role(link) or "key"},  # type: ignore
             )
             for link in links
             if link.trace_id and link.span_id
         ]
 
     return None
+
+
+def link_role(link: Link) -> Optional[str]:
+    role = link.attributes.get("key") if isinstance(link.attributes, dict) else None
+    return str(role) if role else None
 
 
 def first_link(links: Optional[OTelLinks]) -> Optional[Link]:

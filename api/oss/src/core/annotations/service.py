@@ -27,6 +27,7 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorData,
 )
 from oss.src.core.tracing.utils.traces import (
+    ParsedSimpleTrace,
     build_otel_links,
     build_simple_trace_attributes,
     build_simple_trace_query,
@@ -52,6 +53,11 @@ from oss.src.core.annotations.types import (
 )
 
 from oss.src.core.annotations.utils import validate_data_against_schema
+from oss.src.core.annotations.context import (
+    AnnotationContext,
+    AnnotationContextService,
+    kept_on_edit,
+)
 
 
 log = get_module_logger(__name__)
@@ -66,10 +72,12 @@ class AnnotationsService:
         evaluators_service: EvaluatorsService,
         simple_evaluators_service: SimpleEvaluatorsService,
         tracing_service: TracingService,
+        annotation_context_service: Optional[AnnotationContextService] = None,
     ):
         self.evaluators_service = evaluators_service
         self.simple_evaluators_service = simple_evaluators_service
         self.tracing_service = tracing_service
+        self.annotation_context_service = annotation_context_service
 
     async def create(
         self,
@@ -179,6 +187,20 @@ class AnnotationsService:
             **reference_dict,
         )
 
+        context = (
+            await self.annotation_context_service.build(
+                project_id=project_id,
+                user_id=user_id,
+                scope=annotation_create.scope,
+                session_id=annotation_create.session_id,
+                turn_id=annotation_create.turn_id,
+                links=annotation_create.links,
+                references=annotation_references,
+            )
+            if self.annotation_context_service
+            else AnnotationContext(links=annotation_create.links)
+        )
+
         annotation_link = await self._create_annotation(
             organization_id=organization_id,
             project_id=project_id,
@@ -193,7 +215,10 @@ class AnnotationsService:
             data=annotation_create.data,
             #
             references=annotation_references,
-            links=annotation_create.links,
+            links=context.links,
+            #
+            general=context.to_attributes(),
+            agent_references=context.agent_references,
         )
 
         if annotation_link is None:
@@ -279,15 +304,15 @@ class AnnotationsService:
             span_id=span_id,
         )
 
-        annotation: Optional[Annotation] = await self._fetch_annotation(
+        parsed_trace = await self._fetch_parsed_trace(
             project_id=project_id,
-            user_id=user_id,
-            #
             annotation_link=annotation_link,
         )
 
-        if annotation is None:
+        if parsed_trace is None:
             return None
+
+        annotation = self._build_annotation(parsed_trace)
 
         simple_evaluator_slug = (
             annotation.references.evaluator.slug
@@ -394,6 +419,7 @@ class AnnotationsService:
             user_id=user_id,
             #
             annotation=annotation,
+            stored_attributes=parsed_trace.span.attributes,
             #
             flags=annotation_flags,
             tags=annotation_edit.tags,
@@ -553,6 +579,9 @@ class AnnotationsService:
         #
         references: AnnotationReferences,
         links: AnnotationLinks,
+        #
+        general: Dict[str, Any],
+        agent_references: Dict[str, Dict[str, Any]],
     ) -> Optional[Link]:
         trace_id = uuid4().hex
         span_id = uuid4().hex[16:]
@@ -564,6 +593,7 @@ class AnnotationsService:
             exclude_none=True,
             exclude_unset=True,
         )
+        _references.update(agent_references)
 
         _links = build_otel_links(links)
 
@@ -575,6 +605,7 @@ class AnnotationsService:
             meta=meta,
             data=data,
             references=_references,
+            general=general,
         )
 
         links = await self.tracing_service.create_trace(
@@ -605,6 +636,21 @@ class AnnotationsService:
         #
         annotation_link: Link,
     ) -> Optional[Annotation]:
+        parsed_trace = await self._fetch_parsed_trace(
+            project_id=project_id,
+            annotation_link=annotation_link,
+        )
+        if parsed_trace is None:
+            return None
+
+        return self._build_annotation(parsed_trace)
+
+    async def _fetch_parsed_trace(
+        self,
+        *,
+        project_id: UUID,
+        annotation_link: Link,
+    ) -> Optional[ParsedSimpleTrace]:
         if not annotation_link.trace_id:
             return None
 
@@ -613,10 +659,10 @@ class AnnotationsService:
             trace_id=annotation_link.trace_id,
         )
 
-        parsed_trace = parse_simple_trace(trace)
-        if parsed_trace is None:
-            return None
+        return parse_simple_trace(trace)
 
+    @staticmethod
+    def _build_annotation(parsed_trace: ParsedSimpleTrace) -> Annotation:
         _references = AnnotationReferences(
             **parsed_trace.references,
         )
@@ -691,6 +737,7 @@ class AnnotationsService:
         user_id: UUID,
         #
         annotation: Annotation,
+        stored_attributes: Optional[Dict[str, Any]],
         #
         flags: AnnotationFlags,
         tags: Optional[Tags] = None,
@@ -709,6 +756,10 @@ class AnnotationsService:
             exclude_none=True,
             exclude_unset=True,
         )
+        general, _references = kept_on_edit(
+            stored_attributes=stored_attributes,
+            references=_references,
+        )
 
         _links = build_otel_links(links)
 
@@ -720,6 +771,7 @@ class AnnotationsService:
             meta=meta,
             data=data,
             references=_references,
+            general=general,
         )
 
         links = await self.tracing_service.edit_trace(

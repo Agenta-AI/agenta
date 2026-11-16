@@ -208,3 +208,35 @@ def test_build_simple_trace_filtering_contains_expected_conditions_and_query_wra
     assert query.formatting.focus == Focus.TRACE
     assert query.formatting.format == Format.AGENTA
     assert query.windowing == windowing
+
+
+def test_build_otel_links_keeps_list_roles_and_repeated_roles():
+    links = [
+        Link(trace_id=TRACE_UUID, span_id=SPAN_UUID, attributes={"key": "evidence"}),
+        Link(trace_id=TRACE_UUID, span_id=SPAN_UUID, attributes={"key": "evidence"}),
+        Link(trace_id=TRACE_UUID, span_id=SPAN_UUID, attributes={"key": "subject"}),
+        Link(trace_id=TRACE_UUID, span_id=SPAN_UUID),
+    ]
+
+    out = build_otel_links(links)
+
+    assert [link.attributes["key"] for link in out] == [
+        "evidence",
+        "evidence",
+        "subject",
+        "key",
+    ]
+
+
+def test_build_simple_trace_attributes_adds_general_fields_only_when_given():
+    base = dict(flags=None, tags=None, meta=None, data={"outputs": 1}, references={})
+
+    assert "annotation" not in build_simple_trace_attributes(**base)["ag"]
+
+    attributes = build_simple_trace_attributes(
+        **base,
+        general={"session": {"id": "s-40"}, "annotation": {"scope": "span"}},
+    )
+    assert attributes["ag"]["session"] == {"id": "s-40"}
+    assert attributes["ag"]["annotation"] == {"scope": "span"}
+    assert attributes["ag"]["data"] == {"outputs": 1}

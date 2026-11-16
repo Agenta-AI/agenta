@@ -42,8 +42,11 @@ async def test_edit_returns_updated_references_and_links():
         simple_evaluators_service=AsyncMock(),
         tracing_service=AsyncMock(),
     )
-    service._fetch_annotation = AsyncMock(
-        return_value=Annotation(
+    service._fetch_parsed_trace = AsyncMock(
+        return_value=SimpleNamespace(span=SimpleNamespace(attributes={}))
+    )
+    service._build_annotation = lambda parsed_trace: (
+        Annotation(
             trace_id="old-trace",
             span_id="old-span",
             created_at=datetime.now(timezone.utc),

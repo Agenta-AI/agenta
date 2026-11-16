@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -25,8 +26,8 @@ async def test_edit_uses_incoming_references_and_links():
     ]
 
     service = SimpleTracesService(tracing_service=tracing_service)
-    service.fetch = AsyncMock(
-        return_value=SimpleTrace(
+    service._build_from_parsed = lambda parsed: (
+        SimpleTrace(
             trace_id="old-trace",
             span_id="old-span",
             created_at=datetime.now(timezone.utc),
@@ -45,10 +46,16 @@ async def test_edit_uses_incoming_references_and_links():
         links={"scope": Link(trace_id="scope-trace", span_id="scope-span")},
     )
 
-    with patch(
-        "oss.src.core.tracing.service.build_simple_trace_attributes",
-        return_value={"ag": {}},
-    ) as build_attributes:
+    with (
+        patch(
+            "oss.src.core.tracing.service.parse_simple_trace",
+            return_value=SimpleNamespace(span=SimpleNamespace(attributes={})),
+        ),
+        patch(
+            "oss.src.core.tracing.service.build_simple_trace_attributes",
+            return_value={"ag": {}},
+        ) as build_attributes,
+    ):
         result = await service.edit(
             organization_id=uuid4(),
             project_id=uuid4(),

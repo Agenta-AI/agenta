@@ -99,6 +99,35 @@ class AgUserAttributes(BaseModel):
     model_config = {"ser_json_exclude_none": True}
 
 
+class AnnotationScope(str, Enum):
+    SPAN = "span"
+    TRACE = "trace"
+    TURN = "turn"
+    SESSION = "session"
+
+
+class AnnotationPartyType(str, Enum):
+    PERSON = "person"
+    END_USER = "end_user"
+    AGENT_RUN = "agent_run"
+    PLATFORM = "platform"
+
+
+class AgAnnotationPartyAttributes(BaseModel):
+    type: AnnotationPartyType
+    user_id: Optional[str] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AgAnnotationAttributes(BaseModel):
+    scope: Optional[AnnotationScope] = None
+    author: Optional[AgAnnotationPartyAttributes] = None
+    actor: Optional[AgAnnotationPartyAttributes] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
 class AgAttributes(BaseModel):
     type: AgTypeAttributes = Field(default_factory=AgTypeAttributes)
     data: AgDataAttributes = Field(default_factory=AgDataAttributes)
@@ -106,6 +135,7 @@ class AgAttributes(BaseModel):
     session: Optional[AgSessionAttributes] = None
     turn: Optional[AgTurnAttributes] = None
     user: Optional[AgUserAttributes] = None
+    annotation: Optional[AgAnnotationAttributes] = None
 
     metrics: Optional[AgMetricsAttributes] = None
     flags: Optional[Flags] = None
