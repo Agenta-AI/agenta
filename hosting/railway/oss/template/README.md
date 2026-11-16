@@ -166,6 +166,13 @@ declares `RAILWAY_RUN_UID/GID` on redis and
 | Missing volume | reported | `volumeCreate` (check-then-act) |
 | **Extra service / extra volume** | reported | **never deleted** — destructive; remove manually via a documented PR, then re-run |
 
+Removing the `web` service (the retired desktop app): after `apply.sh` converges
+the template, the drift report keeps `DRIFT service-extra service=web` and the
+drift workflow (47) fails until the service is gone. Delete `web` from the
+template environment by hand once no open PR still needs it. A PR branched
+before the removal lists `web` in `APP_SERVICES` of its own
+`preview-clone-create.sh`, so its preview fails on the missing service.
+
 Apply changes **configuration only**; it never triggers deployments (template
 deployments are irrelevant to clones — clones copy config, not deployments).
 

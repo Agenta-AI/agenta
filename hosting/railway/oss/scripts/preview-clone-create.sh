@@ -335,7 +335,7 @@ required_missing_services() {
 #
 # Checks every REQUIRED service by name rather than counting instances. A count
 # is unsound once the set has an optional member: a converged clone that has
-# an optional service plus 11 of its 12 required services also totals 12, so a count
+# an optional service plus 12 of its 13 required services also totals 13, so a count
 # check would return while a required service was still missing and the deploy
 # loop would fail instead of waiting.
 wait_clone_populated() {

@@ -20,7 +20,7 @@ The multi-organization release flips OSS from invite-only to open signup. If you
 
 The release after 0.128.13 removes the `web` service (image `agenta-web`), the old desktop web app. The `web-mobile` service (image `agenta-web-mobile`) is now the only web app. It answers every path that the API and services do not: `/` redirects to `/m`, and old desktop links (`/w/...`, `/auth/...`, links in emails and in traces logged by older SDKs) redirect to the matching `/m` page. The API, workers, services, runner and databases do not change.
 
-If you deploy with the compose files, Helm chart or Railway scripts from this repository, and every image runs the same tag, upgrade as usual. Read on only for the deployment you run.
+If you deploy with the compose files or the Helm chart from this repository, and every image runs the same tag, upgrade as usual. On Railway, upgrade with `deploy-from-images.sh`. Read on only for the deployment you run.
 
 ### Docker Compose
 
@@ -55,6 +55,8 @@ export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:<new-tag>"
 
 ./hosting/railway/oss/scripts/deploy-from-images.sh
 ```
+
+`upgrade.sh` does not deploy `web-mobile`, so it leaves the old image in place and its smoke check fails on `/`. Use `deploy-from-images.sh`.
 
 The gateway now sends `/` to `web-mobile`. The scripts do not delete the `web` service. It keeps running with no route to it. Delete it in the Railway project when you no longer need to roll back.
 
