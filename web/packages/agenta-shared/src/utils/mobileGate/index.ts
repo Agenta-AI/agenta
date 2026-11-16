@@ -88,9 +88,6 @@ const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
 
 const AUTH_RE = /^\/auth(\/|$)/
 
-/** The `/m` screen that accepts an invite; the invite itself waits in browser storage. */
-const INVITE_ROUTE_RE = /^\/invite\/?$/
-
 /** An emailed invite: `/auth` with a one-time token and its organization. A reset link has neither the path nor the organization. */
 export function isInviteLink(pathname: string, search: string): boolean {
     if (!/^\/auth\/?$/.test(pathname)) return false
@@ -590,44 +587,19 @@ export function decideDesktopGate(input: GateInput): GateDecision {
 }
 
 /**
- * Reverse direction: runs in the MOBILE app. Sees only /m traffic behind Traefik.
- *
- * It never looks at the device: a desktop browser may open /m. It only returns a user who
- * turned Classic mode on to the desktop app.
+ * Runs in the MOBILE app. It never sends anyone to the desktop: it only answers the desktop's
+ * "Open mobile version" link (`?view=mobile`) by setting the opt-in cookie.
  */
 export function decideMobileGate(input: GateInput): GateDecision {
     try {
         if (!isDocumentNavigation(input)) return {kind: "pass"}
-
-        // Escape hatch: "Open mobile version" links carry ?view=mobile.
-        if (new URLSearchParams(input.search).get(VIEW_PARAM) === "mobile") {
-            return {
-                kind: "set-cookie-redirect",
-                cookie: MOBILE_OPTIN_COOKIE,
-                clearCookie: MOBILE_OPTOUT_COOKIE,
-                location: stripViewParam(input.pathname, input.search),
-            }
+        if (new URLSearchParams(input.search).get(VIEW_PARAM) !== "mobile") return {kind: "pass"}
+        return {
+            kind: "set-cookie-redirect",
+            cookie: MOBILE_OPTIN_COOKIE,
+            clearCookie: MOBILE_OPTOUT_COOKIE,
+            location: stripViewParam(input.pathname, input.search),
         }
-
-        // An OAuth landing completes wherever it lands — bouncing it drops the
-        // one-time code and strands the flow.
-        if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
-        // Same for an invite or a reset link: the desktop route for either would drop the token.
-        if (
-            INVITE_ROUTE_RE.test(input.pathname) ||
-            isInviteLink(input.pathname, input.search) ||
-            RESET_PASSWORD_ROUTE_RE.test(input.pathname)
-        ) {
-            return {kind: "pass"}
-        }
-        if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
-
-        // The desktop gate ranks Classic mode above the device heuristic (`wantsClassic`), so a
-        // user who asked for the full app is returned to it, phone included.
-        if (input.cookie(CLASSIC_MODE_COOKIE) === "1") {
-            return {kind: "redirect", location: mapMobileToDesktop(input.pathname, input.search)}
-        }
-        return {kind: "pass"}
     } catch {
         return {kind: "pass"}
     }

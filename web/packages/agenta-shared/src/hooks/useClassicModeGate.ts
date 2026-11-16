@@ -9,7 +9,6 @@ import {useAtomValue} from "jotai"
 
 import {
     advancedNavHiddenAtom,
-    betaDeveloperModeActiveAtom,
     betaDeveloperModeFlagAtom,
     readSettledAdvancedNavHidden,
     readSettledBetaDeveloperModeCookie,
@@ -146,9 +145,9 @@ export const useClassicModeRedirect = (
 ) => {
     const userId = useAtomValue(activeUserIdAtom)
     const advancedNavHidden = useSettledAdvancedNavHidden()
-    // Reads false until storage hydrates, never true by mistake: it needs the stored beta switch,
-    // and a user with that switch belongs in `/m` whether Developer Mode is on or off.
-    const betaDeveloperModeActive = useAtomValue(betaDeveloperModeActiveAtom)
+    // The desktop keeps the old rule until it is deleted: only the beta switch sends Developer Mode to `/m`.
+    const betaDeveloperModeActive =
+        useAtomValue(betaDeveloperModeFlagAtom) && advancedNavHidden === false
 
     useEffect(() => {
         if (!enabled || typeof window === "undefined") return

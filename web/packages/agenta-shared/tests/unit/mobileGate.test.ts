@@ -667,6 +667,11 @@ describe("decideDesktopGate — signed-out desktop visitor", () => {
 })
 
 describe("decideMobileGate", () => {
+    const cookiesOf =
+        (jar: Record<string, string>): GateInput["cookie"] =>
+        (name) =>
+            jar[name]
+
     it("lets a desktop browser stay on /m", () => {
         expect(
             decideMobileGate(
@@ -717,23 +722,15 @@ describe("decideMobileGate", () => {
         })
     })
 
-    it("bounces a Classic-mode-ON user out of /m, phone included", () => {
-        // The switch says "full desktop app", so it outranks the device heuristic here exactly
-        // as `wantsClassic` does on the desktop half.
-        const i = input({
-            pathname: "/w/ws1/p/pr1/sessions/abc",
-            headers: docHeaders(MOBILE_UA),
-        })
-        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
-        expect(decideMobileGate(i)).toEqual({
-            kind: "redirect",
-            location: "/w/ws1/p/pr1/observability?session=abc",
-        })
-
-        // And the desktop half must keep them there, or the two gates loop.
-        expect(decideDesktopGate({...i, pathname: "/w/ws1/p/pr1/observability"})).toEqual({
-            kind: "pass",
-        })
+    it("never sends a Classic-mode-ON user to the desktop, on any page or device", () => {
+        const classic = cookiesOf({[CLASSIC_MODE_COOKIE]: "1"})
+        for (const ua of [DESKTOP_UA, MOBILE_UA]) {
+            for (const pathname of ["/", "/w", "/w/ws1/p/pr1/sessions/abc", "/w/ws1/p/pr1/apps"]) {
+                expect(
+                    decideMobileGate(input({pathname, headers: docHeaders(ua), cookie: classic})),
+                ).toEqual({kind: "pass"})
+            }
+        }
     })
 
     it("keeps a Classic-mode-ON user on /m when they opted in", () => {
@@ -866,10 +863,8 @@ describe("invite links", () => {
         expect(decideMobileGate(input({pathname: "/invite", headers, cookie: classic}))).toEqual({
             kind: "pass",
         })
-        // A plain sign-in visit still follows the preference.
         expect(decideMobileGate(input({pathname: "/auth", headers, cookie: classic}))).toEqual({
-            kind: "redirect",
-            location: "/auth",
+            kind: "pass",
         })
     })
 })

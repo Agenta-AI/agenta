@@ -242,10 +242,8 @@ describe("Test set page", () => {
             )
 
         const setDeveloperMode = (on: boolean) => {
-            vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
-            localStorage.setItem("agenta:settings:u1:beta-developer-mode", JSON.stringify(on))
             store.set(activeUserIdAtom, "u1")
-            store.set(navSimplifiedOverrideAtom, false)
+            store.set(navSimplifiedOverrideAtom, !on)
         }
 
         beforeEach(() => {

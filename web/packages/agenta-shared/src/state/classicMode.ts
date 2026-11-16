@@ -256,10 +256,7 @@ export const classicModeEnabledAtom = atom(
     },
 )
 
-/**
- * Developer Mode on, and the user chose to keep it in `/m`. The gate cookie then says "0" (see
- * {@link readSettledClassicModeCookie}), so neither app sends the user to `/w`.
- */
+/** Developer Mode on for a known user: `/m` shows its developer views. Beta plays no part. */
 export const betaDeveloperModeActiveAtom = atom(
-    (get) => get(classicModeEnabledAtom) && get(betaDeveloperModeFlagAtom),
+    (get) => Boolean(get(activeUserIdAtom)) && get(classicModeEnabledAtom),
 )

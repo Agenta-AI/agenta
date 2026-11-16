@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act, createElement} from "react"
 
-import {activeUserIdAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, navSimplifiedOverrideAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -111,6 +111,8 @@ beforeEach(() => {
     client = new QueryClient()
     vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "testsets,variants")
     store.set(activeUserIdAtom, "user-1")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
 })
 
 afterEach(() => {

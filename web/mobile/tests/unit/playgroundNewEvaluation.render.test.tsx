@@ -7,7 +7,12 @@ import {act} from "react"
 
 import {createLocalDraftFromWorkflowRevision} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
-import {activeUserIdAtom, projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {
+    activeUserIdAtom,
+    navSimplifiedOverrideAtom,
+    projectIdAtom,
+    sessionAtom,
+} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -176,6 +181,8 @@ beforeEach(() => {
     store.set(sessionAtom, true)
     // A new user each test: the enabled views are read again for a new user only.
     store.set(activeUserIdAtom, `user-${projectId}`)
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     router.replace.mockResolvedValue(true)
     host = document.createElement("div")
     document.body.append(host)

@@ -5,7 +5,12 @@
 import {act} from "react"
 
 import type {AnnotationDto} from "@agenta/entities/annotation/dto"
-import {activeUserIdAtom, projectIdAtom, userAtom} from "@agenta/shared/state"
+import {
+    activeUserIdAtom,
+    navSimplifiedOverrideAtom,
+    projectIdAtom,
+    userAtom,
+} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -170,6 +175,8 @@ beforeEach(() => {
     // As `ContextSync` sets it: the profile, and its login `uid` (not the `id`) as active id.
     store.set(userAtom, {id: ALEX, uid: "login-alex", username: "alex", email: "alex@example.com"})
     store.set(activeUserIdAtom, "login-alex")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)

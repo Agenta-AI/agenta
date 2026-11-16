@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import {activeUserIdAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {
+    activeUserIdAtom,
+    navSimplifiedOverrideAtom,
+    playgroundInspectorEnabledAtom,
+} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {flushSync} from "react-dom"
 import {createRoot, type Root} from "react-dom/client"
@@ -51,6 +55,8 @@ afterEach(() => {
 const renderButton = (enabled: boolean) => {
     const store = createStore()
     store.set(activeUserIdAtom, "qa-user")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     store.set(playgroundInspectorEnabledAtom, enabled)
     host = document.createElement("div")
     document.body.append(host)

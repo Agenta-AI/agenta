@@ -53,18 +53,11 @@ describe("mobile reverse gate proxy", () => {
         expect(proxy(req("/m/", doc(MOBILE_UA))).headers.get("location")).toBeNull()
     })
 
-    it("returns a Classic-mode-on user to the desktop equivalent, phone included", () => {
-        // Unit tests hit the handler without the Next server, so the /m basePath is still
-        // present in nextUrl; the proxy strips it defensively.
+    it("never sends a Classic-mode-on user to the desktop, phone included", () => {
         for (const ua of [DESKTOP_UA, MOBILE_UA]) {
-            const res = proxy(req("/m/w/ws1/p/pr1/sessions/abc", doc(ua, CLASSIC_ON)))
-            expect(res.status).toBe(307)
-            expect(res.headers.get("location")).toBe(
-                "http://localhost:3000/w/ws1/p/pr1/observability?session=abc",
-            )
-            expect(proxy(req("/m", doc(ua, CLASSIC_ON))).headers.get("location")).toBe(
-                "http://localhost:3000/w",
-            )
+            for (const path of ["/m", "/m/", "/m/auth", "/m/w/ws1/p/pr1/sessions/abc"]) {
+                expect(proxy(req(path, doc(ua, CLASSIC_ON))).headers.get("location")).toBeNull()
+            }
         }
     })
 
@@ -79,9 +72,7 @@ describe("mobile reverse gate proxy", () => {
         for (const value of ["false", "true"]) {
             for (const key of RETIRED_KEYS) process.env[key] = value
             expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBeNull()
-            expect(proxy(req("/m", doc(DESKTOP_UA, CLASSIC_ON))).headers.get("location")).toBe(
-                "http://localhost:3000/w",
-            )
+            expect(proxy(req("/m", doc(DESKTOP_UA, CLASSIC_ON))).headers.get("location")).toBeNull()
         }
     })
 
@@ -142,7 +133,7 @@ describe("legacy desktop URLs at /legacy", () => {
     })
 
     it("sends an unknown path to the /m root and logs the path without the query", () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
         try {
             const res = legacy("/no/such/page?token=secret")
             expect(res.status).toBe(307)
@@ -156,7 +147,7 @@ describe("legacy desktop URLs at /legacy", () => {
     })
 
     it("does not log a path it maps", () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
         try {
             legacy("/w/ws1/p/pr1/agents")
             expect(warn).not.toHaveBeenCalled()
@@ -166,36 +157,8 @@ describe("legacy desktop URLs at /legacy", () => {
     })
 })
 
-describe("mobile reverse gate proxy at /__gate", () => {
-    const gate = (to: string) => `/m/__gate?to=${encodeURIComponent(to)}`
-
-    it("matches entry routes only, so client navigations skip the middleware", () => {
-        expect(config.matcher).toEqual(["/", "/auth/:path*", "/invite", "/__gate", "/legacy/:path*"])
-    })
-
-    it("returns a Classic-mode-on user to the desktop equivalent of the page", () => {
-        const res = proxy(req(gate("/w/ws1/p/pr1/sessions/abc"), doc(DESKTOP_UA, CLASSIC_ON)))
-        expect(res.status).toBe(307)
-        expect(res.headers.get("location")).toBe(
-            "http://localhost:3000/w/ws1/p/pr1/observability?session=abc",
-        )
-    })
-
-    it("?view=mobile sets the opt-in cookie and returns to the page without the param", () => {
-        const res = proxy(req(gate("/w/ws1/p/pr1/apps?view=mobile&x=1"), doc(DESKTOP_UA)))
-        expect(res.headers.get("location")).toBe("http://localhost:3000/m/w/ws1/p/pr1/apps?x=1")
-        expect(res.headers.get("set-cookie") ?? "").toContain("agenta-mobile-optin=1")
-    })
-
-    it("returns to the page when the gate lets it through", () => {
-        const res = proxy(req(gate("/w/ws1/p/pr1/apps?x=1"), doc(DESKTOP_UA)))
-        expect(res.headers.get("location")).toBe("http://localhost:3000/m/w/ws1/p/pr1/apps?x=1")
-    })
-
-    it("never redirects off-site", () => {
-        for (const to of ["//evil.example/x", "https://evil.example/x"]) {
-            const location = proxy(req(gate(to), doc(DESKTOP_UA))).headers.get("location")
-            expect(new URL(location ?? "").origin).toBe("http://localhost:3000")
-        }
+describe("proxy matcher", () => {
+    it("matches entry routes and legacy URLs only, so client navigations skip the proxy", () => {
+        expect(config.matcher).toEqual(["/", "/auth/:path*", "/invite", "/legacy/:path*"])
     })
 })

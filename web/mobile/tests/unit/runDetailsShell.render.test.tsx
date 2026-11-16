@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import {act, createElement, type ReactNode} from "react"
 
-import {activeUserIdAtom, projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {
+    activeUserIdAtom,
+    navSimplifiedOverrideAtom,
+    projectIdAtom,
+    sessionAtom,
+} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, getDefaultStore, Provider} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -155,6 +160,8 @@ beforeEach(() => {
     document.body.appendChild(host)
     root = createRoot(host)
     store.set(activeUserIdAtom, "user-1")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     store.set(projectIdAtom, "pr")
     Object.values(http).forEach((fn) => fn.mockReset())
     router.replace.mockReset()
@@ -336,6 +343,7 @@ describe("run details page", () => {
         // A fresh store: the default one keeps the views it read with the env override on.
         const fresh = createStore()
         fresh.set(activeUserIdAtom, "user-1")
+        fresh.set(navSimplifiedOverrideAtom, true)
         await mount(fresh)
         expect(host.querySelector('[data-testid="not-found"]')).not.toBeNull()
         expect(http.post).not.toHaveBeenCalled()

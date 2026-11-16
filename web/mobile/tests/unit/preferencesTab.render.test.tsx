@@ -10,11 +10,6 @@ import {PreferencesTab} from "@/features/settings/PreferencesTab"
 
 const assign = vi.fn()
 
-vi.mock("@agenta/shared/hooks", () => ({
-    desktopEscapeHref: () => "/w",
-    writeClassicModeCookie: vi.fn(),
-}))
-
 vi.mock("@agenta/ui/theme", async (importOriginal) => ({
     ...(await importOriginal<object>()),
     useThemeMode: () => ({themeMode: "light", setMode: () => undefined}),
@@ -103,12 +98,17 @@ describe("mobile Preferences tab", () => {
         expect(host.textContent).not.toMatch(/Experiments|Classic mode|\bBETA\b|\bDEBUG\b/)
     })
 
-    it("turning Developer Mode on stores the classic-mode choice and leaves for the desktop", () => {
+    it("turning Developer Mode on stores the choice and stays in /m", () => {
         const developerMode = host.querySelector<HTMLButtonElement>(
             '[role=switch][aria-label="Developer Mode"]',
         )!
         act(() => developerMode.click())
         expect(localStorage.getItem("agenta:onboarding:u1:nav-simplified-override")).toBe("false")
-        expect(assign).toHaveBeenCalledWith("/w")
+        expect(assign).not.toHaveBeenCalled()
+        // Every developer view is on now, so no preview switch is left.
+        const rows = Array.from(
+            host.querySelectorAll('[data-section="feature-flags"] [role=switch]'),
+        ).map((s) => s.getAttribute("aria-label"))
+        expect(rows).toEqual(["Developer Mode"])
     })
 })

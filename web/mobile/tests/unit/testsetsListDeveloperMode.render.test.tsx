@@ -147,11 +147,9 @@ describe("Testsets list in beta developer mode", () => {
     }
 
     const mount = async (developerMode: boolean) => {
-        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
-        localStorage.setItem("agenta:settings:u1:beta-developer-mode", JSON.stringify(true))
         const store = createStore()
         store.set(activeUserIdAtom, "u1")
-        // Developer Mode is on with beta, or off: beta developer mode needs both.
+        // Developer Mode alone turns the developer views on.
         store.set(navSimplifiedOverrideAtom, !developerMode)
         const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
         await act(async () =>

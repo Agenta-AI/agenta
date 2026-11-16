@@ -195,11 +195,12 @@ describe("the beta flag atoms", () => {
         return {store, userId}
     }
 
-    it("read off when the deployment does not offer beta developer mode", () => {
+    it("read the switch off when the deployment does not offer beta developer mode", () => {
         setRuntimeEnv(undefined)
         const {store} = signInWithBetaStored()
         expect(store.get(betaDeveloperModeFlagAtom)).toBe(false)
-        expect(store.get(betaDeveloperModeActiveAtom)).toBe(false)
+        // Developer Mode is on, so the developer views still show.
+        expect(store.get(betaDeveloperModeActiveAtom)).toBe(true)
     })
 
     it("read the stored switch when the deployment offers it", () => {
@@ -214,5 +215,28 @@ describe("the beta flag atoms", () => {
         const {store, userId} = signInWithBetaStored()
         store.set(betaDeveloperModeFlagAtom, false)
         expect(localStorage.getItem(`agenta:settings:${userId}:beta-developer-mode`)).toBe("false")
+    })
+})
+
+describe("betaDeveloperModeActiveAtom", () => {
+    it("Developer Mode alone turns on the developer views", () => {
+        setRuntimeEnv(undefined)
+        const userId = "developer-mode-only"
+        localStorage.setItem(`agenta:settings:${userId}:beta-developer-mode`, "false")
+        const store = createStore()
+        store.set(activeUserIdAtom, userId)
+        store.sub(betaDeveloperModeActiveAtom, () => undefined)
+
+        store.set(navSimplifiedOverrideAtom, false)
+        expect(store.get(betaDeveloperModeFlagAtom)).toBe(false)
+        expect(store.get(betaDeveloperModeActiveAtom)).toBe(true)
+
+        store.set(navSimplifiedOverrideAtom, true)
+        expect(store.get(betaDeveloperModeActiveAtom)).toBe(false)
+    })
+
+    it("stays off until a user is known", () => {
+        const store = createStore()
+        expect(store.get(betaDeveloperModeActiveAtom)).toBe(false)
     })
 })

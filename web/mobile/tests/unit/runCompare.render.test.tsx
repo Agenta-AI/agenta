@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import {act, createElement, type ReactNode} from "react"
 
-import {activeUserIdAtom, projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {
+    activeUserIdAtom,
+    navSimplifiedOverrideAtom,
+    projectIdAtom,
+    sessionAtom,
+} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore, Provider} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -335,6 +340,8 @@ beforeEach(() => {
     document.body.appendChild(host)
     root = createRoot(host)
     store.set(activeUserIdAtom, "user-1")
+    // Developer Mode off: it alone would turn every developer view on.
+    store.set(navSimplifiedOverrideAtom, true)
     store.set(projectIdAtom, "pr")
     store.set(sessionAtom, true)
     runs = []
