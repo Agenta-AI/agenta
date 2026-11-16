@@ -29,7 +29,7 @@ import {
     SKELETON_ROW_COUNT,
 } from "./DriveFileRow"
 import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
-import {useDriveArtifactId, useDriveRevisionId} from "./driveSessionContext"
+import {useDriveArtifactId} from "./driveSessionContext"
 import {driveQuickLookAtomFamily} from "./quickLook"
 
 /** antd `Typography.Text` stand-in: the only prop this module used is `type="secondary"`. */
@@ -92,11 +92,9 @@ export function ContextRail({
     )
     // A brand-new never-run tab has no server data — hold the queries off until its first run.
     const artifactId = useDriveArtifactId()
-    const revisionId = useDriveRevisionId()
     const drive = useSessionDriveSummary(
         isSessionFresh(sessionId) ? "" : sessionId,
         artifactId ?? undefined,
-        revisionId ?? undefined,
     )
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
 
