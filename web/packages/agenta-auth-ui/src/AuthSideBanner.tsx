@@ -81,6 +81,8 @@ const FRAME_WIDTH = 920
 const FRAME_HEIGHT = 760
 /** How far the frame runs past the panel's right and bottom edges, as in the design. */
 const BLEED = 48
+/** Below this the mock's text gets too small to read; a narrow panel shows less of it instead. */
+const MIN_SCALE = 0.85
 const MAX_SCALE = 3
 /** Tailwind's `lg`, where the panel shows. */
 const WIDE = "(min-width: 1024px)"
@@ -99,19 +101,20 @@ const useWide = () =>
         () => false,
     )
 
-/** Scale the preview with the panel; on tall screens push the content down so the preview bleeds. */
+/**
+ * Scale the preview to the panel's width, then grow the frame's height to fill the panel.
+ * Scaling to the height instead pushed the automation list off a tall, narrow panel (iPad portrait).
+ */
 const useFrameFit = () => {
     const ref = useRef<HTMLDivElement>(null)
-    const [fit, setFit] = useState({scale: 1, offset: 0})
+    const [fit, setFit] = useState({scale: 1, height: FRAME_HEIGHT})
     useLayoutEffect(() => {
         const node = ref.current
         if (!node || typeof ResizeObserver === "undefined") return
         const observer = new ResizeObserver(([entry]) => {
             const {width, height} = entry.contentRect
-            const cover = Math.max((width + BLEED) / FRAME_WIDTH, (height + BLEED) / FRAME_HEIGHT)
-            const scale = Math.min(MAX_SCALE, Math.max(1, cover))
-            const offset = Math.max(0, height + BLEED - FRAME_HEIGHT * scale)
-            setFit({scale, offset})
+            const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, (width + BLEED) / FRAME_WIDTH))
+            setFit({scale, height: Math.max(FRAME_HEIGHT, (height + BLEED) / scale)})
         })
         observer.observe(node)
         return () => observer.disconnect()
@@ -120,15 +123,12 @@ const useFrameFit = () => {
 }
 
 const AuthSideBanner = () => {
-    const [stageRef, {scale, offset}] = useFrameFit()
+    const [stageRef, {scale, height}] = useFrameFit()
     const wide = useWide()
     const stars = useGithubStars(wide)
     return (
         <section className="auth-panel m-3 hidden min-w-0 flex-1 flex-col gap-[clamp(24px,4vh,40px)] overflow-hidden rounded-lg pl-[clamp(32px,5vw,72px)] pt-[clamp(32px,8vh,72px)] lg:flex">
-            <div
-                className="flex flex-col gap-3.5 pr-8"
-                style={{transform: `translateY(${offset}px)`}}
-            >
+            <div className="flex flex-col gap-3.5 pr-8">
                 <a
                     href={`https://github.com/${REPO}`}
                     target="_blank"
@@ -138,14 +138,14 @@ const AuthSideBanner = () => {
                     <GithubMark />
                     Open source · {stars}
                 </a>
-                <h2 className="auth-headline m-0 max-w-[520px] text-balance text-[clamp(28px,3vw,40px)] font-semibold leading-[1.15] tracking-[-0.02em] text-foreground">
+                <h2 className="auth-headline m-0 max-w-[520px] text-balance text-[clamp(28px,3vw,40px)] min-[2400px]:max-w-[880px] min-[2400px]:text-[clamp(40px,1.7vw,64px)] font-semibold leading-[1.15] tracking-[-0.02em] text-foreground">
                     Agents that run while you work on something else
                 </h2>
             </div>
             <div ref={stageRef} className="relative min-h-0 flex-1" aria-hidden>
                 <div
-                    className="auth-preview-frame absolute left-0 top-0 h-[760px] w-[920px] origin-top-left overflow-hidden rounded-[14px]"
-                    style={{transform: `translateY(${offset}px) scale(${scale})`}}
+                    className="auth-preview-frame absolute left-0 top-0 w-[920px] origin-top-left overflow-hidden rounded-[14px]"
+                    style={{height, transform: `scale(${scale})`}}
                 >
                     {wide ? <ProductPreview /> : null}
                 </div>

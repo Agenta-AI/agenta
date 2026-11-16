@@ -154,7 +154,7 @@ export const EmailPasswordForm = ({
                     placeholder="Password"
                     value={password}
                     autoFocus={lockEmail}
-                    className="h-full px-3 text-sm md:text-sm"
+                    className="h-full px-3 text-base md:text-sm"
                     onChange={(event) => setPassword(event.target.value)}
                 />
                 <InputGroupAddon align="inline-end">
