@@ -563,6 +563,34 @@ describe("local runs with drives (engine composition)", () => {
     }
   });
 
+  it("times project_mounts by the project mounts alone, not the whole mount group", async () => {
+    const cwd = join(tmpdir(), `agenta-drives-timing-${process.pid}-${Date.now()}`);
+    mkdirSync(cwd, { recursive: true });
+    const { deps, logs } = fakeHarness({ cwd });
+    deps.signAgentMountCredentials = signed("agent");
+    deps.signProjectMountCredentials = signed("notes");
+    deps.mountStorage = (async (path: string) => {
+      if (path === `${cwd}-agent`) await new Promise((r) => setTimeout(r, 400));
+      return true;
+    }) as never;
+    deps.unmountStorage = (async () => true) as never;
+    try {
+      await runSandboxAgent(
+        request({ sessionId: undefined, drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }] }),
+        undefined,
+        undefined,
+        deps,
+      );
+      const ms = (stage: string) => Number(logs.find((m) => m.includes(`stage=${stage} `))?.match(/ms=(\d+)/)?.[1]);
+      assert.ok(ms("local_mounts") >= 400, `local_mounts ${ms("local_mounts")}`);
+      assert.ok(ms("project_mounts") < 400, `project_mounts ${ms("project_mounts")}`);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-agent`, { recursive: true, force: true });
+      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+    }
+  });
+
   it("goes on without a project drive that could not be signed and says so", async () => {
     const cwd = join(tmpdir(), `agenta-drives-unsigned-${process.pid}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });

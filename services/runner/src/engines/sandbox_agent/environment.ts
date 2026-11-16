@@ -451,6 +451,11 @@ function publishAcquireResult(
   };
 }
 
+/** Runs `log` once `promises` have all settled, so a timing stage covers only their own work. */
+function timeSettled(promises: Promise<unknown>[], log: () => void): Promise<void> | undefined {
+  return promises.length > 0 ? Promise.allSettled(promises).then(log) : undefined;
+}
+
 async function acquireEnvironmentOnce(
   request: AgentRunRequest,
   deps: SandboxAgentDeps = {},
@@ -803,9 +808,11 @@ async function acquireEnvironmentOnce(
     const localProjects = plan.driveOnRunner
       ? projectDrives(environment.drives).filter((d) => d.credentials)
       : [];
+    const projectMountsStartedAt = Date.now();
     const projectMounts = localProjects.map((drive) =>
       mountLocalProjectDriveUnit(ctx, mountDeps, drive, cwdMount ? { cwdReady: cwdMount } : {}),
     );
+    const projectMountsTimed = timeSettled(projectMounts, () => timingLog("project_mounts", projectMountsStartedAt));
     const localMountsStartedAt = Date.now();
     const [cwdResult, agentResult, ...projectResults] = await Promise.allSettled([
       cwdMount,
@@ -814,7 +821,7 @@ async function acquireEnvironmentOnce(
     ]);
     const anyLocalMount = !!cwdMount || !!agentMount || projectMounts.length > 0;
     if (anyLocalMount) timingLog("local_mounts", localMountsStartedAt);
-    if (projectMounts.length > 0) timingLog("project_mounts", localMountsStartedAt);
+    await projectMountsTimed;
     if (cwdResult.status === "rejected") throw cwdResult.reason;
     if (agentResult.status === "rejected") throw agentResult.reason;
     for (const result of projectResults) if (result.status === "rejected") throw result.reason;
@@ -1353,7 +1360,7 @@ async function acquireEnvironmentOnce(
     const daytonaProjects = plan.isDaytona
       ? projectDrives(environment.drives).filter((d) => d.credentials)
       : [];
-    const projectMountsStartedAt = Date.now();
+    const daytonaProjectMountsStartedAt = Date.now();
     const daytonaProjectMounts = daytonaProjects.map((drive) =>
       (async () => {
         const creds = drive.credentials!;
@@ -1399,13 +1406,16 @@ async function acquireEnvironmentOnce(
         }
       })(),
     );
+    const daytonaProjectMountsTimed = timeSettled(daytonaProjectMounts, () =>
+      timingLog("project_mounts", daytonaProjectMountsStartedAt),
+    );
     const [daytonaCwdResult, daytonaAgentResult, ...daytonaProjectResults] =
       await Promise.allSettled([
         daytonaCwdMount,
         daytonaAgentMount,
         ...daytonaProjectMounts,
       ]);
-    if (daytonaProjectMounts.length > 0) timingLog("project_mounts", projectMountsStartedAt);
+    await daytonaProjectMountsTimed;
     if (daytonaCwdResult.status === "rejected") throw daytonaCwdResult.reason;
     if (daytonaAgentResult.status === "rejected") throw daytonaAgentResult.reason;
     for (const result of daytonaProjectResults)
