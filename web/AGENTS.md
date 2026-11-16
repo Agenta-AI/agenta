@@ -3,8 +3,7 @@
 Scope: everything under `web/`. Active frontend work lives in two places: `web/mobile` (the
 app, served at `/m`; its own rules are in `web/mobile/AGENTS.md`) and `web/packages` (the
 shared `@agenta/*` packages). `web/oss` and `web/ee` are the abandoned desktop app: do not
-edit, run, or copy from them. The one exception is the theme source in
-`web/oss/src/styles/theme/` (see below). This file loads when you work in the frontend. The
+edit, run, or copy from them. This file loads when you work in the frontend. The
 repo-wide root conventions live in `/AGENTS.md`.
 
 Exception (M3 sharing): `/w` sends `visibility: "project"` on new chats and agents. Do not add
@@ -25,11 +24,10 @@ the detail this file only summarizes.
 - A change to any `@agenta/*` package gets a smoke check on `/m` before the PR is done.
   `web/mobile` depends on 22 of the packages directly and the rest through them. Type
   checks can pass while `/m` renders nothing; this has happened before.
-- Theme colors have a single source of truth: `oss/src/styles/theme/palette.ts` (semantic
-  roles with `{light, dark}` values). This theme folder is the one part of `web/oss` still
-  in use. To change any color, edit `palette.ts`, run `pnpm generate:tailwind-tokens`, and
-  commit the regenerated files (`packages/agenta-ui/src/styles/theme-variables.css`,
-  `mobile/src/styles/theme.generated.css`, `oss/src/styles/theme/antd-overrides.generated.ts`).
+- Theme colors have a single source of truth: `packages/agenta-ui/src/styles/theme/palette.ts`
+  (semantic roles with `{light, dark}` values). To change any color, edit `palette.ts`, run
+  `pnpm generate:tailwind-tokens`, and commit the regenerated files
+  (`packages/agenta-ui/src/styles/theme-variables.css`, `mobile/src/styles/theme.generated.css`).
   Never hand-edit the generated files. See the "Styling" section below.
 - The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry
   `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds
@@ -318,11 +316,11 @@ class (evaluators showing "default", SDK-created apps showing "--" or hex slugs)
 When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
 
 **Theme colors.** All theme-aware colors flow from one source of truth,
-`oss/src/styles/theme/palette.ts` — semantic roles (surface / text / border / fill /
+`packages/agenta-ui/src/styles/theme/palette.ts` — semantic roles (surface / text / border / fill /
 accent / semantic / scales / feature families), each a `{light, dark}` pair. The generator
 (`pnpm generate:tailwind-tokens`) turns it into `@agenta/ui`'s `theme-variables.css`, the
 mobile shadcn tokens (`mobile/scripts/generate-shadcn-tokens.ts` →
-`mobile/src/styles/theme.generated.css`), the antd dark overrides, and the `--ag-c-*`
+`mobile/src/styles/theme.generated.css`), and the `--ag-c-*`
 compatibility shim. In `web/mobile` and the `@agenta/ui/ui` kit, use the shadcn semantic
 tokens (`bg-background`, `text-muted-foreground`, `border-border`). Older package code uses
 antd-derived tokens (`bg-colorBgContainer`, `var(--ag-color*)`); match the file you are in.

@@ -44,7 +44,7 @@ aware). Never hardcode durations, easings, or springs in components. Load the
 - Style exclusively with the semantic tokens (`bg-background`,
   `text-muted-foreground`, `border-border`, ...). Never hardcode hex/rgb values
   in components.
-- Colors come from `web/oss/src/styles/theme/palette.ts` through a generated
+- Colors come from `web/packages/agenta-ui/src/styles/theme/palette.ts` through a generated
   token bridge. Load the `mobile-shadcn-conventions` skill before you change a
   color or the theme. It owns the token bridge and dark mode rules.
 
