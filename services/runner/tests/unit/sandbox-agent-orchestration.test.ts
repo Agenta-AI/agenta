@@ -1273,6 +1273,8 @@ describe("runSandboxAgent orchestration", () => {
       agentMountedPath: undefined,
       agentMountSkipped: false,
       toolNames: ["commit_revision"],
+      // No artifact id, so the run has no agent drive and the citation sentence leaves it out.
+      hasAgentDrive: false,
     });
     assert.ok(guidance);
     assert.equal(
