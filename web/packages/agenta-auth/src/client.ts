@@ -9,7 +9,7 @@ import Passwordless from "supertokens-web-js/recipe/passwordless"
 import Session from "supertokens-web-js/recipe/session"
 import ThirdParty from "supertokens-web-js/recipe/thirdparty"
 
-import {classifyAuthFailure, type AuthFailure} from "./authError"
+import {AUTH_FAILURE_COPY, classifyAuthFailure, type AuthFailure} from "./authError"
 import {describeCreateCode, describeResendCode} from "./otpMachine"
 import {authApiUrl, authEnv} from "./runtime"
 import {readAuthRejection} from "./turnstile"
@@ -95,7 +95,7 @@ export async function requestEmailCode(
     } catch (error) {
         const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "failed", message: rejection}
-        return describeCreateCode(null)
+        return {kind: "failed", message: AUTH_FAILURE_COPY[classifyAuthFailure(error)]}
     }
 }
 
@@ -109,7 +109,8 @@ export async function resendEmailCode(): Promise<
     } catch (error) {
         const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "failed", message: rejection}
-        return describeResendCode(null)
+        // A transport failure says nothing about the code, so the attempt stays open.
+        return {kind: "failed", message: AUTH_FAILURE_COPY[classifyAuthFailure(error)]}
     }
 }
 
@@ -135,12 +136,12 @@ function getRegisteredWebUrl(): string {
 }
 
 /** The ONE redirect URI registered with each provider — always the desktop path. */
-export function providerRedirectUri(providerId: string): string {
+function providerRedirectUri(providerId: string): string {
     return `${getRegisteredWebUrl()}/auth/callback/${providerId}`
 }
 
 /** Where the mobile app wants to resume once the code is exchanged. */
-export function mobileCallbackUri(providerId: string): string {
+function mobileCallbackUri(providerId: string): string {
     return `${getRegisteredWebUrl()}/m/auth/callback/${providerId}`
 }
 
@@ -148,7 +149,7 @@ function markMobileAuthCallback(): void {
     document.cookie = `${MOBILE_AUTH_CALLBACK_COOKIE}=1; path=/; max-age=${MOBILE_AUTH_CALLBACK_MAX_AGE}; samesite=lax`
 }
 
-export function clearMobileAuthCallbackMark(): void {
+function clearMobileAuthCallbackMark(): void {
     if (typeof document === "undefined") return
     document.cookie = `${MOBILE_AUTH_CALLBACK_COOKIE}=; path=/; max-age=0; samesite=lax`
 }
@@ -330,7 +331,7 @@ export type ResetPasswordOutcome =
     | {kind: "ok"}
     | {kind: "invalid-link"}
     | {kind: "field-error"; message: string}
-    | {kind: "error"}
+    | {kind: "error"; failure: AuthFailure}
 
 export async function submitNewPasswordDetailed(password: string): Promise<ResetPasswordOutcome> {
     ensureAuthInit()
@@ -344,8 +345,8 @@ export async function submitNewPasswordDetailed(password: string): Promise<Reset
             kind: "field-error",
             message: response.formFields[0]?.error ?? "Choose a different password.",
         }
-    } catch {
-        return {kind: "error"}
+    } catch (error) {
+        return {kind: "error", failure: classifyAuthFailure(error)}
     }
 }
 

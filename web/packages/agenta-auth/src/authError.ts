@@ -54,9 +54,10 @@ export function mapAuthError(error: unknown, options: MapAuthErrorOptions = {}):
             type: "error",
         }
     }
+    const failure = classifyAuthFailure(error)
     return {
-        message: "Oops, something went wrong. Please try again",
-        sub: "If the issue persists, please contact support",
+        message: AUTH_FAILURE_COPY[failure],
+        ...(failure === "unknown" ? {sub: "If the issue persists, please contact support"} : {}),
         type: "error",
     }
 }
