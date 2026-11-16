@@ -416,3 +416,29 @@ async def test_turn_scope_keeps_the_turn_when_the_linked_root_span_has_none():
         "s-40",
         str(TURN_2),
     )
+
+
+@pytest.mark.asyncio
+async def test_hidden_session_of_a_stored_span_is_not_copied():
+    service = _service(spans=[AGENT_ROOT, AGENT_CHILD])
+    general_fields = await _build(
+        service,
+        links={"invocation": Link(trace_id=TRACE, span_id=CHILD)},
+        can_view_session=_deny,
+    )
+    assert (general_fields.session_id, general_fields.turn_id) == (None, None)
+    assert general_fields.application_references == {}
+    assert general_fields.to_attributes()["annotation"]["scope"] == "span"
+
+
+@pytest.mark.asyncio
+async def test_request_turn_of_another_session_does_not_stay():
+    root_without_turn = _span(ROOT, None, {"session": {"id": "s-B"}})
+    service = _service(spans=[root_without_turn])
+    general_fields = await _build(
+        service,
+        session_id="s-A",
+        turn_id="t-A",
+        links={"invocation": Link(trace_id=TRACE, span_id=ROOT)},
+    )
+    assert (general_fields.session_id, general_fields.turn_id) == ("s-B", None)

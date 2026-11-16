@@ -86,6 +86,7 @@ from oss.src.core.tracing.dtos import (
     SimpleTraceOrigin,
     SimpleTraceKind,
     SimpleTraceChannel,
+    SimpleTraceLinks,
     SimpleTraceReferences,
 )
 from oss.src.core.shared.dtos import Link, Reference
@@ -1087,10 +1088,11 @@ class SimpleTracesService:
         project_id: UUID,
         user_id: UUID,
         trace_create: SimpleTraceCreate,
+        links: Optional[SimpleTraceLinks],
     ) -> SimpleTraceReferences:
         references = trace_create.references.model_copy(deep=True)
 
-        if not references.evaluator or not trace_create.links:
+        if not references.evaluator or not links:
             return references
 
         if not self.evaluators_service or not self.simple_evaluators_service:
@@ -1186,18 +1188,7 @@ class SimpleTracesService:
     ) -> Optional[SimpleTrace]:
         trace_id = uuid4().hex
         span_id = uuid4().hex[16:]
-        references = await self._resolve_evaluator_references(
-            project_id=project_id,
-            user_id=user_id,
-            trace_create=trace_create,
-        )
-
-        _flags = self._flags(
-            trace_create.origin, trace_create.kind, trace_create.channel
-        )
-        _references = references.model_dump(
-            mode="json", exclude_none=True, exclude_unset=True
-        )
+        # The builder may add the subject link that the evaluator lookup needs.
         general_fields = await self.annotation_general_fields_service.build(
             project_id=project_id,
             user_id=user_id,
@@ -1206,7 +1197,20 @@ class SimpleTracesService:
             session_id=trace_create.session_id,
             turn_id=trace_create.turn_id,
             links=trace_create.links,
-            references=references,
+            references=trace_create.references,
+        )
+        references = await self._resolve_evaluator_references(
+            project_id=project_id,
+            user_id=user_id,
+            trace_create=trace_create,
+            links=general_fields.links,
+        )
+
+        _flags = self._flags(
+            trace_create.origin, trace_create.kind, trace_create.channel
+        )
+        _references = references.model_dump(
+            mode="json", exclude_none=True, exclude_unset=True
         )
         _references.update(general_fields.application_references)
         _links = build_otel_links(general_fields.links)

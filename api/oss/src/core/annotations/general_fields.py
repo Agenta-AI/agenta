@@ -148,10 +148,19 @@ class AnnotationGeneralFieldsService:
                 trace_id=subject.trace_id,
                 span_id=subject.span_id,
             )
-            if span is not None:
+            span_session_id, span_turn_id = (
+                _span_session_and_turn(span) if span is not None else (None, None)
+            )
+            if span_session_id and not await can_view_session(span_session_id):
+                # Nothing is copied from a session the caller may not view.
+                span = None
+                session_id, turn_id = None, None
+            elif span is not None:
                 # The stored span wins where it has a value; a run's root span may
-                # carry the session and no turn.
-                span_session_id, span_turn_id = _span_session_and_turn(span)
+                # carry the session and no turn. A request turn of another session
+                # does not stay.
+                if span_session_id and span_session_id != session_id:
+                    turn_id = None
                 session_id = span_session_id or session_id
                 turn_id = span_turn_id or turn_id
             elif not session_id and not turn_id:
