@@ -928,7 +928,7 @@ export interface MountHarnessSessionDirsDeps {
 }
 
 /**
- * Sign and mount every durable session-scoped dir a harness needs, INSIDE a remote sandbox.
+ * Sign and mount every durable session-scoped dir (returns the credential expiry of each one mounted) a harness needs, INSIDE a remote sandbox.
  * Local runs call none of this: `~/.claude` there is the runner container's own disk (see
  * module doc), so this function is Daytona/remote-only by construction (it always mounts
  * INSIDE the given sandbox, mirroring `mountStorageRemote`). Each dir is its own sign call +
@@ -942,8 +942,9 @@ export async function mountHarnessSessionDirs(
   // Tunnel URL for an in-network store; undefined for a public store (uses `creds.endpoint`).
   tunnelEndpoint: string | undefined,
   deps: MountHarnessSessionDirsDeps,
-): Promise<void> {
-  if (dirs.length === 0) return;
+): Promise<Array<string | undefined>> {
+  const expiries: Array<string | undefined> = [];
+  if (dirs.length === 0) return expiries;
   const log = deps.log ?? defaultLog;
   const signMount =
     deps.signSessionMountCredentials ?? signSessionMountCredentials;
@@ -971,10 +972,14 @@ export async function mountHarnessSessionDirs(
     }
     const endpoint = deps.endpointFor ? await deps.endpointFor(creds) : tunnelEndpoint;
     if (endpoint === null) continue;
-    await mountRemote(sandbox, dir.path, creds, {
-      endpoint,
-      log,
-      signal: deps.signal,
-    });
+    if (
+      await mountRemote(sandbox, dir.path, creds, {
+        endpoint,
+        log,
+        signal: deps.signal,
+      })
+    )
+      expiries.push(creds.expiresAt);
   }
+  return expiries;
 }

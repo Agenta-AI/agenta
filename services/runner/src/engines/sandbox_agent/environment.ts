@@ -1276,8 +1276,8 @@ async function acquireEnvironmentOnce(
         runCred
       ) {
         // No session drive: the working folder is throwaway, but the harness's own transcript
-        // folders still keep the conversation going between turns.
-        await (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
+        // folders still keep the conversation going between turns, and bound the lease.
+        const transcriptExpiries = await (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
           environment.sandbox,
           sessionForMount,
           harnessSessionMounts(plan.acpAgent, "/home/sandbox", DAYTONA_PI_DIR),
@@ -1294,6 +1294,10 @@ async function acquireEnvironmentOnce(
             },
           },
         );
+        const earliest = Math.min(
+          ...(transcriptExpiries ?? []).map((at) => mountExpiryMs(at) ?? Number.POSITIVE_INFINITY),
+        );
+        if (Number.isFinite(earliest)) environment.installedMountExpiries.transcripts = earliest;
       }
     })();
     const daytonaAgentMount = (async () => {

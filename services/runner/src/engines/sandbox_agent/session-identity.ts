@@ -791,6 +791,8 @@ export interface InstalledMountExpiries {
   agent?: number;
   /** Per project drive, by slug. */
   projects?: Record<string, number | undefined>;
+  /** The harness transcript folders, when no session drive bounds them (their earliest expiry). */
+  transcripts?: number;
 }
 
 /** The environment's credential lease: the earliest expiry among its installed mounts. */
@@ -800,6 +802,7 @@ export function installedMountLease(
   const values = [
     expiries.cwd,
     expiries.agent,
+    expiries.transcripts,
     ...Object.values(expiries.projects ?? {}),
   ].filter((v): v is number => typeof v === "number");
   return values.length ? Math.min(...values) : undefined;

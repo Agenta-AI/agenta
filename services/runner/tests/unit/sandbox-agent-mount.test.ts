@@ -267,6 +267,33 @@ describe("mountHarnessSessionDirs (S4, remote-only)", () => {
     assert.deepEqual(mounted, [{ path: "/home/agent/.claude/projects", endpoint: "https://tunnel.example" }]);
   });
 
+  it("returns the credential expiry of each dir it mounted, and none for a failed mount", async () => {
+    const expiries = await mountHarnessSessionDirs(
+      { runProcess: async () => ({ exitCode: 0 }) },
+      "sess-1",
+      [
+        { name: "a", path: "/a" },
+        { name: "b", path: "/b" },
+      ],
+      undefined,
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        log: SILENT,
+        signSessionMountCredentials: async (_s, _d, name) => ({
+          region: "us-east-1",
+          bucket: "b",
+          prefix: `p/${name}`,
+          accessKey: "AK",
+          secretKey: "SK",
+          expiresAt: `2030-01-0${name === "a" ? 1 : 2}T00:00:00Z`,
+        }),
+        mountStorageRemote: async (_sandbox, path) => path === "/a",
+      },
+    );
+    assert.deepEqual(expiries, ["2030-01-01T00:00:00Z"]);
+  });
+
   it("is a no-op for an empty dir list", async () => {
     let called = false;
     const sandbox = { runProcess: async () => ({ exitCode: 0 }) };

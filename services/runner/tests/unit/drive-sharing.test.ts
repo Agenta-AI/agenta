@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
 import { prepareEnvironmentSetup } from "../../src/engines/sandbox_agent/environment-setup.ts";
-import { resolveKeepaliveMount } from "../../src/engines/sandbox_agent/environment.ts";
+import { acquireEnvironment, resolveKeepaliveMount } from "../../src/engines/sandbox_agent/environment.ts";
 import {
   linkProjectDrive,
   linkProjectDriveRemote,
@@ -270,8 +270,9 @@ describe("environment fingerprint", () => {
     );
   });
 
-  it("bounds the lease by the earliest drive expiry, project drives included", () => {
+  it("bounds the lease by the earliest drive expiry, project drives and transcript folders included", () => {
     assert.equal(installedMountLease({ cwd: 300, agent: 200, projects: { notes: 100, other: undefined } }), 100);
+    assert.equal(installedMountLease({ transcripts: 70, projects: { notes: 100 } }), 70);
     assert.equal(installedMountLease({ projects: { notes: 50 } }), 50);
     assert.equal(installedMountLease({ projects: {} }), undefined);
   });
@@ -785,14 +786,16 @@ describe("daytona runs without a session drive", () => {
     deps.mountHarnessSessionDirs = (async (_sb: unknown, session: string, dirs: unknown[], _t: unknown, opts: { endpointFor?: (c: MountCredentials) => Promise<string | undefined | null> }) => {
       assert.ok(dirs.length > 0);
       transcripts.push({ session, endpoint: await opts.endpointFor?.({ ...creds("t"), endpoint: "https://s3.example.com" }) });
+      return ["2030-01-02T00:00:00Z", "2030-01-01T00:00:00Z"];
     }) as never;
-    const result = await runSandboxAgent(
+    const acquired = await acquireEnvironment(
       request({ harness: "claude", sandbox: "daytona", drives: [], hasSessionDrive: false }),
-      undefined,
-      undefined,
       deps,
     );
-    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(acquired.ok, true, JSON.stringify(acquired));
+    if (!acquired.ok) return;
+    assert.equal(acquired.env.installedMountExpiries.transcripts, Date.parse("2030-01-01T00:00:00Z"), "the transcripts bound the lease");
+    await acquired.env.destroy();
     assert.equal(sessionSigns, 0, "the working folder is not signed");
     assert.deepEqual(mounted, []);
     assert.deepEqual(transcripts, [{ session: "sess-1", endpoint: undefined }]);
