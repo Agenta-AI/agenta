@@ -48,10 +48,7 @@ export const ResizableTitle = memo((props: ResizableTitleProps) => {
                 onResizeStart?.(e, data)
             }}
             handle={
-                <span
-                    className="react-resizable-handle custom-resize-handle"
-                    onClick={(e) => e.stopPropagation()}
-                />
+                <span className="react-resizable-handle" onClick={(e) => e.stopPropagation()} />
             }
             onResize={(e: React.SyntheticEvent, data: ResizeCallbackData) => {
                 setLiveWidth(data.size.width)

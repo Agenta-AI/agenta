@@ -13,7 +13,7 @@
  *   formatLatency,
  *   formatSignificant,
  *   createFormatter,
- * } from '@agenta/shared'
+ * } from '@agenta/shared/utils'
  *
  * // Preset formatters
  * formatNumber(1234.567)      // "1,234.57"

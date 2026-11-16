@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { getValueAtPath, setValueAtPath, parsePath } from '@agenta/shared'
+ * import { getValueAtPath, setValueAtPath, parsePath } from '@agenta/shared/utils'
  *
  * const data = { user: { profile: { name: 'Alice' } } }
  * getValueAtPath(data, ['user', 'profile', 'name']) // 'Alice'

@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * import { pluralize } from '@agenta/shared'
+ * import { pluralize } from '@agenta/shared/utils'
  *
  * pluralize(1, "testcase") // "testcase"
  * pluralize(5, "testcase") // "testcases"

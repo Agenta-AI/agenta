@@ -21,7 +21,7 @@ import {
   formatLatency,
   formatSignificant,
   createFormatter,
-} from '@agenta/shared'
+} from '@agenta/shared/utils'
 ```
 
 ## Preset Formatters

@@ -7,7 +7,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {developerViewPreviewAtomFamily} from "@/features/developer/developerViewAccess"
-import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
+import {DeveloperViewGate, hiddenViewFallback} from "@/features/developer/DeveloperViewGate"
 import {appPageTarget} from "@/features/developer/useAppPageRedirect"
 
 const {betaAtom} = vi.hoisted(() => ({betaAtom: {current: null as PrimitiveAtom<boolean> | null}}))
@@ -19,10 +19,20 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     return {...original, developerModeActiveAtom: betaAtom.current}
 })
 vi.mock("@/components/PageNotFound", () => ({PageNotFound: () => <p>not found</p>}))
+vi.mock("next/router", () => ({useRouter: () => ({isReady: false, query: {}, replace: vi.fn()})}))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
 const P = "/w/ws-1/p/proj-1"
+
+describe("a hidden developer view", () => {
+    it("falls back to the app's agent screen, else the project home", () => {
+        const query = {workspace_id: "ws-1", project_id: "proj-1"}
+        expect(hiddenViewFallback({...query, app_id: "a1"})).toBe(`${P}/agents/a1`)
+        expect(hiddenViewFallback(query)).toBe(`${P}/apps`)
+        expect(hiddenViewFallback({workspace_id: "ws-1"})).toBeNull()
+    })
+})
 
 describe("a project page with ?app= in Developer Mode", () => {
     it("moves to the app's own page and keeps the other parameters", () => {

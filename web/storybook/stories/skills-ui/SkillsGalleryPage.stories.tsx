@@ -16,7 +16,7 @@ const meta = {
                     "one row with `+ New skill ▾`, search and the archived " +
                     "toggle, source chips once a repo is imported, then the sectioned card grid. " +
                     "`rail`: the FilterRailLayout variant with title, search and sources in a " +
-                    "side rail (behind NEXT_PUBLIC_AGENT_BROWSE_RAIL).",
+                    "side rail.",
             },
         },
     },

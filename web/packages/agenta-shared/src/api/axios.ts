@@ -7,7 +7,7 @@
  * @example
  * ```typescript
  * // In app initialization (e.g., _app.tsx)
- * import { configureAxios, axios } from '@agenta/shared'
+ * import { configureAxios, axios } from '@agenta/shared/api'
  *
  * // Configure interceptors once at app startup
  * configureAxios({

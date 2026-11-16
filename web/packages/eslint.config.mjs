@@ -52,13 +52,6 @@ export const restrictedImportPaths = [
         message:
             "Use `getHostQueryClient()` from '@agenta/shared/api' — the `queryClient` singleton is only for hosts to pass to <QueryClientProvider>; package writes on it are dead when the host installed its own client.",
     },
-    // Same singleton, reachable through the root barrel's re-export.
-    {
-        name: "@agenta/shared",
-        importNames: ["queryClient"],
-        message:
-            "Use `getHostQueryClient()` from '@agenta/shared/api' — the `queryClient` singleton is only for hosts to pass to <QueryClientProvider>; package writes on it are dead when the host installed its own client.",
-    },
 ]
 
 /**
@@ -80,7 +73,7 @@ export const restrictedImportPatterns = [
 export const restrictedSyntax = [
     {
         selector:
-            'ImportExpression > Literal[value="@agenta/shared/api"], ImportExpression > Literal[value="@agenta/shared"]',
+            'ImportExpression > Literal[value="@agenta/shared/api"]',
         message:
             "Dynamic-import '@agenta/shared/api/hostQueryClient' instead — importing the api barrel dynamically can reach the `queryClient` singleton, whose writes are dead on a host that installed its own client.",
     },

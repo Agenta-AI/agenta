@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { useSelectionState } from '@agenta/shared'
+ * import { useSelectionState } from '@agenta/shared/hooks'
  *
  * const { selectedSet, isAllSelected, isSomeSelected } = useSelectionState(
  *   allRowIds,

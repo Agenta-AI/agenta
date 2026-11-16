@@ -271,9 +271,8 @@ singleton. The rules are asymmetric:
 - **Package code** (`web/packages/**`) MUST NOT import the singleton. Use
   `getHostQueryClient()` from `@agenta/shared/api`, resolved **per call**, never cached at
   module scope. This is lint-enforced in `web/packages/eslint.config.mjs`: the singleton is
-  banned as a named import from both `@agenta/shared/api` and the `@agenta/shared` root barrel,
-  and — since `no-restricted-imports` cannot see `await import(...)` — a `no-restricted-syntax`
-  rule bans dynamic imports of those two modules outright. Package code that needs the client
+  banned as a named import from `@agenta/shared/api`, and — since `no-restricted-imports`
+  cannot see `await import(...)` — a `no-restricted-syntax` rule bans dynamic imports of it. Package code that needs the client
   lazily dynamic-imports `@agenta/shared/api/hostQueryClient`, which cannot reach the singleton.
 
 Why: `/m` shipped its own client, so every package-layer `invalidateQueries` / `setQueryData` /
