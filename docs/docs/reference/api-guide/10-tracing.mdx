@@ -252,7 +252,7 @@ Agenta adds general fields to every annotation written through `POST /simple/tra
 | `ag.annotation.actor` | Who made the judgment. Today it is always the same as the author. |
 | `ag.session.id`, `ag.turn.id` | The session and the turn of the span that the annotation links to, copied from that span. They also fill the `session_id` and `turn_id` columns, so you can filter annotations by session or turn. |
 
-When the linked span belongs to an agent run, Agenta also copies the agent's references (`application`, `application_variant`, `application_revision`) into the annotation, unless the request names them.
+When the run that the linked span belongs to names an application or a workflow, Agenta also copies those references into the annotation as `application`, `application_variant` and `application_revision`, unless the request names them.
 
 ### Annotate a turn or a whole session
 
@@ -283,8 +283,7 @@ curl -X POST "$AGENTA_HOST/api/spans/query" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey $AGENTA_API_KEY" \
   -d '{
-    "focus": "span",
-    "filter": {
+    "filtering": {
       "operator": "and",
       "conditions": [
         {"field": "session_id", "operator": "is", "value": "s-40"},

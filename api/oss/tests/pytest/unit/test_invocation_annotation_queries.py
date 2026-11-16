@@ -32,6 +32,7 @@ async def test_annotation_query_does_not_force_evaluator_flag():
         evaluators_service=AsyncMock(),
         simple_evaluators_service=AsyncMock(),
         tracing_service=AsyncMock(),
+        annotation_general_fields_service=AsyncMock(),
     )
     service._query_annotation = AsyncMock(return_value=[])
 

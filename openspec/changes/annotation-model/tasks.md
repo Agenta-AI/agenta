@@ -7,7 +7,7 @@
 ## 1. Schema and ingest (API and SDK models)
 
 - [ ] 1.1 Add the model `AgAnnotationAttributes` (`scope`, `author`, `actor`) and the field `annotation` to `AgAttributes` (`sdks/python/agenta/sdk/models/tracing.py`), and keep `ag.annotation` in `initialize_ag_attributes` (`api/oss/src/core/tracing/utils/attributes.py`) instead of moving it to `ag.unsupported`. Test: `unit/tracing/utils/test_attributes.py`.
-- [ ] 1.2 Add the enums `AnnotationScope` (`span`, `trace`, `turn`, `session`) and `AnnotationPartyType` (`person`, `end_user`, `agent_run`, `platform`) and the model `AnnotationParty` `{type, user_id}`.
+- [ ] 1.2 Add the enums `AnnotationScope` (`span`, `trace`, `turn`, `session`) and `AnnotationPartyType` (`person` only, for now) and the model `AgAnnotationPartyAttributes` `{type, user_id}`.
 - [ ] 1.3 Add the optional input fields `scope`, `session_id` and `turn_id` to `SimpleTraceCreate` (`api/oss/src/core/tracing/dtos.py`). No `author` and no `actor` input field. No new response field.
 
 ## 2. Write path (API), after section 1

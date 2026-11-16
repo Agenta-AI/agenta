@@ -162,7 +162,7 @@ class TestFlowsThatMustNotChange:
 
         # The web app edits with the links and the evaluator references it read.
         response = authed_api(
-            "PUT",
+            "PATCH",
             f"/simple/traces/{created['trace_id']}",
             json={
                 "trace": {

@@ -108,7 +108,7 @@ His words on the span to link: "aren't we supposed to use this as a way to captu
 
 ### Requirement: The author is set by the platform
 
-The platform SHALL set `ag.annotation.author` from the request's credential as `{type: person, user_id}` for every user credential and SHALL take no author from the request body (Decided). The types are `person`, `end_user`, `agent_run` and `platform`; this change writes only `person`.
+The platform SHALL set `ag.annotation.author` from the request's credential as `{type: person, user_id}` for every user credential and SHALL take no author from the request body (Decided). This change ships only the type `person`; later changes add `end_user`, `agent_run` and `platform` when they write them.
 
 #### Scenario: A person writes through the web app
 

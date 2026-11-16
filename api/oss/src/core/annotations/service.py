@@ -29,6 +29,7 @@ from oss.src.core.evaluators.dtos import (
 from oss.src.core.tracing.utils.traces import (
     ParsedSimpleTrace,
     build_otel_links,
+    keep_general_fields_on_edit,
     build_simple_trace_attributes,
     build_simple_trace_query,
     first_link,
@@ -53,10 +54,9 @@ from oss.src.core.annotations.types import (
 )
 
 from oss.src.core.annotations.utils import validate_data_against_schema
-from oss.src.core.annotations.context import (
-    AnnotationContext,
-    AnnotationContextService,
-    kept_on_edit,
+from oss.src.core.annotations.general_fields import (
+    AnnotationGeneralFieldsService,
+    CanViewSession,
 )
 
 
@@ -72,12 +72,12 @@ class AnnotationsService:
         evaluators_service: EvaluatorsService,
         simple_evaluators_service: SimpleEvaluatorsService,
         tracing_service: TracingService,
-        annotation_context_service: Optional[AnnotationContextService] = None,
+        annotation_general_fields_service: AnnotationGeneralFieldsService,
     ):
         self.evaluators_service = evaluators_service
         self.simple_evaluators_service = simple_evaluators_service
         self.tracing_service = tracing_service
-        self.annotation_context_service = annotation_context_service
+        self.annotation_general_fields_service = annotation_general_fields_service
 
     async def create(
         self,
@@ -85,6 +85,7 @@ class AnnotationsService:
         organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
+        can_view_session: CanViewSession,
         #
         annotation_create: AnnotationCreate,
     ) -> Optional[Annotation]:
@@ -187,18 +188,15 @@ class AnnotationsService:
             **reference_dict,
         )
 
-        context = (
-            await self.annotation_context_service.build(
-                project_id=project_id,
-                user_id=user_id,
-                scope=annotation_create.scope,
-                session_id=annotation_create.session_id,
-                turn_id=annotation_create.turn_id,
-                links=annotation_create.links,
-                references=annotation_references,
-            )
-            if self.annotation_context_service
-            else AnnotationContext(links=annotation_create.links)
+        general_fields = await self.annotation_general_fields_service.build(
+            project_id=project_id,
+            user_id=user_id,
+            can_view_session=can_view_session,
+            scope=annotation_create.scope,
+            session_id=annotation_create.session_id,
+            turn_id=annotation_create.turn_id,
+            links=annotation_create.links,
+            references=annotation_references,
         )
 
         annotation_link = await self._create_annotation(
@@ -215,10 +213,10 @@ class AnnotationsService:
             data=annotation_create.data,
             #
             references=annotation_references,
-            links=context.links,
+            links=general_fields.links,
             #
-            general=context.to_attributes(),
-            agent_references=context.agent_references,
+            general_fields=general_fields.to_attributes(),
+            application_references=general_fields.application_references,
         )
 
         if annotation_link is None:
@@ -580,8 +578,8 @@ class AnnotationsService:
         references: AnnotationReferences,
         links: AnnotationLinks,
         #
-        general: Dict[str, Any],
-        agent_references: Dict[str, Dict[str, Any]],
+        general_fields: Dict[str, Any],
+        application_references: Dict[str, Dict[str, Any]],
     ) -> Optional[Link]:
         trace_id = uuid4().hex
         span_id = uuid4().hex[16:]
@@ -593,7 +591,7 @@ class AnnotationsService:
             exclude_none=True,
             exclude_unset=True,
         )
-        _references.update(agent_references)
+        _references.update(application_references)
 
         _links = build_otel_links(links)
 
@@ -605,7 +603,7 @@ class AnnotationsService:
             meta=meta,
             data=data,
             references=_references,
-            general=general,
+            general_fields=general_fields,
         )
 
         links = await self.tracing_service.create_trace(
@@ -756,7 +754,7 @@ class AnnotationsService:
             exclude_none=True,
             exclude_unset=True,
         )
-        general, _references = kept_on_edit(
+        general_fields, _references = keep_general_fields_on_edit(
             stored_attributes=stored_attributes,
             references=_references,
         )
@@ -771,7 +769,7 @@ class AnnotationsService:
             meta=meta,
             data=data,
             references=_references,
-            general=general,
+            general_fields=general_fields,
         )
 
         links = await self.tracing_service.edit_trace(

@@ -1,11 +1,11 @@
 """The general fields of an annotation, the same for every evaluator.
 
 Both annotation routes (`POST /annotations` and `POST /simple/traces`) build them here: the
-subject's session and turn, the scope, the author and the actor, and the working agent in the
+subject's session and turn, the scope, the author and the actor, and the application in the
 references. The link to a span only anchors the annotation; nothing depends on which span.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Tuple
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -24,39 +24,40 @@ from oss.src.core.tracing.utils.parsing import (
     parse_span_id_to_uuid,
     parse_trace_id_to_uuid,
 )
-from oss.src.core.tracing.utils.traces import link_role
+from oss.src.core.tracing.utils.traces import (
+    APPLICATION_REFERENCE_KEYS,
+    subject_link,
+)
 
 if TYPE_CHECKING:
+    from oss.src.core.sessions.turns.dtos import SessionTurn
     from oss.src.core.sessions.turns.service import SessionTurnsService
     from oss.src.core.tracing.service import TracingService
 
 
 SUBJECT_ROLE = "subject"
 
-AGENT_REFERENCE_KEYS = (
-    "application",
-    "application_variant",
-    "application_revision",
-)
-
 # Runs started from a session carry `workflow*` references; annotations name the same
 # entity under the `application*` keys (an application id is its workflow id).
-_RUN_REFERENCE_KEYS = {
+_WORKFLOW_TO_APPLICATION_KEYS = {
     "workflow": "application",
     "workflow_variant": "application_variant",
     "workflow_revision": "application_revision",
 }
 
-# Stored under `ag`; an edit keeps them from the stored annotation.
-KEPT_ON_EDIT = ("session", "turn", "annotation")
+# Deep enough for any run tree; stops a corrupt parent chain.
+_MAX_ANCESTORS = 64
+
+# Whether the caller may read a session; turn rows are read only for such sessions.
+CanViewSession = Callable[[str], Awaitable[bool]]
 
 
-class AnnotationContext(BaseModel):
+class AnnotationGeneralFields(BaseModel):
     links: Optional[SimpleTraceLinks] = None
     session_id: Optional[str] = None
     turn_id: Optional[str] = None
     annotation: Optional[AgAnnotationAttributes] = None
-    agent_references: Dict[str, Dict[str, Any]] = {}
+    application_references: Dict[str, Dict[str, Any]] = {}
 
     def to_attributes(self) -> Dict[str, Any]:
         """The `ag.session`, `ag.turn` and `ag.annotation` attributes, when known."""
@@ -72,66 +73,33 @@ class AnnotationContext(BaseModel):
         return attributes
 
 
-def subject_link(links: Optional[SimpleTraceLinks]) -> Optional[Link]:
-    """The link with the role `subject`, else the first link."""
-    if isinstance(links, dict):
-        items: List[Tuple[Optional[str], Link]] = list(links.items())
-    elif isinstance(links, list):
-        items = [(link_role(link), link) for link in links]
-    else:
-        return None
-
-    items = [(role, link) for role, link in items if link.trace_id and link.span_id]
-    for role, link in items:
-        if role == SUBJECT_ROLE:
-            return link
-    return items[0][1] if items else None
-
-
-def kept_on_edit(
-    *,
-    stored_attributes: Optional[Dict[str, Any]],
-    references: Dict[str, Any],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """The stored general fields an edit must not lose: `ag.session`, `ag.turn`,
-    `ag.annotation`, and the agent references when the edit names none."""
-    stored_ag = (stored_attributes or {}).get("ag") or {}
-    attributes = {key: stored_ag[key] for key in KEPT_ON_EDIT if stored_ag.get(key)}
-
-    if any(references.get(key) for key in AGENT_REFERENCE_KEYS):
-        return attributes, references
-
-    stored_references = stored_ag.get("references") or {}
-    kept = dict(references)
-    for key in AGENT_REFERENCE_KEYS:
-        if stored_references.get(key):
-            kept[key] = stored_references[key]
-    return attributes, kept
-
-
-def _span_identity(span: OTelFlatSpan) -> Tuple[Optional[str], Optional[str]]:
+def _span_session_and_turn(span: OTelFlatSpan) -> Tuple[Optional[str], Optional[str]]:
     ag = (span.attributes or {}).get("ag") or {}
     session = ag.get("session") if isinstance(ag.get("session"), dict) else {}
     turn = ag.get("turn") if isinstance(ag.get("turn"), dict) else {}
     return session.get("id"), turn.get("id")
 
 
-def _agent_references(root: Optional[OTelFlatSpan]) -> Dict[str, Dict[str, Any]]:
+def _application_references(
+    root: Optional[OTelFlatSpan],
+) -> Dict[str, Dict[str, Any]]:
     ag = ((root.attributes if root else None) or {}).get("ag") or {}
     references = ag.get("references") or {}
-    agent: Dict[str, Dict[str, Any]] = {}
-    for key in AGENT_REFERENCE_KEYS:
-        if references.get(key):
-            agent[key] = references[key]
-    if agent:
-        return agent
-    for run_key, key in _RUN_REFERENCE_KEYS.items():
-        if references.get(run_key):
-            agent[key] = references[run_key]
-    return agent
+    found = {
+        key: references[key]
+        for key in APPLICATION_REFERENCE_KEYS
+        if references.get(key)
+    }
+    if found:
+        return found
+    return {
+        key: references[workflow_key]
+        for workflow_key, key in _WORKFLOW_TO_APPLICATION_KEYS.items()
+        if references.get(workflow_key)
+    }
 
 
-class AnnotationContextService:
+class AnnotationGeneralFieldsService:
     def __init__(
         self,
         *,
@@ -146,18 +114,20 @@ class AnnotationContextService:
         *,
         project_id: UUID,
         user_id: UUID,
+        can_view_session: CanViewSession,
         #
         scope: Optional[AnnotationScope],
         session_id: Optional[str],
         turn_id: Optional[str],
         links: Optional[SimpleTraceLinks],
         references: SimpleTraceReferences,
-    ) -> AnnotationContext:
+    ) -> AnnotationGeneralFields:
         subject = subject_link(links)
 
         if subject is None and scope in (AnnotationScope.TURN, AnnotationScope.SESSION):
             turn = await self._find_turn(
                 project_id=project_id,
+                can_view_session=can_view_session,
                 session_id=session_id,
                 turn_id=turn_id if scope == AnnotationScope.TURN else None,
             )
@@ -171,25 +141,31 @@ class AnnotationContextService:
                     )
                 ]
 
-        agent_references: Dict[str, Dict[str, Any]] = {}
+        application_references: Dict[str, Dict[str, Any]] = {}
         if subject is not None:
-            span, root = await self._fetch_subject(
-                project_id=project_id, subject=subject
+            span = await self._fetch_span(
+                project_id=project_id,
+                trace_id=subject.trace_id,
+                span_id=subject.span_id,
             )
             if span is not None:
-                session_id, turn_id = _span_identity(span)
+                session_id, turn_id = _span_session_and_turn(span)
             elif not session_id and not turn_id:
                 # A running agent's spans are not stored yet; its turn row names the trace.
-                turn = await self._find_turn_of_trace(
+                turn = await self._find_turn(
                     project_id=project_id,
+                    can_view_session=can_view_session,
                     trace_id=subject.trace_id,
                 )
                 if turn is not None:
                     session_id = turn.session_id
                     turn_id = str(turn.turn_id) if turn.turn_id else None
 
-            if not any(getattr(references, key) for key in AGENT_REFERENCE_KEYS):
-                agent_references = _agent_references(root)
+            if span is not None and not any(
+                getattr(references, key) for key in APPLICATION_REFERENCE_KEYS
+            ):
+                root = await self._fetch_root(project_id=project_id, span=span)
+                application_references = _application_references(root)
 
             scope = scope or AnnotationScope.SPAN
 
@@ -202,7 +178,7 @@ class AnnotationContextService:
             user_id=str(user_id),
         )
 
-        return AnnotationContext(
+        return AnnotationGeneralFields(
             links=links,
             session_id=session_id,
             turn_id=turn_id,
@@ -211,65 +187,74 @@ class AnnotationContextService:
                 author=author,
                 actor=author,
             ),
-            agent_references=agent_references,
+            application_references=application_references,
         )
 
     async def _find_turn(
         self,
         *,
         project_id: UUID,
-        session_id: Optional[str],
-        turn_id: Optional[str],
-    ):
-        if not session_id:
-            return None
-        if turn_id is None:
-            return await self.session_turns_service.latest_turn(
-                project_id=project_id,
-                session_id=session_id,
-            )
+        can_view_session: CanViewSession,
+        session_id: Optional[str] = None,
+        turn_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+    ) -> Optional["SessionTurn"]:
+        """The turn row by session (latest), by session and turn id, or by trace id;
+        none when an id does not parse or the caller may not read the session."""
         try:
-            turn_uuid = UUID(turn_id)
-        except ValueError:
+            turn_uuid = UUID(turn_id) if turn_id else None
+            trace_uuid = UUID(parse_trace_id_to_uuid(trace_id)) if trace_id else None
+        except (TypeError, ValueError):
             return None
-        return await self.session_turns_service.find_turn(
+        if not session_id and not trace_uuid:
+            return None
+
+        turn = await self.session_turns_service.find_turn(
             project_id=project_id,
             session_id=session_id,
             turn_id=turn_uuid,
-        )
-
-    async def _find_turn_of_trace(self, *, project_id: UUID, trace_id: str):
-        try:
-            trace_uuid = UUID(parse_trace_id_to_uuid(trace_id))
-        except (TypeError, ValueError):
-            return None
-        return await self.session_turns_service.find_turn(
-            project_id=project_id,
             trace_id=trace_uuid,
         )
+        if turn is None or not await can_view_session(turn.session_id):
+            return None
+        return turn
 
-    async def _fetch_subject(
+    async def _fetch_span(
         self,
         *,
         project_id: UUID,
-        subject: Link,
-    ) -> Tuple[Optional[OTelFlatSpan], Optional[OTelFlatSpan]]:
-        """The subject span and the root span of its trace, when stored."""
+        trace_id: str,
+        span_id: str,
+    ) -> Optional[OTelFlatSpan]:
         try:
-            trace_uuid = UUID(parse_trace_id_to_uuid(subject.trace_id))
-            span_uuid = parse_span_id_to_uuid(subject.span_id)
+            trace_uuid = UUID(parse_trace_id_to_uuid(trace_id))
+            span_uuid = UUID(parse_span_id_to_uuid(span_id))
         except (TypeError, ValueError):
-            return None, None
+            return None
 
         spans = await self.tracing_service.fetch(
             project_id=project_id,
             trace_ids=[trace_uuid],
+            span_ids=[span_uuid],
         )
+        return spans[0] if spans else None
 
-        span = root = None
-        for candidate in spans or []:
-            if candidate.parent_id is None:
-                root = candidate
-            if parse_span_id_to_uuid(candidate.span_id) == span_uuid:
-                span = candidate
-        return span, root
+    async def _fetch_root(
+        self,
+        *,
+        project_id: UUID,
+        span: OTelFlatSpan,
+    ) -> Optional[OTelFlatSpan]:
+        """Walk up the parents by key; a trace is a few levels deep."""
+        for _ in range(_MAX_ANCESTORS):
+            if span.parent_id is None:
+                return span
+            parent = await self._fetch_span(
+                project_id=project_id,
+                trace_id=str(span.trace_id),
+                span_id=str(span.parent_id),
+            )
+            if parent is None:
+                return None
+            span = parent
+        return None

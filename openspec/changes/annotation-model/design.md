@@ -168,7 +168,7 @@ columns: {session_id: s-40, turn_id: t2}
 | evaluator output | `ag.data.outputs` | caller | data | Unchanged. Layer 2 is the evaluator's business. |
 | `origin`, `kind`, `channel` | flags, as today | caller | classification, kept for old clients | Kept as they are, faults included (D7). |
 
-Author and actor types. This change writes only `person`; the other three values name the writers of later changes and are part of the shared shape:
+Author and actor types. This change ships and writes only `person`. Later changes add the other three types below when they first write them:
 
 | Type | Meaning | `user_id` |
 |---|---|---|

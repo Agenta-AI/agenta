@@ -235,7 +235,7 @@ def test_build_simple_trace_attributes_adds_general_fields_only_when_given():
 
     attributes = build_simple_trace_attributes(
         **base,
-        general={"session": {"id": "s-40"}, "annotation": {"scope": "span"}},
+        general_fields={"session": {"id": "s-40"}, "annotation": {"scope": "span"}},
     )
     assert attributes["ag"]["session"] == {"id": "s-40"}
     assert attributes["ag"]["annotation"] == {"scope": "span"}

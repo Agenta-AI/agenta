@@ -25,7 +25,10 @@ async def test_edit_uses_incoming_references_and_links():
         OTelLink(trace_id="new-trace", span_id="new-span")
     ]
 
-    service = SimpleTracesService(tracing_service=tracing_service)
+    service = SimpleTracesService(
+        tracing_service=tracing_service,
+        annotation_general_fields_service=AsyncMock(),
+    )
     service._build_from_parsed = lambda parsed: (
         SimpleTrace(
             trace_id="old-trace",

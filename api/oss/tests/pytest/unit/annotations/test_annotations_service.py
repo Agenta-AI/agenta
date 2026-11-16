@@ -41,6 +41,7 @@ async def test_edit_returns_updated_references_and_links():
         evaluators_service=evaluators_service,
         simple_evaluators_service=AsyncMock(),
         tracing_service=AsyncMock(),
+        annotation_general_fields_service=AsyncMock(),
     )
     service._fetch_parsed_trace = AsyncMock(
         return_value=SimpleNamespace(span=SimpleNamespace(attributes={}))

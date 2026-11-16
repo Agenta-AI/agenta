@@ -1,6 +1,6 @@
 from enum import Enum
 from functools import wraps
-from typing import Any, Optional, Union
+from typing import Any, Awaitable, Callable, Optional, Union
 from uuid import UUID
 
 from fastapi import HTTPException, Request
@@ -155,6 +155,21 @@ async def check_resource(
         project_id=UUID(str(request.state.project_id)),
         resource=resource,
     )
+
+
+def session_viewer(request: Request) -> Callable[[str], Awaitable[bool]]:
+    """Whether the request may read a session, without raising: for code that only adds
+    what the caller may already read."""
+
+    async def can_view_session(session_id: str) -> bool:
+        check = await check_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(session_id),
+        )
+        return check == ResourceCheck.ALLOWED
+
+    return can_view_session
 
 
 def resource_denied_exception(request: Request) -> HTTPException:

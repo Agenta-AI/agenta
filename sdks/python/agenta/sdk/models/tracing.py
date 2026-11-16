@@ -108,9 +108,6 @@ class AnnotationScope(str, Enum):
 
 class AnnotationPartyType(str, Enum):
     PERSON = "person"
-    END_USER = "end_user"
-    AGENT_RUN = "agent_run"
-    PLATFORM = "platform"
 
 
 class AgAnnotationPartyAttributes(BaseModel):
