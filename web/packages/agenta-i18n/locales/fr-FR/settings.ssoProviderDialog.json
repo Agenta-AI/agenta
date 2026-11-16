@@ -1,0 +1,21 @@
+{
+    "addDescription": "Après l’ajout du fournisseur, activez-le pour vérifier la connexion.",
+    "addProvider": "Ajouter un fournisseur",
+    "addTitle": "Ajouter un fournisseur SSO",
+    "clientId": "ID client",
+    "clientSecret": "Secret client",
+    "clientSecretHint": "Le secret stocké n’est jamais affiché. Laissez vide pour le conserver.",
+    "editDescription": "L’enregistrement des paramètres efface la validation et désactive le fournisseur. Activez-le à nouveau après l’enregistrement.",
+    "editTitle": "Modifier le fournisseur SSO",
+    "enterClientSecret": "Saisissez le secret client",
+    "invalidSlug": "Utilisez uniquement des lettres minuscules (a-z) et des tirets (-) pour le slug",
+    "issuerAndClientRequired": "L’URL de l’émetteur et l’ID client sont obligatoires",
+    "issuerUrl": "URL de l’émetteur",
+    "saveFailed": "Impossible d’enregistrer le fournisseur",
+    "saveProvider": "Enregistrer le fournisseur",
+    "saving": "Enregistrement…",
+    "scopes": "Scopes",
+    "scopesHint": "Séparez les scopes par des virgules",
+    "slug": "Slug",
+    "slugHint": "Lettres minuscules et tirets uniquement"
+}

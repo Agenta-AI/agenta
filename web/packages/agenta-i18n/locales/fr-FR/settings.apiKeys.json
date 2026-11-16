@@ -1,0 +1,14 @@
+{
+    "apiKey": "Clé API",
+    "deleteKey": "Supprimer la clé",
+    "emptyDescription": "Générez une clé pour authentifier les requêtes vers l’API Agenta depuis votre code, vos tâches CI et vos SDK.",
+    "emptyTitle": "Aucune clé API pour le moment",
+    "expired": "Expirée",
+    "expires": "Expire",
+    "generateKey": "Générer une clé",
+    "keyActions": "Actions de la clé",
+    "lastUsed": "Dernière utilisation",
+    "never": "Jamais",
+    "neverUsed": "Jamais utilisée",
+    "noAccess": "Vous n’avez pas accès aux clés API de ce projet."
+}
