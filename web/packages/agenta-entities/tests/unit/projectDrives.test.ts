@@ -18,7 +18,9 @@ import {
     projectDriveEntries,
     resolveProjectDrivePath,
 } from "../../src/drive/projectDrives"
-import {canWriteAt} from "../../src/drive/useDriveUploads"
+import {message} from "@agenta/ui/app-message"
+
+import {canWriteAt, DRIVE_NOT_WRITABLE, ensureWritable} from "../../src/drive/useDriveUploads"
 import {
     driveHasMixedOrigins,
     fileOrigin,
@@ -215,5 +217,19 @@ describe("prepareCommitParameters", () => {
         }
         const entity = {id: "r1", data: {parameters: {agent}}} as unknown as Workflow
         expect(prepareCommitParameters(entity, null)).toEqual({agent})
+    })
+})
+
+describe("ensureWritable", () => {
+    const drive = {
+        resolveMount: (path: string) =>
+            path.startsWith("drives/prices") ? {mount: {id: "m"}, path: "", readOnly: true} : null,
+    }
+
+    it("refuses a drop onto a read drive with the pane's one refusal message", () => {
+        vi.mocked(message.error).mockClear()
+        expect(ensureWritable(drive, "drives/prices")).toBe(false)
+        expect(message.error).toHaveBeenCalledWith(DRIVE_NOT_WRITABLE)
+        expect(DRIVE_NOT_WRITABLE).toBe("This location can't be written to")
     })
 })

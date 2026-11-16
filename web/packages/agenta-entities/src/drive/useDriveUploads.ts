@@ -11,6 +11,8 @@
  */
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
+import {message} from "@agenta/ui/app-message"
+
 import {type MountFile} from "@agenta/entities/session"
 
 import {type StagedTileItem} from "./driveTypes"
@@ -22,6 +24,9 @@ import {type SessionDriveData} from "./useSessionDrive"
 
 const NO_FILES: DroppedFile[] = []
 
+/** The pane's one refusal for a write it cannot make. */
+export const DRIVE_NOT_WRITABLE = "This location can't be written to"
+
 /** Can the drive write into this presented folder: a mount backs it and it is not a read drive. */
 export const canWriteAt = (drive: Pick<SessionDriveData, "resolveMount">, folder: string) => {
     const target = drive.resolveMount(folder)
@@ -30,6 +35,17 @@ export const canWriteAt = (drive: Pick<SessionDriveData, "resolveMount">, folder
 
 /** The staged tile's id — stable per position + destination path, and the handle removeStaged uses. */
 const stagedId = (dropped: DroppedFile, index: number) => `${index}-${dropped.relativePath}`
+
+/** Refuse a write into a folder the drive cannot write (a read drive, no mount), with the pane's
+ * one refusal message; answers whether the write may go ahead. */
+export const ensureWritable = (
+    drive: Pick<SessionDriveData, "resolveMount">,
+    folder: string,
+): boolean => {
+    if (canWriteAt(drive, folder)) return true
+    void message.error(DRIVE_NOT_WRITABLE)
+    return false
+}
 
 export function useDriveUploads({
     drive,
@@ -81,8 +97,9 @@ export function useDriveUploads({
     const canUpload = !explicitFiles && (!!drive.mount || Boolean(drive.projectDrives?.length))
     const uploadIntoFolder = useCallback(
         (picked: DroppedFile[], folder: string) => {
+            if (!ensureWritable(drive, folder)) return
             const resolved = drive.resolveMount(folder)
-            if (!resolved || !canWriteAt(drive, folder)) return
+            if (!resolved) return
             mountUpload.upload(picked, {
                 mount: resolved.mount,
                 destFolder: resolved.path,
