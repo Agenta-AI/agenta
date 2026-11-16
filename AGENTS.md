@@ -9,8 +9,7 @@ bottom.
 ## Repo map
 
 - `web/` — frontend. The app is `web/mobile` (served at `/m`); shared code is the
-  `@agenta/*` packages in `web/packages`. `web/oss` and `web/ee` are the abandoned desktop
-  app. See `web/AGENTS.md` and `web/mobile/AGENTS.md`.
+  `@agenta/*` packages in `web/packages`. See `web/AGENTS.md` and `web/mobile/AGENTS.md`.
 - `api/` — FastAPI backend (OSS + EE + entrypoints). See `api/AGENTS.md`.
 - `hosting/` — docker-compose, railway, local dev stack. See `hosting/AGENTS.md`.
 - `clients/`, `sdks/` — SDKs and client codegen.

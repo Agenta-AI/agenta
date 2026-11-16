@@ -426,7 +426,7 @@ def test_a_runner_path_change_makes_the_journeys_mandatory():
         )
     ) == {"burst", "crosstalk"}
     # An unrelated change forces nothing.
-    assert triggers.mandatory_journeys(["web/oss/src/app/page.tsx"]) == {}
+    assert triggers.mandatory_journeys(["web/mobile/src/pages/index.tsx"]) == {}
 
 
 def test_a_subscription_change_makes_refresh_mandatory():

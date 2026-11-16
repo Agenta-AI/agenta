@@ -1,8 +1,7 @@
 # Agenta Mobile (`web/mobile`) conventions
 
 The Agenta frontend app, served at `/m` (Next.js Pages Router, `basePath: "/m"`,
-standalone output). `web/oss` (the old desktop app) is abandoned: do not edit
-it, run it, or use it as a reference. This is the always-loaded instruction
+standalone output). This is the always-loaded instruction
 layer for work under `web/mobile`. The general frontend conventions in `web/AGENTS.md` (Fern client,
 state management, React practices) still apply EXCEPT where this file overrides
 them — styling and import rules here are deliberately different. Design doc:
@@ -16,8 +15,7 @@ them — styling and import rules here are deliberately different. Design doc:
   from `@agenta/annotation`.
   UI comes from the shared shadcn kit in `@agenta/ui/ui`. Chat is built on `@agenta/chat`.
   Icons come from `@phosphor-icons/react` or `lucide-react`.
-- **No app-layer imports.** Never import `@/oss/*`, `@agenta/oss`, or
-  `@agenta/ee`. Data and state come from the `@agenta/*` packages only
+- **Data and state from packages.** Data and state come from the `@agenta/*` packages only
   (`@agenta/entities`, `@agenta/shared`, `@agenta/chat`, the `*-ui` packages, ...).
 - **One component per file**, exported with a name matching the file name.
 - **No slab components.** Pages under `src/pages/` are thin route shells only;

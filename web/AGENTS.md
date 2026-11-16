@@ -2,12 +2,8 @@
 
 Scope: everything under `web/`. Active frontend work lives in two places: `web/mobile` (the
 app, served at `/m`; its own rules are in `web/mobile/AGENTS.md`) and `web/packages` (the
-shared `@agenta/*` packages). `web/oss` and `web/ee` are the abandoned desktop app: do not
-edit, run, or copy from them. This file loads when you work in the frontend. The
+shared `@agenta/*` packages). This file loads when you work in the frontend. The
 repo-wide root conventions live in `/AGENTS.md`.
-
-Exception (M3 sharing): `/w` sends `visibility: "project"` on new chats and agents. Do not add
-other `/w` edits.
 
 For deep `@agenta/*` package reference (package vs app placement, molecules, bridges, the
 EntityPicker, package unit tests), use the **`agenta-package-practices`** skill. It holds
@@ -129,8 +125,6 @@ return await getWorkflowsClient().retrieveWorkflowRevision(body, {queryParams}) 
 - **Inside `web/mobile`**, `@/*` resolves to `web/mobile/src/*`
   (`import {ContentRail} from "@/components/ContentRail"`).
 - **Inside a package**, use relative imports for the package's own files.
-- `@/oss/*`, `@agenta/oss/*`, and `@agenta/ee/*` belong to the abandoned desktop app.
-  `web/mobile` lint bans them; do not add them to package code either.
 
 ## Architecture overview
 
