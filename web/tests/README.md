@@ -1,5 +1,11 @@
 # Agenta Cloud E2E Tests
 
+> **Status: disabled.** This harness holds no specs and no workflow runs it. The desktop
+> specs it used to run were deleted with the desktop app. The config, runner, API fixtures
+> and reporters stay for future `/m` specs, which go in `web/tests/specs/<layer>/` (default layer `acceptance`). Before the first
+> spec, rewrite `playwright/global-setup.ts`: it still signs in through the old desktop sign-in
+> page and must sign in through `/m` instead.
+
 ## 📚 E2E Reference Guides
 
 - [E2E Test Generation Guide](guides/E2E_TEST_GENERATION_GUIDE.md)
@@ -13,15 +19,15 @@ End-to-end tests for the Agenta web application. This guide reflects the latest 
 ## Quick Start (Current Runner)
 
 The current runner is `playwright/scripts/run-tests.ts` and does **not** use `--preset`.
-Use environment variables to select target and license.
+Use environment variables to select the target.
 
 ```bash
-# List OSS acceptance tests
-AGENTA_LICENSE=oss AGENTA_WEB_URL="http://localhost:3000" \
+# List acceptance tests
+AGENTA_WEB_URL="http://localhost" \
 pnpm -C web/tests test:acceptance -- --list
 
-# Run a single smoke test against deployed OSS
-AGENTA_LICENSE=oss AGENTA_WEB_URL="http://<deployment-url>" \
+# Run a single smoke test against a deployment
+AGENTA_WEB_URL="http://<deployment-url>" \
 pnpm -C web/tests test:acceptance -- \
   --grep "smoke: auth works and can navigate to apps" \
   --max-failures=1 --workers=1 --retries=1
@@ -39,15 +45,9 @@ Teardown deletes the ephemeral project created by the run.
 
 ## Supported Environments & Presets
 
-- `local` – Local development (requires explicit `--license`)
+- `local` – Local development
 - `staging`, `beta`, `prod`, `demo` – Cloud environments (license always `ee`)
 - `oss` – OSS cloud (license always `oss`)
-
-**License logic:**
-
-- For `staging`, `beta`, `prod`, `demo`: license is always `ee` (enforced by runner)
-- For `oss`: license is always `oss` (enforced by runner)
-- For `local`: must specify `--license oss` or `--license ee`
 
 ---
 
@@ -55,7 +55,7 @@ Teardown deletes the ephemeral project created by the run.
 
 - `TESTMAIL_API_KEY` – Required only for OTP auth mode
 - `TESTMAIL_NAMESPACE` – Required only for OTP auth mode
-- `AGENTA_TEST_OSS_OWNER_PASSWORD` – Required only for OSS runs (preset/license = `oss`)
+- `AGENTA_TEST_OSS_OWNER_PASSWORD` – Required for OSS deployments that use password auth
 - `AGENTA_TEST_OSS_OWNER_EMAIL` – Optional. If provided, it is used as the login email (for persistent deployments with a fixed account). If not provided, a runtime email is generated and signs up directly; it uses Testmail when `TESTMAIL_NAMESPACE` is configured. OSS and EE share the same flow.
 - `AGENTA_API_URL` – Set automatically in CI workflows for teardown and API flows.
 
@@ -97,11 +97,8 @@ RETRIES=2
 Run tests using the unified runner script:
 
 ```bash
-# Local OSS
-pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss
-
-# Local EE
-pnpm tsx playwright/scripts/run-tests.ts --preset local --license ee --web-url http://localhost:3001
+# Local
+pnpm tsx playwright/scripts/run-tests.ts --preset local
 
 # Staging
 pnpm tsx playwright/scripts/run-tests.ts --preset staging
@@ -119,7 +116,7 @@ pnpm tsx playwright/scripts/run-tests.ts --preset demo
 pnpm tsx playwright/scripts/run-tests.ts --preset oss
 
 # With annotation filters (e.g., smoke tests for apps)
-pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --scope apps --coverage smoke
+pnpm tsx playwright/scripts/run-tests.ts --preset local --scope apps --coverage smoke
 
 # With lens/case/speed filters
 pnpm tsx playwright/scripts/run-tests.ts --preset prod --lens functional --case typical --speed fast
@@ -141,7 +138,7 @@ You can filter tests using these flags:
 - `--coverage <smoke|sanity|light|full>`
 - `--path <happy|grumpy>`
 - `--env <local|staging|beta|prod|demo|oss>`
-- `--feature <ee>` (only allowed if `--license ee`)
+- `--feature <ee>`
 - `--entitlement <hobby|pro>`
 - `--permission <owner|admin|manager|developer|annotator|viewer>`
 - `--lens <functional|performance|security>`
@@ -150,9 +147,8 @@ You can filter tests using these flags:
 
 **Notes:**
 
-- If you use `--license oss`, you **must** set `AGENTA_TEST_OSS_OWNER_PASSWORD`.
+- Against an OSS deployment with password auth, you **must** set `AGENTA_TEST_OSS_OWNER_PASSWORD`.
 - `AGENTA_TEST_OSS_OWNER_EMAIL` is optional. If provided, it is used as-is for the login flow (OSS and EE behave the same).
-- `--feature` can only be used with license `ee`.
 - All other Playwright CLI options (e.g. `--ui`, `--workers`, etc.) are supported.
 
 ---
@@ -167,7 +163,7 @@ You can filter tests using these flags:
 
 ## Best Practices
 
-- **Type Safety:** Always use API response types from `web/oss/src/lib/Types.ts` in E2E tests. Do not define custom interfaces or use `any` for backend responses.
+- **Type Safety:** Always use API response types from `web/tests/tests/fixtures/base.fixture/apiHelpers/sharedTypes.ts` in E2E tests. Do not define custom interfaces or use `any` for backend responses.
 - **Dynamic Selectors:** Use API responses to drive selectors and assertions for robust, non-brittle tests.
 - **API-driven Assertions:** Always assert backend responses/messages for actions that mutate state.
 
@@ -195,13 +191,12 @@ End-to-end tests for Agenta web application.
 
 3. Configure test environment:
 
-- Local OSS: Make sure Agenta is running on http://localhost:3000
+- Local: Make sure Agenta is running and `/m` answers on http://localhost/m
 - Staging/Beta: Ensure you have access to the cloud environments
 
 **Note:**
 
-- If you use `--license oss`, you **must** set the `AGENTA_TEST_OSS_OWNER_PASSWORD` environment variable (either in your shell or in a `.env` file in the tests directory). The runner will exit with an error if this is missing.
-- `--feature` can only be used if the license is `ee`. If you provide `--feature` with any other license, the script will exit with an error.
+- Against an OSS deployment with password auth, you **must** set the `AGENTA_TEST_OSS_OWNER_PASSWORD` environment variable (either in your shell or in a `.env` file in the tests directory). The runner will exit with an error if this is missing.
 - `--entitlement` and `--permission` are always optional and can be combined with other filters.
 - `--coverage full` means all coverage levels are included (no coverage filter is applied), but other annotation filters (e.g. `--scope`, `--path`) will still be used if present.
 - You no longer need to use `--project` or `--grep` directly; the script handles project selection and annotation mapping for you.

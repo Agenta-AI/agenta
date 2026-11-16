@@ -1,5 +1,8 @@
 # Agenta E2E Test Organization & Structure Guide
 
+> **Status: disabled.** `web/tests` holds no specs and no workflow runs it. New `/m` specs go in
+> `web/tests/specs/<layer>/` (default layer `acceptance`). `playwright/global-setup.ts` needs a `/m` sign-in before the first spec.
+
 ## Purpose
 This guide describes the recommended folder structure, naming conventions, and organizational patterns for new E2E test implementations in Agenta Cloud. It is based on established best practices and real examples using project utilities and fixtures. All new tests should follow these conventions for consistency and maintainability.
 
@@ -9,21 +12,8 @@ This guide describes the recommended folder structure, naming conventions, and o
 
 ```
 web/
-├── ee/
-│   └── tests/
-│       ├── app/
-│       │   └── create.spec.ts                # EE-specific app creation E2E test
-│       └── prompt-registry/
-│           └── prompt-registry-flow.spec.ts  # EE-specific prompt registry E2E test
-├── oss/
-│   └── tests/
-│       ├── app/
-│       │   ├── create.spec.ts                # OSS-specific app creation E2E test
-│       │   ├── index.ts                      # Exports shared test logic for app tests
-│       │   ├── test.ts                       # OSS-specific fixtures and test utils
-│       │   └── types.ts                      # OSS-specific type definitions
-│       └── ...                               # Additional OSS-specific E2E specs
 ├── tests/
+│   ├── specs/<layer>/                        # E2E test specs by layer, then feature (empty today)
 │   ├── guides/                               # E2E documentation and guides
 │   ├── tests/                                # Shared Playwright fixtures/utilities ONLY (not for test specs)
 │   │   ├── fixtures/
@@ -38,24 +28,12 @@ web/
 
 ### Key Practices
 
-- **Place E2E test specs (`*.spec.ts`) in the relevant product/package feature folder** (e.g., `web/ee/tests/app/`, `web/oss/tests/app/`).
+- **Place E2E test specs (`*.spec.ts`) in a feature folder under `web/tests/specs/<layer>/`** (e.g., `web/tests/specs/acceptance/agents/`).
 - **Organize by feature or domain:** Use subfolders (like `app/`, `prompt-registry/`) to group tests by product area or workflow.
-- **Share test logic via imports:** Product-specific tests can import shared logic from OSS (e.g., `import tests, {test, tags} from "@agenta/oss/tests/app"` in EE tests).
 - **Keep shared Playwright fixtures/utilities in `web/tests/tests/fixtures/`** for maximum reuse and consistency.
 - **Store all E2E documentation and best practices in `web/tests/guides/`.**
 - **Follow naming conventions:** Use descriptive, kebab-case names for test files (e.g., `user-login.spec.ts`).
 - **Never duplicate logic:** Always extend or import from shared helpers/utilities.
-
-### Example: EE Test Importing OSS Logic
-
-```typescript
-// web/ee/tests/app/create.spec.ts
-import tests, {test, tags} from "@agenta/oss/tests/app"
-
-test.describe(`EE App Creation Flow ${tags}`, () => {
-    tests()
-})
-```
 
 ### Why This Structure?
 - **Separation of concerns:** Product/package tests live with the code they validate; shared helpers/utilities are centralized.
@@ -99,7 +77,7 @@ Do not enforce a strict hierarchy of selector types—choose the most resilient 
 - **One suite per file:** Each `.spec.ts` file should focus on a single flow or feature.
 - **Incremental file creation:** Only create helpers/types/fixtures as needed by the evolving test logic (avoid boilerplate).
 - **Reuse fixtures/utilities:** Always use shared helpers from `base.fixture`, `user.fixture`, etc. Don’t duplicate logic. Improve / add new utilities/fixtures as needed to maintain clean and human-readable implementations.
-- **Type safety:** Import API response types from `web/oss/src/lib/Types.ts` (never use `any` for backend types).
+- **Type safety:** Import API response types from `web/tests/tests/fixtures/base.fixture/apiHelpers/sharedTypes.ts` (add a type there when a spec needs it) (never use `any` for backend types).
 - **Selectors:** Prefer role-based, data-testid, or structural selectors. Avoid text-based selectors unless validating content.
 - **Component analysis:** Analyze UI/component structure to create robust selectors and assertions.
 - **Documentation:** Update guides and helper READMEs when adding or changing utilities/fixtures.
@@ -119,7 +97,7 @@ Do not enforce a strict hierarchy of selector types—choose the most resilient 
 
 ```typescript
 import { test, expect } from "@agenta/web-tests/tests/fixtures/base.fixture";
-import type { ListAppsItem, ApiVariant } from "@/oss/lib/Types";
+import type { ListAppsItem, ApiVariant } from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers/sharedTypes"; // add missing types here
 
 // Always assume user is logged in
 
