@@ -275,9 +275,7 @@ export function useSessionDrive(
         const cwdStats = driveFileStats(listing)
         // The cwd holds only the link to each project drive; its files come from the drive below.
         const cwdFiles = cwdStats.files.filter(
-            (f) =>
-                isListableDrivePath(f.path, {projectDrives}) &&
-                !resolveProjectDrivePath(f.path, projectDrives),
+            (f) => isListableDrivePath(f.path) && !resolveProjectDrivePath(f.path, projectDrives),
         )
 
         // Agent-mount files, presented under `agent-files/` so they read as a subfolder of cwd — or at
@@ -652,8 +650,7 @@ export function useSessionDriveSummary(
         const rootEntries: MountFile[] = [
             ...(rootQuery.data ?? []).filter(
                 (f) =>
-                    isSummaryDrivePath(f.path, {projectDrives}) &&
-                    !resolveProjectDrivePath(f.path, projectDrives),
+                    isSummaryDrivePath(f.path) && !resolveProjectDrivePath(f.path, projectDrives),
             ),
             ...projectSummary.flatMap(({drive, root}) =>
                 foldProjectFiles(

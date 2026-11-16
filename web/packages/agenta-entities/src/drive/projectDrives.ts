@@ -5,6 +5,7 @@
  */
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
+import {selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -74,13 +75,21 @@ export const resolveProjectDrivePath = <D extends {slug: string}>(
     return null
 }
 
-/** The project entries of a revision's configuration (none without a revision). */
+const NO_ENTRIES: ProjectDriveEntry[] = []
+const noEntriesAtom = atom(() => NO_ENTRIES)
+const sameEntries = (a: ProjectDriveEntry[], b: ProjectDriveEntry[]) =>
+    a.length === b.length && a.every((e, i) => e.slug === b[i].slug && e.access === b[i].access)
+
+/** The project entries of a revision's configuration (none without a revision); an edit elsewhere
+ * in the configuration keeps the same array. */
 const projectDriveEntriesAtomFamily = atomFamily((revisionId: string) =>
-    atom((get) =>
-        revisionId
-            ? projectDriveEntries(get(workflowMolecule.selectors.parameters(revisionId)))
-            : [],
-    ),
+    revisionId
+        ? selectAtom(
+              workflowMolecule.selectors.parameters(revisionId),
+              projectDriveEntries,
+              sameEntries,
+          )
+        : noEntriesAtom,
 )
 
 const projectMountsQueryFamily = atomFamily((slugsKey: string) =>
@@ -109,16 +118,6 @@ export interface ProjectDrivesState {
 }
 
 const NO_DRIVES: ProjectDrive[] = []
-// One array per (answer, slugs): the state atom recomputes on every fetch flag, the drives must not.
-const matched = new WeakMap<Mount[], {key: string; drives: ProjectDrive[]}>()
-const matchOnce = (entries: ProjectDriveEntry[], mounts: Mount[]) => {
-    const key = entries.map((e) => `${e.slug}:${e.access}`).join("\n")
-    const hit = matched.get(mounts)
-    if (hit && hit.key === key) return hit.drives
-    const drives = matchProjectDrives(entries, mounts)
-    matched.set(mounts, {key, drives})
-    return drives
-}
 const noop = () => {}
 const IDLE: ProjectDrivesState = {
     drives: NO_DRIVES,
@@ -128,26 +127,36 @@ const IDLE: ProjectDrivesState = {
     refetch: noop,
 }
 
+const slugsKeyOf = (entries: readonly ProjectDriveEntry[]) => entries.map((e) => e.slug).join("\n")
+
+/** The lookup's answer alone, so the drives recompute when it changes and not on a fetch flag. */
+const projectMountsDataFamily = atomFamily((slugsKey: string) =>
+    selectAtom(projectMountsQueryFamily(slugsKey), (query) => query.data),
+)
+
+/** The revision's project drives that have an active mount. */
+export const projectDrivesAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): ProjectDrive[] => {
+        const entries = get(projectDriveEntriesAtomFamily(revisionId))
+        if (!entries.length) return NO_DRIVES
+        const mounts = get(projectMountsDataFamily(slugsKeyOf(entries)))
+        return mounts ? matchProjectDrives(entries, mounts) : NO_DRIVES
+    }),
+)
+
 /** The revision's project drives and the state of their lookup. No project entries: no request. */
 export const projectDrivesStateAtomFamily = atomFamily((revisionId: string) =>
     atom((get): ProjectDrivesState => {
         const entries = get(projectDriveEntriesAtomFamily(revisionId))
         if (!entries.length) return IDLE
-        const slugsKey = entries.map((e) => e.slug).join("\n")
-        const query = get(projectMountsQueryFamily(slugsKey))
-        const settled = !query.isPending
+        const query = get(projectMountsQueryFamily(slugsKeyOf(entries)))
         return {
-            drives: query.data ? matchOnce(entries, query.data) : NO_DRIVES,
+            drives: get(projectDrivesAtomFamily(revisionId)),
             isPending: query.isPending && query.fetchStatus !== "idle",
             isFetching: query.isFetching,
             // The API helper answers null for a failed request.
-            isError: query.isError || (settled && query.data === null),
+            isError: query.isError || (!query.isPending && query.data === null),
             refetch: () => void query.refetch(),
         }
     }),
-)
-
-/** The revision's project drives that have an active mount. */
-export const projectDrivesAtomFamily = atomFamily((revisionId: string) =>
-    atom((get): ProjectDrive[] => get(projectDrivesStateAtomFamily(revisionId)).drives),
 )
