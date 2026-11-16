@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from agenta.sdk.agents import (
     AgentDrive,
@@ -15,6 +16,7 @@ from agenta.sdk.agents import (
     validate_agent_drives,
     validate_has_session_drive,
 )
+from agenta.sdk.utils.types import AgentTemplateSchema, build_agent_v0_default
 
 
 def _template(**agent):
@@ -123,3 +125,42 @@ def test_the_harness_config_carries_the_drives_to_the_wire(make_env):
         "drives": [{"kind": "project", "slug": "price-lists", "access": "read"}],
         "hasSessionDrive": False,
     }
+
+
+def test_the_default_template_states_both_keys():
+    template = build_agent_v0_default()
+    assert template["has_session_drive"] is True
+    assert template["drives"] == [{"kind": "agent"}]
+    parsed = AgentTemplate.from_params({"agent": template})
+    assert parsed.drives == [AgentDrive(kind="agent")]
+
+
+def test_the_editor_schema_accepts_both_keys():
+    schema = AgentTemplateSchema.model_validate(
+        {
+            "has_session_drive": False,
+            "drives": [
+                {"kind": "agent"},
+                {"kind": "project", "slug": "price-lists", "access": "read"},
+            ],
+        }
+    )
+    assert schema.has_session_drive is False
+    assert [drive.kind for drive in schema.drives] == ["agent", "project"]
+    assert AgentTemplateSchema().model_dump()["drives"] == [
+        {"kind": "agent", "slug": None, "access": None}
+    ]
+
+
+@pytest.mark.parametrize(
+    "drives",
+    [
+        [{"kind": "session"}],
+        [{"kind": "project", "slug": "a", "access": "write"}],
+        [{"kind": "project", "slug": "a", "path": "x"}],
+        [{"kind": "project", "slug": f"d{i}"} for i in range(9)],
+    ],
+)
+def test_the_editor_schema_refuses_a_broken_entry(drives):
+    with pytest.raises(ValidationError):
+        AgentTemplateSchema.model_validate({"drives": drives})
