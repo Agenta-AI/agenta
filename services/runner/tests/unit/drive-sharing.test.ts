@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
@@ -19,6 +19,8 @@ import {
   linkProjectDriveRemote,
   PROJECT_DRIVES_DIR_NAME,
   projectMountPath,
+  pruneProjectDriveLinks,
+  pruneProjectDriveLinksRemote,
   signProjectMountCredentials,
 } from "../../src/engines/sandbox_agent/project-mount.ts";
 import {
@@ -258,6 +260,48 @@ describe("project drive paths and links", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
+  });
+
+  it("removes stale drives/ links and empty files of drives no longer listed, never a folder or a file with content", async () => {
+    const sh: Parameters<typeof pruneProjectDriveLinksRemote>[0] = {
+      runProcess: async ({ args }) => {
+        try {
+          return { exitCode: 0, result: execFileSync("sh", args ?? []).toString() };
+        } catch (err) {
+          return { exitCode: (err as { status?: number }).status ?? 1 };
+        }
+      },
+    };
+    for (const [name, prune] of [
+      ["local", (cwd: string, keep: string[], log: (m: string) => void) => pruneProjectDriveLinks(cwd, keep, { log })],
+      ["remote", (cwd: string, keep: string[], log: (m: string) => void) => pruneProjectDriveLinksRemote(sh, cwd, keep, { log })],
+    ] as const) {
+      const cwd = join(tmpdir(), `agenta-project-prune-${name}-${process.pid}-${Date.now()}`);
+      const drives = join(cwd, "drives");
+      mkdirSync(join(drives, "folder"), { recursive: true });
+      writeFileSync(join(drives, "folder", "kept.md"), "mine");
+      writeFileSync(join(drives, "notes-file"), "someone's notes");
+      writeFileSync(join(drives, "empty"), "");
+      symlinkSync("/nowhere/old", join(drives, "dangling"));
+      symlinkSync(join(drives, "folder"), join(drives, "to-folder"));
+      symlinkSync("/nowhere/kept", join(drives, "kept"));
+      const logs: string[] = [];
+      try {
+        await prune(cwd, ["kept"], (m) => logs.push(m));
+        assert.deepEqual(readdirSync(drives).sort(), ["folder", "kept", "notes-file"], name);
+        assert.equal(readFileSync(join(drives, "folder", "kept.md"), "utf-8"), "mine");
+        assert.equal(readFileSync(join(drives, "notes-file"), "utf-8"), "someone's notes");
+        assert.deepEqual(
+          logs.filter((m) => m.startsWith("removed stale")).sort(),
+          ["removed stale drives/dangling", "removed stale drives/empty", "removed stale drives/to-folder"],
+          name,
+        );
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    }
+    // No drives/ folder at all: nothing to do, no error.
+    await pruneProjectDriveLinks(join(tmpdir(), `agenta-no-such-${process.pid}`), [], { log: SILENT });
   });
 
   it("makes the same link in a remote sandbox", async () => {
@@ -646,6 +690,30 @@ describe("local runs with drives (engine composition)", () => {
       assert.equal(readFileSync(join(cwd, "drives", "notes", "kept.md"), "utf-8"), "mine");
     } finally {
       await acquired.env.destroy();
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+    }
+  });
+
+  it("removes the stale link of a drive the list dropped at setup, and keeps the listed one", async () => {
+    const cwd = join(tmpdir(), `agenta-drives-stale-${process.pid}-${Date.now()}`);
+    mkdirSync(join(cwd, "drives"), { recursive: true });
+    symlinkSync(`${cwd}-project-old`, join(cwd, "drives", "old"));
+    const { deps, logs } = fakeHarness({ cwd });
+    deps.signProjectMountCredentials = signed("notes");
+    deps.mountStorage = (async () => true) as never;
+    deps.unmountStorage = (async () => true) as never;
+    try {
+      const result = await runSandboxAgent(
+        request({ sessionId: undefined, drives: [{ kind: "project", slug: "notes", access: "read" }] }),
+        undefined,
+        undefined,
+        deps,
+      );
+      assert.equal(result.ok, true);
+      assert.deepEqual(readdirSync(join(cwd, "drives")), ["notes"]);
+      assert.ok(logs.includes("removed stale drives/old"));
+    } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
     }

@@ -25,7 +25,7 @@
 import type { DaytonaSandbox } from "./daytona-api.ts";
 import type { SandboxUse } from "./command-sandbox.ts";
 import { linkAgentFilesRemote } from "../../sandbox_agent/agent-mount.ts";
-import { linkProjectDriveRemote } from "../../sandbox_agent/project-mount.ts";
+import { linkProjectDriveRemote, pruneProjectDriveLinksRemote } from "../../sandbox_agent/project-mount.ts";
 import { withPublicCode } from "../../sandbox_agent/errors.ts";
 import { REFRESH_ROOTS_SCRIPT } from "../../sandbox_agent/turn-start-refresh.ts";
 import {
@@ -305,6 +305,10 @@ export class SandboxDrive {
       throw withPublicCode(new DriveUnreachableError(`mounted ${results.filter(Boolean).length} of ${results.length} roots`), "runner_error");
     }
     await this.link(use.sandbox, signal);
+    if (this.options.cwd) {
+      const listed = roots.flatMap((r) => (r.link?.kind === "project" ? [r.link.slug] : []));
+      await pruneProjectDriveLinksRemote(sandboxExec(use.sandbox, signal), this.inSandbox(this.options.cwd), listed, { log: this.options.log });
+    }
     this.modesApplied.clear();
     await this.applyModes(use.sandbox, signal);
     const expiries = credentials.map((c) => Date.parse(c.creds!.expiresAt ?? "")).filter((n) => Number.isFinite(n));

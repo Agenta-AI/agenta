@@ -181,6 +181,8 @@ import { driveIdentity, mountExpiryMs, projectScopeFor } from "./session-identit
 import {
   linkProjectDriveRemote,
   projectMountPath,
+  pruneProjectDriveLinks,
+  pruneProjectDriveLinksRemote,
 } from "./project-mount.ts";
 import { drivesListedEmpty, projectDrives } from "./run-drives.ts";
 import {
@@ -805,6 +807,8 @@ async function acquireEnvironmentOnce(
       environment.agentMountCreds && plan.driveOnRunner
         ? mountLocalAgentCwd(cwdMount)
         : undefined;
+    // Every listed project drive keeps its `drives/<slug>` entry, signed or not.
+    const listedProjectSlugs = projectDrives(environment.drives).map((d) => d.slug);
     const localProjects = plan.driveOnRunner
       ? projectDrives(environment.drives).filter((d) => d.credentials)
       : [];
@@ -827,6 +831,9 @@ async function acquireEnvironmentOnce(
     for (const result of projectResults) if (result.status === "rejected") throw result.reason;
     if (cwdResult.value && piSessionDir) environment.nativeHistoryDurable = true;
     if (anyLocalMount) throwIfAcquireAborted(signal);
+    if (plan.driveOnRunner) {
+      await pruneProjectDriveLinks(plan.workspace.cwd, listedProjectSlugs, { log: logger });
+    }
     // A harness in the runner (`inprocess`) mounts the drive in its own command sandbox when a
     // tool first needs it, so nothing is mounted here. The credentials' expiry bounds this
     // environment as a remote mount's does; the harness keeps the conversation file in the drive
@@ -1429,6 +1436,9 @@ async function acquireEnvironmentOnce(
     if (daytonaAgentResult.status === "rejected") throw daytonaAgentResult.reason;
     for (const result of daytonaProjectResults)
       if (result.status === "rejected") throw result.reason;
+    if (plan.isDaytona) {
+      await pruneProjectDriveLinksRemote(environment.sandbox, plan.workspace.cwd, listedProjectSlugs, { log: logger });
+    }
 
     // Restore the agent's own tools (`agent-files/.tools/`) now that both agent-mount paths
     // have settled and before the session opens, so a venv or a binary the model saved in an

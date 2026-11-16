@@ -4,7 +4,7 @@
  * `drives/<slug>`, the way the agent drive is linked as `agent-files` (`agent-mount.ts`).
  */
 
-import { lstat, mkdir } from "node:fs/promises";
+import { lstat, mkdir, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { DriveAccess } from "../../protocol.ts";
@@ -134,6 +134,71 @@ export async function linkProjectDriveRemote(
       log,
       slug,
       `remote ${projectDriveLinkName(slug)} link failed ${linkPath}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
+    );
+  }
+}
+
+/**
+ * Remove `drives/<entry>` items left by a project drive that the list no longer holds, so the
+ * session folder does not show a drive the agent lost. Only a link, or the empty file geesefs
+ * leaves of one, is removed; a folder or a file with content is someone's and stays.
+ */
+export async function pruneProjectDriveLinks(
+  cwd: string,
+  keepSlugs: readonly string[],
+  deps: { log?: (msg: string) => void } = {},
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  const dir = join(cwd, PROJECT_DRIVES_DIR_NAME);
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (keepSlugs.includes(entry)) continue;
+    const path = join(dir, entry);
+    try {
+      const st = await lstat(path);
+      if (!st.isSymbolicLink() && !(st.isFile() && st.size === 0)) continue;
+      await unlink(path);
+      log(`removed stale ${PROJECT_DRIVES_DIR_NAME}/${entry}`);
+    } catch (err) {
+      log(
+        `stale ${PROJECT_DRIVES_DIR_NAME}/${entry} not removed: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
+      );
+    }
+  }
+}
+
+/** The same cleanup inside a remote sandbox. */
+export async function pruneProjectDriveLinksRemote(
+  sandbox: SandboxExec,
+  cwd: string,
+  keepSlugs: readonly string[],
+  deps: { log?: (msg: string) => void } = {},
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  const script =
+    `cd ${shellQuote(join(cwd, PROJECT_DRIVES_DIR_NAME))} 2>/dev/null || exit 0; ` +
+    `for e in * .[!.]*; do [ -e "$e" ] || [ -L "$e" ] || continue; ` +
+    `k=0; for s in "$@"; do [ "$s" = "$e" ] && k=1; done; [ "$k" = 1 ] && continue; ` +
+    `if [ -L "$e" ] || { [ -f "$e" ] && [ ! -s "$e" ]; }; then rm -f "$e" && echo "$e"; fi; done`;
+  try {
+    const res = (await sandbox.runProcess({
+      command: "sh",
+      args: ["-c", script, "sh", ...keepSlugs],
+      timeoutMs: 30_000,
+    })) as { exitCode?: number; result?: string; stdout?: string } | undefined;
+    const removed = String(res?.result ?? res?.stdout ?? "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    for (const entry of removed) log(`removed stale ${PROJECT_DRIVES_DIR_NAME}/${entry}`);
+  } catch (err) {
+    log(
+      `stale ${PROJECT_DRIVES_DIR_NAME} cleanup failed in ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
     );
   }
 }

@@ -72,6 +72,16 @@ describe("SandboxDrive with project drives", () => {
     expect(drive.mountChecks.map((m) => m.root)).toEqual(["/w", "/w-agent", "/w-project-prices"]);
   });
 
+  it("cleans stale drives/ entries at each mount, keeping the listed project drives", async () => {
+    const commands: string[] = [];
+    const { mounter } = fakeMounter();
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
+    await drive.ensure(use(fakeSandbox(commands)));
+    const prune = commands.find((c) => c.includes("for e in"));
+    expect(prune).toContain("'/w/drives'");
+    expect(prune).toMatch(/'sh' 'prices'$/);
+  });
+
   it("keeps today's rule: a root that fails to mount fails the file command", async () => {
     const { mounter } = fakeMounter(new Set(["/w-project-prices"]));
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
