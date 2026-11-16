@@ -197,7 +197,8 @@ function frameAt(tick: number) {
     const seconds = Math.max(1, Math.round((Math.min(phase, 7) * TICK_MS * 3) / 1000))
     // Cycles since each automation last ran in this preview.
     const ranCyclesAgo = new Map<number, number>()
-    for (let past = 0; past < cycle; past++) {
+    // Only the last full rotation matters: an older run was overwritten by a newer one.
+    for (let past = Math.max(0, cycle - RUN_ORDER.length); past < cycle; past++) {
         ranCyclesAgo.set(RUN_ORDER[past % RUN_ORDER.length], cycle - past)
     }
     const rows = AUTOMATIONS.map((automation, index) => {
@@ -223,9 +224,28 @@ const usePreviewTick = () => {
     return tick
 }
 
+/** A brand logo, or the app's initial when the logo CDN is blocked (ad blockers, offline self-hosting). */
+const AppLogo = ({app, className}: {app: AppId; className: string}) => {
+    const [failed, setFailed] = useState(false)
+    if (failed)
+        return (
+            <span className="auth-preview-muted text-[10px] font-semibold uppercase leading-none">
+                {app[0]}
+            </span>
+        )
+    return (
+        <img
+            src={logoUrl(app)}
+            alt=""
+            className={`${className} object-contain`}
+            onError={() => setFailed(true)}
+        />
+    )
+}
+
 const AppTile = ({app}: {app: AppId}) => (
     <span className="auth-preview-tile inline-flex size-9 flex-none items-center justify-center rounded-[10px]">
-        <img src={logoUrl(app)} alt="" className="size-[18px] object-contain" />
+        <AppLogo app={app} className="size-[18px]" />
     </span>
 )
 
@@ -310,7 +330,7 @@ const StepNode = ({icon, running}: {icon: Step["icon"]; running: boolean}) => {
     let glyph
     if (running) glyph = <CircleNotch size={13} className="motion-safe:animate-spin" />
     else if (typeof icon === "string") {
-        glyph = <img src={logoUrl(icon)} alt="" className="size-3.5 object-contain" />
+        glyph = <AppLogo app={icon} className="size-3.5" />
     } else {
         const Glyph = icon
         glyph = <Glyph size={13} />
