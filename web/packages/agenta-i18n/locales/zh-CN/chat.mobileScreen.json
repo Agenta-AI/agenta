@@ -1,0 +1,11 @@
+{
+    "agent": "Agent",
+    "loadingConversation": "正在加载对话",
+    "noMessages": "这里没有消息：此会话没有可回放的历史记录。",
+    "readOnlyNoAgent": "只读：此会话还没有可发送消息的 Agent。",
+    "readOnlyNoRevision": "只读：此 Agent 还没有可发送消息的修订版本。",
+    "running": "运行中",
+    "tryAgain": "重试",
+    "unreachableDescription": "服务器没有响应。请检查你的网络连接，然后重试。",
+    "unreachableTitle": "无法加载此会话"
+}

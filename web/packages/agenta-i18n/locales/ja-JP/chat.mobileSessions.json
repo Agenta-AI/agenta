@@ -1,0 +1,18 @@
+{
+    "copyLinkFailed": "リンクをコピーできませんでした",
+    "exportJson": "JSON をエクスポート",
+    "exportRecords": "セッションのレコードをエクスポート",
+    "inspectSession": "セッションを調査",
+    "inspectorTitle": "セッションインスペクター",
+    "linkCopied": "リンクをコピーしました",
+    "loadingRecords": "レコードを読み込み中…",
+    "newSession": "新しいセッション",
+    "noRecords": "このセッションにはまだレコードがありません。",
+    "noSessions": "このエージェントのセッションはまだありません。",
+    "recordsAndTurns": "{{records}} 件のレコード ・ {{turns}} ターン",
+    "recordsFailed": "セッションのレコードを読み込めませんでした。",
+    "refresh": "更新",
+    "refreshInspector": "セッションインスペクターを更新",
+    "sessionHistory": "セッション履歴",
+    "sessions": "セッション"
+}

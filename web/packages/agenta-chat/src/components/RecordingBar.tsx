@@ -1,5 +1,7 @@
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatRecordingBarCatalog from "@agenta/i18n/catalogs/chat.recordingBar"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {ComposerSendButton} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -31,6 +33,7 @@ const RecordingBar = ({
     willSend: boolean
     className?: string
 }) => {
+    const t = useT(chatRecordingBarCatalog)
     const {analyserRef, startedAtRef, stop, cancel} = recorder
 
     // Only the clock lives in React, quantised to whole seconds — so this repaints ~1x/s. The
@@ -104,18 +107,18 @@ const RecordingBar = ({
                         transition={{duration: 0.15}}
                         className="text-xs text-colorError"
                     >
-                        {mmss(remainingSeconds)} left
+                        {t("chat.recordingBar.timeLeft", {time: mmss(remainingSeconds)})}
                     </motion.span>
                 )}
             </AnimatePresence>
 
             <div className="flex shrink-0 items-center gap-1">
-                <SimpleTooltip title="Delete recording (Esc)">
+                <SimpleTooltip title={t("chat.recordingBar.deleteTooltip")}>
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={cancel}
-                        aria-label="Delete recording"
+                        aria-label={t("chat.recordingBar.delete")}
                     >
                         <X size={18} />
                     </Button>
@@ -125,7 +128,13 @@ const RecordingBar = ({
                     animate={{opacity: 1, scale: 1}}
                     transition={SESSION_SPRING}
                 >
-                    <SimpleTooltip title={willSend ? "Send voice message" : "Attach to message"}>
+                    <SimpleTooltip
+                        title={
+                            willSend
+                                ? t("chat.recordingBar.sendTooltip")
+                                : t("chat.recordingBar.attachTooltip")
+                        }
+                    >
                         {/* The composer's own send control — sending is one affordance, wherever
                         it is triggered from. Only the glyph changes when the take is being
                         attached to a message in progress rather than sent outright. */}
@@ -134,8 +143,8 @@ const RecordingBar = ({
                             icon={willSend ? undefined : <Check size={16} weight="bold" />}
                             ariaLabel={
                                 willSend
-                                    ? "Stop recording and send the voice message"
-                                    : "Stop recording and attach it to the message"
+                                    ? t("chat.recordingBar.stopAndSend")
+                                    : t("chat.recordingBar.stopAndAttach")
                             }
                         />
                     </SimpleTooltip>

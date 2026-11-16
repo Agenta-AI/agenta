@@ -24,6 +24,7 @@
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/shared": "workspace:../agenta-shared"
     },
     "peerDependencies": {

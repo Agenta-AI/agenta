@@ -1,0 +1,13 @@
+{
+    "columns_many": "{{count}} colunas",
+    "columns_one": "{{count}} coluna",
+    "columns_other": "{{count}} colunas",
+    "copied": "Copiado",
+    "copyAsMarkdown": "Copiar como Markdown",
+    "downloadCsv": "Baixar CSV",
+    "expand": "Expandir",
+    "rows_many": "{{count}} linhas",
+    "rows_one": "{{count}} linha",
+    "rows_other": "{{count}} linhas",
+    "summary": "{{rows}} · {{columns}}"
+}

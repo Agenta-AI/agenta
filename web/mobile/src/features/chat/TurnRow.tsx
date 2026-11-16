@@ -21,6 +21,8 @@ import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta
 import {messageBodyKey} from "@agenta/chat/state"
 import {canViewSpansAtom} from "@agenta/entities/access"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {useT} from "@agenta/i18n"
+import chatMobileTurnCatalog from "@agenta/i18n/catalogs/chat.mobileTurn"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
@@ -91,6 +93,7 @@ const TurnRowInner = ({
     /** When the server saved the user message that started this run: the clock counts from it. */
     runStartedAt?: number
 }) => {
+    const t = useT(chatMobileTurnCatalog)
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     // A reader whose role has no trace access gets no trace action and no trace read.
     const canViewSpans = useAtomValue(canViewSpansAtom)
@@ -172,7 +175,7 @@ const TurnRowInner = ({
     // account ids; only its sanitized sentence may reach the screen, as on the desktop.
     const traceError = answerless ? readableTraceError(traceSummary.error) : null
     const errorText = turn.status.showError
-        ? (turn.status.errorText ?? "Something went wrong.")
+        ? (turn.status.errorText ?? t("chat.mobileTurn.somethingWentWrong"))
         : traceError
     const runError = errorText
         ? describeRunFailure({
@@ -310,12 +313,14 @@ const TurnRowInner = ({
                 </>
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">
-                    No response — the agent ended its turn without answering.
+                    {t("chat.mobileTurn.noResponse")}
                 </span>
             ) : turn.status.stopped && !answered && !live ? (
                 // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
                 // running call, the fold hides that failed call, and the turn would read empty.
-                <span className="text-xs italic text-colorTextSecondary">Stopped</span>
+                <span className="text-xs italic text-colorTextSecondary">
+                    {t("chat.mobileTurn.stopped")}
+                </span>
             ) : null}
             {/* The turn's meta line sits under the answer, revealed on hover or focus like the
                 desktop's; the row keeps its height so nothing shifts when it appears. Not while

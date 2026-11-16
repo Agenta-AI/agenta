@@ -52,7 +52,8 @@ export const AgentTemplateImportDrawer = ({
             onClose={onClose}
             title="Import an agent from a repo"
             hint="Scan a public GitHub repository for agent templates."
-            noun="agent templates"
+            noneFoundText="No agent templates found in this repository."
+            foundLabel="Agent templates found"
             scan={scan}
             confirmLabel={() => "Create agent"}
             onConfirm={confirm}

@@ -1,0 +1,20 @@
+{
+    "alwaysAutoApprove": "Aprobar siempre automáticamente",
+    "answerSavedRetry": "Respuesta guardada, hace falta reintentar",
+    "answerSavedRetryHint": "La respuesta está guardada. Envía tu siguiente mensaje para reintentar la continuación.",
+    "answerSavedWaiting": "La respuesta está guardada. Esperando la siguiente actualización del agente…",
+    "answeredWaiting": "Respondido, esperando al agente",
+    "approve": "Aprobar",
+    "approveAll": "Aprobar todo",
+    "cancel": "Cancelar",
+    "deny": "Denegar",
+    "denyAll": "Denegar todo",
+    "denyAndSend": "Denegar y enviar",
+    "hideDetails": "Ocultar los detalles",
+    "needsApproval": "Necesita tu aprobación",
+    "redirect": "Redirigir",
+    "seeWhatChanges": "Ver qué cambia ({{count}})",
+    "seeWhatRuns": "Ver qué se ejecuta ({{count}})",
+    "steerHint": "Deniega este paso y dile al agente qué hacer en su lugar. Tu nota se ejecuta como el siguiente mensaje.",
+    "steerPlaceholder": "p. ej. escribe en staging, no en producción, o pídele algo totalmente distinto"
+}

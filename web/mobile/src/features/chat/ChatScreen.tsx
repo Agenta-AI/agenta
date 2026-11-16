@@ -7,6 +7,8 @@ import {
     getPendingApprovals,
 } from "@agenta/chat/model"
 import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import chatMobileScreenCatalog from "@agenta/i18n/catalogs/chat.mobileScreen"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -263,6 +265,7 @@ const ReplayScreen = ({
     /** Rendered inside a workspace pane — the shell belongs to the parent. */
     embedded?: boolean
 }) => {
+    const t = useT(chatMobileScreenCatalog)
     // Tightened records cadence only while this foregrounded screen shows a running or pending
     // turn; derived from the previous render's messages, so it settles one render behind.
     const [pollMs, setPollMs] = useState(0)
@@ -346,15 +349,15 @@ const ReplayScreen = ({
                     {readOnly ? null : (
                         <p className="text-muted-foreground border-colorBorderSecondary m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-xs">
                             {agentId
-                                ? "Read-only — this agent has no revision to message yet."
-                                : "Read-only — this session has no agent to message yet."}
+                                ? t("chat.mobileScreen.readOnlyNoRevision")
+                                : t("chat.mobileScreen.readOnlyNoAgent")}
                         </p>
                     )}
                     {running ? (
                         <div className="border-border shrink-0 border-b px-4 py-2">
                             <ContentRail className="flex items-center justify-between">
                                 <StatusTag tone="running" dot>
-                                    running
+                                    {t("chat.mobileScreen.running")}
                                 </StatusTag>
                             </ContentRail>
                         </div>

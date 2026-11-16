@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import navThemeOptionsCatalog from "@agenta/i18n/catalogs/nav.themeOptions"
 import {
     ProjectOrgSwitcherView,
     SidebarIconMenu,
@@ -25,6 +27,15 @@ import {useOrganizationProjects} from "./useOrganizationProjects"
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
  * Both panels speak organizations, because every org's workspace is named "Default".
  */
+const THEME_LABEL_KEYS = {
+    light: {label: "nav.themeOptions.light", short: "navigation.themeOptions.light"},
+    dark: {label: "nav.themeOptions.dark", short: "navigation.themeOptions.dark"},
+    system: {
+        label: "nav.themeOptions.systemDefault",
+        short: "nav.themeOptions.system",
+    },
+} as const
+
 export const DrawerProjectSwitcher = ({
     workspaceId,
     projectId,
@@ -115,19 +126,20 @@ export const DrawerProjectSwitcher = ({
 
     // The same fly-out the desktop rail carries, over the same three choices — Preferences offers
     // them too, but the switcher is where you already are when you want to flip the lights.
+    const t = useT(navThemeOptionsCatalog)
     const {themeMode, setMode} = useThemeMode()
     const theme = useMemo<SwitcherThemeControl>(
         () => ({
             mode: themeMode,
             onSelect: (mode) => setMode(mode as typeof themeMode),
-            options: THEME_OPTIONS.map(({mode, label, short}) => ({
+            options: THEME_OPTIONS.map(({mode}) => ({
                 mode,
-                label,
-                short,
+                label: t(THEME_LABEL_KEYS[mode].label),
+                short: t(THEME_LABEL_KEYS[mode].short),
                 icon: themeIcon(mode),
             })),
         }),
-        [themeMode, setMode],
+        [themeMode, setMode, t],
     )
 
     return (

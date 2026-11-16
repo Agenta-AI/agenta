@@ -1,0 +1,20 @@
+{
+    "attachmentsLabel": "{{count}} anexos",
+    "attachmentsOnly": "(somente anexos)",
+    "cancel": "Cancelar",
+    "cancelEditing": "Cancelar edição",
+    "editQueued": "Editar mensagem na fila",
+    "emptyMessage": "(mensagem vazia)",
+    "noLongerQueued": "Esta mensagem não está mais na fila.",
+    "queuedCount_many": "{{count}} mensagens na fila",
+    "queuedCount_one": "{{count}} mensagem na fila",
+    "queuedCount_other": "{{count}} mensagens na fila",
+    "quotesLabel_many": "{{count}} citações",
+    "quotesLabel_one": "{{count}} citação",
+    "quotesLabel_other": "{{count}} citações",
+    "removeQueued": "Remover mensagem da fila",
+    "sendBlocked": "Outra mensagem está sendo enviada primeiro",
+    "sendNow": "Enviar agora",
+    "sending": "Enviando",
+    "waitsForAnswer": " · aguarda sua resposta"
+}

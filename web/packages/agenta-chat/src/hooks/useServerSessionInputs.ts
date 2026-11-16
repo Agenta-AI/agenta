@@ -8,6 +8,8 @@ import {
     type PendingInputWriteOutcome,
 } from "@agenta/entities/session"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import {buildAgentRequest, isHitlPending} from "@agenta/playground/agent-chat"
 import {projectIdAtom} from "@agenta/shared/state"
 import type {FileUIPart, UIMessage} from "ai"
@@ -23,6 +25,8 @@ import {trackOwnedRunAtom} from "../state/sessionMessages"
 
 import type {QueuedMessage, ServerQueueWriteResult} from "./useAgentChatQueue"
 import {useMountGeneration} from "./useMountGeneration"
+
+const tNow = createT(chatMessagesCatalog)
 
 /** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
@@ -469,7 +473,7 @@ export const useServerSessionInputs = ({
                 )
                     .catch((error: unknown) => {
                         if (error instanceof Error && error.message === PREPARE_NOT_READY_MESSAGE) {
-                            throw new Error("The agent is not ready to accept input.")
+                            throw new Error(tNow("chat.messages.agentNotReady"))
                         }
                         throw error
                     })
@@ -478,7 +482,7 @@ export const useServerSessionInputs = ({
                 // a request mixing the new scope's entity and messages with this send's session
                 // id. Only the scope is checked, not the mount: admission may outlive a remount.
                 if (scopeRef.current !== scope) {
-                    throw new Error("The session changed before the message was sent.")
+                    throw new Error(tNow("chat.messages.sessionChanged"))
                 }
 
                 response = await fetch(request.invocationUrl, {

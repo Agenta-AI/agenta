@@ -1,0 +1,6 @@
+{
+    "incompleteDetail": "新的活动会继续更新，但此记录可能缺少较早的事件。",
+    "incompleteTitle": "部分较早的历史记录不可用",
+    "reconnectingDetail": "正在恢复已保存的记录，之后才会继续实时更新。",
+    "reconnectingTitle": "正在重新连接此会话"
+}

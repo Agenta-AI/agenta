@@ -1,0 +1,18 @@
+{
+    "copyLinkFailed": "无法复制链接",
+    "exportJson": "导出 JSON",
+    "exportRecords": "导出会话记录",
+    "inspectSession": "检查会话",
+    "inspectorTitle": "会话检查器",
+    "linkCopied": "链接已复制",
+    "loadingRecords": "正在加载记录…",
+    "newSession": "新建会话",
+    "noRecords": "此会话还没有记录。",
+    "noSessions": "此 Agent 还没有会话。",
+    "recordsAndTurns": "{{records}} 条记录 · {{turns}} 轮",
+    "recordsFailed": "无法加载会话记录。",
+    "refresh": "刷新",
+    "refreshInspector": "刷新会话检查器",
+    "sessionHistory": "会话历史",
+    "sessions": "会话"
+}
