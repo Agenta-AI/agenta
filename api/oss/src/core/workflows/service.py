@@ -52,8 +52,11 @@ from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.agents import (
     HarnessKind,
     InvalidHarnessKindError,
+    InvalidAgentDrivesError as AgentDrivesShapeError,
     InvalidAgentInstructionsError as AgentInstructionsShapeError,
+    validate_agent_drives,
     validate_agent_instructions,
+    validate_has_session_drive,
 )
 
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -177,7 +180,9 @@ from oss.src.core.sharing.service import invalidate_sharing_caches
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
+    AgentDriveNotFoundError,
     AgentReferenceUnresolved,
+    InvalidAgentDriveEntryError,
     InvalidAgentHarnessError,
     InvalidAgentConnectionError,
     InvalidAgentInstructionsError,
@@ -376,6 +381,31 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
             )
 
 
+def _agent_drives(data: Any) -> Optional[List[Any]]:
+    """The parsed drive entries of an agent commit, or None for a workflow that is not an agent.
+
+    The entry rules are the SDK's ``validate_agent_drives``; a broken entry answers
+    ``invalid_drive_entry``.
+    """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump(mode="json", exclude_none=True)
+    if not isinstance(data, dict):
+        return None
+    agent = (data.get("parameters") or {}).get("agent")
+    if not isinstance(agent, dict):
+        return None
+    try:
+        validate_has_session_drive(agent.get("has_session_drive"))
+        return validate_agent_drives(agent.get("drives"))
+    except AgentDrivesShapeError as e:
+        raise InvalidAgentDriveEntryError(
+            field=e.field,
+            value=e.value,
+            message=f"The drive list is not valid: {e.field} {e.reason}.",
+            next_step="Correct agent.drives as the message says, then commit again.",
+        ) from e
+
+
 def _validate_persisted_shape(data: dict) -> None:
     """The engine's final gate: the finished tree must be storable as it stands.
 
@@ -473,9 +503,41 @@ class WorkflowsService:
         # root that serves the archive routes (the triggers DAO is built after this
         # service there).
         self._triggers_dao: Optional["TriggersDAOInterface"] = None
+        self._project_mount_lookup: Optional[
+            Callable[..., Awaitable[Optional[Any]]]
+        ] = None
 
     def set_triggers_dao(self, triggers_dao: "TriggersDAOInterface") -> None:
         self._triggers_dao = triggers_dao
+
+    def set_project_mount_lookup(
+        self, lookup: Callable[..., Awaitable[Optional[Any]]]
+    ) -> None:
+        """``lookup(project_id=, slug=)`` returns the active project drive or None. Set by the
+        composition root, because the mounts service depends on this service."""
+        self._project_mount_lookup = lookup
+
+    async def _reject_unusable_agent_drives(
+        self, *, project_id: UUID, data: Any
+    ) -> None:
+        """Refuse an agent commit whose drive list breaks a rule or names a missing drive."""
+        drives = _agent_drives(data)
+        if not drives:
+            return
+        if self._project_mount_lookup is None:
+            log.warning("workflows: no project mount lookup; drive slugs not checked")
+            return
+        for index, drive in enumerate(drives):
+            if drive.kind != "project":
+                continue
+            if await self._project_mount_lookup(project_id=project_id, slug=drive.slug):
+                continue
+            raise AgentDriveNotFoundError(
+                field=f"drives[{index}].slug",
+                value=drive.slug,
+                message=f"The drive '{drive.slug}' does not exist in this project.",
+                next_step="Create the drive with POST /mounts/, then commit again.",
+            )
 
     def set_session_continuation_resumer(
         self, callback: Callable[..., Awaitable[Optional[str]]]
@@ -3247,6 +3309,11 @@ class WorkflowsService:
 
         _revision_commit = self._build_revision_commit(
             workflow_revision_commit=workflow_revision_commit,
+        )
+
+        await self._reject_unusable_agent_drives(
+            project_id=project_id,
+            data=_revision_commit.data,
         )
 
         await self._reject_inconsistent_workflow_embeds(

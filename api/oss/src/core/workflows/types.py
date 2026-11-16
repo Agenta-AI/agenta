@@ -185,6 +185,45 @@ class InvalidAgentConnectionError(Exception):
         }
 
 
+class AgentDriveError(Exception):
+    """The commit carries ``parameters.agent.drives`` (or ``has_session_drive``) that no run can
+    use. Kept outside :class:`WorkflowError` for the reason :class:`InvalidAgentHarnessError`
+    gives; the commit route maps it to 422."""
+
+    code = "invalid_drive_entry"
+
+    def __init__(self, *, field: str, value: Any, message: str, next_step: str) -> None:
+        super().__init__(message)
+        self.field = field
+        self.value = value
+        self.message = message
+        self.next_step = next_step
+
+    def to_detail(self) -> Dict[str, Any]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": self.next_step,
+            "details": {
+                "field": f"parameters.agent.{self.field}",
+                "value": _json_safe_echo(self.value),
+            },
+        }
+
+
+class InvalidAgentDriveEntryError(AgentDriveError):
+    """A drive entry breaks a rule of the SDK's ``validate_agent_drives``."""
+
+    code = "invalid_drive_entry"
+
+
+class AgentDriveNotFoundError(AgentDriveError):
+    """A ``project`` entry names a slug with no active project drive in this project."""
+
+    code = "drive_not_found"
+
+
 class WorkflowServiceUrlMissing(WorkflowError):
     """Raised when a revision has no runnable service URL to invoke (batch or detached)."""
 
