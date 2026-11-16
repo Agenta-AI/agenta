@@ -32,8 +32,8 @@ services:
             - agenta-ee-gh-network
         # === LABELS =============================================== #
         # The catch-all: every path the api and services routers do not claim.
-        # priority=1 keeps it below them; no stripprefix, the app answers / and its
-        # basePath /m itself.
+        # priority=1 keeps it below them. No stripprefix: the app serves its basePath /m
+        # and redirects root paths into it.
         labels:
             - "traefik.http.routers.web-mobile.rule=PathPrefix(`/`)"
             - "traefik.http.routers.web-mobile.priority=1"

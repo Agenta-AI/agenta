@@ -439,13 +439,11 @@ if [[ "$IMAGE_MODE" == "dev" && "$WEB_MODE" == "docker" ]]; then
         [[ -d "$_public_dir" ]] || continue
         chmod o+rwx "$_public_dir" 2>/dev/null ||
             echo "Warning: could not make $_public_dir writable by the web container (uid 10001)." >&2
-        # An __env.js or worker left behind by a host-side `pnpm dev` is owned by the host user,
-        # and the container overwrites the file in place, so widen those two as well.
-        for _generated in "$_public_dir/__env.js" "$_public_dir/pdf.worker.min.mjs"; do
-            if [[ -f "$_generated" ]]; then
-                chmod o+rw "$_generated" 2>/dev/null || true
-            fi
-        done
+        # An __env.js left behind by a host-side `pnpm dev` is owned by the host user, and the
+        # container overwrites it in place, so widen it as well.
+        if [[ -f "$_public_dir/__env.js" ]]; then
+            chmod o+rw "$_public_dir/__env.js" 2>/dev/null || true
+        fi
     done
 fi
 
@@ -462,7 +460,7 @@ fi
 # A backend-only run (--web-mode none) starts no web app, and a local run (--web-mode local)
 # serves web/mobile from this checkout instead. web-mobile has no profile, and scaling it to 0
 # is not enough, because `pull` and `up` still fetch its image. So name every other service
-# explicitly for `pull` and `up`. `build` and `down` keep the full model.
+# explicitly for `build`, `pull` and `up`. `down` keeps the full model.
 declare -a STACK_SERVICES=()
 if [[ "$WEB_MODE" != "docker" ]]; then
     _all_services="$($COMPOSE_CMD config --services)" \
@@ -546,10 +544,10 @@ fi
 
 if $NO_CACHE; then
     echo "Building containers with no cache..."
-    $COMPOSE_CMD build --parallel --no-cache || error_exit "Build failed"
+    $COMPOSE_CMD build --parallel --no-cache ${STACK_SERVICES[@]+"${STACK_SERVICES[@]}"} || error_exit "Build failed"
 elif $BUILD; then
     echo "Building containers..."
-    $COMPOSE_CMD build --parallel || error_exit "Build failed"
+    $COMPOSE_CMD build --parallel ${STACK_SERVICES[@]+"${STACK_SERVICES[@]}"} || error_exit "Build failed"
 elif $PULL_ENABLED; then
     # Pull non-built images for all stages unless disabled
     echo "Pulling latest images..."
