@@ -3,12 +3,15 @@
  * language needs (plural forms per Intl.PluralRules), no extra keys, and the
  * same placeholders and rich-text tags as the English text. A key "<namespace>.<key>" must belong to
  * exactly one catalog file, so no namespace may start with another namespace and a dot.
+ * A language in LANGUAGES_IN_PROGRESS (scripts/catalog.ts) may miss whole catalog files.
  *
  * Usage: node scripts/check.ts [--lang <lang>] [--namespace <name>]
  */
+import {existsSync} from "node:fs"
 import {pathToFileURL} from "node:url"
 
 import {
+    LANGUAGES_IN_PROGRESS,
     LOCALES_DIR,
     SOURCE_LANG,
     catalogPath,
@@ -86,7 +89,12 @@ export function namespaceProblems(namespaces: string[]): string[] {
     )
 }
 
-export function checkLocales(localesDir: string, langs: string[], namespace?: string): string[] {
+export function checkLocales(
+    localesDir: string,
+    langs: string[],
+    namespace?: string,
+    inProgress: readonly string[] = LANGUAGES_IN_PROGRESS,
+): string[] {
     const problems = namespaceProblems(listNamespaces(localesDir, SOURCE_LANG))
     for (const lang of langs) {
         const all = [
@@ -100,9 +108,11 @@ export function checkLocales(localesDir: string, langs: string[], namespace?: st
             continue
         }
         for (const ns of namespace ? [namespace] : all) {
+            const file = catalogPath(localesDir, lang, ns)
+            if (inProgress.includes(lang) && !existsSync(file)) continue
             const found = checkNamespace(
                 readJson(catalogPath(localesDir, SOURCE_LANG, ns)),
-                readJson(catalogPath(localesDir, lang, ns)),
+                readJson(file),
                 lang,
             )
             problems.push(...found.map((problem) => `${lang}/${ns}: ${problem}`))

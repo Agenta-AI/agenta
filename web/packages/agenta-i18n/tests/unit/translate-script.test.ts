@@ -138,6 +138,10 @@ describe("systemPrompt", () => {
         expect(prompt).toContain("Japanese (ja-JP)")
         expect(prompt).toContain("Agent => エージェント")
         expect(() => systemPrompt("xx", {})).toThrow(TranslateError)
+        expect(systemPrompt("de-DE", {})).toContain("Sie")
+        expect(systemPrompt("es-ES", {})).toContain("Spain")
+        expect(systemPrompt("pt-BR", {})).toContain("Brazilian")
+        expect(systemPrompt("fr-FR", {})).toContain("vous")
     })
 })
 

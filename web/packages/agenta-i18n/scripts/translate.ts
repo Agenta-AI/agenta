@@ -87,6 +87,35 @@ const STYLE: Record<string, {name: string; rules: string[]}> = {
             "Write loanwords in katakana as the glossary does. Use full-width Japanese punctuation in sentences. Put a space between Japanese and Latin words or numbers.",
         ],
     },
+    "es-ES": {
+        name: "Spanish (es-ES)",
+        rules: [
+            "Write Spanish for users in Spain. Do not use neutral Latin-American Spanish. Keep a short, plain UI tone.",
+            "Address the user as tú in sentences, with the infinitive on buttons (Guardar, Cancelar). Use the Spanish punctuation, including ¿ and ¡. Use sentence case for labels.",
+        ],
+    },
+    "pt-BR": {
+        name: "Brazilian Portuguese (pt-BR)",
+        rules: [
+            "Write Brazilian Portuguese, not European Portuguese (use você, arquivo, tela, salvar). Keep a short, plain UI tone.",
+            "Use the infinitive on buttons (Salvar, Cancelar). Use sentence case for labels.",
+        ],
+    },
+    "de-DE": {
+        name: "German (de-DE)",
+        rules: [
+            "Write German for users in Germany. Keep a short, plain UI tone.",
+            "Use the formal register: address the user as Sie, never du. Use sentence case for labels, with capital letters on nouns as German spelling needs.",
+            "Use the infinitive on buttons (Speichern, Abbrechen).",
+        ],
+    },
+    "fr-FR": {
+        name: "French (fr-FR)",
+        rules: [
+            "Write French for users in France. Keep a short, plain UI tone.",
+            "Address the user as vous. Use the infinitive on buttons (Enregistrer, Annuler). Put a no-break space before ; : ! ? and inside « ». Use sentence case for labels.",
+        ],
+    },
 }
 
 export function systemPrompt(lang: string, glossary: Record<string, string>): string {
@@ -254,8 +283,11 @@ async function translateLanguage(
     options: {dryRun: boolean; apiKey: string; model: string},
 ): Promise<{usage: Usage; rejected: number}> {
     const glossaryFile = join(PACKAGE_DIR, `glossary.${lang}.json`)
-    if (!existsSync(glossaryFile)) throw new TranslateError(`No glossary.${lang}.json`)
-    const glossary = JSON.parse(readFileSync(glossaryFile, "utf8")) as Record<string, string>
+    const glossary: Record<string, string> = existsSync(glossaryFile)
+        ? (JSON.parse(readFileSync(glossaryFile, "utf8")) as Record<string, string>)
+        : {}
+    if (!existsSync(glossaryFile))
+        console.warn(`No glossary.${lang}.json: translating without one.`)
     const translate = anthropicTranslator({
         apiKey: options.apiKey,
         model: options.model,

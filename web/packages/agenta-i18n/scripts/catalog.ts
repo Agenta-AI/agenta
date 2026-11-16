@@ -9,14 +9,25 @@ export const SOURCE_LANG = "en"
 export const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 export const LOCALES_DIR = join(PACKAGE_DIR, "locales")
 
-/** Every language folder in locales/ except English and dot folders. */
+/** Every language except English. A test keeps it equal to SUPPORTED_LANGUAGES in src/language.ts. */
+export const TARGET_LANGUAGES = ["zh-CN", "ja-JP", "es-ES", "pt-BR", "de-DE", "fr-FR"]
+
+/**
+ * Languages still being written: check.ts accepts a catalog file they do not have yet. A file they
+ * have is checked in full. Remove a language from this list when all its files are in.
+ */
+export const LANGUAGES_IN_PROGRESS = ["es-ES", "pt-BR", "de-DE", "fr-FR"]
+
+/** Every supported language except English, plus any other language folder in locales/. */
 export function targetLanguages(localesDir: string): string[] {
-    if (!existsSync(localesDir)) return []
-    return readdirSync(localesDir, {withFileTypes: true})
-        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-        .map((entry) => entry.name)
-        .filter((name) => name !== SOURCE_LANG)
-        .sort()
+    const folders = existsSync(localesDir)
+        ? readdirSync(localesDir, {withFileTypes: true})
+              .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+              .map((entry) => entry.name)
+              .filter((name) => name !== SOURCE_LANG && !TARGET_LANGUAGES.includes(name))
+              .sort()
+        : []
+    return [...TARGET_LANGUAGES, ...folders]
 }
 
 /** Value of `--name <value>`, or undefined when the flag is absent. */

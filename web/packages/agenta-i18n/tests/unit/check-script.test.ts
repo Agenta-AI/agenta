@@ -4,7 +4,15 @@ import {join} from "node:path"
 
 import {describe, expect, it} from "vitest"
 
-import {flagValue, placeholders, targetKeys, targetLanguages} from "../../scripts/catalog"
+import {SUPPORTED_LANGUAGES} from "../../src/language"
+import {
+    LANGUAGES_IN_PROGRESS,
+    TARGET_LANGUAGES,
+    flagValue,
+    placeholders,
+    targetKeys,
+    targetLanguages,
+} from "../../scripts/catalog"
 import {checkLocales, checkNamespace, namespaceProblems} from "../../scripts/check"
 
 function locales(files: Record<string, Record<string, unknown>>): string {
@@ -143,7 +151,36 @@ describe("checkNamespace", () => {
     })
 })
 
+describe("languages", () => {
+    it("lists the same languages as the app", () => {
+        expect(["en", ...TARGET_LANGUAGES]).toEqual([...SUPPORTED_LANGUAGES])
+        for (const lang of LANGUAGES_IN_PROGRESS) expect(TARGET_LANGUAGES).toContain(lang)
+    })
+})
+
 describe("checkLocales", () => {
+    it("requires every file of a language, unless the language is in progress", () => {
+        const dir = locales({
+            "en/a.json": {x: "X"},
+            "en/b.json": {y: "Y"},
+            "es-ES/a.json": {x: "X"},
+        })
+        expect(checkLocales(dir, ["es-ES"], undefined, [])).toEqual([
+            "es-ES/b: missing in es-ES: y",
+        ])
+        expect(checkLocales(dir, ["es-ES"], undefined, ["es-ES"])).toEqual([])
+        expect(checkLocales(dir, ["fr-FR"], undefined, ["fr-FR"])).toEqual([])
+        expect(checkLocales(dir, ["fr-FR"], undefined, [])).toEqual([
+            "fr-FR/a: missing in fr-FR: x",
+            "fr-FR/b: missing in fr-FR: y",
+        ])
+    })
+
+    it("still checks a file an in-progress language has", () => {
+        const dir = locales({"en/a.json": {x: "{{n}} X"}, "es-ES/a.json": {x: "X"}})
+        expect(checkLocales(dir, ["es-ES"], undefined, ["es-ES"])).toHaveLength(1)
+    })
+
     it("checks every language and namespace, or only the ones asked for", () => {
         const dir = locales({
             "en/a.json": {x: "X"},
@@ -154,8 +191,8 @@ describe("checkLocales", () => {
             "ja-JP/b.json": {y: "ワイ"},
             ".meta/zh-CN.json": {},
         })
-        expect(targetLanguages(dir)).toEqual(["ja-JP", "zh-CN"])
-        expect(checkLocales(dir, targetLanguages(dir))).toEqual(["ja-JP/a: missing in ja-JP: x"])
+        expect(targetLanguages(dir)).toEqual(TARGET_LANGUAGES)
+        expect(checkLocales(dir, ["zh-CN", "ja-JP"])).toEqual(["ja-JP/a: missing in ja-JP: x"])
         expect(checkLocales(dir, ["zh-CN"], "a")).toEqual([])
         expect(checkLocales(dir, ["zh-CN"], "nope")).toEqual([
             "zh-CN/nope: no catalog in either language",
