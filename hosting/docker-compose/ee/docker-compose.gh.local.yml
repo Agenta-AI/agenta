@@ -1,36 +1,9 @@
 name: agenta-ee-gh-local
 
 services:
-    web:
-        # === ACTIVATION =========================================== #
-        profiles:
-            - with-web
-        # === IMAGE ================================================ #
-        build:
-            context: ../../../web
-            dockerfile: ee/docker/Dockerfile.gh
-        # === EXECUTION ============================================ #
-        command: sh -c "node ./ee/server.js"
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.ee.gh}
-        environment:
-            AGENTA_SERVICES_INTERNAL_KEY: ""
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-ee-gh-network
-        # === LABELS =============================================== #
-        labels:
-            - "traefik.http.routers.web.rule=PathPrefix(`/`)"
-            - "traefik.http.routers.web.entrypoints=web"
-            - "traefik.http.services.web.loadbalancer.server.port=3000"
-        # === LIFECYCLE ============================================ #
-        restart: always
-
     web-mobile:
         # === ACTIVATION =========================================== #
-        # No profile: the mobile app (/m) starts with the stack, like api and web.
-        # Always on: /m is part of every deployment.
+        # No profile: the only frontend; it starts with every stack that has a web app.
         # === IMAGE ================================================ #
         # The mobile app is edition-agnostic OSS-repo code: one public image
         # serves both editions (no internal-ee variant).
@@ -51,10 +24,12 @@ services:
         networks:
             - agenta-ee-gh-network
         # === LABELS =============================================== #
-        # (Path(`/m`) || PathPrefix(`/m/`)) auto-wins over the web catch-all PathPrefix(`/`)
-        # by rule length; no stripprefix — the app is built with basePath /m.
+        # The catch-all: every path the api and services routers do not claim.
+        # priority=1 keeps it below them; no stripprefix, the app answers / and its
+        # basePath /m itself.
         labels:
-            - "traefik.http.routers.web-mobile.rule=(Path(`/m`) || PathPrefix(`/m/`))"
+            - "traefik.http.routers.web-mobile.rule=PathPrefix(`/`)"
+            - "traefik.http.routers.web-mobile.priority=1"
             - "traefik.http.routers.web-mobile.entrypoints=web"
             - "traefik.http.services.web-mobile.loadbalancer.server.port=3000"
         # === LIFECYCLE ============================================ #

@@ -10,18 +10,6 @@ services:
         # === EXECUTION ============================================ #
         command: ["true"]
 
-    .web:
-        # === ACTIVATION =========================================== #
-        profiles:
-            - with-web
-        # === IMAGE ================================================ #
-        image: agenta-oss-dev-web:latest
-        build:
-            context: ../../../web
-            dockerfile: oss/docker/Dockerfile.dev
-        # === EXECUTION ============================================ #
-        command: ["true"]
-
     .services:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-services:latest
@@ -40,51 +28,17 @@ services:
         # === EXECUTION ============================================ #
         command: ["true"]
 
-    web:
-        # === ACTIVATION =========================================== #
-        profiles:
-            - with-web
-        # === IMAGE ================================================ #
-        image: agenta-oss-dev-web:latest
-        # === EXECUTION ============================================ #
-        command: sh -c 'pnpm dev-oss'
-        # === STORAGE ============================================== #
-        volumes:
-            #
-            #
-            - ../../../web/oss/src:/app/oss/src
-            - ../../../web/oss/public:/app/oss/public
-            - ../../../web/packages:/app/packages
-            - nextjs-oss-cache:/app/oss/.next/cache
-            - turbo-oss-cache:/app/.turbo
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.oss.dev}
-        environment:
-            AGENTA_SERVICES_INTERNAL_KEY: ""
-            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
-            WATCHPACK_POLLING: "true"
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-network
-        # === LABELS =============================================== #
-        labels:
-            - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
-            - "traefik.http.routers.agenta-web.entrypoints=web"
-            - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
-        # === LIFECYCLE ============================================ #
-        restart: always
-
     web-mobile:
         # === ACTIVATION =========================================== #
-        # No profile: the mobile app (/m) starts with the stack, like api and web.
-        # Always on: /m is part of every deployment.
+        # No profile: the only frontend; it starts with every stack that has a web app.
         # === IMAGE ================================================ #
-        image: agenta-oss-dev-web:latest
+        image: agenta-oss-dev-web-mobile:latest
+        build:
+            context: ../../../web
+            dockerfile: mobile/docker/Dockerfile.dev
         # === EXECUTION ============================================ #
-        # Same dev-sandbox env mirroring as the web service (see comment there). The mobile
-        # dev server reads this file for config, and its allowed hot-reload origins derive
-        # from AGENTA_WEB_URL, so that variable is mirrored here too.
+        # The dev server reads .env.development.local, and its allowed hot-reload origins
+        # derive from AGENTA_WEB_URL, so that variable is mirrored there.
         command: sh -c 'printf "AGENTA_WEB_URL=%s\n" "$${AGENTA_WEB_URL:-}" > /app/mobile/.env.development.local && pnpm dev-mobile'
         # === STORAGE ============================================== #
         volumes:
@@ -107,12 +61,12 @@ services:
         networks:
             - agenta-network
         # === LABELS =============================================== #
-        # Path(`/m`) || PathPrefix(`/m/`), not PathPrefix(`/m`): the bare prefix is
-        # greedy and would also swallow /mfoo from the web catch-all PathPrefix(`/`).
-        # Still auto-wins over that catch-all by rule length; no stripprefix — the app
-        # is built with basePath /m.
+        # The catch-all: every path the api and services routers do not claim.
+        # priority=1 keeps it below them; no stripprefix, the app answers / and its
+        # basePath /m itself.
         labels:
-            - "traefik.http.routers.agenta-web-mobile.rule=Path(`/m`) || PathPrefix(`/m/`)"
+            - "traefik.http.routers.agenta-web-mobile.rule=PathPrefix(`/`)"
+            - "traefik.http.routers.agenta-web-mobile.priority=1"
             - "traefik.http.routers.agenta-web-mobile.entrypoints=web"
             - "traefik.http.services.agenta-web-mobile.loadbalancer.server.port=3000"
         # === LIFECYCLE ============================================ #
@@ -995,7 +949,5 @@ volumes:
     redis-volatile-data:
     redis-durable-data:
     seaweed-data:
-    nextjs-oss-cache:
-    turbo-oss-cache:
     nextjs-mobile-cache:
     turbo-mobile-cache:

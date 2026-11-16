@@ -98,7 +98,7 @@ The project has three images. Each has its own Dockerfile and build context:
 | Image | Dockerfile | Build context |
 |-------|-----------|---------------|
 | API | `api/ee/docker/Dockerfile.gh` | repo root (`.`) |
-| Web | `web/ee/docker/Dockerfile.gh` | `web/` |
+| Web | `web/mobile/docker/Dockerfile.gh` | `web/` |
 | Services | `services/ee/docker/Dockerfile.gh` | repo root (`.`) |
 
 ### Step 1: Build
@@ -107,7 +107,7 @@ API and Services use the repo root as their build context so the local Python SD
 
 ```bash
 docker build -f api/ee/docker/Dockerfile.gh -t agenta-api-ee:latest .
-docker build -f web/ee/docker/Dockerfile.gh -t agenta-web-ee:latest web/
+docker build -f web/mobile/docker/Dockerfile.gh -t agenta-web-mobile:latest web/
 docker build -f services/ee/docker/Dockerfile.gh -t agenta-services-ee:latest .
 ```
 
@@ -119,7 +119,7 @@ Once you have the images (whether built locally or pulled from a registry), depl
 docker compose \
   -f hosting/docker-compose/ee/docker-compose.gh.yml \
   --env-file hosting/docker-compose/ee/.env.ee.gh \
-  --profile with-web --profile with-traefik \
+  --profile with-traefik \
   up -d
 ```
 
@@ -128,8 +128,8 @@ To point the compose file at your custom images, set these variables in your `.e
 ```bash
 AGENTA_API_IMAGE_NAME=agenta-api-ee
 AGENTA_API_IMAGE_TAG=latest
-AGENTA_WEB_IMAGE_NAME=agenta-web-ee
-AGENTA_WEB_IMAGE_TAG=latest
+AGENTA_WEB_MOBILE_IMAGE_NAME=agenta-web-mobile
+AGENTA_WEB_MOBILE_IMAGE_TAG=latest
 AGENTA_SERVICES_IMAGE_NAME=agenta-services-ee
 AGENTA_SERVICES_IMAGE_TAG=latest
 ```
@@ -158,7 +158,7 @@ docker buildx build \
   api/
 ```
 
-Use the same approach for the `web` and `services` images.
+Use the same approach for the `web-mobile` and `services` images.
 
 ## Environment Variables
 
@@ -204,7 +204,7 @@ The compose stack runs these services:
 | Service | Image | Role |
 |---------|-------|------|
 | `api` | `agenta-api-ee` | FastAPI backend (gunicorn + uvicorn) |
-| `web` | `agenta-web-ee` | Next.js frontend |
+| `web-mobile` | `agenta-web-mobile` | Next.js frontend, served at `/m`; it also answers `/` |
 | `services` | `agenta-services-ee` | LLM proxy and evaluator execution |
 | `worker-streams` | `agenta-api-ee` | Stream consumers: tracing, events, records |
 | `worker-queues` | `agenta-api-ee` | Queue consumers: webhooks, triggers, interactions, evaluations |
