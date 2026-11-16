@@ -28,6 +28,7 @@ import {
   resolvePromptText,
   resolveRunSessionId,
 } from "../../src/protocol.ts";
+import { selectRunDrives } from "../../src/engines/sandbox_agent/run-drives.ts";
 
 // Mirror of KNOWN_REQUEST_KEYS in the Python test: the full set of top-level keys the wire
 // may emit. AgentRunRequest must declare every one.
@@ -59,6 +60,8 @@ const KNOWN_REQUEST_KEYS = [
   "sandboxPermission",
   "sandboxCredentials",
   "harnessFiles",
+  "drives",
+  "hasSessionDrive",
   "turnId",
   "detached",
   "projectId",
@@ -112,6 +115,31 @@ describe("wire contract: requests (vs Python golden)", () => {
       }
     });
   }
+
+  it("pi_core request: carries the configured drives, access filled in on project entries", () => {
+    const req = loadGolden("run_request.pi_core.json") as AgentRunRequest;
+    assert.deepEqual(req.drives, [
+      { kind: "agent" },
+      { kind: "project", slug: "price-lists", access: "read" },
+      { kind: "project", slug: "team-notes", access: "read-write" },
+    ]);
+    assert.equal(req.hasSessionDrive, true);
+    assert.deepEqual(selectRunDrives(req), {
+      session: !!req.sessionId?.trim(),
+      agent: !!req.runContext?.workflow?.artifact?.id?.trim(),
+      projects: [
+        { slug: "price-lists", access: "read" },
+        { slug: "team-notes", access: "read-write" },
+      ],
+    });
+  });
+
+  it("codex request: an empty drive list and no session drive", () => {
+    const req = loadGolden("run_request.codex.json") as AgentRunRequest;
+    assert.deepEqual(req.drives, []);
+    assert.equal(req.hasSessionDrive, false);
+    assert.deepEqual(selectRunDrives(req), { session: false, agent: false, projects: [] });
+  });
 
   it("attachment request: carries the resource handle and resolved modalities", () => {
     const req = loadGolden("run_request.attachment.json") as AgentRunRequest;
