@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 
 /* Palette-derived shadcn variables (light + dark), GENERATED from
-   web/oss/src/styles/theme/palette.ts — do not edit by hand.
+   web/packages/agenta-ui/src/styles/theme/palette.ts — do not edit by hand.
    Regenerate: pnpm --filter @agenta/mobile generate:tokens */
 @import "./theme.generated.css";
 @import "@agenta/auth-ui/auth.css";
@@ -201,11 +201,11 @@
     /* `font-portal` re-declares the app font on portaled content, which escapes the app's font
        scope. Mobile has no custom face, so that is the default sans stack. */
     --font-portal: var(--font-sans);
-    /* The project code face. Same literals as oss/src/styles/theme/controlScale.ts, which
+    /* The project code face. Same literals as @agenta/ui controlScale.ts, which
        `pnpm tokens:check` compares against. */
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
     /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). Literals are
-       copied from oss/src/styles/theme/controlScale.ts and verified by `pnpm tokens:check`. */
+       copied from @agenta/ui controlScale.ts and verified by `pnpm tokens:check`. */
     --spacing-control-check: 16px;
     --spacing-control-check-dash: 7px;
     --spacing-control-xs: 24px;
@@ -266,7 +266,7 @@
     --text-xs--line-height: 18px;
     /* The kit Badge's own step. Omitting it did not fall back to anything — `text-badge-md`
        simply generated no rule here, so the shared Badge lost both its size and the line-height
-       the step bundles. Same literals as oss/src/styles/theme/controlScale.ts. */
+       the step bundles. Same literals as @agenta/ui controlScale.ts. */
     --text-badge-md: 12px;
     --text-badge-md--line-height: 1.8666666666666667;
     --shadow-switch-handle: var(--switch-handle-shadow);

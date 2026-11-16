@@ -1,91 +1,44 @@
 /**
- * generate-tailwind-tokens.ts — emit theme artifacts from the single source of
- * truth (oss/src/styles/theme/palette.ts).
+ * generate-tailwind-tokens.ts: emit `@agenta/ui`'s theme-variables.css (core semantic roles,
+ * scales, alpha fills, feature families, and the legacy --ag-c-* shim aliased to roles) from
+ * the single source of truth, packages/agenta-ui/src/styles/theme/palette.ts.
  *
- * Emits (all palette-driven): the full theme-variables.css (core semantic + scales
- * + alpha + feature families + the legacy --ag-c-* shim aliased to roles) and the
- * antd dark-overrides module. Inputs are palette.ts + legacy-shim.ts only; the live
- * theme-variables.css is read solely by the parity harness to verify losslessness.
- *
- * SAFETY: writes to $GEN_OUT (default: a scratch dir), never the live
- * theme-variables.css, so it can't collide with in-flight edits. Pass
- * GEN_OUT=packages/agenta-ui/src/styles to actually regenerate (Phase 3, when the tree is
- * quiet). theme-variables.css moved there so BOTH apps import one generated token layer —
- * shared components reference `--ag-*` literally, and mobile silently had 98 of them undefined
- * while it lived under oss/.
- *
- * Run: pnpm --filter web exec tsx scripts/generate-tailwind-tokens.ts   (from web/)
+ * Writes to $GEN_OUT (default: a scratch dir) unless GEN_WRITE=1.
+ * Run: pnpm generate:tailwind-tokens   (from web/)
  */
 import {readFileSync, writeFileSync, mkdirSync} from "fs"
-import {createRequire} from "module"
 import {dirname, resolve as pathResolve} from "path"
 import {fileURLToPath} from "url"
 
-import {legacyShim} from "../oss/src/styles/theme/legacy-shim"
-import {palette, type ColorValue, type Pair} from "../oss/src/styles/theme/palette"
+import {legacyShim} from "../packages/agenta-ui/src/styles/theme/legacy-shim"
+import {palette, type ColorValue, type Pair} from "../packages/agenta-ui/src/styles/theme/palette"
 
 const HERE = dirname(fileURLToPath(import.meta.url)) // web/scripts
 const WEB = pathResolve(HERE, "..") // web
-const OSS = pathResolve(WEB, "oss")
-// The live token layer lives in @agenta/ui (see the header note) — both apps import it.
-// Left pointing at oss/ it would regenerate a file nothing reads.
 const CURRENT_CSS = pathResolve(WEB, "packages/agenta-ui/src/styles/theme-variables.css")
 const OUT = process.env.GEN_OUT
     ? pathResolve(WEB, process.env.GEN_OUT)
     : pathResolve(process.env.SCRATCH || "/tmp", "theme-gen")
 
-// ---------------------------------------------------------------------------
-// antd dark token map — replicate ThemeContextProvider's dark config exactly so
-// we can (a) sanity-check the snapshot and (b) resolve var(--ant-*) refs when
-// diffing against the current file.
-// ---------------------------------------------------------------------------
-const req = createRequire(OSS + "/package.json")
-const antdTheme = req("antd/lib/theme").default
-const antdTokens = req("./src/styles/tokens/antd-themeConfig.json")
-
-const isColorValue = (v: unknown): v is string =>
-    typeof v === "string" && /^(#|rgba?\(|hsla?\()/.test(v.trim())
-const stripColors = (o: Record<string, unknown>) =>
-    Object.fromEntries(Object.entries(o).filter(([, v]) => !isColorValue(v)))
-const stripComponentColors = (c: Record<string, Record<string, unknown>>) =>
-    Object.fromEntries(Object.entries(c).map(([n, t]) => [n, stripColors(t)]))
-
-// antd token overrides applied on top of darkAlgorithm, DERIVED from palette (never
-// hand-copied) so palette.ts stays the single source of truth: editing a dark value
-// there flows into both the algorithm input below AND the emitted DARK_TOKEN_OVERRIDES
-// (buildAntdOverrides reuses this object). Includes the shadow overrides so antdDark
-// resolves --ant-box-shadow-* the way the app actually renders them.
-const DARK_TOKEN_OVERRIDES: Record<string, string> = {
-    colorPrimary: palette.accent.primary.dark as string,
-    colorLink: palette.accent.link.dark as string,
-    colorLinkHover: palette.accent.linkHover.dark as string,
-    colorLinkActive: palette.accent.linkActive.dark as string,
-    colorSuccess: palette.semantic.success.dark as string,
-    colorWarning: palette.semantic.warning.dark as string,
-    colorError: palette.semantic.error.dark as string,
-    colorBgElevated: palette.surface.elevated.dark as string,
-    colorTextPlaceholder: palette.text.placeholder.dark as string,
-    boxShadow: palette.shadow.overlay.dark as string,
-    boxShadowSecondary: palette.shadow.overlay.dark as string,
-    boxShadowTertiary: palette.shadow.tertiary.dark as string,
-    boxShadowDrawerRight: palette.shadow.drawerRight.dark as string,
-    boxShadowDrawerLeft: palette.shadow.drawerLeft.dark as string,
-    boxShadowDrawerTop: palette.shadow.drawerTop.dark as string,
-    boxShadowDrawerBottom: palette.shadow.drawerBottom.dark as string,
-}
-
-// antd SEED tokens: setting them feeds the algorithm, which DERIVES a different
-// output. Their --ag CSS var must carry the derived output (what the app renders),
-// while the seed flows into the antd overrides. Everything else: css var == value.
+// Dark values antd's darkAlgorithm derived for the --ant-* refs and seed tokens this file
+// resolves. antd is no longer a dependency, so they are frozen at their last derived output.
 const SEED_TOKENS = new Set(["colorPrimary", "colorSuccess", "colorWarning", "colorError"])
-const antdDark: Record<string, string> = antdTheme.getDesignToken({
-    algorithm: antdTheme.darkAlgorithm,
-    token: {
-        ...stripColors(antdTokens.token),
-        ...stripComponentColors(antdTokens.components),
-        ...DARK_TOKEN_OVERRIDES,
-    },
-})
+const antdDark: Record<string, string> = {
+    blue1: "#111a2c",
+    colorBgContainer: "#141414",
+    colorBgElevated: "#242424",
+    colorBorder: "#424242",
+    colorError: "#dc4446",
+    colorPrimary: "#d1d151",
+    colorSuccess: "#49aa19",
+    colorText: "rgba(255,255,255,0.85)",
+    colorTextSecondary: "rgba(255,255,255,0.65)",
+    colorTextTertiary: "rgba(255,255,255,0.45)",
+    colorWarning: "#d89614",
+    gold1: "#2b2111",
+    green1: "#162312",
+    red1: "#2a1215",
+}
 
 const kebabToCamel = (s: string) => s.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase())
 const expandHex3 = (s: string) =>
@@ -449,7 +402,7 @@ function buildCss(): string {
     const shim = buildShim()
     const feat = buildFeatures()
     return `/* GENERATED by scripts/generate-tailwind-tokens.ts — do not edit by hand.
-   Source of truth: oss/src/styles/theme/palette.ts (+ legacy-shim.ts for --ag-c-*).
+   Source of truth: packages/agenta-ui/src/styles/theme/palette.ts (+ legacy-shim.ts for --ag-c-*).
    Everything here is palette-driven; the shim aliases legacy tokens to roles. */
 
 :root {
@@ -484,55 +437,6 @@ ${feat.dark}
 
     /* --- legacy --ag-c-* shim (dark aliased to roles where possible) --- */
 ${shim.dark}
-}
-`
-}
-
-// ---------------------------------------------------------------------------
-// antd dark-overrides module — the values ThemeContextProvider imports instead
-// of hand-maintaining DARK_TOKEN_OVERRIDES/darkComponents.
-// ---------------------------------------------------------------------------
-function buildAntdOverrides(): string {
-    const p = palette
-    // Same palette-derived object the darkAlgorithm is seeded with — emitting it here is
-    // exactly what ThemeContextProvider imports, so the CSS-var layer and the antd-config
-    // layer can never diverge.
-    const o = DARK_TOKEN_OVERRIDES
-    // Emit prettier-conformant TS (unquoted keys, trailing commas) so the generated
-    // file stays lint-clean and doesn't churn against format-fix.
-    // Match prettier: wrap the value onto its own indented line when the single-line
-    // form would exceed printWidth (100).
-    const flat = (obj: Record<string, string>, indent: string) =>
-        Object.entries(obj)
-            .map(([k, v]) => {
-                const json = JSON.stringify(v)
-                const key = /^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)
-                const line = `${indent}${key}: ${json},`
-                return line.length > 100 ? `${indent}${key}:\n${indent}    ${json},` : line
-            })
-            .join("\n")
-    const componentBlock = (map: Record<string, Record<string, string>>) =>
-        Object.entries(map)
-            .map(([name, tokens]) => `    ${name}: {\n${flat(tokens, "        ")}\n    },`)
-            .join("\n")
-    return `// GENERATED from palette.ts by scripts/generate-tailwind-tokens.ts — do not edit by hand.
-export const DARK_TOKEN_OVERRIDES = {
-${flat(o, "    ")}
-}
-
-export const darkComponents = {
-${componentBlock(p.componentsDark)}
-}
-
-// Light mode feeds antd the full token dump in styles/tokens/antd-themeConfig.json,
-// which still carries the pre-recolor navy system — so these palette-derived values
-// are spread AFTER it to land in the rendered --ant-* variables.
-export const LIGHT_TOKEN_OVERRIDES = {
-${flat(p.antdLight, "    ")}
-}
-
-export const lightComponents = {
-${componentBlock(p.componentsLight)}
 }
 `
 }
@@ -607,7 +511,7 @@ function parityCheck(generatedCss: string, baselineText: string) {
 
 // ---------------------------------------------------------------------------
 // Main
-//   GEN_WRITE=1        → write the LIVE files (theme-variables.css + overrides).
+//   GEN_WRITE=1        → write the LIVE theme-variables.css.
 //                        Otherwise write to the scratch OUT dir (safe default).
 //   BASELINE_CSS=path  → verify the generated CSS is lossless vs this frozen
 //                        baseline. Omit for a plain regen (no parity, e.g. after
@@ -615,15 +519,11 @@ function parityCheck(generatedCss: string, baselineText: string) {
 // ---------------------------------------------------------------------------
 const WRITE = process.env.GEN_WRITE === "1"
 const cssTarget = WRITE ? CURRENT_CSS : pathResolve(OUT, "theme-variables.generated.css")
-const overridesTarget = WRITE
-    ? pathResolve(OSS, "src/styles/theme/antd-overrides.generated.ts")
-    : pathResolve(OUT, "antd-dark-overrides.generated.ts")
 
 const css = buildCss()
 if (!WRITE) mkdirSync(OUT, {recursive: true})
 writeFileSync(cssTarget, css)
-writeFileSync(overridesTarget, buildAntdOverrides())
-console.log(`\nWrote:\n  ${cssTarget}\n  ${overridesTarget}`)
+console.log(`\nWrote:\n  ${cssTarget}`)
 
 if (process.env.BASELINE_CSS) {
     const baselineText = readFileSync(pathResolve(WEB, process.env.BASELINE_CSS), "utf8")

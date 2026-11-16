@@ -4,8 +4,8 @@
     "rsc": false,
     "tsx": true,
     "tailwind": {
-        "config": "../../oss/tailwind.config.ts",
-        "css": "../../oss/src/styles/theme-variables.css",
+        "config": "",
+        "css": "src/styles/theme-variables.css",
         "baseColor": "neutral",
         "cssVariables": true,
         "prefix": ""

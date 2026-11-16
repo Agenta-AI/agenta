@@ -1420,6 +1420,9 @@ importers:
       '@lexical/utils':
         specifier: ^0.46.0
         version: 0.46.0(typescript@5.9.3)
+      '@tanstack/query-core':
+        specifier: 5.100.9
+        version: 5.100.9
       '@tanstack/react-virtual':
         specifier: ^3.13.2
         version: 3.13.24(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -2821,6 +2824,12 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.4
         version: 19.2.3(@types/react@19.2.14)
+      ai:
+        specifier: 6.0.0-beta.150
+        version: 6.0.0-beta.150(zod@4.6.6)
+      antd:
+        specifier: 6.3.7
+        version: 6.3.7(date-fns@4.4.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2913,12 +2922,21 @@ importers:
         specifier: ^19.2.0
         version: 19.2.6(react@19.2.6)
     devDependencies:
+      '@tailwindcss/container-queries':
+        specifier: 0.1.1
+        version: 0.1.1(tailwindcss@3.4.19(tsx@4.22.4)(yaml@2.8.4))
+      '@tailwindcss/forms':
+        specifier: 0.5.11
+        version: 0.5.11(tailwindcss@3.4.19(tsx@4.22.4)(yaml@2.8.4))
       '@types/react':
         specifier: ^19.2.0
         version: 19.2.14
       '@types/react-dom':
         specifier: ^19.2.0
         version: 19.2.3(@types/react@19.2.14)
+      tailwind-scrollbar:
+        specifier: 3.1.0
+        version: 3.1.0(tailwindcss@3.4.19(tsx@4.22.4)(yaml@2.8.4))
       tailwindcss:
         specifier: 3.4.19
         version: 3.4.19(tsx@4.22.4)(yaml@2.8.4)
@@ -16219,7 +16237,7 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
 
-  '@rc-component/picker@1.9.1(date-fns@4.4.0)(dayjs@1.11.20)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@rc-component/picker@1.9.1(date-fns@4.4.0)(dayjs@1.11.23)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
       '@rc-component/overflow': 1.0.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@rc-component/resize-observer': 1.1.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -16230,7 +16248,7 @@ snapshots:
       react-dom: 19.2.6(react@19.2.6)
     optionalDependencies:
       date-fns: 4.4.0
-      dayjs: 1.11.20
+      dayjs: 1.11.23
 
   '@rc-component/portal@2.2.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
@@ -17863,7 +17881,7 @@ snapshots:
       '@rc-component/mutate-observer': 2.0.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@rc-component/notification': 1.2.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@rc-component/pagination': 1.2.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@rc-component/picker': 1.9.1(date-fns@4.4.0)(dayjs@1.11.20)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@rc-component/picker': 1.9.1(date-fns@4.4.0)(dayjs@1.11.23)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@rc-component/progress': 1.0.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@rc-component/qrcode': 1.1.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@rc-component/rate': 1.0.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -17884,7 +17902,7 @@ snapshots:
       '@rc-component/upload': 1.1.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@rc-component/util': 1.10.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       clsx: 2.1.1
-      dayjs: 1.11.20
+      dayjs: 1.11.23
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
       scroll-into-view-if-needed: 3.1.0

@@ -32,6 +32,8 @@
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.4",
+        "ai": "6.0.0-beta.150",
+        "antd": "6.3.7",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "jotai": "^2.16.1",
