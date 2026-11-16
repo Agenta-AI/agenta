@@ -68,7 +68,6 @@ The platform SHALL read an agent configuration that lacks `drives` and `has_sess
 ### Requirement: A save that breaks the drive rules is refused
 
 Every commit of an agent revision through an HTTP route SHALL be refused with HTTP 422 when the drive list breaks the entry rules (code `invalid_drive_entry`), when `has_session_drive` is not a boolean (code `invalid_session_drive`), or when a `"project"` entry names a slug that has no active project drive in the same project (code `drive_not_found`), with the error envelope `{code, message, retryable, next_step, details}`.
-When the agent's own commit tool makes the commit (handler mode), the same refusals SHALL return HTTP 200 with `STATUS_CODE_ERROR` and the same envelope as the tool result content.
 
 #### Scenario: Drive created first, then attached
 
@@ -96,6 +95,17 @@ When the agent's own commit tool makes the commit (handler mode), the same refus
 
 - **WHEN** a run request reaches the agent service with a list that breaks the entry rules
 - **THEN** the agent service refuses it with the same rule text that the save check uses
+
+
+### Requirement: The agent's own commit tool gets the same refusal in handler mode
+
+When the agent's own commit tool makes the commit, a save refused by the drive rules SHALL return HTTP 200 with `STATUS_CODE_ERROR` and the same error envelope as the tool result content.
+
+#### Scenario: Handler-mode refusal
+
+- **WHEN** the agent's own commit tool commits a change while the stored list names a drive that no longer exists
+- **THEN** the tool result is an error whose content carries the code `drive_not_found`
+- **AND** no revision is stored
 
 ### Requirement: The API signs a project drive by slug
 
