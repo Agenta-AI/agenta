@@ -48,13 +48,28 @@ export async function signAgentMountCredentials(
   deps: SignMountDeps,
   name: string = "default",
 ): Promise<MountCredentials | null> {
+  return signMountCredentialsAt(
+    `${deps.apiBase}/mounts/agents/sign?artifact_id=${encodeURIComponent(artifactId)}&name=${encodeURIComponent(name)}`,
+    `artifact=${artifactId} name=${name}`,
+    deps,
+  );
+}
+
+/**
+ * POST one mounts sign route, bounded to 10 s so a hung endpoint fails open (null) instead of
+ * stalling the acquire. `subject` names the drive in log lines.
+ */
+export async function signMountCredentialsAt(
+  url: string,
+  subject: string,
+  deps: SignMountDeps,
+): Promise<MountCredentials | null> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
   const timeoutSignal = AbortSignal.timeout(10_000);
   const signal = deps.signal
     ? AbortSignal.any([deps.signal, timeoutSignal])
     : timeoutSignal;
-  const url = `${deps.apiBase}/mounts/agents/sign?artifact_id=${encodeURIComponent(artifactId)}&name=${encodeURIComponent(name)}`;
   try {
     const res = await doFetch(url, {
       method: "POST",
@@ -62,14 +77,10 @@ export async function signAgentMountCredentials(
         "content-type": "application/json",
         authorization: deps.authorization,
       },
-      // Bound the sign so a hung endpoint fails open (null mount) instead of
-      // stalling environment acquisition on the agent mount forever.
       signal,
     });
     if (!res.ok) {
-      log(
-        `sign HTTP ${res.status} artifact=${artifactId} name=${name} — running without this mount`,
-      );
+      log(`sign HTTP ${res.status} ${subject} — running without this mount`);
       return null;
     }
     const body = (await res.json()) as {
@@ -87,7 +98,7 @@ export async function signAgentMountCredentials(
     };
     const c = body.credentials;
     if (!c?.bucket || !c.prefix || !c.access_key || !c.secret_key) {
-      log(`sign returned no usable credentials artifact=${artifactId}`);
+      log(`sign returned no usable credentials ${subject}`);
       return null;
     }
     return {
@@ -107,7 +118,7 @@ export async function signAgentMountCredentials(
   } catch (err) {
     throwIfAcquireAborted(deps.signal);
     log(
-      `sign failed artifact=${artifactId}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
+      `sign failed ${subject}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
     );
     return null;
   }
