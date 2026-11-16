@@ -1,0 +1,18 @@
+{
+    "describeRefine": "描述你想如何优化提示词",
+    "orPickSuggestion": "或从下方选择一条建议",
+    "refining": "正在优化提示词…",
+    "describePlaceholder": "描述如何优化你的提示词…",
+    "send": "发送",
+    "submitToSee": "提交指令后即可查看优化后的提示词",
+    "messagePlaceholder": "输入消息内容…",
+    "instructions": "指令",
+    "refinePrompt": "优化提示词",
+    "closeModal": "关闭弹窗",
+    "chatWithAgent": "与 LLM Agent 对话来改进你的提示词",
+    "diff": "差异",
+    "toggleDiff": "切换差异视图",
+    "cancel": "取消",
+    "useRefined": "使用优化后的提示词",
+    "refineFailed": "无法优化提示词，请重试。"
+}

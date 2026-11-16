@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {Button} from "@agenta/ui/ui"
 import Link from "next/link"
 
@@ -11,20 +13,25 @@ export const SelectEvaluatorsEmpty = ({
 }: {
     evaluatorsHref: string | null
     onCreate?: () => void
-}) => (
-    <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-        <p className="m-0 text-sm text-muted-foreground">There are no available evaluators</p>
-        {onCreate ? (
-            <Button size="sm" onClick={onCreate}>
-                Create evaluator
-            </Button>
-        ) : null}
-        {evaluatorsHref ? (
-            <Button asChild variant="outline" size="sm">
-                <Link href={evaluatorsHref} prefetch={false}>
-                    Open evaluators
-                </Link>
-            </Button>
-        ) : null}
-    </div>
-)
+}) => {
+    const t = useT(annotateCatalog)
+    return (
+        <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+            <p className="m-0 text-sm text-muted-foreground">
+                {t("observability.annotate.noEvaluators")}
+            </p>
+            {onCreate ? (
+                <Button size="sm" onClick={onCreate}>
+                    {t("observability.annotate.createEvaluator")}
+                </Button>
+            ) : null}
+            {evaluatorsHref ? (
+                <Button asChild variant="outline" size="sm">
+                    <Link href={evaluatorsHref} prefetch={false}>
+                        {t("observability.annotate.openEvaluators")}
+                    </Link>
+                </Button>
+            ) : null}
+        </div>
+    )
+}

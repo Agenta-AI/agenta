@@ -1,0 +1,7 @@
+{
+    "true": "Wahr",
+    "false": "Falsch",
+    "metrics_one": "{{count}} Kennzahl",
+    "metrics_other": "{{count}} Kennzahlen",
+    "copySessionId": "Sitzungs-ID kopieren"
+}

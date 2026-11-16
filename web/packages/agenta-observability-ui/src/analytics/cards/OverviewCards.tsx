@@ -1,5 +1,7 @@
 import {useMemo, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {
     formatCount,
     formatMetric,
@@ -15,6 +17,7 @@ import {
 import {ChartTooltipPanel, type TooltipRow} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
 import {SERIES_COLORS, analyticsColor} from "../colors"
+import {unitLabel, type EmptyWhat} from "../labels"
 import type {AnalyticsWindowData, FailureReasons} from "../useAnalyticsData"
 
 import {ChartLegendRow, AnalyticsCard, type LegendItem} from "./AnalyticsCard"
@@ -39,9 +42,11 @@ export interface OverviewContext {
     /** The page's group-by, when set: per-key series the main cards stack. */
     grouped: GroupedData | null
     failures: FailureReasons
-    emptyText: (what: string) => {text: string; onClear?: () => void}
+    emptyText: (what: EmptyWhat) => {text: string; onClear?: () => void}
     onExplore: (metric: AnalyticsMetric, bucket: number | null) => void
 }
+
+const tNow = createT(analyticsCatalog)
 
 /** The two keys with the most of `series` in one bucket, plus "Other" for the rest of `total`. */
 const topRows = (
@@ -67,7 +72,7 @@ const topRows = (
     if (top.length && rest > total * 0.005)
         rows.push({
             color: analyticsColor("other"),
-            label: "Other",
+            label: tNow("observabilityUi.analytics.otherLabel"),
             value: format(rest),
             share: sharePercent(rest, total),
         })
@@ -88,25 +93,31 @@ const GroupedMainCard = ({
     ctx: OverviewContext
     grouped: GroupedData
     metric: GroupedMetric
-    title: string
+    title:
+        | "observabilityUi.analytics.titleCost"
+        | "observabilityUi.analytics.titleRuns"
+        | "observabilityUi.analytics.titleTokens"
     value: string
     height: number
-}) => (
-    <GroupedCard
-        title={title}
-        value={value}
-        caption={ctx.rangeLabel}
-        metric={metric}
-        source={grouped[metric]}
-        keyLabel={grouped.keyLabel}
-        keyColor={grouped.keyColor}
-        labels={ctx.labels}
-        fullLabels={ctx.fullLabels}
-        height={height}
-        empty={ctx.emptyText(metric)}
-        onExplore={(bucket) => ctx.onExplore(metric, bucket)}
-    />
-)
+}) => {
+    const t = useT(analyticsCatalog)
+    return (
+        <GroupedCard
+            title={t(title)}
+            value={value}
+            caption={ctx.rangeLabel}
+            metric={metric}
+            source={grouped[metric]}
+            keyLabel={grouped.keyLabel}
+            keyColor={grouped.keyColor}
+            labels={ctx.labels}
+            fullLabels={ctx.fullLabels}
+            height={height}
+            empty={ctx.emptyText(metric)}
+            onExplore={(bucket) => ctx.onExplore(metric, bucket)}
+        />
+    )
+}
 
 export const CostCard = ({ctx}: {ctx: OverviewContext}) =>
     ctx.grouped ? (
@@ -114,7 +125,7 @@ export const CostCard = ({ctx}: {ctx: OverviewContext}) =>
             ctx={ctx}
             grouped={ctx.grouped}
             metric="cost"
-            title="Cost"
+            title="observabilityUi.analytics.titleCost"
             value={formatMoney(ctx.data.overview.totals.cost)}
             height={210}
         />
@@ -128,7 +139,7 @@ export const RunsCard = ({ctx}: {ctx: OverviewContext}) =>
             ctx={ctx}
             grouped={ctx.grouped}
             metric="runs"
-            title="Runs"
+            title="observabilityUi.analytics.titleRuns"
             value={formatCount(ctx.data.overview.totals.runs)}
             height={150}
         />
@@ -142,7 +153,7 @@ export const TokensCard = ({ctx}: {ctx: OverviewContext}) =>
             ctx={ctx}
             grouped={ctx.grouped}
             metric="tokens"
-            title="Tokens"
+            title="observabilityUi.analytics.titleTokens"
             value={formatMetric("tokens", ctx.data.overview.totals.tokens)}
             height={150}
         />
@@ -151,6 +162,7 @@ export const TokensCard = ({ctx}: {ctx: OverviewContext}) =>
     )
 
 const CostChartCard = ({ctx}: {ctx: OverviewContext}) => {
+    const t = useT(analyticsCatalog)
     const [hovered, setHovered] = useHover()
     const {points, totals} = ctx.data.overview
     const values = points.map((p) => p.cost)
@@ -158,7 +170,7 @@ const CostChartCard = ({ctx}: {ctx: OverviewContext}) => {
     const status = ctx.data.status.overview
     return (
         <AnalyticsCard
-            title="Cost"
+            title={t("observabilityUi.analytics.titleCost")}
             value={formatMoney(totals.cost)}
             caption={ctx.rangeLabel}
             onExplore={() => ctx.onExplore("cost", null)}
@@ -171,11 +183,21 @@ const CostChartCard = ({ctx}: {ctx: OverviewContext}) => {
             <TimeChart
                 kind="bar"
                 labels={ctx.labels}
-                series={[{key: "cost", label: "Cost", color: analyticsColor("cost"), values}]}
+                series={[
+                    {
+                        key: "cost",
+                        label: t("observabilityUi.analytics.titleCost"),
+                        color: analyticsColor("cost"),
+                        values,
+                    },
+                ]}
                 formatTick={(v) => formatMetric("cost", v, true)}
                 average={{
                     value: avg,
-                    label: `avg ${formatMetric("cost", avg, true)} / ${ctx.unit}`,
+                    label: t("observabilityUi.analytics.avgPerUnit", {
+                        value: formatMetric("cost", avg, true),
+                        unit: unitLabel(ctx.unit),
+                    }),
                 }}
                 height={210}
                 hovered={hovered}
@@ -184,11 +206,13 @@ const CostChartCard = ({ctx}: {ctx: OverviewContext}) => {
                 tooltip={(i) => (
                     <ChartTooltipPanel
                         title={ctx.fullLabels[i]}
-                        runs={`${formatCount(points[i].runs)} runs`}
+                        runs={t("observabilityUi.analytics.runsCount", {
+                            value: formatCount(points[i].runs),
+                        })}
                         value={formatMoney(values[i])}
                         facts={[
                             {
-                                label: "Avg cost per run",
+                                label: t("observabilityUi.analytics.factAvgCost"),
                                 value: formatMoney(
                                     points[i].runs ? values[i] / points[i].runs : null,
                                 ),
@@ -202,13 +226,14 @@ const CostChartCard = ({ctx}: {ctx: OverviewContext}) => {
 }
 
 const RunsChartCard = ({ctx}: {ctx: OverviewContext}) => {
+    const t = useT(analyticsCatalog)
     const [hovered, setHovered] = useHover()
     const {points, totals} = ctx.data.overview
     const values = points.map((p) => p.runs)
     const status = ctx.data.status.overview
     return (
         <AnalyticsCard
-            title="Runs"
+            title={t("observabilityUi.analytics.titleRuns")}
             value={formatCount(totals.runs)}
             caption={ctx.rangeLabel}
             onExplore={() => ctx.onExplore("runs", null)}
@@ -221,7 +246,14 @@ const RunsChartCard = ({ctx}: {ctx: OverviewContext}) => {
             <TimeChart
                 kind="bar"
                 labels={ctx.labels}
-                series={[{key: "runs", label: "Runs", color: analyticsColor("runs"), values}]}
+                series={[
+                    {
+                        key: "runs",
+                        label: t("observabilityUi.analytics.titleRuns"),
+                        color: analyticsColor("runs"),
+                        values,
+                    },
+                ]}
                 formatTick={(v) => formatMetric("runs", v, true)}
                 height={150}
                 hovered={hovered}
@@ -230,7 +262,9 @@ const RunsChartCard = ({ctx}: {ctx: OverviewContext}) => {
                 tooltip={(i) => (
                     <ChartTooltipPanel
                         title={ctx.fullLabels[i]}
-                        value={`${formatCount(values[i])} runs`}
+                        value={t("observabilityUi.analytics.runsCount", {
+                            value: formatCount(values[i]),
+                        })}
                         rows={topRows(
                             ctx.data.agentRuns,
                             i,
@@ -241,8 +275,11 @@ const RunsChartCard = ({ctx}: {ctx: OverviewContext}) => {
                         )}
                         facts={[
                             {
-                                label: "Failed runs",
-                                value: `${formatCount(points[i].failed)} of ${formatCount(values[i])}`,
+                                label: t("observabilityUi.analytics.factFailedRuns"),
+                                value: t("observabilityUi.analytics.failedOf", {
+                                    failed: formatCount(points[i].failed),
+                                    runs: formatCount(values[i]),
+                                }),
                             },
                         ]}
                     />
@@ -253,6 +290,7 @@ const RunsChartCard = ({ctx}: {ctx: OverviewContext}) => {
 }
 
 export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
+    const t = useT(analyticsCatalog)
     const [hovered, setHovered] = useHover()
     const {points, totals} = ctx.data.overview
     const values = points.map((p) => successRate(p.runs, p.failed))
@@ -289,13 +327,13 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
     )
     const floor = present.length ? Math.max(0, Math.floor((Math.min(...present) - 5) / 10) * 10) : 0
     const status = ctx.data.status.overview
-    const caption = `succeeded · ${formatCount(totals.failed)} failed (${formatMetric(
-        "failrate",
-        totals.runs ? (totals.failed / totals.runs) * 100 : 0,
-    )})`
+    const caption = t("observabilityUi.analytics.succeededCaption", {
+        failed: formatCount(totals.failed),
+        rate: formatMetric("failrate", totals.runs ? (totals.failed / totals.runs) * 100 : 0),
+    })
     return (
         <AnalyticsCard
-            title="Success rate"
+            title={t("observabilityUi.analytics.titleSuccessRate")}
             value={formatMetric("success", overall)}
             caption={caption}
             onExplore={() => ctx.onExplore("success", null)}
@@ -312,12 +350,14 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                             : [
                                   {
                                       key: "success",
-                                      label: "Success rate",
+                                      label: t("observabilityUi.analytics.titleSuccessRate"),
                                       color: analyticsColor("success"),
                                   },
                                   {
                                       key: "failed",
-                                      label: `Failed runs (${formatCount(totals.failed)})`,
+                                      label: t("observabilityUi.analytics.failedRunsLegend", {
+                                          count: formatCount(totals.failed),
+                                      }),
                                       color: analyticsColor("failedRuns"),
                                   },
                               ]
@@ -332,7 +372,7 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                     groupLines ?? [
                         {
                             key: "success",
-                            label: "Success rate",
+                            label: t("observabilityUi.analytics.titleSuccessRate"),
                             color: analyticsColor("success"),
                             values,
                         },
@@ -349,11 +389,22 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                 tooltip={(i) => (
                     <ChartTooltipPanel
                         title={ctx.fullLabels[i]}
-                        runs={`${formatCount(points[i].runs)} runs`}
-                        value={`${formatMetric("success", values[i])} success${
-                            points[i].failed ? ` · ${formatCount(points[i].failed)} failed` : ""
-                        }`}
-                        rowsTitle={groupLines ? undefined : "Why they failed"}
+                        runs={t("observabilityUi.analytics.runsCount", {
+                            value: formatCount(points[i].runs),
+                        })}
+                        value={
+                            points[i].failed
+                                ? t("observabilityUi.analytics.successTooltipFailed", {
+                                      rate: formatMetric("success", values[i]),
+                                      failed: formatCount(points[i].failed),
+                                  })
+                                : t("observabilityUi.analytics.successTooltip", {
+                                      rate: formatMetric("success", values[i]),
+                                  })
+                        }
+                        rowsTitle={
+                            groupLines ? undefined : t("observabilityUi.analytics.whyTheyFailed")
+                        }
                         rows={
                             groupLines
                                 ?.filter((l) => l.runs[i])
@@ -375,7 +426,7 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                             ctx.failures.busiestAgent(i)
                                 ? [
                                       {
-                                          label: "Most failures",
+                                          label: t("observabilityUi.analytics.mostFailures"),
                                           value: ctx.agentName(ctx.failures.busiestAgent(i)!),
                                       },
                                   ]
@@ -389,20 +440,21 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
 }
 
 const TOKEN_TYPES = [
-    {key: "input", label: "Input"},
-    {key: "output", label: "Output"},
-    {key: "cacheRead", label: "Cache read"},
-    {key: "cacheWrite", label: "Cache write"},
+    {key: "input", label: "observabilityUi.analytics.tokenInput"},
+    {key: "output", label: "observabilityUi.analytics.tokenOutput"},
+    {key: "cacheRead", label: "observabilityUi.analytics.tokenCacheRead"},
+    {key: "cacheWrite", label: "observabilityUi.analytics.tokenCacheWrite"},
 ] as const
 
 const TokensChartCard = ({ctx}: {ctx: OverviewContext}) => {
+    const t = useT(analyticsCatalog)
     const [hovered, setHovered] = useHover()
     const [hidden, setHidden] = useState<Record<string, boolean>>({})
     const {points, totals} = ctx.data.overview
     const status = ctx.data.status.overview
     const series = TOKEN_TYPES.map((type, i) => ({
         key: type.key,
-        label: type.label,
+        label: t(type.label),
         color: analyticsColor(SERIES_COLORS[i]),
         values: points.map((p) => p[type.key]),
         hidden: hidden[type.key],
@@ -416,7 +468,7 @@ const TokensChartCard = ({ctx}: {ctx: OverviewContext}) => {
     }))
     const toggle = (key: string) => {
         const next = {...hidden, [key]: !hidden[key]}
-        if (TOKEN_TYPES.every((t) => next[t.key])) return
+        if (TOKEN_TYPES.every((type) => next[type.key])) return
         setHidden(next)
     }
     // The configured model with the most runs in the bucket; filters narrow it like every card.
@@ -428,7 +480,7 @@ const TokensChartCard = ({ctx}: {ctx: OverviewContext}) => {
     }
     return (
         <AnalyticsCard
-            title="Tokens by type"
+            title={t("observabilityUi.analytics.titleTokensByType")}
             value={formatMetric("tokens", totals.tokens)}
             caption={ctx.rangeLabel}
             onExplore={() => ctx.onExplore("tokens", null)}
@@ -451,8 +503,12 @@ const TokensChartCard = ({ctx}: {ctx: OverviewContext}) => {
                 tooltip={(i) => (
                     <ChartTooltipPanel
                         title={ctx.fullLabels[i]}
-                        runs={`${formatCount(points[i].runs)} runs`}
-                        value={`${formatMetric("tokens", shown(i))} tokens`}
+                        runs={t("observabilityUi.analytics.runsCount", {
+                            value: formatCount(points[i].runs),
+                        })}
+                        value={t("observabilityUi.analytics.tokensCount", {
+                            value: formatMetric("tokens", shown(i)),
+                        })}
                         rows={series
                             .filter((s) => !s.hidden && (s.values[i] ?? 0) > 0)
                             .map((s) => ({
@@ -461,7 +517,12 @@ const TokensChartCard = ({ctx}: {ctx: OverviewContext}) => {
                                 value: formatMetric("tokens", s.values[i]),
                                 share: sharePercent(s.values[i] ?? 0, shown(i)),
                             }))}
-                        facts={[{label: "Most used model", value: topModel(i)}]}
+                        facts={[
+                            {
+                                label: t("observabilityUi.analytics.mostUsedModel"),
+                                value: topModel(i),
+                            },
+                        ]}
                     />
                 )}
             />

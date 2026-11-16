@@ -1,6 +1,8 @@
 import type {ReactNode} from "react"
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import columnsCatalog from "@agenta/i18n/catalogs/observabilityUi.columns"
 import {useSessions} from "@agenta/observability"
 import {
     InfiniteVirtualTableFeatureShell,
@@ -55,7 +57,8 @@ export const ObservabilitySessionsTable = ({
     // The cells read page-level atoms; an isolated store leaves them empty.
     const ambientStore = useStore()
 
-    const columns = useMemo(() => getSessionColumns(), [])
+    const t = useT(columnsCatalog)
+    const columns = useMemo(() => getSessionColumns(t), [t])
 
     // The cells read their own data from atoms keyed by session id, so a row only carries the id.
     const rows = useMemo<SessionRow[]>(

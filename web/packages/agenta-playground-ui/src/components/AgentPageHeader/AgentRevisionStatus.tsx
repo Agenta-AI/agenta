@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from "react"
 
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
+import {richText, useT} from "@agenta/i18n"
+import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
 import {
     agentAutoCommitErrorAtomFamily,
     agentAutoCommitScheduledAtomFamily,
@@ -64,6 +66,7 @@ export const AgentRevisionStatus = ({
     checkKey,
     className,
 }: AgentRevisionStatusProps) => {
+    const t = useT(headerCatalog)
     // A commit can land while this surface is closed — the agent commits itself mid-session, or
     // the same agent is driven from another surface (the desktop playground and `/m` share one
     // agent). The invalidation that follows a commit refetches ACTIVE observers only, and a closed
@@ -140,14 +143,28 @@ export const AgentRevisionStatus = ({
     const dot = failed
         ? {
               tone: "bg-colorError",
-              label: "Not saved",
-              tip: `${autoCommitError ?? "Couldn't save changes"} — click to retry`,
+              label: t("playground.agentHeader.notSaved"),
+              tip: t("playground.agentHeader.tipFailed", {
+                  error: autoCommitError ?? t("playground.agentHeader.couldNotSave"),
+              }),
           }
         : saving
-          ? {tone: "bg-colorTextTertiary", label: "Saving…", tip: "Saving your changes"}
+          ? {
+                tone: "bg-colorTextTertiary",
+                label: t("playground.agentHeader.saving"),
+                tip: t("playground.agentHeader.tipSaving"),
+            }
           : isDirty
-            ? {tone: "bg-colorWarning", label: "Draft", tip: "Unsaved changes"}
-            : {tone: "bg-colorSuccess", label: "Saved", tip: "Saved"}
+            ? {
+                  tone: "bg-colorWarning",
+                  label: t("playground.agentHeader.draft"),
+                  tip: t("playground.agentHeader.tipDraft"),
+              }
+            : {
+                  tone: "bg-colorSuccess",
+                  label: t("playground.agentHeader.saved"),
+                  tip: t("playground.agentHeader.saved"),
+              }
 
     // One object for one revision: the version and its save state describe the same thing, and as
     // two chips they competed. A failed save is the exception — there the status IS the retry
@@ -169,10 +186,15 @@ export const AgentRevisionStatus = ({
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
             {merged ? (
-                <SimpleTooltip title={`${dot.label} · Version history`}>
+                <SimpleTooltip
+                    title={t("playground.agentHeader.statusAndHistory", {status: dot.label})}
+                >
                     <button
                         type="button"
-                        aria-label={`Version ${version}, ${dot.label}. Open version history`}
+                        aria-label={t("playground.agentHeader.versionStatusOpen", {
+                            version,
+                            status: dot.label,
+                        })}
                         onClick={() => openHistory(historyWorkflowId)}
                         className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
                     >
@@ -195,10 +217,10 @@ export const AgentRevisionStatus = ({
 
             {!merged && version !== null ? (
                 historyWorkflowId ? (
-                    <SimpleTooltip title="Version history">
+                    <SimpleTooltip title={t("playground.agentHeader.versionHistory")}>
                         <button
                             type="button"
-                            aria-label="Open version history"
+                            aria-label={t("playground.agentHeader.openVersionHistory")}
                             onClick={() => openHistory(historyWorkflowId)}
                             className="flex cursor-pointer items-center gap-1 rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
                         >
@@ -212,14 +234,16 @@ export const AgentRevisionStatus = ({
                             commitMessage ? (
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[12px] font-medium uppercase tracking-wide opacity-65">
-                                        Commit message
+                                        {t("playground.agentHeader.commitMessage")}
                                     </span>
                                     <div className="max-h-[240px] overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-xs leading-relaxed">
                                         {commitMessage}
                                     </div>
                                 </div>
                             ) : (
-                                <span className="text-xs italic">No commit message</span>
+                                <span className="text-xs italic">
+                                    {t("playground.agentHeader.noCommitMessage")}
+                                </span>
                             )
                         }
                     >
@@ -236,7 +260,12 @@ export const AgentRevisionStatus = ({
                     onClick={() => onUpdate?.(newer.id)}
                     className="flex cursor-pointer items-center gap-1 rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
                 >
-                    v{newer.version} available · <span className="font-medium">Update</span>
+                    {richText(
+                        t("playground.agentHeader.updateAvailable", {version: newer.version}),
+                        {
+                            strong: (text) => <span className="font-medium">{text}</span>,
+                        },
+                    )}
                 </button>
             ) : null}
 
@@ -255,7 +284,7 @@ export const AgentRevisionStatus = ({
                     <span
                         role={failed ? "button" : undefined}
                         tabIndex={failed ? 0 : undefined}
-                        aria-label={failed ? "Retry saving changes" : undefined}
+                        aria-label={failed ? t("playground.agentHeader.retrySaving") : undefined}
                         onClick={failed ? () => void retrySave({revisionId}) : undefined}
                         onKeyDown={
                             failed

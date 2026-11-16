@@ -1,0 +1,6 @@
+{
+    "true": "True",
+    "false": "False",
+    "metrics_other": "{{count}} 件のメトリクス",
+    "copySessionId": "セッション ID をコピー"
+}

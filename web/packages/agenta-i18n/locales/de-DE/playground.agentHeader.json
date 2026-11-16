@@ -1,0 +1,21 @@
+{
+    "configuration": "Konfiguration",
+    "commit": "Commit",
+    "agent": "Agent",
+    "notSaved": "Nicht gespeichert",
+    "saving": "Wird gespeichert …",
+    "draft": "Entwurf",
+    "saved": "Gespeichert",
+    "tipFailed": "{{error}} – zum Wiederholen klicken",
+    "couldNotSave": "Änderungen konnten nicht gespeichert werden",
+    "tipSaving": "Ihre Änderungen werden gespeichert",
+    "tipDraft": "Nicht gespeicherte Änderungen",
+    "statusAndHistory": "{{status}} · Versionsverlauf",
+    "versionStatusOpen": "Version {{version}}, {{status}}. Versionsverlauf öffnen",
+    "versionHistory": "Versionsverlauf",
+    "openVersionHistory": "Versionsverlauf öffnen",
+    "commitMessage": "Commit-Nachricht",
+    "noCommitMessage": "Keine Commit-Nachricht",
+    "updateAvailable": "v{{version}} verfügbar · <strong>Aktualisieren</strong>",
+    "retrySaving": "Speichern erneut versuchen"
+}

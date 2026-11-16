@@ -1,0 +1,20 @@
+{
+    "title": "Observabilidade",
+    "tracesTab": "Rastreamentos",
+    "sessionsTab": "Sessões",
+    "addSelectedToQueue": "Adicionar {{count}} selecionados à fila",
+    "addSelectedToQueueNone": "Adicionar selecionados à fila",
+    "noSessionsTitle": "Ainda não há sessões",
+    "noSessionsHint": "As sessões aparecem aqui quando seu app agrupa rastreamentos por ID de sessão.",
+    "noTracesTitle": "Ainda não há rastreamentos",
+    "noTracesHint": "Os rastreamentos aparecem aqui quando seu app os envia.",
+    "nothingMatchesTitle": "Nada corresponde a estes filtros",
+    "nothingMatchesHint": "Tente um intervalo de tempo maior ou limpe os filtros.",
+    "clearFilters": "Limpar filtros",
+    "filterByApp": "Filtrar por app",
+    "allApps": "Todos os apps",
+    "couldNotLoadPanel": "Não foi possível carregar este painel",
+    "tooManyRequests": "Muitas solicitações.",
+    "playgroundNoApp": "Este rastreamento não tem app, então não pode ser aberto no playground.",
+    "playgroundSpanType": "Spans do tipo “{{spanType}}” não podem ser reexecutados no playground. Abra o span pai de workflow, task, agent ou chain."
+}

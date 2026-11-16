@@ -11,6 +11,8 @@ import {
     type CronTimeOfDay,
     type ScheduleBuilderState,
 } from "@agenta/entities/gatewayTrigger"
+import {createT, useT} from "@agenta/i18n"
+import scheduleCatalog from "@agenta/i18n/catalogs/entityUi.scheduleBuilder"
 import {message} from "@agenta/ui"
 import {
     Button,
@@ -35,24 +37,26 @@ import {ChevronDown} from "lucide-react"
 // popover, so the form reads as five short fields rather than an open control panel.
 // ---------------------------------------------------------------------------
 
-const CADENCES: {value: CronCadence; label: string}[] = [
-    {value: "hourly", label: "Hourly"},
-    {value: "daily", label: "Daily"},
-    {value: "weekly", label: "Weekly"},
-    {value: "monthly", label: "Monthly"},
-    {value: "custom", label: "Cron"},
-]
+const tNow = createT(scheduleCatalog)
+
+const CADENCES = [
+    {value: "hourly", label: "entityUi.scheduleBuilder.cadenceHourly"},
+    {value: "daily", label: "entityUi.scheduleBuilder.cadenceDaily"},
+    {value: "weekly", label: "entityUi.scheduleBuilder.cadenceWeekly"},
+    {value: "monthly", label: "entityUi.scheduleBuilder.cadenceMonthly"},
+    {value: "custom", label: "entityUi.scheduleBuilder.cadenceCron"},
+] as const satisfies readonly {value: CronCadence; label: string}[]
 
 // Mon-first display order; values follow the cron convention (0 = Sunday).
-const WEEKDAYS: {value: number; label: string}[] = [
-    {value: 1, label: "Mon"},
-    {value: 2, label: "Tue"},
-    {value: 3, label: "Wed"},
-    {value: 4, label: "Thu"},
-    {value: 5, label: "Fri"},
-    {value: 6, label: "Sat"},
-    {value: 0, label: "Sun"},
-]
+const WEEKDAYS = [
+    {value: 1, label: "entityUi.scheduleBuilder.dayMon"},
+    {value: 2, label: "entityUi.scheduleBuilder.dayTue"},
+    {value: 3, label: "entityUi.scheduleBuilder.dayWed"},
+    {value: 4, label: "entityUi.scheduleBuilder.dayThu"},
+    {value: 5, label: "entityUi.scheduleBuilder.dayFri"},
+    {value: 6, label: "entityUi.scheduleBuilder.daySat"},
+    {value: 0, label: "entityUi.scheduleBuilder.daySun"},
+] as const
 
 // Common intervals as chips. An expression outside this set stays selected and joins the row
 // (see `intervalOptions`), so a stored `*/5` is never silently rounded to a neighbouring chip.
@@ -179,23 +183,24 @@ export function ScheduleBuilderPanel({
     controls: ScheduleBuilderControls
 }) {
     const {builder, nextLine, validation, emit, setCronText, selectCadence} = controls
+    const t = useT(scheduleCatalog)
 
     return (
         <div className="flex flex-col gap-3.5">
-            <ChipRow label="Cadence">
+            <ChipRow label={t("entityUi.scheduleBuilder.cadence")}>
                 {CADENCES.map((c) => (
                     <Chip
                         key={c.value}
                         active={c.value === builder.cadence}
                         onClick={() => selectCadence(c.value)}
                     >
-                        {c.label}
+                        {t(c.label)}
                     </Chip>
                 ))}
             </ChipRow>
 
             {builder.cadence === "weekly" && (
-                <ChipRow label="Days">
+                <ChipRow label={t("entityUi.scheduleBuilder.days")}>
                     {WEEKDAYS.map((d) => (
                         <Chip
                             key={d.value}
@@ -207,7 +212,7 @@ export function ScheduleBuilderPanel({
                                 })
                             }
                         >
-                            {d.label}
+                            {t(d.label)}
                         </Chip>
                     ))}
                 </ChipRow>
@@ -215,7 +220,7 @@ export function ScheduleBuilderPanel({
 
             {builder.cadence === "monthly" && (
                 <div className="flex flex-col gap-1.5">
-                    <FieldLabel>Days of the month</FieldLabel>
+                    <FieldLabel>{t("entityUi.scheduleBuilder.daysOfMonth")}</FieldLabel>
                     <div className="grid grid-cols-7 gap-1">
                         {DAYS_OF_MONTH.map((d) => {
                             const active = builder.daysOfMonth.includes(d)
@@ -242,7 +247,7 @@ export function ScheduleBuilderPanel({
 
             {builder.cadence === "hourly" && (
                 <>
-                    <ChipRow label="Every">
+                    <ChipRow label={t("entityUi.scheduleBuilder.every")}>
                         {intervalOptions(builder.everyNHours).map((n) => (
                             <Chip
                                 key={n}
@@ -253,7 +258,7 @@ export function ScheduleBuilderPanel({
                             </Chip>
                         ))}
                     </ChipRow>
-                    <ChipRow label="At minute">
+                    <ChipRow label={t("entityUi.scheduleBuilder.atMinute")}>
                         {minuteOptions(builder.times[0]?.minute ?? 0).map((m) => (
                             <Chip
                                 key={m}
@@ -269,17 +274,17 @@ export function ScheduleBuilderPanel({
 
             {builder.cadence === "custom" && (
                 <div className="flex flex-col gap-1.5">
-                    <FieldLabel>Expression</FieldLabel>
+                    <FieldLabel>{t("entityUi.scheduleBuilder.expression")}</FieldLabel>
                     <Input
                         placeholder="minute hour day month weekday (UTC)"
                         value={value}
                         onChange={(e) => setCronText(e.target.value)}
                         aria-invalid={validation.valid ? undefined : true}
-                        aria-label="Cron expression"
+                        aria-label={t("entityUi.scheduleBuilder.cronAria")}
                         className="font-mono"
                     />
                     <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
-                        5-field cron in UTC (e.g. 0 9 * * * = every day at 09:00 UTC).
+                        {t("entityUi.scheduleBuilder.cronHelp")}
                     </span>
                 </div>
             )}
@@ -359,9 +364,6 @@ export function ScheduleBuilderField({
 // refused with a hint to use a second schedule.
 // ---------------------------------------------------------------------------
 
-const GRID_WARNING =
-    "Cron can't combine these times in one schedule — they'd trigger extra runs. Add a second schedule instead."
-
 function TimesField({
     times,
     onChange,
@@ -369,11 +371,12 @@ function TimesField({
     times: CronTimeOfDay[]
     onChange: (times: CronTimeOfDay[]) => void
 }) {
+    const t = useT(scheduleCatalog)
     const sorted = sortTimes(times)
 
     const commit = (next: CronTimeOfDay[]) => {
         if (!timesFormCleanGrid(next)) {
-            message.warning(GRID_WARNING)
+            message.warning(tNow("entityUi.scheduleBuilder.gridWarning"))
             return
         }
         onChange(sortTimes(next))
@@ -381,15 +384,15 @@ function TimesField({
 
     // Appends the first free 5-minute slot from 09:00; the new field is immediately editable.
     const addTime = () => {
-        const t: CronTimeOfDay = {hour: 9, minute: 0}
-        while (sorted.some((x) => sameTime(x, t))) {
-            t.minute += 5
-            if (t.minute >= 60) {
-                t.minute = 0
-                t.hour = (t.hour + 1) % 24
+        const slot: CronTimeOfDay = {hour: 9, minute: 0}
+        while (sorted.some((x) => sameTime(x, slot))) {
+            slot.minute += 5
+            if (slot.minute >= 60) {
+                slot.minute = 0
+                slot.hour = (slot.hour + 1) % 24
             }
         }
-        commit([...sorted, t])
+        commit([...sorted, slot])
     }
 
     // Rejected edits keep the old value: the input is controlled off `times`.
@@ -402,24 +405,28 @@ function TimesField({
 
     return (
         <div className="flex flex-col gap-1.5">
-            <FieldLabel>Time (UTC)</FieldLabel>
+            <FieldLabel>{t("entityUi.scheduleBuilder.timeUtc")}</FieldLabel>
             <div className="flex flex-wrap items-center gap-1.5">
                 {/* Keyed by index, not by the time: a value key remounts the picker on every
                     accepted edit, which drops focus mid-typing. */}
-                {sorted.map((t, i) => (
+                {sorted.map((time, i) => (
                     <span key={i} className="flex items-center">
                         <TimePicker
                             step={300}
-                            value={fmtTime(t)}
+                            value={fmtTime(time)}
                             onChange={(next) => setTimeAt(i, next)}
-                            aria-label={`Run time ${fmtTime(t)} (UTC)`}
+                            aria-label={t("entityUi.scheduleBuilder.runTimeAria", {
+                                time: fmtTime(time),
+                            })}
                             className="w-[104px]"
                         />
                         {sorted.length > 1 && (
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label={`Remove ${fmtTime(t)}`}
+                                aria-label={t("entityUi.scheduleBuilder.removeTime", {
+                                    time: fmtTime(time),
+                                })}
                                 onClick={() => onChange(sorted.filter((_, j) => j !== i))}
                             >
                                 <X size={12} />
@@ -429,7 +436,7 @@ function TimesField({
                 ))}
                 <Button variant="dashed" onClick={addTime}>
                     <Plus size={13} />
-                    Add
+                    {t("entityUi.scheduleBuilder.add")}
                 </Button>
             </div>
         </div>
