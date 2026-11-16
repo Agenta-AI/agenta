@@ -4371,6 +4371,11 @@
         "replyToSelection": "f33ded6ce91b10a84754a3a071d11cc5d8903d79883508be753d208f4a1fa2d1",
         "sendNow": "588032878324b5e68758eff2c5ab24e61dbf08a811cb4d222e6eb1a0fb78c336"
     },
+    "ui.repoImport": {
+        "scanRepository": "7c378da08b4a3586e06c397f373a04527ea0815f0bdc1654cdc6d877bcf26fe3",
+        "repositoryUrl": "c83db0133850dfccdc6743bb4391c7765e59c5f12e22e9b6ed250e850e0f8c36",
+        "scanFailed": "752810133a8a915e80ec6c96cb856418a8744922bc86415f2db50e3f26deb83e"
+    },
     "ui.status": {
         "cacheRead": "0008ce30b97d72fbd24e01098996b5d67b11ac2cbb059ece0f22e7711e757040",
         "cacheWrite": "e7fc264359d68205ee4f893b3443fd191e714527a7983c041ba030dccac4a52b",

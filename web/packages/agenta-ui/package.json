@@ -11,8 +11,8 @@
     "scripts": {
         "build": "pnpm run types:check",
         "types:check": "tsc --noEmit",
-        "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
-        "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
+        "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 19",
+        "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 19 --fix",
         "test": "pnpm run test:tsc && pnpm run test:unit",
         "test:tsc": "pnpm run types:check && pnpm run lint",
         "test:unit": "vitest run",

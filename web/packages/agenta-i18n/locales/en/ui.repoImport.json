@@ -1,0 +1,5 @@
+{
+    "scanRepository": "Scan repository",
+    "repositoryUrl": "Repository URL",
+    "scanFailed": "Scan failed. Check the URL and that the repository is public."
+}
