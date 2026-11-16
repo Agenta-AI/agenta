@@ -143,6 +143,7 @@ class _FakeBackend(Backend):
         session_id=None,
         detached=False,
         turn_id=None,
+        session_turn_id=None,
         project_id=None,
         control_command_id=None,
         effective_parameters=None,
