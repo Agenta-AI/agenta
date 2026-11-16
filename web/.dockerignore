@@ -4,12 +4,13 @@
 .gitignore
 
 # Dependencies
-node_modules
+**/node_modules
 .pnpm-store
 tests/node_modules
 packages/*/node_modules
 
 # Build outputs
+**/.next
 .turbo
 *.tsbuildinfo
 dist/

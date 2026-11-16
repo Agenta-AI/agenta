@@ -7,14 +7,6 @@
         "packages/*",
         "website"
     ],
-    "dependencies": {
-        "ajv-formats": "^3.0.1",
-        "jotai-eager": "^0.2.6",
-        "jotai-history": "^0.5.1",
-        "jotai-transaction": "^0.2.0",
-        "json5": "^2.2.3",
-        "next": "15.5.28"
-    },
     "devDependencies": {
         "@eslint/eslintrc": "^3.3.5",
         "@eslint/js": "^9.39.4",
