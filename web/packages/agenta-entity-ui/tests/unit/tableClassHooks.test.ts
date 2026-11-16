@@ -1,4 +1,4 @@
-import {AVT, stampTableDom, toAntdColumns} from "@agenta/ui/table"
+import {AVT, stampTableDom} from "@agenta/ui/table"
 import {describe, expect, it} from "vitest"
 
 /**
@@ -60,41 +60,5 @@ describe("stampTableDom", () => {
     it("skips nodes that are not present rather than throwing", () => {
         expect(() => stampTableDom(container({}))).not.toThrow()
         expect(() => stampTableDom(null)).not.toThrow()
-    })
-})
-
-describe("toAntdColumns cell hooks", () => {
-    interface Row {
-        id: string
-    }
-
-    it("adds the cell hooks to a plain column", () => {
-        const [column] = toAntdColumns<Row>([{key: "id", title: "ID"}])
-
-        expect(column.onCell?.({id: "a"}, 0)).toEqual({className: AVT.cell})
-        expect(column.onHeaderCell?.(column, 0)).toEqual({className: AVT.headerCell})
-    })
-
-    it("keeps a column's own cell props and appends the hook", () => {
-        const [column] = toAntdColumns<Row>([
-            {
-                key: "id",
-                onCell: () => ({className: "mine", colSpan: 2}),
-            },
-        ])
-
-        expect(column.onCell?.({id: "a"}, 0)).toEqual({
-            className: `mine ${AVT.cell}`,
-            colSpan: 2,
-        })
-    })
-
-    it("reaches columns nested in a group", () => {
-        const [group] = toAntdColumns<Row>([
-            {key: "g", title: "Group", children: [{key: "id", title: "ID"}]},
-        ])
-        const child = (group as {children: (typeof group)[]}).children[0]
-
-        expect(child.onCell?.({id: "a"}, 0)).toEqual({className: AVT.cell})
     })
 })

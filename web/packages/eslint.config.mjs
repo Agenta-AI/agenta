@@ -62,6 +62,17 @@ export const restrictedImportPaths = [
 ]
 
 /**
+ * Pattern bans every @agenta/* package inherits. No frontend code ships antd. A package config
+ * that overrides `no-restricted-imports` must spread this into its own `patterns`.
+ */
+export const restrictedImportPatterns = [
+    {
+        group: ["antd", "antd/*", "@ant-design/*"],
+        message: "antd is gone from the frontend. Use the shadcn kit in '@agenta/ui/ui'.",
+    },
+]
+
+/**
  * Syntax bans every @agenta/* package inherits. `no-restricted-imports` does not see
  * `await import(...)`, so the singleton is banned again at the ImportExpression level.
  * A package config that overrides `no-restricted-syntax` must spread this into its options.
@@ -72,6 +83,10 @@ export const restrictedSyntax = [
             'ImportExpression > Literal[value="@agenta/shared/api"], ImportExpression > Literal[value="@agenta/shared"]',
         message:
             "Dynamic-import '@agenta/shared/api/hostQueryClient' instead — importing the api barrel dynamically can reach the `queryClient` singleton, whose writes are dead on a host that installed its own client.",
+    },
+    {
+        selector: "ImportExpression > Literal[value=/^(antd|@ant-design\\/)/]",
+        message: "antd is gone from the frontend. Use the shadcn kit in '@agenta/ui/ui'.",
     },
 ]
 
@@ -100,7 +115,10 @@ const config = [
             },
         },
         rules: {
-            "no-restricted-imports": ["error", {paths: restrictedImportPaths}],
+            "no-restricted-imports": [
+                "error",
+                {paths: restrictedImportPaths, patterns: restrictedImportPatterns},
+            ],
             "no-restricted-syntax": ["error", ...restrictedSyntax],
             "prefer-const": "off",
             "no-self-assign": "off",
@@ -164,45 +182,6 @@ const config = [
         },
     },
     ...(includePrettierRule ? [eslintPluginPrettier] : []),
-    // The playground panels are what /m renders, and /m ships no antd. This bans antd itself, the
-    // `@agenta/ui` root, and the `@agenta/playground-ui` paths known to reach antd. Lint cannot
-    // see transitive imports (`@agenta/ui/ui` reaches `@ant-design/icons`, which /m already
-    // ships), so `web/mobile/scripts/speed/antd-in-route.mjs` checks the built playground route.
-    {
-        // `pnpm --filter @agenta/playground-ui lint` passes this config with `--config`, so its
-        // globs resolve from the package folder; a run from `web/packages` sees the longer path.
-        files: ["agenta-playground-ui/src/panels/**", "src/panels/**"],
-        rules: {
-            "no-restricted-imports": [
-                "error",
-                {
-                    paths: [
-                        ...restrictedImportPaths,
-                        ...[
-                            "antd",
-                            "@agenta/ui",
-                        ].map((name) => ({
-                            name,
-                            message:
-                                "Playground panels ship in /m, which has no antd. This path reaches antd: import an antd-free subpath instead.",
-                        })),
-                    ],
-                    patterns: [
-                        {
-                            group: [
-                                "antd/*",
-                                "@ant-design/*",
-                                "../**/components",
-                                "../**/components/**",
-                            ],
-                            message:
-                                "Playground panels ship in /m, which has no antd. Move an antd-free helper out of components/ (to src/hooks or src/panels/shared) before importing it.",
-                        },
-                    ],
-                },
-            ],
-        },
-    },
     // Lint runs from each package folder, which is where ESLint resolves `files` from.
     ...i18nGuardConfigs(process.cwd()),
     {

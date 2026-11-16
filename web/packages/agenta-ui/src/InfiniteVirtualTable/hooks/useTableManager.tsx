@@ -351,8 +351,6 @@ export function useTableManager<T extends InfiniteTableRowBase>({
             size: "small" as const,
             sticky: true,
             bordered: true,
-            virtual: true,
-            tableLayout: "fixed" as const,
             onRow: buildRowHandlers,
         }),
         [buildRowHandlers],

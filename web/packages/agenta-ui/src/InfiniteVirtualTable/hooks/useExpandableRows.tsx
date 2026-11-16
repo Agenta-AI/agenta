@@ -2,10 +2,9 @@ import type {Key, ReactNode} from "react"
 import {useCallback, useMemo, useRef, useState} from "react"
 
 import {CircleNotch, MinusCircle, PlusCircle} from "@phosphor-icons/react"
-import type {TableProps} from "antd/es/table"
 
 import {interactiveStyles} from "../../utils/styles"
-import type {ExpandableRowConfig} from "../types"
+import type {ExpandableRowConfig, TableProps} from "../types"
 
 interface ExpandedRowState<ChildType> {
     loading: boolean
