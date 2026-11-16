@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
-import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
+import { runSandboxAgent, runTurn } from "../../src/engines/sandbox_agent.ts";
 import { prepareEnvironmentSetup } from "../../src/engines/sandbox_agent/environment-setup.ts";
 import { acquireEnvironment, resolveKeepaliveMount } from "../../src/engines/sandbox_agent/environment.ts";
 import {
@@ -224,6 +224,37 @@ describe("project drive paths and links", () => {
       assert.equal(await linkProjectDriveRemote(sh, cwd, "prices", "/target/prices", { log: SILENT }), true);
       assert.equal(await linkProjectDriveRemote(sh, cwd, "prices", "/target/moved", { log: SILENT }), true);
       assert.equal(readlinkSync(join(cwd, "drives", "prices")), "/target/moved");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("never replaces a file with content at the link path, and repairs the empty file geesefs leaves", async () => {
+    const cwd = join(tmpdir(), `agenta-project-file-${process.pid}-${Date.now()}`);
+    mkdirSync(join(cwd, "drives"), { recursive: true });
+    const sh: Parameters<typeof linkProjectDriveRemote>[0] = {
+      runProcess: async ({ args }) => {
+        try {
+          execFileSync("sh", args ?? []);
+          return { exitCode: 0 };
+        } catch (err) {
+          return { exitCode: (err as { status?: number }).status ?? 1 };
+        }
+      },
+    };
+    try {
+      writeFileSync(join(cwd, "drives", "notes"), "someone's notes");
+      const logs: string[] = [];
+      assert.equal(await linkProjectDrive(cwd, "notes", "/target/notes", { log: (m) => logs.push(m) }), false);
+      assert.equal(await linkProjectDriveRemote(sh, cwd, "notes", "/target/notes", { log: (m) => logs.push(m) }), false);
+      assert.equal(readFileSync(join(cwd, "drives", "notes"), "utf-8"), "someone's notes");
+      assert.equal(logs.filter((m) => m === "mount degraded kind=project_mount cause=link_failed slug=notes").length, 2);
+      writeFileSync(join(cwd, "drives", "local"), "");
+      assert.equal(await linkProjectDrive(cwd, "local", "/target/local", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "local")), "/target/local");
+      writeFileSync(join(cwd, "drives", "remote"), "");
+      assert.equal(await linkProjectDriveRemote(sh, cwd, "remote", "/target/remote", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "remote")), "/target/remote");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -588,6 +619,34 @@ describe("local runs with drives (engine composition)", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-agent`, { recursive: true, force: true });
+      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+    }
+  });
+
+  it("tells the model before the turn when a link was replaced by a folder since the last turn", async () => {
+    const cwd = join(tmpdir(), `agenta-drives-replaced-${process.pid}-${Date.now()}`);
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.signProjectMountCredentials = signed("notes");
+    deps.mountStorage = (async () => true) as never;
+    deps.unmountStorage = (async () => true) as never;
+    const req = request({ sessionId: undefined, drives: [{ kind: "project", slug: "notes", access: "read-write" }] });
+    const acquired = await acquireEnvironment(req, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const notice = projectDriveAppendix({ slug: "notes", access: "read-write", mountedPath: undefined }).text;
+      await runTurn(acquired.env, req);
+      assert.ok(!JSON.stringify(calls.promptBlocks).includes("is not available"));
+      rmSync(join(cwd, "drives", "notes"));
+      mkdirSync(join(cwd, "drives", "notes"));
+      writeFileSync(join(cwd, "drives", "notes", "kept.md"), "mine");
+      await runTurn(acquired.env, req);
+      assert.equal(calls.promptBlocks[0]?.text, `${notice}\n\n`);
+      assert.equal(readFileSync(join(cwd, "drives", "notes", "kept.md"), "utf-8"), "mine");
+    } finally {
+      await acquired.env.destroy();
+      rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
     }
   });

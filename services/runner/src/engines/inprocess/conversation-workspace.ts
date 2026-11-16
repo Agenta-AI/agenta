@@ -268,6 +268,8 @@ export class ConversationWorkspace {
         // A new mount sees the store as it is now.
         if (!this.drive.mountedOn(use.sandbox.id, use.boot)) this.viewTurn = turn;
         await this.drive.ensure(use, signal);
+        // A new turn on a standing mount: a link may have been replaced since the last one.
+        if (this.viewTurn < turn) await this.drive.link(use.sandbox, signal, { projectsOnly: true });
         if (this.viewTurn < turn || this.drive.modesPending) await this.refreshView(use);
         if (this.drive.modesPending) await this.drive.applyModes(use.sandbox, signal);
         return use;

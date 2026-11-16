@@ -139,6 +139,20 @@ describe("a command's changes", () => {
 });
 
 describe("the start of a turn", () => {
+  it("stops file commands on a later turn once the project drive's link was replaced by a folder, and leaves the folder", async () => {
+    const ws = createTestWorkspace({ readOnlyProject: "prices" });
+    expect((await ws.bash("echo first")).output).toContain("first");
+    const link = join(ws.cwd, "drives", "prices");
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    rmSync(link);
+    mkdirSync(link);
+    writeFileSync(join(link, "kept.md"), "mine");
+    ws.workspace.startTurn();
+    await expect(ws.bash("echo second")).rejects.toThrow(/drives\/prices\//);
+    expect(readFileSync(join(link, "kept.md"), "utf-8")).toBe("mine");
+    await ws.workspace.sandbox.delete();
+  });
+
   it("keeps running commands on later turns with a read-only project drive, whose view it does not refresh", async () => {
     const ws = createTestWorkspace({ readOnlyProject: "prices" });
     expect((await ws.bash("echo first")).output).toContain("first");

@@ -62,9 +62,9 @@ function linkFailed(log: (msg: string) => void, slug: string, detail: string): f
  * Point `<cwd>/drives/<slug>` at the project drive's mount. Re-run on every turn: the link lives
  * on the session folder, where geesefs turns a symlink into an empty file across a remount.
  *
- * A real folder at the link path holds what was written there while the link was missing. It is
- * never deleted or moved (it may not fit a read-only drive): the link fails, and the drive is not
- * available until a person clears the folder.
+ * A real folder, or a file with content, at the link path holds what was written there while the
+ * link was missing. It is never deleted or moved (it may not fit a read-only drive): the link
+ * fails, and the drive is not available until a person clears it.
  */
 export async function linkProjectDrive(
   cwd: string,
@@ -85,6 +85,10 @@ export async function linkProjectDrive(
     });
     if (existing?.isDirectory()) {
       return linkFailed(log, slug, `${label} is a folder in ${cwd}; not replaced`);
+    }
+    // An empty file is what geesefs leaves of a link after a remount; a file with content is someone's.
+    if (existing?.isFile() && existing.size > 0) {
+      return linkFailed(log, slug, `${label} is a file with content in ${cwd}; not replaced`);
     }
   } catch (err) {
     return linkFailed(
@@ -117,7 +121,7 @@ export async function linkProjectDriveRemote(
       command: "sh",
       args: [
         "-c",
-        `mkdir -p ${shellQuote(dir)} && { [ "$(readlink ${link} 2>/dev/null)" = ${shellQuote(mountPath)} ] || { { [ ! -d ${link} ] || [ -L ${link} ]; } && rm -f ${link} && ln -s ${shellQuote(mountPath)} ${link}; }; }`,
+        `mkdir -p ${shellQuote(dir)} && { [ "$(readlink ${link} 2>/dev/null)" = ${shellQuote(mountPath)} ] || { { [ -L ${link} ] || { [ ! -d ${link} ] && [ ! -s ${link} ]; }; } && rm -f ${link} && ln -s ${shellQuote(mountPath)} ${link}; }; }`,
       ],
       timeoutMs: 30_000,
     });

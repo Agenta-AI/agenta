@@ -304,16 +304,7 @@ export class SandboxDrive {
     if (results.some((ok) => !ok)) {
       throw withPublicCode(new DriveUnreachableError(`mounted ${results.filter(Boolean).length} of ${results.length} roots`), "runner_error");
     }
-    const cwd = this.options.cwd;
-    if (cwd) {
-      const exec = sandboxExec(use.sandbox, signal);
-      for (const r of roots) {
-        if (r.link?.kind === "agent") await linkAgentFilesRemote(exec, this.inSandbox(cwd), this.inSandbox(r.root), { log: this.options.log });
-        else if (r.link?.kind === "project" && !(await linkProjectDriveRemote(exec, this.inSandbox(cwd), r.link.slug, this.inSandbox(r.root), { log: this.options.log }))) {
-          throw withPublicCode(new DriveUnreachableError(`drives/${r.link.slug} link failed`, driveLinkBlockedMessage(r.link.slug)), "runner_error");
-        }
-      }
-    }
+    await this.link(use.sandbox, signal);
     this.modesApplied.clear();
     await this.applyModes(use.sandbox, signal);
     const expiries = credentials.map((c) => Date.parse(c.creds!.expiresAt ?? "")).filter((n) => Number.isFinite(n));
@@ -321,6 +312,23 @@ export class SandboxDrive {
     this.mountedFor = key;
     this.mountedShape = rootsShape(roots);
     this.options.log(`[inprocess] drive mounted in sandbox ${use.sandbox.id} boot ${use.boot} ms=${Date.now() - t0}`);
+  }
+
+  /**
+   * Make each root's link in the session folder. The project links are made again at the start of
+   * every turn, since a link can be replaced between turns. Throws `DriveUnreachableError` when a project drive's link is
+   * blocked: file commands stop, and what is at the link path is left as it is.
+   */
+  async link(sandbox: DaytonaSandbox, signal?: AbortSignal, opts: { projectsOnly?: boolean } = {}): Promise<void> {
+    const cwd = this.options.cwd;
+    if (!cwd) return;
+    const exec = sandboxExec(sandbox, signal);
+    for (const r of this.roots) {
+      if (r.link?.kind === "agent" && !opts.projectsOnly) await linkAgentFilesRemote(exec, this.inSandbox(cwd), this.inSandbox(r.root), { log: this.options.log });
+      else if (r.link?.kind === "project" && !(await linkProjectDriveRemote(exec, this.inSandbox(cwd), r.link.slug, this.inSandbox(r.root), { log: this.options.log }))) {
+        throw withPublicCode(new DriveUnreachableError(`drives/${r.link.slug} link failed`, driveLinkBlockedMessage(r.link.slug)), "runner_error");
+      }
+    }
   }
 
   /** Set the mode of the skill files not yet set on this mount (they are on the drive, and this view shows them). */

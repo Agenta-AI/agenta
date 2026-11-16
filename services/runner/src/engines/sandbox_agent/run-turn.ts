@@ -73,7 +73,9 @@ import {
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import { linkAgentFiles } from "./agent-mount.ts";
-import { linkProjectDrive } from "./project-mount.ts";
+import { linkProjectDrive, linkProjectDriveRemote } from "./project-mount.ts";
+import { projectDriveAppendix } from "./platform-guidance.ts";
+import type { SandboxExec } from "./mount.ts";
 import { projectDrives } from "./run-drives.ts";
 import { refreshDriveViewsAtTurnStart } from "./turn-start-refresh.ts";
 import {
@@ -1467,11 +1469,18 @@ export async function runTurn(
         throw new Error("agent-files could not be linked to the durable agent mount");
       }
     }
-    // Same repair for each project drive's `drives/<slug>` link; a failed one is logged by the helper.
-    if (plan.driveOnRunner) {
+    // Same repair for each project drive's `drives/<slug>` link, in the sandbox on Daytona. The
+    // prompt's drive paragraph was written at acquire, so a link lost since then is told this turn.
+    if (plan.driveOnRunner || plan.isDaytona) {
       for (const drive of projectDrives(env.drives)) {
-        if (drive.mountedPath) {
-          await linkProjectDrive(plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger });
+        if (!drive.mountedPath) continue;
+        const linked = plan.driveOnRunner
+          ? await linkProjectDrive(plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger })
+          : await linkProjectDriveRemote(env.sandbox as SandboxExec, plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger });
+        drive.linked = linked;
+        if (!linked) {
+          const notice = projectDriveAppendix({ slug: drive.slug, access: drive.access, mountedPath: undefined }).text;
+          promptBlocks.unshift({ type: "text", text: `${notice}\n\n` });
         }
       }
     }
