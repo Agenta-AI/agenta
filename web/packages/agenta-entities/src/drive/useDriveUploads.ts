@@ -75,7 +75,7 @@ export function useDriveUploads({
     const uploadIntoFolder = useCallback(
         (picked: DroppedFile[], folder: string) => {
             const resolved = drive.resolveMount(folder)
-            if (!resolved) return
+            if (!resolved || resolved.readOnly) return
             mountUpload.upload(picked, {
                 mount: resolved.mount,
                 destFolder: resolved.path,

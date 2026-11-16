@@ -12,7 +12,8 @@ import {useSessionDriveSummary, type SessionDriveData} from "./useSessionDrive"
 
 /**
  * The drive backing the config panel's Files region: the conversation's cwd mount plus the
- * agent's durable folder (resolved from the edited revision's artifact).
+ * agent's durable folder (resolved from the edited revision's artifact) and the project drives
+ * the revision's `drives` list names.
  *
  * The SESSION is the host's to resolve and is passed in — the desktop derives it from its open
  * chat tabs (a stale active id falls back to the first open tab, a never-run tab resolves to
@@ -33,6 +34,10 @@ export function useConfigDrive(
     // Summary only: the config header/body show a count + the latest handful. The browse drawer
     // gets its own full drive, gated on open (see StorageSection), so the whole tree is never
     // fetched just to render this always-mounted section.
-    const drive = useSessionDriveSummary(resolvedSessionId, artifactId ?? undefined)
+    const drive = useSessionDriveSummary(
+        resolvedSessionId,
+        artifactId ?? undefined,
+        resolvedSessionId ? (revisionId ?? undefined) : undefined,
+    )
     return {drive, sessionId: resolvedSessionId, artifactId: artifactId ?? undefined}
 }
