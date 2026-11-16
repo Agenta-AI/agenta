@@ -1,9 +1,12 @@
 import {useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {formatCount, formatMetric, sum} from "@agenta/observability/analytics"
 import {cn} from "@agenta/ui/ui"
 
 import {analyticsColor} from "../colors"
+import type {EmptyWhat} from "../labels"
 import type {AnalyticsWindowData, FailureReasons} from "../useAnalyticsData"
 
 import {AnalyticsCard} from "./AnalyticsCard"
@@ -18,7 +21,7 @@ export interface FailureRateCardProps {
     failures: FailureReasons
     agentName: (id: string) => string
     rangeLabel: string
-    emptyText: (what: string) => {text: string; onClear?: () => void}
+    emptyText: (what: EmptyWhat) => {text: string; onClear?: () => void}
     onSelectAgent: (agentId: string) => void
 }
 
@@ -31,6 +34,7 @@ export const FailureRateCard = ({
     emptyText,
     onSelectAgent,
 }: FailureRateCardProps) => {
+    const t = useT(analyticsCatalog)
     const [showAll, setShowAll] = useState(false)
     const {totals} = data.overview
     const overall = totals.runs ? totals.failed / totals.runs : 0
@@ -53,23 +57,26 @@ export const FailureRateCard = ({
 
     return (
         <AnalyticsCard
-            title="Failures by agent"
+            title={t("observabilityUi.analytics.titleFailuresByAgent")}
             caption={
                 totals.failed
-                    ? `${formatCount(totals.failed)} failed · ${rows.length} ${rows.length === 1 ? "agent" : "agents"}`
+                    ? t("observabilityUi.analytics.failedAgentsCaption", {
+                          failed: formatCount(totals.failed),
+                          count: rows.length,
+                      })
                     : rangeLabel
             }
             loading={status.pending || data.status.overview.pending}
             error={status.error}
             onRetry={status.refetch}
-            empty={totals.failed ? null : emptyText("failed runs")}
+            empty={totals.failed ? null : emptyText("failedRuns")}
         >
             <div className="flex flex-col">
                 <div className={cn(GRID, "h-7 text-xs text-muted-foreground")}>
-                    <span>Agent</span>
-                    <span>Main reason</span>
-                    <span className="text-right">Failed</span>
-                    <span className="text-right">Rate</span>
+                    <span>{t("observabilityUi.analytics.colAgent")}</span>
+                    <span>{t("observabilityUi.analytics.colMainReason")}</span>
+                    <span className="text-right">{t("observabilityUi.analytics.colFailed")}</span>
+                    <span className="text-right">{t("observabilityUi.analytics.colRate")}</span>
                 </div>
                 {shown.map((row) => {
                     const few = row.runs < MIN_RUNS
@@ -80,7 +87,9 @@ export const FailureRateCard = ({
                             type="button"
                             onClick={() => onSelectAgent(row.id)}
                             title={
-                                few ? `Only ${row.runs} runs: too few for a steady rate` : undefined
+                                few
+                                    ? t("observabilityUi.analytics.fewRuns", {runs: row.runs})
+                                    : undefined
                             }
                             className={cn(
                                 GRID,
@@ -113,7 +122,7 @@ export const FailureRateCard = ({
                 <div className="flex items-center justify-between gap-3 border-0 border-t border-solid border-border pt-2 text-xs text-muted-foreground">
                     <span>
                         {clean > 0
-                            ? `${clean} other ${clean === 1 ? "agent" : "agents"} had no failures`
+                            ? t("observabilityUi.analytics.cleanAgents", {count: clean})
                             : null}
                     </span>
                     {rows.length > VISIBLE ? (
@@ -122,7 +131,9 @@ export const FailureRateCard = ({
                             onClick={() => setShowAll(!showAll)}
                             className="cursor-pointer border-0 bg-transparent p-0 text-xs text-foreground underline underline-offset-2"
                         >
-                            {showAll ? `Show top ${VISIBLE}` : `Show all ${rows.length}`}
+                            {showAll
+                                ? t("observabilityUi.analytics.showTop", {count: VISIBLE})
+                                : t("observabilityUi.analytics.showAll", {count: rows.length})}
                         </button>
                     ) : null}
                 </div>

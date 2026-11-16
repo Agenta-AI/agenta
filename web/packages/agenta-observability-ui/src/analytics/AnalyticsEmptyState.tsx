@@ -1,5 +1,5 @@
 import {useT} from "@agenta/i18n"
-import analyticsEmptyStateCatalog from "@agenta/i18n/catalogs/analytics.emptyState"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {Button} from "@agenta/ui/ui"
 import {ChartBar, Plus} from "@phosphor-icons/react"
 
@@ -31,7 +31,7 @@ export const AnalyticsEmptyState = ({
     creating?: boolean
     error?: string | null
 }) => {
-    const t = useT(analyticsEmptyStateCatalog)
+    const t = useT(analyticsCatalog)
     return (
         <div className="relative">
             <div className="flex flex-col gap-4 opacity-70">
@@ -43,14 +43,16 @@ export const AnalyticsEmptyState = ({
                     <span className="grid size-11 place-items-center rounded-xl bg-muted">
                         <ChartBar size={20} />
                     </span>
-                    <span className="text-lg font-semibold">{t("analytics.emptyState.title")}</span>
+                    <span className="text-lg font-semibold">
+                        {t("observabilityUi.analytics.emptyTitle")}
+                    </span>
                     <p className="m-0 text-sm text-muted-foreground">
-                        {t("analytics.emptyState.description")}
+                        {t("observabilityUi.analytics.emptyBody")}
                     </p>
                     {onCreateAgent ? (
                         <Button onClick={onCreateAgent} disabled={creating}>
                             <Plus data-icon="inline-start" />
-                            {t("analytics.emptyState.createAgent")}
+                            {t("observabilityUi.analytics.createAgent")}
                         </Button>
                     ) : null}
                     {error ? (
@@ -59,7 +61,7 @@ export const AnalyticsEmptyState = ({
                         </span>
                     ) : null}
                     <span className="text-xs text-muted-foreground">
-                        {t("analytics.emptyState.newRunsNote")}
+                        {t("observabilityUi.analytics.emptyHint")}
                     </span>
                 </div>
             </div>

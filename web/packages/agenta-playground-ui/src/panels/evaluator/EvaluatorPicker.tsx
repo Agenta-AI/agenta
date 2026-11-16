@@ -10,6 +10,8 @@ import {
     useEnrichedEvaluatorOnlyAdapter,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
+import {useT} from "@agenta/i18n"
+import evalCatalog from "@agenta/i18n/catalogs/playground.evaluator"
 import {playgroundController} from "@agenta/playground"
 import type {PlaygroundNode} from "@agenta/playground/state"
 import {Badge, cn} from "@agenta/ui/ui"
@@ -18,9 +20,10 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 
 /** One evaluator after the app: its name and version, and a button that takes it off. */
 const EvaluatorChip = ({node, onRemove}: {node: PlaygroundNode; onRemove: () => void}) => {
+    const t = useT(evalCatalog)
     const name = useAtomValue(workflowMolecule.selectors.artifactName(node.entityId))
     const data = useAtomValue(workflowMolecule.selectors.data(node.entityId))
-    const label = `${name?.trim() || data?.slug?.trim() || "Evaluator"}${
+    const label = `${name?.trim() || data?.slug?.trim() || t("playground.evaluator.evaluator")}${
         data?.version != null ? ` v${data.version}` : ""
     }`
     return (
@@ -28,7 +31,7 @@ const EvaluatorChip = ({node, onRemove}: {node: PlaygroundNode; onRemove: () => 
             <span className="truncate">{label}</span>
             <button
                 type="button"
-                aria-label={`Disconnect ${label}`}
+                aria-label={t("playground.evaluator.disconnect", {name: label})}
                 onClick={onRemove}
                 className="flex shrink-0 items-center rounded-sm border-0 bg-transparent p-0.5 text-inherit opacity-60 hover:opacity-100"
             >
@@ -66,6 +69,7 @@ const connectedByEvaluatorAtom = (nodes: PlaygroundNode[]) =>
  * The evaluator data loads on the first open, not with the playground.
  */
 export const EvaluatorPicker = ({onCreateNew}: {onCreateNew?: () => void}) => {
+    const t = useT(evalCatalog)
     const activate = useSetAtom(activateEvaluatorEnrichmentAtom)
     const nodes = useAtomValue(playgroundController.selectors.nodes())
     const connect = useSetAtom(playgroundController.actions.connectDownstreamNode)
@@ -133,7 +137,11 @@ export const EvaluatorPicker = ({onCreateNew}: {onCreateNew?: () => void}) => {
                     instanceId="playground-evaluator-picker"
                     onSelect={toggle}
                     // On a phone only the icon shows, so the bar keeps room for its other buttons.
-                    placeholder={<span className="max-sm:sr-only">Evaluator</span>}
+                    placeholder={
+                        <span className="max-sm:sr-only">
+                            {t("playground.evaluator.evaluator")}
+                        </span>
+                    }
                     icon={<Gavel aria-hidden size={14} />}
                     showDropdownIcon
                     placement="bottomRight"
@@ -151,7 +159,7 @@ export const EvaluatorPicker = ({onCreateNew}: {onCreateNew?: () => void}) => {
                     openChildOnHover
                     showParentDescription
                     onCreateNew={onCreateNew}
-                    createNewLabel="Create new evaluator"
+                    createNewLabel={t("playground.evaluator.createNewEvaluator")}
                     size="small"
                 />
             </div>

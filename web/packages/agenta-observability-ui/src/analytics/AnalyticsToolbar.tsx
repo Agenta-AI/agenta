@@ -1,5 +1,7 @@
-import {useMemo, useRef, useState} from "react"
+import {useMemo, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {
     PATH,
     ANALYTICS_RANGES,
@@ -54,10 +56,38 @@ type FilterDim = keyof AnalyticsFilters
 
 const ICON = 14
 
-const DIMS: {key: FilterDim; label: string; plural: string; icon: typeof Robot}[] = [
-    {key: "agent", label: "Agent", plural: "agents", icon: Robot},
-    {key: "model", label: "Model", plural: "models", icon: Sparkle},
-]
+const DIMS = [
+    {
+        key: "agent",
+        label: "observabilityUi.analytics.dimAgent",
+        all: "observabilityUi.analytics.allAgents",
+        search: "observabilityUi.analytics.searchAgents",
+        none: "observabilityUi.analytics.noAgentsInRange",
+        icon: Robot,
+    },
+    {
+        key: "model",
+        label: "observabilityUi.analytics.dimModel",
+        all: "observabilityUi.analytics.allModels",
+        search: "observabilityUi.analytics.searchModels",
+        none: "observabilityUi.analytics.noModelsInRange",
+        icon: Sparkle,
+    },
+] as const satisfies readonly {
+    key: FilterDim
+    label: string
+    all: string
+    search: string
+    none: string
+    icon: typeof Robot
+}[]
+
+const RANGE_LABEL_KEYS = {
+    "24h": "observabilityUi.analytics.rangeLast24h",
+    "7d": "observabilityUi.analytics.rangeLast7d",
+    "30d": "observabilityUi.analytics.rangeLast30d",
+    "90d": "observabilityUi.analytics.rangeLast90d",
+} as const
 
 export interface AnalyticsToolbarProps {
     range: AnalyticsRangeKey
@@ -94,6 +124,10 @@ export const AnalyticsToolbar = ({
     rangeOpen,
     onRangeOpenChange,
 }: AnalyticsToolbarProps) => {
+    const t = useT(analyticsCatalog)
+    const groupOptions: FilterMenuOption<AnalyticsGroup>[] = (
+        ["none", "agent", "model", "provider"] as const
+    ).map((value) => ({value, label: t(GROUP_LABEL[value]), icon: GROUP_ICONS[value]}))
     const active = DIMS.filter((d) => filters[d.key].length)
     const label = (dim: FilterDim, key: string) => (dim === "agent" ? agentName(key) : key)
     const [customOpen, setCustomOpen] = useState(false)
@@ -134,7 +168,9 @@ export const AnalyticsToolbar = ({
                                     }}
                                     className="justify-between"
                                 >
-                                    {option.label}
+                                    {RANGE_LABEL_KEYS[option.key]
+                                        ? t(RANGE_LABEL_KEYS[option.key])
+                                        : option.label}
                                     {locked ? (
                                         <LockSimple className="text-muted-foreground" />
                                     ) : option.key === range && !custom ? (
@@ -150,7 +186,7 @@ export const AnalyticsToolbar = ({
                             }}
                             className="justify-between"
                         >
-                            Custom range…
+                            {t("observabilityUi.analytics.customRange")}
                             {custom ? <Check /> : null}
                         </DropdownMenuItem>
                         {retention && ANALYTICS_RANGES.some((o) => isRangeLocked(o, retention)) ? (
@@ -158,8 +194,10 @@ export const AnalyticsToolbar = ({
                                 <DropdownMenuSeparator />
                                 <div className="flex flex-col gap-2 px-2 py-1.5">
                                     <span className="text-xs text-muted-foreground">
-                                        Your {retention.planName} plan keeps {retention.days} days
-                                        of history.
+                                        {t("observabilityUi.analytics.planKeeps", {
+                                            plan: retention.planName,
+                                            days: retention.days,
+                                        })}
                                     </span>
                                     {onUpgrade ? (
                                         <Button
@@ -167,7 +205,7 @@ export const AnalyticsToolbar = ({
                                             className="self-start"
                                             onClick={onUpgrade}
                                         >
-                                            Upgrade plan
+                                            {t("observabilityUi.analytics.upgradePlan")}
                                         </Button>
                                     ) : null}
                                 </div>
@@ -198,10 +236,14 @@ export const AnalyticsToolbar = ({
             />
 
             <GroupMenu
-                options={GROUP_OPTIONS}
+                options={groupOptions}
                 value={group}
                 onChange={onGroupChange}
-                label={group === "none" ? "Group" : `Group: ${GROUP_LABEL[group]}`}
+                label={
+                    group === "none"
+                        ? t("observabilityUi.analytics.group")
+                        : t("observabilityUi.analytics.groupWith", {group: t(GROUP_LABEL[group])})
+                }
                 icon={<Rows size={ICON} />}
             />
 
@@ -212,7 +254,7 @@ export const AnalyticsToolbar = ({
                         key={dim.key}
                         className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted pl-2.5 pr-1 text-xs"
                     >
-                        <span className="text-muted-foreground">{dim.label}</span>
+                        <span className="text-muted-foreground">{t(dim.label)}</span>
                         <span className="max-w-[220px] truncate">
                             {values.length > 2
                                 ? `${values.slice(0, 2).join(", ")} +${values.length - 2}`
@@ -220,7 +262,9 @@ export const AnalyticsToolbar = ({
                         </span>
                         <button
                             type="button"
-                            aria-label={`Remove ${dim.label} filter`}
+                            aria-label={t("observabilityUi.analytics.removeDimFilter", {
+                                dim: t(dim.label),
+                            })}
                             onClick={() => onFiltersChange({...filters, [dim.key]: []})}
                             className="grid size-5 cursor-pointer place-items-center rounded border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
@@ -251,6 +295,7 @@ const CustomRangePanel = ({
     onApply: (range: AnalyticsCustomRange) => void
     onCancel: () => void
 }) => {
+    const t = useT(analyticsCatalog)
     const [draft, setDraft] = useState<DateRangeValue>(
         value ? {startTime: toWire(value.oldest), endTime: toWire(value.newest - 1000)} : {},
     )
@@ -276,10 +321,10 @@ const CustomRangePanel = ({
             />
             <div className="flex justify-end gap-2 border-0 border-t border-solid border-border px-3 py-2">
                 <Button variant="ghost" size="sm" onClick={onCancel}>
-                    Cancel
+                    {t("observabilityUi.analytics.cancel")}
                 </Button>
                 <Button size="sm" disabled={!draft.startTime || !draft.endTime} onClick={apply}>
-                    Apply
+                    {t("observabilityUi.analytics.apply")}
                 </Button>
             </div>
         </div>
@@ -304,6 +349,7 @@ const useFilterCounts = (dim: FilterDim, filters: AnalyticsFilters, window: Anal
 const modelOptions = (
     counts: Record<string, number>,
     providerOf: Record<string, string> | null,
+    otherLabel: string,
 ): FilterMenuOption[] => {
     if (!providerOf)
         return Object.keys(counts).map((key) => ({
@@ -335,7 +381,7 @@ const modelOptions = (
                     provider && model.startsWith(`${provider}/`)
                         ? model.slice(provider.length + 1)
                         : model,
-                group: provider ? getProviderDisplayName(provider) : "Other",
+                group: provider ? getProviderDisplayName(provider) : otherLabel,
                 icon: ProviderIcon ? (
                     <ProviderIcon className="size-3.5" />
                 ) : (
@@ -357,19 +403,19 @@ const useModelProviders = (
     )
 }
 
-const GROUP_LABEL: Record<AnalyticsGroup, string> = {
-    none: "None",
-    agent: "Agent",
-    model: "Model",
-    provider: "Provider",
-}
+const GROUP_LABEL = {
+    none: "observabilityUi.analytics.groupNone",
+    agent: "observabilityUi.analytics.dimAgent",
+    model: "observabilityUi.analytics.dimModel",
+    provider: "observabilityUi.analytics.dimProvider",
+} as const satisfies Record<AnalyticsGroup, string>
 
-const GROUP_OPTIONS: FilterMenuOption<AnalyticsGroup>[] = [
-    {value: "none", label: "None", icon: <Minus size={ICON} />},
-    {value: "agent", label: "Agent", icon: <Robot size={ICON} />},
-    {value: "model", label: "Model", icon: <Sparkle size={ICON} />},
-    {value: "provider", label: "Provider", icon: <Cloud size={ICON} />},
-]
+const GROUP_ICONS: Record<AnalyticsGroup, ReactNode> = {
+    none: <Minus size={ICON} />,
+    agent: <Robot size={ICON} />,
+    model: <Sparkle size={ICON} />,
+    provider: <Cloud size={ICON} />,
+}
 
 const AnalyticsFilterMenu = ({
     filters,
@@ -382,6 +428,7 @@ const AnalyticsFilterMenu = ({
     window: AnalyticsWindow
     label: (dim: FilterDim, key: string) => string
 }) => {
+    const t = useT(analyticsCatalog)
     const [open, setOpen] = useState(false)
     const agents = useFilterCounts("agent", filters, window)
     const models = useFilterCounts("model", filters, window)
@@ -399,27 +446,31 @@ const AnalyticsFilterMenu = ({
                 const Icon = d.icon
                 return {
                     key: d.key,
-                    label: d.label,
+                    label: t(d.label),
                     icon: <Icon size={ICON} />,
                     multi: true,
                     wide: true,
                     searchable: true,
-                    searchPlaceholder: `Search ${d.plural}…`,
+                    searchPlaceholder: t(d.search),
                     value: selected,
                     valueLabel: !selected.length
-                        ? `All ${d.plural}`
+                        ? t(d.all)
                         : selected.length === 1
                           ? name(selected[0])
-                          : `${selected.length} selected`,
+                          : t("observabilityUi.analytics.nSelected", {count: selected.length}),
                     options:
                         d.key === "model"
-                            ? modelOptions(counts, providerOf)
+                            ? modelOptions(
+                                  counts,
+                                  providerOf,
+                                  t("observabilityUi.analytics.otherGroup"),
+                              )
                             : Object.keys(counts).map((key) => ({
                                   value: key,
                                   label: name(key),
                                   icon: <Icon size={ICON} />,
                               })),
-                    emptyText: pending ? "Loading…" : `No ${d.plural} in this range`,
+                    emptyText: pending ? t("observabilityUi.analytics.loading") : t(d.none),
                     onChange: (key: string) =>
                         onChange({
                             ...filters,
@@ -429,7 +480,7 @@ const AnalyticsFilterMenu = ({
                         }),
                 }
             }),
-        [agents, models, providerOf, optionAgentName, label, filters, onChange],
+        [agents, models, providerOf, optionAgentName, label, filters, onChange, t],
     )
 
     return (
@@ -437,7 +488,7 @@ const AnalyticsFilterMenu = ({
             open={open}
             onOpenChange={setOpen}
             sections={sections}
-            searchPlaceholder="Search agents and models…"
+            searchPlaceholder={t("observabilityUi.analytics.searchAgentsAndModels")}
             align="start"
             active={anyActive}
             onReset={() => onChange({agent: [], model: []})}

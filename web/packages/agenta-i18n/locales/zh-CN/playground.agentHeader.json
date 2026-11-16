@@ -1,0 +1,21 @@
+{
+    "configuration": "配置",
+    "commit": "提交",
+    "agent": "Agent",
+    "notSaved": "未保存",
+    "saving": "正在保存…",
+    "draft": "草稿",
+    "saved": "已保存",
+    "tipFailed": "{{error}}，点击重试",
+    "couldNotSave": "无法保存更改",
+    "tipSaving": "正在保存你的更改",
+    "tipDraft": "未保存的更改",
+    "statusAndHistory": "{{status}} · 版本历史",
+    "versionStatusOpen": "版本 {{version}}，{{status}}。打开版本历史",
+    "versionHistory": "版本历史",
+    "openVersionHistory": "打开版本历史",
+    "commitMessage": "提交说明",
+    "noCommitMessage": "没有提交说明",
+    "updateAvailable": "v{{version}} 可用 · <strong>更新</strong>",
+    "retrySaving": "重试保存更改"
+}

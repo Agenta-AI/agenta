@@ -1,0 +1,11 @@
+{
+    "couldNotStart": "Der Export konnte nicht gestartet werden.",
+    "preparing": "Export wird vorbereitet",
+    "rateLimited": "Ratenlimit erreicht: Pause für {{seconds}} s (bisher {{rows}} Zeilen exportiert)",
+    "exporting": "{{rows}} Zeilen werden exportiert",
+    "nothingToExport": "Keine Traces zum Exportieren",
+    "limitReached": "Exportlimit erreicht. Die ersten {{rows}} Zeilen wurden heruntergeladen.",
+    "exported": "{{rows}} Zeilen exportiert",
+    "cancelled": "Export abgebrochen",
+    "failed": "Export fehlgeschlagen"
+}

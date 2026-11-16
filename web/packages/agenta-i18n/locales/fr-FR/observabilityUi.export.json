@@ -1,0 +1,11 @@
+{
+    "couldNotStart": "Impossible de démarrer l’exportation.",
+    "preparing": "Préparation de l’exportation",
+    "rateLimited": "Limite de débit atteinte : pause de {{seconds}} s ({{rows}} lignes exportées jusqu’ici)",
+    "exporting": "Exportation de {{rows}} lignes",
+    "nothingToExport": "Aucune trace à exporter",
+    "limitReached": "Limite d’exportation atteinte. Les {{rows}} premières lignes ont été téléchargées.",
+    "exported": "{{rows}} lignes exportées",
+    "cancelled": "Exportation annulée",
+    "failed": "Échec de l’exportation"
+}

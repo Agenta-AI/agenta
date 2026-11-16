@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {
     formattedSpanCompletionTokensAtomFamily,
     formattedSpanCostAtomFamily,
@@ -24,6 +26,7 @@ const tokenContainerClass =
     "[&>div:nth-of-type(1)]:leading-[1.5714285714285714] [&>div:nth-of-type(1)]:font-medium [&>div:nth-of-type(2)]:leading-[1.5714285714285714] [&>div:nth-of-type(2)]:font-normal"
 
 const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
+    const t = useT(drawerCatalog)
     const {icon, bgColor, color} = statusMapper(activeTrace?.span_type)
     const formattedTokens = useAtomValue(formattedSpanTokensAtomFamily(activeTrace))
     const formattedCost = useAtomValue(formattedSpanCostAtomFamily(activeTrace))
@@ -35,21 +38,27 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const tokenBreakdown = getTokenBreakdown(activeTrace)
     const tokenRows = tokenBreakdown
         ? [
-              [formatTokens(tokenBreakdown.input), "Input tokens"],
-              [formatTokens(tokenBreakdown.cacheRead), "Cache read tokens"],
-              [formatTokens(tokenBreakdown.cacheWrite), "Cache write tokens"],
-              [formatTokens(tokenBreakdown.output), "Output tokens"],
+              [formatTokens(tokenBreakdown.input), t("observabilityUi.traceDrawer.inputTokens")],
+              [
+                  formatTokens(tokenBreakdown.cacheRead),
+                  t("observabilityUi.traceDrawer.cacheReadTokens"),
+              ],
+              [
+                  formatTokens(tokenBreakdown.cacheWrite),
+                  t("observabilityUi.traceDrawer.cacheWriteTokens"),
+              ],
+              [formatTokens(tokenBreakdown.output), t("observabilityUi.traceDrawer.outputTokens")],
           ]
         : [
-              [formattedPromptTokens, "Prompt tokens"],
-              [formattedCompletionTokens, "Completion tokens"],
+              [formattedPromptTokens, t("observabilityUi.traceDrawer.promptTokens")],
+              [formattedCompletionTokens, t("observabilityUi.traceDrawer.completionTokens")],
           ]
     const traceStartTime = useAtomValue(spanStartTimeAtomFamily(activeTrace))
     const traceEndTime = useAtomValue(spanEndTimeAtomFamily(activeTrace))
     return (
         <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1 items-start">
-                <span className={titleClass}>Type</span>
+                <span className={titleClass}>{t("observabilityUi.traceDrawer.type")}</span>
 
                 <ResultTag
                     style={{
@@ -67,7 +76,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </div>
 
             <div className="flex flex-col gap-1 items-start">
-                <span className={titleClass}>Status</span>
+                <span className={titleClass}>{t("observabilityUi.traceDrawer.status")}</span>
                 <StatusRenderer
                     status={activeTrace?.status_code}
                     message={activeTrace?.status_message}
@@ -76,7 +85,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </div>
 
             <div className="flex flex-col gap-1 items-start">
-                <span className={titleClass}>Latency</span>
+                <span className={titleClass}>{t("observabilityUi.traceDrawer.latency")}</span>
                 <ResultTag
                     bordered={false}
                     className="bg-[var(--ag-c-0517290F)]"
@@ -89,10 +98,14 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
             </div>
 
             <div className="flex flex-col gap-1 items-start">
-                <span className={titleClass}>Timestamp</span>
+                <span className={titleClass}>{t("observabilityUi.traceDrawer.timestamp")}</span>
 
                 <ResultTag
-                    value1={<div className={resultTagClass}>Start - {traceStartTime}</div>}
+                    value1={
+                        <div className={resultTagClass}>
+                            {t("observabilityUi.traceDrawer.startAt", {time: traceStartTime})}
+                        </div>
+                    }
                     bordered={false}
                     className="bg-[var(--ag-c-0517290F)]"
                 />
@@ -101,14 +114,14 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     className="bg-[var(--ag-c-0517290F)]"
                     value1={
                         <div className={resultTagClass}>
-                            End {"  "}- {traceEndTime}
+                            {t("observabilityUi.traceDrawer.endAt", {time: traceEndTime})}
                         </div>
                     }
                 />
             </div>
 
             <div className="flex flex-col gap-1 items-start">
-                <span className={titleClass}>Tokens & Cost</span>
+                <span className={titleClass}>{t("observabilityUi.traceDrawer.tokensAndCost")}</span>
                 <ResultTag
                     bordered={false}
                     className="bg-[var(--ag-c-0517290F)]"
@@ -120,9 +133,9 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     }
                     popoverContent={
                         <div className="flex flex-col gap-2 items-start">
-                            {tokenRows.map(([value, label]) => (
+                            {tokenRows.map(([value, label], index) => (
                                 <div
-                                    key={label}
+                                    key={index}
                                     className={`flex items-center gap-2 ${tokenContainerClass}`}
                                 >
                                     <div>{value}</div>

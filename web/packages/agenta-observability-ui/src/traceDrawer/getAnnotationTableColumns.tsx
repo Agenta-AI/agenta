@@ -1,5 +1,7 @@
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import type {CatalogKey} from "@agenta/i18n"
+import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {setTraceDrawerTraceAtom} from "@agenta/observability/traceDrawer"
 import {getStringOrJson} from "@agenta/shared/utils"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
@@ -12,6 +14,7 @@ import {ValueTag} from "../primitives/ValueTag"
 export const getAnnotationTableColumns = (
     reference: string,
     groupAnnotations: AnnotationDto[],
+    t: (key: CatalogKey<typeof spanCatalog>) => string,
 ): SimpleColumn<AnnotationDto>[] => {
     return [
         {
@@ -44,7 +47,7 @@ export const getAnnotationTableColumns = (
             },
         },
         {
-            title: "Metrics",
+            title: t("observabilityUi.traceSpan.metrics"),
             key: `metrics-${reference}`,
             align: "start",
             children: Array.from(
@@ -100,7 +103,7 @@ export const getAnnotationTableColumns = (
             })),
         },
         {
-            title: "Kind",
+            title: t("observabilityUi.traceSpan.kind"),
             key: "kind",
             width: 144,
             onHeaderCell: () => ({
@@ -111,7 +114,7 @@ export const getAnnotationTableColumns = (
             },
         },
         {
-            title: "Channel",
+            title: t("observabilityUi.traceSpan.channel"),
             key: "channel",
             width: 144,
             onHeaderCell: () => ({
@@ -122,7 +125,7 @@ export const getAnnotationTableColumns = (
             },
         },
         {
-            title: "Date created",
+            title: t("observabilityUi.traceSpan.dateCreated"),
             key: "date_created",
             width: 200,
             onHeaderCell: () => ({
@@ -133,7 +136,7 @@ export const getAnnotationTableColumns = (
             },
         },
         {
-            title: "Created by",
+            title: t("observabilityUi.traceSpan.createdBy"),
             key: "created_by",
             width: 200,
             onHeaderCell: () => ({

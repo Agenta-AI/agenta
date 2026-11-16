@@ -1,0 +1,20 @@
+{
+    "tabRoot": "Raiz",
+    "tabLlm": "LLM",
+    "tabAll": "Tudo",
+    "traceProjection": "Projeção de rastreamentos",
+    "allActivity": "Toda a atividade",
+    "latestActivity": "Atividade mais recente",
+    "sessionOrdering": "Ordenação da atividade das sessões",
+    "autoRefreshAria": "Atualização automática",
+    "autoRefreshLabel": "atualização automática",
+    "refreshData": "Atualizar dados",
+    "cancelExport": "Cancelar exportação",
+    "exportTraces": "Exportar rastreamentos",
+    "export": "Exportar",
+    "selectToDelete": "Selecione os rastreamentos a excluir",
+    "deleteSelected": "Excluir os rastreamentos selecionados",
+    "delete": "Excluir",
+    "searchData": "Buscar dados de observabilidade",
+    "search": "Buscar"
+}

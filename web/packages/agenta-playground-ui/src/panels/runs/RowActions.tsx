@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowsOutLineHorizontal, Copy, MinusCircle} from "@phosphor-icons/react"
 
@@ -22,7 +24,10 @@ export const RowActions = ({
     onRemove,
     onDuplicate,
 }: RowActionsProps) => {
-    const detailsLabel = hasRepeats ? "View all repeats" : "Open details"
+    const t = useT(runsCatalog)
+    const detailsLabel = hasRepeats
+        ? t("playground.runs.viewAllRepeats")
+        : t("playground.runs.openDetails")
     return (
         <div className="flex items-center gap-1 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row-header:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
             <SimpleTooltip title={detailsLabel} side="top">
@@ -35,19 +40,24 @@ export const RowActions = ({
                     <ArrowsOutLineHorizontal />
                 </Button>
             </SimpleTooltip>
-            <SimpleTooltip title="Remove" side="top">
+            <SimpleTooltip title={t("playground.runs.remove")} side="top">
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Remove"
+                    aria-label={t("playground.runs.remove")}
                     disabled={!canRemove}
                     onClick={onRemove}
                 >
                     <MinusCircle />
                 </Button>
             </SimpleTooltip>
-            <SimpleTooltip title="Duplicate" side="top">
-                <Button variant="ghost" size="icon-sm" aria-label="Duplicate" onClick={onDuplicate}>
+            <SimpleTooltip title={t("playground.runs.duplicate")} side="top">
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("playground.runs.duplicate")}
+                    onClick={onDuplicate}
+                >
                     <Copy />
                 </Button>
             </SimpleTooltip>

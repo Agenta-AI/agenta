@@ -1,0 +1,20 @@
+{
+    "title": "Observability",
+    "tracesTab": "Traces",
+    "sessionsTab": "Sitzungen",
+    "addSelectedToQueue": "{{count}} ausgewählte zur Warteschlange hinzufügen",
+    "addSelectedToQueueNone": "Ausgewählte zur Warteschlange hinzufügen",
+    "noSessionsTitle": "Noch keine Sitzungen",
+    "noSessionsHint": "Sitzungen erscheinen hier, sobald Ihre App Traces nach Sitzungs-ID gruppiert.",
+    "noTracesTitle": "Noch keine Traces",
+    "noTracesHint": "Traces erscheinen hier, sobald Ihre App sie sendet.",
+    "nothingMatchesTitle": "Keine Treffer für diese Filter",
+    "nothingMatchesHint": "Wählen Sie einen größeren Zeitraum oder setzen Sie die Filter zurück.",
+    "clearFilters": "Filter zurücksetzen",
+    "filterByApp": "Nach App filtern",
+    "allApps": "Alle Apps",
+    "couldNotLoadPanel": "Dieses Panel konnte nicht geladen werden",
+    "tooManyRequests": "Zu viele Anfragen.",
+    "playgroundNoApp": "Dieser Trace hat keine App und kann daher nicht im Playground geöffnet werden.",
+    "playgroundSpanType": "Spans vom Typ „{{spanType}}“ können im Playground nicht erneut ausgeführt werden. Öffnen Sie stattdessen den übergeordneten Workflow-, Task-, Agent- oder Chain-Span."
+}

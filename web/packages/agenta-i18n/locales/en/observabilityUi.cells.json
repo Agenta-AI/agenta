@@ -1,0 +1,7 @@
+{
+    "true": "True",
+    "false": "False",
+    "metrics_one": "{{count}} metric",
+    "metrics_other": "{{count}} metrics",
+    "copySessionId": "Copy session id"
+}
