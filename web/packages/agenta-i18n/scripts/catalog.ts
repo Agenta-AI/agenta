@@ -16,7 +16,7 @@ export const TARGET_LANGUAGES = ["zh-CN", "ja-JP", "es-ES", "pt-BR", "de-DE", "f
  * Languages still being written: check.ts accepts a catalog file they do not have yet. A file they
  * have is checked in full. Remove a language from this list when all its files are in.
  */
-export const LANGUAGES_IN_PROGRESS = ["pt-BR", "de-DE", "fr-FR"]
+export const LANGUAGES_IN_PROGRESS = ["de-DE", "fr-FR"]
 
 /** Every supported language except English, plus any other language folder in locales/. */
 export function targetLanguages(localesDir: string): string[] {

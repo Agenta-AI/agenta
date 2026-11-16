@@ -1,0 +1,21 @@
+{
+    "addDescription": "Depois de adicionar o provedor, ative-o para verificar a conexão.",
+    "addProvider": "Adicionar provedor",
+    "addTitle": "Adicionar provedor de SSO",
+    "clientId": "ID do cliente",
+    "clientSecret": "Segredo do cliente",
+    "clientSecretHint": "O segredo armazenado nunca é exibido. Deixe em branco para mantê-lo.",
+    "editDescription": "Salvar as configurações limpa a validação e desativa o provedor. Ative-o novamente depois de salvar.",
+    "editTitle": "Editar provedor de SSO",
+    "enterClientSecret": "Digite o segredo do cliente",
+    "invalidSlug": "Use somente letras minúsculas (a-z) e hifens (-) no slug",
+    "issuerAndClientRequired": "A URL do emissor e o ID do cliente são obrigatórios",
+    "issuerUrl": "URL do emissor",
+    "saveFailed": "Não foi possível salvar o provedor",
+    "saveProvider": "Salvar provedor",
+    "saving": "Salvando…",
+    "scopes": "Escopos",
+    "scopesHint": "Separe os escopos com vírgulas",
+    "slug": "Slug",
+    "slugHint": "Somente letras minúsculas e hifens"
+}
