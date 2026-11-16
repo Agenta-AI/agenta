@@ -129,6 +129,14 @@ describe("selectContextTarget", () => {
         ).toEqual({workspaceId: "w1", projectId: "p1"})
     })
 
+    const orgGroup = (organizationId: string, rows: [string, string][]): WorkspaceGroup => ({
+        workspaceId: organizationId,
+        projects: rows.map(([id, legacy]) => ({
+            ...project(id, organizationId),
+            legacy_workspace_id: legacy,
+        })),
+    })
+
     it("resolves a remembered legacy pair to the organization id", () => {
         expect(
             selectContextTarget(
