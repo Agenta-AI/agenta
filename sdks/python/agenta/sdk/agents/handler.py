@@ -14,7 +14,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from opentelemetry import trace as otel_trace
 
@@ -493,12 +493,17 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             value = request_meta.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
 
+        # The execution id the runner runs this turn under. The API names it for a delivered or
+        # resumed run; a fresh session turn (an idle admission answers without one) gets it here,
+        # because the runner would otherwise mint it after the workflow span below is written.
+        run_id = _meta_string("run_id") or (str(uuid4()) if session_id else None)
+
         workflow_span = current_product_span()
         # The workflow span is the root of the turn's trace, so it carries the same session and
         # turn ids as the runner's spans. The normalizer's store_session runs before this span
         # opens, so it does not reach it. An approval resume is a new execution (run_id) of the
         # turn that paused (session_turn_id).
-        span_turn_id = _meta_string("session_turn_id") or _meta_string("run_id")
+        span_turn_id = _meta_string("session_turn_id") or run_id
         if session_id:
             workflow_span.set_attribute("ag.session.id", session_id)
         if span_turn_id:
@@ -689,7 +694,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             session_context=session_context,
             session_id=session_id,
             detached=bool(flags.detached),
-            turn_id=_meta_string("run_id"),
+            turn_id=run_id,
             session_turn_id=_meta_string("session_turn_id"),
             project_id=_meta_string("project_id"),
             control_command_id=_meta_string("control_command_id"),
