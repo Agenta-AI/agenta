@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     AGENT_FILES_DIR,
+    DRIVE_NOT_WRITABLE,
     fileOrigin,
     moveMountFile,
     createMountFolder,
@@ -19,6 +20,18 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
+
+/** Mount roots (the root, `agent-files/`, `drives/<slug>/`) and read drives are never renamed or
+ * deleted. */
+export const canMoveOrDelete = (
+    drive: Pick<SessionDriveData, "resolveMount" | "projectDrives">,
+    presentedPath: string,
+): boolean => {
+    if (presentedPath === "" || presentedPath === AGENT_FILES_DIR) return false
+    if (fileOrigin(presentedPath, drive.projectDrives) !== "project") return true
+    const resolved = drive.resolveMount(presentedPath)
+    return Boolean(resolved && resolved.path !== "" && !resolved.readOnly)
+}
 
 export function useDriveWrites(
     drive: SessionDriveData,
@@ -40,7 +53,7 @@ export function useDriveWrites(
         ): Promise<boolean> => {
             const resolved = drive.resolveMount(presentedPath)
             if (!resolved?.mount || resolved.readOnly) {
-                void message.error("This location can't be written to")
+                void message.error(DRIVE_NOT_WRITABLE)
                 return false
             }
             setBusy(true)
@@ -123,14 +136,8 @@ export function useDriveWrites(
         [run, projectId, getContainer],
     )
 
-    /** Mount roots (the root, `agent-files/`, `drives/<slug>/`) and read drives never offer Delete. */
     const canDelete = useCallback(
-        (presentedPath: string) => {
-            if (presentedPath === "" || presentedPath === AGENT_FILES_DIR) return false
-            if (fileOrigin(presentedPath, drive.projectDrives) !== "project") return true
-            const resolved = drive.resolveMount(presentedPath)
-            return Boolean(resolved && resolved.path !== "" && !resolved.readOnly)
-        },
+        (presentedPath: string) => canMoveOrDelete(drive, presentedPath),
         [drive],
     )
 

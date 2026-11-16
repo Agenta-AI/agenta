@@ -11,7 +11,7 @@
  */
 import {type ReactElement, useCallback, useContext} from "react"
 
-import {downloadMountArchive} from "@agenta/entities/drive"
+import {downloadMountArchive, projectDriveDir} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
@@ -65,6 +65,24 @@ export function useCopyDrivePath(): (path: string) => void {
     return useCallback((path: string) => copy(path, "Path copied"), [copy])
 }
 
+/** The archive of a presented folder: the mount that backs it, plus every project drive folded in
+ * below it (the `drives/` folder holds them), each under its folder relative to the download. */
+export const folderArchiveMounts = (
+    drive: Pick<SessionDriveData, "resolveMount" | "projectDrives">,
+    path: string,
+): {mountId: string; prefix: string; path: string}[] => {
+    const resolved = drive.resolveMount(path)
+    const out = resolved?.mount
+        ? [{mountId: resolved.mount.id, prefix: "", path: resolved.path}]
+        : []
+    for (const project of drive.projectDrives ?? []) {
+        const dir = projectDriveDir(project.slug)
+        if (path && dir.startsWith(`${path}/`))
+            out.push({mountId: project.mount.id, prefix: dir.slice(path.length + 1), path: ""})
+    }
+    return out
+}
+
 /** A `download(presentedPath, isFolder)` for a drive item — a single file via the bytes endpoint, a
  * folder as a scoped zip via the streaming archive. Resolves which mount (cwd / agent-files) backs
  * the path. Call ONCE per view; pass down to the context menus (`onDownload`). Themed toast. */
@@ -76,17 +94,18 @@ export function useDriveItemDownload(
     return useCallback(
         (path: string, isFolder: boolean) => {
             const resolved = drive.resolveMount(path)
-            if (!resolved?.mount) return
+            const mounts = isFolder ? folderArchiveMounts(drive, path) : []
+            if (!resolved?.mount && !mounts.length) return
             const name = path.split("/").pop() || "download"
             const key = `drive-download:${path}`
             void (async () => {
                 if (!isFolder) {
-                    await downloadFile(resolved.mount, resolved.path)
+                    if (resolved?.mount) await downloadFile(resolved.mount, resolved.path)
                     return
                 }
                 message.open({type: "loading", key, content: "Preparing download…", duration: 0})
                 const result = await downloadMountArchive({
-                    mounts: [{mountId: resolved.mount.id, prefix: "", path: resolved.path}],
+                    mounts,
                     projectId,
                     filename: `${name}.zip`,
                 })

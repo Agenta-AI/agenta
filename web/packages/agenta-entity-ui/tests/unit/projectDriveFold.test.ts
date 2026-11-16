@@ -4,7 +4,9 @@
  */
 import {describe, expect, it} from "vitest"
 
+import {folderArchiveMounts} from "../../src/drive/DriveItemContextMenu"
 import {driveArchiveMounts} from "../../src/drive/useDriveDownloadAll"
+import {canMoveOrDelete} from "../../src/drive/useDriveWrites"
 import {dropDirs} from "../../src/drive/useLazyDriveTree"
 
 const prices = {slug: "price-lists", access: "read" as const, mount: {id: "m-prices"}}
@@ -43,5 +45,67 @@ describe("dropDirs", () => {
         ])
         expect(dropDirs(map, ["drives/old"])).toEqual(["drives/old", "drives/old/sub"])
         expect([...map.keys()]).toEqual(["", "drives/older", "drives/kept"])
+    })
+})
+
+describe("folderArchiveMounts", () => {
+    const cwd = {id: "m-cwd"}
+    const drive = {
+        resolveMount: (path: string) =>
+            path.startsWith("drives/price-lists")
+                ? {mount: prices.mount, path: path.slice("drives/price-lists".length + 1)}
+                : {mount: cwd, path},
+        projectDrives: [prices],
+    }
+
+    it("zips the drives folder as its session files plus each project drive under its slug", () => {
+        expect(folderArchiveMounts(drive, "drives")).toEqual([
+            {mountId: "m-cwd", prefix: "", path: "drives"},
+            {mountId: "m-prices", prefix: "price-lists", path: ""},
+        ])
+    })
+
+    it("zips a folder inside a project drive from that drive alone", () => {
+        expect(folderArchiveMounts(drive, "drives/price-lists/2026")).toEqual([
+            {mountId: "m-prices", prefix: "", path: "2026"},
+        ])
+    })
+
+    it("zips the drives folder of a session with no mount from the project drives", () => {
+        expect(
+            folderArchiveMounts({resolveMount: () => null, projectDrives: [prices]}, "drives"),
+        ).toEqual([{mountId: "m-prices", prefix: "price-lists", path: ""}])
+    })
+})
+
+describe("canMoveOrDelete", () => {
+    const team = {slug: "team", access: "read-write" as const, mount: {id: "m-team"}}
+    const drive = {
+        resolveMount: (path: string) => {
+            for (const d of [prices, team]) {
+                const dir = `drives/${d.slug}`
+                if (path === dir) return {mount: d.mount, path: "", readOnly: d.access === "read"}
+                if (path.startsWith(`${dir}/`))
+                    return {
+                        mount: d.mount,
+                        path: path.slice(dir.length + 1),
+                        readOnly: d.access === "read",
+                    }
+            }
+            return {mount: {id: "m-cwd"}, path}
+        },
+        projectDrives: [prices, team],
+    }
+
+    it("refuses mount roots and read drives, for rename as for delete", () => {
+        expect(canMoveOrDelete(drive, "")).toBe(false)
+        expect(canMoveOrDelete(drive, "agent-files")).toBe(false)
+        expect(canMoveOrDelete(drive, "drives/team")).toBe(false)
+        expect(canMoveOrDelete(drive, "drives/price-lists/2026.md")).toBe(false)
+    })
+
+    it("allows files in a writable drive and session files", () => {
+        expect(canMoveOrDelete(drive, "drives/team/notes.md")).toBe(true)
+        expect(canMoveOrDelete(drive, "notes.md")).toBe(true)
     })
 })

@@ -447,11 +447,13 @@ export function DriveExplorer({
     )
     const startRename = useCallback(
         (path: string) => {
+            // A mount root or a read drive is not renamed, as it is not deleted.
+            if (!writes.canDelete(path)) return
             const folder = parentOf(path)
             if (selectedPath !== folder) select(folder)
             setNameEdit({path, kind: nodeByPath.get(path)?.isFolder ? "folder" : "file"})
         },
-        [selectedPath, select, nodeByPath],
+        [writes, selectedPath, select, nodeByPath],
     )
     const nameEditView = useMemo<DriveNameEdit | null>(() => {
         if (!nameEdit) return null
