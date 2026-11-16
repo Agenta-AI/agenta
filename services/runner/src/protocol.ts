@@ -1189,8 +1189,12 @@ export function resolvePromptText(request: AgentRunRequest): string {
   return "";
 }
 
-/** The session turn this run belongs to, written as `ag.turn.id` on every span. */
+/**
+ * The session turn this run belongs to, written as `ag.turn.id` on every span. A run with no
+ * session has no turn: the server still mints a `turnId` for it, but its spans carry no turn id.
+ */
 export function spanTurnId(request: AgentRunRequest): string | undefined {
+  if (!request.sessionId?.trim()) return undefined;
   return (request.sessionTurnId ?? request.turnId)?.trim() || undefined;
 }
 

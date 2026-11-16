@@ -291,6 +291,7 @@ describe("Pi turn control file", () => {
 
   it("carries the session turn id when the request sets one", async () => {
     const control = await publishedControl({
+      sessionId: "sess-1",
       turnId: "execution-2",
       sessionTurnId: "turn-1",
     });
@@ -299,7 +300,12 @@ describe("Pi turn control file", () => {
   });
 
   it("carries the execution's turn id on a fresh turn", async () => {
-    const control = await publishedControl({ turnId: "turn-1" });
+    const control = await publishedControl({ sessionId: "sess-1", turnId: "turn-1" });
     expect(control.sessionTurnId).toBe("turn-1");
+  });
+
+  it("carries no turn id on a run with no session", async () => {
+    const control = await publishedControl({ turnId: "execution-1" });
+    expect(control.sessionTurnId).toBeUndefined();
   });
 });

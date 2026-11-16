@@ -1,4 +1,4 @@
-"""A fresh `on_busy` turn's workflow span carries the turn id the runner runs under.
+"""A fresh session turn's workflow span carries the turn id the runner runs under.
 
 The `/m` chat sends every message with `on_busy`. On an idle session the platform's admission
 answers `{"action": "execute"}` with no execution id, so nothing names the turn before the
@@ -20,10 +20,6 @@ from agenta.sdk.agents import AgentResult
 from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
 from agenta.sdk.decorators.routing import route
 from agenta.sdk.models.workflows import WorkflowServiceRequest
-
-from oss.tests.pytest.unit.test_invoke_dispatch_parity_routing import (
-    _offline_tracing,
-)
 
 _backend: Any = None
 
@@ -86,7 +82,6 @@ def _invoke_with_admission(make_backend, admission: Dict[str, Any]):
     }
 
     with (
-        _offline_tracing(),
         patch(
             "agenta.sdk.decorators.routing.PlatformConnection",
             return_value=platform,
@@ -111,7 +106,9 @@ def _invoke_with_admission(make_backend, admission: Dict[str, Any]):
     return dict(span.attributes or {}), created["turn_id"]
 
 
-def test_idle_admission_gives_the_workflow_span_the_runner_turn(make_backend):
+def test_idle_admission_gives_the_workflow_span_the_runner_turn(
+    make_backend, offline_tracing
+):
     # The idle answer of the real admission endpoint carries no execution id.
     attributes, runner_turn_id = _invoke_with_admission(
         make_backend, {"action": "execute"}
@@ -121,7 +118,9 @@ def test_idle_admission_gives_the_workflow_span_the_runner_turn(make_backend):
     assert attributes["ag.turn.id"] == runner_turn_id
 
 
-def test_admitted_execution_id_is_the_turn_of_the_span_and_the_runner(make_backend):
+def test_admitted_execution_id_is_the_turn_of_the_span_and_the_runner(
+    make_backend, offline_tracing
+):
     attributes, runner_turn_id = _invoke_with_admission(
         make_backend, {"action": "execute", "execution_id": "execution-2"}
     )

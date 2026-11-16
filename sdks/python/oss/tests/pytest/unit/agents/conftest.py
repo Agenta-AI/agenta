@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -217,3 +218,29 @@ def golden():
         return json.loads((base / name).read_text(encoding="utf-8"))
 
     return _load
+
+
+@pytest.fixture
+def offline_tracing():
+    """Run a test without a live tracer: the SDK tracing singletons are mocks."""
+    with (
+        patch("agenta.sdk.decorators.tracing.ag") as mock_ag,
+        patch("agenta.sdk.decorators.running.ag") as mock_run_ag,
+    ):
+        span = MagicMock()
+        span.is_recording.return_value = False
+        span.get_span_context.return_value = MagicMock(trace_id=0, span_id=0)
+        mock_ag.tracing = MagicMock()
+        mock_ag.tracing.get_current_span.return_value = span
+        mock_ag.tracing.redact = None
+        tracer = MagicMock()
+        tracer.start_as_current_span.return_value.__enter__ = MagicMock(
+            return_value=span
+        )
+        tracer.start_as_current_span.return_value.__exit__ = MagicMock(
+            return_value=None
+        )
+        mock_ag.tracer = tracer
+        mock_run_ag.DEFAULT_AGENTA_SINGLETON_INSTANCE = MagicMock()
+        mock_run_ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key = None
+        yield

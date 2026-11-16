@@ -496,7 +496,11 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         # The execution id the runner runs this turn under. The API names it for a delivered or
         # resumed run; a fresh session turn (an idle admission answers without one) gets it here,
         # because the runner would otherwise mint it after the workflow span below is written.
-        run_id = _meta_string("run_id") or (str(uuid4()) if session_id else None)
+        # A continuation (control_command_id) must carry the API's run_id: the runner refuses one
+        # that has none, so the SDK does not mint it there.
+        run_id = _meta_string("run_id")
+        if run_id is None and session_id and not _meta_string("control_command_id"):
+            run_id = str(uuid4())
 
         workflow_span = current_product_span()
         # The workflow span is the root of the turn's trace, so it carries the same session and

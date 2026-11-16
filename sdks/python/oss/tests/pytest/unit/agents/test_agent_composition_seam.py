@@ -279,6 +279,49 @@ async def test_detached_coordination_meta_reaches_the_backend_session():
     ]
 
 
+async def test_a_fresh_session_turn_gets_a_minted_turn_id():
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    ((_, turn_id, _, _, _),) = backend.created_coordination
+    assert turn_id
+
+
+async def test_a_continuation_without_run_id_gets_no_minted_turn_id():
+    # The runner refuses a continuation with no turnId. A minted id would hide that refusal.
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={"control_command_id": "command-1"},
+        ),
+        messages=[{"role": "user", "content": "approved"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_coordination == [
+        ("session-1", None, None, None, "command-1")
+    ]
+
+
 async def test_handler_carries_the_effective_config_onto_the_session():
     """The config the handler RAN with reaches the session, verbatim.
 
