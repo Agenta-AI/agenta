@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import type { SandboxUse } from "../../../src/engines/inprocess/sandbox/command-sandbox.ts";
 import type { DaytonaSandbox } from "../../../src/engines/inprocess/sandbox/daytona-api.ts";
 import {
+  driveLinkBlockedMessage,
   DriveUnreachableError,
   MountLostError,
   SandboxDrive,
@@ -24,12 +25,12 @@ const CREDS: MountCredentials = {
   secretKey: "SK",
 };
 
-function fakeSandbox(commands: string[]): DaytonaSandbox {
+function fakeSandbox(commands: string[], failing?: string): DaytonaSandbox {
   return {
     id: "sbx-1",
     run: async (command: string) => {
       commands.push(command);
-      return { exitCode: 0, output: "" };
+      return { exitCode: failing && command.includes(failing) ? 1 : 0, output: "" };
     },
   } as unknown as DaytonaSandbox;
 }
@@ -75,6 +76,24 @@ describe("SandboxDrive with project drives", () => {
     const { mounter } = fakeMounter(new Set(["/w-project-prices"]));
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
     await expect(drive.ensure(use(fakeSandbox([])))).rejects.toBeInstanceOf(DriveUnreachableError);
+  });
+
+  it("stops file commands with a sentence naming the drive when its drives/<slug> link is blocked", async () => {
+    const { mounter } = fakeMounter();
+    const sandbox = fakeSandbox([], "'/w/drives/prices'");
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
+    const err = await drive.ensure(use(sandbox)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DriveUnreachableError);
+    expect((err as Error).message).toBe(driveLinkBlockedMessage("prices"));
+    expect(drive.mountedOn("sbx-1", 1)).toBe(false);
+  });
+
+  it("refreshes only the writable roots: a read-only mount refuses the refresh attribute", () => {
+    const { mounter } = fakeMounter();
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
+    expect(drive.refreshCommand).toBe(": refresh '/w' '/w-agent'");
+    drive.setRoots(roots().slice(2));
+    expect(drive.refreshCommand).toBe(": refresh ");
   });
 
   it("replaces the sandbox when the run's roots change, and not when only credentials do", async () => {

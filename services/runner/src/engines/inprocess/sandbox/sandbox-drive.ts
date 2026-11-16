@@ -68,9 +68,14 @@ export interface DriveMounter {
 export const DRIVE_UNREACHABLE_MESSAGE =
   "The agent's files could not be attached in the command sandbox (the file store cannot be reached from it), so nothing was read or changed. Try again later.";
 
+/** A project drive whose `drives/<slug>` link could not be made; the folder there is left as it is. */
+export function driveLinkBlockedMessage(slug: string): string {
+  return `The project drive drives/${slug}/ could not be attached in the command sandbox, usually because a folder of that name is already in the working directory, so nothing was read or changed. Ask the user to move or rename that folder in the session's files.`;
+}
+
 export class DriveUnreachableError extends Error {
-  constructor(detail: string) {
-    super(DRIVE_UNREACHABLE_MESSAGE);
+  constructor(detail: string, message: string = DRIVE_UNREACHABLE_MESSAGE) {
+    super(message);
     this.name = "DriveUnreachableError";
     this.cause = detail;
   }
@@ -304,7 +309,9 @@ export class SandboxDrive {
       const exec = sandboxExec(use.sandbox, signal);
       for (const r of roots) {
         if (r.link?.kind === "agent") await linkAgentFilesRemote(exec, this.inSandbox(cwd), this.inSandbox(r.root), { log: this.options.log });
-        else if (r.link?.kind === "project") await linkProjectDriveRemote(exec, this.inSandbox(cwd), r.link.slug, this.inSandbox(r.root), { log: this.options.log });
+        else if (r.link?.kind === "project" && !(await linkProjectDriveRemote(exec, this.inSandbox(cwd), r.link.slug, this.inSandbox(r.root), { log: this.options.log }))) {
+          throw withPublicCode(new DriveUnreachableError(`drives/${r.link.slug} link failed`, driveLinkBlockedMessage(r.link.slug)), "runner_error");
+        }
       }
     }
     this.modesApplied.clear();
