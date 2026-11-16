@@ -4462,9 +4462,18 @@ class SimpleWorkflowsService:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
         _reject_unrunnable_agent_connection(simple_workflow_create.data)
-        await self.workflows_service.reject_unusable_agent_drives(
-            project_id=project_id, data=simple_workflow_create.data
-        )
+
+        # Drives are live state: checked before this call's first write, never on a replay
+        # that writes nothing, so a drive archived after a completed create does not fail it.
+        drives_checked = False
+
+        async def check_drives_before_write() -> None:
+            nonlocal drives_checked
+            if not drives_checked:
+                await self.workflows_service.reject_unusable_agent_drives(
+                    project_id=project_id, data=simple_workflow_create.data
+                )
+                drives_checked = True
 
         workflow_id = resource_identity(
             project_id,
@@ -4507,6 +4516,7 @@ class SimpleWorkflowsService:
                 workflow_flags = WorkflowFlags(
                     **WorkflowsService._dump_flags(request.flags)
                 )
+                await check_drives_before_write()
                 try:
                     workflow = await self.workflows_service.create_workflow(
                         project_id=project_id,
@@ -4550,6 +4560,7 @@ class SimpleWorkflowsService:
                 workflow_variant_ref=Reference(slug=variant_slug),
             )
             if variant is None:
+                await check_drives_before_write()
                 try:
                     variant = await self.workflows_service.create_workflow_variant(
                         project_id=project_id,
@@ -4582,6 +4593,7 @@ class SimpleWorkflowsService:
                 workflow_revision_ref=Reference(slug=blank_slug),
             )
             if blank is None:
+                await check_drives_before_write()
                 try:
                     blank = await self.workflows_service.commit_workflow_revision(
                         project_id=project_id,
@@ -4619,6 +4631,7 @@ class SimpleWorkflowsService:
                 workflow_revision_ref=Reference(slug=content_slug),
             )
             if content is None:
+                await check_drives_before_write()
                 try:
                     content = await self.workflows_service.commit_workflow_revision(
                         project_id=project_id,

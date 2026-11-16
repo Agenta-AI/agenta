@@ -288,6 +288,7 @@ async def test_simple_create_refuses_before_any_write():
 @pytest.mark.asyncio
 async def test_idempotent_create_refuses_before_any_write():
     simple, workflows_service = _simple_service()
+    workflows_service.fetch_workflow = AsyncMock(return_value=None)
     with pytest.raises(AgentDriveNotFoundError):
         await simple.create_idempotent(
             project_id=uuid4(),
