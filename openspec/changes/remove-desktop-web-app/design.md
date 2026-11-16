@@ -71,7 +71,7 @@ Router config and images do not deploy atomically. If the router moves while an 
 
 ### D7. No CI auth bootstrap replacement
 
-`bootstrap-auth.ts` gives nothing to the downstream jobs. The cutover PR deletes the `auth_bootstrap` steps and `run-web-tests` together. `wait_for "Web"` follows `/` → `/m` and needs `/m` to answer 200 signed out.
+`bootstrap-auth.ts` gives nothing to the downstream jobs. PR 3 deletes the `auth_bootstrap` steps and `run-web-tests` together. `wait_for "Web"` follows `/` → `/m` and needs `/m` to answer 200 signed out.
 
 ### D8. Helm keeps `ingress.paths.web` as the root route
 
@@ -91,36 +91,33 @@ After the cutover, `proxy.ts` logs the path (no query, no user data) of each leg
 
 ## PR stack
 
-Lanes: PR 1 and PR 2 branch from `main` on their own. PR 3 → PR 4 → PR 5 is one stack. PR 6 → PR 7 → PR 8 is a second stack, started after the soak.
+Five PRs. PR 1 and PR 2 branch from `main` on their own. PR 3 stacks on both. PR 4 and PR 5 form a second stack, started after the soak. Each PR keeps one commit per concern so a reviewer can read it in parts.
 
-| PR | Title | Depends on |
-|---|---|---|
-| 1 | `refactor(frontend): move the theme source of truth into @agenta/ui` | — |
-| 2 | `fix(frontend): declare dependencies that resolved through web/oss` | — |
-| 3 | `feat(frontend): /m answers legacy desktop URLs` | — |
-| 4 | `feat(frontend): remove Classic mode from /m` | 3 |
-| 5 | `feat(hosting): route / to web-mobile and retire the web service` | 1, 3, 4 |
-| — | soak (D10) | 5 live on cloud |
-| 6 | `chore(frontend): delete web/oss, web/ee and web/tests` | 2, 5, soak |
-| 7 | `refactor(frontend): remove desktop-only package code` | 6 |
-| 8 | `docs: remove desktop app mentions and guard against new ones` | 6 |
+| PR | Title | Contents | Depends on |
+|---|---|---|---|
+| 1 | `refactor(frontend): stop depending on web/oss from live code` | Theme source into `@agenta/ui` (D6); declare deps hidden by oss hoisting | — |
+| 2 | `feat(frontend): /m answers legacy desktop URLs and drops Classic mode` | Legacy URL handler (D1–D4); Classic mode removal (D5) | — |
+| 3 | `feat(hosting): route / to web-mobile and retire the web service` | Compose, nginx, helm, Railway, CI, upgrade note (D7–D9) | 1, 2 |
+| — | soak (D10) | | 3 live on cloud |
+| 4 | `chore(frontend): delete web/oss, web/ee and web/tests` | Delete the folders and their tooling, images and deps; then desktop-only package code | 3, soak |
+| 5 | `docs: remove desktop app mentions and guard against new ones` | Instructions, docs, comments, CI grep guard (D11) | 4 |
 
 ## Risks / Trade-offs
 
 - [Two redirect hops for `/w/*`] → Accepted; it keeps one owner of the mapping. Both hops are 307 and cheap.
 - [An unmapped legacy path lands on the `/m` root] → D10 logging finds it during the soak; add a mapping before the delete PR.
 - [Self-hosters update the router but not the mobile tag] → `/` returns a 404 until they do. The upgrade note says to update both together.
-- [External `agenta_cloud` repo] → PR 5 needs a matching cloud ingress change after the PR 4 image is live; PR 6 needs the cloud release workflow to stop publishing `agenta-web` and `internal-ee-agenta-web` first.
-- [No browser E2E after `web/tests` goes] → The PR 5 curl table runs in `smoke.sh`. `/m` E2E is a named follow-up.
-- [Two theme copies between PR 1 and PR 6] → The desktop copy is frozen and unused by `/m`; instructions point only at the new one from PR 1.
+- [External `agenta_cloud` repo] → PR 3 needs a matching cloud ingress change after the PR 2 image is live; PR 4 needs the cloud release workflow to stop publishing `agenta-web` and `internal-ee-agenta-web` first.
+- [No browser E2E after `web/tests` goes] → The PR 3 curl table runs in `smoke.sh`. `/m` E2E is a named follow-up.
+- [Two theme copies between PR 1 and PR 4] → The desktop copy is frozen and unused by `/m`; instructions point only at the new one from PR 1.
 
 ## Migration Plan
 
-1. PR 1, PR 2, PR 3 land in any order. PR 4 follows PR 3.
-2. Release with PR 3 and PR 4 in the `agenta-web-mobile` image. Confirm it is live on cloud.
-3. PR 5 lands. Cloud ingress flips. Railway `apply.sh` updates the live template; existing previews are recycled. Self-host upgrade note ships.
+1. PR 1 and PR 2 land in any order.
+2. Release with PR 2 in the `agenta-web-mobile` image. Confirm it is live on cloud.
+3. PR 3 lands. Cloud ingress flips. Railway `apply.sh` updates the live template; existing previews are recycled. Self-host upgrade note ships.
 4. Soak (D10).
-5. `agenta_cloud` stops publishing desktop images. PR 6 lands, then PR 7 and PR 8.
+5. `agenta_cloud` stops publishing desktop images. PR 4 lands, then PR 5.
 
 ## Open Questions
 
