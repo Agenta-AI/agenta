@@ -1,0 +1,21 @@
+{
+    "addDescription": "Después de añadir el proveedor, actívalo para verificar la conexión.",
+    "addProvider": "Añadir proveedor",
+    "addTitle": "Añadir proveedor de SSO",
+    "clientId": "ID de cliente",
+    "clientSecret": "Secreto de cliente",
+    "clientSecretHint": "El secreto almacenado nunca se muestra. Déjalo en blanco para conservarlo.",
+    "editDescription": "Al guardar los ajustes se borra la validación y se desactiva el proveedor. Vuelve a activarlo después de guardar.",
+    "editTitle": "Editar proveedor de SSO",
+    "enterClientSecret": "Introduce el secreto de cliente",
+    "invalidSlug": "Usa solo letras minúsculas (a-z) y guiones (-) en el slug",
+    "issuerAndClientRequired": "La URL del emisor y el ID de cliente son obligatorios",
+    "issuerUrl": "URL del emisor",
+    "saveFailed": "No se ha podido guardar el proveedor",
+    "saveProvider": "Guardar proveedor",
+    "saving": "Guardando…",
+    "scopes": "Ámbitos",
+    "scopesHint": "Separa los ámbitos con comas",
+    "slug": "Slug",
+    "slugHint": "Solo letras minúsculas y guiones"
+}

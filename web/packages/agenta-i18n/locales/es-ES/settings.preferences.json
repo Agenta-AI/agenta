@@ -1,0 +1,17 @@
+{
+    "appearance": "Apariencia",
+    "betaDeveloperMode": "Usar el nuevo modo de desarrollador beta",
+    "betaDeveloperModeDescription": "El modo de desarrollador se queda en la aplicación nueva y muestra la sección Desarrollador, en lugar de abrir la aplicación clásica.",
+    "channelDebug": "Depuración de canales",
+    "channelDebugDescription": "Muestra espacios, hilos y eventos sin procesar de canales en los ajustes de Canales.",
+    "channelProbe": "Sonda de canales de Agenta",
+    "channelProbeDescription": "Muestra la sonda temporal de canales en el navegador.",
+    "debugging": "Depuración",
+    "debuggingDescription": "Herramientas para inspeccionar ejecuciones y canales.",
+    "developerMode": "Modo de desarrollador",
+    "developerModeDescription": "Muestra Evaluación, Gestión de prompts y Trazas en la navegación.",
+    "featureFlags": "Feature flags",
+    "language": "Idioma",
+    "playgroundInspector": "Inspector del Playground",
+    "playgroundInspectorDescription": "Muestra controles para inspeccionar las sesiones y los turnos del Playground."
+}
