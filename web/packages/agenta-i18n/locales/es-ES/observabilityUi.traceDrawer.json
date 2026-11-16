@@ -5,8 +5,6 @@
     "tabAnnotations": "Anotaciones",
     "rawDataError": "Error",
     "close": "Cerrar",
-    "loadFailed": "No se pudo cargar la traza",
-    "loadingTrace": "Cargando traza",
     "noAnnotationsForTrace": "No hay anotaciones para esta traza",
     "selectSpanAnnotations": "Selecciona un span para ver las anotaciones.",
     "selectSpanDetails": "Selecciona un span para ver los detalles de la traza.",

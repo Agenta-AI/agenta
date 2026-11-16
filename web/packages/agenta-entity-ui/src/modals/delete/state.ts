@@ -6,7 +6,7 @@
  */
 
 import {createT} from "@agenta/i18n"
-import deleteModalCatalog from "@agenta/i18n/catalogs/entityUi.deleteModal"
+import deleteModalCatalog from "@agenta/i18n/catalogs/entityUi.deleteModalState"
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
 
@@ -189,7 +189,7 @@ export const executeDeleteAtom = atom(null, async (get, set) => {
     const onSuccess = get(deleteModalOnSuccessAtom)
 
     if (!canProceed) {
-        set(deleteModalErrorAtom, new Error(t("entityUi.deleteModal.someBlocked")))
+        set(deleteModalErrorAtom, new Error(t("entityUi.deleteModalState.someBlocked")))
         return false
     }
 

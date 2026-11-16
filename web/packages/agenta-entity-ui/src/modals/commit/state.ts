@@ -9,7 +9,7 @@
  */
 
 import {createT} from "@agenta/i18n"
-import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModalState"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
@@ -274,7 +274,7 @@ export const executeCommitAtom = atom(null, async (get, set) => {
     const canProceed = get(commitModalCanProceedAtom)
 
     if (!entity || !canProceed) {
-        set(commitModalErrorAtom, new Error(tNow("entityUi.commitModal.missingMessage")))
+        set(commitModalErrorAtom, new Error(tNow("entityUi.commitModalState.missingMessage")))
         return {success: false, error: "Missing entity or message"}
     }
 

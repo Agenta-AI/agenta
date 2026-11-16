@@ -60,7 +60,6 @@
     "changeCount_one": "{{count}} modification",
     "changeCount_many": "{{count}} modifications",
     "changeCount_other": "{{count}} modifications",
-    "missingMessage": "Commit impossible : élément ou message manquant",
     "configurationModified": "Configuration modifiée",
     "newDraftVariant": "Nouvelle variante en brouillon"
 }

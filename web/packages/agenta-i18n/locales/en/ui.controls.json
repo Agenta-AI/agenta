@@ -19,7 +19,6 @@
     "hour": "Hour",
     "increaseValue": "Increase value",
     "loadAll": "Load all",
-    "loadError": "The request did not come back. Check your connection and try again.",
     "loadedCount": "({{loaded}} loaded)",
     "loadedOfTotal": "({{loaded}} of {{total}})",
     "loadingAll": "Loading all...",

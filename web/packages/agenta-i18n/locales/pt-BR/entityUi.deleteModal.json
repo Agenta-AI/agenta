@@ -27,6 +27,5 @@
     "blockedItems": "Os itens a seguir não podem ser excluídos:",
     "deleteFailed": "Falha ao excluir",
     "deleted": "Excluído com sucesso",
-    "delete": "Excluir",
-    "someBlocked": "Alguns itens não podem ser excluídos"
+    "delete": "Excluir"
 }

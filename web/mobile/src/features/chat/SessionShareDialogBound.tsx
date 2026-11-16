@@ -18,7 +18,7 @@ import {
     retrievedWorkflowRevisionQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import {createT} from "@agenta/i18n"
-import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
+import shareDialogCatalog from "@agenta/i18n/catalogs/chat.sessionShareDialog"
 import {sessionRoutePath, shareUrl} from "@agenta/sessions/link"
 import {
     SessionShareDialog,
@@ -38,7 +38,7 @@ import {useCurrentProject} from "../context/useCurrentProject"
 import type {ShareDialogRequest} from "./shareDialogState"
 import {useDisclosureProviderLabel} from "./useDisclosureProviderLabel"
 
-const tNow = createT(chatMobileSessionsCatalog)
+const tNow = createT(shareDialogCatalog)
 
 /** Writes answer with the outcome the dialog reads; an API error never reaches it raw. */
 const outcome = async (write: () => Promise<unknown>): Promise<SharingWriteResult> => {
@@ -105,7 +105,7 @@ export const SessionShareDialogBound = ({
             `${router.basePath}${sessionRoutePath(`/w/${workspaceId}/p/${projectId}`, sessionId)}`,
         )
         if (link && (await copyToClipboard(link))) return true
-        message.error(tNow("chat.mobileSessions.copyLinkFailed"))
+        message.error(tNow("chat.sessionShareDialog.copyLinkFailed"))
         return false
     }, [projectId, router.basePath, sessionId, workspaceId])
 

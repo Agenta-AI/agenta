@@ -19,7 +19,6 @@
     "hour": "时",
     "increaseValue": "增大数值",
     "loadAll": "加载全部",
-    "loadError": "请求没有返回结果。请检查网络连接后重试。",
     "loadedCount": "（已加载 {{loaded}}）",
     "loadedOfTotal": "（已加载 {{loaded}}/{{total}}）",
     "loadingAll": "正在加载全部…",

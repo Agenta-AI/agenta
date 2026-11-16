@@ -27,6 +27,5 @@
     "blockedItems": "Los siguientes elementos no se pueden eliminar:",
     "deleteFailed": "Error al eliminar",
     "deleted": "Eliminado correctamente",
-    "delete": "Eliminar",
-    "someBlocked": "Algunos elementos no se pueden eliminar"
+    "delete": "Eliminar"
 }

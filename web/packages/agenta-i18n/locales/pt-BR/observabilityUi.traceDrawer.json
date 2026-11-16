@@ -5,8 +5,6 @@
     "tabAnnotations": "Anotações",
     "rawDataError": "Erro",
     "close": "Fechar",
-    "loadFailed": "Não foi possível carregar o rastreamento",
-    "loadingTrace": "Carregando rastreamento",
     "noAnnotationsForTrace": "Não há anotações para este rastreamento",
     "selectSpanAnnotations": "Selecione um span para ver as anotações.",
     "selectSpanDetails": "Selecione um span para ver os detalhes do rastreamento.",

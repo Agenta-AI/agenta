@@ -27,6 +27,5 @@
     "blockedItems": "Les éléments suivants ne peuvent pas être supprimés :",
     "deleteFailed": "Échec de la suppression",
     "deleted": "Supprimé avec succès",
-    "delete": "Supprimer",
-    "someBlocked": "Certains éléments ne peuvent pas être supprimés"
+    "delete": "Supprimer"
 }

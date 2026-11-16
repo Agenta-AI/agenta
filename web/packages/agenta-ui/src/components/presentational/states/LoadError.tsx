@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import loadErrorCatalog from "@agenta/i18n/catalogs/ui.loadError"
 import {RefreshCw, TriangleAlert} from "lucide-react"
 
 import {cn} from "../../../utils/styles"
@@ -37,8 +37,8 @@ export const LoadError = ({
     framed = false,
     className,
 }: LoadErrorProps) => {
-    const t = useT(uiControlsCatalog, commonCatalog)
-    const description = descriptionProp ?? t("ui.controls.loadError")
+    const t = useT(loadErrorCatalog, commonCatalog)
+    const description = descriptionProp ?? t("ui.loadError.loadError")
     const retryLabel = retryLabelProp ?? t("common.tryAgain")
     return (
         <Empty

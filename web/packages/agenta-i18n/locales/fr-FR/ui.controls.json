@@ -19,7 +19,6 @@
     "hour": "Heure",
     "increaseValue": "Augmenter la valeur",
     "loadAll": "Tout charger",
-    "loadError": "La requête n’a pas abouti. Vérifiez votre connexion et réessayez.",
     "loadedCount": "({{loaded}} chargés)",
     "loadedOfTotal": "({{loaded}} sur {{total}})",
     "loadingAll": "Chargement de tout...",

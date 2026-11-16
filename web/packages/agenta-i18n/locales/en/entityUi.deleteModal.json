@@ -20,6 +20,5 @@
     "blockedItems": "The following items cannot be deleted:",
     "deleteFailed": "Delete Failed",
     "deleted": "Deleted successfully",
-    "delete": "Delete",
-    "someBlocked": "Some entities cannot be deleted"
+    "delete": "Delete"
 }

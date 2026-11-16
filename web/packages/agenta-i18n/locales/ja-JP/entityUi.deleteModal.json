@@ -13,6 +13,5 @@
     "blockedItems": "以下の項目は削除できません：",
     "deleteFailed": "削除に失敗しました",
     "deleted": "削除しました",
-    "delete": "削除",
-    "someBlocked": "一部の項目は削除できません"
+    "delete": "削除"
 }

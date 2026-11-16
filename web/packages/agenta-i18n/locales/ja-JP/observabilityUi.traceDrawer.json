@@ -5,8 +5,6 @@
     "tabAnnotations": "注釈",
     "rawDataError": "エラー",
     "close": "閉じる",
-    "loadFailed": "トレースを読み込めませんでした",
-    "loadingTrace": "トレースを読み込み中",
     "noAnnotationsForTrace": "このトレースには注釈がありません",
     "selectSpanAnnotations": "注釈を表示するスパンを選択してください。",
     "selectSpanDetails": "トレースの詳細を表示するスパンを選択してください。",

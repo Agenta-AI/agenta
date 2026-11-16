@@ -19,7 +19,6 @@
     "hour": "時",
     "increaseValue": "値を増やす",
     "loadAll": "すべて読み込む",
-    "loadError": "リクエストに応答がありませんでした。接続を確認して、もう一度お試しください。",
     "loadedCount": "（{{loaded}} 件を読み込み済み）",
     "loadedOfTotal": "（{{total}} 件中 {{loaded}} 件）",
     "loadingAll": "すべて読み込み中…",

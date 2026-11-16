@@ -19,7 +19,6 @@
     "hour": "Hora",
     "increaseValue": "Aumentar valor",
     "loadAll": "Carregar tudo",
-    "loadError": "A solicitação não teve resposta. Verifique sua conexão e tente novamente.",
     "loadedCount": "({{loaded}} carregados)",
     "loadedOfTotal": "({{loaded}} de {{total}})",
     "loadingAll": "Carregando tudo...",

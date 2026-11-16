@@ -20,6 +20,5 @@
     "blockedItems": "Die folgenden Elemente können nicht gelöscht werden:",
     "deleteFailed": "Löschen fehlgeschlagen",
     "deleted": "Erfolgreich gelöscht",
-    "delete": "Löschen",
-    "someBlocked": "Einige Elemente können nicht gelöscht werden"
+    "delete": "Löschen"
 }

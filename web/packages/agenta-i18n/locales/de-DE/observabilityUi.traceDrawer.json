@@ -5,8 +5,6 @@
     "tabAnnotations": "Annotationen",
     "rawDataError": "Fehler",
     "close": "Schließen",
-    "loadFailed": "Der Trace konnte nicht geladen werden",
-    "loadingTrace": "Trace wird geladen",
     "noAnnotationsForTrace": "Für diesen Trace gibt es keine Annotationen",
     "selectSpanAnnotations": "Wählen Sie einen Span aus, um Annotationen anzuzeigen.",
     "selectSpanDetails": "Wählen Sie einen Span aus, um Trace-Details anzuzeigen.",

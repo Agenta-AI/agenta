@@ -53,7 +53,6 @@
     "changesPreview": "Changes preview",
     "changeCount_one": "{{count}} change",
     "changeCount_other": "{{count}} changes",
-    "missingMessage": "Cannot commit: missing entity or message",
     "configurationModified": "Configuration modified",
     "newDraftVariant": "New draft variant"
 }

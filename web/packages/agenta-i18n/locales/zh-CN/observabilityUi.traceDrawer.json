@@ -5,8 +5,6 @@
     "tabAnnotations": "标注",
     "rawDataError": "错误",
     "close": "关闭",
-    "loadFailed": "无法加载追踪",
-    "loadingTrace": "正在加载追踪",
     "noAnnotationsForTrace": "此追踪没有标注",
     "selectSpanAnnotations": "选择一个 Span 以查看标注。",
     "selectSpanDetails": "选择一个 Span 以查看追踪详情。",

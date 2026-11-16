@@ -46,7 +46,6 @@
     "actionFailed": "{{action}}に失敗しました",
     "changesPreview": "変更のプレビュー",
     "changeCount_other": "{{count}} 件の変更",
-    "missingMessage": "コミットできません：項目またはメッセージがありません",
     "configurationModified": "設定を変更",
     "newDraftVariant": "新しい下書きバリアント"
 }

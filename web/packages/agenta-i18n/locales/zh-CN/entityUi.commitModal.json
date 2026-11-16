@@ -46,7 +46,6 @@
     "actionFailed": "{{action}}失败",
     "changesPreview": "更改预览",
     "changeCount_other": "{{count}} 处更改",
-    "missingMessage": "无法提交：缺少项目或说明",
     "configurationModified": "配置已修改",
     "newDraftVariant": "新草稿变体"
 }

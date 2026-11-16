@@ -1467,7 +1467,6 @@
         "unreachableTitle": "cd39eddd26bd6957f2dde60ebf61ac78ba9b31bd5060f7e52ed684e329ab43d2"
     },
     "chat.mobileSessions": {
-        "copyLinkFailed": "6bad7bdb27b753aeac80fa0f16d37b4c60f0836b5317ba8bc81e585426d3b664",
         "exportJson": "ff25653ee9e47f2a68ebc26cc2431ae8edc54c7b8305d1283357c64ae7cfb087",
         "exportRecords": "9dc10637bd309e29b1dde81a59f0f74f33c9d4babf0d55f0e5e7a93ec54e82d9",
         "inspectSession": "952f761c05f39c2200de856856a8123ac3bff8538c575824cf2d3e004824a274",
@@ -1555,6 +1554,9 @@
         "incompleteTitle": "9237c3cd7233fd53ba52644372b804064e82fef501cd6d41370b0c5a7d076637",
         "reconnectingDetail": "77e3e00d747b8460af7ed161769556bd36027585d2f0ee846e320a620719f036",
         "reconnectingTitle": "b3c0404fd6822a4cfcf0fde7160ad8c88e997f166a30bd79aeccde657629a4c2"
+    },
+    "chat.sessionShareDialog": {
+        "copyLinkFailed": "6bad7bdb27b753aeac80fa0f16d37b4c60f0836b5317ba8bc81e585426d3b664"
     },
     "chat.shareMenu": {
         "agent": "11b39c93777e8f1f3983bdba7c72b22fe68cfea20c677e9de53e17cb7dbfb19f",
@@ -2221,9 +2223,11 @@
         "changeCount_one": "fbca9453a502df848f234515bad5285e426568106b10ea8cde4df48ce24b5014",
         "changeCount_many": "440660f8047c1dda4fc4c487c327d4f3ad7bd066e6924008873a7e8d9d55dcd9",
         "changeCount_other": "440660f8047c1dda4fc4c487c327d4f3ad7bd066e6924008873a7e8d9d55dcd9",
-        "missingMessage": "4c66eee5862f04c2cb40dd49f7e11f35caaed96ee37bfb52c7223e7dd955025d",
         "configurationModified": "e62965fda098a39152ce435cb69c32588c821def644c9de4d011f4bee0e20d1c",
         "newDraftVariant": "c2400173f79829d38d177b64139cefdebc40c8ecb8f06ab945d46c3088aa34bc"
+    },
+    "entityUi.commitModalState": {
+        "missingMessage": "4c66eee5862f04c2cb40dd49f7e11f35caaed96ee37bfb52c7223e7dd955025d"
     },
     "entityUi.configItems": {
         "subagent": "d6cb4188b8fa57aae3e4ca3a1210c9afe7ca995375c2fb36d90a1fa73529a44e",
@@ -2376,7 +2380,9 @@
         "blockedItems": "b68cc22d51c697ac02db0d0472d77c36ae1d1ab40a0f68474c70e6bccfdb7ed8",
         "deleteFailed": "6e455f706d81957b1f57b3262cc37ebeb64d903d06136cc54fca189e50a63e0f",
         "deleted": "82b94dd2a4eaba328e3d93a92db36f58b0a66c46b348f322dbf077072d6474d1",
-        "delete": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8",
+        "delete": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8"
+    },
+    "entityUi.deleteModalState": {
         "someBlocked": "92ced2c0cfc3205f636802795dbf3c1fd7f3a27726d32a98ad83ca15467d838b"
     },
     "entityUi.drawerShared": {
@@ -4807,8 +4813,6 @@
         "tabAnnotations": "1e4d67386295974e7ecb6d86a47e7a694214cdbaae1944a938148e4336767d3f",
         "rawDataError": "54a0e8c17ebb21a11f8a25b8042786ef7efe52441e6cc87e92c67e0c4c0c6e78",
         "close": "7d9eb7acb13e24625c404401d8e88b2350e32162455885f18276cf802f7701ed",
-        "loadFailed": "b5163674620344b29333dbe74289d45d85abe4dce7c44c77b96dce6f49bbdb87",
-        "loadingTrace": "a1cbb374d201d2e99048319381f815d25a728f221c7952b25b26cee697d1f2e3",
         "noAnnotationsForTrace": "83d144b541e1a649715f663ef107845a16708236dbdb5561736517d455d1751c",
         "selectSpanAnnotations": "8520b26d5b2316dbb5eb02a0012807fe53276c0078e93a5fceb3a5b14af61029",
         "selectSpanDetails": "ca47682ed622cef4271a260b9ec2bc068076beb693d75b5a1a0d42e505a2d692",
@@ -4853,6 +4857,10 @@
         "trace": "7e14c3d7dd12bbd0947aa8cb491dff154a1644a85848fc28bd1997ef9ef54a2a",
         "copyTraceId": "7e8eb5b16b4f7267412db50f6f5f231c4ea9490e366b1b2cefb1edfd0ac2f6ef",
         "addAnnotationQueue": "7618591a7c0581986db639c1161d574b4c826309d7aba4e6a6fd10882b86f7b3"
+    },
+    "observabilityUi.traceDrawerLoading": {
+        "loadFailed": "b5163674620344b29333dbe74289d45d85abe4dce7c44c77b96dce6f49bbdb87",
+        "loadingTrace": "a1cbb374d201d2e99048319381f815d25a728f221c7952b25b26cee697d1f2e3"
     },
     "observabilityUi.traceSpan": {
         "noSpanSelected": "ca664d9d5f1fbbbcda17ed286c6fd67b1701c0d676a1567c0567debf54df78a4",
@@ -6631,7 +6639,6 @@
         "hour": "f0063b808736318d3f5038c3a6c3b6349183cc678ed93d2e7963248ae7ed7318",
         "increaseValue": "f79533f919a73df4e7775fa11e1c1c8ff1457031a4c020901307da2e0a611d59",
         "loadAll": "5ff55078c5ab32b06122d737526cdf894168fe7877da03534be5965e48dcc457",
-        "loadError": "34922d6efa9bcb96708ba9d185c559686428898ca03f09bbb1aaaf07fb355b7d",
         "loadedCount": "237130d0cc8f9332edf9d483b5126a2963a3299a258608e92b20e101e47ab2cd",
         "loadedOfTotal": "cde45283ed48d50468e204a689427916792518c4ccf2a3f004cbf56b3edd19db",
         "loadingAll": "16f0879a9916f022cd28e9b5d34125dbeb42f05a80f1e28b4f078ed024bc7cc3",
@@ -6779,6 +6786,9 @@
         "providers": "996c32b35f2182a9c83815395113f92344269ebb4ab3525017c4cafaa3d1a8fd",
         "selectProvider": "71e2ca7b1c9f58dc9f5aa46785ae0876ea222554fbc4ed5ae7dc5c53398f1c83",
         "via": "4d327af41f96c23c6b13c8c80e1591babd241b29e61fb64f1c0ea480f3d666bc"
+    },
+    "ui.loadError": {
+        "loadError": "34922d6efa9bcb96708ba9d185c559686428898ca03f09bbb1aaaf07fb355b7d"
     },
     "ui.quoteSelection": {
         "addToMessage": "a51ec5e25959ad81e2b3daf4c217b6edab08d084a0eccc0a6e2ed3f1d8103fab",

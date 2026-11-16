@@ -60,7 +60,6 @@
     "changeCount_one": "{{count}} alteração",
     "changeCount_many": "{{count}} alterações",
     "changeCount_other": "{{count}} alterações",
-    "missingMessage": "Não é possível fazer commit: falta o item ou a mensagem",
     "configurationModified": "Configuração modificada",
     "newDraftVariant": "Nova variante em rascunho"
 }
