@@ -104,8 +104,33 @@ export function sandboxSnapshotOf(sandboxId: string | undefined): string | undef
   return sandboxId ? sandboxSnapshots.get(rawSandboxId(sandboxId)) : undefined;
 }
 
+/**
+ * The drives each Daytona sandbox was set up with (`driveIdentity`), as this process last used it.
+ * A parked sandbox may still hold a drive's mount and credentials, so it is reconnected only for
+ * the same drives.
+ */
+const sandboxDrives = new Map<string, string>();
+
+/** Record the drives `sandboxId` was set up with. */
+export function recordSandboxDrives(sandboxId: string | undefined, drives: string): void {
+  if (!sandboxId) return;
+  const id = rawSandboxId(sandboxId);
+  sandboxDrives.delete(id);
+  if (sandboxDrives.size >= CREATED_SANDBOX_ID_MAX) {
+    const oldest = sandboxDrives.keys().next().value;
+    if (oldest !== undefined) sandboxDrives.delete(oldest);
+  }
+  sandboxDrives.set(id, drives);
+}
+
+/** The drives `sandboxId` was set up with, or undefined when this process does not know them. */
+export function sandboxDrivesOf(sandboxId: string): string | undefined {
+  return sandboxDrives.get(rawSandboxId(sandboxId));
+}
+
 /** Test seam: forget every recorded id, as a process restart does. */
 export function resetCreatedSandboxIds(): void {
   createdSandboxes.clear();
   sandboxSnapshots.clear();
+  sandboxDrives.clear();
 }

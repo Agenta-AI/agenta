@@ -282,6 +282,11 @@ export function changedConfigFields(
   );
 }
 
+/** The drive settings a sandbox is set up with; a parked sandbox is reused only for the same ones. */
+export function driveIdentity(request: AgentRunRequest): string {
+  return JSON.stringify([request.drives ?? null, request.hasSessionDrive ?? null]);
+}
+
 function configShape(request: AgentRunRequest) {
   const shape = {
     harness: request.harness ?? null,

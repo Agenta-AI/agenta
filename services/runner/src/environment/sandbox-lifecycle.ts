@@ -17,6 +17,7 @@ import { conciseError } from "../engines/sandbox_agent/errors.ts";
 import { DaytonaReconnectTerminalError } from "../engines/sandbox_agent/daytona-provider.ts";
 import {
   createdSandboxState,
+  sandboxDrivesOf,
   markSandboxDeleted,
 } from "../engines/sandbox_agent/created-sandboxes.ts";
 import { readStoredSandboxPointer } from "../engines/sandbox_agent/sandbox-reconnect.ts";
@@ -37,6 +38,8 @@ export interface SandboxAcquireInput {
   sessionForMount: string | undefined;
   /** The run credential the pointer read needs. Undefined disables reconnect. */
   runCred: string | undefined;
+  /** This run's `driveIdentity`; a parked sandbox set up with other drives is not reconnected. */
+  driveIdentity?: string;
   log: Log;
   timingLog: TimingLog;
 }
@@ -85,12 +88,17 @@ export async function acquire(
   const storedState = storedSandboxPointer
     ? createdSandboxState(storedSandboxPointer.sandboxId)
     : undefined;
-  const ownSandboxPointer = storedState === "live" ? storedSandboxPointer : undefined;
+  const parkedDrives = storedSandboxPointer ? sandboxDrivesOf(storedSandboxPointer.sandboxId) : undefined;
+  const otherDrives =
+    input.driveIdentity !== undefined && parkedDrives !== undefined && parkedDrives !== input.driveIdentity;
+  const ownSandboxPointer = storedState === "live" && !otherDrives ? storedSandboxPointer : undefined;
   if (storedSandboxPointer && !ownSandboxPointer) {
     log(
       storedState === "deleted"
         ? `stored sandbox=${storedSandboxPointer.sandboxId} was deleted by this runner, creating fresh`
-        : `stored sandbox=${storedSandboxPointer.sandboxId} was not created by this runner, creating fresh`,
+        : storedState === "live"
+          ? `stored sandbox=${storedSandboxPointer.sandboxId} was set up with other drives, creating fresh`
+          : `stored sandbox=${storedSandboxPointer.sandboxId} was not created by this runner, creating fresh`,
     );
   }
 

@@ -17,8 +17,10 @@ import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 import {
   markSandboxCreated,
+  recordSandboxDrives,
   resetCreatedSandboxIds,
 } from "../../src/engines/sandbox_agent/created-sandboxes.ts";
+import { driveIdentity } from "../../src/engines/sandbox_agent/session-identity.ts";
 
 // This whole suite drives the remote (Daytona) lifecycle: enable it (with a provisioning
 // credential) on top of the hermetic scrub, then drop the memoized config.
@@ -259,6 +261,22 @@ describe("remote sandbox reconnect ladder", () => {
       [{ sandboxId: undefined }],
       "one fresh create; the foreign id is never handed to the provider",
     );
+  });
+
+  it("creates fresh when the parked sandbox was set up with other drives, and reconnects for the same ones", async () => {
+    const withDrives = (drives: AgentRunRequest["drives"]) => ({ ...daytonaRequest, drives }) as AgentRunRequest;
+    const both = withDrives([{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }]);
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+
+    const dropped = fakeSandbox("sbx-99");
+    assert.equal((await runSandboxAgent(withDrives([{ kind: "agent" }]), undefined, undefined, dropped.deps)).ok, true);
+    assert.deepEqual(dropped.calls.starts, [{ sandboxId: undefined }], "a removed project drive never reaches a reused sandbox");
+    assert.ok(dropped.calls.logs.some((m) => m.includes("stored sandbox=sbx-99 was set up with other drives")));
+
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    const same = fakeSandbox("sbx-99");
+    await runSandboxAgent(both, undefined, undefined, same.deps);
+    assert.equal(same.calls.starts[0]?.sandboxId, "sbx-99");
   });
 
   it("starts fresh (no id) when nothing is recorded", async () => {

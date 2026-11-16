@@ -177,7 +177,7 @@ import {
   eligibleAgentSessionId,
   sessionContinuityStore,
 } from "./session-continuity.ts";
-import { mountExpiryMs, projectScopeFor } from "./session-identity.ts";
+import { driveIdentity, mountExpiryMs, projectScopeFor } from "./session-identity.ts";
 import {
   linkProjectDriveRemote,
   projectMountPath,
@@ -208,7 +208,7 @@ import {
   reopen as reopenHarnessSession,
   teardown as teardownHarnessSession,
 } from "../../environment/harness-session-lifecycle.ts";
-import { sandboxSnapshotOf } from "./created-sandboxes.ts";
+import { recordSandboxDrives, sandboxSnapshotOf } from "./created-sandboxes.ts";
 import {
   activateAgentMountGuidance as activateAgentMountGuidanceUnit,
   activateAgentMountUnavailableGuidance as activateAgentMountUnavailableGuidanceUnit,
@@ -970,6 +970,7 @@ async function acquireEnvironmentOnce(
         harness: plan.harness,
         sessionForMount,
         runCred,
+        driveIdentity: driveIdentity(request),
         log: logger,
         timingLog,
       },
@@ -985,6 +986,9 @@ async function acquireEnvironmentOnce(
       },
     );
     environment.sandbox = acquiredSandbox.sandbox;
+    if (!plan.harnessInRunner) {
+      recordSandboxDrives((environment.sandbox as { sandboxId?: string } | undefined)?.sandboxId, driveIdentity(request));
+    }
     throwIfAcquireAborted(signal);
     // "mock" runs in-process on the real sandbox: only createSession is replaced.
     if (plan.acpAgent === "mock" && environment.sandbox) {
