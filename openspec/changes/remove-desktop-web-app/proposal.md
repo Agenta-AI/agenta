@@ -11,7 +11,7 @@
 
 - The theme source moves into `@agenta/ui`. Generated CSS stays byte-identical.
 - `/m` answers every legacy desktop URL: `/`, `/w/*`, `/apps/*`, `/auth*`, `/post-signup`, `/workspaces/*`, `/settings`, any other root path, `/favicon.ico`, `/assets/*`, `/robots.txt`. One function, `mapDesktopToMobile`, owns the mapping.
-- `/m` drops Classic mode. There is no desktop to go back to.
+- `/m` stops sending users to the desktop. The Developer Mode switch stays and keeps gating the evaluations, annotations, testsets and prompts views.
 - `web-mobile` takes the catch-all route in compose, nginx, helm, Railway and cloud. The `web` service leaves every deployment.
 - After a soak with an exit criterion, `web/oss`, `web/ee` and `web/tests` are deleted with all their tooling, CI steps, images and dependencies.
 - Desktop-only package code is deleted.

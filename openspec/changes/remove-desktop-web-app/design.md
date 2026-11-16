@@ -61,9 +61,17 @@ Legacy redirects never use 308. A cached permanent redirect would loop if `/m` l
 
 The observability mapping keeps `trace` (and `session`, as today) so SDK trace links open the trace.
 
-### D5. Classic mode removal is its own PR, before the cutover
+### D5. Remove the trip to the desktop, keep Developer Mode
 
-Router config and images do not deploy atomically. If the router moves while an `/m` image still bounces classic users to `/w`, users loop. So `/m` drops the bounce, `mobileGateScript` and the switch first. Shared hooks that `web/oss` imports (`useClassicModeCookieSync`, `useClassicModeRedirect`) stay until `web/oss` is deleted. `BillingTab`'s `developerMode` keeps its current meaning through `betaDeveloperModeFlagAtom`.
+The Classic mode preference is also the `/m` Developer Mode switch. `classicModeEnabledAtom` is "the one atom both apps' Preferences pages bind their Developer Mode switch to" (`agenta-shared/src/state/classicMode.ts:251`), and `betaDeveloperModeActiveAtom = classicModeEnabledAtom && betaDeveloperModeFlagAtom` gates the evaluations, annotations, testsets and prompts views in `/m` (`DeveloperViewGate`, `developerViewAccess.ts`, `developerPageFrame.ts`, `features/app-overview/*`, `features/annotations/*`, `ArchivedAppsScreen`, `BillingTab`). Removing the switch or the atoms would hide those features.
+
+So PR 2 removes only the navigation to the desktop:
+- the desktop bounce in `decideMobileGate` and `mobileGateScript`;
+- `leaveForDesktop()` in `PreferencesTab` (`onClassicModeChange` and `onBetaDeveloperModeChange` only set the atoms).
+
+The Developer Mode and beta developer mode switches, `classicModeEnabledAtom`, `betaDeveloperModeFlagAtom` and `betaDeveloperModeActiveAtom` keep their behavior in `/m`. Router config and images do not deploy atomically, so this lands before the cutover: a new router with an old `/m` image would loop a classic user between `/m` and `/w`.
+
+PR 4 renames the classic-mode names to developer-mode names with no behavior change, and deletes what only the desktop used: the `agenta-classic-mode` and `agenta-beta-developer-mode` cookies and their writers, `useClassicModeRedirect`, `desktopEscapeHref`, `writeClassicModeCookie`.
 
 ### D6. Theme source moves by copy
 
@@ -96,7 +104,7 @@ Five PRs. PR 1 and PR 2 branch from `main` on their own. PR 3 stacks on both. PR
 | PR | Title | Contents | Depends on |
 |---|---|---|---|
 | 1 | `refactor(frontend): stop depending on web/oss from live code` | Theme source into `@agenta/ui` (D6); declare deps hidden by oss hoisting | — |
-| 2 | `feat(frontend): /m answers legacy desktop URLs and drops Classic mode` | Legacy URL handler (D1–D4); Classic mode removal (D5) | — |
+| 2 | `feat(frontend): /m answers legacy desktop URLs and stops sending users to the desktop` | Legacy URL handler (D1–D4); desktop trip removal, Developer Mode kept (D5) | — |
 | 3 | `feat(hosting): route / to web-mobile and retire the web service` | Compose, nginx, helm, Railway, CI, upgrade note (D7–D9) | 1, 2 |
 | — | soak (D10) | | 3 live on cloud |
 | 4 | `chore(frontend): delete web/oss, web/ee and web/tests` | Delete the folders and their tooling, images and deps; then desktop-only package code | 3, soak |

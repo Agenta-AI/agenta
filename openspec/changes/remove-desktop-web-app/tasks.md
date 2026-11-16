@@ -16,7 +16,7 @@ Commit B: dependencies hidden by oss hoisting.
 - [ ] 1.7 Declare `antd` and `ai` in `web/storybook/package.json`, `@tanstack/query-core` in `web/packages/agenta-entities/package.json` (devDependency), at the versions the lockfile already resolves.
 - [ ] 1.8 Proof: CI storybook build and entities unit tests green with `--frozen-lockfile`.
 
-## 2. PR 2 — /m answers legacy desktop URLs and drops Classic mode
+## 2. PR 2 — /m answers legacy desktop URLs and stops sending users to the desktop
 
 Commit A: legacy URL handler.
 
@@ -26,12 +26,12 @@ Commit A: legacy URL handler.
 - [ ] 2.4 Add `web/mobile/public/robots.txt`. Change `api/oss/src/apis/fastapi/tools/router.py:2223` to `/m/assets/favicon.ico`.
 - [ ] 2.5 Proof: unit tests for 2.1 and the proxy branch; `curl -I` table against a direct-port `web/mobile` for every scenario in `specs/legacy-desktop-urls/spec.md`, pasted in the PR.
 
-Commit B: Classic mode removal.
+Commit B: stop sending users to the desktop (Developer Mode stays).
 
-- [ ] 2.6 Remove the desktop bounce from `decideMobileGate`, remove `mobileGateScript` and its injection in `_document.tsx`, and remove the Classic mode switch from `PreferencesTab` and `PreferencesPage`.
-- [ ] 2.7 Keep `BillingTab` `developerMode` on `betaDeveloperModeFlagAtom`; check every `classicModeEnabledAtom` and `betaDeveloperModeFlagAtom` consumer in `web/mobile` and `web/packages`.
+- [ ] 2.6 Remove the desktop bounce from `decideMobileGate`, remove `mobileGateScript` and its injection in `_document.tsx`, and remove `leaveForDesktop()` from `PreferencesTab` so the Developer Mode and beta switches only set their atoms. Keep both switches.
+- [ ] 2.7 Keep `classicModeEnabledAtom`, `betaDeveloperModeFlagAtom` and `betaDeveloperModeActiveAtom` unchanged. Check that every consumer (`DeveloperViewGate`, `developerViewAccess.ts`, `developerPageFrame.ts`, `features/app-overview/*`, `features/annotations/*`, `ArchivedAppsScreen`, `BillingTab`) behaves as before.
 - [ ] 2.8 Keep `useClassicModeCookieSync` and `useClassicModeRedirect` exported (`web/oss` imports them) until PR 4.
-- [ ] 2.9 Proof: unit test that `decideMobileGate` never returns a desktop location with `agenta-classic-mode=1`; before/after screenshots of `/m` Preferences and Billing, light and dark.
+- [ ] 2.9 Proof: unit test that `decideMobileGate` never returns a desktop location with `agenta-classic-mode=1`; screenshots of `/m` Preferences, and of evaluations, annotations, testsets and prompts with Developer Mode on and off, before and after, light and dark.
 
 ## 3. PR 3 — Route / to web-mobile and retire the web service
 
@@ -64,7 +64,7 @@ Commit A: delete the folders and their tooling.
 
 Commit B: desktop-only package code.
 
-- [ ] 5.8 `mobileGate`: delete `decideDesktopGate`, `isDesktopOnlyLink`, desktop cookies, and `MOBILE_AUTH_CALLBACK_COOKIE` with its use in `agenta-auth/src/client.ts`; delete `useClassicModeGate.ts` and the classic-mode atoms with no consumer left.
+- [ ] 5.8 `mobileGate`: delete `decideDesktopGate`, `isDesktopOnlyLink`, the desktop cookies and their writers (`agenta-classic-mode`, `agenta-beta-developer-mode`, `agenta-mobile-optout`/`optin`), `useClassicModeRedirect`, `desktopEscapeHref`, `writeClassicModeCookie`, and `MOBILE_AUTH_CALLBACK_COOKIE` with its use in `agenta-auth/src/client.ts`. Rename `classicModeEnabledAtom` and related names to developer-mode names with no behavior change; the Developer Mode switch stays.
 - [ ] 5.9 Delete `useFileActivityDetector` (`agenta-chat`), the `setup` option of `useCreateAgent` (`agenta-home-ui`), `readDesktopLastUsed` in `web/mobile/src/lib/context.ts`.
 - [ ] 5.10 Delete oss-only subpaths after checking in-package use: `@agenta/annotation-ui` root, `context`, `queue-list`, `session`; `@agenta/playground-ui/{workflow-revision-drawer,execution-items,execution-item-comparison-view,mode-switch}`; `@agenta/entities/{runnable/deploy,shared/invalidation}`; `@agenta/ui/custom-resize-handle.css`; `@agenta/chat/tests/goldenSessions`.
 - [ ] 5.11 Proof: CI green; `/m` smoke screenshots (home, agent chat, settings, sign-in).
