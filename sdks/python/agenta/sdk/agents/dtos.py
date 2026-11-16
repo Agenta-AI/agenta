@@ -1140,8 +1140,10 @@ class AgentTemplate(BaseModel):
                 harness_extras=harness_extras,
                 sandbox_permission=_parse_sandbox_permission(params, base),
                 sandbox_credentials=_parse_sandbox_credentials(params, base),
-                drives=_parse_drives(params, base),
-                has_session_drive=_parse_has_session_drive(params, base),
+                drives=_drive_field(params, "drives", base.drives),
+                has_session_drive=_drive_field(
+                    params, "has_session_drive", base.has_session_drive
+                ),
                 harness=harness,
                 sandbox=sandbox,
                 permission_default=permission_default,
@@ -2023,22 +2025,10 @@ def _parse_sandbox_credentials(
         ) from exc
 
 
-def _parse_drives(params: Dict[str, Any], defaults: AgentTemplate) -> List[AgentDrive]:
-    if not _has_agent_template(params):
-        return list(defaults.drives)
-    agent = _template(params)
-    if agent.get("drives") is None:
-        return list(defaults.drives)
-    return validate_agent_drives(agent["drives"])
-
-
-def _parse_has_session_drive(params: Dict[str, Any], defaults: AgentTemplate) -> bool:
-    if not _has_agent_template(params):
-        return defaults.has_session_drive
-    value = _template(params).get("has_session_drive")
-    if value is None:
-        return defaults.has_session_drive
-    return validate_has_session_drive(value)
+def _drive_field(params: Dict[str, Any], key: str, default: Any) -> Any:
+    """The raw ``drives`` / ``has_session_drive`` value; the model's validators apply the rules."""
+    value = _template(params).get(key) if _has_agent_template(params) else None
+    return default if value is None else value
 
 
 def _parse_agent_fields(
