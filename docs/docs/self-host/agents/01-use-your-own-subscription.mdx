@@ -149,7 +149,7 @@ Recreate the runner so it picks up the change:
 
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
-  --env-file hosting/docker-compose/oss/.env.oss.gh up -d runner
+  --env-file hosting/docker-compose/oss/.env.oss.gh up -d --remove-orphans runner
 ```
 
 ## 4. Run a self-managed agent

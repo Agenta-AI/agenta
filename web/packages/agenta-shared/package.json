@@ -23,7 +23,7 @@
         "./clientTools": "./src/clientTools/index.ts",
         "./state": "./src/state/index.ts",
         "./utils": "./src/utils/index.ts",
-        "./utils/mobileGate": "./src/utils/mobileGate/index.ts",
+        "./utils/sessionParam": "./src/utils/sessionParam.ts",
         "./hooks": "./src/hooks/index.ts",
         "./quotes": "./src/quotes.ts",
         "./previewPicker": "./src/previewPicker.ts",

@@ -85,12 +85,12 @@ AGENTA_WEB_URL=http://192.168.1.100
 AGENTA_SERVICES_URL=http://192.168.1.100:80/services
 ```
 
-The web container reads `AGENTA_WEB_URL` and `AGENTA_API_URL` when it starts and writes them into the page it serves. If you change either one on a running deployment, recreate the container so the new values reach the browser. The image does not need rebuilding:
+The `web-mobile` container reads `AGENTA_WEB_URL` and `AGENTA_API_URL` when it starts and writes them into the page it serves. If you change either one on a running deployment, recreate the container so the new values reach the browser. The image does not need rebuilding:
 
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
   --env-file hosting/docker-compose/oss/.env.oss.gh \
-  --profile with-web --profile with-traefik up -d --force-recreate web
+  --profile with-traefik up -d --remove-orphans --force-recreate web-mobile
 ```
 
 ### Additional Configuration Options
@@ -138,21 +138,21 @@ The API builds its database URLs from `POSTGRES_USER` and `POSTGRES_PASSWORD`. I
 ### Option 1: Deploy with Traefik (Recommended)
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-traefik up -d --remove-orphans
 ```
 
 **What this command does:**
 - `-f hosting/docker-compose/oss/docker-compose.gh.yml`: Uses the production Docker Compose configuration
 - `--env-file=hosting/docker-compose/oss/.env.oss.gh`: Loads your environment variables
-- `--profile with-web`: Includes the web interface in the deployment
-- `up -d`: Starts all services in the background
+- `--profile with-traefik`: Starts Traefik as the reverse proxy
+- `up -d --remove-orphans`: Starts all services in the background and removes containers that the compose file no longer defines
 
 ### Option 2: Deploy with Nginx
 
 If you prefer Nginx or need to integrate with existing Nginx configurations:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-nginx up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-nginx up -d --remove-orphans
 ```
 
 ## Step 5: Verify Your Deployment
@@ -254,7 +254,7 @@ run's endpoint. Set it correctly in either case so the runner can attribute the 
 use, and recreate the runner:
 
 ```bash
-docker compose up -d --force-recreate runner
+docker compose up -d --remove-orphans --force-recreate runner
 ```
 
 Compose reads `AGENTA_API_URL` from the shell (or `--env-file`) when it builds the runner's

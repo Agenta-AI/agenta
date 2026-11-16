@@ -1,9 +1,6 @@
-/**
- * Maps a URL outside `/m` to the `/m` page that shows the same thing. `web/mobile/src/proxy.ts`
- * uses it to answer links, bookmarks and SDK trace links.
- */
+/** Maps a root URL to the `/m` page that shows the same thing (links, bookmarks, SDK links). */
 
-import {SESSION_QUERY_PARAM} from "../sessionParam"
+import {SESSION_QUERY_PARAM} from "@agenta/shared/utils/sessionParam"
 
 const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
 
@@ -38,19 +35,7 @@ const templateQueryFrom = (search: string): string => {
     return templateKey ? `?${TEMPLATE_QUERY_PARAM}=${encodeURIComponent(templateKey)}` : ""
 }
 
-export interface MobileRouteOptions {
-    /**
-     * Developer Mode is on: `/m` shows the developer views, so the `/w` pages they rebuild map to
-     * them. Off, every app page collapses to the agent screen.
-     */
-    developerViews?: boolean
-}
-
-/**
- * `/w` project pages that a developer view of `/m` rebuilds, as `/m` paths relative to the
- * project, or `null` for a sub-page `/m` has no view for. The one place that lists them: when
- * `/m` moves a view, change it here and in {@link developerAppRoute}.
- */
+/** Project pages a developer view rebuilds, relative to the project; `null` when `/m` has none. */
 const developerProjectRoute = (segments: string[]): string | null => {
     const [head, first, second] = segments
     switch (head) {
@@ -76,12 +61,7 @@ const developerProjectRoute = (segments: string[]): string | null => {
     }
 }
 
-/**
- * `/w` app pages (`/apps/<id>/<section>`) as `/m` paths relative to the project: the same
- * `/apps/<id>/<section>` pages, which Developer Mode has. Overview and playground tell a
- * prompt app from an agent themselves and send an agent to its own screen. A `switch`, not a lookup by name: `section` is user
- * input. `undefined` means the section has no view of its own; `null`, no `/m` page.
- */
+/** App sections as `/m` paths; `undefined` when the section has no view, `null` when `/m` has no page. */
 const developerAppRoute = (
     section: string,
     appId: string,
@@ -110,20 +90,8 @@ const developerAppRoute = (
     }
 }
 
-/**
- * A URL outside `/m` → the `/m` route that shows the same thing, or `null` when `/m` has no such
- * screen (evaluations, test sets, prompts, evaluators, annotations, the registry).
- *
- * The proxy logs a null answer and sends the link to the `/m` root: see {@link mapDesktopToMobile}.
- *
- * With `developerViews`, the pages the developer views rebuild are not null: see
- * {@link MobileRouteOptions}.
- */
-export function mobileRouteFor(
-    pathname: string,
-    search: string,
-    {developerViews = false}: MobileRouteOptions = {},
-): string | null {
+/** The `/m` route for a root URL, or `null` when `/m` has no such page. */
+function routeFor(pathname: string, search: string): string | null {
     // The query is the payload of an `/auth` link (token, policy error, OAuth code): keep it.
     if (AUTH_RE.test(pathname)) {
         const page =
@@ -172,23 +140,21 @@ export function mobileRouteFor(
         if (second === "playground" && sessionId) {
             return `${base}/sessions/${encodeURIComponent(sessionId)}?agent=${first}`
         }
-        if (developerViews) {
-            const appRoute = developerAppRoute(
-                second || "overview",
-                encodeURIComponent(first),
-                segments.slice(3),
-            )
-            // A section with no view of its own (sessions, ...) still lands on the app's screen.
-            // The playground's own selection rides along: `/m` reads the same `?revisions=`.
-            const revisions = second === "playground" ? params.get("revisions") : null
-            const deployments = second === "variants" && params.get("tab") === "deployments"
-            const selection = revisions
-                ? `?revisions=${encodeURIComponent(revisions)}`
-                : deployments
-                  ? "?tab=deployments"
-                  : ""
-            if (appRoute !== undefined) return appRoute ? `${base}${appRoute}${selection}` : null
-        }
+        const appRoute = developerAppRoute(
+            second || "overview",
+            encodeURIComponent(first),
+            segments.slice(3),
+        )
+        // A section with no view of its own (sessions, ...) still lands on the app's screen.
+        // The playground's own selection rides along: `/m` reads the same `?revisions=`.
+        const revisions = second === "playground" ? params.get("revisions") : null
+        const deployments = second === "variants" && params.get("tab") === "deployments"
+        const selection = revisions
+            ? `?revisions=${encodeURIComponent(revisions)}`
+            : deployments
+              ? "?tab=deployments"
+              : ""
+        if (appRoute !== undefined) return appRoute ? `${base}${appRoute}${selection}` : null
         // Every other app-scoped page (playground, overview, sessions, deployments…)
         // collapses to the agent's own screen — the only agent surface `/m` has.
         return `${base}/agents/${first}`
@@ -228,23 +194,15 @@ export function mobileRouteFor(
         return tab ? `${base}/settings?tab=${encodeURIComponent(tab)}` : `${base}/settings`
     }
 
-    if (developerViews) {
-        const route = developerProjectRoute(segments)
-        if (route) return `${base}${route}`
-    }
-
-    return null
+    const route = developerProjectRoute(segments)
+    return route ? `${base}${route}` : null
 }
 
-/**
- * A URL outside `/m` → its `/m` equivalent, falling back to the `/m` root for a page `/m` does not
- * have.
- */
-export function mapDesktopToMobile(
-    pathname: string,
-    search: string,
-    options?: MobileRouteOptions,
-): string {
+/** A root URL's `/m` target, and whether a page matched (else the `/m` root). */
+export function legacyTarget(pathname: string, search: string): {target: string; matched: boolean} {
+    const route = routeFor(pathname, search)
     // The `/m` root still opens a website template link (`/?template=`) on its setup step.
-    return mobileRouteFor(pathname, search, options) ?? `/m/${templateQueryFrom(search)}`
+    return route
+        ? {target: route, matched: true}
+        : {target: `/m/${templateQueryFrom(search)}`, matched: false}
 }

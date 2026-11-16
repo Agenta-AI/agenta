@@ -17,17 +17,6 @@ const doc = (ua: string, extra: Record<string, string> = {}) => ({
     ...extra,
 })
 
-describe("non-legacy paths", () => {
-    it("pass through, whatever the device or the cookies say", () => {
-        const cookie = {cookie: "agenta-classic-mode=1; agenta-mobile-optin=1"}
-        for (const ua of [DESKTOP_UA, MOBILE_UA]) {
-            for (const path of ["/m", "/m/", "/m/auth", "/m/?view=mobile", "/m/invite"]) {
-                expect(proxy(req(path, doc(ua, cookie))).headers.get("location")).toBeNull()
-            }
-        }
-    })
-})
-
 describe("root URLs at /legacy", () => {
     const legacy = (path: string, headers: Record<string, string> = doc(DESKTOP_UA)) =>
         proxy(req(`/m/legacy${path}`, headers))
@@ -55,11 +44,11 @@ describe("root URLs at /legacy", () => {
     it("sends an unknown path to the /m root and logs the path without the query", () => {
         const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
         try {
-            const res = legacy("/no/such/page?token=secret")
+            const res = legacy("/w/ws1/p/pr1/apps/archived?token=secret")
             expect(res.status).toBe(307)
             expect(res.headers.get("location")).toBe("http://localhost:3000/m/")
             expect(warn).toHaveBeenCalledTimes(1)
-            expect(String(warn.mock.calls[0][0])).toContain("/no/such/page")
+            expect(String(warn.mock.calls[0][0])).toContain("/w/ws1/p/pr1/apps/archived")
             expect(String(warn.mock.calls[0][0])).not.toContain("secret")
         } finally {
             warn.mockRestore()
