@@ -47,8 +47,7 @@ web/mobile/
 - **Data flow:** components get data via hooks from `@agenta/*` packages
   (`@agenta/entities`, `@agenta/shared`, `@agenta/chat`, `@agenta/sessions`, ...)
   or thin fetchers in `lib/`. Many screens compose ready-made UI from the
-  `@agenta/*-ui` packages; check there before building a surface from scratch. NEVER import `@/oss/*`, `@agenta/oss`, `@agenta/ee` — the mobile
-  app has zero app-layer imports (lint enforces this).
+  `@agenta/*-ui` packages; check there before building a surface from scratch.
 - **No provider fleet.** `_app.tsx` stays minimal and mounts
   `features/app/AppProviders.tsx` (query client, jotai store, context sync,
   auth gate, entity modals). Add a provider only when a concrete feature needs it,
