@@ -1,0 +1,17 @@
+{
+    "appearance": "Darstellung",
+    "betaDeveloperMode": "Neuen Entwicklermodus (Beta) verwenden",
+    "betaDeveloperModeDescription": "Der Entwicklermodus bleibt in der neuen App und zeigt den Bereich „Entwickler“, statt die klassische App zu öffnen.",
+    "channelDebug": "Kanal-Debug",
+    "channelDebugDescription": "Kanalbereiche, Threads und Roh-Events in den Kanaleinstellungen anzeigen.",
+    "channelProbe": "Agenta-Kanalprüfung",
+    "channelProbeDescription": "Die temporäre Kanalprüfung im Browser anzeigen.",
+    "debugging": "Debugging",
+    "debuggingDescription": "Werkzeuge zur Untersuchung von Ausführungen und Kanälen.",
+    "developerMode": "Entwicklermodus",
+    "developerModeDescription": "Evaluierung, Prompt-Verwaltung und Tracing in der Navigation anzeigen.",
+    "featureFlags": "Feature-Flags",
+    "language": "Sprache",
+    "playgroundInspector": "Playground-Inspektor",
+    "playgroundInspectorDescription": "Steuerelemente zur Untersuchung von Playground-Sitzungen und -Turns anzeigen."
+}

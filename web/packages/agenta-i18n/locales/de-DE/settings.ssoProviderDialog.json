@@ -1,0 +1,21 @@
+{
+    "addDescription": "Aktivieren Sie den Anbieter nach dem Hinzufügen, um die Verbindung zu verifizieren.",
+    "addProvider": "Anbieter hinzufügen",
+    "addTitle": "SSO-Anbieter hinzufügen",
+    "clientId": "Client-ID",
+    "clientSecret": "Client-Secret",
+    "clientSecretHint": "Das gespeicherte Secret wird nie angezeigt. Lassen Sie das Feld leer, um es zu behalten.",
+    "editDescription": "Beim Speichern der Einstellungen wird die Validierung zurückgesetzt und der Anbieter deaktiviert. Aktivieren Sie ihn nach dem Speichern erneut.",
+    "editTitle": "SSO-Anbieter bearbeiten",
+    "enterClientSecret": "Client-Secret eingeben",
+    "invalidSlug": "Verwenden Sie für den Slug nur Kleinbuchstaben (a-z) und Bindestriche (-)",
+    "issuerAndClientRequired": "Issuer-URL und Client-ID sind erforderlich",
+    "issuerUrl": "Issuer-URL",
+    "saveFailed": "Der Anbieter konnte nicht gespeichert werden",
+    "saveProvider": "Anbieter speichern",
+    "saving": "Wird gespeichert…",
+    "scopes": "Scopes",
+    "scopesHint": "Trennen Sie Scopes mit Kommas",
+    "slug": "Slug",
+    "slugHint": "Nur Kleinbuchstaben und Bindestriche"
+}

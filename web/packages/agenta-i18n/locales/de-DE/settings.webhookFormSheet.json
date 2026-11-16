@@ -1,0 +1,21 @@
+{
+    "alsoSubscribed_one": "Außerdem für {{count}} Event abonniert, das dieses Formular nicht anzeigen kann. Es bleibt erhalten, sofern Sie hier kein anderes Event wählen.",
+    "alsoSubscribed_other": "Außerdem für {{count}} Events abonniert, die dieses Formular nicht anzeigen kann. Sie bleiben erhalten, sofern Sie hier kein anderes Event wählen.",
+    "authentication": "Authentifizierung",
+    "authorizationHeader": "Authorization-Header",
+    "authorizationHint": "Wird bei jeder Anfrage als Authorization-Header gesendet.",
+    "configurationDeployed": "Konfiguration bereitgestellt",
+    "description": "Agenta sendet das Event an Ihren Endpunkt und wiederholt es bei Fehlern.",
+    "editTitle": "Abonnement bearbeiten",
+    "endpointUrl": "Endpunkt-URL",
+    "event": "Event",
+    "headerValue": "Header-Wert",
+    "headerValueHint": "Lassen Sie das Feld leer, um den gespeicherten Wert zu behalten.",
+    "nameHint": "Optional, so wird das Abonnement aufgelistet.",
+    "namePlaceholder": "Deploy-Benachrichtigung",
+    "saveFailed": "Das Abonnement konnte nicht gespeichert werden",
+    "saving": "Wird gespeichert…",
+    "signatureHint": "Agenta signiert jede Anfrage mit einem Secret, das nach dem Abonnieren einmal angezeigt wird.",
+    "signedPayload": "Signierte Nutzlast",
+    "subscribe": "Abonnieren"
+}

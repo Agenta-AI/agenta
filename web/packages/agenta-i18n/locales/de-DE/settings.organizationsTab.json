@@ -1,0 +1,19 @@
+{
+    "chooseMember": "Mitglied auswählen",
+    "createFailed": "Die Erstellung ist fehlgeschlagen",
+    "deleteBody": "Löscht {{name}} dauerhaft, mit allen Arbeitsbereichen, Projekten und Agents darin.",
+    "deleteFailed": "Diese Organisation konnte nicht gelöscht werden",
+    "deleteTitle": "Organisation löschen",
+    "inviteFirst": "Laden Sie zuerst jemanden in diese Organisation ein. Das Eigentum kann nur an ein Mitglied übergehen.",
+    "namePlaceholder": "Name der Organisation",
+    "newDescription": "Eine Organisation fasst Ihre Arbeitsbereiche und die Personen darin zusammen.",
+    "newTitle": "Neue Organisation",
+    "noProjectYet": "{{name}} hat noch kein Projekt zum Öffnen",
+    "renameFailed": "Diese Organisation konnte nicht umbenannt werden",
+    "thisOrganization": "diese Organisation",
+    "thisOrganizationCapital": "Diese Organisation",
+    "transfer": "Übertragen",
+    "transferDescription": "Der neue Eigentümer erhält die volle Kontrolle über {{name}}. Sie bleiben Mitglied.",
+    "transferFailed": "Das Eigentum konnte nicht übertragen werden",
+    "transferTitle": "Eigentum übertragen"
+}
