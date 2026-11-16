@@ -50,7 +50,7 @@ export function testConversation(key: string, cwd = "/x") {
     conversationId: key,
     projectId: "p",
     cwd,
-    drive: [{ root: cwd, credentials: () => TEST_CREDENTIALS }],
+    roots: [{ root: cwd, credentials: () => TEST_CREDENTIALS }],
     skillModes: new Map<string, number>(),
     signTranscriptMount: async () => TEST_TRANSCRIPT_CREDENTIALS,
   };
@@ -120,7 +120,7 @@ export function createTestWorkspace(options: {
     conversationId,
     projectId: "project",
     cwd,
-    drive: [
+    roots: [
       { root: cwd, credentials: () => TEST_CREDENTIALS },
       { root: agent, credentials: () => TEST_CREDENTIALS, link: { kind: "agent" } },
       ...(options.readOnlyProject

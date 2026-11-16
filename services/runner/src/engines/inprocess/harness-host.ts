@@ -144,7 +144,7 @@ export class InProcessHarnessHost {
         conversationId,
         projectId,
         cwd,
-        drive: this.facts.roots,
+        roots: this.facts.roots,
         skillModes: await skillModes(skillDir, this.facts.skillSources),
         signTranscriptMount: this.facts.signTranscriptMount,
         ...(this.facts.usage ? { usage: this.facts.usage } : {}),

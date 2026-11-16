@@ -8,8 +8,8 @@ import type { AcquireContext } from "../../src/environment/acquire-context.ts";
 import {
   mountLocalAgentCwd,
   mountLocalDurableCwd,
-  mountLocalProjectDrive,
-  reSignAndRemountLocalProjectDrive,
+  mountLocalProjectMount,
+  reSignAndRemountLocalProjectMount,
   type MountDeps,
 } from "../../src/environment/mount-lifecycle.ts";
 import type { ProjectRunDrive } from "../../src/engines/sandbox_agent/run-drives.ts";
@@ -196,7 +196,7 @@ describe("project drive mounts", () => {
     });
     const drive: ProjectRunDrive = { kind: "project", slug: "price-lists", access: "read", credentials };
     try {
-      const mounted = mountLocalProjectDrive(
+      const mounted = mountLocalProjectMount(
         projectContext(cwd, commits),
         depsFor(new AbortController().signal, async (path, _creds, opts) => {
           seen.push({ path, readOnly: opts?.geesefs?.readOnly });
@@ -225,7 +225,7 @@ describe("project drive mounts", () => {
     const logs: string[] = [];
     const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read-write", credentials };
     try {
-      const mounted = await mountLocalProjectDrive(
+      const mounted = await mountLocalProjectMount(
         { ...projectContext(cwd, []), log: (m: string) => logs.push(m) } as AcquireContext,
         depsFor(new AbortController().signal, async () => true),
         drive,
@@ -246,7 +246,7 @@ describe("project drive mounts", () => {
     let readOnly: boolean | undefined;
     const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read-write", credentials };
     try {
-      await mountLocalProjectDrive(
+      await mountLocalProjectMount(
         projectContext(cwd, []),
         depsFor(new AbortController().signal, async (_path, _creds, opts) => {
           readOnly = opts?.geesefs?.readOnly;
@@ -266,7 +266,7 @@ describe("project drive mounts", () => {
     const commits: string[] = [];
     const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read-write", credentials };
     try {
-      const mounted = await mountLocalProjectDrive(
+      const mounted = await mountLocalProjectMount(
         projectContext(cwd, commits),
         depsFor(new AbortController().signal, async () => false),
         drive,
@@ -284,7 +284,7 @@ describe("project drive mounts", () => {
     const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-unsigned-"));
     let calls = 0;
     try {
-      const mounted = await mountLocalProjectDrive(
+      const mounted = await mountLocalProjectMount(
         projectContext(cwd, []),
         depsFor(new AbortController().signal, async () => {
           calls += 1;
@@ -319,7 +319,7 @@ describe("project drive mounts", () => {
           return fresh;
         },
       };
-      assert.equal(await reSignAndRemountLocalProjectDrive(projectContext(cwd, commits), deps, drive), true);
+      assert.equal(await reSignAndRemountLocalProjectMount(projectContext(cwd, commits), deps, drive), true);
       assert.deepEqual(signed, ["notes:read"]);
       assert.equal(drive.credentials, fresh);
       assert.equal(drive.mountedPath, `${cwd}-project-notes`);

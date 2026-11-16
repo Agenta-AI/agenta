@@ -214,7 +214,7 @@ import {
   activateAgentMountUnavailableGuidance as activateAgentMountUnavailableGuidanceUnit,
   mountLocalAgentCwd as mountLocalAgentCwdUnit,
   mountLocalDurableCwd as mountLocalDurableCwdUnit,
-  mountLocalProjectDrive as mountLocalProjectDriveUnit,
+  mountLocalProjectMount as mountLocalProjectMountUnit,
   reSignAndRemountLocalCwd as reSignAndRemountLocalCwdUnit,
   remountLocalCwdAfterRuntimeEnotconn as remountLocalCwdAfterRuntimeEnotconnUnit,
   type MountDeps,
@@ -810,7 +810,7 @@ async function acquireEnvironmentOnce(
       : [];
     const projectMountsStartedAt = Date.now();
     const projectMounts = localProjects.map((drive) =>
-      mountLocalProjectDriveUnit(ctx, mountDeps, drive, cwdMount ? { cwdReady: cwdMount } : {}),
+      mountLocalProjectMountUnit(ctx, mountDeps, drive, cwdMount ? { cwdReady: cwdMount } : {}),
     );
     const projectMountsTimed = timeSettled(projectMounts, () => timingLog("project_mounts", projectMountsStartedAt));
     const localMountsStartedAt = Date.now();

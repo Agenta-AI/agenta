@@ -335,7 +335,7 @@ export async function mountLocalAgentCwd(
  * Mount one project drive on the local host and link it as `drives/<slug>`. Returns whether it is
  * live. A failure leaves the run without the drive, as a failed agent mount does.
  */
-export async function mountLocalProjectDrive(
+export async function mountLocalProjectMount(
   ctx: AcquireContext,
   deps: MountDeps,
   drive: ProjectRunDrive,
@@ -381,7 +381,7 @@ export async function mountLocalProjectDrive(
 }
 
 /** Re-sign one project drive and remount it, from the same per-acquire budget as the others. */
-export async function reSignAndRemountLocalProjectDrive(
+export async function reSignAndRemountLocalProjectMount(
   ctx: AcquireContext,
   deps: MountDeps,
   drive: ProjectRunDrive,
@@ -406,7 +406,7 @@ export async function reSignAndRemountLocalProjectDrive(
   }
   ctx.recordResignedProjectCredential(drive, fresh);
   ctx.commitProjectMount(drive, undefined, fresh);
-  return mountLocalProjectDrive(ctx, deps, drive);
+  return mountLocalProjectMount(ctx, deps, drive);
 }
 
 /**
@@ -523,7 +523,7 @@ export function remountLocalCwdAfterRuntimeEnotconn(
         : true;
       let projectsOk = true;
       for (const drive of projectsEligible) {
-        if (!(await reSignAndRemountLocalProjectDrive(ctx, deps, drive)))
+        if (!(await reSignAndRemountLocalProjectMount(ctx, deps, drive)))
           projectsOk = false;
       }
       return cwdOk && agentOk && projectsOk;

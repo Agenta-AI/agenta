@@ -356,8 +356,8 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
       "reSignAndRemountLocalAgentMount",
       "reSignAndRemountLocalCwd",
       "remountLocalCwdAfterRuntimeEnotconn",
-      "mountLocalProjectDrive",
-      "reSignAndRemountLocalProjectDrive",
+      "mountLocalProjectMount",
+      "reSignAndRemountLocalProjectMount",
       // The prompt writer both guidance helpers share; it reads the run's dirs off the context
       // like everything else here.
       "writeRunSystemPromptLocal",
