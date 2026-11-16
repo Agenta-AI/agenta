@@ -17,6 +17,8 @@ import {useCallback, useMemo, useRef, useState} from "react"
 
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {SkillFormSkeleton, SkillFormView} from "@agenta/entity-ui/drill-in"
+import {createT, richText, useT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {
     archiveSkill,
     commitSkillRevision,
@@ -64,6 +66,8 @@ import Link from "next/link"
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 import type {SkillListItem, SkillUsageRef} from "./types"
 
+const tNow = createT(skillsGalleryCatalog)
+
 /** The head-revision query's key; the registry row's Download reads the same cache. */
 export const skillRevisionsQueryKey = (projectId: string, workflowId: string) =>
     ["skills", "revisions", projectId, workflowId] as const
@@ -104,6 +108,7 @@ export function SkillDetailDrawer({
     agentHref,
     width = 960,
 }: SkillDetailDrawerProps) {
+    const t = useT(skillsGalleryCatalog)
     // The list item's id IS the workflow id (the hosts map workflow_id into it).
     const workflowId = skill?.id ?? ""
     const isBuiltin = skill?.origin === "builtin"
@@ -128,7 +133,7 @@ export function SkillDetailDrawer({
         () =>
             (usageQuery.data?.referenced_by ?? []).map((entry) => ({
                 id: entry.agent_workflow_id ?? entry.agent_slug ?? "",
-                name: entry.agent_name ?? entry.agent_slug ?? "unknown agent",
+                name: entry.agent_name ?? entry.agent_slug ?? "",
                 mode: entry.mode ?? "latest",
                 pinnedVersion: entry.pinned_version?.replace(/^v/, "") ?? undefined,
             })),
@@ -154,7 +159,11 @@ export function SkillDetailDrawer({
             setArchiveOpen(false)
             onClose()
         } catch (err) {
-            setArchiveError(err instanceof Error && err.message ? err.message : "Archiving failed.")
+            setArchiveError(
+                err instanceof Error && err.message
+                    ? err.message
+                    : tNow("skills.gallery.archiveFailed"),
+            )
         } finally {
             setArchiveBusy(false)
         }
@@ -169,7 +178,9 @@ export function SkillDetailDrawer({
             onClose()
         } catch (err) {
             setArchiveError(
-                err instanceof Error && err.message ? err.message : "Unarchiving failed.",
+                err instanceof Error && err.message
+                    ? err.message
+                    : tNow("skills.gallery.unarchiveFailed"),
             )
         } finally {
             setArchiveBusy(false)
@@ -251,7 +262,7 @@ export function SkillDetailDrawer({
             if (refreshed.isError) {
                 // The next save builds on this one, not on the head the drawer still shows.
                 if (committed.revision_id) setEditBaseId(committed.revision_id)
-                setError("Saved, but the latest version could not load. Reopen the skill.")
+                setError(tNow("skills.gallery.savedReloadFailed"))
                 return
             }
             // Clearing the base reseeds the draft from the head the refetch just brought.
@@ -259,8 +270,8 @@ export function SkillDetailDrawer({
         } catch (err) {
             setError(
                 err instanceof Error && err.message
-                    ? `Save failed: ${err.message}`
-                    : "Save failed.",
+                    ? tNow("skills.gallery.saveFailedDetail", {error: err.message})
+                    : tNow("skills.gallery.saveFailed"),
             )
         } finally {
             setBusy(false)
@@ -305,7 +316,7 @@ export function SkillDetailDrawer({
                     <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Skill actions"
+                        aria-label={t("skills.gallery.skillActions")}
                         disabled={busy || archiveBusy}
                         // The header's close button gives 2px back on each side to sit on the
                         // title's 24px line; a 32px button gives back 4, for the same reason.
@@ -337,14 +348,14 @@ export function SkillDetailDrawer({
                                     className={cn(ACTION_ROW, agentsOpen && "bg-accent")}
                                 >
                                     <Plus aria-hidden size={14} className="text-muted-foreground" />
-                                    <span className="flex-1">Add to agent</span>
+                                    <span className="flex-1">{t("skills.gallery.addToAgent")}</span>
                                 </button>
                             </PopoverAnchor>
                             <PopoverContent
                                 side="left"
                                 align="start"
                                 sideOffset={6}
-                                aria-label="Add to agent"
+                                aria-label={t("skills.gallery.addToAgent")}
                                 // Inside the sheet, or its scroll lock swallows the list's wheel.
                                 container={panel}
                                 className="flex w-[280px] flex-col gap-0 p-0"
@@ -364,7 +375,7 @@ export function SkillDetailDrawer({
                             className={cn(ACTION_ROW, "text-[var(--ag-colorError)]")}
                         >
                             <Archive aria-hidden size={14} />
-                            Archive
+                            {t("skills.gallery.archive")}
                         </button>
                     </>
                 </PopoverContent>
@@ -379,7 +390,7 @@ export function SkillDetailDrawer({
                 <TooltipTrigger asChild>
                     <button
                         type="button"
-                        aria-label="Where this skill came from"
+                        aria-label={t("skills.gallery.provenanceAria")}
                         className="box-border inline-flex shrink-0 cursor-help items-center border-0 bg-transparent p-0 font-[inherit] text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
                     >
                         <Info size={14} aria-hidden />
@@ -388,10 +399,15 @@ export function SkillDetailDrawer({
                 <TooltipContent side="bottom" align="start">
                     <span className="flex flex-col gap-0.5">
                         <span>
-                            Imported from <span className="font-mono">{skill.source.label}</span>
+                            {richText(
+                                t("skills.gallery.importedFrom", {source: skill.source.label}),
+                                {mono: (text) => <span className="font-mono">{text}</span>},
+                            )}
                         </span>
                         {skill.source.detached ? (
-                            <span className="opacity-80">Modified locally — no longer synced</span>
+                            <span className="opacity-80">
+                                {t("skills.gallery.modifiedLocally")}
+                            </span>
                         ) : null}
                     </span>
                 </TooltipContent>
@@ -423,14 +439,14 @@ export function SkillDetailDrawer({
                     onMouseLeave={scheduleCloseUsage}
                     className="box-border inline-flex shrink-0 cursor-default items-center border-0 bg-transparent p-0 font-[inherit] text-[12px] font-normal text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorTextSecondary)]"
                 >
-                    Used by {usedBy.length} {usedBy.length === 1 ? "agent" : "agents"}
+                    {t("skills.gallery.usedBy", {count: usedBy.length})}
                 </button>
             </PopoverAnchor>
             <PopoverContent
                 side="bottom"
                 align="start"
                 sideOffset={6}
-                aria-label="Agents using this skill"
+                aria-label={t("skills.gallery.agentsUsingAria")}
                 container={panel}
                 className="flex w-[240px] flex-col gap-px p-1"
                 onOpenAutoFocus={(event) => event.preventDefault()}
@@ -441,11 +457,15 @@ export function SkillDetailDrawer({
                     const label = (
                         <>
                             <AgentChip workflowId={agent.id} box="size-5" glyph={13} />
-                            <span className="min-w-0 flex-1 truncate">{agent.name}</span>
+                            <span className="min-w-0 flex-1 truncate">
+                                {agent.name || t("skills.gallery.unknownAgent")}
+                            </span>
                             <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
                                 {agent.mode === "pinned"
-                                    ? `pinned v${agent.pinnedVersion ?? ""}`
-                                    : "latest"}
+                                    ? t("skills.gallery.pinned", {
+                                          version: agent.pinnedVersion ?? "",
+                                      })
+                                    : t("skills.gallery.latest")}
                             </span>
                         </>
                     )
@@ -482,12 +502,12 @@ export function SkillDetailDrawer({
             {isBuiltin ? (
                 <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-[var(--ag-colorTextTertiary)]">
                     <Lightning size={10} weight="fill" />
-                    Provided by Agenta — read-only
+                    {t("skills.gallery.builtinReadOnly")}
                 </span>
             ) : null}
             {skill?.archived ? (
                 <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
-                    Archived
+                    {t("skills.gallery.archived")}
                 </span>
             ) : null}
         </div>
@@ -543,7 +563,7 @@ export function SkillDetailDrawer({
                                     ) : (
                                         <ArrowUUpLeft aria-hidden size={14} />
                                     )}
-                                    Restore
+                                    {t("skills.gallery.restore")}
                                 </Button>
                             ) : null}
                             {/* Always present, so the footer never changes shape under
@@ -555,11 +575,11 @@ export function SkillDetailDrawer({
                                         onClick={discard}
                                         disabled={busy || !dirty}
                                     >
-                                        Discard
+                                        {t("skills.gallery.discard")}
                                     </Button>
                                     <Button onClick={() => void save()} disabled={busy || !dirty}>
                                         {busy ? <Spinner size="small" /> : null}
-                                        Save changes
+                                        {t("skills.gallery.saveChanges")}
                                     </Button>
                                 </>
                             )}
@@ -572,10 +592,10 @@ export function SkillDetailDrawer({
                         <div className="flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
                             <span className="font-mono font-medium">{skill?.slug}</span>
                             <span className="text-[var(--ag-colorTextSecondary)]">
-                                {skill?.description || "No description."}
+                                {skill?.description || t("skills.gallery.noDescriptionDot")}
                             </span>
                             <span className="text-[var(--ag-colorTextTertiary)]">
-                                Built-in skills are maintained by Agenta and cannot be edited.
+                                {t("skills.gallery.builtinNote")}
                             </span>
                         </div>
                     ) : revisionsQuery.isPending ? (
@@ -584,13 +604,13 @@ export function SkillDetailDrawer({
                         // A failed load must not read as an empty skill with a dead Save.
                         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
                             <WarningCircle size={20} className="text-[var(--ag-colorError)]" />
-                            <span className="text-sm">Couldn't load this skill.</span>
+                            <span className="text-sm">{t("skills.gallery.loadFailed")}</span>
                             <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => void revisionsQuery.refetch()}
                             >
-                                Try again
+                                {t("skills.gallery.tryAgain")}
                             </Button>
                         </div>
                     ) : (
@@ -625,22 +645,18 @@ export function SkillDetailDrawer({
                     }}
                 >
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Archive {skill?.slug}?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {t("skills.gallery.archiveTitle", {slug: skill?.slug ?? ""})}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            The skill leaves the registry and agents can no longer run it. Its name
-                            stays reserved, and restoring it brings back its full history.
+                            {t("skills.gallery.archiveBody")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     {usedBy.length ? (
                         <div className="flex items-start gap-1.5 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
                             <WarningCircle size={14} className="mt-px shrink-0" />
                             <span>
-                                {usedBy.length}{" "}
-                                {usedBy.length === 1
-                                    ? "agent still references"
-                                    : "agents still reference"}{" "}
-                                this skill — runs will fail to resolve it until it is restored or
-                                removed from the config.
+                                {t("skills.gallery.agentsReference", {count: usedBy.length})}
                             </span>
                         </div>
                     ) : null}
@@ -654,7 +670,7 @@ export function SkillDetailDrawer({
                                 onClick={() => setArchiveOpen(false)}
                                 disabled={archiveBusy}
                             >
-                                Cancel
+                                {t("skills.gallery.cancel")}
                             </Button>
                         </AlertDialogCancel>
                         {/* preventDefault keeps the alert open: it closes itself on success and
@@ -669,7 +685,7 @@ export function SkillDetailDrawer({
                                 }}
                             >
                                 {archiveBusy ? <Spinner size="small" /> : null}
-                                Archive skill
+                                {t("skills.gallery.archiveSkill")}
                             </Button>
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -684,20 +700,20 @@ export function SkillDetailDrawer({
             >
                 <AlertDialogContent container={panel} className="sm:max-w-[400px]">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("skills.gallery.discardTitle")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This skill has edits that were not saved. Closing throws them away.
+                            {t("skills.gallery.discardBody")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel asChild>
                             <Button variant="outline" onClick={() => setDiscardOpen(false)}>
-                                Keep editing
+                                {t("skills.gallery.keepEditing")}
                             </Button>
                         </AlertDialogCancel>
                         <AlertDialogAction asChild>
                             <Button variant="destructive" onClick={discardAndClose}>
-                                Discard
+                                {t("skills.gallery.discard")}
                             </Button>
                         </AlertDialogAction>
                     </AlertDialogFooter>

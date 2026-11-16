@@ -1,9 +1,13 @@
 import {useEffect, useRef} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
+
+const tNow = createT(automationsEditorCatalog)
 
 /**
  * The automation's identity: its name, renamed in place, and the description under it.
@@ -30,6 +34,7 @@ export const AutomationTitle = ({
     /** Shown as the heading while the name is empty — the name this would be saved under. */
     fallback?: string
 }) => {
+    const t = useT(automationsEditorCatalog)
     const rename = useInlineRename({
         current: name,
         // Errors are surfaced here so the hook's own fallback (which says "session") never fires.
@@ -38,9 +43,9 @@ export const AutomationTitle = ({
         onCommit: async (next) => {
             try {
                 const ok = await onRename(next)
-                if (!ok) message.error("Couldn't rename this automation")
+                if (!ok) message.error(tNow("automations.editor.renameFailed"))
             } catch {
-                message.error("Couldn't rename this automation")
+                message.error(tNow("automations.editor.renameFailed"))
             }
             return true
         },
@@ -61,7 +66,7 @@ export const AutomationTitle = ({
             {rename.renaming ? (
                 <Input
                     autoFocus
-                    aria-label="Automation name"
+                    aria-label={t("automations.editor.namePlaceholder")}
                     placeholder={placeholder}
                     value={rename.draft}
                     onChange={(event) => rename.setDraft(event.target.value)}
@@ -78,7 +83,7 @@ export const AutomationTitle = ({
                 <button
                     type="button"
                     onClick={rename.start}
-                    title="Rename"
+                    title={t("automations.editor.rename")}
                     // No focus ring: the shared FOCUS_RING draws a hard near-black outline and
                     // the softer ring still glowed around the title. Hover carries the affordance.
                     className="group -ml-2 flex min-w-0 cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
