@@ -3,6 +3,8 @@
 import {type CSSProperties, type ReactNode, useMemo} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {createT, useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {humanizeActionKey} from "@agenta/shared/utils"
 
 import {ProviderLogo} from "../sectionGroups"
@@ -16,6 +18,8 @@ import {
 } from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemRow, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
+
+const tNow = createT(configItemsCatalog)
 
 /** Per-tool draft/validation status, keyed by the tool's index in the flat `tools` array. */
 type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
@@ -53,7 +57,9 @@ function rollupRowStatus(
         }
     }
     if (!worst) return undefined
-    return count > 1 ? {...worst, tooltip: `${count} entries — open the integration.`} : worst
+    return count > 1
+        ? {...worst, tooltip: tNow("entityUi.configItems.entriesOpenIntegration", {count})}
+        : worst
 }
 
 function IntegrationListRow({
@@ -71,10 +77,12 @@ function IntegrationListRow({
     disabled?: boolean
     statusFor?: ToolStatusFor
 }) {
+    const t = useT(configItemsCatalog)
     // Selected-integration metadata must not come from the searchable browse query: typing in the
     // open catalog changes that query's pages and would make existing rows lose their logos.
     const {integration} = useToolIntegrationDetail(row.integration)
-    const name = integration?.name || humanizeActionKey(row.integration) || "Other"
+    const name =
+        integration?.name || humanizeActionKey(row.integration) || t("entityUi.configItems.other")
     const indices = useMemo(() => integrationRowIndices(row), [row])
     const status = useMemo(
         () => rollupRowStatus(tools, indices, statusFor),
@@ -90,9 +98,11 @@ function IntegrationListRow({
                 // The logo carries the identity here, so the avatar square stays out of the way.
                 color: "transparent",
                 icon: <ProviderLogo logo={integration?.logo ?? null} size={20} />,
-                tags: row.legacyIndices.length > 0 ? ["old format"] : [],
-                typeLabel: "integration",
-                subtitle: `Integration · ${row.integration}`,
+                tags: row.legacyIndices.length > 0 ? [t("entityUi.configItems.oldFormatTag")] : [],
+                typeLabel: t("entityUi.configItems.integrationType"),
+                subtitle: t("entityUi.configItems.integrationRowSubtitle", {
+                    integration: row.integration,
+                }),
             }}
             onEdit={onOpen}
             onRemove={onRemove}
@@ -129,9 +139,10 @@ export function ToolManagementList({
     onRemoveIntegration,
     statusFor,
 }: ToolManagementListProps) {
+    const t = useT(configItemsCatalog)
     if (integrationRows.length === 0) {
         if (disabled) return null
-        return <EmptyLine label="No integrations yet" />
+        return <EmptyLine label={t("entityUi.configItems.noIntegrationsYet")} />
     }
 
     return (
@@ -192,7 +203,10 @@ function markNonAgent(
     if (!nonAgentSlugs?.size) return descriptor
     const slug = toolReferenceSlug(item)
     if (!slug || !nonAgentSlugs.has(slug)) return descriptor
-    return {...descriptor, tags: [...(descriptor.tags ?? []), "not an agent"]}
+    return {
+        ...descriptor,
+        tags: [...(descriptor.tags ?? []), tNow("entityUi.configItems.notAnAgentTag")],
+    }
 }
 
 /** Stable per-entry keys: the saved reference's own slug, never its array position. A config
@@ -219,11 +233,12 @@ export function SubagentList({
     disabled,
     statusFor,
 }: SubagentListProps) {
+    const t = useT(configItemsCatalog)
     const keys = subagentKeys(entries)
 
     if (entries.length === 0) {
         if (disabled) return null
-        return <EmptyLine label="No subagents yet" />
+        return <EmptyLine label={t("entityUi.configItems.noSubagentsYet")} />
     }
 
     return (

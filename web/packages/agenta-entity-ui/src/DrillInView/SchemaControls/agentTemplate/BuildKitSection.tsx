@@ -1,4 +1,6 @@
 import {buildKitDefaultPermission, type BuildKitUiState} from "@agenta/entities/workflow"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 
 import type {GatewayConnectionPermissions} from "../toolUtils"
 
@@ -7,8 +9,6 @@ import type {ItemDescriptor} from "./itemDescriptors"
 import {ItemRow} from "./ItemRow"
 import {PolicyGlyph} from "./PermissionGlyph"
 import type {PermissionPolicyOption} from "./PermissionPolicySelect"
-import {createT, useT, type CatalogKey} from "@agenta/i18n"
-import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 
 const tNow = createT(buildKitCatalog)
 

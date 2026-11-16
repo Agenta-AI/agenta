@@ -11,11 +11,11 @@
  * Kept beside itemDescriptors.tsx for the same reason: the table and the classifiers that read it
  * live together.
  */
+import {createT, type CatalogKey} from "@agenta/i18n"
+import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 import {Wrench} from "@phosphor-icons/react"
 
 import type {ItemDescriptor} from "./itemDescriptors"
-import {createT, type CatalogKey} from "@agenta/i18n"
-import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 
 const t = createT(buildKitCatalog)
 

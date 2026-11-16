@@ -8,13 +8,13 @@ import {
     writeAgentaTools,
     type AgentaToolsMap,
 } from "@agenta/entities/workflow"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 import {useAtomValue} from "jotai"
 
 import {describeBuildKitPlatformTool} from "./buildKitDescriptors"
 import {buildKitToolOptions} from "./BuildKitSection"
 import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
-import {createT, useT, type CatalogKey} from "@agenta/i18n"
-import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 
 const tNow = createT(buildKitCatalog)
 
