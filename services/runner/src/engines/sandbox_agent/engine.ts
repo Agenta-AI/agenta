@@ -60,8 +60,7 @@ export function isTurnIndexTaken(result: AgentRunResult): boolean {
  * A SETTLED USER STOP IS CHECKED BEFORE `clientGone`, AND THAT ORDER IS THE WHOLE POINT.
  * `clientGone` used to be read first, which read well and broke the product on every real Stop.
  * The browser's Stop button aborts its own chat stream in the SAME tick it sends the durable
- * cancel command (`web/oss/src/components/AgentChatSlice/hooks/useAgentChatSession.ts`,
- * `handleStop`), so the disconnect and the labelled abort always arrive together. With the
+ * cancel command, so the disconnect and the labelled abort always arrive together. With the
  * disconnect read first, every Stop fell into the destroy branch: the sandbox was deleted, the
  * native harness session went with it, and the next message replayed cold. Observed on the
  * increment-6 stack on 2026-09-04, three Stops, three evictions, no warm park.

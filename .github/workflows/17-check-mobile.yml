@@ -18,7 +18,7 @@ on:
       - '.github/workflows/17-check-mobile.yml'
   # Dispatch builds an ad-hoc image (a preview, a one-off test). It is NOT the release
   # path: `43 - Release to GHCR` in agenta_cloud publishes agenta-web-mobile:vX.Y.Z and
-  # moves :latest, the same as it does for api, web, services and runner. There is
+  # moves :latest, the same as it does for api, services and runner. There is
   # deliberately no `latest` option here — self-hosters pull :latest by default, so a
   # manual build must not be able to take that tag away from the released version.
   workflow_dispatch:

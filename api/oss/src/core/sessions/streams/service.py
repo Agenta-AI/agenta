@@ -109,9 +109,8 @@ SessionRecheck = Callable[
     [], Awaitable[None]
 ]  # the routes pass a `SessionRecheck` object
 
-# Longest server-filled session title. Matches the browser's `AUTO_TITLE_MAX_CHARS`
-# (web/oss/src/components/AgentChatSlice/state/sessions.ts) so the two writers cannot
-# disagree about how long a title from a first message is.
+# Longest server-filled session title. Matches the browser's auto-title limit so the two
+# writers cannot disagree about how long a title from a first message is.
 SESSION_NAME_MAX_CHARS = 60
 
 
