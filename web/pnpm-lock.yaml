@@ -1192,6 +1192,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/sessions-ui':
         specifier: workspace:../agenta-sessions-ui
         version: link:../agenta-sessions-ui
@@ -2437,6 +2440,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared

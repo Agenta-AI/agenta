@@ -12,8 +12,11 @@ import {
     isDefaultAutomationListView,
     runsWhenLabel,
     useAutomations,
+    useAutomationText,
 } from "@agenta/automation-ui"
 import {AgentChip} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
@@ -59,30 +62,39 @@ import {AutomationStatusMark} from "./AutomationStatusMark"
  */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
-const NAME_COLUMN: ListTableColumn = {key: "name", label: "Automation", width: "minmax(140px,2fr)"}
-const LAST_RUN_COLUMN: ListTableColumn = {
-    key: "lastRun",
-    label: "Last run",
-    width: "minmax(110px,0.9fr)",
-}
-const ACTIONS_COLUMN: ListTableColumn = {
-    key: "actions",
-    label: "Actions",
-    srOnly: true,
-    width: "24px",
-}
+type ScreenText = ReturnType<typeof useT<[typeof automationsScreensCatalog]>>
 
-const WIDE_COLUMNS: ListTableColumn[] = [
-    NAME_COLUMN,
-    {key: "status", label: "Status", width: "minmax(100px,0.8fr)"},
-    {key: "runsWhen", label: "Runs when", width: "minmax(130px,1fr)"},
-    LAST_RUN_COLUMN,
-    {key: "agent", label: "Agent", width: "minmax(120px,1fr)"},
-    ACTIONS_COLUMN,
+const wideColumns = (t: ScreenText): ListTableColumn[] => [
+    nameColumn(t),
+    {key: "status", label: t("automations.screens.columnStatus"), width: "minmax(100px,0.8fr)"},
+    {key: "runsWhen", label: t("automations.screens.columnRunsWhen"), width: "minmax(130px,1fr)"},
+    lastRunColumn(t),
+    {key: "agent", label: t("automations.screens.columnAgent"), width: "minmax(120px,1fr)"},
+    actionsColumn(t),
 ]
 // A phone keeps the name and whether it is doing anything; the kind tile already says schedule
 // or event, and status, cadence and agent wait on the detail screen.
-const NARROW_COLUMNS: ListTableColumn[] = [NAME_COLUMN, LAST_RUN_COLUMN, ACTIONS_COLUMN]
+const narrowColumns = (t: ScreenText): ListTableColumn[] => [
+    nameColumn(t),
+    lastRunColumn(t),
+    actionsColumn(t),
+]
+const nameColumn = (t: ScreenText): ListTableColumn => ({
+    key: "name",
+    label: t("automations.screens.columnAutomation"),
+    width: "minmax(140px,2fr)",
+})
+const lastRunColumn = (t: ScreenText): ListTableColumn => ({
+    key: "lastRun",
+    label: t("automations.screens.columnLastRun"),
+    width: "minmax(110px,0.9fr)",
+})
+const actionsColumn = (t: ScreenText): ListTableColumn => ({
+    key: "actions",
+    label: t("automations.screens.columnActions"),
+    srOnly: true,
+    width: "24px",
+})
 
 /** The sessions table's line, so the two nav entries slim down at the same width. */
 const WIDE_QUERY = "(min-width: 640px)"
@@ -111,6 +123,8 @@ export const AutomationListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(automationsScreensCatalog)
+    useAutomationText()
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const [search, setSearch] = useState("")
@@ -167,15 +181,20 @@ export const AutomationListScreen = ({
     const projectEmpty = isEmpty && !term
     const groups = useMemo(
         () => deriveAutomationList(automations, view, agentNames),
-        [agentNames, automations, view],
+        // The group headings are text, so the groups are cut again when the language changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [agentNames, automations, t, view],
     )
 
     const body = (() => {
-        if (error) return <LoadError framed title="Could not load automations" onRetry={refetch} />
+        if (error)
+            return (
+                <LoadError framed title={t("automations.screens.loadFailed")} onRetry={refetch} />
+            )
 
         return (
             <ListTable
-                columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+                columns={narrow ? narrowColumns(t) : wideColumns(t)}
                 minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
                 view={view.mode}
                 // A card holds a status line, a cadence and an agent; narrower than this the
@@ -292,7 +311,7 @@ export const AutomationListScreen = ({
 
     return (
         <>
-            <PageTitle title="Automations" />
+            <PageTitle title={t("automations.screens.pageTitle")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
@@ -305,7 +324,7 @@ export const AutomationListScreen = ({
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
-                                    Automations
+                                    {t("automations.screens.pageTitle")}
                                 </h1>
                                 {/* Hidden on a phone, where the title needs the width. */}
                                 {projectEmpty ? null : (
@@ -315,7 +334,7 @@ export const AutomationListScreen = ({
                                     />
                                 )}
                                 <Button
-                                    aria-label="New automation"
+                                    aria-label={t("automations.screens.newAutomation")}
                                     // Square icon button on a phone, where the label is hidden.
                                     className="max-sm:size-8 max-sm:px-0"
                                     onClick={() => void router.push(`${base}/automations/new`)}
@@ -323,7 +342,9 @@ export const AutomationListScreen = ({
                                     <Plus />
                                     {/* The label costs more than it earns at phone width: it
                                         pushed the page's own title into an ellipsis. */}
-                                    <span className="hidden sm:inline">New automation</span>
+                                    <span className="hidden sm:inline">
+                                        {t("automations.screens.newAutomation")}
+                                    </span>
                                 </Button>
                             </div>
                         </div>
@@ -346,7 +367,7 @@ export const AutomationListScreen = ({
                                 <ListTableToolbar
                                     search={search}
                                     onSearchChange={setSearch}
-                                    searchPlaceholder="Search automations"
+                                    searchPlaceholder={t("automations.screens.searchPlaceholder")}
                                     actions={
                                         <>
                                             <AutomationFilterMenu

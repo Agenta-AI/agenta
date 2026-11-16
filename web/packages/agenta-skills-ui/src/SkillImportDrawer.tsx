@@ -4,7 +4,9 @@
  */
 import {useCallback} from "react"
 
-import {formatCount, skillDisplayName} from "@agenta/shared/utils"
+import {createT, useT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
+import {skillDisplayName} from "@agenta/shared/utils"
 import {importSkillSource, scanSkillSource} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {RepoImportDrawer, type RepoScanResult} from "@agenta/ui/create-menu"
@@ -18,13 +20,16 @@ export interface SkillImportDrawerProps {
     onImported?: (imported: {name?: string; workflowId?: string; pathInRepo: string}[]) => void
 }
 
+const tNow = createT(skillsGalleryCatalog)
+
 const issueText = (issues?: {message?: string | null}[] | null): string =>
     issues
         ?.map((i) => i.message)
         .filter(Boolean)
-        .join(" ") || "Invalid skill."
+        .join(" ") || tNow("skills.gallery.invalidSkill")
 
 export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillImportDrawerProps) {
+    const t = useT(skillsGalleryCatalog)
     const scan = useCallback(
         async (repoUrl: string): Promise<RepoScanResult> => {
             const response = await scanSkillSource({projectId, repoUrl})
@@ -40,18 +45,18 @@ export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillI
                         description: c.skill?.description,
                         // Already-linked skills are Refresh's job, not a re-import.
                         unavailable: imported
-                            ? "Already in this project — check for updates to pick up upstream changes."
+                            ? tNow("skills.gallery.alreadyInProject")
                             : c.valid
                               ? null
                               : issueText(c.issues),
-                        badge: imported ? "Already imported" : undefined,
+                        badge: imported ? tNow("skills.gallery.alreadyImported") : undefined,
                     }
                 }),
                 note:
                     valid.length === 0
-                        ? "No valid skills in this repository."
+                        ? tNow("skills.gallery.noValidSkills")
                         : valid.every((c) => already.has(c.path_in_repo))
-                          ? "Everything here is already imported — use Refresh on the repo's section to pick up upstream changes."
+                          ? tNow("skills.gallery.allAlreadyImported")
                           : undefined,
             }
         },
@@ -82,7 +87,7 @@ export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillI
                             weight="fill"
                             className="text-[var(--ag-colorSuccess)]"
                         />
-                        Imported {formatCount(imported.length, "skill")}
+                        {tNow("skills.gallery.importedCount", {count: imported.length})}
                     </span>
                     {imported.map((item) => (
                         <span key={item.path_in_repo} className="pl-5">
@@ -97,7 +102,7 @@ export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillI
                                     weight="fill"
                                     className="text-[var(--ag-colorWarning)]"
                                 />
-                                Skipped {skipped.length}
+                                {tNow("skills.gallery.skippedCount", {count: skipped.length})}
                             </span>
                             {skipped.map((item) => (
                                 <span
@@ -120,13 +125,13 @@ export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillI
         <RepoImportDrawer
             open={open}
             onClose={onClose}
-            title="Import skills from a repo"
-            hint="Scan a public GitHub repository for SKILL.md folders."
-            noneFoundText="No skills found in this repository."
-            foundLabel="Skills found"
+            title={t("skills.gallery.importDrawerTitle")}
+            hint={t("skills.gallery.importDrawerHint")}
+            noneFoundText={t("skills.gallery.importNoneFound")}
+            foundLabel={t("skills.gallery.importFoundLabel")}
             multiple
             scan={scan}
-            confirmLabel={(count) => `Import ${formatCount(count, "skill")}`}
+            confirmLabel={(count) => t("skills.gallery.importSkills", {count})}
             onConfirm={confirm}
         />
     )

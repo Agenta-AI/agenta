@@ -155,7 +155,7 @@ export function buildAutomationCreate(
     return {
         ...header,
         flags: {is_active: isActive, is_valid: true},
-        // Guarded by `blockedReason`, which never lets an event draft create without both.
+        // Guarded by `blocked`, which never lets an event draft create without both.
         connection_id: draft.connectionId ?? "",
         data: {
             event_key: draft.eventKey ?? "",

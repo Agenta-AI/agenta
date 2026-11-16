@@ -132,7 +132,7 @@ describe("creating a schedule before the agent's revision loads", () => {
         await act(async () => void (await seen.create()))
 
         expect(createSchedule).toHaveBeenCalledTimes(1)
-        expect(seen.blockedReason).toBe("")
+        expect(seen.blocked).toBe(false)
     })
 
     it("saves a message typed before the revision loaded under messages", async () => {

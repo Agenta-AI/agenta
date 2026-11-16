@@ -8,6 +8,8 @@ import {
     type TriggerSchedule,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
+import {createT, useT} from "@agenta/i18n"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 /**
  * The one adapter between the two trigger entities and the single thing this app calls an
@@ -20,6 +22,14 @@ import {
  *
  * Pure by design — no React, no hooks — so the mapping is testable and the hooks stay thin.
  */
+
+const tNow = createT(automationsModelCatalog)
+
+/**
+ * Subscribes a component to the language, so the label functions below re-render with it. They
+ * read the language when called and do not re-render on their own.
+ */
+export const useAutomationText = () => useT(automationsModelCatalog)
 
 export type AutomationKind = "schedule" | "event"
 
@@ -43,10 +53,15 @@ export interface Automation {
     raw: TriggerSchedule | TriggerSubscription
 }
 
-export const AUTOMATION_STATUS_LABEL: Record<AutomationStatus, string> = {
-    working: "Working",
-    paused: "Paused",
-    attention: "Needs attention",
+export const automationStatusLabel = (status: AutomationStatus): string => {
+    switch (status) {
+        case "working":
+            return tNow("automations.model.statusWorking")
+        case "paused":
+            return tNow("automations.model.statusPaused")
+        default:
+            return tNow("automations.model.statusAttention")
+    }
 }
 
 export function toAutomation(
@@ -187,7 +202,7 @@ export function agentLabel(
     // A roster that has not answered yet cannot say a binding is unresolvable — calling it
     // unknown mid-load makes a perfectly good agent flash as broken before its name arrives.
     if (!rosterReady) return null
-    return agentId ? "Unknown agent" : null
+    return agentId ? tNow("automations.model.unknownAgent") : null
 }
 
 /** "GITHUB_STAR_ADDED_EVENT" → "When star added in Github". The first segment is the app. */
@@ -196,15 +211,15 @@ function eventPhrase(eventKey: string): string {
         .trim()
         .split(/[_\s./-]+/)
         .filter(Boolean)
-    if (!parts.length) return "When its event arrives"
+    if (!parts.length) return tNow("automations.model.eventWhenNone")
 
     // Composio keys carry a trailing "EVENT" that adds nothing to the sentence.
     const words = parts.map((part) => part.toLowerCase())
     if (words.length > 1 && words[words.length - 1] === "event") words.pop()
 
     const [app, ...rest] = words
-    if (!rest.length) return `When ${capitalize(app)}`
-    return `When ${rest.join(" ")} in ${capitalize(app)}`
+    if (!rest.length) return tNow("automations.model.eventWhenApp", {app: capitalize(app)})
+    return tNow("automations.model.eventWhenIn", {event: rest.join(" "), app: capitalize(app)})
 }
 
 function capitalize(word: string): string {

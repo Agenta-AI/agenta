@@ -1,5 +1,7 @@
 import {type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Switch} from "@agenta/ui/ui"
 
 import {AutomationAgentField} from "./AutomationAgentField"
@@ -29,6 +31,7 @@ export const AutomationCreateBody = ({
     showAgentField?: boolean
     footer?: ReactNode
 }) => {
+    const t = useT(automationsEditorCatalog)
     const {draft, preview, agentName, generatedName, errors} = state
 
     return (
@@ -42,7 +45,7 @@ export const AutomationCreateBody = ({
                         description=""
                         onRename={state.setName}
                         autoEdit={autoEditName}
-                        placeholder="Automation name"
+                        placeholder={t("automations.editor.namePlaceholder")}
                         fallback={generatedName}
                     />
                 </div>
@@ -53,10 +56,10 @@ export const AutomationCreateBody = ({
                         onCheckedChange={state.setActive}
                         // Names the setting, not the pending action: `role="switch"` already
                         // announces the state, so a label that inverts reads "…switched off, on".
-                        aria-label="Create this automation switched on"
+                        aria-label={t("automations.editor.createSwitchedOnAria")}
                     />
                     <span className="text-[14px] text-foreground">
-                        {draft.isActive ? "On" : "Off"}
+                        {draft.isActive ? t("automations.editor.on") : t("automations.editor.off")}
                     </span>
                 </span>
             </div>

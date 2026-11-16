@@ -64,5 +64,5 @@ export {PickerOverlay} from "./pickers/PickerOverlay"
 export * from "./states/AutomationStates"
 export * from "./states/AutomationRunStates"
 // The run person notice beside the save bar.
-export {AutomationRunPersonNotice, RUN_PERSON_COPY} from "./AutomationRunPersonNotice"
+export {AutomationRunPersonNotice} from "./AutomationRunPersonNotice"
 export * from "./runPersonNotice"

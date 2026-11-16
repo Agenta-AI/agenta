@@ -1,6 +1,9 @@
 import {type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import {ArrowLeft} from "@phosphor-icons/react"
 
 import {ICON_LINK} from "./lib/interactive"
@@ -39,6 +42,7 @@ export const AutomationRunPane = ({
     /** Narrow layout only — the list is off screen, so the pane owns the way back to it. */
     onBack?: () => void
 }) => {
+    const t = useT(automationsEditorCatalog, automationsModelCatalog)
     const sessionId = runSessionId(delivery)
     const label = runLabel(delivery)
     // The same day-and-time vocabulary the rows speak, so the header names the row you picked.
@@ -46,7 +50,9 @@ export const AutomationRunPane = ({
     // No duration field on a delivery — see `runDuration`. When it cannot be derived the clause
     // is dropped rather than printed as zero.
     const took = runDuration(delivery)
-    const meta = [when, took ? `took ${took}` : ""].filter(Boolean).join(" · ")
+    const meta = [when, took ? t("automations.editor.took", {duration: took}) : ""]
+        .filter(Boolean)
+        .join(" · ")
 
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -55,7 +61,7 @@ export const AutomationRunPane = ({
                     <button
                         type="button"
                         onClick={onBack}
-                        aria-label="Back to the run list"
+                        aria-label={t("automations.editor.backToRunList")}
                         className={cn(
                             "-ml-1 flex shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-1 text-muted-foreground",
                             ICON_LINK,
