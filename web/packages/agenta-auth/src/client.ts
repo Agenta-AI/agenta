@@ -149,7 +149,7 @@ function markMobileAuthCallback(): void {
     document.cookie = `${MOBILE_AUTH_CALLBACK_COOKIE}=1; path=/; max-age=${MOBILE_AUTH_CALLBACK_MAX_AGE}; samesite=lax`
 }
 
-function clearMobileAuthCallbackMark(): void {
+export function clearMobileAuthCallbackMark(): void {
     if (typeof document === "undefined") return
     document.cookie = `${MOBILE_AUTH_CALLBACK_COOKIE}=; path=/; max-age=0; samesite=lax`
 }
