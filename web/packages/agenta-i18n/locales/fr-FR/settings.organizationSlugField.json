@@ -1,0 +1,12 @@
+{
+    "hint": "Définissez-le une seule fois. Il est utilisé dans les URL de rappel SSO et ne peut plus être modifié ensuite.",
+    "invalid": "Utilisez de 1 à 64 lettres minuscules (a-z) et des tirets (-)",
+    "label": "Slug de l’organisation",
+    "lockedHint": "Ce slug est utilisé dans les URL de rappel SSO et ne peut pas être modifié.",
+    "noSlug": "Aucun slug n’est défini.",
+    "save": "Enregistrer le slug",
+    "saveFailed": "Impossible d’enregistrer le slug de l’organisation",
+    "saving": "Enregistrement…",
+    "setBeforeSso": "Définissez le slug avant d’ajouter un fournisseur SSO. L’URL de rappel en a besoin.",
+    "taken": "Ce slug est déjà pris. Choisissez-en un autre."
+}
