@@ -874,7 +874,9 @@ export function McpConnectSheet({
                     {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
                         <HintedField
                             label={t("entityUi.mcpJourney.name")}
-                            tooltip={screen === "oauth" ? t("entityUi.mcpJourney.nameHelp") : undefined}
+                            tooltip={
+                                screen === "oauth" ? t("entityUi.mcpJourney.nameHelp") : undefined
+                            }
                             error={nameError ?? undefined}
                             hint={
                                 screen === "oauth" && prefix

@@ -159,9 +159,7 @@ export default function McpConnectionDetail({
             message.success(tNow("entityUi.mcpDetail.connectionRenamed"))
             onChanged?.()
         } catch (error) {
-            message.error(
-                (error as Error)?.message || tNow("entityUi.mcpDetail.couldNotRename"),
-            )
+            message.error((error as Error)?.message || tNow("entityUi.mcpDetail.couldNotRename"))
         } finally {
             setSaving(false)
         }
@@ -363,9 +361,11 @@ const ToolList = ({
     if (shown.length === 0) {
         // The server has tools; this query does not name any of them. Said as such, so nobody
         // reads a filter's own emptiness as a server that stopped advertising.
-        return <p className="m-0 text-sm text-colorTextDescription">
+        return (
+            <p className="m-0 text-sm text-colorTextDescription">
                 {t("entityUi.mcpDetail.noToolMatches")}
             </p>
+        )
     }
 
     return (

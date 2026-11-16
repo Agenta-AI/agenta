@@ -56,34 +56,34 @@ const RecentFileRow = ({
 }) => {
     const t = useT(driveRailCatalog)
     return (
-    <DriveItemContextMenu
-        path={file.path}
-        isFolder={!!file.is_folder}
-        onOpen={onOpen}
-        onCopyPath={onCopyPath}
-        onDownload={onDownload}
-        className="w-full"
-    >
-        <DriveFileRow
+        <DriveItemContextMenu
             path={file.path}
-            recent={recent}
-            showOrigin={showOrigin}
             isFolder={!!file.is_folder}
-            mark="typed"
-            // " · " only between the parts that exist; a folder count only when known.
-            trailing={
-                [
-                    file.is_folder && file.item_count != null
-                        ? t("entityUi.driveRail.itemsCount", {count: file.item_count})
-                        : null,
-                    file.touchedAt ? relativeTime(file.touchedAt) : null,
-                ]
-                    .filter(Boolean)
-                    .join(" · ") || null
-            }
             onOpen={onOpen}
-        />
-    </DriveItemContextMenu>
+            onCopyPath={onCopyPath}
+            onDownload={onDownload}
+            className="w-full"
+        >
+            <DriveFileRow
+                path={file.path}
+                recent={recent}
+                showOrigin={showOrigin}
+                isFolder={!!file.is_folder}
+                mark="typed"
+                // " · " only between the parts that exist; a folder count only when known.
+                trailing={
+                    [
+                        file.is_folder && file.item_count != null
+                            ? t("entityUi.driveRail.itemsCount", {count: file.item_count})
+                            : null,
+                        file.touchedAt ? relativeTime(file.touchedAt) : null,
+                    ]
+                        .filter(Boolean)
+                        .join(" · ") || null
+                }
+                onOpen={onOpen}
+            />
+        </DriveItemContextMenu>
     )
 }
 

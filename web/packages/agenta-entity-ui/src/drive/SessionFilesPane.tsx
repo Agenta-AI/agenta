@@ -134,9 +134,19 @@ export function SessionFilesPane({
                 ? []
                 : ([
                       drive.mount?.id
-                          ? {key: "mount", label: tNow("entityUi.driveRail.driveId"), value: drive.mount.id}
+                          ? {
+                                key: "mount",
+                                label: tNow("entityUi.driveRail.driveId"),
+                                value: drive.mount.id,
+                            }
                           : null,
-                      sessionId ? {key: "owner", label: tNow("entityUi.driveRail.sessionId"), value: sessionId} : null,
+                      sessionId
+                          ? {
+                                key: "owner",
+                                label: tNow("entityUi.driveRail.sessionId"),
+                                value: sessionId,
+                            }
+                          : null,
                   ].filter(Boolean) as DriveId[]),
         [inspectorEnabled, drive.mount?.id, sessionId],
     )

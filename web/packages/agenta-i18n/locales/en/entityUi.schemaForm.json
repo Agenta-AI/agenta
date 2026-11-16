@@ -25,5 +25,6 @@
     "itemPlaceholder": "{{label}} item",
     "removeItem": "Remove item",
     "addLabel": "Add {{label}}",
-    "removeObjectItem": "Remove object item"
+    "removeObjectItem": "Remove object item",
+    "reviewAnswers": "Review answers"
 }

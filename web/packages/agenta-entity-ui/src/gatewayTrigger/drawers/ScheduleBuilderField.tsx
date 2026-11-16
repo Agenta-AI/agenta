@@ -368,7 +368,6 @@ export function ScheduleBuilderField({
 // refused with a hint to use a second schedule.
 // ---------------------------------------------------------------------------
 
-
 function TimesField({
     times,
     onChange,
@@ -429,7 +428,9 @@ function TimesField({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label={t("entityUi.triggerSchedule.removeTime", {time: fmtTime(time)})}
+                                aria-label={t("entityUi.triggerSchedule.removeTime", {
+                                    time: fmtTime(time),
+                                })}
                                 onClick={() => onChange(sorted.filter((_, j) => j !== i))}
                             >
                                 <X size={12} />

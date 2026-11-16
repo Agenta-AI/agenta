@@ -38,7 +38,9 @@ export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) =>
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
             >
-                {open ? t("entityUi.mcpConnect.hideResponse") : t("entityUi.mcpConnect.showResponse")}
+                {open
+                    ? t("entityUi.mcpConnect.hideResponse")
+                    : t("entityUi.mcpConnect.showResponse")}
             </Button>
             {open ? (
                 <pre

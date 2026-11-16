@@ -36,37 +36,37 @@ export interface ProbeResultCardProps {
 export const ProbeResultCard = ({url, mode, onChange}: ProbeResultCardProps) => {
     const t = useT(mcpConnectCatalog)
     return (
-    <div
-        data-testid="mcp-probe-result"
-        className="flex items-center gap-3 rounded-control border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2.5"
-    >
-        <IconTile size={32} tone="info">
-            <Plugs size={18} />
-        </IconTile>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate font-mono text-[13px] text-colorText" title={url}>
-                {url}
-            </span>
-            <span className="flex items-center gap-1 text-xs text-colorTextSecondary">
-                {/* Inherits the line's colour, as the design draws it: the finding is what
+        <div
+            data-testid="mcp-probe-result"
+            className="flex items-center gap-3 rounded-control border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2.5"
+        >
+            <IconTile size={32} tone="info">
+                <Plugs size={18} />
+            </IconTile>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate font-mono text-[13px] text-colorText" title={url}>
+                    {url}
+                </span>
+                <span className="flex items-center gap-1 text-xs text-colorTextSecondary">
+                    {/* Inherits the line's colour, as the design draws it: the finding is what
                     the glyph marks, not a status of its own. */}
-                <CheckCircle size={13} className="shrink-0" />
-                {t(SUMMARY[mode])}
-            </span>
+                    <CheckCircle size={13} className="shrink-0" />
+                    {t(SUMMARY[mode])}
+                </span>
+            </div>
+            {onChange ? (
+                <Button
+                    variant="link"
+                    size="xs"
+                    // The control scale's 24px is under the 44px touch minimum, so the invisible
+                    // expansion carries the rest. The card's own row keeps its height.
+                    className={cn("shrink-0 px-0 text-xs", touchTargetExpansion(24))}
+                    onClick={onChange}
+                >
+                    {t("entityUi.mcpConnect.change")}
+                </Button>
+            ) : null}
         </div>
-        {onChange ? (
-            <Button
-                variant="link"
-                size="xs"
-                // The control scale's 24px is under the 44px touch minimum, so the invisible
-                // expansion carries the rest. The card's own row keeps its height.
-                className={cn("shrink-0 px-0 text-xs", touchTargetExpansion(24))}
-                onClick={onChange}
-            >
-                {t("entityUi.mcpConnect.change")}
-            </Button>
-        ) : null}
-    </div>
     )
 }
 

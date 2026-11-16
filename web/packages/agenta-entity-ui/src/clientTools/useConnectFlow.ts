@@ -276,7 +276,9 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
                     // as success, the card paints a settled outcome over a gate that is still
                     // open and disarms the retry (see `SettleClientTool`).
                     if (landed === false) {
-                        onSubmissionError(new Error(tNow("entityUi.clientTools.couldNotSaveAnswer")))
+                        onSubmissionError(
+                            new Error(tNow("entityUi.clientTools.couldNotSaveAnswer")),
+                        )
                         return
                     }
                     pendingAnswerRef.current = null

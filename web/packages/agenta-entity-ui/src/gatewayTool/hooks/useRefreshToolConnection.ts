@@ -85,9 +85,7 @@ export function useRefreshToolConnection() {
 
                     // A blocked popup never closes, so polling for it would never end.
                     if (!popup) {
-                        message.error(
-                            tNow("entityUi.toolConnections.signInPopupBlocked"),
-                        )
+                        message.error(tNow("entityUi.toolConnections.signInPopupBlocked"))
                         return
                     }
                     window.addEventListener("message", handler)

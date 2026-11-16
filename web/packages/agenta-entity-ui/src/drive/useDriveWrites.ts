@@ -53,9 +53,11 @@ export function useDriveWrites(
                 if (success) void message.success(success)
                 return true
             } catch (error) {
-                void message.error(error instanceof Error
+                void message.error(
+                    error instanceof Error
                         ? error.message
-                        : tNow("entityUi.driveExplorer.somethingWentWrong"),)
+                        : tNow("entityUi.driveExplorer.somethingWentWrong"),
+                )
                 return false
             } finally {
                 setBusy(false)

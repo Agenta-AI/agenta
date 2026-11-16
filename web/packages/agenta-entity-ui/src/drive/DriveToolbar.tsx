@@ -94,22 +94,25 @@ interface ToolbarMode {
 const IconPill = ({value, options, onChange}: ToolbarMode) => {
     const t = useT(driveExplorerCatalog)
     return (
-    <Tabs value={value} onValueChange={onChange}>
-        <TabsList variant="pill" aria-label={t("entityUi.driveExplorer.view")}
-            className="h-[26px] rounded-md p-0.5">
-            {options.map((o) => (
-                <TabsTrigger
-                    key={o.value}
-                    value={o.value}
-                    aria-label={o.label}
-                    title={o.label}
-                    className="h-full rounded-[5px] px-1.5 py-0"
-                >
-                    {o.icon}
-                </TabsTrigger>
-            ))}
-        </TabsList>
-    </Tabs>
+        <Tabs value={value} onValueChange={onChange}>
+            <TabsList
+                variant="pill"
+                aria-label={t("entityUi.driveExplorer.view")}
+                className="h-[26px] rounded-md p-0.5"
+            >
+                {options.map((o) => (
+                    <TabsTrigger
+                        key={o.value}
+                        value={o.value}
+                        aria-label={o.label}
+                        title={o.label}
+                        className="h-full rounded-[5px] px-1.5 py-0"
+                    >
+                        {o.icon}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+        </Tabs>
     )
 }
 
@@ -221,72 +224,72 @@ const FileActionsMenu = ({
 }) => {
     const t = useT(driveExplorerCatalog)
     return (
-    <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-            <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("entityUi.driveExplorer.moreActions")}
-                title={t("entityUi.driveExplorer.more")}
-                className={ROW_ICON_BTN}
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("entityUi.driveExplorer.moreActions")}
+                    title={t("entityUi.driveExplorer.more")}
+                    className={ROW_ICON_BTN}
+                >
+                    <DotsThreeVertical size={14} weight="bold" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+                align="end"
+                className="min-w-[180px]"
+                // New / Rename open a name field; the menu must not pull focus back to its trigger.
+                onCloseAutoFocus={(e) => e.preventDefault()}
             >
-                <DotsThreeVertical size={14} weight="bold" />
-            </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-            align="end"
-            className="min-w-[180px]"
-            // New / Rename open a name field; the menu must not pull focus back to its trigger.
-            onCloseAutoFocus={(e) => e.preventDefault()}
-        >
-            {appView ? (
-                <>
-                    <DropdownMenuItem onSelect={appView.onToggle}>
-                        {appView.code ? <Play /> : <Code />}
-                        {appView.code
-                            ? t("entityUi.driveExplorer.viewApp")
-                            : t("entityUi.driveExplorer.viewCode")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={appView.access.onOpen}>
-                        <Key />
-                        {t("entityUi.driveExplorer.fileAccess")}
-                        <span className="ml-auto pl-3 text-xs text-colorTextTertiary">
-                            {appView.access.label}
-                        </span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                </>
-            ) : null}
-            <DropdownMenuItem disabled={!onDownload} onSelect={onDownload}>
-                <DownloadSimple />
-                {t("entityUi.driveExplorer.download")}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!onCopyPath} onSelect={onCopyPath}>
-                <LinkSimple />
-                {t("entityUi.driveExplorer.copyPath")}
-            </DropdownMenuItem>
-            {onCopyLink ? (
-                <DropdownMenuItem onSelect={onCopyLink}>
-                    <LinkSimple />
-                    {t("entityUi.driveExplorer.copyLink")}
+                {appView ? (
+                    <>
+                        <DropdownMenuItem onSelect={appView.onToggle}>
+                            {appView.code ? <Play /> : <Code />}
+                            {appView.code
+                                ? t("entityUi.driveExplorer.viewApp")
+                                : t("entityUi.driveExplorer.viewCode")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={appView.access.onOpen}>
+                            <Key />
+                            {t("entityUi.driveExplorer.fileAccess")}
+                            <span className="ml-auto pl-3 text-xs text-colorTextTertiary">
+                                {appView.access.label}
+                            </span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                    </>
+                ) : null}
+                <DropdownMenuItem disabled={!onDownload} onSelect={onDownload}>
+                    <DownloadSimple />
+                    {t("entityUi.driveExplorer.download")}
                 </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
-                <PencilSimple />
-                {t("entityUi.driveExplorer.rename")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-                disabled={!actions}
-                onSelect={actions?.onDelete}
-                className="text-colorError focus:text-colorError"
-            >
-                <Trash />
-                {t("entityUi.driveExplorer.delete")}
-            </DropdownMenuItem>
-        </DropdownMenuContent>
-    </DropdownMenu>
+                <DropdownMenuItem disabled={!onCopyPath} onSelect={onCopyPath}>
+                    <LinkSimple />
+                    {t("entityUi.driveExplorer.copyPath")}
+                </DropdownMenuItem>
+                {onCopyLink ? (
+                    <DropdownMenuItem onSelect={onCopyLink}>
+                        <LinkSimple />
+                        {t("entityUi.driveExplorer.copyLink")}
+                    </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
+                    <PencilSimple />
+                    {t("entityUi.driveExplorer.rename")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    disabled={!actions}
+                    onSelect={actions?.onDelete}
+                    className="text-colorError focus:text-colorError"
+                >
+                    <Trash />
+                    {t("entityUi.driveExplorer.delete")}
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 

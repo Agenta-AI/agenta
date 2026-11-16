@@ -6,9 +6,9 @@
 import {type KeyboardEvent, type ReactNode} from "react"
 
 import {type DriveDrop} from "@agenta/entities/drive"
+import {type DriveTreePaneState} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
-import {type DriveTreePaneState} from "@agenta/entities/drive"
 import {motion} from "motion/react"
 
 export function DriveTreePane({

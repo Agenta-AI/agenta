@@ -38,7 +38,12 @@ export function useDriveDownloadAll({
         if (!archiveMounts.length || downloadingAll) return
         setDownloadingAll(true)
         const key = "drive-download-all"
-        message.open({type: "loading", key, content: tNow("entityUi.driveExplorer.preparingDownload"), duration: 0})
+        message.open({
+            type: "loading",
+            key,
+            content: tNow("entityUi.driveExplorer.preparingDownload"),
+            duration: 0,
+        })
         // `finally`: the in-flight flag gates every retry (above) and the loading toast has no
         // duration, so anything that skips the reset leaves the button dead and the toast pinned.
         try {

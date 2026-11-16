@@ -23,7 +23,10 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
                     <SkeletonBlock active className="h-4 w-1/2" />
                 </div>
             ) : hasError ? (
-                <SectionLoadError message={t("entityUi.agentOverview.couldNotLoadAutomations")} onRetry={retry} />
+                <SectionLoadError
+                    message={t("entityUi.agentOverview.couldNotLoadAutomations")}
+                    onRetry={retry}
+                />
             ) : rows.length === 0 ? (
                 <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
                     {agentId

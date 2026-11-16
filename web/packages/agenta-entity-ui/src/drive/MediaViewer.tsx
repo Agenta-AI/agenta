@@ -102,7 +102,11 @@ const ViewerImage = ({mount, path, name}: {mount: Mount | null; path: string; na
     if (failed)
         return (
             <div className="flex w-full max-w-md flex-col rounded-lg bg-background p-2">
-                <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadImage")} />
+                <DownloadCard
+                    mount={mount}
+                    path={path}
+                    title={t("entityUi.drivePreview.couldNotLoadImage")}
+                />
             </div>
         )
     return (
@@ -150,7 +154,11 @@ const ViewerSvg = ({mount, path, name}: {mount: Mount | null; path: string; name
     if (!src)
         return (
             <div className="flex w-full max-w-md flex-col rounded-lg bg-background p-2">
-                <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotPreviewSvg")} />
+                <DownloadCard
+                    mount={mount}
+                    path={path}
+                    title={t("entityUi.drivePreview.couldNotPreviewSvg")}
+                />
             </div>
         )
     return (
@@ -199,21 +207,21 @@ const DownloadButton = ({name, file}: {name: string; file: ItemFile}) => {
 const NavButton = ({side, onClick}: {side: "prev" | "next"; onClick: () => void}) => {
     const t = useT(drivePreviewCatalog)
     return (
-    <Button
-        variant="ghost"
-        size="icon"
-        aria-label={
-            side === "prev"
-                ? t("entityUi.drivePreview.previousFile")
-                : t("entityUi.drivePreview.nextFile")
-        }
-        onClick={onClick}
-        className={`absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white ${
-            side === "prev" ? "left-2 sm:left-4" : "right-2 sm:right-4"
-        }`}
-    >
-        {side === "prev" ? <CaretLeft /> : <CaretRight />}
-    </Button>
+        <Button
+            variant="ghost"
+            size="icon"
+            aria-label={
+                side === "prev"
+                    ? t("entityUi.drivePreview.previousFile")
+                    : t("entityUi.drivePreview.nextFile")
+            }
+            onClick={onClick}
+            className={`absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white ${
+                side === "prev" ? "left-2 sm:left-4" : "right-2 sm:right-4"
+            }`}
+        >
+            {side === "prev" ? <CaretLeft /> : <CaretRight />}
+        </Button>
     )
 }
 

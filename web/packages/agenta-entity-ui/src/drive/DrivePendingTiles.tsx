@@ -37,67 +37,67 @@ const PendingTile = ({
 }) => {
     const t = useT(driveExplorerCatalog)
     return (
-    // box-border is REQUIRED: the real file tiles are <button>s (border-box by UA default even with
-    // preflight off), but this is a <div> (content-box) — without it the padding+border widen the box
-    // past the cell and pb-[75%] computes a taller thumb, overflowing the grid's snapped row. Caption
-    // is PLAIN text (a <button> wouldn't inherit font-size); all actions are absolute overlays that
-    // can't change tile height. Subtle primary tint marks it as pending vs a committed file.
-    <div className="group box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-[var(--ant-color-primary-border)] bg-[var(--ant-color-primary-bg)] p-2">
-        {/* Padding-bottom aspect box: height = 75% of width, GUARANTEED, independent of the image
+        // box-border is REQUIRED: the real file tiles are <button>s (border-box by UA default even with
+        // preflight off), but this is a <div> (content-box) — without it the padding+border widen the box
+        // past the cell and pb-[75%] computes a taller thumb, overflowing the grid's snapped row. Caption
+        // is PLAIN text (a <button> wouldn't inherit font-size); all actions are absolute overlays that
+        // can't change tile height. Subtle primary tint marks it as pending vs a committed file.
+        <div className="group box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-[var(--ant-color-primary-border)] bg-[var(--ant-color-primary-bg)] p-2">
+            {/* Padding-bottom aspect box: height = 75% of width, GUARANTEED, independent of the image
             (aspect-ratio was defeated by the full-size object-URL image). Content is absolute-inner. */}
-        <div className="relative w-full overflow-hidden rounded bg-colorFillTertiary pb-[75%]">
-            <div className="absolute inset-0 flex items-center justify-center">
-                {previewUrl ? (
-                    <img
-                        src={previewUrl}
-                        alt={name}
-                        className={`h-full w-full object-cover ${state === "error" ? "opacity-40" : ""}`}
-                    />
-                ) : (
-                    <FileIcon size={34} className="text-colorTextTertiary" />
-                )}
-                {state === "error" && onRetry ? (
-                    <button
-                        type="button"
-                        onClick={onRetry}
-                        className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-xs font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
-                    >
-                        {t("entityUi.driveExplorer.retry")}
-                    </button>
-                ) : null}
-                {state === "uploading" && percent < 100 ? (
-                    <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgba(0,0,0,0.2)]">
-                        <div
-                            className="h-full bg-colorPrimary transition-[width] duration-150"
-                            style={{width: `${percent}%`}}
+            <div className="relative w-full overflow-hidden rounded bg-colorFillTertiary pb-[75%]">
+                <div className="absolute inset-0 flex items-center justify-center">
+                    {previewUrl ? (
+                        <img
+                            src={previewUrl}
+                            alt={name}
+                            className={`h-full w-full object-cover ${state === "error" ? "opacity-40" : ""}`}
                         />
-                    </div>
-                ) : null}
-                {onRemove ? (
-                    <button
-                        type="button"
-                        aria-label={t("entityUi.driveExplorer.removeName", {name})}
-                        onClick={onRemove}
-                        className={`absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white hover:bg-[rgba(0,0,0,0.7)] ${
-                            state === "error"
-                                ? "transition-colors"
-                                : "opacity-0 transition-opacity group-hover:opacity-100"
-                        }`}
-                    >
-                        <X size={11} weight="bold" />
-                    </button>
-                ) : null}
+                    ) : (
+                        <FileIcon size={34} className="text-colorTextTertiary" />
+                    )}
+                    {state === "error" && onRetry ? (
+                        <button
+                            type="button"
+                            onClick={onRetry}
+                            className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-xs font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
+                        >
+                            {t("entityUi.driveExplorer.retry")}
+                        </button>
+                    ) : null}
+                    {state === "uploading" && percent < 100 ? (
+                        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgba(0,0,0,0.2)]">
+                            <div
+                                className="h-full bg-colorPrimary transition-[width] duration-150"
+                                style={{width: `${percent}%`}}
+                            />
+                        </div>
+                    ) : null}
+                    {onRemove ? (
+                        <button
+                            type="button"
+                            aria-label={t("entityUi.driveExplorer.removeName", {name})}
+                            onClick={onRemove}
+                            className={`absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white hover:bg-[rgba(0,0,0,0.7)] ${
+                                state === "error"
+                                    ? "transition-colors"
+                                    : "opacity-0 transition-opacity group-hover:opacity-100"
+                            }`}
+                        >
+                            <X size={11} weight="bold" />
+                        </button>
+                    ) : null}
+                </div>
             </div>
+            <span className="w-full truncate text-center font-mono text-xs" title={name}>
+                {name}
+            </span>
+            <span
+                className={`w-full truncate text-center text-xs tabular-nums ${captionTone === "error" ? "text-colorError" : "text-colorTextTertiary"}`}
+            >
+                {caption}
+            </span>
         </div>
-        <span className="w-full truncate text-center font-mono text-xs" title={name}>
-            {name}
-        </span>
-        <span
-            className={`w-full truncate text-center text-xs tabular-nums ${captionTone === "error" ? "text-colorError" : "text-colorTextTertiary"}`}
-        >
-            {caption}
-        </span>
-    </div>
     )
 }
 
@@ -113,22 +113,22 @@ export const UploadTile = ({
 }) => {
     const t = useT(driveExplorerCatalog)
     return (
-    <PendingTile
-        name={item.name}
-        previewUrl={item.previewUrl}
-        state={item.error ? "error" : item.percent >= 100 ? "done" : "uploading"}
-        percent={item.percent}
-        caption={
-            item.error
-                ? t("entityUi.driveExplorer.uploadFailed")
-                : item.percent >= 100
-                  ? t("entityUi.driveExplorer.uploaded")
-                  : t("entityUi.driveExplorer.uploadingPercent", {percent: item.percent})
-        }
-        captionTone={item.error ? "error" : "muted"}
-        onRetry={onRetry ? () => onRetry(item.id) : undefined}
-        onRemove={onDismiss && item.error ? () => onDismiss(item.id) : undefined}
-    />
+        <PendingTile
+            name={item.name}
+            previewUrl={item.previewUrl}
+            state={item.error ? "error" : item.percent >= 100 ? "done" : "uploading"}
+            percent={item.percent}
+            caption={
+                item.error
+                    ? t("entityUi.driveExplorer.uploadFailed")
+                    : item.percent >= 100
+                      ? t("entityUi.driveExplorer.uploaded")
+                      : t("entityUi.driveExplorer.uploadingPercent", {percent: item.percent})
+            }
+            captionTone={item.error ? "error" : "muted"}
+            onRetry={onRetry ? () => onRetry(item.id) : undefined}
+            onRemove={onDismiss && item.error ? () => onDismiss(item.id) : undefined}
+        />
     )
 }
 
@@ -143,13 +143,13 @@ export const StagedTile = ({
 }) => {
     const t = useT(driveExplorerCatalog)
     return (
-    <PendingTile
-        name={item.name}
-        previewUrl={item.previewUrl}
-        state="staged"
-        caption={t("entityUi.driveExplorer.readyToUpload")}
-        onRemove={onRemove ? () => onRemove(item.id) : undefined}
-    />
+        <PendingTile
+            name={item.name}
+            previewUrl={item.previewUrl}
+            state="staged"
+            caption={t("entityUi.driveExplorer.readyToUpload")}
+            onRemove={onRemove ? () => onRemove(item.id) : undefined}
+        />
     )
 }
 

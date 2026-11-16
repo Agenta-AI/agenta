@@ -241,7 +241,9 @@ export function RunVersionField({
                         onValueChange={(slug) => onEnvironmentChange?.(slug)}
                     >
                         <SelectTrigger className="w-full max-w-prose">
-                            <SelectValue placeholder={t("entityUi.triggerShared.selectEnvironment")} />
+                            <SelectValue
+                                placeholder={t("entityUi.triggerShared.selectEnvironment")}
+                            />
                             {envLoading ? <Spinner size="small" /> : null}
                         </SelectTrigger>
                         <SelectContent>

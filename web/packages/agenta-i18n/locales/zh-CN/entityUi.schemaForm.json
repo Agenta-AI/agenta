@@ -24,5 +24,6 @@
     "itemPlaceholder": "{{label}} 项",
     "removeItem": "移除项",
     "addLabel": "添加 {{label}}",
-    "removeObjectItem": "移除对象项"
+    "removeObjectItem": "移除对象项",
+    "reviewAnswers": "检查回答"
 }

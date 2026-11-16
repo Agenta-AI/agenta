@@ -52,21 +52,21 @@ export const FOCUS_RING =
 export const DriveRetryButton = ({onRetry, busy}: {onRetry: () => void; busy?: boolean}) => {
     const t = useT(driveExplorerCatalog)
     return (
-    <button
-        type="button"
-        onClick={onRetry}
-        disabled={busy}
-        aria-busy={busy || undefined}
-        aria-label={t("entityUi.driveExplorer.tryLoadingAgain")}
-        className={`inline cursor-pointer whitespace-nowrap rounded-sm border-0 bg-transparent p-0 [font:inherit] text-current transition-colors hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-70 ${FOCUS_RING}`}
-    >
-        {busy ? (
-            <CircleNotch size={13} className="mr-1 inline animate-spin align-[-0.15em]" />
-        ) : (
-            <ArrowClockwise size={13} className="mr-1 inline align-[-0.15em]" />
-        )}
-        {busy ? t("entityUi.driveExplorer.loading") : t("entityUi.driveExplorer.tryAgain")}
-    </button>
+        <button
+            type="button"
+            onClick={onRetry}
+            disabled={busy}
+            aria-busy={busy || undefined}
+            aria-label={t("entityUi.driveExplorer.tryLoadingAgain")}
+            className={`inline cursor-pointer whitespace-nowrap rounded-sm border-0 bg-transparent p-0 [font:inherit] text-current transition-colors hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-70 ${FOCUS_RING}`}
+        >
+            {busy ? (
+                <CircleNotch size={13} className="mr-1 inline animate-spin align-[-0.15em]" />
+            ) : (
+                <ArrowClockwise size={13} className="mr-1 inline align-[-0.15em]" />
+            )}
+            {busy ? t("entityUi.driveExplorer.loading") : t("entityUi.driveExplorer.tryAgain")}
+        </button>
     )
 }
 

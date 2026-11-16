@@ -102,8 +102,16 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const driveIds = useMemo(
         () =>
             [
-                drive.mount?.id ? {key: "mount", label: tNow("entityUi.driveRail.driveId"), value: drive.mount.id} : null,
-                sessionId ? {key: "owner", label: tNow("entityUi.driveRail.sessionId"), value: sessionId} : null,
+                drive.mount?.id
+                    ? {
+                          key: "mount",
+                          label: tNow("entityUi.driveRail.driveId"),
+                          value: drive.mount.id,
+                      }
+                    : null,
+                sessionId
+                    ? {key: "owner", label: tNow("entityUi.driveRail.sessionId"), value: sessionId}
+                    : null,
             ].filter(Boolean) as DriveId[],
         [drive.mount?.id, sessionId],
     )

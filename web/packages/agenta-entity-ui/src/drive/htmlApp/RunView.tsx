@@ -9,9 +9,9 @@ import {
     type HtmlAppHostError,
     type PickedPayload,
 } from "@agenta/entities/drive"
-import type {PickerRect} from "@agenta/shared/previewPicker"
 import {createT, useT} from "@agenta/i18n"
 import driveAppCatalog from "@agenta/i18n/catalogs/entityUi.driveApp"
+import type {PickerRect} from "@agenta/shared/previewPicker"
 import {
     frameRectToRoot,
     PreviewCommentLayer,

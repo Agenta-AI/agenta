@@ -216,7 +216,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 JSON.parse(textContent)
                 setJsonError(null)
             } catch (e) {
-                setJsonError(e instanceof Error ? e.message : tNow("entityUi.schemaForm.invalidJson"))
+                setJsonError(
+                    e instanceof Error ? e.message : tNow("entityUi.schemaForm.invalidJson"),
+                )
             }
         }, [])
 
@@ -328,7 +330,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                             {/* Stepper promotes the active question to a header — field labels
                                 are hidden below (hideLabel), this IS the question. */}
                             {onReview ? (
-                                <span className="text-[13px] font-semibold">Review answers</span>
+                                <span className="text-[13px] font-semibold">
+                                    {t("entityUi.schemaForm.reviewAnswers")}
+                                </span>
                             ) : (
                                 <div className="flex min-w-0 flex-col">
                                     <span className="text-[13px] font-semibold">
@@ -1346,12 +1350,18 @@ function ArrayField({
                                         primitiveItemType === "integer" ? (
                                             <InputNumber
                                                 className="w-full"
-                                                placeholder={t("entityUi.schemaForm.itemPlaceholder", {label: field.label})}
+                                                placeholder={t(
+                                                    "entityUi.schemaForm.itemPlaceholder",
+                                                    {label: field.label},
+                                                )}
                                                 disabled={disabled}
                                             />
                                         ) : (
                                             <Input
-                                                placeholder={t("entityUi.schemaForm.itemPlaceholder", {label: field.label})}
+                                                placeholder={t(
+                                                    "entityUi.schemaForm.itemPlaceholder",
+                                                    {label: field.label},
+                                                )}
                                                 disabled={disabled}
                                             />
                                         )}

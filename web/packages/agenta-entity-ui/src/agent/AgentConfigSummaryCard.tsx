@@ -2,7 +2,6 @@ import {type ReactNode, useMemo} from "react"
 
 import {useT} from "@agenta/i18n"
 import agentConfigCatalog from "@agenta/i18n/catalogs/entityUi.agentConfig"
-
 import {
     ConfigAccordionSection,
     PANEL_ACTION_CLASS,

@@ -77,11 +77,14 @@ function ExactDeliveryView({
     if (error) {
         return (
             <EmptyState description={t("entityUi.triggerDeliveries.couldNotLoadDelivery")}>
-                <Button onClick={() => void refetch()}>{t("entityUi.triggerDeliveries.retry")}</Button>
+                <Button onClick={() => void refetch()}>
+                    {t("entityUi.triggerDeliveries.retry")}
+                </Button>
             </EmptyState>
         )
     }
-    if (!delivery) return <EmptyState description={t("entityUi.triggerDeliveries.deliveryNotFound")} />
+    if (!delivery)
+        return <EmptyState description={t("entityUi.triggerDeliveries.deliveryNotFound")} />
 
     return (
         <DeliveryDetails
@@ -187,7 +190,9 @@ function OwnerDeliveryHistory({
                                     buttonText=""
                                     variant="ghost"
                                     size="icon-sm"
-                                    successMessage={tNow("entityUi.triggerDeliveries.eventIdCopied")}
+                                    successMessage={tNow(
+                                        "entityUi.triggerDeliveries.eventIdCopied",
+                                    )}
                                     stopPropagation
                                 />
                             </span>
@@ -229,7 +234,9 @@ function OwnerDeliveryHistory({
                         const timestamp = record.status?.timestamp ?? record.created_at
                         return (
                             <span className="text-xs">
-                                {timestamp ? new Date(timestamp).toLocaleString(formatLocale()) : "-"}
+                                {timestamp
+                                    ? new Date(timestamp).toLocaleString(formatLocale())
+                                    : "-"}
                             </span>
                         )
                     },

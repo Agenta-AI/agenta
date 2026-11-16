@@ -1,13 +1,13 @@
 import {useMemo} from "react"
 
 import type {ToolResult} from "@agenta/entities/gatewayTool"
+import {createT, useT} from "@agenta/i18n"
+import toolExecutionCatalog from "@agenta/i18n/catalogs/entityUi.toolExecution"
 import {
     buildFormFieldsFromData,
     buildFormFieldsFromSchema,
     type FormFieldDescriptor,
 } from "@agenta/shared/utils"
-import {createT, useT} from "@agenta/i18n"
-import toolExecutionCatalog from "@agenta/i18n/catalogs/entityUi.toolExecution"
 import {message} from "@agenta/ui"
 import {Editor} from "@agenta/ui/editor"
 import {Alert, Button, Field, Input, InputNumber, Textarea} from "@agenta/ui/ui"
@@ -52,7 +52,9 @@ export default function ResultViewer({result, error, outputSchema, jsonMode}: Pr
                 description={
                     statusCode && statusMessage
                         ? `${statusCode}: ${statusMessage}`
-                        : (statusMessage ?? statusCode ?? t("entityUi.toolExecution.unknownToolError"))
+                        : (statusMessage ??
+                          statusCode ??
+                          t("entityUi.toolExecution.unknownToolError"))
                 }
                 showIcon
             />

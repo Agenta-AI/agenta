@@ -145,7 +145,9 @@ type ToolsState =
  * What a person reads when the tool list fails, and whether trying again can help. The server's
  * own sentence names routes and permissions, so it goes to the console, never to the screen.
  */
-const toolListFailure = (error: unknown): Omit<Extract<ToolsState, {status: "failed"}>, "status"> => {
+const toolListFailure = (
+    error: unknown,
+): Omit<Extract<ToolsState, {status: "failed"}>, "status"> => {
     const code = gatewayRefusalCode(error)
     const status = gatewayRefusalStatus(error)
     if (code === "auth_required") {
@@ -610,7 +612,9 @@ export default function McpPermissionDrawer({
                 toolOptions,
                 presets,
                 lockedTool: (toolKey) =>
-                    isToolHidden(policy, toolKey) ? t("entityUi.mcpPermissions.hiddenByFilter") : null,
+                    isToolHidden(policy, toolKey)
+                        ? t("entityUi.mcpPermissions.hiddenByFilter")
+                        : null,
                 rowValue,
                 banner: askToReconnect ? (
                     <LoginExpiredBanner connectionName={name} onReconnect={onReconnect} />

@@ -205,7 +205,11 @@ function truncationNote(
 ) {
     const rowsCut = Boolean(truncated.rows)
     const columnsCut = truncated.totalColumns !== null
-    const values = {rows: shownRows, columns: shownColumns, totalColumns: truncated.totalColumns ?? 0}
+    const values = {
+        rows: shownRows,
+        columns: shownColumns,
+        totalColumns: truncated.totalColumns ?? 0,
+    }
     if (rowsCut && columnsCut) return t("entityUi.drivePreview.showingRowsAndColumns", values)
     if (rowsCut) return t("entityUi.drivePreview.showingRows", values)
     if (columnsCut) return t("entityUi.drivePreview.showingColumns", values)
@@ -221,8 +225,7 @@ export function SheetFooter({sheet, children}: {sheet: Sheet; children?: ReactNo
         <div className="flex shrink-0 items-center gap-3 border-0 border-t border-solid border-colorBorderSecondary bg-colorFillQuaternary pr-3">
             <div className="min-w-0 flex-1">{children}</div>
             <span className="shrink-0 text-xs text-colorTextTertiary">
-                {note ??
-                    t("entityUi.drivePreview.rowsColumns", {rows: sheet.rows.length, columns})}
+                {note ?? t("entityUi.drivePreview.rowsColumns", {rows: sheet.rows.length, columns})}
             </span>
         </div>
     )

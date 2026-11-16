@@ -59,7 +59,8 @@ export const setupBadge = (
 ): {text: string; tone: "neutral" | "warning" | "success"} | null => {
     if (status === "blocked") return {text: tNow("entityUi.onboarding.required"), tone: "warning"}
     if (status === "all-set") return {text: tNow("entityUi.onboarding.allSet"), tone: "success"}
-    if (accountCount > 0) return {
+    if (accountCount > 0)
+        return {
             text: tNow("entityUi.onboarding.foundCount", {count: accountCount}),
             tone: "neutral",
         }

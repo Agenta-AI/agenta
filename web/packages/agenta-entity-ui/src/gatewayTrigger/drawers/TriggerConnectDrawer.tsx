@@ -5,10 +5,10 @@ import {
     fetchTriggerConnection,
     useTriggerConnectionsQuery,
 } from "@agenta/entities/gatewayTrigger"
-import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
-import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {createT, useT} from "@agenta/i18n"
 import triggerConnectCatalog from "@agenta/i18n/catalogs/entityUi.triggerConnect"
+import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
+import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, message, ModalContent, ModalFooter} from "@agenta/ui"
 import {
     Divider,
@@ -279,7 +279,9 @@ export default function TriggerConnectDrawer({
                         error={nameMissing ? t("entityUi.triggerConnect.required") : null}
                     >
                         <Input
-                            placeholder={t("entityUi.triggerConnect.namePlaceholder", {name: integrationName})}
+                            placeholder={t("entityUi.triggerConnect.namePlaceholder", {
+                                name: integrationName,
+                            })}
                             value={name}
                             aria-invalid={nameMissing ? true : undefined}
                             onChange={(e) => {
@@ -302,7 +304,9 @@ export default function TriggerConnectDrawer({
                                 <SelectContent>
                                     {availableModes.map((m) => (
                                         <SelectItem key={m} value={m}>
-                                            {m === "oauth" ? "OAuth" : t("entityUi.triggerConnect.apiKey")}
+                                            {m === "oauth"
+                                                ? "OAuth"
+                                                : t("entityUi.triggerConnect.apiKey")}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

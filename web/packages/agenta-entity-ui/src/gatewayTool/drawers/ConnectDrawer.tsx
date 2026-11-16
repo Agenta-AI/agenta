@@ -266,7 +266,9 @@ export default function ConnectDrawer({
                     >
                         <Input
                             autoFocus
-                            placeholder={t("entityUi.toolConnections.namePlaceholder", {name: integrationName})}
+                            placeholder={t("entityUi.toolConnections.namePlaceholder", {
+                                name: integrationName,
+                            })}
                             value={name}
                             aria-invalid={nameMissing ? true : undefined}
                             onChange={(e) => {
@@ -301,7 +303,9 @@ export default function ConnectDrawer({
                                 <SelectContent>
                                     {availableModes.map((m) => (
                                         <SelectItem key={m} value={m}>
-                                            {m === "oauth" ? "OAuth" : t("entityUi.toolConnections.apiKey")}
+                                            {m === "oauth"
+                                                ? "OAuth"
+                                                : t("entityUi.toolConnections.apiKey")}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

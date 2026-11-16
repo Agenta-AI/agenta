@@ -2,9 +2,9 @@ import {memo, useMemo, useState, type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {mountFileContentQueryFamily, sessionMountsQueryFamily} from "@agenta/entities/session"
-import {useInView} from "@agenta/shared/hooks"
 import {useT} from "@agenta/i18n"
 import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
+import {useInView} from "@agenta/shared/hooks"
 import {ArrowsOutSimple, DownloadSimple, Image as ImageIcon} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 

@@ -67,57 +67,61 @@ export const AgentOverviewBody = ({
 }: AgentOverviewBodyProps) => {
     const t = useT(agentOverviewCatalog)
     return (
-    <AgentOverviewLayout
-        main={
-            <>
-                {composer}
-                {/* Bare, on the page background — the rail opposite is the page's one defined
+        <AgentOverviewLayout
+            main={
+                <>
+                    {composer}
+                    {/* Bare, on the page background — the rail opposite is the page's one defined
                     object, and two sheets facing each other read as equal weight. */}
-                <div className="flex flex-col gap-10">
-                    <SessionListCard
-                        withPinned
-                        title={t("entityUi.agentOverview.sessions")}
-                        agentId={agentId}
-                        limit={6}
-                        emptyText={t("entityUi.agentOverview.sessionsEmpty")}
-                        viewAllHref={sessionsHref}
-                        alwaysShowPin={alwaysShowPin}
-                        onOpenRow={onOpenRow}
-                        menuFor={menuFor}
-                        onMenuSelect={onMenuSelect}
-                        onRenameRow={onRenameRow}
-                    />
-                    {/* Co-equal with Sessions, not a filter of it: an automation run is one the
+                    <div className="flex flex-col gap-10">
+                        <SessionListCard
+                            withPinned
+                            title={t("entityUi.agentOverview.sessions")}
+                            agentId={agentId}
+                            limit={6}
+                            emptyText={t("entityUi.agentOverview.sessionsEmpty")}
+                            viewAllHref={sessionsHref}
+                            alwaysShowPin={alwaysShowPin}
+                            onOpenRow={onOpenRow}
+                            menuFor={menuFor}
+                            onMenuSelect={onMenuSelect}
+                            onRenameRow={onRenameRow}
+                        />
+                        {/* Co-equal with Sessions, not a filter of it: an automation run is one the
                         user configured but did not start. */}
-                    <SessionListCard
-                        withPinned
-                        title={t("entityUi.agentOverview.automationRuns")}
-                        agentId={agentId}
-                        origin="trigger"
-                        limit={5}
-                        minHeightClassName="min-h-[100px]"
-                        emptyText={t("entityUi.agentOverview.automationRunsEmpty")}
-                        viewAllHref={automationSessionsHref ?? sessionsHref}
-                        alwaysShowPin={alwaysShowPin}
-                        onOpenRow={onOpenRow}
-                        menuFor={menuFor}
-                        onMenuSelect={onMenuSelect}
-                        onRenameRow={onRenameRow}
+                        <SessionListCard
+                            withPinned
+                            title={t("entityUi.agentOverview.automationRuns")}
+                            agentId={agentId}
+                            origin="trigger"
+                            limit={5}
+                            minHeightClassName="min-h-[100px]"
+                            emptyText={t("entityUi.agentOverview.automationRunsEmpty")}
+                            viewAllHref={automationSessionsHref ?? sessionsHref}
+                            alwaysShowPin={alwaysShowPin}
+                            onOpenRow={onOpenRow}
+                            menuFor={menuFor}
+                            onMenuSelect={onMenuSelect}
+                            onRenameRow={onRenameRow}
+                        />
+                    </div>
+                </>
+            }
+            rail={
+                <PanelSurface className="flex flex-col gap-3">
+                    <AgentConfigSummaryCard
+                        appId={agentId}
+                        onEdit={onEditConfig}
+                        copy={configCopy}
                     />
-                </div>
-            </>
-        }
-        rail={
-            <PanelSurface className="flex flex-col gap-3">
-                <AgentConfigSummaryCard appId={agentId} onEdit={onEditConfig} copy={configCopy} />
-                {channels}
-                <AgentFilesCard appId={agentId} />
-                {/* Scoped to this agent. Automation RUNS say what already happened; an agent
+                    {channels}
+                    <AgentFilesCard appId={agentId} />
+                    {/* Scoped to this agent. Automation RUNS say what already happened; an agent
                     whose schedule quietly stopped looks identical there. */}
-                <NextTriggersSection agentId={agentId} agentNames={agentNames} />
-                {usage}
-            </PanelSurface>
-        }
-    />
-)
+                    <NextTriggersSection agentId={agentId} agentNames={agentNames} />
+                    {usage}
+                </PanelSurface>
+            }
+        />
+    )
 }

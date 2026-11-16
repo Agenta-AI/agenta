@@ -106,17 +106,14 @@ export const useAgentActions = () => {
     }, [queryClient])
 
     /** `messages` are the caller's own toasts, already translated. */
-    const copy = useCallback(
-        async (value: string, messages: {copied: string; failed: string}) => {
-            try {
-                await navigator.clipboard.writeText(value)
-                message.success(messages.copied)
-            } catch {
-                message.error(messages.failed)
-            }
-        },
-        [],
-    )
+    const copy = useCallback(async (value: string, messages: {copied: string; failed: string}) => {
+        try {
+            await navigator.clipboard.writeText(value)
+            message.success(messages.copied)
+        } catch {
+            message.error(messages.failed)
+        }
+    }, [])
 
     const rename = useCallback(
         (target: AgentActionTarget) => {

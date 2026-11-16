@@ -35,7 +35,6 @@ const FolderCode = ({dir}: {dir: string}) => (
     </code>
 )
 
-
 /** The dialog frame both share: page-modal, or confined to `container` with the page live. */
 const AccessDialog = ({
     open,

@@ -25,7 +25,6 @@ import {useSetAtom} from "jotai"
 // chat session (no save, no waiting). A popover previews what the agent gets.
 // ---------------------------------------------------------------------------
 
-
 // The error toast fires from a handler, outside render.
 const tNow = createT(triggerScheduleCatalog)
 

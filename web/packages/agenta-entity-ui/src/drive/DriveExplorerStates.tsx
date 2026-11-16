@@ -65,7 +65,9 @@ export function DriveEmptyState({scope}: {scope: DriveScope}) {
                 <EmptyMedia variant="icon">
                     <Tray size={26} />
                 </EmptyMedia>
-                <EmptyTitle className="text-xs">{t("entityUi.driveExplorer.driveEmpty")}</EmptyTitle>
+                <EmptyTitle className="text-xs">
+                    {t("entityUi.driveExplorer.driveEmpty")}
+                </EmptyTitle>
                 <EmptyDescription className="text-xs">
                     {scope === "session"
                         ? t("entityUi.driveExplorer.createdOnFirstRun")

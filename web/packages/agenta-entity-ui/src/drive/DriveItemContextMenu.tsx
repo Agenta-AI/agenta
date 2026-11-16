@@ -92,7 +92,12 @@ export function useDriveItemDownload(
                     await downloadFile(resolved.mount, resolved.path)
                     return
                 }
-                message.open({type: "loading", key, content: tNow("entityUi.driveExplorer.preparingDownload"), duration: 0})
+                message.open({
+                    type: "loading",
+                    key,
+                    content: tNow("entityUi.driveExplorer.preparingDownload"),
+                    duration: 0,
+                })
                 const result = await downloadMountArchive({
                     mounts: [{mountId: resolved.mount.id, prefix: "", path: resolved.path}],
                     projectId,

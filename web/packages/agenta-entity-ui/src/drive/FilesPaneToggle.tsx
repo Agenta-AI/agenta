@@ -24,7 +24,9 @@ export function FilesPaneToggle({
                     t("entityUi.driveRail.openConversationToBrowse")
                 ) : (
                     <span className="flex items-center gap-1.5">
-                        {open ? t("entityUi.driveRail.hideFiles") : t("entityUi.driveRail.showFiles")}{" "}
+                        {open
+                            ? t("entityUi.driveRail.hideFiles")
+                            : t("entityUi.driveRail.showFiles")}{" "}
                         <ShortcutKeys id="panel.files" tone="inverse" />
                     </span>
                 )

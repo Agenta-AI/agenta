@@ -23,7 +23,9 @@ import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 const tNow = createT(driveExplorerCatalog)
 
 /** The list's columns; labels translate when the list renders. */
-const columnsFor = (t: (key: CatalogKey<typeof driveExplorerCatalog>) => string): ListTableColumn[] => [
+const columnsFor = (
+    t: (key: CatalogKey<typeof driveExplorerCatalog>) => string,
+): ListTableColumn[] => [
     {key: "name", label: t("entityUi.driveExplorer.columnName"), width: "minmax(180px,2fr)"},
     {key: "type", label: t("entityUi.driveExplorer.columnType"), width: "92px"},
     {key: "size", label: t("entityUi.driveExplorer.columnSize"), width: "84px"},

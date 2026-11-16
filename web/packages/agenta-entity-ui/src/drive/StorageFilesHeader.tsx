@@ -44,7 +44,11 @@ export default function StorageFilesHeader({
             ) : drive.errored ? null : (
                 <ConfigRowTrailing reserve={false}>
                     {drive.isFetching ? (
-                        <CircleNotch size={11} className="animate-spin" aria-label={t("entityUi.driveRail.refreshing")} />
+                        <CircleNotch
+                            size={11}
+                            className="animate-spin"
+                            aria-label={t("entityUi.driveRail.refreshing")}
+                        />
                     ) : null}
                     <SimpleTooltip title={t("entityUi.driveRail.totalFiles")}>
                         <span className={MUTED}>{label}</span>

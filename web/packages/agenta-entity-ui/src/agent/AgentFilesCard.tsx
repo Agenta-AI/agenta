@@ -168,7 +168,15 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                     scope="app"
                     initialPath={openPath}
                     driveIds={
-                        mountId ? [{key: "mount", label: t("entityUi.agentOverview.driveId"), value: mountId}] : undefined
+                        mountId
+                            ? [
+                                  {
+                                      key: "mount",
+                                      label: t("entityUi.agentOverview.driveId"),
+                                      value: mountId,
+                                  },
+                              ]
+                            : undefined
                     }
                 />
             ) : null}

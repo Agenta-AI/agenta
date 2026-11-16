@@ -7,12 +7,12 @@
 import {type Dispatch, type ReactNode, type SetStateAction} from "react"
 
 import {revealFade} from "@agenta/entities/drive"
-import {useT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {parentOf, type FlatTreeRow} from "@agenta/entities/drive"
 import {type DriveDrop} from "@agenta/entities/drive"
 import {type DriveTreeViewport} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {motion} from "motion/react"
 
 import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemContextMenu"

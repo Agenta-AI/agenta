@@ -152,7 +152,9 @@ export const TreeRow = ({
                     ) : null}
                     {pending?.error ? (
                         <span className="flex shrink-0 items-center gap-1.5 text-xs">
-                            <span className="text-colorError">{t("entityUi.driveExplorer.failed")}</span>
+                            <span className="text-colorError">
+                                {t("entityUi.driveExplorer.failed")}
+                            </span>
                             {onRetryUpload ? (
                                 <button
                                     type="button"

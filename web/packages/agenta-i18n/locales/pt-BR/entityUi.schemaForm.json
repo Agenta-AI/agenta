@@ -26,5 +26,6 @@
     "itemPlaceholder": "Item de {{label}}",
     "removeItem": "Remover item",
     "addLabel": "Adicionar {{label}}",
-    "removeObjectItem": "Remover item do objeto"
+    "removeObjectItem": "Remover item do objeto",
+    "reviewAnswers": "Revisar respostas"
 }

@@ -268,7 +268,9 @@ export default function ConnectionManagerDrawer() {
                         <Divider className="my-1" />
 
                         {/* Actions */}
-                        <span className="text-sm font-medium">{t("entityUi.toolConnections.actions")}</span>
+                        <span className="text-sm font-medium">
+                            {t("entityUi.toolConnections.actions")}
+                        </span>
                         <div className="flex flex-col gap-2">
                             <LoadingButton
                                 variant="outline"

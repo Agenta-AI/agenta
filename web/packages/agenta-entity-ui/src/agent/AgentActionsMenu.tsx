@@ -136,12 +136,14 @@ export const AgentActionsMenu = ({
                     </DropdownMenuItem>
                 ) : null}
                 {agent.slug ? (
-                    <DropdownMenuItem onSelect={() =>
+                    <DropdownMenuItem
+                        onSelect={() =>
                             void actions.copy(agent.slug!, {
                                 copied: t("entityUi.agentActions.slugCopied"),
                                 failed: t("entityUi.agentActions.couldNotCopySlug"),
                             })
-                        }>
+                        }
+                    >
                         <Copy size={16} />
                         {t("entityUi.agentActions.copySlug")}
                     </DropdownMenuItem>

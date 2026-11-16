@@ -89,7 +89,9 @@ export default function ActiveToggle({
                     </LoadingButton>
                 </TooltipTrigger>
                 <TooltipContent>
-                    {active ? t("entityUi.triggerShared.pause") : t("entityUi.triggerShared.resume")}
+                    {active
+                        ? t("entityUi.triggerShared.pause")
+                        : t("entityUi.triggerShared.resume")}
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>

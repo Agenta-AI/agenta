@@ -27,7 +27,9 @@ const formatNextRun = (at: Date) => {
     // English keeps its exact format; other languages name the day and month in their own words.
     const time = {hour: "2-digit", minute: "2-digit", hourCycle: "h23"} as const
     if (days < 7) {
-        return formatLocale() ? formatDate(at, {weekday: "short", ...time}) : run.format("ddd HH:mm")
+        return formatLocale()
+            ? formatDate(at, {weekday: "short", ...time})
+            : run.format("ddd HH:mm")
     }
     return formatLocale()
         ? formatDate(at, {day: "numeric", month: "short", ...time})
@@ -90,7 +92,10 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
     const rows = useMemo<UpcomingTrigger[]>(() => {
         const describeAgent = (references: unknown) => {
             const boundId = triggerBoundAgentId(references as never)
-            return (boundId && agentNames?.get(boundId)) || tNow("entityUi.agentOverview.unassignedAgent")
+            return (
+                (boundId && agentNames?.get(boundId)) ||
+                tNow("entityUi.agentOverview.unassignedAgent")
+            )
         }
         const isInScope = (references: unknown) =>
             !agentId || triggerBoundAgentId(references as never) === agentId
@@ -138,7 +143,10 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
                 return {
                     id: subscription.id ?? `subscription-${index}`,
                     kind: "event",
-                    name: subscription.name || eventKey || tNow("entityUi.agentOverview.eventAutomation"),
+                    name:
+                        subscription.name ||
+                        eventKey ||
+                        tNow("entityUi.agentOverview.eventAutomation"),
                     subtitle: agentId
                         ? subscription.name
                             ? eventKey

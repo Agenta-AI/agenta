@@ -150,7 +150,9 @@ export const OAuthAdvancedFields = ({
                     <HintedField label={t("entityUi.mcpConnect.clientId")}>
                         <Input
                             className="font-mono text-[13px]"
-                            placeholder={needsOwnApp ? undefined : t("entityUi.mcpConnect.optional")}
+                            placeholder={
+                                needsOwnApp ? undefined : t("entityUi.mcpConnect.optional")
+                            }
                             value={clientId}
                             disabled={disabled}
                             aria-label={t("entityUi.mcpConnect.clientId")}

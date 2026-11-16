@@ -7,15 +7,15 @@ import {WarningCircleIcon} from "@phosphor-icons/react"
 export const SectionLoadError = ({message, onRetry}: {message: string; onRetry: () => void}) => {
     const t = useT(agentOverviewCatalog)
     return (
-    // Wraps rather than truncates: an error string is the one label that must stay readable.
-    <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3">
-        <span className="flex min-w-0 items-center gap-2 text-xs text-colorTextSecondary">
-            <WarningCircleIcon size={16} className="shrink-0 text-colorError" />
-            <span className="min-w-0">{message}</span>
-        </span>
-        <Button size="sm" variant="outline" className="shrink-0" onClick={onRetry}>
-            {t("entityUi.agentOverview.retry")}
-        </Button>
-    </div>
-)
+        // Wraps rather than truncates: an error string is the one label that must stay readable.
+        <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3">
+            <span className="flex min-w-0 items-center gap-2 text-xs text-colorTextSecondary">
+                <WarningCircleIcon size={16} className="shrink-0 text-colorError" />
+                <span className="min-w-0">{message}</span>
+            </span>
+            <Button size="sm" variant="outline" className="shrink-0" onClick={onRetry}>
+                {t("entityUi.agentOverview.retry")}
+            </Button>
+        </div>
+    )
 }

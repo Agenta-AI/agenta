@@ -24,5 +24,6 @@
     "itemPlaceholder": "{{label}} の項目",
     "removeItem": "項目を削除",
     "addLabel": "{{label}} を追加",
-    "removeObjectItem": "オブジェクトの項目を削除"
+    "removeObjectItem": "オブジェクトの項目を削除",
+    "reviewAnswers": "回答を確認"
 }

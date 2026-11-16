@@ -25,5 +25,6 @@
     "itemPlaceholder": "{{label}}-Eintrag",
     "removeItem": "Eintrag entfernen",
     "addLabel": "{{label}} hinzufügen",
-    "removeObjectItem": "Objekteintrag entfernen"
+    "removeObjectItem": "Objekteintrag entfernen",
+    "reviewAnswers": "Antworten überprüfen"
 }

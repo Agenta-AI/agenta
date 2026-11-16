@@ -568,7 +568,9 @@ export function DriveExplorer({
     )
 
     // Row 2's read-side actions: copy path (none at the root), download (file, folder zip, or all).
-    const onCopyCurrentPath = selectedPath ? () => copyText(selectedPath, t("entityUi.driveExplorer.pathCopied")) : undefined
+    const onCopyCurrentPath = selectedPath
+        ? () => copyText(selectedPath, t("entityUi.driveExplorer.pathCopied"))
+        : undefined
     const copyLink = useContext(DriveLinkContext)
     const onCopyCurrentLink =
         copyLink && selectedPath != null
@@ -822,7 +824,10 @@ export function DriveExplorer({
                             rootRow={
                                 chrome && !searchActive ? (
                                     <TreeRow
-                                        node={{...ROOT_NODE, name: t("entityUi.driveExplorer.allFiles")}}
+                                        node={{
+                                            ...ROOT_NODE,
+                                            name: t("entityUi.driveExplorer.allFiles"),
+                                        }}
                                         depth={0}
                                         isOpen
                                         selected={selectedPath === ""}

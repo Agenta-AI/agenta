@@ -13,9 +13,9 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
+import {type Mount} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
-import {type Mount} from "@agenta/entities/session"
 import {
     getQuotes,
     PreviewCommentLayer,
@@ -187,7 +187,13 @@ const TextBody = ({
             </Inset>
         )
     if (typeof content !== "string")
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadContent")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadContent")}
+            />
+        )
     // flush Inset + an inner BLOCK scroll container (matching CodeBody/CsvBody). Rendering the body
     // directly into the flex-col Inset made markdown unscrollable: MD_CLASS sets `overflow-hidden`,
     // so as a flex child its auto min-height collapses to 0 — it shrinks to the pane and clips the
@@ -257,7 +263,13 @@ const CodeBody = ({
             </Inset>
         )
     if (value == null)
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadContent")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadContent")}
+            />
+        )
     return (
         <Inset flush>
             <div
@@ -322,7 +334,13 @@ const CsvBody = ({
 
     if (contentQuery.isPending) return <TableSkeleton />
     if (typeof content !== "string" || rows.length === 0)
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadContent")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadContent")}
+            />
+        )
 
     return (
         <Inset flush>
@@ -366,7 +384,13 @@ export const DriveHtmlApp = ({
             </Inset>
         )
     if (typeof content !== "string")
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadContent")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadContent")}
+            />
+        )
 
     return (
         <Inset flush>
@@ -400,7 +424,13 @@ const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     const [zoomed, setZoomed] = useState(false)
     if (isPending) return <MediaLoading />
     if (failed || !url)
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadImage")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadImage")}
+            />
+        )
     return (
         <Inset flush>
             <div
@@ -439,7 +469,13 @@ const PdfBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     const {url, isPending, failed} = useDriveObjectUrl(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadPdf")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadPdf")}
+            />
+        )
     return (
         <Inset flush>
             <embed src={url} type="application/pdf" className="min-h-0 w-full flex-1" />
@@ -453,7 +489,13 @@ const AudioBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     const {src: url, isPending, failed, onError} = useDriveMediaSrc(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadAudio")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadAudio")}
+            />
+        )
     return (
         <Inset>
             <div className="flex flex-1 items-center justify-center p-4">
@@ -469,7 +511,13 @@ const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     const {src: url, isPending, failed, onError} = useDriveMediaSrc(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadVideo")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadVideo")}
+            />
+        )
     return (
         <Inset flush>
             <video
@@ -654,7 +702,13 @@ const SpreadsheetBody = ({
     const tooLarge = overCap("spreadsheet", blob)
     const parsed = useWorkbook(tooLarge ? null : blob)
     if (failed)
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotLoadSpreadsheet")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotLoadSpreadsheet")}
+            />
+        )
     if (tooLarge && blob) return <TooLargeCard mount={mount} path={path} bytes={blob.size} />
     if (isPending || parsed === undefined) return <TableSkeleton />
     if (parsed.status === "too-large")
@@ -668,7 +722,13 @@ const SpreadsheetBody = ({
             />
         )
     if (parsed.status === "unreadable")
-        return <DownloadCard mount={mount} path={path} title={t("entityUi.drivePreview.couldNotPreviewSpreadsheet")} />
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={t("entityUi.drivePreview.couldNotPreviewSpreadsheet")}
+            />
+        )
     return (
         <SpreadsheetView
             workbook={parsed.workbook}
@@ -696,18 +756,30 @@ const OfficeFrameBody = ({
     const onFailed = useCallback(() => setFailedBlob(blob), [blob])
     if (isPending) return <MediaLoading />
     if (failed || !blob)
-        return <DownloadCard mount={mount} path={path} title={
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={
                     kind === "document"
                         ? t("entityUi.drivePreview.couldNotLoadDocument")
                         : t("entityUi.drivePreview.couldNotLoadPresentation")
-                } />
+                }
+            />
+        )
     if (overCap(kind, blob)) return <TooLargeCard mount={mount} path={path} bytes={blob.size} />
     if (failedBlob === blob)
-        return <DownloadCard mount={mount} path={path} title={
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={
                     kind === "document"
                         ? t("entityUi.drivePreview.couldNotPreviewDocument")
                         : t("entityUi.drivePreview.couldNotPreviewPresentation")
-                } />
+                }
+            />
+        )
     return (
         <Inset flush>
             <OfficeViewerFrame

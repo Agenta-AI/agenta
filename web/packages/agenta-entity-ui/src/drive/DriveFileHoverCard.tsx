@@ -59,19 +59,19 @@ const Frame = ({children, path, size}: {children: ReactNode; path: string; size:
 const NoPreview = ({path, size}: {path: string; size: string}) => {
     const t = useT(drivePreviewCatalog)
     return (
-    <div className="flex w-64 min-w-0 items-center gap-3 p-3">
-        <DriveFileGlyph path={path} />
-        <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[13px] font-medium text-popover-foreground">
-                {path.split("/").pop() ?? path}
+        <div className="flex w-64 min-w-0 items-center gap-3 p-3">
+            <DriveFileGlyph path={path} />
+            <span className="flex min-w-0 flex-col">
+                <span className="truncate text-[13px] font-medium text-popover-foreground">
+                    {path.split("/").pop() ?? path}
+                </span>
+                <span className="truncate text-xs text-muted-foreground">
+                    {size
+                        ? t("entityUi.drivePreview.noPreviewSize", {size})
+                        : t("entityUi.drivePreview.noPreview")}
+                </span>
             </span>
-            <span className="truncate text-xs text-muted-foreground">
-                {size
-                    ? t("entityUi.drivePreview.noPreviewSize", {size})
-                    : t("entityUi.drivePreview.noPreview")}
-            </span>
-        </span>
-    </div>
+        </div>
     )
 }
 
