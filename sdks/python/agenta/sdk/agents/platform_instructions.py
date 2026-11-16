@@ -379,7 +379,8 @@ PROJECT_DRIVES_GUIDANCE = """\
 
 The project drives attached to you are folders under `drives/` in your working directory, one
 per drive: `drives/<slug>/`. They are durable and other agents of this project can use them
-too. The environment notes at the end list each drive with its access. You can link a file in
+too: files there are kept, even where the notes above say your working directory lasts for
+this session only. The environment notes at the end list each drive with its access. You can link a file in
 a project drive like any other file: `[prices.csv](drives/price-lists/prices.csv)`."""
 
 

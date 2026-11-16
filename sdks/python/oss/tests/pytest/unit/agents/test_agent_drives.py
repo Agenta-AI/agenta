@@ -187,3 +187,17 @@ def test_the_editor_schema_accepts_both_keys():
 def test_the_editor_schema_refuses_a_broken_entry(drives):
     with pytest.raises(ValidationError):
         AgentTemplateSchema.model_validate({"drives": drives})
+
+
+def test_a_bare_template_with_only_drive_settings_keeps_them():
+    template = AgentTemplate.from_params({"drives": [], "has_session_drive": False})
+    assert template.drives == []
+    assert template.has_session_drive is False
+
+
+def test_the_editor_schema_output_round_trips_through_the_runtime_parse():
+    dumped = AgentTemplateSchema().model_dump()
+    assert dumped["drives"] == [{"kind": "agent", "slug": None, "access": None}]
+    assert validate_agent_drives(dumped["drives"]) == [AgentDrive(kind="agent")]
+    parsed = AgentTemplate.from_params({"agent": {"drives": dumped["drives"]}})
+    assert parsed.drives == [AgentDrive(kind="agent")]
