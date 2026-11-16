@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Download} from "lucide-react"
 
 import {Button} from "../components/ui/button"
@@ -13,7 +15,7 @@ export const ListTableExportButton = <Row,>({
     rows,
     columns,
     fileName,
-    label = "Export CSV",
+    label: labelProp,
     className,
 }: {
     rows: readonly Row[]
@@ -22,16 +24,20 @@ export const ListTableExportButton = <Row,>({
     fileName: string
     label?: string
     className?: string
-}) => (
-    <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className={className}
-        disabled={rows.length === 0}
-        onClick={() => downloadCsv(fileName, listTableToCsv(rows, columns))}
-    >
-        <Download aria-hidden data-icon="inline-start" />
-        {label}
-    </Button>
-)
+}) => {
+    const t = useT(uiControlsCatalog)
+    const label = labelProp ?? t("ui.controls.exportCsv")
+    return (
+        <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={className}
+            disabled={rows.length === 0}
+            onClick={() => downloadCsv(fileName, listTableToCsv(rows, columns))}
+        >
+            <Download aria-hidden data-icon="inline-start" />
+            {label}
+        </Button>
+    )
+}

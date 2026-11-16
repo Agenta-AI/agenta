@@ -1777,6 +1777,9 @@ importers:
 
   packages/agenta-navigation-ui:
     dependencies:
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/navigation':
         specifier: workspace:../agenta-navigation
         version: link:../agenta-navigation
@@ -2459,6 +2462,9 @@ importers:
 
   packages/agenta-ui:
     dependencies:
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared

@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Search} from "lucide-react"
 
 import {cn} from "../components/ui/utils"
@@ -24,6 +26,7 @@ export const FilterMenuFlyoutBody = ({
     onSelect: (value: string) => void
     onDismiss?: () => void
 }) => {
+    const t = useT(uiControlsCatalog)
     const [term, setTerm] = useState("")
     const inputRef = useRef<HTMLInputElement | null>(null)
     const listRef = useRef<HTMLDivElement | null>(null)
@@ -73,8 +76,9 @@ export const FilterMenuFlyoutBody = ({
                     autoFocus={autoFocus && !section.searchable}
                     emptyText={
                         query
-                            ? `Nothing matches “${term.trim()}”.`
-                            : (section.emptyText ?? `No ${section.label.toLowerCase()} options`)
+                            ? t("ui.controls.nothingMatches", {term: term.trim()})
+                            : (section.emptyText ??
+                              t("ui.controls.noOptions", {label: section.label.toLowerCase()}))
                     }
                     onDismiss={onDismiss}
                     onSelect={onSelect}

@@ -1,0 +1,7 @@
+{
+    "creating": "Creando…",
+    "description": "Los proyectos mantienen separados los agentes y las sesiones.",
+    "failed": "No se ha podido crear el proyecto",
+    "namePlaceholder": "Nombre del proyecto",
+    "title": "Crear proyecto"
+}

@@ -10,6 +10,9 @@ import {
     useState,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import type {
     ColumnSizingState,
     OnChangeFn,
@@ -233,6 +236,7 @@ export const VirtualTable = <RecordType extends object>({
     leadingCellProps,
     renderLeadingHeader,
 }: VirtualTableProps<RecordType>) => {
+    const t = useT(uiTableCatalog, commonCatalog)
     const bodyRef = useRef<HTMLDivElement | null>(null)
     const headerScrollRef = useRef<HTMLDivElement | null>(null)
     const containerRef = useRef<HTMLDivElement | null>(null)
@@ -525,7 +529,9 @@ export const VirtualTable = <RecordType extends object>({
                                                     key="resize"
                                                     role="separator"
                                                     aria-orientation="vertical"
-                                                    aria-label={`Resize ${header.column.id}`}
+                                                    aria-label={t("ui.table.resizeColumn", {
+                                                        column: header.column.id,
+                                                    })}
                                                     data-resize-handle={header.column.id}
                                                     className={cn(
                                                         AVT.resizeHandle,
@@ -654,8 +660,8 @@ export const VirtualTable = <RecordType extends object>({
                                                             type="button"
                                                             aria-label={
                                                                 expanded
-                                                                    ? "Collapse row"
-                                                                    : "Expand row"
+                                                                    ? t("ui.table.collapseRow")
+                                                                    : t("ui.table.expandRow")
                                                             }
                                                             aria-expanded={expanded}
                                                             data-expand-toggle={row.id}

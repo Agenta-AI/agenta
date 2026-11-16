@@ -1,5 +1,8 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Group} from "lucide-react"
 
 import {Popover, PopoverContent} from "../components/ui/popover"
@@ -48,11 +51,11 @@ export const GroupMenu = <Value extends string = string>({
     onChange,
     multi,
     searchable = false,
-    searchPlaceholder = "Search",
+    searchPlaceholder: searchPlaceholderProp,
     defaultSearch = "",
-    emptyText = "Nothing to group by",
+    emptyText: emptyTextProp,
     onReset,
-    resetLabel = "Reset to defaults",
+    resetLabel: resetLabelProp,
     resetDisabled,
     open: openProp,
     onOpenChange,
@@ -68,6 +71,10 @@ export const GroupMenu = <Value extends string = string>({
     triggerAriaLabel,
     active,
 }: GroupMenuProps<Value>) => {
+    const t = useT(uiControlsCatalog, commonCatalog)
+    const searchPlaceholder = searchPlaceholderProp ?? t("common.search")
+    const emptyText = emptyTextProp ?? t("ui.controls.nothingToGroupBy")
+    const resetLabel = resetLabelProp ?? t("ui.controls.resetToDefaults")
     const [uncontrolled, setUncontrolled] = useState(false)
     const [query, setQuery] = useState(defaultSearch)
     const open = openProp ?? uncontrolled
@@ -107,7 +114,7 @@ export const GroupMenu = <Value extends string = string>({
                 side={side}
                 align={align}
                 sideOffset={sideOffset}
-                aria-label="Group by"
+                aria-label={t("ui.controls.groupBy")}
                 className={className ?? "w-[220px] p-0"}
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >
@@ -127,7 +134,11 @@ export const GroupMenu = <Value extends string = string>({
                     className="p-1"
                     options={shown}
                     selected={selected}
-                    emptyText={query.trim() ? `Nothing matches “${query.trim()}”.` : emptyText}
+                    emptyText={
+                        query.trim()
+                            ? t("ui.controls.nothingMatches", {term: query.trim()})
+                            : emptyText
+                    }
                     autoFocus={!searchable}
                     onSelect={(next) => {
                         onChange(next as Value)

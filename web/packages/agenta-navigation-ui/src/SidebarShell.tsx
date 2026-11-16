@@ -1,5 +1,7 @@
 import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     filterVisibleSections,
     SIDEBAR_COLLAPSED_WIDTH,
@@ -163,6 +165,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     onNavigate,
     onDismiss,
 }) => {
+    const t = useT(navigationCatalog)
     // Only a drawer can dismiss the rail, so this is also how the shell knows it is in a sheet.
     const isOverlay = Boolean(onDismiss)
     const [collapsed] = useAtom(collapsedAtom)
@@ -377,7 +380,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     className="absolute inset-y-0 -right-1 z-10 w-[9px] cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-colorBorder group-data-[resizing=true]/rail:after:bg-colorPrimary"
                     role="separator"
                     aria-orientation="vertical"
-                    aria-label="Resize sidebar"
+                    aria-label={t("navigation.chrome.resizeSidebar")}
                     {...handleProps}
                 />
             )}

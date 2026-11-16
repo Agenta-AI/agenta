@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Eye, EyeSlash, MagnifyingGlass, XCircle} from "@phosphor-icons/react"
 
 import {type InputProps, Textarea, type TextareaProps, inputVariants} from "./input"
@@ -47,6 +49,7 @@ export function InputAffix({
     ref,
     ...rest
 }: InputAffixProps) {
+    const t = useT(uiControlsCatalog)
     const size = sizeProp ?? "default"
     const innerRef = React.useRef<HTMLInputElement | null>(null)
 
@@ -110,7 +113,7 @@ export function InputAffix({
                     type="button"
                     tabIndex={-1}
                     onClick={handleClear}
-                    aria-label="clear"
+                    aria-label={t("ui.controls.clearInput")}
                     className="flex shrink-0 items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
                 >
                     <XCircle size={14} weight="fill" />

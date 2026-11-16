@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {ArrowLeft, RotateCcw as ArrowCounterClockwise, Search} from "lucide-react"
 
 import {cn} from "../components/ui/utils"
@@ -70,10 +72,10 @@ export const ResetRow = ({
 export const FilterMenuPanel = ({
     sections,
     searchable = true,
-    searchPlaceholder = "Search filters, sort, group…",
+    searchPlaceholder: searchPlaceholderProp,
     defaultSearch = "",
     onReset,
-    resetLabel = "Reset to defaults",
+    resetLabel: resetLabelProp,
     resetDisabled,
     flyoutSide,
     flyoutAlign,
@@ -90,6 +92,9 @@ export const FilterMenuPanel = ({
     resetDisabled?: boolean
     className?: string
 } & Pick<FilterMenuPlacementProps, "flyoutSide" | "flyoutAlign" | "flyoutSideOffset">) => {
+    const t = useT(uiControlsCatalog)
+    const searchPlaceholder = searchPlaceholderProp ?? t("ui.controls.searchFilters")
+    const resetLabel = resetLabelProp ?? t("ui.controls.resetToDefaults")
     const [query, setQuery] = useState(defaultSearch)
     const [openKey, setOpenKey] = useState<string | null>(null)
     // Below this there is no room beside the panel for a flyout, and one opened there covers the
@@ -238,7 +243,7 @@ export const FilterMenuPanel = ({
                     <button
                         type="button"
                         onClick={back}
-                        aria-label={`Back to filters`}
+                        aria-label={t("ui.controls.backToFilters")}
                         className={cn(
                             "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
                             "flex min-w-0 flex-1 items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",

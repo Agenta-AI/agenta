@@ -1,3 +1,7 @@
+import {createT} from "@agenta/i18n"
+import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
+
+const tNow = createT(uiDrillInCatalog)
 export type ViewMode = "text" | "markdown" | "json" | "yaml" | "form"
 
 /** The view modes a chat / prompt message editor can render ("form" is for objects). */
@@ -48,12 +52,18 @@ export function getViewOptions(value: unknown, enableFormView = false): ViewOpti
     }
 
     if (typeof value === "string") {
-        return [{value: "text", label: "Text"}, {value: "markdown", label: "Markdown"}, ...jsonYaml]
+        return [
+            {value: "text", label: tNow("ui.drillIn.text")},
+            {value: "markdown", label: "Markdown"},
+            ...jsonYaml,
+        ]
     }
 
     if (Array.isArray(value)) {
         return jsonYaml
     }
 
-    return enableFormView ? [{value: "form", label: "Form"}, ...jsonYaml] : jsonYaml
+    return enableFormView
+        ? [{value: "form", label: tNow("ui.drillIn.form")}, ...jsonYaml]
+        : jsonYaml
 }

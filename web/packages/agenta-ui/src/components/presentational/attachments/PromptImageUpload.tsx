@@ -21,6 +21,8 @@
 
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, richText, useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import {generateId} from "@agenta/shared/utils"
 import {Image as ImageIcon, MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -33,6 +35,8 @@ import {Spinner} from "../../ui/spinner"
 import ImagePreview from "./ImagePreview"
 import {usePromptFileUpload} from "./usePromptFileUpload"
 import {resolveSafeImagePreviewSrc} from "./utils"
+
+const tNow = createT(uiChatCatalog)
 
 // ============================================================================
 // TYPES
@@ -95,6 +99,7 @@ const PromptImageUpload = ({
     handleUploadFileChange,
     imageFile,
 }: PromptImageUploadProps) => {
+    const t = useT(uiChatCatalog)
     const fileUploadRef = useRef(false)
 
     const [draftValue, setDraftValue] = useState<string | null>(null)
@@ -110,9 +115,9 @@ const PromptImageUpload = ({
         isDragging,
     } = usePromptFileUpload({
         maxSize: MAX_SIZE,
-        sizeError: "Image size must be less than 5MB.",
+        sizeError: t("ui.chat.imageTooLarge"),
         isTypeAllowed: (file) => ALLOWED_TYPES.includes(file.type),
-        typeError: "Unsupported image format. Use JPEG, PNG, WebP, or GIF.",
+        typeError: t("ui.chat.unsupportedImage"),
         disabled,
         onAccepted: (file, dataUrl) => {
             const previewUrl = URL.createObjectURL(file)
@@ -158,7 +163,7 @@ const PromptImageUpload = ({
         }
 
         if (!isValidImageUrl(val)) {
-            setError("Invalid URL format.")
+            setError(tNow("ui.chat.invalidUrl"))
             setIsValidPreview(false)
             return
         }
@@ -183,7 +188,7 @@ const PromptImageUpload = ({
 
         img.onerror = () => {
             setIsValidPreview(false)
-            setError("Preview failed due to CORS or invalid image URL.")
+            setError(tNow("ui.chat.previewFailed"))
         }
     }
 
@@ -217,7 +222,7 @@ const PromptImageUpload = ({
                 ) : isValidPreview ? (
                     <ImagePreview
                         src={displayValue}
-                        alt="Preview"
+                        alt={t("ui.chat.preview")}
                         size={48}
                         isValidPreview={isValidPreview}
                     />
@@ -230,15 +235,22 @@ const PromptImageUpload = ({
 
                 <div className="flex flex-col w-full items-start">
                     <span className="text-xs">
-                        Drag an image here or{" "}
-                        <Button variant="link" className="p-0 underline" onClick={triggerUpload}>
-                            upload a file
-                        </Button>
+                        {richText(t("ui.chat.dragImage"), {
+                            link: (text) => (
+                                <Button
+                                    variant="link"
+                                    className="p-0 underline"
+                                    onClick={triggerUpload}
+                                >
+                                    {text}
+                                </Button>
+                            ),
+                        })}
                     </span>
 
                     {!isUploading && (
                         <InputAffix
-                            placeholder="(Optionally) Enter a valid URL"
+                            placeholder={t("ui.chat.optionalUrl")}
                             value={displayValue}
                             onValueChange={(next) => {
                                 setDraftValue(next)

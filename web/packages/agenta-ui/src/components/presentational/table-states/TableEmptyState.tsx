@@ -14,6 +14,9 @@
  * ```
  */
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+
 import {cn, flexLayouts, justifyClasses} from "../../../utils/styles"
 import {EmptyState} from "../../ui/empty-state"
 
@@ -27,10 +30,12 @@ export interface TableEmptyStateProps {
 }
 
 export function TableEmptyState({
-    message = "No data found",
+    message: messageProp,
     className,
     simple = true,
 }: TableEmptyStateProps) {
+    const t = useT(uiControlsCatalog)
+    const message = messageProp ?? t("ui.controls.noDataFound")
     return (
         <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "h-full", className)}>
             <EmptyState image={simple ? "simple" : "default"} description={message} />

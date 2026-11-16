@@ -6,6 +6,11 @@
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {FileArchive, FilePdf, FileText, Image as ImageIcon} from "@phosphor-icons/react"
 import {
     DecoratorNode,
@@ -20,6 +25,8 @@ import {Button} from "../../../../components/ui/button"
 import {Popover, PopoverAnchor, PopoverContent} from "../../../../components/ui/popover"
 import {message} from "../../../../utils/appMessageContext"
 import {copyToClipboard} from "../../../../utils/copyToClipboard"
+
+const tNow = createT(uiEditorCatalog, commonCatalog, uiChatCatalog)
 
 /** Regex to detect base64 data URLs */
 const BASE64_DATA_URL_REGEX = /^"?data:([^;]+);base64,([A-Za-z0-9+/=]{50,})"?$/
@@ -84,19 +91,19 @@ export function parseBase64String(value: string): {
  * Get file type label from mime type
  */
 function getFileTypeLabel(mimeType: string | null): string {
-    if (!mimeType) return "Base64 Data"
+    if (!mimeType) return tNow("ui.editor.base64Data")
 
     if (mimeType.startsWith("image/")) {
-        return `Image (${mimeType.split("/")[1].toUpperCase()})`
+        return tNow("ui.editor.imageType", {type: mimeType.split("/")[1].toUpperCase()})
     }
     if (mimeType.startsWith("application/pdf")) {
-        return "PDF Document"
+        return tNow("ui.editor.pdfDocument")
     }
     if (mimeType.startsWith("application/")) {
         return mimeType.split("/")[1].toUpperCase()
     }
     if (mimeType.startsWith("text/")) {
-        return `Text (${mimeType.split("/")[1]})`
+        return tNow("ui.editor.textType", {type: mimeType.split("/")[1]})
     }
     return mimeType
 }
@@ -184,6 +191,7 @@ function Base64Component({
     mimeType: string | null
     nodeKey: string
 }) {
+    const t = useT(uiStatusCatalog, commonCatalog)
     const [copied, setCopied] = useState(false)
     // antd `trigger="hover"` defaults: mouseEnterDelay/mouseLeaveDelay 0.1s.
     const {open, setOpen, hoverProps} = useHoverOpen(100, 100)
@@ -204,10 +212,10 @@ function Base64Component({
         const success = await copyToClipboard(parsed.fullValue)
         if (success) {
             setCopied(true)
-            message.success("Copied to clipboard")
+            message.success(tNow("common.copiedToClipboard"))
             setTimeout(() => setCopied(false), 2000)
         } else {
-            message.error("Failed to copy")
+            message.error(tNow("common.failedToCopy"))
         }
     }, [parsed.fullValue])
 
@@ -218,7 +226,7 @@ function Base64Component({
             <div className="flex items-center justify-between gap-4 mb-3">
                 <span className="font-semibold">{fileTypeLabel}</span>
                 <Button variant="outline" size="sm" onClick={handleCopy}>
-                    {copied ? "Copied!" : "Copy"}
+                    {copied ? t("ui.status.copiedBang") : t("common.copy")}
                 </Button>
             </div>
 
@@ -227,13 +235,13 @@ function Base64Component({
                 {isImage && dataUrl ? (
                     <img
                         src={dataUrl}
-                        alt="Preview"
+                        alt={tNow("ui.chat.preview")}
                         className="max-w-full max-h-[250px] rounded object-contain"
                     />
                 ) : isPdf && dataUrl ? (
                     <iframe
                         src={dataUrl}
-                        title="PDF Preview"
+                        title={tNow("ui.editor.pdfPreview")}
                         className="w-full h-[300px] border-0"
                     />
                 ) : (

@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Slot} from "@radix-ui/react-slot"
 import {MoreHorizontal} from "lucide-react"
 
@@ -123,6 +125,7 @@ function BreadcrumbSeparator({children, className, ...props}: React.ComponentPro
 }
 
 function BreadcrumbEllipsis({className, ...props}: React.ComponentProps<"span">) {
+    const t = useT(uiControlsCatalog)
     return (
         <span
             data-slot="breadcrumb-ellipsis"
@@ -139,7 +142,7 @@ function BreadcrumbEllipsis({className, ...props}: React.ComponentProps<"span">)
             {...props}
         >
             <MoreHorizontal className="size-3" />
-            <span className="sr-only">More</span>
+            <span className="sr-only">{t("ui.controls.more")}</span>
         </span>
     )
 }
