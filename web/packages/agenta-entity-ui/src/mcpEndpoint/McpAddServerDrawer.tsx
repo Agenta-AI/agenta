@@ -14,6 +14,8 @@
 import {useEffect, useMemo, useState, type Ref} from "react"
 
 import type {McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
+import {useT} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, EmptyState, IconTile, SearchInput, SkeletonRows} from "@agenta/ui/ui"
 import {Plugs, Plus} from "@phosphor-icons/react"
@@ -51,8 +53,6 @@ export interface McpAddServerDrawerProps {
     panelRef?: Ref<HTMLDivElement>
 }
 
-const SUBTITLE = "Pick a connected server, or connect a new one."
-
 export function McpAddServerDrawer({
     open,
     onClose,
@@ -63,6 +63,7 @@ export function McpAddServerDrawer({
     onReconnect,
     panelRef,
 }: McpAddServerDrawerProps) {
+    const t = useT(mcpConnectCatalog)
     const [search, setSearch] = useState("")
     // One write in flight at a time: two overlapping adds both start from the same array.
     const [busy, setBusy] = useState(false)
@@ -116,11 +117,13 @@ export function McpAddServerDrawer({
             panelRef={panelRef}
             title={
                 <span className="flex flex-col gap-0.5">
-                    <span className="text-sm font-semibold">Add MCP server</span>
+                    <span className="text-sm font-semibold">
+                        {t("entityUi.mcpConnect.addMcpServer")}
+                    </span>
                     {emptyProject ? null : (
                         // Hidden on a phone, where it wraps beside Connect server.
                         <span className="hidden text-xs font-normal text-colorTextTertiary sm:inline">
-                            {SUBTITLE}
+                            {t("entityUi.mcpConnect.addServerSubtitle")}
                         </span>
                     )}
                 </span>
@@ -130,7 +133,7 @@ export function McpAddServerDrawer({
                 emptyProject ? undefined : (
                     <Button size="sm" variant="outline" onClick={onConnectServer}>
                         <Plus size={13} />
-                        Connect server
+                        {t("entityUi.mcpConnect.connectServer")}
                     </Button>
                 )
             }
@@ -148,20 +151,20 @@ export function McpAddServerDrawer({
                                 <Plugs />
                             </IconTile>
                         }
-                        title="No MCP servers in this project yet"
-                        description="Connect an MCP server by URL. You'll sign in or add a key once, and every agent in the project can use it."
+                        title={t("entityUi.mcpConnect.noServersYet")}
+                        description={t("entityUi.mcpConnect.noServersYetBody")}
                     >
                         <Button onClick={onConnectServer}>
                             <Plus size={14} />
-                            Connect server
+                            {t("entityUi.mcpConnect.connectServer")}
                         </Button>
                     </EmptyState>
                 </div>
             ) : (
                 <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 p-4">
                     <SearchInput
-                        placeholder="Search servers"
-                        aria-label="Search servers"
+                        placeholder={t("entityUi.mcpConnect.searchServers")}
+                        aria-label={t("entityUi.mcpConnect.searchServers")}
                         value={search}
                         onValueChange={setSearch}
                     />
@@ -171,7 +174,9 @@ export function McpAddServerDrawer({
                         // permission drawer do not shimmer differently.
                         <SkeletonRows rowClassName="h-[58px]" />
                     ) : visible.length === 0 ? (
-                        <span className="text-xs text-colorTextTertiary">No servers match</span>
+                        <span className="text-xs text-colorTextTertiary">
+                            {t("entityUi.mcpConnect.noServersMatch")}
+                        </span>
                     ) : (
                         <div className="flex flex-col gap-2">
                             {visible.map((option) => (

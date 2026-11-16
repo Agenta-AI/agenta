@@ -35,8 +35,9 @@ import {
     type McpServerPolicy,
     type McpToolSummary,
 } from "@agenta/entities/mcpEndpoint"
+import {createT, useT} from "@agenta/i18n"
+import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions"
 import {projectIdAtom} from "@agenta/shared/state"
-import {formatCount} from "@agenta/shared/utils"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Alert, Button, IconTile, InlineConfirm} from "@agenta/ui/ui"
 import {ArrowClockwise, CaretLeft, Plugs, Trash, WarningCircle} from "@phosphor-icons/react"
@@ -62,8 +63,8 @@ import {ToolsEmpty} from "../shared/ToolsEmpty"
 
 import {FOLLOW_AGENT_PRESET, MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
 
-/** A tool the server's include filter hides may not be given a permission at all. */
-const HIDDEN_TOOL_REASON = "Hidden by this server's tool filter"
+// Built inside memos and callbacks below, which read the language when they run.
+const tNow = createT(mcpPermissionsCatalog)
 
 export interface McpPermissionDrawerProps {
     open: boolean
@@ -132,30 +133,33 @@ type ToolsState =
     | {status: "idle"}
     | {status: "loading"}
     | {status: "ready"; tools: McpToolSummary[]}
-    | {status: "failed"; error: string; needsAuth: boolean; retryable: boolean}
+    /** `reason` picks the sentence shown; the server's own text goes to the console only. */
+    | {
+          status: "failed"
+          reason: "notConnected" | "noAccess" | "unreadable"
+          needsAuth: boolean
+          retryable: boolean
+      }
 
 /**
  * What a person reads when the tool list fails, and whether trying again can help. The server's
  * own sentence names routes and permissions, so it goes to the console, never to the screen.
  */
-const toolListFailure = (
-    error: unknown,
-    name: string,
-): Omit<Extract<ToolsState, {status: "failed"}>, "status"> => {
+const toolListFailure = (error: unknown): Omit<Extract<ToolsState, {status: "failed"}>, "status"> => {
     const code = gatewayRefusalCode(error)
     const status = gatewayRefusalStatus(error)
     if (code === "auth_required") {
         return {
             needsAuth: true,
             retryable: false,
-            error: `${name} is not connected yet, so its tools cannot be listed.`,
+            reason: "notConnected",
         }
     }
     if (status === 403 && code !== "endpoint_inactive") {
         return {
             needsAuth: false,
             retryable: false,
-            error: "You do not have access to this server's tools.",
+            reason: "noAccess",
         }
     }
     return {
@@ -168,7 +172,7 @@ const toolListFailure = (
             status === 408 ||
             status === 429 ||
             code === "upstream_error",
-        error: "The tool list could not be read.",
+        reason: "unreadable",
     }
 }
 
@@ -180,6 +184,7 @@ function LoginExpiredBanner({
     connectionName: string
     onReconnect?: () => void
 }) {
+    const t = useT(mcpPermissionsCatalog)
     return (
         <Alert
             type="warning"
@@ -189,13 +194,13 @@ function LoginExpiredBanner({
             // transcript, minus the third: entity-ui cannot import chat, so the copy is shared by
             // convention. Change one and change the other. It drops "Permissions below are kept"
             // on purpose, because that points at controls a transcript does not have.
-            message={`${connectionName} needs a new sign-in.`}
-            description="Its tools fail until someone in the project reconnects. Permissions below are kept."
+            message={t("entityUi.mcpPermissions.needsNewSignIn", {name: connectionName})}
+            description={t("entityUi.mcpPermissions.needsNewSignInBody")}
             action={
                 onReconnect ? (
                     <Button variant="default" size="sm" onClick={onReconnect}>
                         <ArrowClockwise data-icon="inline-start" />
-                        Reconnect
+                        {t("entityUi.mcpPermissions.reconnect")}
                     </Button>
                 ) : undefined
             }
@@ -217,6 +222,7 @@ function DrawerTitle({
     toolCount?: number
     onBack?: () => void
 }) {
+    const t = useT(mcpPermissionsCatalog)
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the health past the edge.
         <div className="flex w-full min-w-0 items-center gap-3">
@@ -224,7 +230,7 @@ function DrawerTitle({
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Back to servers"
+                    aria-label={t("entityUi.mcpPermissions.backToServers")}
                     onClick={onBack}
                     className="-ml-1 -mr-1 shrink-0"
                 >
@@ -245,7 +251,7 @@ function DrawerTitle({
                 ) : null}
                 {toolCount != null ? (
                     <span className="shrink-0 text-xs font-normal text-colorTextTertiary">
-                        {formatCount(toolCount, "tool")}
+                        {t("entityUi.mcpPermissions.toolsCount", {count: toolCount})}
                     </span>
                 ) : null}
             </div>
@@ -266,13 +272,14 @@ function RemoveFromAgent({
     connectionName: string
     onRemove: () => void
 }) {
+    const t = useT(mcpPermissionsCatalog)
     const [confirming, setConfirming] = useState(false)
 
     if (confirming) {
         return (
             <InlineConfirm
-                message={`Remove ${connectionName} from this agent? The connection stays in the project.`}
-                confirmLabel="Remove"
+                message={t("entityUi.mcpPermissions.removeConfirm", {name: connectionName})}
+                confirmLabel={t("entityUi.mcpPermissions.remove")}
                 onConfirm={onRemove}
                 onCancel={() => setConfirming(false)}
             />
@@ -288,7 +295,7 @@ function RemoveFromAgent({
             className="-ml-2 px-2 font-normal !text-colorError hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)]"
         >
             <Trash data-icon="inline-start" />
-            Remove from agent
+            {t("entityUi.mcpPermissions.removeFromAgent")}
         </Button>
     )
 }
@@ -313,9 +320,10 @@ export default function McpPermissionDrawer({
     panelRef,
     account,
 }: McpPermissionDrawerProps) {
+    const t = useT(mcpPermissionsCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
-    const name = connectionName || slug || "This server"
+    const name = connectionName || slug || t("entityUi.mcpPermissions.thisServer")
 
     // Which connection the visible list belongs to. A tool list is fetched per connection and
     // arrives whenever it arrives, so without this, switching connections mid-flight rendered the
@@ -335,9 +343,9 @@ export default function McpPermissionDrawer({
         } catch (error) {
             if (shownFor.current !== slug) return
             console.error("[mcp] the tool list could not be read", error)
-            setTools({status: "failed", ...toolListFailure(error, name)})
+            setTools({status: "failed", ...toolListFailure(error)})
         }
-    }, [loadToolsFrom, name, projectId, slug])
+    }, [loadToolsFrom, projectId, slug])
 
     useEffect(() => {
         if (!open) return
@@ -422,7 +430,9 @@ export default function McpPermissionDrawer({
                 triggerTitle:
                     permissions.default === "inherit"
                         ? undefined
-                        : `Inherits ${permissions.default}`,
+                        : tNow("entityUi.mcpPermissions.inheritsPermission", {
+                              permission: permissions.default,
+                          }),
             }
         },
         [permissions],
@@ -485,7 +495,7 @@ export default function McpPermissionDrawer({
         if (!slug) {
             return (
                 <p className="m-0 px-1 py-4 text-xs text-colorTextSecondary">
-                    Select a connection to choose what this agent may do with it.
+                    {tNow("entityUi.mcpPermissions.selectConnection")}
                 </p>
             )
         }
@@ -496,23 +506,29 @@ export default function McpPermissionDrawer({
         return (
             <ToolsEmpty
                 icon={<WarningCircle size={18} />}
-                title="Couldn't read this server's tools"
-                description={tools.error}
+                title={tNow("entityUi.mcpPermissions.couldNotReadTools")}
+                description={
+                    tools.reason === "notConnected"
+                        ? tNow("entityUi.mcpPermissions.notConnectedYet", {name})
+                        : tools.reason === "noAccess"
+                          ? tNow("entityUi.mcpPermissions.noAccess")
+                          : tNow("entityUi.mcpPermissions.toolListUnreadable")
+                }
                 action={
                     tools.needsAuth && onReconnect && !disabled ? (
                         <Button variant="outline" onClick={onReconnect}>
-                            Connect
+                            {tNow("entityUi.mcpPermissions.connect")}
                         </Button>
                     ) : tools.retryable ? (
                         <Button variant="outline" onClick={() => void loadTools()}>
                             <ArrowClockwise size={14} />
-                            Retry tools
+                            {tNow("entityUi.mcpPermissions.retryTools")}
                         </Button>
                     ) : undefined
                 }
             />
         )
-    }, [askToReconnect, disabled, loadTools, onReconnect, slug, tools])
+    }, [askToReconnect, disabled, loadTools, name, onReconnect, slug, tools])
 
     const catalog = useMemo<PermissionDrawerCatalog>(() => {
         if (!slug) return {status: "error", tools: [], complete: false, errorNode}
@@ -531,8 +547,7 @@ export default function McpPermissionDrawer({
         strandedByFilter.length && !readOnly ? (
             <div className="flex flex-col gap-1">
                 <span className="text-xs text-colorError">
-                    Rules for tools this server&apos;s filter hides. The agent cannot run until they
-                    are removed.
+                    {t("entityUi.mcpPermissions.strandedRules")}
                 </span>
                 {strandedByFilter.map((toolName) => (
                     <div key={toolName} className="flex items-center justify-between gap-2">
@@ -543,7 +558,7 @@ export default function McpPermissionDrawer({
                             disabled={disabled}
                             onClick={() => setTool(toolName, "inherit")}
                         >
-                            Remove
+                            {t("entityUi.mcpPermissions.remove")}
                         </Button>
                     </div>
                 ))}
@@ -585,17 +600,17 @@ export default function McpPermissionDrawer({
                 catalog,
                 searchCount:
                     catalog.status === "ready" ? undefined : (cachedToolCount ?? undefined),
-                emptyLabel: "This server exposes no tools yet.",
-                readOnlyLabel: "Read-only",
-                writeLabel: "Write",
+                emptyLabel: t("entityUi.mcpPermissions.noToolsYet"),
+                readOnlyLabel: t("entityUi.mcpPermissions.readOnly"),
+                writeLabel: t("entityUi.mcpPermissions.write"),
                 // The spec's own phrase for a saved rule whose tool the server has stopped
                 // advertising. "Not in catalog" is the Composio wording and names a thing an MCP
                 // server does not have.
-                staleLabel: "no longer offered",
+                staleLabel: t("entityUi.mcpPermissions.noLongerOffered"),
                 toolOptions,
                 presets,
                 lockedTool: (toolKey) =>
-                    isToolHidden(policy, toolKey) ? HIDDEN_TOOL_REASON : null,
+                    isToolHidden(policy, toolKey) ? t("entityUi.mcpPermissions.hiddenByFilter") : null,
                 rowValue,
                 banner: askToReconnect ? (
                     <LoginExpiredBanner connectionName={name} onReconnect={onReconnect} />

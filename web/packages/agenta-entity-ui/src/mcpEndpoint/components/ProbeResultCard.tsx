@@ -6,6 +6,8 @@
  * about, and a flow that showed the address on one step and the key field on the next made
  * people close the dialog to check what they had typed.
  */
+import {useT, type CatalogKey} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
 import {CheckCircle, Plugs} from "@phosphor-icons/react"
 
@@ -18,10 +20,10 @@ export type ProbeResultMode = "oauth" | "api_key" | "none"
  * Kept here rather than at the three call sites so the three screens cannot drift into
  * three wordings for the same finding.
  */
-const SUMMARY: Record<ProbeResultMode, string> = {
-    oauth: "Reachable · signs in with OAuth",
-    api_key: "Reachable · needs an API key",
-    none: "Reachable · no sign-in needed",
+const SUMMARY: Record<ProbeResultMode, CatalogKey<typeof mcpConnectCatalog>> = {
+    oauth: "entityUi.mcpConnect.reachableOauth",
+    api_key: "entityUi.mcpConnect.reachableApiKey",
+    none: "entityUi.mcpConnect.reachableNone",
 }
 
 export interface ProbeResultCardProps {
@@ -31,7 +33,9 @@ export interface ProbeResultCardProps {
     onChange?: () => void
 }
 
-export const ProbeResultCard = ({url, mode, onChange}: ProbeResultCardProps) => (
+export const ProbeResultCard = ({url, mode, onChange}: ProbeResultCardProps) => {
+    const t = useT(mcpConnectCatalog)
+    return (
     <div
         data-testid="mcp-probe-result"
         className="flex items-center gap-3 rounded-control border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2.5"
@@ -47,7 +51,7 @@ export const ProbeResultCard = ({url, mode, onChange}: ProbeResultCardProps) => 
                 {/* Inherits the line's colour, as the design draws it: the finding is what
                     the glyph marks, not a status of its own. */}
                 <CheckCircle size={13} className="shrink-0" />
-                {SUMMARY[mode]}
+                {t(SUMMARY[mode])}
             </span>
         </div>
         {onChange ? (
@@ -59,10 +63,11 @@ export const ProbeResultCard = ({url, mode, onChange}: ProbeResultCardProps) => 
                 className={cn("shrink-0 px-0 text-xs", touchTargetExpansion(24))}
                 onClick={onChange}
             >
-                Change
+                {t("entityUi.mcpConnect.change")}
             </Button>
         ) : null}
     </div>
-)
+    )
+}
 
 export default ProbeResultCard

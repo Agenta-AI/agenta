@@ -6,23 +6,28 @@
  * probe's answer is marked "Detected" and the person can pick another.
  */
 import type {MCPAuthMode} from "@agenta/entities/mcpEndpoint"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import mcpConnectCatalog from "@agenta/i18n/catalogs/entityUi.mcpConnect"
 import {Badge, Segmented} from "@agenta/ui/ui"
 
-export const MCP_AUTH_MODE_LABEL: Record<MCPAuthMode, string> = {
-    none: "None",
-    api_key: "API key",
-    oauth: "OAuth",
+type McpConnectKey = CatalogKey<typeof mcpConnectCatalog>
+
+/** Catalog keys; translate with the `entityUi.mcpConnect` catalog where the label renders. */
+export const MCP_AUTH_MODE_LABEL: Record<MCPAuthMode, McpConnectKey> = {
+    none: "entityUi.mcpConnect.authNone",
+    api_key: "entityUi.mcpConnect.authApiKey",
+    oauth: "entityUi.mcpConnect.authOauth",
 }
 
 const ORDER: MCPAuthMode[] = ["none", "api_key", "oauth"]
 
 /** Said when the choice moves away from what the probe found, to say why one might. */
-const AWAY_FROM_DETECTED: Partial<Record<MCPAuthMode, string>> = {
-    oauth: "The probe found OAuth. Pick API key if this server also accepts a key you already have.",
-    none: "The server answered without a key. Add one if your plan gives you a key for higher limits.",
+const AWAY_FROM_DETECTED: Partial<Record<MCPAuthMode, McpConnectKey>> = {
+    oauth: "entityUi.mcpConnect.awayFromOauth",
+    none: "entityUi.mcpConnect.awayFromNone",
 }
 
-const OAUTH_UNAVAILABLE = "OAuth is available when the server offers OAuth sign-in."
+const OAUTH_UNAVAILABLE: McpConnectKey = "entityUi.mcpConnect.oauthUnavailable"
 
 export interface AuthModeSelectorProps {
     value: MCPAuthMode
@@ -41,17 +46,20 @@ export const AuthModeSelector = ({
     disabled,
     onChange,
 }: AuthModeSelectorProps) => {
+    const t = useT(mcpConnectCatalog)
     const hints = [
         detected && value !== detected ? AWAY_FROM_DETECTED[detected] : null,
         oauthSelectable ? null : OAUTH_UNAVAILABLE,
-    ].filter(Boolean)
+    ].filter((key): key is McpConnectKey => Boolean(key))
 
     return (
         <div className="flex flex-col gap-1.5" data-testid="mcp-auth-mode">
-            <span className="text-xs font-medium text-colorText">Authentication</span>
+            <span className="text-xs font-medium text-colorText">
+                {t("entityUi.mcpConnect.authentication")}
+            </span>
             <Segmented
                 block
-                aria-label="Authentication"
+                aria-label={t("entityUi.mcpConnect.authentication")}
                 value={value}
                 disabled={disabled}
                 onChange={(mode) => onChange(mode as MCPAuthMode)}
@@ -60,15 +68,17 @@ export const AuthModeSelector = ({
                     disabled: mode === "oauth" && !oauthSelectable,
                     label: (
                         <>
-                            {MCP_AUTH_MODE_LABEL[mode]}
-                            {mode === detected ? <Badge>Detected</Badge> : null}
+                            {t(MCP_AUTH_MODE_LABEL[mode])}
+                            {mode === detected ? (
+                                <Badge>{t("entityUi.mcpConnect.detected")}</Badge>
+                            ) : null}
                         </>
                     ),
                 }))}
             />
             {hints.length ? (
                 <p className="m-0 text-xs leading-normal text-colorTextTertiary">
-                    {hints.join(" ")}
+                    {hints.map((key) => t(key)).join(" ")}
                 </p>
             ) : null}
         </div>
