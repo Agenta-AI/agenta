@@ -15,7 +15,6 @@ import {
   Copy,
   Cpu,
   DotsThree,
-  FadersHorizontal,
   FileText,
   Funnel,
   GearSix,
@@ -29,7 +28,6 @@ import {
   Plugs,
   Plus,
   PuzzlePiece,
-  Question,
   Robot,
   ShieldCheck,
   SidebarSimple,
@@ -83,6 +81,8 @@ export default class WorkspaceDemo extends Component {
     // The landing hero's static sidebar asks for a screen with this event;
     // a click made before hydration waits in window.__agDemoGo.
     window.addEventListener("ag-demo-go", this.onGo);
+    if (window.matchMedia("(max-width: 1100px)").matches)
+      this.setState({ sidebarCollapsed: true });
     if (window.__agDemoGo) this.onGo({ detail: window.__agDemoGo });
     this.setState({
       sampleName: SAMPLE_NAMES[Math.floor(Math.random() * SAMPLE_NAMES.length)],
@@ -164,20 +164,6 @@ export default class WorkspaceDemo extends Component {
           `position:relative;z-index:6;width:min(1120px,100%);height:680px;border-radius:12px;border:1px solid var(--border);box-shadow:0 0 0 6px var(--muted),0 0 0 7px var(--border),var(--ag-boxShadowSecondary);display:grid;grid-template-columns:255px minmax(0,1fr);overflow:hidden;text-align:left;font-family:var(--font-sans);color:var(--foreground);background:var(--background);`,
         )}
       >
-        <nav className="ag-demo-mobile-nav" aria-label="Demo screens">
-          {["home", "agents", "automations", "skills", "sessions"].map(
-            (name) => (
-              <button
-                key={name}
-                type="button"
-                aria-pressed={this.state.view === name}
-                onClick={nav[name].go}
-              >
-                {name[0].toUpperCase() + name.slice(1)}
-              </button>
-            ),
-          )}
-        </nav>
         <div
           className={`ag-app-side`}
           style={css(
@@ -320,23 +306,6 @@ export default class WorkspaceDemo extends Component {
                   `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
                 )}
               >{`Sessions`}</span>
-              <span
-                style={css(
-                  `position:relative;z-index:1;display:flex;flex:0 0 auto;align-items:center;margin-right:4px;color:var(--muted-foreground);`,
-                )}
-              >
-                <span
-                  style={css(
-                    `display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:6px;`,
-                  )}
-                >
-                  <FadersHorizontal
-                    size={13}
-                    weight="regular"
-                    aria-hidden="true"
-                  />
-                </span>
-              </span>
             </div>
             <div
               style={css(
@@ -491,13 +460,6 @@ export default class WorkspaceDemo extends Component {
                   )}
                 >{`Default project`}</span>
               </span>
-              <span
-                style={css(
-                  `display:inline-flex;width:24px;height:24px;flex:0 0 auto;align-items:center;justify-content:center;color:var(--muted-foreground);`,
-                )}
-              >
-                <Question size={16} weight="regular" aria-hidden="true" />
-              </span>
             </div>
           </div>
         </div>
@@ -567,7 +529,11 @@ export default class WorkspaceDemo extends Component {
                           )}
                         >
                           <span style={css(homeAgent.chipStyle)}>
-                            {homeAgent.initials}
+                            <Robot
+                              size="62%"
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                           {homeAgent.title}
                           <span
@@ -598,7 +564,11 @@ export default class WorkspaceDemo extends Component {
                                   style={css(r.rowStyle)}
                                 >
                                   <span style={css(r.tileStyle)}>
-                                    {r.initials}
+                                    <Robot
+                                      size="62%"
+                                      weight="regular"
+                                      aria-hidden="true"
+                                    />
                                   </span>
                                   <span
                                     style={css(
@@ -788,7 +758,13 @@ export default class WorkspaceDemo extends Component {
                             `display:flex;min-width:0;align-items:center;gap:8px;`,
                           )}
                         >
-                          <span style={css(a.chipStyle)}>{a.initials}</span>
+                          <span style={css(a.chipStyle)}>
+                            <Robot
+                              size="62%"
+                              weight="regular"
+                              aria-hidden="true"
+                            />
+                          </span>
                           <span
                             style={css(
                               `display:flex;min-width:0;flex:1;flex-direction:column;gap:1px;`,
@@ -1761,7 +1737,11 @@ export default class WorkspaceDemo extends Component {
                                 )}
                               >
                                 <span style={css(u.chipStyle)}>
-                                  {u.initials}
+                                  <Robot
+                                    size="62%"
+                                    weight="regular"
+                                    aria-hidden="true"
+                                  />
                                 </span>
                                 <span
                                   style={css(
@@ -1940,7 +1920,11 @@ export default class WorkspaceDemo extends Component {
                           )}
                         >
                           <span style={css(r.smallChipStyle)}>
-                            {r.initials}
+                            <Robot
+                              size="62%"
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                           <span
                             style={css(

@@ -1,5 +1,7 @@
-/* Landing base — rules shared by several landing sections (design board, iteration 1). */
-.lp section,
+/* Landing base — rules shared by several landing sections (design board, iteration 1).
+   The generic section/h2 rules skip the interactive hero demo (.ag-app-frame),
+   which has its own <section> and <h2> elements. */
+.lp section:not(.ag-app-frame section),
 .lp footer {
   box-sizing: border-box;
   border: 1px solid var(--lp-frame) !important;
@@ -81,7 +83,7 @@ section.nsec {
 .lp > div {
   background: transparent !important;
 }
-.lp section h2,
+.lp section h2:not(.ag-app-frame h2),
 .lp .sx-site .tplw h2,
 .lp .sx-site .tplx .ag-sectitle,
 .lp .ctax .ca .ctaH {
@@ -91,7 +93,7 @@ section.nsec {
   color: var(--lp-text) !important;
 }
 .lp .hx-sub,
-.lp section h2 + p,
+.lp section h2:not(.ag-app-frame h2) + p,
 .lp .sx-site .tplw h2 + p,
 .lp .sx-site .tplx .ag-sectitle + p,
 .lp .nhd p,

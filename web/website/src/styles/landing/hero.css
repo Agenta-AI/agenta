@@ -40,7 +40,7 @@
 .r3 .r3-ap-table .r3-hl span:nth-child(2) { font-weight:600; }
 .r3 .r3-ap-comp { margin:0px 20px 16px; border-radius:12px; box-shadow:var(--lp-line-strong) 0px 0px 0px 1px, rgba(30, 29, 28, 0.05) 0px 2px 8px; padding:12px 14px 10px; display:flex; flex-direction:column; gap:18px; color:var(--lp-dim); font-size:14px; background:var(--lp-surface); }
 .r3 .r3-ap-comp > div { display:flex; align-items:center; gap:14px; color:var(--lp-body); }
-.r3 .r3-ap-send { margin-left:auto; width:28px; height:28px; border-radius:50%; background:var(--lp-page); color:var(--lp-dim); display:inline-flex; align-items:center; justify-content:center; }
+.r3 .r3-ap-send { margin-left:auto; width:28px; height:28px; border-radius:8px; background:var(--lp-page); color:var(--lp-dim); display:inline-flex; align-items:center; justify-content:center; }
 .r3 .r3-pf-top { grid-column:1 / -1; display:flex; align-items:center; gap:12px; padding:0px 14px; background:var(--lp-surface-3); border-bottom:1px solid var(--lp-page); min-width:0px; }
 .r3 .r3-pf-agent { display:flex; align-items:center; gap:12px; min-width:0px; }
 .r3 .r3-pf-top { position:relative; }
@@ -60,7 +60,7 @@
 .r3 .r3-hx-ph { color:var(--lp-dim); }
 .r3 .r3-hx-typed { color:var(--lp-text); }
 .r3 .r3-ap-send { position:relative; }
-.r3 .r3-hx-sendon { position:absolute; inset:0px; border-radius:50%; background:var(--carbon-950); color:var(--lp-on-ink); display:flex; align-items:center; justify-content:center; }
+.r3 .r3-hx-sendon { position:absolute; inset:0px; border-radius:8px; background:var(--carbon-950); color:var(--lp-on-ink); display:flex; align-items:center; justify-content:center; }
 .r3 .r3-hx-toast { position:absolute; right:-40px; bottom:96px; z-index:9; width:250px; padding:16px 18px; border-radius:12px; background:var(--lp-surface); display:flex; flex-direction:column; gap:6px; text-align:left; box-shadow:rgb(var(--lp-ink-rgb) / 0.08) 0px 0px 0px 1px, rgba(30, 29, 28, 0.16) 0px 20px 44px; border-top:3px solid var(--yellow-400); }
 .r3 .r3-hx-toast .r3-k { display:inline-flex; align-items:center; gap:6px; font:500 10px / 1 "Geist Mono", monospace; letter-spacing:0.06em; text-transform:uppercase; color:var(--lp-body); }
 .r3 .r3-hx-toast b { font:400 21px / 1.2 "GT Alpina", serif; color:var(--lp-text); }
