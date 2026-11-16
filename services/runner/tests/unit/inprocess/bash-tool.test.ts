@@ -7,7 +7,7 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createSandboxBashTool } from "../../../src/engines/inprocess/tools/bash-tool.ts";
 import { createTestWorkspace, OPEN_NETWORK } from "../../utils/inprocess-workspace.ts";
 
@@ -84,8 +84,7 @@ describe("the output file in the sandbox", () => {
     const { ws, ours } = tools();
     await ours.execute("call-short", { command: "echo short" }, undefined, undefined, { cwd: ws.cwd } as never);
     // Removed by a separate call once the output was received (not awaited by the command).
-    for (let i = 0; i < 50 && existsSync(ws.inSandbox("/tmp/agenta-output-call-short.log")); i++) await new Promise((r) => setTimeout(r, 20));
-    expect(existsSync(ws.inSandbox("/tmp/agenta-output-call-short.log"))).toBe(false);
+    await vi.waitFor(() => expect(existsSync(ws.inSandbox("/tmp/agenta-output-call-short.log"))).toBe(false), { timeout: 20_000, interval: 10 });
     await ours.execute("call-long2", { command: "seq 1 5000" }, undefined, undefined, { cwd: ws.cwd } as never);
     expect(existsSync(ws.inSandbox("/tmp/agenta-output-call-long2.log"))).toBe(true);
   });
@@ -132,12 +131,12 @@ describe("a timeout the model asked for counts from the command's start (Codex r
     const ws = createTestWorkspace();
     let prepared = false;
     const slowPrep = async () => {
-      if (!prepared) await new Promise((r) => setTimeout(r, 1500));
+      if (!prepared) await new Promise((r) => setTimeout(r, 2500)); // longer than the command's timeout below
       prepared = true;
       return { status: "ok" } as never;
     };
     const ours = createSandboxBashTool(ws.cwd, (request) => ws.workspace.runCommand({ ...request, requirements: OPEN_NETWORK, preparations: [slowPrep] }), undefined, 60);
-    const r = await outcome(ours.execute("call-prep", { command: "echo did-run; sleep 0.2", timeout: 1 }, undefined, undefined, { cwd: ws.cwd } as never));
+    const r = await outcome(ours.execute("call-prep", { command: "echo did-run", timeout: 2 }, undefined, undefined, { cwd: ws.cwd } as never));
     expect(r.failed).toBe(false);
     expect(r.text).toContain("did-run");
   }, 20_000);

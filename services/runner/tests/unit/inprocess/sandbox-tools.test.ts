@@ -6,7 +6,7 @@
  */
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EditDiffs } from "../../../src/engines/inprocess/tools/edit-diffs.ts";
 import { buildFileTools } from "../../../src/engines/inprocess/tools/file-tools.ts";
 import { DRIVE_UNREACHABLE_MESSAGE, geesefsMounter } from "../../../src/engines/inprocess/sandbox/sandbox-drive.ts";
@@ -129,7 +129,8 @@ describe("a command's changes", () => {
     const stop = new AbortController();
     const run = ws.bash("echo partial > half.txt; sleep 30", { signal: stop.signal });
     while (!ws.daytona.sandboxes.size || !sandboxOf(ws).commands.some((c) => c.includes("setsid"))) await new Promise((r) => setTimeout(r, 20));
-    await new Promise((r) => setTimeout(r, 300));
+    // Stop once the command has written its partial file, so the flush has something to save.
+    await vi.waitFor(() => expect(existsSync(join(ws.cwd, "half.txt"))).toBe(true), { timeout: 20_000, interval: 10 });
     stop.abort();
     expect((await run).outcome).toEqual({ kind: "aborted" });
     expect(sandboxOf(ws).commands.at(-1)).toMatch(/sync -f .*; exit \$f$/);
@@ -460,15 +461,20 @@ describe("Codex round 7: a change's outcome is never assumed", () => {
     const target = join(ws.cwd, "big.bin");
     writeFileSync(target, Buffer.alloc(200 * 1024, 1));
     const local = sandboxOf(ws);
+    let streaming!: () => void;
+    const downloading = new Promise<void>((resolve) => (streaming = resolve));
     local.download = async () => {
+      streaming();
       const stalled = new Readable({ read() {} });
       stalled.push(Buffer.alloc(1000, 1));
       return stalled;
     };
     const stop = new AbortController();
-    setTimeout(() => stop.abort(), 200);
+    const reading = sandboxReadFile(local, ws.inSandbox(target), 1024 * 1024, stop.signal);
+    await downloading; // the download has started and stalls
     const t0 = Date.now();
-    await expect(sandboxReadFile(local, ws.inSandbox(target), 1024 * 1024, stop.signal)).rejects.toThrow(/abort/i);
+    stop.abort();
+    await expect(reading).rejects.toThrow(/abort/i);
     expect(Date.now() - t0).toBeLessThan(2_000);
     await ws.workspace.sandbox.delete();
   });
