@@ -4,6 +4,7 @@
     "authentication": "Authentication",
     "authorizationHeader": "Authorization header",
     "authorizationHint": "Sent as the Authorization header on every request.",
+    "authorizationPlaceholder": "Bearer …",
     "configurationDeployed": "Configuration deployed",
     "description": "Agenta posts the event to your endpoint and retries on failure.",
     "editTitle": "Edit subscription",
@@ -17,5 +18,6 @@
     "saving": "Saving…",
     "signatureHint": "Agenta signs each request with a secret shown once after you subscribe.",
     "signedPayload": "Signed payload",
-    "subscribe": "Subscribe"
+    "subscribe": "Subscribe",
+    "urlPlaceholder": "https://example.com/hooks/agenta"
 }

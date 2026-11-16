@@ -410,7 +410,7 @@ export default function McpServersSection({
                             </span>
                         ) : null}
                         {!shows("auth") ? null : record.auth_mode === "oauth" ? (
-                            <span className="truncate">OAuth</span>
+                            <span className="truncate">{t("settings.mcp.oauth")}</span>
                         ) : record.auth_mode === "none" ? (
                             <span className="truncate">{t("common.none")}</span>
                         ) : secretName ? (

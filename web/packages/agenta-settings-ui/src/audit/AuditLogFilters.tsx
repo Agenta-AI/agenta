@@ -6,7 +6,7 @@
  * page-1 fetch.
  */
 
-import {useCallback, useEffect, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     EventType,
@@ -21,10 +21,16 @@ import {
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
+import settingsAuditEventTypesCatalog from "@agenta/i18n/catalogs/settings.auditEventTypes"
 import {Button, Combobox, SearchInput, type ComboboxOptionGroup} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
 
-import {eventTypeGroup, eventTypeGroupRank, eventTypeLabel} from "./eventTypeLabels"
+import {
+    eventTypeGroup,
+    eventTypeGroupRank,
+    eventTypeLabel,
+    type EventTypeT,
+} from "./eventTypeLabels"
 
 const HIDDEN_EVENT_TYPE_PREFIXES = ["applications.revisions.", "evaluators.revisions."]
 const HIDDEN_EVENT_TYPES = ["unknown"]
@@ -36,9 +42,9 @@ const VISIBLE_EVENT_TYPES = Object.values(EventType).filter(
 )
 
 /** The label first, the raw type under it; the trigger hides the raw line. */
-const EventOptionLabel = ({eventType}: {eventType: string}) => (
+const EventOptionLabel = ({eventType, label}: {eventType: string; label: string}) => (
     <span className="flex min-w-0 flex-col py-0.5">
-        <span className="truncate">{eventTypeLabel(eventType)}</span>
+        <span className="truncate">{label}</span>
         <span
             data-event-raw
             className="truncate font-mono text-[11px] font-normal text-muted-foreground"
@@ -48,27 +54,29 @@ const EventOptionLabel = ({eventType}: {eventType: string}) => (
     </span>
 )
 
-const EVENT_TYPE_OPTIONS: ComboboxOptionGroup[] = [...VISIBLE_EVENT_TYPES]
-    .sort(
-        (a, b) =>
-            eventTypeGroupRank(a) - eventTypeGroupRank(b) ||
-            eventTypeGroup(a).localeCompare(eventTypeGroup(b)) ||
-            eventTypeLabel(a).localeCompare(eventTypeLabel(b)),
-    )
-    .reduce<ComboboxOptionGroup[]>((groups, eventType) => {
-        const label = eventTypeGroup(eventType)
-        let group = groups.find((item) => item.label === label)
-        if (!group) {
-            group = {label, options: []}
-            groups.push(group)
-        }
-        group.options.push({
-            value: eventType,
-            label: <EventOptionLabel eventType={eventType} />,
-            searchValue: `${eventTypeLabel(eventType)} ${label} ${eventType}`,
-        })
-        return groups
-    }, [])
+const eventTypeOptions = (t: EventTypeT): ComboboxOptionGroup[] =>
+    [...VISIBLE_EVENT_TYPES]
+        .sort(
+            (a, b) =>
+                eventTypeGroupRank(a) - eventTypeGroupRank(b) ||
+                eventTypeGroup(a, t).localeCompare(eventTypeGroup(b, t)) ||
+                eventTypeLabel(a, t).localeCompare(eventTypeLabel(b, t)),
+        )
+        .reduce<ComboboxOptionGroup[]>((groups, eventType) => {
+            const label = eventTypeGroup(eventType, t)
+            const text = eventTypeLabel(eventType, t)
+            let group = groups.find((item) => item.label === label)
+            if (!group) {
+                group = {label, options: []}
+                groups.push(group)
+            }
+            group.options.push({
+                value: eventType,
+                label: <EventOptionLabel eventType={eventType} label={text} />,
+                searchValue: `${text} ${label} ${eventType}`,
+            })
+            return groups
+        }, [])
 
 /** Debounce (ms) before committing the free-text id filter. */
 const ID_DEBOUNCE_MS = 400
@@ -92,7 +100,7 @@ export interface AuditLogFiltersProps {
 }
 
 export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFiltersProps) => {
-    const t = useT(commonCatalog, settingsAuditCatalog)
+    const t = useT(commonCatalog, settingsAuditCatalog, settingsAuditEventTypesCatalog)
     const [timestampRange, setTimestampRange] = useAtom(eventTimestampRangeFilterAtom)
     const [eventType, setEventType] = useAtom(eventTypeFilterAtom)
     const [eventId, setEventId] = useAtom(eventIdFilterAtom)
@@ -125,6 +133,9 @@ export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFilt
         registerRefresh(commitEventId)
     }, [commitEventId, registerRefresh])
 
+    // Pure derived list: it is rebuilt when the language or a catalog load changes `t`.
+    const options = useMemo(() => eventTypeOptions(t), [t])
+
     const hasFilters = Boolean(eventType || eventIdDraft.trim())
     const clearFilters = () => {
         setEventType(null)
@@ -145,7 +156,7 @@ export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFilt
                 contentClassName="w-[min(320px,calc(100vw-32px))]"
                 value={eventType ?? undefined}
                 onChange={(value) => setEventType((value as EventTypeValue | undefined) ?? null)}
-                options={EVENT_TYPE_OPTIONS}
+                options={options}
             />
             <SearchInput
                 aria-label={t("settings.audit.eventId")}
