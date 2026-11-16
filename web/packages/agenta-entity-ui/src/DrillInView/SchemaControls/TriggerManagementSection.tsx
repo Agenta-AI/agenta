@@ -29,6 +29,8 @@ import {
     type TriggerSchedule,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
+import {createT, useT} from "@agenta/i18n"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
 import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
@@ -48,6 +50,8 @@ import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliver
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
+
+const tNow = createT(triggersCatalog)
 
 export {AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
 export {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
@@ -81,6 +85,7 @@ export function TriggerManagementSection({
     onOpenRunHistory,
     automationDrawer,
 }: TriggerManagementSectionProps) {
+    const t = useT(triggersCatalog)
     const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
 
     const {
@@ -116,7 +121,7 @@ export function TriggerManagementSection({
     const simulateSchedule = useCallback(
         (record: TriggerSchedule) => {
             if (!entityId) {
-                message.info("Open this agent in the playground first")
+                message.info(tNow("entityUi.triggers.openInPlaygroundFirst"))
                 return
             }
             const msg = getScheduleMessagePreview(record.data?.inputs_fields)
@@ -130,7 +135,7 @@ export function TriggerManagementSection({
                       2,
                   )}\n\`\`\``
             setPendingRun({text, nonce: Date.now(), newSession: true})
-            message.success("Starting run")
+            message.success(tNow("entityUi.triggers.startingRun"))
         },
         [entityId, setPendingRun],
     )
@@ -149,7 +154,7 @@ export function TriggerManagementSection({
                     }}
                 >
                     <ClockCounterClockwise size={16} />
-                    Run history
+                    {tNow("entityUi.triggers.runHistory")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     disabled={disabled}
@@ -162,7 +167,7 @@ export function TriggerManagementSection({
                     }}
                 >
                     <PencilSimpleLine size={16} />
-                    Edit
+                    {tNow("entityUi.triggers.edit")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     disabled={disabled}
@@ -170,14 +175,14 @@ export function TriggerManagementSection({
                         if (!record.id) return
                         try {
                             await refreshSubscription(record.id)
-                            message.success("Subscription refreshed")
+                            message.success(tNow("entityUi.triggers.subscriptionRefreshed"))
                         } catch {
-                            message.error("Failed to refresh subscription")
+                            message.error(tNow("entityUi.triggers.subscriptionRefreshFailed"))
                         }
                     }}
                 >
                     <ArrowsClockwise size={16} />
-                    Refresh
+                    {tNow("entityUi.triggers.refresh")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -186,14 +191,14 @@ export function TriggerManagementSection({
                         if (!record.id) return
                         try {
                             await revokeSubscription(record.id)
-                            message.success("Subscription revoked")
+                            message.success(tNow("entityUi.triggers.subscriptionRevoked"))
                         } catch {
-                            message.error("Failed to revoke subscription")
+                            message.error(tNow("entityUi.triggers.subscriptionRevokeFailed"))
                         }
                     }}
                 >
                     <XCircle size={16} />
-                    Revoke
+                    {tNow("entityUi.triggers.revoke")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     variant="destructive"
@@ -202,14 +207,14 @@ export function TriggerManagementSection({
                         if (!record.id) return
                         try {
                             await removeSubscription(record.id)
-                            message.success("Subscription deleted")
+                            message.success(tNow("entityUi.triggers.subscriptionDeleted"))
                         } catch {
-                            message.error("Failed to delete subscription")
+                            message.error(tNow("entityUi.triggers.subscriptionDeleteFailed"))
                         }
                     }}
                 >
                     <Trash size={16} />
-                    Delete
+                    {tNow("entityUi.triggers.delete")}
                 </DropdownMenuItem>
             </>
         ),
@@ -230,9 +235,13 @@ export function TriggerManagementSection({
             if (!record.id) return
             try {
                 await setScheduleActive(record.id, next)
-                message.success(next ? "Schedule resumed" : "Schedule paused")
+                message.success(
+                    next
+                        ? tNow("entityUi.triggers.scheduleResumed")
+                        : tNow("entityUi.triggers.schedulePaused"),
+                )
             } catch {
-                message.error("Failed to update schedule")
+                message.error(tNow("entityUi.triggers.scheduleUpdateFailed"))
             }
         },
         [setScheduleActive],
@@ -246,7 +255,7 @@ export function TriggerManagementSection({
                     onSelect={() => simulateSchedule(record)}
                 >
                     <Play size={16} />
-                    Run now
+                    {tNow("entityUi.triggers.runNow")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -256,7 +265,7 @@ export function TriggerManagementSection({
                     }}
                 >
                     <ClockCounterClockwise size={16} />
-                    Run history
+                    {tNow("entityUi.triggers.runHistory")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     disabled={disabled}
@@ -269,7 +278,7 @@ export function TriggerManagementSection({
                     }}
                 >
                     <PencilSimpleLine size={16} />
-                    Edit
+                    {tNow("entityUi.triggers.edit")}
                 </DropdownMenuItem>
                 {isEntityActive(record) ? (
                     <DropdownMenuItem
@@ -277,7 +286,7 @@ export function TriggerManagementSection({
                         onSelect={() => toggleSchedule(record, false)}
                     >
                         <Pause size={16} />
-                        Deactivate
+                        {tNow("entityUi.triggers.deactivate")}
                     </DropdownMenuItem>
                 ) : (
                     <DropdownMenuItem
@@ -285,7 +294,7 @@ export function TriggerManagementSection({
                         onSelect={() => toggleSchedule(record, true)}
                     >
                         <Play size={16} />
-                        Activate
+                        {tNow("entityUi.triggers.activate")}
                     </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -296,14 +305,14 @@ export function TriggerManagementSection({
                         if (!record.id) return
                         try {
                             await removeSchedule(record.id)
-                            message.success("Schedule deleted")
+                            message.success(tNow("entityUi.triggers.scheduleDeleted"))
                         } catch {
-                            message.error("Failed to delete schedule")
+                            message.error(tNow("entityUi.triggers.scheduleDeleteFailed"))
                         }
                     }}
                 >
                     <Trash size={16} />
-                    Delete
+                    {tNow("entityUi.triggers.delete")}
                 </DropdownMenuItem>
             </>
         ),
@@ -356,7 +365,9 @@ export function TriggerManagementSection({
 
             {scopedSubscriptions.length === 0 && scopedSchedules.length === 0 && !disabled ? (
                 // One quiet line; the header's "+" is the way to add one.
-                <span className="text-xs text-colorTextTertiary">No automations yet</span>
+                <span className="text-xs text-colorTextTertiary">
+                    {t("entityUi.triggers.noAutomations")}
+                </span>
             ) : null}
 
             {/* Propless, atom-driven drawers — mounted once; they manage their own
