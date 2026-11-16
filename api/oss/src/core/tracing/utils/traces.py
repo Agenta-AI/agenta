@@ -92,6 +92,9 @@ def link_role(link: Link) -> Optional[str]:
     return str(role) if role else None
 
 
+SUBJECT_ROLE = "subject"
+
+
 def subject_link(links: Optional[SimpleTraceLinks]) -> Optional[Link]:
     """The link with the role `subject`, else the first link."""
     if isinstance(links, dict):
@@ -103,7 +106,7 @@ def subject_link(links: Optional[SimpleTraceLinks]) -> Optional[Link]:
 
     items = [(role, link) for role, link in items if link.trace_id and link.span_id]
     for role, link in items:
-        if role == "subject":
+        if role == SUBJECT_ROLE:
             return link
     return items[0][1] if items else None
 

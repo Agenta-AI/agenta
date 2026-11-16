@@ -158,8 +158,8 @@ async def check_resource(
 
 
 def session_viewer(request: Request) -> Callable[[str], Awaitable[bool]]:
-    """Whether the request may read a session, without raising: for code that only adds
-    what the caller may already read."""
+    """Whether the request may read a session. A hidden or forbidden session answers
+    False instead of an error, for code that only adds what the caller may read."""
 
     async def can_view_session(session_id: str) -> bool:
         check = await check_resource(

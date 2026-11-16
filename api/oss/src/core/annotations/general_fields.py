@@ -2,7 +2,8 @@
 
 Both annotation routes (`POST /annotations` and `POST /simple/traces`) build them here: the
 subject's session and turn, the scope, the author and the actor, and the application in the
-references. The link to a span only anchors the annotation; nothing depends on which span.
+references. The subject span supplies the session, the turn and the application; the
+annotation keeps its link to that span only as an anchor.
 """
 
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Tuple
@@ -26,6 +27,7 @@ from oss.src.core.tracing.utils.parsing import (
 )
 from oss.src.core.tracing.utils.traces import (
     APPLICATION_REFERENCE_KEYS,
+    SUBJECT_ROLE,
     subject_link,
 )
 
@@ -34,8 +36,6 @@ if TYPE_CHECKING:
     from oss.src.core.sessions.turns.service import SessionTurnsService
     from oss.src.core.tracing.service import TracingService
 
-
-SUBJECT_ROLE = "subject"
 
 # Runs started from a session carry `workflow*` references; annotations name the same
 # entity under the `application*` keys (an application id is its workflow id).
