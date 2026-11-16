@@ -9,6 +9,8 @@ import {
 } from "react"
 
 import {cronToBuilder, summarizeSchedule} from "@agenta/entities/gatewayTrigger"
+import {createT, useT} from "@agenta/i18n"
+import schemaFormCatalog from "@agenta/i18n/catalogs/entityUi.schemaForm"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {
@@ -135,6 +137,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
         },
         ref,
     ) => {
+        const t = useT(schemaFormCatalog)
         const [form] = useForm(formProp)
         const fields = useMemo(
             () =>
@@ -213,7 +216,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 JSON.parse(textContent)
                 setJsonError(null)
             } catch (e) {
-                setJsonError(e instanceof Error ? e.message : "Invalid JSON")
+                setJsonError(e instanceof Error ? e.message : tNow("entityUi.schemaForm.invalidJson"))
             }
         }, [])
 
@@ -247,7 +250,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
         if (fields.length === 0 && !jsonMode) {
             return (
                 <span className="text-xs text-colorTextDescription">
-                    No input parameters required.
+                    {t("entityUi.schemaForm.noInputParameters")}
                 </span>
             )
         }
@@ -360,13 +363,13 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                             setStep(step + 1)
                                         }}
                                     >
-                                        Skip
+                                        {t("entityUi.schemaForm.skip")}
                                     </Button>
                                 )}
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Previous question"
+                                    aria-label={t("entityUi.schemaForm.previousQuestion")}
                                     className="h-6 w-6 p-0 text-colorPrimary"
                                     disabled={step === 0}
                                     onClick={() => setStep(step - 1)}
@@ -379,7 +382,11 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label={onReview ? "On review" : "Next question"}
+                                    aria-label={
+                                        onReview
+                                            ? t("entityUi.schemaForm.onReview")
+                                            : t("entityUi.schemaForm.nextQuestion")
+                                    }
                                     className="h-6 w-6 p-0 text-colorPrimary"
                                     disabled={onReview}
                                     onClick={() => setStep(step + 1)}
@@ -426,7 +433,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                             </span>
                                             {empty && field.required ? (
                                                 <span className="text-xs text-colorError">
-                                                    Required
+                                                    {t("entityUi.schemaForm.required")}
                                                 </span>
                                             ) : (
                                                 <span className="text-xs max-w-[60%] truncate">
@@ -479,7 +486,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                               <span className="text-xs text-colorTextDescription">
                                                   {optionalLabel
                                                       ? optionalLabel(optionalFields.length)
-                                                      : `Optional (${optionalFields.length})`}
+                                                      : t("entityUi.schemaForm.optionalCount", {
+                                                            count: optionalFields.length,
+                                                        })}
                                               </span>
                                           </AccordionTrigger>
                                           {/* forceMount: collapsed fields must stay registered
@@ -554,8 +563,11 @@ function cleanFormValues(values: Record<string, unknown>): Record<string, unknow
 // Field components
 // ---------------------------------------------------------------------------
 
-/** Inline message under an empty required field. */
-const REQUIRED_MESSAGE = "Needed before this can run"
+// Rules, validators and review values are built outside a component's own `t`.
+const tNow = createT(schemaFormCatalog)
+
+/** Inline message under an empty required field. Read when the rules are built. */
+const requiredMessage = () => tNow("entityUi.schemaForm.neededBeforeRun")
 
 /**
  * A field's label, with its description behind an info icon. Provider schemas ship descriptions
@@ -569,7 +581,7 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
             {/* No "Required" marker on the label: every field in these schemas is either needed
                 or plainly optional under its own heading, and the word repeated down a column
                 read as an error state on a form nobody had filled in yet. The requirement is
-                still enforced, and REQUIRED_MESSAGE says so at the point it is broken. */}
+                still enforced, and requiredMessage says so at the point it is broken. */}
             {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
         </span>
     )
@@ -591,6 +603,7 @@ function EnumWithOther({
     allowClear?: boolean
     disabled?: boolean
 }) {
+    const t = useT(schemaFormCatalog)
     const offOptions = isOffOptionsValue(value, options)
     const [otherMode, setOtherMode] = useState(offOptions)
     // An off-options value can also arrive AFTER mount (schema `default` via Form initialValue,
@@ -626,7 +639,7 @@ function EnumWithOther({
                     // mounting with an off-options default must not steal focus.
                     autoFocus={value == null}
                     disabled={disabled}
-                    placeholder="Type your answer"
+                    placeholder={t("entityUi.schemaForm.typeYourAnswer")}
                     value={value ?? ""}
                     onChange={(e) => onChange?.(e.target.value || undefined)}
                 />
@@ -654,6 +667,7 @@ function MultiEnumWithOther({
     placeholder?: string
     disabled?: boolean
 }) {
+    const t = useT(schemaFormCatalog)
     const [otherDraft, setOtherDraft] = useState<string | null>(null)
     const selected = value ?? []
 
@@ -690,13 +704,16 @@ function MultiEnumWithOther({
                 options={selectOptionsWithOther(options).filter(
                     (o) => o.value !== OTHER_ENUM_OPTION,
                 )}
-                extraItem={{label: "Other…", onSelect: () => setOtherDraft("")}}
+                extraItem={{
+                    label: t("entityUi.schemaForm.other"),
+                    onSelect: () => setOtherDraft(""),
+                }}
             />
             {otherDraft !== null && (
                 <Input
                     autoFocus
                     disabled={disabled}
-                    placeholder="Type a value and press Enter"
+                    placeholder={t("entityUi.schemaForm.typeValueAndEnter")}
                     value={otherDraft}
                     onChange={(e) => setOtherDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -778,6 +795,7 @@ function ChoiceCards({
     /** Fires after a single-select pick — the stepper auto-advances on it. */
     onPicked?: () => void
 }) {
+    const t = useT(schemaFormCatalog)
     const otherInputRef = useRef<HTMLInputElement>(null)
     // Multi: pending chip text (commits on Enter/blur). Single: mirror of the committed custom
     // value — the value commits as the user types (typeCustomValue).
@@ -907,7 +925,7 @@ function ChoiceCards({
                         }}
                         className="text-xs font-medium"
                     >
-                        Other
+                        {t("entityUi.schemaForm.otherCard")}
                     </span>
                     {multiple && customValues.length > 0 && (
                         <div className="flex flex-wrap gap-1">
@@ -927,7 +945,11 @@ function ChoiceCards({
                     <Input
                         ref={otherInputRef}
                         disabled={disabled}
-                        placeholder={multiple ? "Type and press Enter to add" : "Type your answer"}
+                        placeholder={
+                            multiple
+                                ? t("entityUi.schemaForm.typeAndEnterToAdd")
+                                : t("entityUi.schemaForm.typeYourAnswer")
+                        }
                         value={otherText}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => typeOther(e.target.value)}
@@ -982,7 +1004,8 @@ export function formatReviewValue(field: FormFieldDescriptor, value: unknown): s
     if (Array.isArray(value)) return value.map(String).join(", ") || "—"
     if (typeof value === "object" && typeof (value as {format?: unknown}).format === "function")
         return (value as {format: (f: string) => string}).format("YYYY-MM-DD HH:mm")
-    if (typeof value === "boolean") return value ? "Yes" : "No"
+    if (typeof value === "boolean")
+        return value ? tNow("entityUi.schemaForm.yes") : tNow("entityUi.schemaForm.no")
     const meta = field.enumOptions?.find((o) => o.value === value)
     return meta?.label ?? String(value)
 }
@@ -1003,7 +1026,7 @@ function SchemaFormField({
     /** Threaded explicitly — the replaced leaves don't read antd's Form disabled context. */
     disabled?: boolean
 }) {
-    const rules = field.required ? [{required: true, message: REQUIRED_MESSAGE}] : []
+    const rules = field.required ? [{required: true, message: requiredMessage()}] : []
     const label = hideLabel ? undefined : <FieldLabel field={field} />
 
     // Object with nested children → render in a collapsible section
@@ -1058,7 +1081,7 @@ function SchemaFormField({
                             try {
                                 JSON.parse(value)
                             } catch {
-                                throw new Error("Must be valid JSON")
+                                throw new Error(tNow("entityUi.schemaForm.mustBeValidJson"))
                             }
                         },
                     },
@@ -1256,6 +1279,7 @@ function ArrayField({
     hideLabel?: boolean
     disabled?: boolean
 }) {
+    const t = useT(schemaFormCatalog)
     const namePath = field.name.split(".")
     const hasObjectItems = !!field.itemChildren && field.itemChildren.length > 0
     const primitiveItemType = field.itemSchema?.type as string | undefined
@@ -1286,7 +1310,11 @@ function ArrayField({
                               {
                                   validator: async (_, value) => {
                                       if (field.required && (!value || value.length === 0)) {
-                                          throw new Error(`At least one ${field.label} is required`)
+                                          throw new Error(
+                                              tNow("entityUi.schemaForm.atLeastOneRequired", {
+                                                  label: field.label,
+                                              }),
+                                          )
                                       }
                                   },
                               },
@@ -1298,7 +1326,7 @@ function ArrayField({
                     <div className="flex flex-col gap-2">
                         {fields.length === 0 && (
                             <span className="text-xs text-colorTextDescription">
-                                No items added
+                                {t("entityUi.schemaForm.noItemsAdded")}
                             </span>
                         )}
 
@@ -1318,12 +1346,12 @@ function ArrayField({
                                         primitiveItemType === "integer" ? (
                                             <InputNumber
                                                 className="w-full"
-                                                placeholder={`${field.label} item`}
+                                                placeholder={t("entityUi.schemaForm.itemPlaceholder", {label: field.label})}
                                                 disabled={disabled}
                                             />
                                         ) : (
                                             <Input
-                                                placeholder={`${field.label} item`}
+                                                placeholder={t("entityUi.schemaForm.itemPlaceholder", {label: field.label})}
                                                 disabled={disabled}
                                             />
                                         )}
@@ -1331,7 +1359,7 @@ function ArrayField({
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        aria-label="Remove item"
+                                        aria-label={t("entityUi.schemaForm.removeItem")}
                                         onClick={() => remove(name)}
                                         disabled={disabled}
                                         className="mt-0.5 opacity-50 hover:opacity-100"
@@ -1350,7 +1378,7 @@ function ArrayField({
                             className="self-start"
                         >
                             <Plus size={14} />
-                            Add {field.label}
+                            {t("entityUi.schemaForm.addLabel", {label: field.label})}
                         </Button>
                     </div>
                 )}
@@ -1374,6 +1402,7 @@ function ArrayObjectItem({
     onRemove: () => void
     disabled?: boolean
 }) {
+    const t = useT(schemaFormCatalog)
     return (
         <Accordion
             type="multiple"
@@ -1386,7 +1415,7 @@ function ArrayObjectItem({
             <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Remove object item"
+                aria-label={t("entityUi.schemaForm.removeObjectItem")}
                 disabled={disabled}
                 onClick={(e) => {
                     e.stopPropagation()
@@ -1403,7 +1432,7 @@ function ArrayObjectItem({
                 <AccordionContent forceMount className="data-[state=closed]:hidden">
                     {itemChildren.map((child) => {
                         const childRules = child.required
-                            ? [{required: true, message: REQUIRED_MESSAGE}]
+                            ? [{required: true, message: requiredMessage()}]
                             : []
                         const childLabel = <FieldLabel field={child} />
 
@@ -1438,7 +1467,7 @@ function ArrayObjectItem({
                                                             ? [
                                                                   {
                                                                       required: true,
-                                                                      message: REQUIRED_MESSAGE,
+                                                                      message: requiredMessage(),
                                                                   },
                                                               ]
                                                             : []

@@ -9,6 +9,8 @@ import {
     useToolConnectionQuery,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {createT, useT} from "@agenta/i18n"
+import toolConnectionsCatalog from "@agenta/i18n/catalogs/entityUi.toolConnections"
 import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {dayjs} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
@@ -19,6 +21,9 @@ import {useAtom, useSetAtom} from "jotai"
 
 import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
 import ConnectionStatusBadge from "../components/ConnectionStatusBadge"
+
+// The confirm modals open from callbacks, outside render.
+const tNow = createT(toolConnectionsCatalog)
 
 function formatCreatedAt(value: string | null | undefined): string {
     if (!value) return "-"
@@ -48,6 +53,7 @@ function DetailsTable({items}: {items: {key: string; label: string; children: Re
 }
 
 export default function ConnectionManagerDrawer() {
+    const t = useT(toolConnectionsCatalog)
     const [state, setState] = useAtom(connectionDrawerAtom)
     const setExecution = useSetAtom(toolExecutionDrawerAtom)
     const open = !!state
@@ -140,11 +146,10 @@ export default function ConnectionManagerDrawer() {
     const onRevoke = useCallback(() => {
         if (!state?.connectionId) return
         modal.confirm({
-            title: "Revoke Connection",
-            content:
-                "This will mark the connection as invalid. You can refresh it later to reactivate.",
-            okText: "Yes",
-            cancelText: "Cancel",
+            title: tNow("entityUi.toolConnections.revokeConnection"),
+            content: tNow("entityUi.toolConnections.revokeConfirm"),
+            okText: tNow("entityUi.toolConnections.yes"),
+            cancelText: tNow("entityUi.toolConnections.cancel"),
             onOk: async () => {
                 setActionLoading("revoke")
                 try {
@@ -160,11 +165,10 @@ export default function ConnectionManagerDrawer() {
     const onDelete = useCallback(() => {
         if (!state?.connectionId) return
         modal.confirm({
-            title: "Delete Connection",
-            content:
-                "Are you sure you want to delete this connection? This action is irreversible.",
-            okText: "Yes",
-            cancelText: "Cancel",
+            title: tNow("entityUi.toolConnections.deleteConnection"),
+            content: tNow("entityUi.toolConnections.deleteConfirm"),
+            okText: tNow("entityUi.toolConnections.yes"),
+            cancelText: tNow("entityUi.toolConnections.cancel"),
             onOk: async () => {
                 setActionLoading("delete")
                 try {
@@ -193,7 +197,7 @@ export default function ConnectionManagerDrawer() {
         <EnhancedDrawer
             open={open}
             onClose={handleClose}
-            title="Connection Details"
+            title={t("entityUi.toolConnections.connectionDetails")}
             width={480}
             destroyOnClose
         >
@@ -203,7 +207,9 @@ export default function ConnectionManagerDrawer() {
                         <Spinner />
                     </div>
                 ) : !connection ? (
-                    <span className="text-colorTextDescription">Connection not found.</span>
+                    <span className="text-colorTextDescription">
+                        {t("entityUi.toolConnections.connectionNotFound")}
+                    </span>
                 ) : (
                     <>
                         {/* Header */}
@@ -224,32 +230,36 @@ export default function ConnectionManagerDrawer() {
                             items={[
                                 {
                                     key: "slug",
-                                    label: "Slug",
+                                    label: t("entityUi.toolConnections.slug"),
                                     children: connection.slug,
                                 },
                                 {
                                     key: "provider",
-                                    label: "Provider",
+                                    label: t("entityUi.toolConnections.provider"),
                                     children: connection.provider_key,
                                 },
                                 {
                                     key: "integration",
-                                    label: "Integration",
+                                    label: t("entityUi.toolConnections.integration"),
                                     children: connection.integration_key,
                                 },
                                 {
                                     key: "active",
-                                    label: "Active",
-                                    children: isActive ? "Yes" : "No",
+                                    label: t("entityUi.toolConnections.active"),
+                                    children: isActive
+                                        ? t("entityUi.toolConnections.yes")
+                                        : t("entityUi.toolConnections.no"),
                                 },
                                 {
                                     key: "valid",
-                                    label: "Authenticated",
-                                    children: isValid ? "Yes" : "No",
+                                    label: t("entityUi.toolConnections.authenticated"),
+                                    children: isValid
+                                        ? t("entityUi.toolConnections.yes")
+                                        : t("entityUi.toolConnections.no"),
                                 },
                                 {
                                     key: "created",
-                                    label: "Created",
+                                    label: t("entityUi.toolConnections.created"),
                                     children: formatCreatedAt(connection.created_at),
                                 },
                             ]}
@@ -258,7 +268,7 @@ export default function ConnectionManagerDrawer() {
                         <Divider className="my-1" />
 
                         {/* Actions */}
-                        <span className="text-sm font-medium">Actions</span>
+                        <span className="text-sm font-medium">{t("entityUi.toolConnections.actions")}</span>
                         <div className="flex flex-col gap-2">
                             <LoadingButton
                                 variant="outline"
@@ -266,7 +276,7 @@ export default function ConnectionManagerDrawer() {
                                 disabled={!isActive || !isValid}
                             >
                                 <Play size={14} />
-                                Test Connection
+                                {t("entityUi.toolConnections.testConnection")}
                             </LoadingButton>
                             <LoadingButton
                                 variant="outline"
@@ -274,7 +284,7 @@ export default function ConnectionManagerDrawer() {
                                 onClick={onRefresh}
                             >
                                 <ArrowClockwise size={14} />
-                                Refresh Connection
+                                {t("entityUi.toolConnections.refreshConnection")}
                             </LoadingButton>
                             <LoadingButton
                                 variant="outline"
@@ -283,7 +293,7 @@ export default function ConnectionManagerDrawer() {
                                 disabled={!isValid}
                             >
                                 <XCircle size={14} />
-                                Revoke Connection
+                                {t("entityUi.toolConnections.revokeConnection")}
                             </LoadingButton>
                             <LoadingButton
                                 variant="destructive-outline"
@@ -291,7 +301,7 @@ export default function ConnectionManagerDrawer() {
                                 onClick={onDelete}
                             >
                                 <Trash size={14} />
-                                Delete Connection
+                                {t("entityUi.toolConnections.deleteConnection")}
                             </LoadingButton>
                         </div>
                     </>

@@ -6,10 +6,15 @@ import {
     buildFormFieldsFromSchema,
     type FormFieldDescriptor,
 } from "@agenta/shared/utils"
+import {createT, useT} from "@agenta/i18n"
+import toolExecutionCatalog from "@agenta/i18n/catalogs/entityUi.toolExecution"
 import {message} from "@agenta/ui"
 import {Editor} from "@agenta/ui/editor"
 import {Alert, Button, Field, Input, InputNumber, Textarea} from "@agenta/ui/ui"
 import {CopySimple} from "@phosphor-icons/react"
+
+// The copy toast fires from a click handler.
+const tNow = createT(toolExecutionCatalog)
 
 interface Props {
     result: ToolResult | null
@@ -19,8 +24,16 @@ interface Props {
 }
 
 export default function ResultViewer({result, error, outputSchema, jsonMode}: Props) {
+    const t = useT(toolExecutionCatalog)
     if (error) {
-        return <Alert type="error" message="Execution Failed" description={error} showIcon />
+        return (
+            <Alert
+                type="error"
+                message={t("entityUi.toolExecution.executionFailed")}
+                description={error}
+                showIcon
+            />
+        )
     }
 
     if (!result) return null
@@ -35,11 +48,11 @@ export default function ResultViewer({result, error, outputSchema, jsonMode}: Pr
         return (
             <Alert
                 type="error"
-                message="Tool returned an error"
+                message={t("entityUi.toolExecution.toolReturnedError")}
                 description={
                     statusCode && statusMessage
                         ? `${statusCode}: ${statusMessage}`
-                        : (statusMessage ?? statusCode ?? "Unknown tool execution error")
+                        : (statusMessage ?? statusCode ?? t("entityUi.toolExecution.unknownToolError"))
                 }
                 showIcon
             />
@@ -100,7 +113,7 @@ function ResultDisplay({
 
     const handleCopy = () => {
         navigator.clipboard.writeText(jsonString)
-        message.success("Copied to clipboard")
+        message.success(tNow("entityUi.toolExecution.copiedToClipboard"))
     }
 
     if (jsonMode || fields.length === 0) {
@@ -163,11 +176,12 @@ function OutputField({field, data}: {field: FormFieldDescriptor; data: Record<st
 // ---------------------------------------------------------------------------
 
 function CopyButton({onClick, className}: {onClick: () => void; className?: string}) {
+    const t = useT(toolExecutionCatalog)
     return (
         <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Copy result"
+            aria-label={t("entityUi.toolExecution.copyResult")}
             onClick={onClick}
             className={className ?? "absolute top-1 right-1 z-10 opacity-70 hover:opacity-100"}
         >
