@@ -1,0 +1,11 @@
+{
+    "copyError": "Kopieren fehlgeschlagen. Markieren Sie den Schlüssel oben und kopieren Sie ihn",
+    "copyKey": "Schlüssel kopieren",
+    "createError": "Der Schlüssel konnte nicht erstellt werden",
+    "deleteBody": "Anfragen, die mit diesem Schlüssel signiert sind, funktionieren sofort nicht mehr.",
+    "deleteError": "Der Schlüssel konnte nicht gelöscht werden",
+    "deleteTitle": "API-Schlüssel löschen",
+    "revealDescription": "Wird nur einmal angezeigt. Nach dem Schließen kann er nicht erneut abgerufen werden.",
+    "revealTitle": "API-Schlüssel speichern",
+    "workspacePending": "Ihr Arbeitsbereich wird noch geladen. Versuchen Sie es gleich erneut."
+}
