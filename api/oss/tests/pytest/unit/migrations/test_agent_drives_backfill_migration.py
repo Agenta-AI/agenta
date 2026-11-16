@@ -1,6 +1,7 @@
-"""oss000000063 adds the drive keys to agent revisions that lack them, keeps every
-value a revision states, and changes nothing on a second run. Runs the revision's SQL
-on a scratch Postgres (skipped when none is reachable), on just the table it touches."""
+"""oss000000063 adds the drive keys to agent revisions that lack them or hold null,
+keeps every value a revision states, and changes nothing on a second run. Runs the
+backfill on a scratch Postgres (skipped when none is reachable), on just the table it
+touches."""
 
 import asyncio
 import importlib.util
@@ -10,10 +11,14 @@ from uuid import uuid4
 
 import asyncpg
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
 
 DATABASE_NAME = "agenta_m4_agent_drives"
 ADMIN_DSN = "postgresql://username:password@localhost:5444/postgres"
 DATABASE_DSN = f"postgresql://username:password@localhost:5444/{DATABASE_NAME}"
+SQLALCHEMY_URL = (
+    f"postgresql+asyncpg://username:password@localhost:5444/{DATABASE_NAME}"
+)
 REVISION = (
     Path(__file__).resolve().parents[4]
     / "databases/postgres/migrations/core_oss/versions"
@@ -66,6 +71,17 @@ def _data(agent, **extra):
     return {"uri": "agenta:builtin:agent:v0", "parameters": {"agent": agent, **extra}}
 
 
+async def _backfill(revision):
+    engine = create_async_engine(SQLALCHEMY_URL)
+    try:
+        async with engine.begin() as connection:
+            return await connection.run_sync(
+                lambda sync: revision._backfill(sync, batch_size=2)
+            )
+    finally:
+        await engine.dispose()
+
+
 async def _run():
     revision = _revision()
     db = await _scratch()
@@ -81,7 +97,8 @@ async def _run():
             AGENT,
             _data({"drives": [{"kind": "project", "slug": "docs"}]}),
         ),
-        "null_drives": (AGENT, _data({"drives": None})),
+        "null_keys": (AGENT, _data({"has_session_drive": None, "drives": None})),
+        "null_character": (AGENT, _data({"harness": harness}, prompt="a\u0000b")),
         "both": (AGENT, _data({"has_session_drive": True, "drives": []})),
         "not_agent": (NOT_AGENT, _data({"harness": harness})),
         "no_flags": (None, _data({"harness": harness})),
@@ -110,8 +127,7 @@ async def _run():
 
         before = await snapshot()
 
-        first = await db.execute(revision._BACKFILL_SQL)
-        assert first == "UPDATE 4"
+        assert await _backfill(revision) == 5
 
         def data(name):
             return json.loads(after[name])
@@ -128,10 +144,12 @@ async def _run():
             "has_session_drive": True,
             "drives": [{"kind": "project", "slug": "docs"}],
         }
-        assert data("null_drives")["parameters"]["agent"] == {
-            "has_session_drive": True,
-            "drives": None,
-        }
+        # a stated null counts as absent
+        assert data("null_keys")["parameters"]["agent"] == DEFAULTS
+        # jsonb refuses a null character; the row is still merged and keeps it
+        assert data("null_character") == _data(
+            {"harness": harness, **DEFAULTS}, prompt="a\u0000b"
+        )
         # rows the backfill must not touch keep their stored text
         for name in (
             "both",
@@ -143,8 +161,7 @@ async def _run():
         ):
             assert after[name] == before[name], name
 
-        second = await db.execute(revision._BACKFILL_SQL)
-        assert second == "UPDATE 0"
+        assert await _backfill(revision) == 0
         assert await snapshot() == after
     finally:
         await db.close()
