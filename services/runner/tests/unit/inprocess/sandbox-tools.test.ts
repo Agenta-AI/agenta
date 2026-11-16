@@ -139,6 +139,25 @@ describe("a command's changes", () => {
 });
 
 describe("the start of a turn", () => {
+  it("repairs a missing project link once when concurrent reads start a turn, and keeps the sandbox", async () => {
+    const ws = createTestWorkspace({ readOnlyProject: "prices" });
+    const { call, text } = tools(ws);
+    expect((await ws.bash("echo first")).output).toContain("first");
+    writeFileSync(join(ws.cwd, "a.md"), "a\n");
+    writeFileSync(join(ws.cwd, "b.md"), "b\n");
+    const link = join(ws.cwd, "drives", "prices");
+    rmSync(link);
+    const sandbox = sandboxOf(ws);
+    const before = sandbox.commands.length;
+    ws.workspace.startTurn();
+    const reads = await Promise.all(["a.md", "b.md", "a.md"].map((path) => call("read", { path })));
+    expect(reads.map((r) => text(r).trim())).toEqual(["a", "b", "a"]);
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(sandbox.commands.slice(before).filter((c) => c.includes("ln -s")).length).toBe(1);
+    expect(ws.daytona.creates).toBe(1);
+    await ws.workspace.sandbox.delete();
+  });
+
   it("stops file commands on a later turn once the project drive's link was replaced by a folder, and leaves the folder", async () => {
     const ws = createTestWorkspace({ readOnlyProject: "prices" });
     expect((await ws.bash("echo first")).output).toContain("first");

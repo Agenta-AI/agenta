@@ -268,8 +268,6 @@ export class ConversationWorkspace {
         // A new mount sees the store as it is now.
         if (!this.drive.mountedOn(use.sandbox.id, use.boot)) this.viewTurn = turn;
         await this.drive.ensure(use, signal);
-        // A new turn on a standing mount: a link may have been replaced since the last one.
-        if (this.viewTurn < turn) await this.drive.link(use.sandbox, signal, { projectsOnly: true });
         if (this.viewTurn < turn || this.drive.modesPending) await this.refreshView(use);
         if (this.drive.modesPending) await this.drive.applyModes(use.sandbox, signal);
         return use;
@@ -373,6 +371,9 @@ export class ConversationWorkspace {
     const turn = this.turns;
     if (this.viewRefresh?.turn === turn) return this.viewRefresh.done;
     const done = (async () => {
+      // A new turn on a standing mount: a project link may have been replaced since the last one.
+      // Repaired here so concurrent calls share one repair, as they share the refresh.
+      if (this.viewTurn < turn) await this.drive.link(use.sandbox, undefined, { projectsOnly: true });
       const failure = await use.sandbox.run(this.drive.refreshCommand, { timeoutSeconds: REFRESH_SECONDS }).then(
         (r) => (r.exitCode === 0 ? undefined : `${r.output.trim().slice(0, 80)} root(s) not refreshed`),
         (err) => String(err).slice(0, 120),
