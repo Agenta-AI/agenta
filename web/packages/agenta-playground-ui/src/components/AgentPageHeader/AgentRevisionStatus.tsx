@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
 import {revalidateAgentRevisionReads, workflowMolecule} from "@agenta/entities/workflow"
-import {richText, useT} from "@agenta/i18n"
+import {useT} from "@agenta/i18n"
 import headerCatalog from "@agenta/i18n/catalogs/playground.agentHeader"
 import {
     agentAutoCommitErrorAtomFamily,
@@ -268,12 +268,7 @@ export const AgentRevisionStatus = ({
                     onClick={() => onUpdate?.(newer.id)}
                     className="shrink-0 cursor-pointer whitespace-nowrap rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
                 >
-                    {richText(
-                        t("playground.agentHeader.updateAvailable", {version: newer.version}),
-                        {
-                            strong: (text) => <span className="font-medium">{text}</span>,
-                        },
-                    )}
+                    {t("playground.agentHeader.updateAvailable", {version: newer.version})}
                 </button>
             ) : null}
 

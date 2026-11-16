@@ -16,6 +16,6 @@
     "openVersionHistory": "Open version history",
     "commitMessage": "Commit message",
     "noCommitMessage": "No commit message",
-    "updateAvailable": "v{{version}} available · <strong>Update</strong>",
+    "updateAvailable": "Update to v{{version}}",
     "retrySaving": "Retry saving changes"
 }

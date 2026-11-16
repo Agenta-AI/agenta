@@ -19,10 +19,10 @@
     "usePromptShape": "Use prompt shape",
     "unusedKeysOpen_one": "{{count}} unused nested key (not referenced by the prompt)",
     "unusedKeysOpen_other": "{{count}} unused nested keys (not referenced by the prompt)",
-    "unusedKeysClosed_one": "{{count}} unused nested key hidden because the prompt does not reference it.",
+    "unusedKeysClosed_one": "{{count}} unused nested key hidden because the prompt does not reference them.",
     "unusedKeysClosed_other": "{{count}} unused nested keys hidden because the prompt does not reference them.",
     "unusedColumnsOpen_one": "{{count}} unused test case column (not referenced by the prompt)",
     "unusedColumnsOpen_other": "{{count}} unused test case columns (not referenced by the prompt)",
-    "unusedColumnsClosed_one": "{{count}} unused test case column hidden because the prompt does not reference it.",
+    "unusedColumnsClosed_one": "{{count}} unused test case column hidden because the prompt does not reference them.",
     "unusedColumnsClosed_other": "{{count}} unused test case columns hidden because the prompt does not reference them."
 }

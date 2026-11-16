@@ -16,6 +16,6 @@
     "openVersionHistory": "Versionsverlauf öffnen",
     "commitMessage": "Commit-Nachricht",
     "noCommitMessage": "Keine Commit-Nachricht",
-    "updateAvailable": "v{{version}} verfügbar · <strong>Aktualisieren</strong>",
+    "updateAvailable": "Auf v{{version}} aktualisieren",
     "retrySaving": "Speichern erneut versuchen"
 }

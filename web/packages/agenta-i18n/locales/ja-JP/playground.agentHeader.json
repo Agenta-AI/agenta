@@ -16,6 +16,6 @@
     "openVersionHistory": "バージョン履歴を開く",
     "commitMessage": "コミットメッセージ",
     "noCommitMessage": "コミットメッセージはありません",
-    "updateAvailable": "v{{version}} が利用可能 · <strong>更新</strong>",
+    "updateAvailable": "v{{version}} に更新",
     "retrySaving": "変更の保存を再試行"
 }
