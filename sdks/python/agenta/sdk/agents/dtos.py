@@ -23,6 +23,7 @@ from typing import (
     Optional,
     Tuple,
     Union,
+    get_args,
 )
 
 from pydantic import (
@@ -331,9 +332,76 @@ class SandboxPermission(BaseModel):
 
 AgentDriveKind = Literal["agent", "project"]
 AgentDriveAccess = Literal["read-write", "read"]
-AGENT_DRIVE_KINDS: Tuple[str, ...] = ("agent", "project")
-AGENT_DRIVE_ACCESS_LEVELS: Tuple[str, ...] = ("read-write", "read")
+AGENT_DRIVE_KINDS: Tuple[str, ...] = get_args(AgentDriveKind)
+AGENT_DRIVE_ACCESS_VALUES: Tuple[str, ...] = get_args(AgentDriveAccess)
 MAX_AGENT_DRIVES = 8
+
+
+class InvalidAgentDrivesError(AgentTemplateShapeError):
+    """``parameters.agent.drives`` breaks a drive rule.
+
+    ``field`` is the path inside the agent configuration (``drives[1].slug``), so the commit
+    route can name it in its envelope; ``value`` is the offending value, safe to echo.
+    """
+
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-drives"
+
+    def __init__(self, *, field: str, value: Any, reason: str) -> None:
+        super().__init__(f"agent template {field}: {reason}")
+        self.field = field
+        self.value = value
+        self.reason = reason
+
+
+class InvalidSessionDriveError(AgentTemplateShapeError):
+    """``parameters.agent.has_session_drive`` is not a boolean."""
+
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-session-drive"
+
+    def __init__(self, value: Any) -> None:
+        super().__init__("agent template has_session_drive must be true or false")
+        self.value = value
+
+
+def _check_drive_entry(entry: Dict[str, Any], where: str) -> None:
+    """The rules of one entry; :func:`validate_agent_drives` adds the rules across entries."""
+    unknown = sorted(set(entry) - {"kind", "slug", "access"})
+    if unknown:
+        raise InvalidAgentDrivesError(
+            field=f"{where}.{unknown[0]}",
+            value=unknown[0],
+            reason="is not a drive field; allowed: kind, slug, access",
+        )
+    kind = entry.get("kind")
+    if kind not in AGENT_DRIVE_KINDS:
+        raise InvalidAgentDrivesError(
+            field=f"{where}.kind",
+            value=str(kind),
+            reason=f"must be one of {list(AGENT_DRIVE_KINDS)}",
+        )
+    if kind == "agent":
+        for key in ("slug", "access"):
+            if entry.get(key) is not None:
+                raise InvalidAgentDrivesError(
+                    field=f"{where}.{key}",
+                    value=str(entry[key]),
+                    reason="is not allowed on the agent's own drive",
+                )
+        return
+    slug = entry.get("slug")
+    if not isinstance(slug, str) or not slug.strip():
+        raise InvalidAgentDrivesError(
+            field=f"{where}.slug",
+            value=str(slug),
+            reason="a project drive needs the slug of the drive",
+        )
+    access = entry.get("access")
+    if access is not None and access not in AGENT_DRIVE_ACCESS_VALUES:
+        raise InvalidAgentDrivesError(
+            field=f"{where}.access",
+            value=str(access),
+            reason=f"must be one of {list(AGENT_DRIVE_ACCESS_VALUES)}",
+        )
 
 
 class AgentDrive(BaseModel):
@@ -351,6 +419,13 @@ class AgentDrive(BaseModel):
     slug: Optional[str] = None
     access: Optional[AgentDriveAccess] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _check_entry(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            _check_drive_entry(data, "drives[]")
+        return data
+
     def to_wire(self) -> Dict[str, Any]:
         if self.kind == "agent":
             return {"kind": "agent"}
@@ -366,20 +441,6 @@ def default_agent_drives() -> List[AgentDrive]:
     return [AgentDrive(kind="agent")]
 
 
-class InvalidAgentDrivesError(AgentTemplateShapeError):
-    """``parameters.agent.drives`` or ``has_session_drive`` breaks a drive rule.
-
-    ``field`` is the path inside the agent configuration (``drives[1].slug``), so the commit
-    route can name it in its envelope; ``value`` is the offending value, safe to echo.
-    """
-
-    def __init__(self, *, field: str, value: Any, message: str) -> None:
-        super().__init__(f"agent template {field}: {message}")
-        self.field = field
-        self.value = value
-        self.reason = message
-
-
 def validate_agent_drives(drives: Any) -> List[AgentDrive]:
     """Parse ``parameters.agent.drives``, the one owner of the drive entry rules.
 
@@ -387,85 +448,57 @@ def validate_agent_drives(drives: Any) -> List[AgentDrive]:
     at most 8 entries; ``kind`` is ``agent`` or ``project``; an ``agent`` entry carries no
     ``slug`` and no ``access``, and appears at most once; a ``project`` entry carries a
     non-empty ``slug``, each slug at most once, and ``access`` ``read`` or ``read-write``.
-    An empty list is allowed: the agent then has no durable drive.
+    An empty list is allowed: the agent then has no durable drive. Typed :class:`AgentDrive`
+    entries pass the same rules.
     """
     if drives is None:
         return default_agent_drives()
     if not isinstance(drives, list):
         raise InvalidAgentDrivesError(
-            field="drives", value=type(drives).__name__, message="must be a list"
+            field="drives", value=type(drives).__name__, reason="must be a list"
         )
     if len(drives) > MAX_AGENT_DRIVES:
         raise InvalidAgentDrivesError(
             field="drives",
             value=len(drives),
-            message=f"has {len(drives)} entries; at most {MAX_AGENT_DRIVES} are allowed",
+            reason=f"has {len(drives)} entries; at most {MAX_AGENT_DRIVES} are allowed",
         )
     parsed: List[AgentDrive] = []
     seen_slugs: set = set()
     has_agent = False
     for index, entry in enumerate(drives):
         where = f"drives[{index}]"
+        if isinstance(entry, AgentDrive):
+            entry = entry.model_dump(exclude_none=True)
         if not isinstance(entry, dict):
             raise InvalidAgentDrivesError(
                 field=where,
                 value=type(entry).__name__,
-                message='must be an object, e.g. {"kind": "agent"}',
+                reason='must be an object, e.g. {"kind": "agent"}',
             )
-        unknown = sorted(set(entry) - {"kind", "slug", "access"})
-        if unknown:
-            raise InvalidAgentDrivesError(
-                field=f"{where}.{unknown[0]}",
-                value=unknown[0],
-                message="is not a drive field; allowed: kind, slug, access",
-            )
-        kind = entry.get("kind")
-        if kind not in AGENT_DRIVE_KINDS:
-            raise InvalidAgentDrivesError(
-                field=f"{where}.kind",
-                value=str(kind),
-                message=f"must be one of {list(AGENT_DRIVE_KINDS)}",
-            )
-        if kind == "agent":
-            for key in ("slug", "access"):
-                if key in entry:
-                    raise InvalidAgentDrivesError(
-                        field=f"{where}.{key}",
-                        value=str(entry[key]),
-                        message="is not allowed on the agent's own drive",
-                    )
+        _check_drive_entry(entry, where)
+        if entry["kind"] == "agent":
             if has_agent:
                 raise InvalidAgentDrivesError(
                     field=f"{where}.kind",
-                    value=kind,
-                    message="the agent's own drive is listed more than once",
+                    value="agent",
+                    reason="the agent's own drive is listed more than once",
                 )
             has_agent = True
             parsed.append(AgentDrive(kind="agent"))
             continue
-        slug = entry.get("slug")
-        if not isinstance(slug, str) or not slug.strip():
-            raise InvalidAgentDrivesError(
-                field=f"{where}.slug",
-                value=str(slug),
-                message="a project drive needs the slug of the drive",
-            )
+        slug = entry["slug"]
         if slug in seen_slugs:
             raise InvalidAgentDrivesError(
                 field=f"{where}.slug",
                 value=slug,
-                message=f"the drive {slug!r} is listed more than once",
+                reason=f"the drive {slug!r} is listed more than once",
             )
         seen_slugs.add(slug)
-        access = entry.get("access")
-        if access is not None and access not in AGENT_DRIVE_ACCESS_LEVELS:
-            raise InvalidAgentDrivesError(
-                field=f"{where}.access",
-                value=str(access),
-                message=f"must be one of {list(AGENT_DRIVE_ACCESS_LEVELS)}",
-            )
         parsed.append(
-            AgentDrive(kind="project", slug=slug, access=access or "read-write")
+            AgentDrive(
+                kind="project", slug=slug, access=entry.get("access") or "read-write"
+            )
         )
     return parsed
 
@@ -475,11 +508,7 @@ def validate_has_session_drive(value: Any) -> bool:
     if value is None:
         return True
     if not isinstance(value, bool):
-        raise InvalidAgentDrivesError(
-            field="has_session_drive",
-            value=str(value),
-            message="must be true or false",
-        )
+        raise InvalidSessionDriveError(str(value))
     return value
 
 
@@ -1011,6 +1040,17 @@ class AgentTemplate(BaseModel):
     # the store. A configuration without them reads as today's behavior.
     drives: List[AgentDrive] = Field(default_factory=default_agent_drives)
     has_session_drive: bool = True
+
+    @field_validator("drives", mode="before")
+    @classmethod
+    def _check_drives(cls, value: Any) -> List[AgentDrive]:
+        return validate_agent_drives(value)
+
+    @field_validator("has_session_drive", mode="before")
+    @classmethod
+    def _check_has_session_drive(cls, value: Any) -> bool:
+        return validate_has_session_drive(value)
+
     # The execution selectors: the coding agent to drive, where it runs, and the runner-enforced
     # default permission mode (sourced from ``runner.permissions.default``).
     harness: str = "pi_core"
@@ -1164,6 +1204,16 @@ class HarnessAgentTemplate(BaseModel):
     platform_instructions: Optional[str] = None
     drives: List[AgentDrive] = Field(default_factory=default_agent_drives)
     has_session_drive: bool = True
+
+    @field_validator("drives", mode="before")
+    @classmethod
+    def _check_drives(cls, value: Any) -> List[AgentDrive]:
+        return validate_agent_drives(value)
+
+    @field_validator("has_session_drive", mode="before")
+    @classmethod
+    def _check_has_session_drive(cls, value: Any) -> bool:
+        return validate_has_session_drive(value)
 
     @model_validator(mode="before")
     @classmethod

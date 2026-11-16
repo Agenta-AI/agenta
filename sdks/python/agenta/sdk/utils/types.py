@@ -9,6 +9,9 @@ from pydantic import Field, model_validator, AliasChoices
 
 
 from agenta.sdk.agents.dtos import (
+    MAX_AGENT_DRIVES,
+    AgentDriveAccess,
+    AgentDriveKind,
     HARNESS_IDENTITIES,
     UNLISTED_HARNESS_KINDS,
     SandboxPermission,
@@ -1273,7 +1276,7 @@ class _AgentDriveSchema(BaseModel):
 
     model_config = ConfigDict(extra="forbid", title="Drive")
 
-    kind: Literal["agent", "project"] = Field(
+    kind: AgentDriveKind = Field(
         title="Kind",
         description="agent: the agent's own drive. project: a drive of the project, named by slug.",
     )
@@ -1283,7 +1286,7 @@ class _AgentDriveSchema(BaseModel):
         title="Slug",
         description="The slug of the project drive. Required for project, absent for agent.",
     )
-    access: Optional[Literal["read-write", "read"]] = Field(
+    access: Optional[AgentDriveAccess] = Field(
         default=None,
         title="Access",
         description="Project drives only: read-write (default) or read.",
@@ -1352,7 +1355,7 @@ class AgentTemplateSchema(AgSchemaMixin):
     )
     drives: List[_AgentDriveSchema] = Field(
         default_factory=lambda: [_AgentDriveSchema(kind="agent")],
-        max_length=8,
+        max_length=MAX_AGENT_DRIVES,
         title="Drives",
         description=(
             "The durable drives the agent mounts: its own drive ({kind: agent}, at "
