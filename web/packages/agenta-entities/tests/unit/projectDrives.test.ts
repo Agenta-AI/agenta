@@ -18,7 +18,12 @@ import {
     projectDriveEntries,
     resolveProjectDrivePath,
 } from "../../src/drive/projectDrives"
-import {driveHasMixedOrigins, fileOrigin} from "../../src/drive/useSessionDrive"
+import {canWriteAt} from "../../src/drive/useDriveUploads"
+import {
+    driveHasMixedOrigins,
+    fileOrigin,
+    summarizeProjectDrives,
+} from "../../src/drive/useSessionDrive"
 import {queryMountsBySlugs} from "../../src/session/api/api"
 import {prepareCommitParameters} from "../../src/workflow/state/createPayload"
 import type {Workflow} from "../../src/workflow/core"
@@ -107,18 +112,79 @@ describe("resolveProjectDrivePath", () => {
 })
 
 describe("fileOrigin", () => {
+    const drives = [{slug: "price-lists"}]
+
     it("tells the three origins apart", () => {
-        expect(fileOrigin("notes/a.md")).toBe("session")
-        expect(fileOrigin("agent-files/a.md")).toBe("agent")
-        expect(fileOrigin("drives/price-lists/2026.md")).toBe("project")
-        expect(fileOrigin("drives")).toBe("session")
+        expect(fileOrigin("notes/a.md", drives)).toBe("session")
+        expect(fileOrigin("agent-files/a.md", drives)).toBe("agent")
+        expect(fileOrigin("drives/price-lists/2026.md", drives)).toBe("project")
+        expect(fileOrigin("drives/price-lists", drives)).toBe("project")
+        expect(fileOrigin("drives", drives)).toBe("session")
+    })
+
+    // Only a configured slug is a project drive; anything else under `drives/` is a session file.
+    it("keeps other paths under drives/ as session files", () => {
+        expect(fileOrigin("drives/notes.md", drives)).toBe("session")
+        expect(fileOrigin("drives/other/x.md", drives)).toBe("session")
+        expect(fileOrigin("drives/price-lists/2026.md")).toBe("session")
     })
 
     it("counts project files as durable when mixed with session files", () => {
-        expect(driveHasMixedOrigins([{path: "drives/a/x.md"}, {path: "agent-files/y.md"}])).toBe(
-            false,
-        )
-        expect(driveHasMixedOrigins([{path: "drives/a/x.md"}, {path: "notes.md"}])).toBe(true)
+        const ab = [{slug: "a"}]
+        expect(
+            driveHasMixedOrigins([{path: "drives/a/x.md"}, {path: "agent-files/y.md"}], ab),
+        ).toBe(false)
+        expect(driveHasMixedOrigins([{path: "drives/a/x.md"}, {path: "notes.md"}], ab)).toBe(true)
+    })
+})
+
+describe("summarizeProjectDrives", () => {
+    const lookup = {isPending: false, isFetching: false, isError: false}
+    const ok = (total: number) => ({
+        data: {total, totalCapped: false},
+        isPending: false,
+        isFetching: false,
+        isError: false,
+    })
+
+    it("adds the drives' counts", () => {
+        expect(summarizeProjectDrives(lookup, [ok(2), ok(3)])).toMatchObject({
+            fileCount: 5,
+            errored: false,
+            resolving: false,
+        })
+    })
+
+    // A failed request answers null: that is a failure to flag and retry, not an empty drive.
+    it("flags a failed count beside a drive that loaded", () => {
+        const failed = {data: null, isPending: false, isFetching: false, isError: false}
+        expect(summarizeProjectDrives(lookup, [ok(2), failed])).toMatchObject({
+            fileCount: 2,
+            errored: true,
+        })
+    })
+
+    it("flags a failed slug lookup, and a pending one as resolving", () => {
+        expect(summarizeProjectDrives({...lookup, isError: true}, []).errored).toBe(true)
+        expect(summarizeProjectDrives({...lookup, isPending: true}, []).resolving).toBe(true)
+    })
+})
+
+describe("canWriteAt", () => {
+    const mount = {id: "m"}
+    const drive = {
+        resolveMount: (path: string) =>
+            path.startsWith("drives/prices")
+                ? {mount, path: "", readOnly: true}
+                : path.startsWith("drives/team")
+                  ? {mount, path: ""}
+                  : null,
+    }
+
+    it("writes where a writable mount backs the folder, even with no session mount", () => {
+        expect(canWriteAt(drive, "drives/team")).toBe(true)
+        expect(canWriteAt(drive, "drives/prices")).toBe(false)
+        expect(canWriteAt(drive, "")).toBe(false)
     })
 })
 

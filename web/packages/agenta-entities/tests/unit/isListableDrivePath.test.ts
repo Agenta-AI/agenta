@@ -39,24 +39,33 @@ describe("isListableDrivePath", () => {
 })
 
 describe("isListableDrivePath with project drive links", () => {
+    const projectDrives = [{slug: "price-lists"}]
+
     // The runner links each project drive into the session folder at `drives/<slug>`, as it links
     // `agent-files`; the link is plumbing, the drive's files are folded in from its own mount.
-    it("drops a drives/<slug> link from the session mount, but not the files under it", () => {
-        expect(isListableDrivePath("drives/price-lists")).toBe(false)
-        expect(isListableDrivePath("/drives/price-lists")).toBe(false)
-        expect(isListableDrivePath("drives/price-lists/2026.md")).toBe(true)
-        expect(isListableDrivePath("drives")).toBe(true)
+    it("drops a configured drives/<slug> link from the session mount, not the files under it", () => {
+        expect(isListableDrivePath("drives/price-lists", {projectDrives})).toBe(false)
+        expect(isListableDrivePath("/drives/price-lists", {projectDrives})).toBe(false)
+        expect(isListableDrivePath("drives/price-lists/2026.md", {projectDrives})).toBe(true)
+        expect(isListableDrivePath("drives", {projectDrives})).toBe(true)
+    })
+
+    // Only a configured slug is a link: a session file at `drives/notes.md` stays listed.
+    it("keeps other entries under drives/ as session files", () => {
+        expect(isListableDrivePath("drives/notes.md", {projectDrives})).toBe(true)
+        expect(isListableDrivePath("drives/price-lists")).toBe(true)
     })
 
     it("keeps a real top-level entry inside a project mount", () => {
-        expect(isListableDrivePath("drives/notes.md", {fromAgentMount: true})).toBe(true)
+        expect(isListableDrivePath("price-lists", {fromAgentMount: true, projectDrives})).toBe(true)
     })
 
-    it("names only the link itself", () => {
-        expect(isProjectDriveLink("drives/price-lists")).toBe(true)
-        expect(isProjectDriveLink("drives/price-lists/")).toBe(true)
-        expect(isProjectDriveLink("drives")).toBe(false)
-        expect(isProjectDriveLink("drives/price-lists/a.md")).toBe(false)
-        expect(isProjectDriveLink("notes/drives/x")).toBe(false)
+    it("names only the link of a configured slug", () => {
+        expect(isProjectDriveLink("drives/price-lists", projectDrives)).toBe(true)
+        expect(isProjectDriveLink("drives/price-lists/", projectDrives)).toBe(true)
+        expect(isProjectDriveLink("drives", projectDrives)).toBe(false)
+        expect(isProjectDriveLink("drives/price-lists/a.md", projectDrives)).toBe(false)
+        expect(isProjectDriveLink("drives/other", projectDrives)).toBe(false)
+        expect(isProjectDriveLink("notes/drives/price-lists", projectDrives)).toBe(false)
     })
 })

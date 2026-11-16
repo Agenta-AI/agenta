@@ -97,13 +97,57 @@ const projectMountsQueryFamily = atomFamily((slugsKey: string) =>
     }),
 )
 
-/** The revision's project drives that have an active mount. No project entries: no request. */
-export const projectDrivesAtomFamily = atomFamily((revisionId: string) =>
-    atom((get): ProjectDrive[] => {
+export interface ProjectDrivesState {
+    /** The project drives that have an active mount, in configuration order. */
+    drives: ProjectDrive[]
+    /** The slug lookup is still in flight. */
+    isPending: boolean
+    isFetching: boolean
+    /** The slug lookup failed, so drives the configuration names may be missing. */
+    isError: boolean
+    refetch: () => void
+}
+
+const NO_DRIVES: ProjectDrive[] = []
+// One array per (answer, slugs): the state atom recomputes on every fetch flag, the drives must not.
+const matched = new WeakMap<Mount[], {key: string; drives: ProjectDrive[]}>()
+const matchOnce = (entries: ProjectDriveEntry[], mounts: Mount[]) => {
+    const key = entries.map((e) => `${e.slug}:${e.access}`).join("\n")
+    const hit = matched.get(mounts)
+    if (hit && hit.key === key) return hit.drives
+    const drives = matchProjectDrives(entries, mounts)
+    matched.set(mounts, {key, drives})
+    return drives
+}
+const noop = () => {}
+const IDLE: ProjectDrivesState = {
+    drives: NO_DRIVES,
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    refetch: noop,
+}
+
+/** The revision's project drives and the state of their lookup. No project entries: no request. */
+export const projectDrivesStateAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): ProjectDrivesState => {
         const entries = get(projectDriveEntriesAtomFamily(revisionId))
-        if (!entries.length) return []
+        if (!entries.length) return IDLE
         const slugsKey = entries.map((e) => e.slug).join("\n")
-        const mounts = get(projectMountsQueryFamily(slugsKey)).data ?? []
-        return matchProjectDrives(entries, mounts)
+        const query = get(projectMountsQueryFamily(slugsKey))
+        const settled = !query.isPending
+        return {
+            drives: query.data ? matchOnce(entries, query.data) : NO_DRIVES,
+            isPending: query.isPending && query.fetchStatus !== "idle",
+            isFetching: query.isFetching,
+            // The API helper answers null for a failed request.
+            isError: query.isError || (settled && query.data === null),
+            refetch: () => void query.refetch(),
+        }
     }),
+)
+
+/** The revision's project drives that have an active mount. */
+export const projectDrivesAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): ProjectDrive[] => get(projectDrivesStateAtomFamily(revisionId)).drives),
 )

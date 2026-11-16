@@ -127,7 +127,7 @@ export function useDriveWrites(
     const canDelete = useCallback(
         (presentedPath: string) => {
             if (presentedPath === "" || presentedPath === AGENT_FILES_DIR) return false
-            if (fileOrigin(presentedPath) !== "project") return true
+            if (fileOrigin(presentedPath, drive.projectDrives) !== "project") return true
             const resolved = drive.resolveMount(presentedPath)
             return Boolean(resolved && resolved.path !== "" && !resolved.readOnly)
         },

@@ -48,12 +48,19 @@ export const matchesTail = (filePath: string, requested: string): boolean =>
  *
  * Shared with SessionFilesPane, the docked variant of this host — the two must resolve alike.
  */
-export const resolveQuickLookPath = (recents: {path: string}[], requested: string): string => {
+export const resolveQuickLookPath = (
+    recents: {path: string}[],
+    requested: string,
+    projectDrives: readonly {slug: string}[] = [],
+): string => {
     if (requested.startsWith("/")) {
         // A presented path written absolute (`/agent-files/x`) is the drive's own, not `/etc/x`, so
         // it is checked before any sandbox root is looked for in it (#7715).
         const presented = cleanPath(requested)
-        if (presented.startsWith(`${AGENT_FILES_DIR}/`) || fileOrigin(presented) === "project")
+        if (
+            presented.startsWith(`${AGENT_FILES_DIR}/`) ||
+            fileOrigin(presented, projectDrives) === "project"
+        )
             return presented
         const resolved = drivePathFromToolPath(requested)
         if (!resolved) return recents.some((f) => f.path === presented) ? presented : requested
@@ -93,8 +100,11 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
 
     // Resolve the quick-look path (possibly a tail) to the presented drive path the tree selects by.
     const initialPath = useMemo(
-        () => (quickLook ? resolveQuickLookPath(drive.recents, quickLook.path) : null),
-        [quickLook, drive.recents],
+        () =>
+            quickLook
+                ? resolveQuickLookPath(drive.recents, quickLook.path, drive.projectDrives)
+                : null,
+        [quickLook, drive.recents, drive.projectDrives],
     )
 
     const driveIds = useMemo(

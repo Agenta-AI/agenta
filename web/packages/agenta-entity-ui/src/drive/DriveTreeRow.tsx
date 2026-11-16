@@ -6,6 +6,7 @@ import {fileOrigin} from "@agenta/entities/drive"
 import {CaretDown, CaretRight, CircleNotch} from "@phosphor-icons/react"
 
 import {FOCUS_RING} from "./DriveFileRow"
+import {useDriveProjectDrives} from "./driveSessionContext"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 import {OriginTag} from "./OriginTag"
 
@@ -52,6 +53,7 @@ export const TreeRow = ({
     onToggle: (path: string) => void
     onSelect: (path: string) => void
 }) => {
+    const projectDrives = useDriveProjectDrives()
     // Dot-prefixed (hidden) entries surface but dimmed, like a file browser greys .git/.claude.
     const hidden = isHiddenPath(node.path)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -134,7 +136,7 @@ export const TreeRow = ({
                     {/* Only the top-level items carry the tag; nested rows inherit it from their
                         (already-tagged) agent-files folder, so the tree stays quiet. */}
                     {showOrigin && depth === 0 ? (
-                        <OriginTag origin={fileOrigin(node.path)} />
+                        <OriginTag origin={fileOrigin(node.path, projectDrives)} />
                     ) : null}
                     {/* In-flight upload status, trailing the name — the row is otherwise a normal file row. */}
                     {pending && !pending.error && pending.percent < 100 ? (

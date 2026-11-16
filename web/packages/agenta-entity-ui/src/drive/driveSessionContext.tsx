@@ -7,6 +7,9 @@
  */
 import {createContext, useContext, useMemo, type ReactNode} from "react"
 
+import {projectDrivesAtomFamily, type ProjectDrive} from "@agenta/entities/drive"
+import {useAtomValue} from "jotai"
+
 interface DriveSession {
     sessionId: string | null
     artifactId: string | null
@@ -48,3 +51,8 @@ export const useDriveArtifactId = (): string | null => useContext(DriveSessionCo
 /** The enclosing conversation's revision id — for the project drives (`drives/<slug>/`) its
  * configuration names; null outside a conversation. */
 export const useDriveRevisionId = (): string | null => useContext(DriveSessionContext).revisionId
+
+/** The enclosing conversation's project drives (none outside a conversation) — which `drives/<slug>`
+ * paths are project paths rather than session files. */
+export const useDriveProjectDrives = (): ProjectDrive[] =>
+    useAtomValue(projectDrivesAtomFamily(useDriveRevisionId() ?? ""))

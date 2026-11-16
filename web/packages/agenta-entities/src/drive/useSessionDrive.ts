@@ -29,8 +29,10 @@ import {
     PROJECT_DRIVES_DIR,
     projectDriveDir,
     projectDrivesAtomFamily,
+    projectDrivesStateAtomFamily,
     resolveProjectDrivePath,
     type ProjectDrive,
+    type ProjectDrivesState,
 } from "./projectDrives"
 
 /** The agent's durable mount is symlinked into the session cwd under this name (runner:
@@ -68,10 +70,13 @@ const ownsAgentFilesEntry = (paths: readonly string[]): boolean =>
         return rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)
     })
 
-export const fileOrigin = (path: string): FileOrigin => {
+/** The session's project drives, by slug: only `drives/<configured slug>` is a project path. */
+type ProjectSlugs = readonly {slug: string}[]
+
+export const fileOrigin = (path: string, projectDrives: ProjectSlugs = []): FileOrigin => {
     const rel = cleanPath(path)
     if (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)) return "agent"
-    return rel.startsWith(`${PROJECT_DRIVES_DIR}/`) ? "project" : "session"
+    return resolveProjectDrivePath(rel, projectDrives) ? "project" : "session"
 }
 
 /** A presented path inside one of the session's project drives, mapped to that drive's mount. A
@@ -86,7 +91,7 @@ const resolveProjectMount = (
 }
 
 /** Present a project drive's mount-relative entries under its `drives/<slug>/` folder. */
-const foldProjectFiles = (drive: ProjectDrive, files: readonly MountFile[]): MountFile[] =>
+export const foldProjectFiles = (drive: ProjectDrive, files: readonly MountFile[]): MountFile[] =>
     files.map((f) => ({...f, path: `${projectDriveDir(drive.slug)}/${cleanPath(f.path)}`}))
 
 /**
@@ -105,32 +110,37 @@ const foldProjectFiles = (drive: ProjectDrive, files: readonly MountFile[]): Mou
  * otherwise the folder vanishes from the root listing while the file count still counts what is
  * inside it.
  */
-export const isListableDrivePath = (path: string, opts?: {fromAgentMount?: boolean}): boolean => {
+export interface DrivePathOptions {
+    fromAgentMount?: boolean
+    /** The session's project drives: their `drives/<slug>` links are markers, not files. */
+    projectDrives?: ProjectSlugs
+}
+
+export const isListableDrivePath = (path: string, opts?: DrivePathOptions): boolean => {
     const rel = cleanPath(path)
     if (!rel || isInternalDrivePath(rel)) return false
     if (opts?.fromAgentMount === true) return true
-    return rel !== AGENT_FILES_DIR && !isProjectDriveLink(rel)
+    return rel !== AGENT_FILES_DIR && !isProjectDriveLink(rel, opts?.projectDrives)
 }
 
-/** A `drives/<slug>` entry itself: the session folder's link to a project drive. */
-export const isProjectDriveLink = (path: string): boolean => {
-    const rel = cleanPath(path)
-    if (!rel.startsWith(`${PROJECT_DRIVES_DIR}/`)) return false
-    const slug = rel.slice(PROJECT_DRIVES_DIR.length + 1)
-    return Boolean(slug) && !slug.includes("/")
-}
+/** A `drives/<slug>` entry itself, for a configured slug: the session folder's link to that drive. */
+export const isProjectDriveLink = (path: string, projectDrives: ProjectSlugs = []): boolean =>
+    resolveProjectDrivePath(path, projectDrives)?.path === ""
 
 /** {@link isListableDrivePath} minus hidden paths; the explorer asks the wider one (#6027). */
-export const isSummaryDrivePath = (path: string, opts?: {fromAgentMount?: boolean}): boolean =>
+export const isSummaryDrivePath = (path: string, opts?: DrivePathOptions): boolean =>
     isListableDrivePath(path, opts) && !isHiddenPath(path)
 
 /** True when a listing holds BOTH session files and durable (agent or project) files — the only
  * time the origin tags/filter carry information (a single-origin drive doesn't need them). */
-export const driveHasMixedOrigins = (files: {path: string}[]): boolean => {
+export const driveHasMixedOrigins = (
+    files: {path: string}[],
+    projectDrives: ProjectSlugs = [],
+): boolean => {
     let durable = false
     let session = false
     for (const f of files) {
-        if (fileOrigin(f.path) === "session") session = true
+        if (fileOrigin(f.path, projectDrives) === "session") session = true
         else durable = true
         if (durable && session) return true
     }
@@ -265,7 +275,9 @@ export function useSessionDrive(
         const cwdStats = driveFileStats(listing)
         // The cwd holds only the link to each project drive; its files come from the drive below.
         const cwdFiles = cwdStats.files.filter(
-            (f) => isListableDrivePath(f.path) && !resolveProjectDrivePath(f.path, projectDrives),
+            (f) =>
+                isListableDrivePath(f.path, {projectDrives}) &&
+                !resolveProjectDrivePath(f.path, projectDrives),
         )
 
         // Agent-mount files, presented under `agent-files/` so they read as a subfolder of cwd — or at
@@ -450,6 +462,29 @@ export function useSessionDrive(
     }, [structural, recents, lastTouchedAt, projectDrives])
 }
 
+interface CountQuery {
+    data?: {total: number; totalCapped: boolean} | null
+    isPending: boolean
+    isFetching: boolean
+    isError: boolean
+}
+
+/**
+ * The project drives' share of a drive summary: their file count, and whether their lookup or any
+ * count is still resolving or failed. A failed request answers null, which is a failure, not an
+ * empty drive, so the summary flags it as a partial error and its retry reruns it.
+ */
+export const summarizeProjectDrives = (
+    lookup: Pick<ProjectDrivesState, "isPending" | "isFetching" | "isError">,
+    counts: readonly CountQuery[],
+) => ({
+    fileCount: counts.reduce((sum, q) => sum + (q.data?.total ?? 0), 0),
+    fileCountCapped: counts.some((q) => Boolean(q.data?.totalCapped)),
+    resolving: lookup.isPending || counts.some((q) => q.data === undefined && !q.isError),
+    isFetching: lookup.isFetching || counts.some((q) => q.isFetching),
+    errored: lookup.isError || counts.some((q) => !q.isPending && (q.data === null || q.isError)),
+})
+
 /** The summary surfaces show the latest 5 recent files. */
 const SUMMARY_LATEST_LIMIT = 5
 
@@ -480,7 +515,8 @@ export function useSessionDriveSummary(
 
     const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
     const agentMount = artifactId ? (agentMountQuery.data ?? null) : null
-    const projectDrives = useAtomValue(projectDrivesAtomFamily(revisionId ?? ""))
+    const projectState = useAtomValue(projectDrivesStateAtomFamily(revisionId ?? ""))
+    const projectDrives = projectState.drives
 
     // The agent mount is the WHOLE drive: no session, or a session that resolved without a cwd mount
     // (nothing has run in it yet). Folding under `agent-files/` needs a cwd to fold into — without one
@@ -505,9 +541,10 @@ export function useSessionDriveSummary(
                         entry.resolved !== null &&
                         isSummaryDrivePath(entry.resolved.path, {
                             fromAgentMount: entry.resolved.origin === "agent",
+                            projectDrives,
                         }),
                 ),
-        [recordRecency],
+        [recordRecency, projectDrives],
     )
     // Does the record log hold ANY change this surface would actually LIST? When it doesn't, the
     // "recent changes" list would be empty even though the drive has files — so fall back to the
@@ -537,8 +574,8 @@ export function useSessionDriveSummary(
             atom((get) =>
                 projectDrives.map((d) => ({
                     drive: d,
-                    count: get(latestMountFilesQueryFamily({mountId: d.mount.id, limit: 0})).data,
-                    root: get(mountRootQueryFamily(hasVisibleRecords ? "" : d.mount.id)).data,
+                    count: get(latestMountFilesQueryFamily({mountId: d.mount.id, limit: 0})),
+                    root: get(mountRootQueryFamily(hasVisibleRecords ? "" : d.mount.id)),
                 })),
             ),
         [projectDrives, hasVisibleRecords],
@@ -566,7 +603,22 @@ export function useSessionDriveSummary(
             void agentCount.refetch?.()
             void agentRootQuery.refetch?.()
         }
-    }, [mountsQuery, cwdCount, rootQuery, agentMountQuery, agentCount, agentRootQuery, artifactId])
+        projectState.refetch()
+        for (const {count, root} of projectSummary) {
+            void count.refetch?.()
+            void root.refetch?.()
+        }
+    }, [
+        mountsQuery,
+        cwdCount,
+        rootQuery,
+        agentMountQuery,
+        agentCount,
+        agentRootQuery,
+        artifactId,
+        projectState,
+        projectSummary,
+    ])
 
     const data = useMemo(() => {
         // Both lists below present an agent-mount path the way the full drive does — folded under
@@ -600,12 +652,15 @@ export function useSessionDriveSummary(
         const rootEntries: MountFile[] = [
             ...(rootQuery.data ?? []).filter(
                 (f) =>
-                    isSummaryDrivePath(f.path) && !resolveProjectDrivePath(f.path, projectDrives),
+                    isSummaryDrivePath(f.path, {projectDrives}) &&
+                    !resolveProjectDrivePath(f.path, projectDrives),
             ),
             ...projectSummary.flatMap(({drive, root}) =>
                 foldProjectFiles(
                     drive,
-                    (root ?? []).filter((f) => isSummaryDrivePath(f.path, {fromAgentMount: true})),
+                    (root.data ?? []).filter((f) =>
+                        isSummaryDrivePath(f.path, {fromAgentMount: true}),
+                    ),
                 ),
             ),
             ...(agentRootQuery.data ?? [])
@@ -627,16 +682,20 @@ export function useSessionDriveSummary(
         const lastTouchedAt = recents.length ? (recents[0].touchedAt ?? null) : null
 
         const cwdLinks = (cwdLinksQuery.data ?? []).filter(
-            (f) => !f.is_folder && isProjectDriveLink(f.path),
+            (f) => !f.is_folder && isProjectDriveLink(f.path, projectDrives),
         ).length
+        const project = summarizeProjectDrives(
+            projectState,
+            projectSummary.map(({count}) => count),
+        )
         const fileCount =
             Math.max(0, (cwdCount.data?.total ?? 0) - cwdLinks) +
             (agentMount ? (agentCount.data?.total ?? 0) : 0) +
-            projectSummary.reduce((sum, {count}) => sum + (count?.total ?? 0), 0)
+            project.fileCount
         const fileCountCapped =
             Boolean(cwdCount.data?.totalCapped) ||
             (Boolean(agentMount) && Boolean(agentCount.data?.totalCapped)) ||
-            projectSummary.some(({count}) => Boolean(count?.totalCapped))
+            project.fileCountCapped
         const countLabel = `${fileCount}${fileCountCapped ? "+" : ""}`
 
         const resolveMount = (path: string): ResolvedMountPath | null => {
@@ -676,7 +735,7 @@ export function useSessionDriveSummary(
         const agentInPlay = Boolean(artifactId)
         // Has at least one in-play side produced its answer (files, empty, or error)?
         const anyResolved = (cwdInPlay && !cwdResolving) || (agentInPlay && !agentResolving)
-        const anyResolving = cwdResolving || agentResolving
+        const anyResolving = cwdResolving || agentResolving || project.resolving
         const hasContent = recents.length > 0 || fileCount > 0
 
         // "A request is in flight over data that may already be shown" — the subtle "Loading more…"
@@ -689,7 +748,9 @@ export function useSessionDriveSummary(
                 (agentMountQuery.isFetching ||
                     agentCount.isFetching ||
                     agentRootQuery.isFetching)) ||
-            rootQuery.isFetching
+            rootQuery.isFetching ||
+            project.isFetching ||
+            projectSummary.some(({root}) => root.isFetching)
 
         // BLOCKING skeleton ONLY at the very start — before ANY in-play side has answered and with
         // nothing to show. The moment one side answers (or the record log yields recents), we drop the
@@ -722,7 +783,7 @@ export function useSessionDriveSummary(
         // PARTIAL failure: a mount failed but we're NOT in the terminal card (there's content, or only
         // the agent side broke). The inline list stays clean; instead the drawer-trigger shows a quiet
         // warning indicator and the drawer itself offers the retry (see the drawer's partial banner).
-        const partialErrored = (sessionErrored || agentErrored) && !errored
+        const partialErrored = (sessionErrored || agentErrored || project.errored) && !errored
 
         const summary = isLoading
             ? "…"
@@ -758,6 +819,7 @@ export function useSessionDriveSummary(
         mount,
         agentMount,
         projectDrives,
+        projectState,
         projectSummary,
         cwdLinksQuery.data,
         recordFiles,
