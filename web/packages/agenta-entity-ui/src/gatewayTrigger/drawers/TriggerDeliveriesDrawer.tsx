@@ -11,6 +11,8 @@ import {
     type TriggerDelivery,
     type TriggerDeliveryRow,
 } from "@agenta/entities/gatewayTrigger"
+import {createT, formatLocale, useT} from "@agenta/i18n"
+import triggerDeliveriesCatalog from "@agenta/i18n/catalogs/entityUi.triggerDeliveries"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {CopyButton, EnhancedModal, message, ModalContent} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -38,6 +40,9 @@ import {DeliveryDetails, deliveryStatusColor, isStuckDelivery} from "./DeliveryD
 import {openLinkedDeliverySession} from "./linkedSessionAction"
 import {TriggerDeliveriesDrawerContent} from "./TriggerDeliveriesDrawerContent"
 
+// The table columns are built in a memo, so their labels translate when it runs.
+const tNow = createT(triggerDeliveriesCatalog)
+
 export interface TriggerDeliveriesDrawerProps {
     onOpenSession?: (sessionId: string, applicationId: string) => void
 }
@@ -63,6 +68,7 @@ function ExactDeliveryView({
     state: ExactDeliveryDrawerState
     onOpenSession?: TriggerDeliveriesDrawerProps["onOpenSession"]
 }) {
+    const t = useT(triggerDeliveriesCatalog)
     const {delivery, isLoading, error, refetch} = useTriggerDelivery(state.deliveryId)
 
     if (isLoading) {
@@ -70,12 +76,12 @@ function ExactDeliveryView({
     }
     if (error) {
         return (
-            <EmptyState description="Couldn't load this delivery">
-                <Button onClick={() => void refetch()}>Retry</Button>
+            <EmptyState description={t("entityUi.triggerDeliveries.couldNotLoadDelivery")}>
+                <Button onClick={() => void refetch()}>{t("entityUi.triggerDeliveries.retry")}</Button>
             </EmptyState>
         )
     }
-    if (!delivery) return <EmptyState description="Delivery not found" />
+    if (!delivery) return <EmptyState description={t("entityUi.triggerDeliveries.deliveryNotFound")} />
 
     return (
         <DeliveryDetails
@@ -93,6 +99,7 @@ function OwnerDeliveryHistory({
     state: OwnerDeliveriesDrawerState
     onOpenSession?: TriggerDeliveriesDrawerProps["onOpenSession"]
 }) {
+    const t = useT(triggerDeliveriesCatalog)
     const {owner, playgroundEntityId} = state
     const {openTrace} = useDrillInUI()
     const setDrawerState = useSetAtom(triggerDeliveriesDrawerAtom)
@@ -136,7 +143,7 @@ function OwnerDeliveryHistory({
                 {
                     type: "text",
                     key: "status",
-                    title: "Status",
+                    title: tNow("entityUi.triggerDeliveries.status"),
                     width: 120,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
@@ -144,10 +151,12 @@ function OwnerDeliveryHistory({
                         const badge = (
                             <span className="flex flex-wrap items-center gap-1">
                                 <Badge variant={deliveryStatusColor(type)}>
-                                    {type ?? "unknown"}
+                                    {type ?? tNow("entityUi.triggerDeliveries.unknown")}
                                 </Badge>
                                 {isStuckDelivery(record) ? (
-                                    <Badge variant="red">Stuck</Badge>
+                                    <Badge variant="red">
+                                        {tNow("entityUi.triggerDeliveries.stuck")}
+                                    </Badge>
                                 ) : null}
                             </span>
                         )
@@ -165,7 +174,7 @@ function OwnerDeliveryHistory({
                 {
                     type: "text",
                     key: "event_id",
-                    title: "Event ID",
+                    title: tNow("entityUi.triggerDeliveries.eventId"),
                     width: 220,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
@@ -178,7 +187,7 @@ function OwnerDeliveryHistory({
                                     buttonText=""
                                     variant="ghost"
                                     size="icon-sm"
-                                    successMessage="Event ID copied"
+                                    successMessage={tNow("entityUi.triggerDeliveries.eventIdCopied")}
                                     stopPropagation
                                 />
                             </span>
@@ -188,7 +197,7 @@ function OwnerDeliveryHistory({
                 {
                     type: "text",
                     key: "result",
-                    title: "Result",
+                    title: tNow("entityUi.triggerDeliveries.result"),
                     width: 380,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
@@ -213,14 +222,14 @@ function OwnerDeliveryHistory({
                 {
                     type: "text",
                     key: "when",
-                    title: "When",
+                    title: tNow("entityUi.triggerDeliveries.when"),
                     width: 180,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
                         const timestamp = record.status?.timestamp ?? record.created_at
                         return (
                             <span className="text-xs">
-                                {timestamp ? new Date(timestamp).toLocaleString() : "-"}
+                                {timestamp ? new Date(timestamp).toLocaleString(formatLocale()) : "-"}
                             </span>
                         )
                     },
@@ -235,7 +244,7 @@ function OwnerDeliveryHistory({
                             ? [
                                   {
                                       key: "run",
-                                      label: "Run in playground",
+                                      label: tNow("entityUi.triggerDeliveries.runInPlayground"),
                                       icon: <Play size={16} />,
                                       onClick: (record: TriggerDeliveryRow) =>
                                           runInPlayground(record),
@@ -244,7 +253,7 @@ function OwnerDeliveryHistory({
                             : []),
                         {
                             key: "view-trace",
-                            label: "View trace",
+                            label: tNow("entityUi.triggerDeliveries.viewTrace"),
                             icon: <TreeView size={16} />,
                             hidden: (record: TriggerDeliveryRow) =>
                                 !openTrace || !deliveryTraceId(record),
@@ -256,16 +265,16 @@ function OwnerDeliveryHistory({
                         },
                         {
                             key: "view",
-                            label: "View payload",
+                            label: tNow("entityUi.triggerDeliveries.viewPayload"),
                             icon: <Code size={16} />,
                             onClick: (record: TriggerDeliveryRow) => setViewing(record),
                         },
                         {
                             key: "copy-event-id",
-                            label: "Copy event ID",
+                            label: tNow("entityUi.triggerDeliveries.copyEventId"),
                             onClick: (record: TriggerDeliveryRow) => {
                                 void navigator.clipboard?.writeText(record.event_id)
-                                message.success("Event ID copied")
+                                message.success(tNow("entityUi.triggerDeliveries.eventIdCopied"))
                             },
                         },
                     ],
@@ -279,7 +288,11 @@ function OwnerDeliveryHistory({
             ...(table.shellProps.tableProps ?? {}),
             size: "small" as const,
             bordered: true,
-            locale: {emptyText: <EmptyState description="No deliveries yet" />},
+            locale: {
+                emptyText: (
+                    <EmptyState description={tNow("entityUi.triggerDeliveries.noDeliveriesYet")} />
+                ),
+            },
         }),
         [table.shellProps.tableProps],
     )
@@ -302,7 +315,7 @@ function OwnerDeliveryHistory({
             <EnhancedModal
                 open={!!viewing}
                 onCancel={() => setViewing(null)}
-                title="Delivery details"
+                title={t("entityUi.triggerDeliveries.deliveryDetails")}
                 footer={null}
                 width={720}
             >
@@ -317,6 +330,7 @@ function OwnerDeliveryHistory({
 }
 
 export default function TriggerDeliveriesDrawer({onOpenSession}: TriggerDeliveriesDrawerProps) {
+    const t = useT(triggerDeliveriesCatalog)
     const [state, setState] = useAtom(triggerDeliveriesDrawerAtom)
     const ownerState = state?.mode === "owner-history" ? state : null
     const exactState = state?.mode === "exact-delivery" ? state : null
@@ -336,8 +350,10 @@ export default function TriggerDeliveriesDrawer({onOpenSession}: TriggerDeliveri
             onClose={() => setState(null)}
             title={
                 exactState
-                    ? "Delivery details"
-                    : `Deliveries${ownerState?.name ? ` · ${ownerState.name}` : ""}`
+                    ? t("entityUi.triggerDeliveries.deliveryDetails")
+                    : ownerState?.name
+                      ? t("entityUi.triggerDeliveries.deliveriesFor", {name: ownerState.name})
+                      : t("entityUi.triggerDeliveries.deliveries")
             }
             width={ownerState ? 820 : 720}
             destroyOnClose

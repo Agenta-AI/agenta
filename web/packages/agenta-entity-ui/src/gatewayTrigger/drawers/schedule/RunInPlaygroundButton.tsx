@@ -1,6 +1,8 @@
 /** The schedule drawer's footer run-in-playground CTA (simulates a scheduled tick). */
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import triggerScheduleCatalog from "@agenta/i18n/catalogs/entityUi.triggerSchedule"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
 import {
@@ -23,6 +25,10 @@ import {useSetAtom} from "jotai"
 // chat session (no save, no waiting). A popover previews what the agent gets.
 // ---------------------------------------------------------------------------
 
+
+// The error toast fires from a handler, outside render.
+const tNow = createT(triggerScheduleCatalog)
+
 export function RunInPlaygroundButton({
     playgroundEntityId,
     name,
@@ -40,6 +46,7 @@ export function RunInPlaygroundButton({
     disabled?: boolean
     onClose: () => void
 }) {
+    const t = useT(triggerScheduleCatalog)
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId))
 
     const parsed = useMemo<{ok: boolean; value: Record<string, unknown>}>(() => {
@@ -60,7 +67,7 @@ export function RunInPlaygroundButton({
 
     const handleRun = useCallback(() => {
         if (!parsed.ok) {
-            message.error("Inputs is not valid JSON")
+            message.error(tNow("entityUi.triggerSchedule.inputsNotValidJson"))
             return
         }
         setPendingRun({text: preview, nonce: Date.now(), newSession: true})
@@ -86,11 +93,13 @@ export function RunInPlaygroundButton({
                         <span>
                             <Button variant="outline" disabled>
                                 <Play size={14} />
-                                Run in playground
+                                {t("entityUi.triggerSchedule.runInPlayground")}
                             </Button>
                         </span>
                     </TooltipTrigger>
-                    <TooltipContent>Create the schedule first to run it</TooltipContent>
+                    <TooltipContent>
+                        {t("entityUi.triggerSchedule.createScheduleFirst")}
+                    </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         )
@@ -106,7 +115,7 @@ export function RunInPlaygroundButton({
                     onMouseLeave={() => hover(false)}
                 >
                     <Play size={14} />
-                    Run in playground
+                    {t("entityUi.triggerSchedule.runInPlayground")}
                 </Button>
             </PopoverAnchor>
             <PopoverContent
@@ -119,10 +128,10 @@ export function RunInPlaygroundButton({
             >
                 {/* antd Popover `title`: label row above the content. */}
                 <div className="mb-2 text-xs font-medium text-[var(--ag-colorTextHeading)]">
-                    Agent will receive
+                    {t("entityUi.triggerSchedule.agentWillReceive")}
                 </div>
                 <pre className="m-0 max-h-[240px] max-w-[320px] overflow-auto whitespace-pre-wrap break-words text-xs leading-snug">
-                    {parsed.ok ? preview : "Inputs is not valid JSON."}
+                    {parsed.ok ? preview : t("entityUi.triggerSchedule.inputsNotValidJsonSentence")}
                 </pre>
             </PopoverContent>
         </Popover>

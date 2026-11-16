@@ -11,6 +11,8 @@ import {
     type CronTimeOfDay,
     type ScheduleBuilderState,
 } from "@agenta/entities/gatewayTrigger"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import triggerScheduleCatalog from "@agenta/i18n/catalogs/entityUi.triggerSchedule"
 import {message} from "@agenta/ui"
 import {
     Button,
@@ -35,23 +37,29 @@ import {ChevronDown} from "lucide-react"
 // popover, so the form reads as five short fields rather than an open control panel.
 // ---------------------------------------------------------------------------
 
-const CADENCES: {value: CronCadence; label: string}[] = [
-    {value: "hourly", label: "Hourly"},
-    {value: "daily", label: "Daily"},
-    {value: "weekly", label: "Weekly"},
-    {value: "monthly", label: "Monthly"},
-    {value: "custom", label: "Cron"},
+type ScheduleKey = CatalogKey<typeof triggerScheduleCatalog>
+
+// The warning toast fires from a handler, outside render.
+const tNow = createT(triggerScheduleCatalog)
+
+// Labels are catalog keys, translated where the chips render.
+const CADENCES: {value: CronCadence; label: ScheduleKey}[] = [
+    {value: "hourly", label: "entityUi.triggerSchedule.hourly"},
+    {value: "daily", label: "entityUi.triggerSchedule.daily"},
+    {value: "weekly", label: "entityUi.triggerSchedule.weekly"},
+    {value: "monthly", label: "entityUi.triggerSchedule.monthly"},
+    {value: "custom", label: "entityUi.triggerSchedule.cron"},
 ]
 
 // Mon-first display order; values follow the cron convention (0 = Sunday).
-const WEEKDAYS: {value: number; label: string}[] = [
-    {value: 1, label: "Mon"},
-    {value: 2, label: "Tue"},
-    {value: 3, label: "Wed"},
-    {value: 4, label: "Thu"},
-    {value: 5, label: "Fri"},
-    {value: 6, label: "Sat"},
-    {value: 0, label: "Sun"},
+const WEEKDAYS: {value: number; label: ScheduleKey}[] = [
+    {value: 1, label: "entityUi.triggerSchedule.mon"},
+    {value: 2, label: "entityUi.triggerSchedule.tue"},
+    {value: 3, label: "entityUi.triggerSchedule.wed"},
+    {value: 4, label: "entityUi.triggerSchedule.thu"},
+    {value: 5, label: "entityUi.triggerSchedule.fri"},
+    {value: 6, label: "entityUi.triggerSchedule.sat"},
+    {value: 0, label: "entityUi.triggerSchedule.sun"},
 ]
 
 // Common intervals as chips. An expression outside this set stays selected and joins the row
@@ -178,24 +186,25 @@ export function ScheduleBuilderPanel({
     value: string
     controls: ScheduleBuilderControls
 }) {
+    const t = useT(triggerScheduleCatalog)
     const {builder, nextLine, validation, emit, setCronText, selectCadence} = controls
 
     return (
         <div className="flex flex-col gap-3.5">
-            <ChipRow label="Cadence">
+            <ChipRow label={t("entityUi.triggerSchedule.cadence")}>
                 {CADENCES.map((c) => (
                     <Chip
                         key={c.value}
                         active={c.value === builder.cadence}
                         onClick={() => selectCadence(c.value)}
                     >
-                        {c.label}
+                        {t(c.label)}
                     </Chip>
                 ))}
             </ChipRow>
 
             {builder.cadence === "weekly" && (
-                <ChipRow label="Days">
+                <ChipRow label={t("entityUi.triggerSchedule.days")}>
                     {WEEKDAYS.map((d) => (
                         <Chip
                             key={d.value}
@@ -207,7 +216,7 @@ export function ScheduleBuilderPanel({
                                 })
                             }
                         >
-                            {d.label}
+                            {t(d.label)}
                         </Chip>
                     ))}
                 </ChipRow>
@@ -215,7 +224,7 @@ export function ScheduleBuilderPanel({
 
             {builder.cadence === "monthly" && (
                 <div className="flex flex-col gap-1.5">
-                    <FieldLabel>Days of the month</FieldLabel>
+                    <FieldLabel>{t("entityUi.triggerSchedule.daysOfMonth")}</FieldLabel>
                     <div className="grid grid-cols-7 gap-1">
                         {DAYS_OF_MONTH.map((d) => {
                             const active = builder.daysOfMonth.includes(d)
@@ -242,18 +251,18 @@ export function ScheduleBuilderPanel({
 
             {builder.cadence === "hourly" && (
                 <>
-                    <ChipRow label="Every">
+                    <ChipRow label={t("entityUi.triggerSchedule.every")}>
                         {intervalOptions(builder.everyNHours).map((n) => (
                             <Chip
                                 key={n}
                                 active={n === builder.everyNHours}
                                 onClick={() => emit({...builder, everyNHours: n})}
                             >
-                                {n}h
+                                {t("entityUi.triggerSchedule.hoursShort", {count: n})}
                             </Chip>
                         ))}
                     </ChipRow>
-                    <ChipRow label="At minute">
+                    <ChipRow label={t("entityUi.triggerSchedule.atMinute")}>
                         {minuteOptions(builder.times[0]?.minute ?? 0).map((m) => (
                             <Chip
                                 key={m}
@@ -269,17 +278,17 @@ export function ScheduleBuilderPanel({
 
             {builder.cadence === "custom" && (
                 <div className="flex flex-col gap-1.5">
-                    <FieldLabel>Expression</FieldLabel>
+                    <FieldLabel>{t("entityUi.triggerSchedule.expression")}</FieldLabel>
                     <Input
-                        placeholder="minute hour day month weekday (UTC)"
+                        placeholder={t("entityUi.triggerSchedule.cronPlaceholder")}
                         value={value}
                         onChange={(e) => setCronText(e.target.value)}
                         aria-invalid={validation.valid ? undefined : true}
-                        aria-label="Cron expression"
+                        aria-label={t("entityUi.triggerSchedule.cronExpression")}
                         className="font-mono"
                     />
                     <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
-                        5-field cron in UTC (e.g. 0 9 * * * = every day at 09:00 UTC).
+                        {t("entityUi.triggerSchedule.cronHint")}
                     </span>
                 </div>
             )}
@@ -359,8 +368,6 @@ export function ScheduleBuilderField({
 // refused with a hint to use a second schedule.
 // ---------------------------------------------------------------------------
 
-const GRID_WARNING =
-    "Cron can't combine these times in one schedule — they'd trigger extra runs. Add a second schedule instead."
 
 function TimesField({
     times,
@@ -369,11 +376,12 @@ function TimesField({
     times: CronTimeOfDay[]
     onChange: (times: CronTimeOfDay[]) => void
 }) {
+    const t = useT(triggerScheduleCatalog)
     const sorted = sortTimes(times)
 
     const commit = (next: CronTimeOfDay[]) => {
         if (!timesFormCleanGrid(next)) {
-            message.warning(GRID_WARNING)
+            message.warning(tNow("entityUi.triggerSchedule.gridWarning"))
             return
         }
         onChange(sortTimes(next))
@@ -381,45 +389,47 @@ function TimesField({
 
     // Appends the first free 5-minute slot from 09:00; the new field is immediately editable.
     const addTime = () => {
-        const t: CronTimeOfDay = {hour: 9, minute: 0}
-        while (sorted.some((x) => sameTime(x, t))) {
-            t.minute += 5
-            if (t.minute >= 60) {
-                t.minute = 0
-                t.hour = (t.hour + 1) % 24
+        const slot: CronTimeOfDay = {hour: 9, minute: 0}
+        while (sorted.some((x) => sameTime(x, slot))) {
+            slot.minute += 5
+            if (slot.minute >= 60) {
+                slot.minute = 0
+                slot.hour = (slot.hour + 1) % 24
             }
         }
-        commit([...sorted, t])
+        commit([...sorted, slot])
     }
 
     // Rejected edits keep the old value: the input is controlled off `times`.
     const setTimeAt = (index: number, next: string) => {
-        const t = parseTime(next)
-        if (!t) return
-        if (sorted.some((x, i) => i !== index && sameTime(x, t))) return
-        commit(sorted.map((x, i) => (i === index ? t : x)))
+        const parsed = parseTime(next)
+        if (!parsed) return
+        if (sorted.some((x, i) => i !== index && sameTime(x, parsed))) return
+        commit(sorted.map((x, i) => (i === index ? parsed : x)))
     }
 
     return (
         <div className="flex flex-col gap-1.5">
-            <FieldLabel>Time (UTC)</FieldLabel>
+            <FieldLabel>{t("entityUi.triggerSchedule.timeUtc")}</FieldLabel>
             <div className="flex flex-wrap items-center gap-1.5">
                 {/* Keyed by index, not by the time: a value key remounts the picker on every
                     accepted edit, which drops focus mid-typing. */}
-                {sorted.map((t, i) => (
+                {sorted.map((time, i) => (
                     <span key={i} className="flex items-center">
                         <TimePicker
                             step={300}
-                            value={fmtTime(t)}
+                            value={fmtTime(time)}
                             onChange={(next) => setTimeAt(i, next)}
-                            aria-label={`Run time ${fmtTime(t)} (UTC)`}
+                            aria-label={t("entityUi.triggerSchedule.runTimeAria", {
+                                time: fmtTime(time),
+                            })}
                             className="w-[104px]"
                         />
                         {sorted.length > 1 && (
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label={`Remove ${fmtTime(t)}`}
+                                aria-label={t("entityUi.triggerSchedule.removeTime", {time: fmtTime(time)})}
                                 onClick={() => onChange(sorted.filter((_, j) => j !== i))}
                             >
                                 <X size={12} />
@@ -429,7 +439,7 @@ function TimesField({
                 ))}
                 <Button variant="dashed" onClick={addTime}>
                     <Plus size={13} />
-                    Add
+                    {t("entityUi.triggerSchedule.add")}
                 </Button>
             </div>
         </div>
