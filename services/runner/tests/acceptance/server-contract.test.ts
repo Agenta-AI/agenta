@@ -197,6 +197,31 @@ describe("POST /run response schema contract", () => {
     }
   });
 
+  it("accepts a request with and without sessionTurnId and hands it to the engine as sent", async () => {
+    const seen: Array<string | undefined> = [];
+    const s = await listen(async (request) => {
+      seen.push(request.sessionTurnId);
+      return { ok: true, output: "accepted", events: [] };
+    });
+    try {
+      for (const body of [
+        { turnId: "execution-2", sessionTurnId: "turn-1" },
+        { turnId: "turn-1" },
+      ]) {
+        const res = await fetch(`${s.url}/run`, {
+          method: "POST",
+          headers: AUTH,
+          body: JSON.stringify(body),
+        });
+        assert.equal(res.status, 200);
+        assert.equal(((await res.json()) as { ok: boolean }).ok, true);
+      }
+      assert.deepEqual(seen, ["turn-1", undefined]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("engine failure → 500 {ok:false, error:string}", async () => {
     const s = await listen(failRun);
     try {

@@ -141,7 +141,8 @@ function piTracePort(options: {
     const control: PiTurnTraceControl = {
       version: PI_TRACE_CONTROL_VERSION,
       channelId,
-      turnId: request.turnId?.trim() || undefined,
+      // The session turn: on an approval resume it differs from the execution's `turnId`.
+      turnId: (request.sessionTurnId ?? request.turnId)?.trim() || undefined,
       sessionId: env.sessionId || undefined,
       propagation: {
         traceparent: request.context?.propagation?.traceparent,

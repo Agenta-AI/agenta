@@ -956,6 +956,12 @@ export interface AgentRunRequest {
    * non-session runs. A session sees a sequence of turnIds (send/steer each start a new one).
    */
   turnId?: string;
+  /**
+   * The id of the session turn (the `session_turns` row) that this execution belongs to. Set on
+   * an approval resume, where `turnId` is the new execution's id. Absent on a fresh turn, where
+   * the session turn is `turnId`. Written as `ag.turn.id` on every span of the run.
+   */
+  sessionTurnId?: string;
   /** True only when the shared event route, rather than this HTTP response, owns delivery. */
   detached?: boolean;
   /**
