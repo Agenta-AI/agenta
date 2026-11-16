@@ -11,6 +11,10 @@ const LANGUAGE_NAMES: Record<Language, string> = {
     en: "English",
     "zh-CN": "中文 (Beta)",
     "ja-JP": "日本語 (Beta)",
+    "es-ES": "Español (Beta)",
+    "pt-BR": "Português (Brasil) (Beta)",
+    "de-DE": "Deutsch (Beta)",
+    "fr-FR": "Français (Beta)",
 }
 
 /** Shown while the flag is on, and to anyone who already chose a language other than English. */

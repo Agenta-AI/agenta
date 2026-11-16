@@ -31,7 +31,11 @@ describe("detectBrowserLanguage", () => {
         expect(detectBrowserLanguage(["zh-TW"])).toBe("en")
         expect(detectBrowserLanguage(["ja-JP"])).toBe("ja-JP")
         expect(detectBrowserLanguage(["ja"])).toBe("ja-JP")
-        expect(detectBrowserLanguage(["fr-FR", "de"])).toBe("en")
+        expect(detectBrowserLanguage(["fr-CA", "de"])).toBe("fr-FR")
+        expect(detectBrowserLanguage(["de"])).toBe("de-DE")
+        expect(detectBrowserLanguage(["es-MX"])).toBe("es-ES")
+        expect(detectBrowserLanguage(["pt-PT"])).toBe("pt-BR")
+        expect(detectBrowserLanguage(["ko"])).toBe("en")
         expect(detectBrowserLanguage(["en-US", "zh-CN"])).toBe("en")
         expect(detectBrowserLanguage([])).toBe("en")
     })
@@ -63,6 +67,8 @@ describe("languageInitScript", () => {
 
     it("sets lang to ja for Japanese", () => {
         expect(run("agenta-language=ja-JP").html.lang).toBe("ja")
+        expect(run("agenta-language=de-DE").html.lang).toBe("de")
+        expect(run("agenta-language=xx-XX").html.lang).toBe("en")
     })
 
     it("does nothing for English, unknown values or no cookie", () => {

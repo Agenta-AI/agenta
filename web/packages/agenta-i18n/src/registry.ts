@@ -9,7 +9,7 @@ export type CatalogLoader = () => Promise<{default: Catalog}>
 export interface CatalogEntry {
     namespace: string
     en: Catalog
-    load: Record<Exclude<Language, "en">, CatalogLoader>
+    load: Partial<Record<Exclude<Language, "en">, CatalogLoader>>
 }
 
 const registered: CatalogEntry[] = []
@@ -46,7 +46,9 @@ export const loadCatalog = (entry: CatalogEntry, language: Language): Promise<vo
     if (loaded.has(id)) return Promise.resolve()
     let promise = pending.get(id)
     if (!promise) {
-        const load = entry.load[language]().then((module) => {
+        const loader = entry.load[language]
+        if (!loader) return Promise.resolve()
+        const load = loader().then((module) => {
             loaded.set(id, module.default)
             bump()
         })
