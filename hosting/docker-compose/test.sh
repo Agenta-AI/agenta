@@ -18,14 +18,12 @@ Target options match run.sh and choose the env file to load:
   -e, --env, --env-file FILE           Explicit environment file
 
 Test selection:
-  --sdk, --services, --api, --runner, --web
+  --sdk, --services, --api, --runner
                                       Run selected suite(s); default: all.
   -u, --unit                           Unit layer
   -i, --integration                    Integration layer
   -a, --acceptance                     Acceptance layer
-                                      Omit layer flags for all layers. Web defaults
-                                      to unit + integration when it is part of the
-                                      default all-suite run.
+                                      Omit layer flags for all layers.
   --fast                               Run tests not marked slow (default).
   --slow                               Run only tests marked slow.
   --all, --full                        Run both fast and slow tests.
@@ -68,7 +66,7 @@ while [[ "$#" -gt 0 ]]; do
             [[ "$1" == "--image" || "$1" == "--dockerfile" ]] && image_set=true
             shift
             ;;
-        --sdk|--services|--api|--runner|--web) components+=("${1#--}") ;;
+        --sdk|--services|--api|--runner) components+=("${1#--}") ;;
         -u|--unit) layers+=(unit); selected_layer=true ;;
         -i|--integration) layers+=(integration); selected_layer=true ;;
         -a|--acceptance) layers+=(acceptance); selected_layer=true ;;
@@ -178,7 +176,7 @@ if [[ "$image_set" == false ]]; then env_args=(--gh "${env_args[@]+"${env_args[@
 load_environment "${env_args[@]}"
 
 if [[ ${#components[@]} -eq 0 ]]; then
-    components=(sdk services api runner web)
+    components=(sdk services api runner)
 fi
 
 configure_host_postgres() {
@@ -300,37 +298,12 @@ run_runner() {
     done
 }
 
-run_web() {
-    local root="${REPO_ROOT}/web" layer
-    [[ -f "${root}/pnpm-lock.yaml" && -f "${root}/tests/playwright/scripts/run-tests.ts" ]] || error "Expected web test files in ${root}."
-    if [[ "$test_selection" == "slow" ]]; then
-        echo "[test.sh] Web has no slow-marked tests; skipping."
-        return
-    fi
-    echo "[test.sh] Installing web workspace packages: ${root}"
-    (cd "$root" && pnpm install --frozen-lockfile)
-    local -a web_layers=("${layers[@]+"${layers[@]}"}") web_args=("${forwarded[@]+"${forwarded[@]}"}")
-    [[ "$selected_layer" == true ]] || web_layers=(unit integration)
-    if [[ "$time_profile" == true ]]; then web_args+=(--reporter=verbose "--slowTestThreshold=$((slow_threshold_seconds * 1000))"); fi
-    prepare_log web
-    for layer in "${web_layers[@]}"; do
-        echo "[test.sh] Running web ${layer} tests"
-        if [[ "$layer" == "acceptance" ]]; then
-            (cd "${root}/tests" && pnpm exec playwright install chromium)
-            run_logged web bash -c 'cd "$1/tests" && exec pnpm run test:acceptance -- "${@:2}"' _ "$root" "${web_args[@]}"
-        else
-            run_logged web bash -c 'cd "$1/tests" && exec pnpm tsx playwright/scripts/run-tests.ts --layer "$2" "${@:3}"' _ "$root" "$layer" "${web_args[@]}"
-        fi
-    done
-}
-
 for component in "${components[@]}"; do
     case "$component" in
         sdk) run_python sdk "${REPO_ROOT}/sdks/python" ;;
         services) run_python services "${REPO_ROOT}/services" ;;
         api) run_python api "${REPO_ROOT}/api" ;;
         runner) run_runner ;;
-        web) run_web ;;
         *) error "Unknown test component: ${component}" ;;
     esac
 done
