@@ -275,8 +275,30 @@ describe("remote sandbox reconnect ladder", () => {
 
     recordSandboxDrives("sbx-99", driveIdentity(both));
     const same = fakeSandbox("sbx-99");
+    same.deps.signProjectMountCredentials = (async () => ({
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "b",
+      prefix: "p",
+      accessKey: "AK",
+      secretKey: "SK",
+    })) as never;
+    same.deps.mountStorageRemote = (async () => false) as never;
     await runSandboxAgent(both, undefined, undefined, same.deps);
     assert.equal(same.calls.starts[0]?.sandboxId, "sbx-99");
+  });
+
+  it("creates fresh when a configured project drive could not be signed this turn", async () => {
+    const both = {
+      ...daytonaRequest,
+      drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }],
+    } as AgentRunRequest;
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    const { calls, deps } = fakeSandbox("sbx-99");
+    deps.signProjectMountCredentials = (async () => null) as never;
+    assert.equal((await runSandboxAgent(both, undefined, undefined, deps)).ok, true);
+    assert.deepEqual(calls.starts, [{ sandboxId: undefined }], "the parked sandbox may still hold the old mount");
+    assert.ok(calls.logs.some((m) => m.includes("not reused: a drive could not be signed")));
   });
 
   it("starts fresh (no id) when nothing is recorded", async () => {

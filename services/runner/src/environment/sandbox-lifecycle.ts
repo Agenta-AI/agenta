@@ -40,6 +40,11 @@ export interface SandboxAcquireInput {
   runCred: string | undefined;
   /** This run's `driveIdentity`; a parked sandbox set up with other drives is not reconnected. */
   driveIdentity?: string;
+  /**
+   * A configured drive could not be signed this run (archived, deleted, access lost). A parked
+   * sandbox may still hold its old mount and credentials, so none is reconnected.
+   */
+  unsignedDrives?: boolean;
   log: Log;
   timingLog: TimingLog;
 }
@@ -90,14 +95,17 @@ export async function acquire(
     : undefined;
   const parkedDrives = storedSandboxPointer ? sandboxDrivesOf(storedSandboxPointer.sandboxId) : undefined;
   const otherDrives =
-    input.driveIdentity !== undefined && parkedDrives !== undefined && parkedDrives !== input.driveIdentity;
+    !!input.unsignedDrives ||
+    (input.driveIdentity !== undefined && parkedDrives !== undefined && parkedDrives !== input.driveIdentity);
   const ownSandboxPointer = storedState === "live" && !otherDrives ? storedSandboxPointer : undefined;
   if (storedSandboxPointer && !ownSandboxPointer) {
     log(
       storedState === "deleted"
         ? `stored sandbox=${storedSandboxPointer.sandboxId} was deleted by this runner, creating fresh`
         : storedState === "live"
-          ? `stored sandbox=${storedSandboxPointer.sandboxId} was set up with other drives, creating fresh`
+          ? input.unsignedDrives
+            ? `stored sandbox=${storedSandboxPointer.sandboxId} not reused: a drive could not be signed, creating fresh`
+            : `stored sandbox=${storedSandboxPointer.sandboxId} was set up with other drives, creating fresh`
           : `stored sandbox=${storedSandboxPointer.sandboxId} was not created by this runner, creating fresh`,
     );
   }

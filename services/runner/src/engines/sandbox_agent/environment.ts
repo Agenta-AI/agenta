@@ -971,6 +971,7 @@ async function acquireEnvironmentOnce(
         sessionForMount,
         runCred,
         driveIdentity: driveIdentity(request),
+        unsignedDrives: projectDrives(environment.drives).some((d) => !d.credentials),
         log: logger,
         timingLog,
       },
