@@ -1,14 +1,14 @@
 import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {formatLabel} from "@agenta/ui/drill-in"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
 import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
 
 import {ConfigSelect, HintTooltip} from "./configPopoverControls"
-import {useT} from "@agenta/i18n"
-import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 
 interface PolicyOption {
     label: string
@@ -45,8 +45,7 @@ export const RetryConfigTab = memo(function RetryConfigTab({
     const t = useT(playgroundConfigCatalog)
     const policyTitle = formatLabel(retryPolicySchema?.title || "retry_policy")
     const policyDescription =
-        retryPolicySchema?.description ||
-        t("entityUi.playgroundConfig.retryPolicyDescription")
+        retryPolicySchema?.description || t("entityUi.playgroundConfig.retryPolicyDescription")
     const retryConfigProperties =
         resolveAnyOfSchema(retryConfigSchema)?.properties ??
         ({} as Record<string, EntitySchemaProperty>)

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {
     Button,
     Dialog,
@@ -15,8 +17,6 @@ import type {SubscriptionSignInDialogProps} from "./SubscriptionSignInDialog"
 import {SubscriptionTokenSteps} from "./SubscriptionTokenSteps"
 import {useOrganizationProjectsDraft} from "./useOrganizationProjectsDraft"
 import {useSubscriptionToken} from "./useSubscriptionToken"
-import {useT} from "@agenta/i18n"
-import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 
 /** A subscription connected by a pasted token. Opening it starts nothing. */
 export const SubscriptionTokenDialog = ({

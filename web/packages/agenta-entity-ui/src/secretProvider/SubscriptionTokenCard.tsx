@@ -2,12 +2,12 @@
 import {useEffect, useState} from "react"
 
 import {type ProviderConnection} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {Button, Spinner} from "@agenta/ui/ui"
 
 import {SubscriptionTokenSteps} from "./SubscriptionTokenSteps"
 import {useSubscriptionToken} from "./useSubscriptionToken"
-import {useT} from "@agenta/i18n"
-import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 
 export interface SubscriptionTokenCardProps {
     provider?: string

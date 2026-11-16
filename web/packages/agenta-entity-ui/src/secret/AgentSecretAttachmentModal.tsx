@@ -314,9 +314,7 @@ export function AgentSecretAttachmentModal({
                 cause instanceof Error
                     ? cause.message
                     : t("entityUi.secretAttachment.couldNotAttach")
-            setError(
-                saved ? t("entityUi.secretAttachment.savedNotAttached", {reason}) : reason,
-            )
+            setError(saved ? t("entityUi.secretAttachment.savedNotAttached", {reason}) : reason)
         } finally {
             setAttaching(false)
         }

@@ -10,6 +10,8 @@ import {
     useVaultSecret,
     type ProviderFieldConfig,
 } from "@agenta/entities/secret"
+import {createT, useT} from "@agenta/i18n"
+import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 import type {LlmProvider} from "@agenta/shared/types"
 import {isSlugInputValid} from "@agenta/shared/utils"
 // Subpath, not the root barrel: that one re-exports InfiniteVirtualTable, which imports antd —
@@ -20,8 +22,6 @@ import {Button, Textarea} from "@agenta/ui/ui"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
 
 import ModelNameInput from "./ModelNameInput"
-import {createT, useT} from "@agenta/i18n"
-import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 
 /** Imperative surface the host's footer (Submit button) drives — replaces the antd
  * `FormInstance` the pre-migration API shared with the caller. */

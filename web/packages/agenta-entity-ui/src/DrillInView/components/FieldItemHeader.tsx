@@ -9,10 +9,10 @@
 
 import {useCallback} from "react"
 
-import type {PathItem, DataPath} from "@agenta/shared/utils"
-import {ChevronRight, ChevronDown} from "lucide-react"
 import {useT} from "@agenta/i18n"
 import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
+import type {PathItem, DataPath} from "@agenta/shared/utils"
+import {ChevronRight, ChevronDown} from "lucide-react"
 
 // ============================================================================
 // TYPES

@@ -7,14 +7,14 @@ import {
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import {ManageProvidersRow, type ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {Plus} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 
 import ConfigureProviderDrawer from "./ConfigureProviderDrawer"
 import ProviderDrawer from "./ProviderDrawer"
-import {useT} from "@agenta/i18n"
-import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 
 /** Names which surface drove the (global, project-independent) harness catalog lookup. */
 const HARNESS_CATALOG_KEY = "agenta:playground:model-picker"
@@ -107,7 +107,9 @@ export function useLLMProviderConfig() {
     // a moment beats telling a configured project it has no providers.
     const emptyStateContent = useMemo(
         () =>
-            vaultLoaded ? <SetUpProvidersButton onClick={() => setIsProviderDrawerOpen(true)} /> : null,
+            vaultLoaded ? (
+                <SetUpProvidersButton onClick={() => setIsProviderDrawerOpen(true)} />
+            ) : null,
         [vaultLoaded],
     )
 

@@ -7,14 +7,14 @@
  */
 import {lazy, Suspense, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 import type {LlmProvider} from "@agenta/shared/types"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {LinkSimple} from "@phosphor-icons/react"
 
 import type {CustomProviderFormHandle} from "./CustomProviderForm"
-import {useT} from "@agenta/i18n"
-import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 
 // Code-split: the form pulls the whole vault-secret editor, and the drawer is opened rarely.
 const CustomProviderForm = lazy(() => import("./CustomProviderForm"))
@@ -33,15 +33,17 @@ export interface ConfigureProviderDrawerProps {
 const ConfigureProviderDrawerTitle = () => {
     const t = useT(customProviderFormCatalog)
     return (
-    <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{t("entityUi.customProviderForm.configureProvider")}</span>
-        <Button variant="link" size="sm" asChild>
-            <a href={HOW_TO_USE_URL} target="_blank" rel="noreferrer" className="no-underline">
-                <LinkSimple size={14} />
-                {t("entityUi.customProviderForm.howToUse")}
-            </a>
-        </Button>
-    </div>
+        <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">
+                {t("entityUi.customProviderForm.configureProvider")}
+            </span>
+            <Button variant="link" size="sm" asChild>
+                <a href={HOW_TO_USE_URL} target="_blank" rel="noreferrer" className="no-underline">
+                    <LinkSimple size={14} />
+                    {t("entityUi.customProviderForm.howToUse")}
+                </a>
+            </Button>
+        </div>
     )
 }
 

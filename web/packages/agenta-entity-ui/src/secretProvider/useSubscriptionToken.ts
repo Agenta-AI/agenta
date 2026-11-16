@@ -12,12 +12,12 @@ import {
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {invalidateAgentRequirements} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
 
 import {organizationRefusal} from "./useOrganizationProjectsDraft"
-import {createT} from "@agenta/i18n"
-import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 
 const tNow = createT(subscriptionSignInCatalog)
 

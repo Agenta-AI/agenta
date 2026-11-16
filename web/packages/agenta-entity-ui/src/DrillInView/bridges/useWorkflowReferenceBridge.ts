@@ -27,6 +27,8 @@ import {
     type Workflow,
     type WorkflowType,
 } from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import workflowReferenceCatalog from "@agenta/i18n/catalogs/entityUi.workflowReference"
 import {projectIdAtom} from "@agenta/shared/state"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import type {
@@ -45,8 +47,6 @@ import {describeSkill} from "../SchemaControls/agentTemplate/itemDescriptors"
 import {connectionFromConfig, modelIdFromConfig} from "../SchemaControls/connectionUtils"
 import {integrationPermissionSummary} from "../SchemaControls/integrationPolicy"
 import {buildIntegrationRows} from "../SchemaControls/toolUtils"
-import {createT} from "@agenta/i18n"
-import workflowReferenceCatalog from "@agenta/i18n/catalogs/entityUi.workflowReference"
 
 // Map the molecule's canonical workflow type down to the four the reference picker badges.
 function toReferenceType(t: WorkflowType | null | undefined): WorkflowReferenceType | undefined {
@@ -340,7 +340,12 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
           : null
     if (llm) {
         if (typeof llm.model === "string" && llm.model) {
-            parts.push({key: `${prefix}model`, label: tNow("entityUi.workflowReference.model"), kind: "text", content: llm.model})
+            parts.push({
+                key: `${prefix}model`,
+                label: tNow("entityUi.workflowReference.model"),
+                kind: "text",
+                content: llm.model,
+            })
         }
         const settings = {...llm}
         delete settings.model

@@ -1,9 +1,9 @@
 import {memo} from "react"
 
-import {Button, Input, type InputProps} from "@agenta/ui/ui"
-import {Trash} from "@phosphor-icons/react"
 import {useT} from "@agenta/i18n"
 import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
+import {Button, Input, type InputProps} from "@agenta/ui/ui"
+import {Trash} from "@phosphor-icons/react"
 
 export interface ModelNameInputProps extends InputProps {
     onDelete: () => void

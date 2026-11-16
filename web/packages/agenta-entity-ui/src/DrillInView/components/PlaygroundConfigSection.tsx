@@ -18,6 +18,8 @@
 import {memo, useMemo, useCallback, useEffect, useRef, useState} from "react"
 
 import {workflowDraftConsumedAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import type {DataPath} from "@agenta/shared/utils"
 import type {MoleculeDrillInAdapter} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -49,8 +51,6 @@ import {
 import type {ConfigViewMode, PlaygroundConfigSectionProps} from "./PlaygroundConfigSection/types"
 import {useFieldSlots} from "./PlaygroundConfigSection/useFieldSlots"
 import {useModelConfigurePopover} from "./PlaygroundConfigSection/useModelConfigurePopover"
-import {useT} from "@agenta/i18n"
-import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 
 export type {
     ConfigSectionMoleculeAdapter,

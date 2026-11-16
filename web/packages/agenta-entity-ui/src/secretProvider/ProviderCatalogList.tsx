@@ -2,12 +2,12 @@
 import {useMemo, useState} from "react"
 
 import {PROVIDER_CATALOG, type ProviderCatalogEntry} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import {Button, EmptyState, SearchInput} from "@agenta/ui/ui"
 
 import {providerIconFor} from "./providerIcon"
 import ScrollScrim from "./ScrollScrim"
-import {useT} from "@agenta/i18n"
-import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 
 export interface ProviderCatalogListProps {
     onSelect: (entry: ProviderCatalogEntry) => void

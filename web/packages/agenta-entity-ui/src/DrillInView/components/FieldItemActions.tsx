@@ -9,10 +9,10 @@
 
 import {useCallback} from "react"
 
-import {copyToClipboard} from "@agenta/ui/utils"
-import {Copy, Trash2, Plus} from "lucide-react"
 import {useT} from "@agenta/i18n"
 import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
+import {copyToClipboard} from "@agenta/ui/utils"
+import {Copy, Trash2, Plus} from "lucide-react"
 
 // ============================================================================
 // TYPES

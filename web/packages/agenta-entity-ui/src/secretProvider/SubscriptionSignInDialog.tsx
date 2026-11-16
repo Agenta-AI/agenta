@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {subscriptionConnectMethod, type ProviderConnection} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {
     Button,
     Dialog,
@@ -20,8 +22,6 @@ import {SignInStep} from "./SignInStep"
 import {SubscriptionTokenDialog} from "./SubscriptionTokenDialog"
 import {useOrganizationProjectsDraft} from "./useOrganizationProjectsDraft"
 import {countdownLabel, useSubscriptionSignIn} from "./useSubscriptionSignIn"
-import {useT} from "@agenta/i18n"
-import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 
 export interface SubscriptionSignInDialogProps {
     open: boolean

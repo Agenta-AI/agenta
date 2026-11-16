@@ -12,6 +12,8 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {selectedOptionLabel} from "@agenta/entities/secret"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {createT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {getOptionsFromSchema} from "@agenta/shared/utils"
 import type {DrillInUIComponents} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
@@ -36,8 +38,6 @@ import {
 import {ModelConfigEditor} from "./ModelConfigEditor"
 import {RetryConfigTab} from "./RetryConfigTab"
 import type {ConfigureTabKey, FallbackDetailState, PathSchema} from "./types"
-import {createT} from "@agenta/i18n"
-import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 
 // antd's nav overrides, as classes: equal-width tabs across the header fill, no nav margin,
 // and the scrolling pane inset that used to live on `.ant-tabs-content-holder`.

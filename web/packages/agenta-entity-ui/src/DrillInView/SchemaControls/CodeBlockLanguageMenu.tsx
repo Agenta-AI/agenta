@@ -12,6 +12,8 @@
  */
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {useLexicalComposerContext} from "@agenta/ui"
 import {Combobox} from "@agenta/ui/ui"
 import {$isCodeNode, getCodeLanguageOptions, getLanguageFriendlyName} from "@lexical/code"
@@ -26,6 +28,7 @@ interface BlockMenu {
 }
 
 export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
+    const t = useT(schemaControlsCatalog)
     const [editor] = useLexicalComposerContext()
     // Friendly name in list AND trigger, so antd's `labelRender` has nothing left to do.
     const options = useMemo(
@@ -114,10 +117,10 @@ export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
                     onMouseDown={(e) => e.stopPropagation()}
                 >
                     <Combobox
-                        aria-label="Code block language"
+                        aria-label={t("entityUi.schemaControls.codeBlockLanguage")}
                         disabled={!editable}
                         value={m.lang || undefined}
-                        placeholder="Plain text"
+                        placeholder={t("entityUi.schemaControls.plainText")}
                         options={options}
                         onChange={(lang) => lang && setLanguage(m.key, lang)}
                         variant="ghost"

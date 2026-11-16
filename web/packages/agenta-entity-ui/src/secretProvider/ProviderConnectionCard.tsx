@@ -19,8 +19,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {organizationLabel} from "@agenta/entities/organization"
-import {createT, richText, useT} from "@agenta/i18n"
-import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
 import {
     buildModelOptions,
     connectionPolicyForSave,
@@ -54,6 +52,8 @@ import {
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {createT, richText, useT} from "@agenta/i18n"
+import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
 import {projectIdAtom} from "@agenta/shared/state"
 import type {OwnerKind} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
@@ -722,9 +722,7 @@ const ProviderConnectionCard = ({
                             {
                                 value: "organization",
                                 label: t("entityUi.providerConnection.theOrganization", {
-                                    organization: organizationLabel(
-                                        ownerChoice.organization.name,
-                                    ),
+                                    organization: organizationLabel(ownerChoice.organization.name),
                                 }),
                                 note: t("entityUi.providerConnection.storedOnce"),
                             },

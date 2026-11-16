@@ -3,12 +3,12 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {type ProviderConnection} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowSquareOut, Check, Copy, WarningCircle} from "@phosphor-icons/react"
 
 import {countdownLabel, useSubscriptionSignIn} from "./useSubscriptionSignIn"
-import {useT} from "@agenta/i18n"
-import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 
 export interface SubscriptionConnectionCardProps {
     /** A device sign-in product (`chatgpt`). Token products use `SubscriptionTokenCard`. */

@@ -3,7 +3,6 @@ import {
     type CustomSecretContent,
     type CustomSecretFormat as CustomSecretFormatType,
 } from "@agenta/entities/secret"
-
 import {createT} from "@agenta/i18n"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 

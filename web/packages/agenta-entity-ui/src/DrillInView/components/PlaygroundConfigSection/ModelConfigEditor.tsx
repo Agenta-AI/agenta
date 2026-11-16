@@ -7,6 +7,8 @@ import {
     withCurrentSelectionGroup,
 } from "@agenta/entities/secret"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 
@@ -15,8 +17,6 @@ import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
 
 import {AdvancedConfigFields} from "./AdvancedConfigFields"
 import {ConfigSelect} from "./configPopoverControls"
-import {useT} from "@agenta/i18n"
-import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 
 export interface ModelConfigEditorProps {
     value: Record<string, unknown>

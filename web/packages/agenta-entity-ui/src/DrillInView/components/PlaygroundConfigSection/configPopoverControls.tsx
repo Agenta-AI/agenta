@@ -12,6 +12,8 @@
  */
 import type {ReactElement, ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {
     Select,
     SelectContent,
@@ -25,8 +27,6 @@ import {
     type SelectTriggerProps,
 } from "@agenta/ui/ui"
 import {XCircle} from "@phosphor-icons/react"
-import {useT} from "@agenta/i18n"
-import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 
 export interface ConfigSelectOption {
     value: string

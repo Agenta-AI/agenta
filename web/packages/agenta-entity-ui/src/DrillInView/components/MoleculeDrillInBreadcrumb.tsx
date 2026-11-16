@@ -7,12 +7,12 @@
 
 import {Fragment, useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
 import type {BreadcrumbSlotProps} from "@agenta/ui/drill-in"
 import {ArrowLeft, ChevronRight} from "lucide-react"
 
 import {useDrillIn} from "./MoleculeDrillInContext"
-import {useT} from "@agenta/i18n"
-import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
 
 // ============================================================================
 // COMPONENT

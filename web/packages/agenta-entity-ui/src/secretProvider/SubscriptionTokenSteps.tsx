@@ -1,12 +1,12 @@
 import {Fragment, useEffect, useId, useState} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {Button, Input} from "@agenta/ui/ui"
 import {Check, Copy, WarningCircle} from "@phosphor-icons/react"
 
 import {SignInStep} from "./SignInStep"
 import type {SubscriptionTokenState} from "./useSubscriptionToken"
-import {richText, useT} from "@agenta/i18n"
-import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 
 const SETUP_COMMAND = "claude setup-token"
 const CLAUDE_CODE_SETUP_URL = "https://docs.anthropic.com/en/docs/claude-code/setup"

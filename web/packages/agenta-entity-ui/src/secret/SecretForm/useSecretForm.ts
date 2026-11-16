@@ -13,10 +13,10 @@ import {
     type CustomSecretFormat as CustomSecretFormatType,
     type NamedSecretRow,
 } from "@agenta/entities/secret"
-import {extractApiErrorMessage, slugifyBase} from "@agenta/shared/utils"
-import {message} from "@agenta/ui/app-message"
 import {createT} from "@agenta/i18n"
 import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
+import {extractApiErrorMessage, slugifyBase} from "@agenta/shared/utils"
+import {message} from "@agenta/ui/app-message"
 
 import {buildSecretContent, parseFlatJson} from "./content"
 import {objectToRows, rowsToObject, type KvRow} from "./primitives"

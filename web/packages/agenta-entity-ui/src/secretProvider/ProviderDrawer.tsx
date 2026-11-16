@@ -30,6 +30,8 @@ import {
     type SubscriptionPair,
 } from "@agenta/entities/secret"
 import {providerTitleForKind} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, Button, Divider} from "@agenta/ui/ui"
 import {ArrowLeft, ArrowSquareOut, WarningCircle} from "@phosphor-icons/react"
@@ -52,8 +54,6 @@ import {providerIconFor} from "./providerIcon"
 import SubscriptionConnectionCard from "./SubscriptionConnectionCard"
 import SubscriptionPairCard, {type SubscriptionPairCardSaveState} from "./SubscriptionPairCard"
 import SubscriptionTokenCard from "./SubscriptionTokenCard"
-import {useT} from "@agenta/i18n"
-import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 
 /**
  * Where the drawer was opened from. `playground` is the AGENT playground (the one with a harness

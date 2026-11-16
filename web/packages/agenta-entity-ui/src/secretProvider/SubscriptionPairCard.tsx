@@ -19,11 +19,11 @@ import {
     type SubscriptionPair,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {richText, useT} from "@agenta/i18n"
+import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import {Tag} from "@agenta/ui"
 import {Checkbox} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
-import {richText, useT} from "@agenta/i18n"
-import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 
 /** The capability map is global; the key only records which surface asked for it. */
 const HARNESS_CATALOG_KEY = "agenta:providers-drawer:subscriptions"

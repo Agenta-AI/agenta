@@ -8,6 +8,8 @@
 import {useMemo, useState} from "react"
 
 import type {OrganizationSecretProjects} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
 import {
     Button,
     Command,
@@ -23,8 +25,6 @@ import {
     RadioGroupItem,
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, CaretUpDown, Check, WarningCircle, X} from "@phosphor-icons/react"
-import {useT} from "@agenta/i18n"
-import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
 
 /**
  * What the admin may do about projects in this deployment. `pending` is EE while the plan's
@@ -259,9 +259,12 @@ const OrganizationProjectsSection = ({
                                     {names.get(id) ?? id}
                                     <button
                                         type="button"
-                                        aria-label={t("entityUi.organizationProjects.removeProject", {
-                                            project: names.get(id) ?? id,
-                                        })}
+                                        aria-label={t(
+                                            "entityUi.organizationProjects.removeProject",
+                                            {
+                                                project: names.get(id) ?? id,
+                                            },
+                                        )}
                                         onClick={() => toggle(id)}
                                         className="flex cursor-pointer items-center border-0 bg-transparent p-0.5 text-colorTextTertiary hover:text-colorText"
                                     >

@@ -16,6 +16,8 @@
 import {memo, useMemo, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
@@ -107,6 +109,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     onPropertyChange,
     SchemaPropertyRenderer,
 }: ObjectSchemaControlProps) {
+    const t = useT(schemaControlsCatalog)
     // Get description from schema or prop
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
@@ -147,7 +150,9 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
                 {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
-                <span className="text-xs text-colorTextDescription">No properties defined</span>
+                <span className="text-xs text-colorTextDescription">
+                    {t("entityUi.schemaControls.noProperties")}
+                </span>
             </div>
         )
     }
@@ -159,7 +164,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
                 {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
                 <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
                     <span className="text-xs text-colorTextDescription">
-                        Tool Configuration (JSON Editor)
+                        {t("entityUi.schemaControls.toolConfigurationJson")}
                     </span>
                     <pre className="text-xs mt-2 overflow-auto max-h-[200px]">
                         {JSON.stringify(value, null, 2)}

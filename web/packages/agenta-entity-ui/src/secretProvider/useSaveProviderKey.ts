@@ -13,9 +13,9 @@ import {
     type HarnessCapabilityMap,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {useAtomValue, useSetAtom} from "jotai"
 import {createT} from "@agenta/i18n"
 import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
+import {useAtomValue, useSetAtom} from "jotai"
 
 /** The harness a new API key is checked for by default, when the provider can reach it. */
 export const DEFAULT_KEY_HARNESS = "pi_core"

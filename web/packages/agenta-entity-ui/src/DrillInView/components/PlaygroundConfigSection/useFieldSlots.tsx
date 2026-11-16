@@ -10,6 +10,8 @@
 
 import {useCallback, useMemo, type ReactNode} from "react"
 
+import {createT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {HeightCollapse} from "@agenta/ui"
 import type {
     FieldActionsSlotProps,
@@ -40,8 +42,6 @@ import type {SiblingGroupKey} from "./constants"
 import {hasParameters} from "./schemaData"
 import type {PathSchema} from "./types"
 import type {PromptModelInfo} from "./useModelConfigurePopover"
-import {createT} from "@agenta/i18n"
-import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 
 const RUNTIME_SELECT_OPTIONS = ["python", "typescript", "javascript"].map((value) => ({
     label: <span className="capitalize">{value}</span>,
@@ -255,7 +255,8 @@ export function useFieldSlots({
                                 <DropdownMenuTrigger asChild disabled={disabled}>
                                     <Button size="sm" variant="outline">
                                         {RUNTIME_SELECT_OPTIONS.find((o) => o.value === codeRuntime)
-                                            ?.label ?? tNow("entityUi.playgroundConfig.selectRuntime")}
+                                            ?.label ??
+                                            tNow("entityUi.playgroundConfig.selectRuntime")}
                                         <CaretDown size={12} />
                                     </Button>
                                 </DropdownMenuTrigger>

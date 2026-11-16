@@ -6,10 +6,10 @@ import {
     type OrganizationSecretProjects,
     type ProviderConnection,
 } from "@agenta/entities/secret"
-import {message} from "@agenta/ui/app-message"
-import {useSetAtom} from "jotai"
 import {createT} from "@agenta/i18n"
 import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
+import {message} from "@agenta/ui/app-message"
+import {useSetAtom} from "jotai"
 
 const t = createT(organizationProjectsCatalog)
 
