@@ -13,6 +13,8 @@ import {type ReactElement, useCallback, useContext} from "react"
 
 import {downloadMountArchive} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
+import {createT, useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {
@@ -36,6 +38,9 @@ import {useAtomValue} from "jotai"
 import {DriveLinkContext} from "./driveLink"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
+// Toasts fire from callbacks, outside render.
+const tNow = createT(driveExplorerCatalog)
+
 /** An item's write verbs; rename is file-only (no backend move endpoint). */
 export interface DriveItemWriteActions {
     onRename: (path: string) => void
@@ -47,11 +52,11 @@ export interface DriveItemWriteActions {
  * reuses it for the drive/owner ids. */
 export function useCopyText(): (text: string, successMessage?: string) => void {
     return useCallback(
-        (text: string, successMessage = "Copied") => {
+        (text: string, successMessage?: string) => {
             if (!text || !navigator.clipboard) return
             navigator.clipboard.writeText(text).then(
-                () => void message.success(successMessage),
-                () => void message.error("Couldn't copy"),
+                () => void message.success(successMessage ?? tNow("entityUi.driveExplorer.copied")),
+                () => void message.error(tNow("entityUi.driveExplorer.couldNotCopy")),
             )
         },
         [message],
@@ -62,7 +67,10 @@ export function useCopyText(): (text: string, successMessage?: string) => void {
  * items, so thousands of virtualized tiles don't each open a message context. */
 export function useCopyDrivePath(): (path: string) => void {
     const copy = useCopyText()
-    return useCallback((path: string) => copy(path, "Path copied"), [copy])
+    return useCallback(
+        (path: string) => copy(path, tNow("entityUi.driveExplorer.pathCopied")),
+        [copy],
+    )
 }
 
 /** A `download(presentedPath, isFolder)` for a drive item — a single file via the bytes endpoint, a
@@ -84,7 +92,7 @@ export function useDriveItemDownload(
                     await downloadFile(resolved.mount, resolved.path)
                     return
                 }
-                message.open({type: "loading", key, content: "Preparing download…", duration: 0})
+                message.open({type: "loading", key, content: tNow("entityUi.driveExplorer.preparingDownload"), duration: 0})
                 const result = await downloadMountArchive({
                     mounts: [{mountId: resolved.mount.id, prefix: "", path: resolved.path}],
                     projectId,
@@ -94,8 +102,17 @@ export function useDriveItemDownload(
                 else
                     message.open(
                         result.ok
-                            ? {type: "success", key, content: "Download ready"}
-                            : {type: "error", key, content: result.error ?? "Download failed"},
+                            ? {
+                                  type: "success",
+                                  key,
+                                  content: tNow("entityUi.driveExplorer.downloadReady"),
+                              }
+                            : {
+                                  type: "error",
+                                  key,
+                                  content:
+                                      result.error ?? tNow("entityUi.driveExplorer.downloadFailed"),
+                              },
                     )
             })()
         },
@@ -128,6 +145,7 @@ export const DriveItemContextMenu = ({
     className?: string
     children: ReactElement | ReactElement[]
 }) => {
+    const t = useT(driveExplorerCatalog)
     const copyLink = useContext(DriveLinkContext)
     // The tiles/rows are themselves click targets — keep a menu click from also selecting them.
     const stop = (event: {stopPropagation: () => void}) => event.stopPropagation()
@@ -140,22 +158,26 @@ export const DriveItemContextMenu = ({
             <ContextMenuContent onClick={stop} onCloseAutoFocus={(e) => e.preventDefault()}>
                 <ContextMenuItem onSelect={onOpen}>
                     {isFolder ? <FolderOpen size={14} /> : <ArrowSquareOut size={14} />}
-                    {isFolder ? "Open folder" : "Open file"}
+                    {isFolder
+                        ? t("entityUi.driveExplorer.openFolder")
+                        : t("entityUi.driveExplorer.openFile")}
                 </ContextMenuItem>
                 <ContextMenuItem onSelect={() => onCopyPath(path)}>
                     <Copy size={14} />
-                    Copy path
+                    {t("entityUi.driveExplorer.copyPath")}
                 </ContextMenuItem>
                 {copyLink ? (
                     <ContextMenuItem onSelect={() => copyLink({path, isFolder})}>
                         <LinkSimple size={14} />
-                        Copy link
+                        {t("entityUi.driveExplorer.copyLink")}
                     </ContextMenuItem>
                 ) : null}
                 {onDownload ? (
                     <ContextMenuItem onSelect={() => onDownload(path, isFolder)}>
                         <DownloadSimple size={14} />
-                        {isFolder ? "Download as zip" : "Download"}
+                        {isFolder
+                            ? t("entityUi.driveExplorer.downloadAsZip")
+                            : t("entityUi.driveExplorer.download")}
                     </ContextMenuItem>
                 ) : null}
                 {writes ? (
@@ -164,10 +186,10 @@ export const DriveItemContextMenu = ({
                         {/* Folder rename needs a backend move endpoint: shown disabled. */}
                         <ContextMenuItem disabled={isFolder} onSelect={() => writes.onRename(path)}>
                             <PencilSimple size={14} />
-                            Rename
+                            {t("entityUi.driveExplorer.rename")}
                             {isFolder ? (
                                 <span className="ml-auto pl-3 text-[11px] text-colorTextQuaternary">
-                                    files only
+                                    {t("entityUi.driveExplorer.filesOnly")}
                                 </span>
                             ) : null}
                         </ContextMenuItem>
@@ -177,7 +199,7 @@ export const DriveItemContextMenu = ({
                             className="text-colorError focus:text-colorError"
                         >
                             <Trash size={14} />
-                            Delete
+                            {t("entityUi.driveExplorer.delete")}
                         </ContextMenuItem>
                     </>
                 ) : null}

@@ -12,6 +12,8 @@ import {useMemo} from "react"
 import {AGENT_FILES_DIR, cleanPath, type DroppedFile} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {drivePathFromToolPath} from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
 import {atom, useAtom} from "jotai"
 import {atomFamily} from "jotai-family"
 
@@ -34,6 +36,9 @@ export const filesDrawerStagedAtomFamily = atomFamily((_sessionId: string) =>
 // (Shared with SessionFilesPane, the docked variant of this host.)
 export const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
+
+// The id labels are built in a memo; they read the language when it runs.
+const tNow = createT(driveRailCatalog)
 
 /**
  * The presented drive path a quick-look request selects by. Openers pass whatever they hold: a drive
@@ -97,8 +102,8 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const driveIds = useMemo(
         () =>
             [
-                drive.mount?.id ? {key: "mount", label: "Drive ID", value: drive.mount.id} : null,
-                sessionId ? {key: "owner", label: "Session ID", value: sessionId} : null,
+                drive.mount?.id ? {key: "mount", label: tNow("entityUi.driveRail.driveId"), value: drive.mount.id} : null,
+                sessionId ? {key: "owner", label: tNow("entityUi.driveRail.sessionId"), value: sessionId} : null,
             ].filter(Boolean) as DriveId[],
         [drive.mount?.id, sessionId],
     )

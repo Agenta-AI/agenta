@@ -14,6 +14,8 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {isHiddenPath, nameOf} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {message} from "@agenta/ui/app-message"
 
 /** How long a batch waits for its destination listing to settle before we rule on it, and the hard
@@ -29,8 +31,13 @@ const dirOf = (path: string) => {
     return slash === -1 ? "" : path.slice(0, slash)
 }
 
+// The toasts fire from effects and timers, outside render.
+const tNow = createT(driveExplorerCatalog)
+
 const label = (paths: string[]) =>
-    paths.length === 1 ? `Uploaded ${nameOf(paths[0])}` : `Uploaded ${paths.length} files`
+    paths.length === 1
+        ? tNow("entityUi.driveExplorer.uploadedName", {name: nameOf(paths[0])})
+        : tNow("entityUi.driveExplorer.uploadedFiles", {number: paths.length})
 
 /** One toasted group of uploads, watched until its files show up in the listing. */
 export interface UploadBatch {
@@ -121,7 +128,9 @@ export function useUploadReveal({
         message.open({
             type: "success",
             key,
-            content: revealHidden ? `${label(paths)} · showing hidden files` : label(paths),
+            content: revealHidden
+                ? tNow("entityUi.driveExplorer.showingHiddenFiles", {label: label(paths)})
+                : label(paths),
         })
         setBatches((prev) => [...prev, {key, paths, at: Date.now(), sawFetch: false}])
     }, [message, setShowHidden])
@@ -160,7 +169,9 @@ export function useUploadReveal({
                 message.open({
                     type: "success",
                     key: batch.key,
-                    content: `${label(batch.paths)} · showing git-ignored files`,
+                    content: tNow("entityUi.driveExplorer.showingGitignoredFiles", {
+                        label: label(batch.paths),
+                    }),
                 })
             }
             if (verdict !== "waiting") continue

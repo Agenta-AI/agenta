@@ -12,6 +12,8 @@ import {useEffect, useState} from "react"
 import {fileTypeLabel, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {useMountFileMediaSrc} from "@agenta/entities/drive"
 import {humanSize, relativeTime} from "@agenta/entities/drive"
+import {formatLocale, useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -153,9 +155,12 @@ export function DriveFileMetaList({
      * one-line-summary + Details toggle. */
     expanded?: boolean
 }) {
+    const t = useT(drivePreviewCatalog)
     const [internalExpanded, setInternalExpanded] = useState(false)
     const kind = resolveDriveFileKind(path)
-    const folder = path.includes("/") ? path.split("/").slice(0, -1).join("/") : "root"
+    const folder = path.includes("/")
+        ? path.split("/").slice(0, -1).join("/")
+        : t("entityUi.drivePreview.root")
 
     const isImage = kind === "image"
     const isMedia = kind === "audio" || kind === "video"
@@ -178,7 +183,10 @@ export function DriveFileMetaList({
           : null
     const duration = media?.duration ? formatDuration(media.duration) : null
     const textStats = content
-        ? `${content.split("\n").length.toLocaleString()} lines · ${content.length.toLocaleString()} chars`
+        ? t("entityUi.drivePreview.linesChars", {
+              lines: content.split("\n").length.toLocaleString(formatLocale()),
+              chars: content.length.toLocaleString(formatLocale()),
+          })
         : null
 
     // Fixed-width label tracks (not `auto`): which labels flow into a track changes per file
@@ -186,19 +194,27 @@ export function DriveFileMetaList({
     // sideways as you paged. 4.5rem fits the longest label ("Dimensions").
     const grid = (
         <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs sm:grid-cols-[4.5rem_1fr_4.5rem_1fr]">
-            <MetaRow label="Type" value={fileTypeLabel(path)} />
-            <MetaRow label="MIME" value={mimeFor(path)} />
+            <MetaRow label={t("entityUi.drivePreview.metaType")} value={fileTypeLabel(path)} />
+            <MetaRow label={t("entityUi.drivePreview.metaMime")} value={mimeFor(path)} />
             <MetaRow
-                label="Size"
+                label={t("entityUi.drivePreview.metaSize")}
                 value={
-                    size != null ? `${humanSize(size)} · ${size.toLocaleString()} bytes` : undefined
+                    size != null
+                        ? t("entityUi.drivePreview.sizeBytes", {
+                              size: humanSize(size),
+                              bytes: size.toLocaleString(formatLocale()),
+                          })
+                        : undefined
                 }
             />
-            <MetaRow label="Location" value={folder} />
-            <MetaRow label="Dimensions" value={dims} />
-            <MetaRow label="Duration" value={duration} />
-            <MetaRow label="Content" value={textStats} />
-            <MetaRow label="Modified" value={touchedAt ? relativeTime(touchedAt) : undefined} />
+            <MetaRow label={t("entityUi.drivePreview.metaLocation")} value={folder} />
+            <MetaRow label={t("entityUi.drivePreview.metaDimensions")} value={dims} />
+            <MetaRow label={t("entityUi.drivePreview.metaDuration")} value={duration} />
+            <MetaRow label={t("entityUi.drivePreview.metaContent")} value={textStats} />
+            <MetaRow
+                label={t("entityUi.drivePreview.metaModified")}
+                value={touchedAt ? relativeTime(touchedAt) : undefined}
+            />
         </dl>
     )
 
@@ -246,7 +262,7 @@ export function DriveFileMetaList({
                     aria-expanded={internalExpanded}
                     className="ml-auto flex shrink-0 cursor-pointer items-center gap-0.5 rounded border-0 bg-transparent p-0 text-colorTextTertiary transition-colors hover:text-colorText"
                 >
-                    Details
+                    {t("entityUi.drivePreview.details")}
                     <CaretRight
                         size={10}
                         className={`transition-transform ${internalExpanded ? "rotate-90" : ""}`}

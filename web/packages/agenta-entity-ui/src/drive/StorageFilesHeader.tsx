@@ -1,4 +1,6 @@
 import {useConfigDrive} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
 import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {CircleNotch} from "@phosphor-icons/react"
@@ -23,15 +25,15 @@ export default function StorageFilesHeader({
     /** Only playground hosts opt in to a toggle, with their authoritative pane scope. */
     scope?: string
 }) {
+    const t = useT(driveRailCatalog)
     const {drive} = useConfigDrive(revisionId, sessionId)
     const count = drive.fileCount
-    const shown = `${count}${drive.fileCountCapped ? "+" : ""}`
     const label =
         count === 0
-            ? "No files"
-            : count === 1 && !drive.fileCountCapped
-              ? "1 file"
-              : `${shown} files`
+            ? t("entityUi.driveRail.noFiles")
+            : drive.fileCountCapped
+              ? t("entityUi.driveRail.filesCountCapped", {count})
+              : t("entityUi.driveRail.filesCount", {count})
 
     return (
         <div className="flex items-center gap-1.5">
@@ -42,9 +44,9 @@ export default function StorageFilesHeader({
             ) : drive.errored ? null : (
                 <ConfigRowTrailing reserve={false}>
                     {drive.isFetching ? (
-                        <CircleNotch size={11} className="animate-spin" aria-label="Refreshing" />
+                        <CircleNotch size={11} className="animate-spin" aria-label={t("entityUi.driveRail.refreshing")} />
                     ) : null}
-                    <SimpleTooltip title="Total files">
+                    <SimpleTooltip title={t("entityUi.driveRail.totalFiles")}>
                         <span className={MUTED}>{label}</span>
                     </SimpleTooltip>
                 </ConfigRowTrailing>

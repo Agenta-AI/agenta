@@ -8,6 +8,8 @@ import {useDelayedTrue} from "@agenta/entities/drive"
 import {type DriveDrop} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -101,6 +103,7 @@ export const FolderView = ({
     anticipateShift?: {delta: number; seq: number} | null
     onSelect: (path: string) => void
 }) => {
+    const t = useT(driveExplorerCatalog)
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)
     const folderName = folderPath === "" ? rootLabel : (folderPath.split("/").pop() ?? folderPath)
@@ -173,23 +176,23 @@ export const FolderView = ({
                             toggle joins it when this folder is a git repo. Root ("") has no path. */}
                         <div className="flex shrink-0 items-center gap-1">
                             {folderPath ? (
-                                <Tooltip title="Copy path">
+                                <Tooltip title={t("entityUi.driveExplorer.copyPath")}>
                                     <CopyButton
                                         text={folderPath}
                                         buttonText={null}
                                         icon
                                         size="icon-sm"
-                                        aria-label="Copy folder path"
+                                        aria-label={t("entityUi.driveExplorer.copyFolderPath")}
                                         successMessage=""
                                         className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"
                                     />
                                 </Tooltip>
                             ) : null}
                             {repo.isRepo ? (
-                                <Tooltip title="Repository details">
+                                <Tooltip title={t("entityUi.driveExplorer.repositoryDetails")}>
                                     <Button
                                         type="text"
-                                        aria-label="Repository details"
+                                        aria-label={t("entityUi.driveExplorer.repositoryDetails")}
                                         aria-pressed={repoExpanded}
                                         onClick={() => setRepoExpanded((v) => !v)}
                                         icon={
@@ -385,9 +388,11 @@ export const FolderView = ({
                                     <EmptyMedia variant="icon">
                                         <Folder size={28} />
                                     </EmptyMedia>
-                                    <EmptyTitle className="text-[13px]">Nothing here</EmptyTitle>
+                                    <EmptyTitle className="text-[13px]">
+                                        {t("entityUi.driveExplorer.nothingHere")}
+                                    </EmptyTitle>
                                     <EmptyDescription className="text-xs">
-                                        Drop files to upload, or use Upload.
+                                        {t("entityUi.driveExplorer.dropFilesHint")}
                                     </EmptyDescription>
                                 </EmptyHeader>
                             </Empty>

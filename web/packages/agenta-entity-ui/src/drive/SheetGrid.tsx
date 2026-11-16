@@ -1,5 +1,8 @@
 import {memo, useState, type MouseEvent, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
+
 import {columnName, encodeCell, tableWidth, type CellBox, type CellOrigin} from "./cellAddress"
 import type {CellSelection} from "./spreadsheetComments"
 import type {Sheet, SheetCell, Truncation} from "./workbook"
@@ -15,14 +18,19 @@ const capText = (text: string): string =>
 
 const range = (n: number) => Array.from({length: n}, (_, i) => i)
 
-const PreviewCell = ({cell}: {cell: SheetCell}) =>
-    "value" in cell ? (
+const PreviewCell = ({cell}: {cell: SheetCell}) => {
+    const t = useT(drivePreviewCatalog)
+    return "value" in cell ? (
         <>{capText(cell.value)}</>
     ) : (
-        <span className="italic text-colorTextTertiary" title="Formula with no stored value">
+        <span
+            className="italic text-colorTextTertiary"
+            title={t("entityUi.drivePreview.formulaNoValue")}
+        >
             {capText(cell.formula)}
         </span>
     )
+}
 
 const FormulaBar = ({address, cell}: {address: string; cell: SheetCell | undefined}) => (
     <div className="flex h-8 shrink-0 items-stretch border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer font-mono text-xs">
@@ -189,25 +197,32 @@ export function SheetGrid({
     )
 }
 
-function truncationNote(truncated: Truncation, shownRows: number, shownColumns: number) {
-    const parts = [
-        truncated.rows ? `the first ${shownRows} rows` : null,
-        truncated.totalColumns !== null
-            ? `${shownColumns} of ${truncated.totalColumns} columns`
-            : null,
-    ].filter(Boolean)
-    return parts.length ? `Showing ${parts.join(" and ")}; download for the full file.` : null
+function truncationNote(
+    t: ReturnType<typeof useT<[typeof drivePreviewCatalog]>>,
+    truncated: Truncation,
+    shownRows: number,
+    shownColumns: number,
+) {
+    const rowsCut = Boolean(truncated.rows)
+    const columnsCut = truncated.totalColumns !== null
+    const values = {rows: shownRows, columns: shownColumns, totalColumns: truncated.totalColumns ?? 0}
+    if (rowsCut && columnsCut) return t("entityUi.drivePreview.showingRowsAndColumns", values)
+    if (rowsCut) return t("entityUi.drivePreview.showingRows", values)
+    if (columnsCut) return t("entityUi.drivePreview.showingColumns", values)
+    return null
 }
 
 /** The bar under a sheet: its tabs, if any, and its size or what the caps cut. */
 export function SheetFooter({sheet, children}: {sheet: Sheet; children?: ReactNode}) {
+    const t = useT(drivePreviewCatalog)
     const columns = tableWidth(sheet.rows)
-    const note = truncationNote(sheet.truncated, sheet.rows.length, columns)
+    const note = truncationNote(t, sheet.truncated, sheet.rows.length, columns)
     return (
         <div className="flex shrink-0 items-center gap-3 border-0 border-t border-solid border-colorBorderSecondary bg-colorFillQuaternary pr-3">
             <div className="min-w-0 flex-1">{children}</div>
             <span className="shrink-0 text-xs text-colorTextTertiary">
-                {note ?? `${sheet.rows.length} rows · ${columns} columns`}
+                {note ??
+                    t("entityUi.drivePreview.rowsColumns", {rows: sheet.rows.length, columns})}
             </span>
         </div>
     )
