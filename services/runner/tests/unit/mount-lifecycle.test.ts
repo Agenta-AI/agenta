@@ -173,12 +173,14 @@ describe("project drive mounts", () => {
     ({
       ...contextFor(cwd, commits),
       runCred: "ApiKey run",
-      commitProjectMount: (drive: ProjectRunDrive, path: string | undefined) => {
+      commitProjectMount: (drive: ProjectRunDrive, path: string) => {
         drive.mountedPath = path;
-        commits.push(`project:${drive.slug}:${path ?? "-"}`);
+        commits.push(`project:${drive.slug}:${path}`);
       },
       recordResignedProjectCredential: (drive: ProjectRunDrive, credential: typeof credentials) => {
         drive.credentials = credential;
+        drive.mountedPath = undefined;
+        commits.push(`resigned:${drive.slug}`);
       },
       recordProjectLink: (drive: ProjectRunDrive, linked: boolean) => {
         drive.linkFailed = !linked;

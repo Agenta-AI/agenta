@@ -61,7 +61,10 @@ import {
   linkProjectDrive,
   projectMountPath,
 } from "../engines/sandbox_agent/project-mount.ts";
-import type { ProjectRunDrive } from "../engines/sandbox_agent/run-drives.ts";
+import {
+  projectDrives,
+  type ProjectRunDrive,
+} from "../engines/sandbox_agent/run-drives.ts";
 import type { DriveAccess } from "../protocol.ts";
 import {
   agentToolsLocalDir,
@@ -405,7 +408,6 @@ export async function reSignAndRemountLocalProjectMount(
     return false;
   }
   ctx.recordResignedProjectCredential(drive, fresh);
-  ctx.commitProjectMount(drive, undefined, fresh);
   return mountLocalProjectMount(ctx, deps, drive);
 }
 
@@ -504,9 +506,7 @@ export function remountLocalCwdAfterRuntimeEnotconn(
   // The event cannot say which mount broke; remount every eligible one (alive mounts no-op).
   const cwdEligible = !!ctx.env.mountCreds && !!ctx.env.mountedCwd;
   const agentEligible = !!ctx.env.agentMountCreds && !!ctx.env.agentMountedPath;
-  const projectsEligible = ctx.env.drives.filter(
-    (d): d is ProjectRunDrive => d.kind === "project" && !!d.mountedPath,
-  );
+  const projectsEligible = projectDrives(ctx.env.drives).filter((d) => !!d.mountedPath);
   if (!cwdEligible && !agentEligible && projectsEligible.length === 0) return;
   if (ctx.env.runtimeRemount || !containsTransportEndpointDisconnected(event))
     return;

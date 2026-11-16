@@ -175,7 +175,6 @@ export function createAcquireContext(
     },
     commitProjectMount(drive, path, credential) {
       drive.mountedPath = path;
-      if (path === undefined) return;
       environment.installedMountExpiries.projects = {
         ...environment.installedMountExpiries.projects,
         [drive.slug]: mountExpiryMs(credential.expiresAt),
@@ -186,6 +185,7 @@ export function createAcquireContext(
     },
     recordResignedProjectCredential(drive, credential) {
       drive.credentials = credential;
+      drive.mountedPath = undefined;
     },
 
     // --- durableCwdSafeToDelete: three named transitions ------------------------------ //

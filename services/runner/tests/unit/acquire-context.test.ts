@@ -18,6 +18,7 @@ import {
 import { createAcquireContext } from "../../src/environment/acquire-context-impl.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent/runtime-contracts.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
+import type { ProjectRunDrive } from "../../src/engines/sandbox_agent/run-drives.ts";
 
 const CREDS = (expiresAt: string | undefined): MountCredentials =>
   ({
@@ -321,5 +322,25 @@ describe("the plan mutation is narrow, and the budgets are per acquire", () => {
     context.takeRemountBudget("cwd");
     context.takeRemountBudget("cwd");
     assert.equal(context.takeRemountBudget("cwd"), false);
+  });
+});
+
+describe("project drive committers", () => {
+  it("records the mount with its expiry, a re-sign that clears the path, a link outcome, and a budget per slug", () => {
+    const { context, environment } = makeContext();
+    const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read", credentials: CREDS(undefined) };
+    context.commitProjectMount(drive, "/w-project-notes", CREDS("2030-01-01T00:00:00Z"));
+    assert.equal(drive.mountedPath, "/w-project-notes");
+    assert.equal(environment.installedMountExpiries.projects?.notes, Date.parse("2030-01-01T00:00:00Z"));
+    const fresh = CREDS("2031-01-01T00:00:00Z");
+    context.recordResignedProjectCredential(drive, fresh);
+    assert.equal(drive.credentials, fresh);
+    assert.equal(drive.mountedPath, undefined);
+    context.recordProjectLink(drive, false);
+    assert.equal(drive.linkFailed, true);
+    assert.equal(context.takeRemountBudget("project:notes"), true);
+    assert.equal(context.takeRemountBudget("project:notes"), true);
+    assert.equal(context.takeRemountBudget("project:notes"), false);
+    assert.equal(context.takeRemountBudget("project:other"), true);
   });
 });

@@ -290,19 +290,18 @@ export interface AcquireContext {
 
   /**
    * Record a project drive that now serves I/O: its path (local and Daytona alike, so the turn
-   * refresh and the prompt can name it) and its credential's expiry. `path` undefined clears the
-   * path before a remount.
+   * refresh and the prompt can name it) and the expiry of the credential it was mounted with.
    */
   commitProjectMount(
     drive: ProjectRunDrive,
-    path: string | undefined,
+    path: string,
     credential: MountCredentials,
   ): void;
 
   /** Record whether the drive's `drives/<slug>` link was made. */
   recordProjectLink(drive: ProjectRunDrive, linked: boolean): void;
 
-  /** Record a re-signed project drive credential, before its remount. */
+  /** Record a re-signed project drive credential and clear its path, so the remount runs. */
   recordResignedProjectCredential(
     drive: ProjectRunDrive,
     credential: MountCredentials,
