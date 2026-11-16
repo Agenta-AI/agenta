@@ -62,9 +62,8 @@ All paths are repository-relative and were checked at the recorded baseline:
 | Platform tools | `sdks/python/agenta/sdk/agents/platform/op_catalog.py` |
 | Gallery data / helpers | `web/packages/agenta-entities/src/workflow/agentTemplates.ts` |
 | Existing template client | `web/packages/agenta-entities/src/workflow/api/agentTemplates.ts` |
-| Key selection | `web/oss/src/components/pages/agent-home/hooks/useTemplateSelect.ts` |
-| Website key capture and auth integration | `web/oss/src/state/url/template.ts`, `template.test.ts`, and `auth.ts` |
-| Website selection consumption and creation | `web/oss/src/components/pages/agent-home/hooks/useConsumePendingTemplate.ts` and `useCreateAgent.ts` |
+| Key selection and `?template=<key>` arrival | `web/mobile/src/features/agents/FirstRunScreen.tsx` |
+| Agent creation from a template | `web/packages/agenta-home-ui/src/useCreateAgent.ts` |
 | Website component | `web/website/src/components/TemplateExplorer.tsx` |
 
 Do not confuse product skill implementation with configuring your own agent. Ship create-template and submit-template through the repository's built-in skill machinery. Installing a local personal skill does not deliver the product feature.

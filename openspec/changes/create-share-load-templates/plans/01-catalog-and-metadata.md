@@ -27,7 +27,7 @@ Existing paths are relative to the repository root:
 - `api/oss/tests/pytest/unit/agent_templates/`: extend catalog/source/router tests.
 - `web/packages/agenta-entities/src/workflow/agentTemplates.ts`: migrate handwritten data, retain useful pure helpers.
 - `web/packages/agenta-entities/src/workflow/api/agentTemplates.ts`: extend the existing API client, not a second client.
-- `web/oss/src/components/pages/agent-home/hooks/useTemplateSelect.ts`: preserve key selection with fetched data.
+- `web/mobile/src/features/agents/FirstRunScreen.tsx`: preserve key selection with fetched data.
 - `web/packages/agenta-entities/tests/unit/agentTemplate*.test.ts`: current frontend regression tests.
 
 Proposed additions: `core/agent_templates/catalog.py` for the reader, a focused model module if required, `resources/agent_templates/authors/`, and a small data-generation script beside the resources. Do not create a service wrapper that only forwards calls.
@@ -54,7 +54,7 @@ Proposed additions: `core/agent_templates/catalog.py` for the reader, a focused 
 - [ ] Write failing frontend tests for card parity, loading/empty/error/retry states, ordering and `?template=<key>` behavior.
 - [ ] Extend the existing API client and use the repository's state/query conventions. Inspect `web/AGENTS.md` before choosing fetch/cache behavior.
 - [ ] Migrate gallery, template strip, onboarding, first-run/mobile and any consumers found by the audit. Preserve behavior, not a synchronous helper signature that no longer fits asynchronous reads.
-- [ ] Migrate the website pending-template lookup in `web/oss/src/state/url/template.ts` and `useConsumePendingTemplate.ts` too. Retain captured selections while the catalog query is pending; do not interpret a loading state as a missing key. Preserve authentication capture and claim safeguards.
+- [ ] Migrate the website `?template=<key>` lookup in `web/mobile/src/features/agents/FirstRunScreen.tsx` too. Retain captured selections while the catalog query is pending; do not interpret a loading state as a missing key. Preserve authentication capture and claim safeguards.
 - [ ] Return a clear unavailable-version state for a confirmed missing key; never choose a different template or create a blank agent silently.
 - [ ] Remove the handwritten runtime array and partial fallback paths only when every consumer uses the new source.
 - [ ] Run package tests, compare gallery screenshots, and commit. Frozen test fixtures may remain.
