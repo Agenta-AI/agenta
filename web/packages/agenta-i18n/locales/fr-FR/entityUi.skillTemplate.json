@@ -1,0 +1,16 @@
+{
+    "maxCharacters": "{{max}} caractères maximum.",
+    "mustBeText": "Doit être du texte.",
+    "required": "Obligatoire.",
+    "noLeadingTrailingSpaces": "Aucun espace au début ni à la fin.",
+    "lowercaseOnly": "Minuscules, chiffres et tirets uniquement.",
+    "skillReference": "Référence de skill",
+    "skill": "Skill",
+    "remove": "Retirer",
+    "staticSkill": "Skill statique",
+    "staticSkillHint": "Fourni par Agenta. Ce skill ne peut être ni modifié ni retiré.",
+    "skillTemplate": "Modèle de skill",
+    "couldNotRead": "Lecture impossible : déposez un dossier de skill, un fichier .zip ou un fichier .skill.",
+    "dragHint": "Faites glisser ici un dossier de skill, un <mono>.zip</mono> ou un <mono>.skill</mono>",
+    "browseFiles": "Parcourir les fichiers"
+}

@@ -8,7 +8,7 @@
 import {useCallback, useRef, useState} from "react"
 
 import {createT, richText, useT} from "@agenta/i18n"
-import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
+import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 import {cn} from "@agenta/ui/styles"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {UploadSimple} from "@phosphor-icons/react"
@@ -37,7 +37,7 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
                 const skill = await parse()
                 onParsed(skill)
             } catch {
-                setError(tNow("entityUi.skillForm.couldNotRead"))
+                setError(tNow("entityUi.skillTemplate.couldNotRead"))
             } finally {
                 setBusy(false)
             }
@@ -74,7 +74,7 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
                 <UploadSimple size={20} className="text-[var(--ag-c-586673)]" />
             )}
             <div className="text-xs text-[var(--ag-c-586673)]">
-                {richText(t("entityUi.skillForm.dragHint"), {
+                {richText(t("entityUi.skillTemplate.dragHint"), {
                     mono: (text) => <span className="font-mono">{text}</span>,
                 })}
             </div>
@@ -83,7 +83,7 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
                 onClick={() => inputRef.current?.click()}
                 disabled={disabled || busy}
             >
-                {t("entityUi.skillForm.browseFiles")}
+                {t("entityUi.skillTemplate.browseFiles")}
             </Button>
             {error ? <div className="text-xs text-colorError">{error}</div> : null}
             <input

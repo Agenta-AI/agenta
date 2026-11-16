@@ -1,0 +1,16 @@
+{
+    "maxCharacters": "Máximo de {{max}} caracteres.",
+    "mustBeText": "Deve ser texto.",
+    "required": "Obrigatório.",
+    "noLeadingTrailingSpaces": "Sem espaços no início ou no fim.",
+    "lowercaseOnly": "Apenas letras minúsculas, dígitos e hífens.",
+    "skillReference": "Referência de habilidade",
+    "skill": "Habilidade",
+    "remove": "Remover",
+    "staticSkill": "Habilidade estática",
+    "staticSkillHint": "Fornecida pelo Agenta. Esta habilidade não pode ser editada nem removida.",
+    "skillTemplate": "Modelo de habilidade",
+    "couldNotRead": "Não foi possível ler: solte uma pasta de habilidade, um .zip ou um arquivo .skill.",
+    "dragHint": "Arraste para cá uma pasta de habilidade, um <mono>.zip</mono> ou um <mono>.skill</mono>",
+    "browseFiles": "Procurar arquivos"
+}

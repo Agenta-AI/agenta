@@ -1,0 +1,16 @@
+{
+    "maxCharacters": "最大 {{max}} 文字です。",
+    "mustBeText": "テキストである必要があります。",
+    "required": "必須です。",
+    "noLeadingTrailingSpaces": "先頭と末尾にスペースは使用できません。",
+    "lowercaseOnly": "小文字、数字、ハイフンのみ使用できます。",
+    "skillReference": "スキル参照",
+    "skill": "スキル",
+    "remove": "削除",
+    "staticSkill": "静的スキル",
+    "staticSkillHint": "Agenta が提供しています。このスキルは編集も削除もできません。",
+    "skillTemplate": "スキルテンプレート",
+    "couldNotRead": "読み取れませんでした。スキルのフォルダー、.zip、または .skill ファイルをドロップしてください。",
+    "dragHint": "スキルのフォルダー、<mono>.zip</mono>、または <mono>.skill</mono> をここにドラッグ",
+    "browseFiles": "ファイルを参照"
+}

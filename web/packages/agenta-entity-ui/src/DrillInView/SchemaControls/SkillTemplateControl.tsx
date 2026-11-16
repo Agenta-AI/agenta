@@ -18,7 +18,7 @@
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
-import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
+import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 import {isPlainObject, safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {
@@ -123,8 +123,8 @@ export function parseSkillEditorText(text: string): Record<string, unknown> | nu
 /** Header label for a skill entry: its `name`, or a generic label for an embed/empty entry. */
 function skillLabel(skill: Record<string, unknown>): string {
     if (typeof skill.name === "string" && skill.name) return skill.name
-    if (isEmbedRef(skill)) return tNow("entityUi.skillForm.skillReference")
-    return tNow("entityUi.skillForm.skill")
+    if (isEmbedRef(skill)) return tNow("entityUi.skillTemplate.skillReference")
+    return tNow("entityUi.skillTemplate.skill")
 }
 
 export const SkillTemplateControl = memo(function SkillTemplateControl({
@@ -180,14 +180,14 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label={t("entityUi.skillForm.remove")}
+                                aria-label={t("entityUi.skillTemplate.remove")}
                                 onClick={onDelete}
                                 className="invisible group-hover/skill:visible shrink-0"
                             >
                                 <MinusCircle size={14} />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>{t("entityUi.skillForm.remove")}</TooltipContent>
+                        <TooltipContent>{t("entityUi.skillTemplate.remove")}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}
@@ -208,7 +208,7 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
             >
                 <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm font-semibold truncate">{name}</span>
-                    <Badge>{t("entityUi.skillForm.staticSkill")}</Badge>
+                    <Badge>{t("entityUi.skillTemplate.staticSkill")}</Badge>
                     {version && <Badge>{version}</Badge>}
                 </div>
                 {slug && (
@@ -217,7 +217,7 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
                     </span>
                 )}
                 <span className="text-xs text-colorTextDescription">
-                    {t("entityUi.skillForm.staticSkillHint")}
+                    {t("entityUi.skillTemplate.staticSkillHint")}
                 </span>
             </div>
         )
@@ -230,7 +230,7 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
             >
                 {header}
                 <textarea
-                    aria-label={t("entityUi.skillForm.skillTemplate")}
+                    aria-label={t("entityUi.skillTemplate.skillTemplate")}
                     className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                     value={editorText}
                     onChange={(e) => handleEditorChange(e.target.value)}

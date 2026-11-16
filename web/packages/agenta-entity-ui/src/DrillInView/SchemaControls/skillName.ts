@@ -6,7 +6,7 @@
  * have to exist here too. Keep the constants in sync with the pydantic field bounds.
  */
 import {createT} from "@agenta/i18n"
-import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
+import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 
 const t = createT(skillFormCatalog)
 
@@ -17,7 +17,7 @@ export const SKILL_DESCRIPTION_MAX = 1024
 export const SKILL_BODY_MAX = 50_000
 
 /** Shown for a non-string value, which pydantic rejects rather than coerces. */
-export const notTextMessage = (): string => t("entityUi.skillForm.mustBeText")
+export const notTextMessage = (): string => t("entityUi.skillTemplate.mustBeText")
 
 /** Best-effort slug for a human-written name, offered as a one-click fix. */
 export function slugifySkillName(name: string): string {
@@ -38,20 +38,20 @@ export function slugifySkillName(name: string): string {
  */
 export function skillNameError(rawName: unknown, {touched = true} = {}): string | undefined {
     if (rawName === undefined || rawName === null)
-        return touched ? t("entityUi.skillForm.required") : undefined
+        return touched ? t("entityUi.skillTemplate.required") : undefined
     // Rejected, not coerced: `name` is a pydantic `str`, which refuses 123 outright, while
     // String(123) would sail through the slug pattern below.
     if (typeof rawName !== "string") return notTextMessage()
     // Checked UNTRIMMED: the form stores what was typed, so trimming here would pass a value the
     // SDK's pattern later rejects.
     const name = rawName
-    if (!name.trim()) return touched ? t("entityUi.skillForm.required") : undefined
+    if (!name.trim()) return touched ? t("entityUi.skillTemplate.required") : undefined
     if ([...name].length > SKILL_NAME_MAX)
-        return t("entityUi.skillForm.maxCharacters", {max: SKILL_NAME_MAX})
+        return t("entityUi.skillTemplate.maxCharacters", {max: SKILL_NAME_MAX})
     if (SKILL_NAME_PATTERN.test(name)) return undefined
     // "weather " looks fine, so the generic rule would read like a false positive.
-    if (SKILL_NAME_PATTERN.test(name.trim())) return t("entityUi.skillForm.noLeadingTrailingSpaces")
-    return t("entityUi.skillForm.lowercaseOnly")
+    if (SKILL_NAME_PATTERN.test(name.trim())) return t("entityUi.skillTemplate.noLeadingTrailingSpaces")
+    return t("entityUi.skillTemplate.lowercaseOnly")
 }
 
 /** True when `name` is a valid skill slug. */
