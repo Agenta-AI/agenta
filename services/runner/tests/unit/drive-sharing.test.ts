@@ -700,12 +700,14 @@ describe("local runs with drives (engine composition)", () => {
     mkdirSync(join(cwd, "drives"), { recursive: true });
     symlinkSync(`${cwd}-project-old`, join(cwd, "drives", "old"));
     const { deps, logs } = fakeHarness({ cwd });
+    deps.signSessionMountCredentials = signed("session");
     deps.signProjectMountCredentials = signed("notes");
     deps.mountStorage = (async () => true) as never;
     deps.unmountStorage = (async () => true) as never;
+    deps.createLocalCwd = () => cwd;
     try {
       const result = await runSandboxAgent(
-        request({ sessionId: undefined, drives: [{ kind: "project", slug: "notes", access: "read" }] }),
+        request({ drives: [{ kind: "project", slug: "notes", access: "read" }] }),
         undefined,
         undefined,
         deps,

@@ -831,7 +831,8 @@ async function acquireEnvironmentOnce(
     for (const result of projectResults) if (result.status === "rejected") throw result.reason;
     if (cwdResult.value && piSessionDir) environment.nativeHistoryDurable = true;
     if (anyLocalMount) throwIfAcquireAborted(signal);
-    if (plan.driveOnRunner) {
+    // Only a session drive keeps entries between runs; a throwaway folder has nothing stale.
+    if (plan.driveOnRunner && environment.mountedCwd) {
       await pruneProjectDriveLinks(plan.workspace.cwd, listedProjectSlugs, { log: logger });
     }
     // A harness in the runner (`inprocess`) mounts the drive in its own command sandbox when a
@@ -1436,7 +1437,7 @@ async function acquireEnvironmentOnce(
     if (daytonaAgentResult.status === "rejected") throw daytonaAgentResult.reason;
     for (const result of daytonaProjectResults)
       if (result.status === "rejected") throw result.reason;
-    if (plan.isDaytona) {
+    if (plan.isDaytona && environment.installedMountExpiries.cwd !== undefined) {
       await pruneProjectDriveLinksRemote(environment.sandbox, plan.workspace.cwd, listedProjectSlugs, { log: logger });
     }
 
