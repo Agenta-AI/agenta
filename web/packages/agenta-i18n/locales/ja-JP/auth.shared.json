@@ -1,0 +1,9 @@
+{
+    "change": "変更",
+    "completeSecurityCheck": "セキュリティチェックを完了してください。",
+    "continueWith": "{{provider}} で続行",
+    "lastUsed": "前回使用",
+    "noMethodsConfigured": "認証方法が設定されていません",
+    "redirectingTo": "{{provider}} にリダイレクトしています…",
+    "securityCheckFailed": "セキュリティチェックに失敗しました。もう一度お試しください。"
+}

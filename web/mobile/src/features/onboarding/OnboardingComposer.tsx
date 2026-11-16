@@ -1,16 +1,15 @@
 import {useRef} from "react"
 
 import {HomeTaskComposer} from "@agenta/home-ui"
+import {useT} from "@agenta/i18n"
+import creatorCatalog from "@agenta/i18n/catalogs/onboarding.creator"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
 
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
 import {OnboardingCreateStatus} from "./OnboardingCreateStatus"
-
-const copy = ONBOARDING_COPY.creator
 
 /** The first message, sent to create: Home's composer in create mode, saved to the draft. */
 export const OnboardingComposer = ({
@@ -24,6 +23,7 @@ export const OnboardingComposer = ({
     create: OnboardingCreateState
     starters: readonly string[]
 }) => {
+    const t = useT(creatorCatalog)
     const inputRef = useRef<RichChatInputHandle | null>(null)
     const chooseModelRef = useRef<HTMLButtonElement | null>(null)
 
@@ -52,7 +52,11 @@ export const OnboardingComposer = ({
                 }}
             />
             <OnboardingCreateStatus create={create} chooseModelRef={chooseModelRef} />
-            <div role="group" aria-label={copy.starters} className="flex flex-wrap gap-1.5">
+            <div
+                role="group"
+                aria-label={t("onboarding.creator.starters")}
+                className="flex flex-wrap gap-1.5"
+            >
                 {starters.map((text) => (
                     <button
                         type="button"

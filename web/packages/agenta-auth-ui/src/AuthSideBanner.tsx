@@ -1,6 +1,8 @@
 /** The product panel beside the sign-in form on wide screens. */
 import {memo, useLayoutEffect, useRef, useState, useSyncExternalStore} from "react"
 
+import {useT} from "@agenta/i18n"
+import sideBannerCatalog from "@agenta/i18n/catalogs/auth.sideBanner"
 import {Button} from "@agenta/ui/ui"
 import {GithubLogo} from "@phosphor-icons/react"
 
@@ -49,6 +51,7 @@ const useFrameFit = () => {
 }
 
 const AuthSideBanner = () => {
+    const t = useT(sideBannerCatalog)
     const [stageRef, {scale, offset}] = useFrameFit()
     const wide = useWide()
     return (
@@ -69,11 +72,11 @@ const AuthSideBanner = () => {
                         rel="noopener noreferrer"
                     >
                         <GithubLogo size={14} weight="fill" />
-                        Open Source
+                        {t("auth.sideBanner.openSource")}
                     </a>
                 </Button>
                 <h2 className="auth-headline m-0 max-w-[520px] text-balance text-[clamp(28px,3vw,40px)] font-semibold leading-[1.15] tracking-[-0.02em] text-foreground">
-                    Agents that run while you work on something else
+                    {t("auth.sideBanner.headline")}
                 </h2>
             </div>
             <div ref={stageRef} className="relative min-h-0 flex-1" aria-hidden>

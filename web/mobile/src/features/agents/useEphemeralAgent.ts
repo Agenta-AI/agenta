@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {createEphemeralAppFromTemplate, fetchAgTypeSchema} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
 
 import {queryClient} from "@/lib/queryClient"
 
@@ -18,6 +20,8 @@ import {queryClient} from "@/lib/queryClient"
  */
 /** The `x-ag-type-ref` the agent config node carries; see the seeding effect below. */
 const AGENT_TEMPLATE_AG_TYPE = "agent-template"
+
+const tNow = createT(agentsFirstRun)
 
 export const useEphemeralAgent = (active: boolean) => {
     const [entityId, setEntityId] = useState<string | null>(null)
@@ -67,7 +71,7 @@ export const useEphemeralAgent = (active: boolean) => {
                 // user has not hydrated within its own timeout, which is recoverable — never
                 // leave the surface spinning on it.
                 startedRef.current = false
-                setError("Couldn't set up your agent.")
+                setError(tNow("agents.firstRun.setupFailed"))
             })
     }, [])
 

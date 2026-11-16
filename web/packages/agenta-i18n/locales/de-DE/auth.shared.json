@@ -1,0 +1,9 @@
+{
+    "change": "Ändern",
+    "completeSecurityCheck": "Bitte schließen Sie die Sicherheitsprüfung ab.",
+    "continueWith": "Mit {{provider}} fortfahren",
+    "lastUsed": "Zuletzt verwendet",
+    "noMethodsConfigured": "Es sind keine Authentifizierungsmethoden konfiguriert",
+    "redirectingTo": "Weiterleitung zu {{provider}}…",
+    "securityCheckFailed": "Die Sicherheitsprüfung ist fehlgeschlagen. Bitte versuchen Sie es erneut."
+}

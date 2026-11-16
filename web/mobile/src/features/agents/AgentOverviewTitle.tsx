@@ -7,6 +7,8 @@ import {
     useRenameAgent,
     useUpdateAgentDescription,
 } from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {InlineRenameInput, useDeferredMenuSelect, useInlineRename} from "@agenta/sessions-ui"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
@@ -42,6 +44,7 @@ export const AgentOverviewTitle = ({
     /** Opens the Publish panel; the kebab offers it below `lg`, where the Channels card is hidden. */
     onPublish?: () => void
 }) => {
+    const t = useT(agentsOverview)
     const renameAgent = useRenameAgent()
     const onCommit = useCallback(
         (next: string) => renameAgent(agentId, next),
@@ -50,7 +53,7 @@ export const AgentOverviewTitle = ({
     const rename = useInlineRename({
         current: name,
         onCommit,
-        errorText: "Couldn't rename this agent",
+        errorText: t("agents.overview.renameFailed"),
     })
     // The description edits the same way, one line under the name. Blank is a real value here:
     // it is how a description is removed.
@@ -62,7 +65,7 @@ export const AgentOverviewTitle = ({
     const describe = useInlineRename({
         current: description ?? "",
         onCommit: onCommitDescription,
-        errorText: "Couldn't update this agent's description",
+        errorText: t("agents.overview.descriptionUpdateFailed"),
         allowEmpty: true,
     })
     // The editor must not mount inside the menu's focus trap, so the verb runs from the close.
@@ -90,7 +93,7 @@ export const AgentOverviewTitle = ({
                 ) : rename.renaming ? (
                     <InlineRenameInput
                         rename={rename}
-                        ariaLabel="Agent name"
+                        ariaLabel={t("agents.overview.agentName")}
                         className="h-7 w-full min-w-0 rounded-md border border-solid border-input bg-background px-2 text-[16px] font-semibold leading-none text-foreground shadow-xs outline-none transition-[color,box-shadow] [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50 dark:bg-input/30"
                     />
                 ) : (
@@ -108,7 +111,7 @@ export const AgentOverviewTitle = ({
                 {pending || !wide ? null : describe.renaming ? (
                     <InlineRenameInput
                         rename={describe}
-                        ariaLabel="Agent description"
+                        ariaLabel={t("agents.overview.agentDescription")}
                         className="h-6 w-full min-w-0 rounded-md border border-solid border-input bg-background px-2 text-[13px] leading-none text-foreground shadow-xs outline-none transition-[color,box-shadow] [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50 dark:bg-input/30 lg:max-w-[calc(66.667%-40px)]"
                     />
                 ) : (
@@ -118,14 +121,14 @@ export const AgentOverviewTitle = ({
                     <button
                         type="button"
                         onClick={describe.start}
-                        title={description ?? "Add a description"}
+                        title={description ?? t("agents.overview.addDescription")}
                         className={cn(
                             "m-0 min-w-0 cursor-text truncate border-0 bg-transparent p-0 text-left font-[inherit] text-[13px] leading-snug outline-none sm:text-[14px] lg:max-w-[calc(66.667%-40px)]",
                             FOCUS_RING,
                             description ? "text-muted-foreground" : "text-placeholder",
                         )}
                     >
-                        {description ?? "Add a description"}
+                        {description ?? t("agents.overview.addDescription")}
                     </button>
                 )}
             </div>
@@ -139,7 +142,7 @@ export const AgentOverviewTitle = ({
                 className="hidden shrink-0 lg:inline-flex"
             >
                 <ChatCircleDots aria-hidden />
-                Open chat
+                {t("agents.overview.openChat")}
             </Button>
             {/* Held back until the record lands: until then the destructive verbs would act on
                 an agent whose name is unknown. No slug on purpose: the menu offers Copy Slug only
