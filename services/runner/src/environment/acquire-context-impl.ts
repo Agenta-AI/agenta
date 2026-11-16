@@ -181,7 +181,7 @@ export function createAcquireContext(
       };
     },
     recordProjectLink(drive, linked) {
-      drive.linkFailed = !linked;
+      drive.linked = linked;
     },
     recordResignedProjectCredential(drive, credential) {
       drive.credentials = credential;

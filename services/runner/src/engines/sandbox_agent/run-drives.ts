@@ -27,8 +27,11 @@ export interface ProjectRunDrive {
   credentials: MountCredentials | null;
   /** Set once the drive serves I/O in this environment; for `inprocess`, once it is a root. */
   mountedPath?: string;
-  /** The `drives/<slug>` link could not be made: the drive is mounted but not available to the model. */
-  linkFailed?: boolean;
+  /**
+   * The acquire made the `drives/<slug>` link (`local`, `daytona`). Without it the drive is mounted
+   * but not available to the model. `inprocess` links in its command sandbox instead.
+   */
+  linked?: boolean;
 }
 
 export type RunDrive = AgentRunDrive | ProjectRunDrive;

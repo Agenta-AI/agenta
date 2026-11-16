@@ -337,7 +337,7 @@ describe("project drive committers", () => {
     assert.equal(drive.credentials, fresh);
     assert.equal(drive.mountedPath, undefined);
     context.recordProjectLink(drive, false);
-    assert.equal(drive.linkFailed, true);
+    assert.equal(drive.linked, false);
     assert.equal(context.takeRemountBudget("project:notes"), true);
     assert.equal(context.takeRemountBudget("project:notes"), true);
     assert.equal(context.takeRemountBudget("project:notes"), false);

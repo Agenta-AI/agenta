@@ -1520,7 +1520,7 @@ async function acquireEnvironmentOnce(
       projectDrives: projectDrives(environment.drives).map((drive) => ({
         slug: drive.slug,
         access: drive.access,
-        mountedPath: drive.linkFailed ? undefined : drive.mountedPath,
+        mountedPath: plan.harnessInRunner || drive.linked ? drive.mountedPath : undefined,
       })),
       ...(drivesListedEmpty(request)
         ? {

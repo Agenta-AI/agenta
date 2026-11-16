@@ -183,7 +183,7 @@ describe("project drive mounts", () => {
         commits.push(`resigned:${drive.slug}`);
       },
       recordProjectLink: (drive: ProjectRunDrive, linked: boolean) => {
-        drive.linkFailed = !linked;
+        drive.linked = linked;
       },
       takeRemountBudget: () => true,
     }) as unknown as AcquireContext;
@@ -214,6 +214,7 @@ describe("project drive mounts", () => {
       assert.equal(await mounted, true);
       assert.equal(drive.mountedPath, `${cwd}-project-price-lists`);
       assert.equal(readlinkSync(join(cwd, "drives", "price-lists")), `${cwd}-project-price-lists`);
+      assert.equal(drive.linked, true);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-project-price-lists`, { recursive: true, force: true });
@@ -234,9 +235,29 @@ describe("project drive mounts", () => {
       );
       assert.equal(mounted, true);
       assert.equal(drive.mountedPath, `${cwd}-project-notes`, "recorded for teardown");
-      assert.equal(drive.linkFailed, true);
+      assert.equal(drive.linked, false);
       assert.equal(readFileSync(join(cwd, "drives", "notes", "kept.md"), "utf-8"), "mine");
       assert.ok(logs.includes("mount degraded kind=project_mount cause=link_failed slug=notes"));
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves a drive unlinked, not linked, when the cwd mount fails before the link", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-nocwd-"));
+    const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read", credentials };
+    try {
+      const mounted = await mountLocalProjectMount(
+        projectContext(cwd, []),
+        depsFor(new AbortController().signal, async () => true),
+        drive,
+        { cwdReady: Promise.reject(new Error("cwd mount failed")) },
+      );
+      assert.equal(mounted, true);
+      assert.equal(drive.mountedPath, `${cwd}-project-notes`, "recorded for teardown");
+      assert.notEqual(drive.linked, true);
+      assert.equal(existsSync(join(cwd, "drives")), false);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
