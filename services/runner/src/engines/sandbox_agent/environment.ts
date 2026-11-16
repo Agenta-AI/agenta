@@ -702,6 +702,7 @@ async function acquireEnvironmentOnce(
 
   const mountDeps: MountDeps = {
     ...(deps.mountStorage ? { mountStorage: deps.mountStorage } : {}),
+    ...(deps.unmountStorage ? { unmountStorage: deps.unmountStorage } : {}),
     signMount,
     signAgentMount,
     signProjectMount,

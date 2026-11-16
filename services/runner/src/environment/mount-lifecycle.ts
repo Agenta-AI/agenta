@@ -56,7 +56,11 @@ import {
   symlinkCodexSubscriptionAuthFile,
 } from "../engines/sandbox_agent/codex-assets.ts";
 import { conciseError } from "../engines/sandbox_agent/errors.ts";
-import { mountStorage } from "../engines/sandbox_agent/mount.ts";
+import {
+  isMounted,
+  mountStorage,
+  unmountStorage,
+} from "../engines/sandbox_agent/mount.ts";
 import {
   linkProjectDrive,
   projectMountPath,
@@ -82,6 +86,8 @@ import { rethrowIfInvariant, type AcquireContext } from "./acquire-context.ts";
 /** The Pi agent directory inside a Daytona sandbox. Injected so this unit stays import-light. */
 export interface MountDeps {
   mountStorage?: typeof mountStorage;
+  isMounted?: typeof isMounted;
+  unmountStorage?: typeof unmountStorage;
   signMount: (
     sessionId: string,
     opts: { apiBase: string; authorization: string; log: (m: string) => void },
@@ -350,6 +356,15 @@ export async function mountLocalProjectMount(
   const mountPath = projectMountPath(plan.workspace.cwd, drive.slug);
   if (drive.mountedPath === mountPath) return true;
   try {
+    // `mountStorage` keeps a live mount as it is, and one left by an earlier environment was made
+    // with that environment's access and credentials: detach it first, or do not mount at all.
+    if (
+      (await (deps.isMounted ?? isMounted)(mountPath, ctx.log)) &&
+      !(await (deps.unmountStorage ?? unmountStorage)(mountPath, { log: ctx.log }))
+    ) {
+      ctx.log(`local project mount not replaced slug=${drive.slug}: the earlier mount did not detach`);
+      return false;
+    }
     mkdirSync(mountPath, { recursive: true });
     if (
       !(await (deps.mountStorage ?? mountStorage)(mountPath, creds, {

@@ -264,6 +264,34 @@ describe("project drive mounts", () => {
     }
   });
 
+  it("detaches a mount an earlier environment left at the path before mounting read-only, and never reuses it", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-left-"));
+    const steps: string[] = [];
+    const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read", credentials };
+    try {
+      const deps = (unmounted: boolean): MountDeps => ({
+        ...depsFor(new AbortController().signal, async (_path, _creds, opts) => {
+          steps.push(`mount ro=${opts?.geesefs?.readOnly}`);
+          return true;
+        }),
+        isMounted: async () => true,
+        unmountStorage: async () => {
+          steps.push("unmount");
+          return unmounted;
+        },
+      });
+      assert.equal(await mountLocalProjectMount(projectContext(cwd, []), deps(true), drive), true);
+      assert.deepEqual(steps, ["unmount", "mount ro=true"]);
+      steps.length = 0;
+      const again: ProjectRunDrive = { ...drive, mountedPath: undefined };
+      assert.equal(await mountLocalProjectMount(projectContext(cwd, []), deps(false), again), false);
+      assert.deepEqual(steps, ["unmount"], "a mount that did not detach is not reused");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+    }
+  });
+
   it("mounts a read-write drive writable", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-rw-"));
     let readOnly: boolean | undefined;

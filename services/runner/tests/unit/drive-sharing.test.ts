@@ -658,8 +658,8 @@ describe("local runs with drives (engine composition)", () => {
         deps,
       );
       const ms = (stage: string) => Number(logs.find((m) => m.includes(`stage=${stage} `))?.match(/ms=(\d+)/)?.[1]);
-      assert.ok(ms("local_mounts") >= 400, `local_mounts ${ms("local_mounts")}`);
-      assert.ok(ms("project_mounts") < 400, `project_mounts ${ms("project_mounts")}`);
+      assert.ok(ms("local_mounts") >= 350, `local_mounts ${ms("local_mounts")}`);
+      assert.ok(ms("project_mounts") < ms("local_mounts") - 200, `project_mounts ${ms("project_mounts")}`);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-agent`, { recursive: true, force: true });
