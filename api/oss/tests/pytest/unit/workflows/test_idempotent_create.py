@@ -64,6 +64,9 @@ class _MemoryWorkflows:
         self.create_access = []
         self.commit_owners = []
 
+    async def reject_unusable_agent_drives(self, *, project_id, data):
+        return None
+
     def _maybe_fail(self, stage):
         if self.fail_stage == stage and not self.failed:
             self.failed = True
