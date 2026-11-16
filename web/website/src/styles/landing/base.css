@@ -1,6 +1,4 @@
-/* Landing base — rules shared by several landing sections (design board, iteration 1).
-   The generic section/h2 rules skip the interactive hero demo (.ag-app-frame),
-   which has its own <section> and <h2> elements. */
+/* Landing base rules; the section/h2 rules skip the hero demo (.ag-app-frame). */
 .lp section:not(.ag-app-frame section),
 .lp footer {
   box-sizing: border-box;
@@ -112,8 +110,7 @@ html body .lp section.tp .grid {
   border-right: 1px solid var(--lp-line) !important;
 }
 
-/* Section animations wait until the section is on screen (script in
-   pages/index.astro sets data-lp-anim on .lp and data-lp-in on each section). */
+/* Animations wait for data-lp-in (set by pages/index.astro). */
 .lp[data-lp-anim] > :not([data-lp-in]),
 .lp[data-lp-anim] > :not([data-lp-in]) *,
 .lp[data-lp-anim] > :not([data-lp-in]) *::before,

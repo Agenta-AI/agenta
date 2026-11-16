@@ -1,10 +1,4 @@
-/* Landing page tokens (--lp-*).
-   The landing sections draw small product mock-ups (app frames, chats, cards).
-   Their colours come only from these tokens, so one file decides both themes.
-   Light values are the design board's values ("Landing · iteration 1").
-   Dark values come from the site's dark palette in tokens-dark.css.
-   Sections that are dark or yellow in both themes (Self-host, CTA) use the raw
-   palette instead (--carbon-*, --yellow-*). */
+/* Landing tokens (--lp-*): light from the design board, dark from tokens-dark.css. */
 
 :root {
   /* text */
@@ -37,8 +31,7 @@
   /* Opaque grey for stacked avatars; a translucent fill shows the one below. */
   --lp-avatar: var(--paper-300);
 
-  /* Fixed colours that never flip with the theme (text on yellow, white on
-     the always-dark mock-up chips). Declared here so no section can shadow them. */
+  /* Colours that never flip with the theme. */
   --lp-fixed-ink: var(--ink-900);
   --lp-fixed-white: var(--paper-0);
 
@@ -72,8 +65,7 @@
   --lp-line-2: var(--ag-d-border);
   --lp-line-strong: var(--ag-d-border-strong);
   --lp-frame: rgba(255, 255, 255, 0.07);
-  /* --lp-line-strong composited onto the card, so it reads the same but hides
-     what is under it. */
+  /* --lp-line-strong composited onto the card, so it is opaque. */
   --lp-avatar: color-mix(in srgb, rgb(252, 248, 240) 16%, var(--ag-d-bg-2));
 
   --lp-ink-rgb: 247 244 238;

@@ -10,8 +10,7 @@ import "../../styles/landing/workinchat.css";
 </div>
 
 <script>
-  // Browsers without CSS scroll-driven animations (Firefox): drive the same
-  // keyframes from scroll progress through the tall section.
+  // No scroll-driven animations (Firefox): drive the keyframes from scroll.
   if (!CSS.supports("animation-timeline: view()") && matchMedia("(min-width: 861px)").matches) {
     const section = document.querySelector<HTMLElement>(".sx-hiw section.hw");
     const beats = section ? [...section.querySelectorAll<HTMLElement>('[style*="animation-timeline"]')] : [];

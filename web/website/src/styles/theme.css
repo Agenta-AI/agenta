@@ -113,10 +113,7 @@
   --th-darksec-border: rgba(255, 255, 255, 0.07);
 
   /* ── chrome extras ───────────────────────────────────────── */
-  /* Straight off Framer: a 1px ink ring, a 4px soft glow, then the two-layer
-     border — a 4px halo in the page paper tone with a 1px rule at its edge.
-     The handoff's version used pure white for the halo, which read as a
-     cut-out over the tinted bands. */
+  /* 1px ink ring, soft glow, then a 4px paper halo with a 1px rule. */
   --th-pill-shadow:
     0 0 0 1px rgba(72, 70, 68, 0.16), 0 0 4px rgba(72, 70, 68, 0.08),
     0 0 0 4px #f6f4f2, 0 0 0 5px #e7e5e3;
@@ -186,10 +183,7 @@
   --th-darksec-oss: var(--ag-d-bg-1);
   --th-darksec-border: rgba(255, 255, 255, 0.07);
 
-  /* Same four layers as the light pill: a 1px ring, the soft drop shadow, then
-     a 4px halo in the page canvas and a 1px rule at its edge. The rule uses the
-     dark grid colour (--th-nav-rule) so the side rules meet a visible edge; a
-     halo alone vanishes against the canvas and leaves a gap before the caps. */
+  /* Same layers as light; the rule uses the dark grid colour. */
   --th-pill-shadow:
     0 0 0 1px rgba(250, 247, 242, 0.09), 0 12px 36px rgba(0, 0, 0, 0.55),
     0 0 0 4px var(--ag-d-bg-0), 0 0 0 5px rgba(255, 255, 255, 0.12);

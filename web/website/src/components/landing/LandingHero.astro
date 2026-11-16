@@ -4,12 +4,10 @@ import Badge from "../Badge.astro";
 import Button from "../Button.astro";
 import Section from "../Section.astro";
 import { formatStars, githubStars } from "../../lib/githubStars";
-// The clickable workspace from the previous homepage. The hero shows the
-// animated run first; a sidebar click swaps to this demo (script below).
+// Clickable workspace demo; a hero sidebar click swaps it in (script below).
 import WorkspaceDemo from "../WorkspaceDemo.jsx";
 import { demoTheme } from "../workspace-demo/theme.js";
 import "../../styles/workspace-demo.css";
-import "../../styles/demo-primitives.css";
 
 const stars = formatStars(await githubStars());
 ---
@@ -29,15 +27,12 @@ const stars = formatStars(await githubStars());
 <style is:global set:html={demoTheme} />
 
 <script is:inline>
-  // Static sidebar -> interactive demo. Rows are plain divs in the generated
-  // markup, so this script gives them button semantics.
+  // Sidebar rows open the interactive demo; they are plain divs, so add button semantics.
   (() => {
     const frame = document.querySelector(".r3-ag-app-frame");
     const live = document.querySelector(".lp-demo-live");
     const side = frame && frame.querySelector(".r3-rs");
     if (!frame || !live || !side) return;
-    // Agent group -> session index in workspace-demo/model.js.
-    const GROUPS = { "Lead Qualifier": 7, "Meeting Follow-up": 10, "Support Reply Drafter": 11 };
     const VIEWS = ["Home", "Agents", "Automations", "Skills", "Sessions"];
     const show = (on) => {
       frame.hidden = on;
@@ -56,11 +51,7 @@ const stars = formatStars(await githubStars());
         return null;
       }
       if (row.classList.contains("r3-rs-s") && !row.classList.contains("r3-on")) {
-        let g = row.previousElementSibling;
-        while (g && !g.classList.contains("r3-rs-g")) g = g.previousElementSibling;
-        const session = g && GROUPS[g.textContent.trim()];
-        if (session == null) return null;
-        return () => go({ view: "playground", session, playgroundTask: label });
+        return () => go({ view: "playground", playgroundTask: label });
       }
       return null;
     };

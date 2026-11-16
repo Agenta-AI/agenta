@@ -1,10 +1,7 @@
 import {
   ArrowLeft,
-  ArrowRight,
   ArrowUp,
   CalendarBlank,
-  CaretDoubleLeft,
-  CaretDoubleRight,
   CaretDown,
   CaretRight,
   ChatCircle,
@@ -12,27 +9,19 @@ import {
   Clock,
   Check,
   ClockCounterClockwise,
-  Copy,
-  Cpu,
   DotsThree,
-  FileText,
   Funnel,
   GearSix,
-  GraduationCap,
   House,
   Lightning,
   Paperclip,
   Microphone,
-  ListBullets,
   MagnifyingGlass,
-  Plugs,
   Plus,
   PuzzlePiece,
   Robot,
-  ShieldCheck,
   SidebarSimple,
   SquaresFour,
-  Wrench,
   X,
 } from "@phosphor-icons/react";
 import AutomationHistory from "./workspace-demo/AutomationHistory.jsx";
@@ -78,8 +67,7 @@ const SAMPLE_NAMES = ["Alex", "Sam", "Jordan", "Taylor", "Casey"];
 export default class WorkspaceDemo extends Component {
   componentDidMount() {
     document.addEventListener("keydown", this.onEscape);
-    // The landing hero's static sidebar asks for a screen with this event;
-    // a click made before hydration waits in window.__agDemoGo.
+    // The hero sidebar asks for a screen; a pre-hydration click waits in __agDemoGo.
     window.addEventListener("ag-demo-go", this.onGo);
     if (window.matchMedia("(max-width: 1100px)").matches)
       this.setState({ sidebarCollapsed: true });
@@ -149,7 +137,7 @@ export default class WorkspaceDemo extends Component {
     } = deriveWorkspace(
       this.state,
       (patch) => this.setState(patch),
-      this.props.onLive ?? this.onLive,
+      this.onLive,
     );
 
     return (
@@ -1964,8 +1952,7 @@ export default class WorkspaceDemo extends Component {
             </>
           )}
           {view.playground && (
-            // Same layout as the landing hero's animated session (the .r3-*
-            // classes in styles/landing/hero.css): agent header, thread, composer.
+            // Same layout as the hero session (.r3-* classes in landing/hero.css).
             <div className="r3-aw-main" style={css(`flex:1;min-height:0;`)}>
               <div className="r3-pf-top">
                 <span className="r3-pf-agent">

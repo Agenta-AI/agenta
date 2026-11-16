@@ -1,18 +1,13 @@
-/* Landing — tablet and phone layouts. The design board only draws 1440px, so
-   these rules are ours: grids stack, gutters shrink, and fixed-size product
-   mock-ups ([data-lp-fit]) are scaled to the column by the fit script in
-   pages/index.astro. Loaded after every section stylesheet. */
+/* Landing tablet and phone layouts; loaded after every section stylesheet. */
 
-/* iOS text autosizing inflates the small text inside the mock-ups and breaks
-   their layout; the page already sets its own sizes. */
+/* Stop iOS text autosizing inside the mock-ups. */
 .lp {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
 
 /* ── short and mid screens ───────────────────────────────────── */
-/* The "Do the work in chat" stage is sticky; size it to the screen so its
-   frame is never cut on laptops or tablets shorter than the 1000px design. */
+/* Size the sticky stage to the screen. */
 @media (min-width: 861px) {
   /* 96px clears the floating nav pill. */
   html body .lp .sx-hiw section.hw .hw-stage {
@@ -29,8 +24,7 @@
   }
 }
 
-/* The hero's "automation created" toast sits over the run; keep the table
-   clear of it once the frame narrows. */
+/* Keep the hero table clear of the toast. */
 @media (max-width: 1320px) and (min-width: 601px) {
   html body .lp .r3 .r3-hx-venues {
     max-width: calc(100% - 268px) !important;
@@ -161,8 +155,7 @@
     max-width: calc(100% - 24px);
   }
 
-  /* Do the work in chat: no sticky scroll stage on phones. The beats play on
-     a loop instead (see the timeline override below). */
+  /* No sticky stage on phones; the beats loop instead. */
   html body .lp .sx-hiw section.hw {
     height: auto !important;
     padding: 72px 16px !important;
@@ -197,8 +190,7 @@
     animation-iteration-count: infinite !important;
   }
 
-  /* Wide single-column cells (tablet portrait): centre the mock-ups at
-     their design width instead of stretching or hugging the left edge. */
+  /* Centre the mock-ups at their design width in wide single columns. */
   html body .lp .sx-share .t5 > [data-lp-fit]:not([data-lp-fitted]),
   html body .lp .sx-share .t5 > .r3 > [data-lp-fit]:not([data-lp-fitted]) {
     width: 100%;

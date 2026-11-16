@@ -152,8 +152,7 @@ export function deriveWorkspace(state, setState, onLive) {
       post,
       logoStyle: mask(k === WEB ? GLOBE : LOGO[k], 12),
     }));
-  // The rail mirrors the landing hero's sidebar. "New leads from the website"
-  // is the hero's animated run, so opening it hands back to that (onLive).
+  // Mirrors the hero sidebar; the live task hands back to the hero's animated run.
   const playgroundGroups = [
     {
       sessionIndex: 7,
@@ -287,16 +286,21 @@ export function deriveWorkspace(state, setState, onLive) {
       ],
     },
   ];
-  const activeSession = sessions[st.session ?? 0];
-  const activePlaygroundGroup = playgroundGroups.find(
-    (group) => group.sessionIndex === (st.session ?? 0),
-  );
+  const isTask = (task) =>
+    task.ask &&
+    (task.ask === st.playgroundTask || task.name === st.playgroundTask);
+  // The hero sidebar opens a task by name alone, so find its group from that.
+  const activePlaygroundGroup =
+    st.session == null && st.playgroundTask
+      ? playgroundGroups.find((group) => group.tasks.some(isTask))
+      : playgroundGroups.find(
+          (group) => group.sessionIndex === (st.session ?? 0),
+        );
+  const activeSession =
+    sessions[activePlaygroundGroup?.sessionIndex ?? st.session ?? 0];
   const activeTask = activePlaygroundGroup
-    ? (activePlaygroundGroup.tasks.find(
-        (task) =>
-          task.ask &&
-          (task.ask === st.playgroundTask || task.name === st.playgroundTask),
-      ) ?? activePlaygroundGroup.tasks.find((task) => !task.live))
+    ? (activePlaygroundGroup.tasks.find(isTask) ??
+      activePlaygroundGroup.tasks.find((task) => !task.live))
     : null;
   const ss = activeTask
     ? { ...activeSession, ...activeTask, steps: taskSteps(activeTask.steps) }

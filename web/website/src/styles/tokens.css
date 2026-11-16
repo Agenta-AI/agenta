@@ -66,8 +66,7 @@
   --ink-900: #242424;
   --ink-700: #343434;
   --ink-600: #676770;
-  /* Text greys meet WCAG AA (4.5:1) on every paper surface, white down to
-     paper-150. The Framer originals (#848b8c, #a3a19f) measured 3.5:1 and 2.6:1. */
+  /* Text greys meet WCAG AA (4.5:1) on every paper surface. */
   --ink-500: #676e6f;
   --ink-450: #595f61;
   --ink-300: #6e6c6a;

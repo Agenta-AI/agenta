@@ -1,5 +1,4 @@
-/* SelfHost — ported from the landing design board (iteration 1).
-   The band is dark in both themes, so it uses the fixed palette. */
+/* SelfHost: dark in both themes, so it uses the fixed palette. */
 html body .lp .ossx section.nsec {
   color: var(--paper-0);
   background: var(--carbon-950) !important;

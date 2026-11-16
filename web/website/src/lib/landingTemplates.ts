@@ -1,5 +1,4 @@
-// Template keys the landing page and the nav menu link to. Every key must exist
-// in the template catalog (src/data/templates.json); templates.test.ts checks it.
+// Template keys the landing and nav link to; templates.test.ts checks they exist.
 
 // Nav "Templates" menu: one column per catalog category, three picks each.
 export const NAV_TEMPLATE_PICKS: { category: string; label: string; keys: string[] }[] = [

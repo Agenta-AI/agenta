@@ -1,6 +1,4 @@
-// GitHub star count for the hero badge, read once per build. The site is
-// static, so the number is as fresh as the last deploy. Any failure (offline
-// build, rate limit) falls back to the last known count.
+// GitHub star count, read once per build; falls back to the last known count.
 const REPO = "Agenta-AI/agenta";
 const FALLBACK = 4900;
 

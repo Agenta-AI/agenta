@@ -1,10 +1,4 @@
-// The one description of Agenta the machine-readable surfaces share.
-//
-// /llms.txt (src/pages/llms.txt.ts) and the homepage markdown twin
-// (src/pages/index.md.ts) both render from these constants, so the copy an
-// agent reads can never drift between the two. Keep it true to the landing
-// page (src/components/landing/*): same positioning, same section names, same
-// product words. This is not a place to invent claims.
+// Shared copy for /llms.txt and index.md; keep it true to the landing page.
 
 export const SITE_URL = "https://agenta.ai";
 
@@ -26,10 +20,7 @@ export const ABOUT: string[] = [
   "Open source (MIT) and self-hostable on your own infrastructure, or hosted at cloud.agenta.ai.",
 ];
 
-/**
- * Capabilities, one line each, named with the words the product and the
- * landing page use, so an agent searching for a feature finds it here.
- */
+/* Capabilities in the product's own words, so agents can search for them. */
 export const CAPABILITIES: string[] = [
   "Chat-built agents: describe the job in chat, and Agenta builds the agent: its instructions (AGENTS.md), skills, tools and connected apps.",
   "Automations: run an agent on a schedule (cron) or when a trigger happens in a connected app, for example a new Zendesk ticket or a Slack mention. Every run is logged.",

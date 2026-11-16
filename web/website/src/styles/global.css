@@ -258,13 +258,7 @@ nav[data-pill] {
   align-items: center;
 }
 
-/* ── the rules either side of the pill ───────────────────────
-   Framer runs a hairline from each edge of the nav's own column in to the
-   pill, ending in a 4x9 rounded cap that meets the pill's outer ring. The
-   rules are children of the SHELL, not of the pill, so they start exactly at
-   the column border and never spill past it. Their inner end lands 5px off
-   the pill box, which is where the pill's 5px outer ring sits, so cap and
-   ring meet. They fade in with the pill. */
+/* ── side rules: hairlines from the column edge to the pill's outer ring ── */
 .ag-nav-rule {
   position: absolute;
   top: 50%;
@@ -403,8 +397,7 @@ html,
   height: 20px;
   background: var(--th-ctl-ring);
 }
-/* The 30px button pads its 16px icon by 7px; pull the divider in by that much
-   so the icon and "Book a demo" sit the same 12px from it. */
+/* Offset the button's 7px icon padding so both gaps around the divider are 12px. */
 .ag-theme-btn:has(+ .ag-navsep) {
   margin-right: -7px;
 }
@@ -1285,8 +1278,7 @@ html,
   .ag-btn--sm {
     min-height: 36px;
   }
-  /* Comparison tables scroll sideways instead of squeezing a column to one
-     word per line. */
+  /* Comparison tables scroll sideways instead of squeezing columns. */
   .ag-prose table {
     font-size: 14px;
   }

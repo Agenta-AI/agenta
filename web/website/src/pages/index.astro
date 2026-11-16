@@ -60,8 +60,7 @@ const orgJsonLd = {
     <SelfHost />
   </div>
   <script is:inline>
-    // Hold each section's animations at their first frame until the section
-    // scrolls into view; pause them again while it is off screen.
+    // Pause each section's animations while it is off screen.
     (() => {
       const root = document.querySelector(".lp");
       if (!root || !("IntersectionObserver" in window)) return;
@@ -73,8 +72,7 @@ const orgJsonLd = {
         { rootMargin: "0px 0px -15% 0px" },
       );
       for (const section of root.children) if (section.tagName !== "SCRIPT") io.observe(section);
-      // [data-lp-gate] demos wait until most of the demo is on screen, so the
-      // hero run starts when the reader scrolls to it, not on page load.
+      // [data-lp-gate] demos start only when most of the demo is on screen.
       const gate = new IntersectionObserver(
         (entries) => {
           for (const e of entries) {
@@ -89,8 +87,7 @@ const orgJsonLd = {
     })();
   </script>
   <script is:inline>
-    // Scale fixed-size mock-ups ([data-lp-fit] = design width in px) down to
-    // their column on narrow screens. Inline so it runs before first paint.
+    // Scale fixed-size mock-ups ([data-lp-fit]) to their column; runs before first paint.
     (() => {
       const items = [...document.querySelectorAll("[data-lp-fit]")];
       const fit = () => {
@@ -119,8 +116,7 @@ const orgJsonLd = {
           }
         }
       };
-      // "Do the work in chat": the sticky stage keeps the frame at its design
-      // height and scales the grid down when the screen is too short for it.
+      // Scale the sticky stage's grid down on screens shorter than the design.
       const stage = document.querySelector(".sx-hiw .hw-stage");
       const grid = stage?.querySelector(".hw-grid");
       const head = stage?.querySelector(".hw-hd");
