@@ -82,7 +82,7 @@ export function isDocumentNavigation(input: Pick<GateInput, "method" | "header">
  * because the redirect URI is fixed at the provider. When the mobile app started
  * the flow (MOBILE_AUTH_CALLBACK_COOKIE) the landing is forwarded to the mirror
  * page under /m instead — see decideDesktopGate. /post-signup and
- * /workspaces/accept are permanently desktop-only.
+ * /workspaces/accept stay on the desktop while it runs.
  */
 const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
 
@@ -109,8 +109,7 @@ export function isResetPasswordLink(pathname: string, search: string): boolean {
 
 /**
  * Any other `/auth` link carrying a one-time `token` completes where it landed. The desktop gate
- * forwards invite and reset links before it reaches this check; `mapDesktopToMobile` returns a
- * bare `/m/auth`, so a redirect would drop the token.
+ * forwards invite and reset links before it reaches this check.
  */
 export function isTokenBearingAuthLink(pathname: string, search: string): boolean {
     if (!AUTH_RE.test(pathname)) return false
@@ -121,8 +120,6 @@ export function isTokenBearingAuthLink(pathname: string, search: string): boolea
  * An `/auth` link carrying `auth_error` completes on desktop, for the same reason as a token: the
  * param IS the payload. `web/oss/src/lib/api/assets/axiosConfig.ts` redirects a 403 here so the
  * user can finish required SSO or social re-authentication, and the desktop auth page reads it.
- * `mapDesktopToMobile` returns a bare `/m/auth`, so redirecting would drop the reason and leave
- * the user on a sign-in screen that cannot explain why it appeared.
  */
 export function isPolicyAuthLink(pathname: string, search: string): boolean {
     if (!AUTH_RE.test(pathname)) return false
@@ -256,8 +253,19 @@ export function mobileRouteFor(
     search: string,
     {developerViews = false}: MobileRouteOptions = {},
 ): string | null {
-    // Mobile sign-in: /auth/callback never reaches here (handled as an exception).
-    if (/^\/auth(\/|$)/.test(pathname)) return "/m/auth"
+    // The query is the payload of an `/auth` link (token, policy error, OAuth code): keep it.
+    if (AUTH_RE.test(pathname)) {
+        const page =
+            RESET_PASSWORD_ROUTE_RE.test(pathname) || AUTH_CALLBACK_RE.test(pathname)
+                ? pathname
+                : "/auth"
+        return `/m${page}${search}`
+    }
+
+    // An invite opened on the desktop: `/m` takes it through its sign-in, like an emailed invite.
+    if (/^\/workspaces\/accept\/?$/.test(pathname)) {
+        return new URLSearchParams(search).get("token") ? `/m/auth${search}` : "/m/invite"
+    }
 
     // A website template link (`?template=`) rides along: `/m` opens that template's setup step.
     const templateKey = new URLSearchParams(search).get(TEMPLATE_QUERY_PARAM)?.trim()
@@ -328,9 +336,15 @@ export function mobileRouteFor(
         // ?session={id} is the observability drawer's own param (web/oss/src/state/url/session.ts),
         // distinct from SESSION_QUERY_PARAM — land in that session's chat.
         const drawerSession = params.get("session")
-        return drawerSession
-            ? `${base}/sessions/${encodeURIComponent(drawerSession)}`
-            : `${base}/observability`
+        if (drawerSession) return `${base}/sessions/${encodeURIComponent(drawerSession)}`
+        // `/m` opens the trace drawer from the same `trace` and `span` params (SDK trace links).
+        const drawer = new URLSearchParams()
+        for (const key of ["trace", "span"]) {
+            const value = params.get(key)
+            if (value) drawer.set(key, value)
+        }
+        const drawerQuery = drawer.toString()
+        return `${base}/observability${drawerQuery ? `?${drawerQuery}` : ""}`
     }
 
     if (head === "settings" && !first) {

@@ -2220,7 +2220,7 @@ def _oauth_card(
 
     accent = "#16a34a" if success else "#dc2626"
     agenta_favicon = (
-        f"{safe_agenta_url}/assets/favicon.ico" if safe_agenta_url else None
+        f"{safe_agenta_url}/m/assets/favicon.ico" if safe_agenta_url else None
     )
 
     # Logo row: Agenta <> Integration (or single checkmark/cross on error)

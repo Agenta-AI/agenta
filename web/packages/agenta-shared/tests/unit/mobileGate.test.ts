@@ -125,7 +125,7 @@ describe("isDocumentNavigation", () => {
 describe("mapDesktopToMobile", () => {
     it("maps desktop auth to the mobile sign-in page", () => {
         expect(mapDesktopToMobile("/auth", "")).toBe("/m/auth")
-        expect(mapDesktopToMobile("/auth/reset-password", "")).toBe("/m/auth")
+        expect(mapDesktopToMobile("/auth/reset-password", "")).toBe("/m/auth/reset-password")
     })
     it("maps an observability session deep link to the mobile chat", () => {
         expect(mapDesktopToMobile("/w/ws1/p/pr1/observability", "?session=abc&span=s1")).toBe(
@@ -160,6 +160,50 @@ describe("mapDesktopToMobile", () => {
         expect(mapDesktopToMobile("/w", "")).toBe("/m/")
         expect(mapDesktopToMobile("/w/ws1", "")).toBe("/m/")
         expect(mapDesktopToMobile("/settings", "")).toBe("/m/")
+    })
+})
+
+describe("mapDesktopToMobile — legacy desktop URLs", () => {
+    const legacy = (path: string) => {
+        const url = new URL(path, "http://localhost")
+        return mapDesktopToMobile(url.pathname, url.search, {developerViews: true})
+    }
+    const cases: [string, string][] = [
+        // tracing.py builds this link for every SDK trace.
+        ["/w/ws1/p/pr1/observability?trace=t1", "/m/w/ws1/p/pr1/observability?trace=t1"],
+        [
+            "/w/ws1/p/pr1/observability?trace=t1&span=s1&x=1",
+            "/m/w/ws1/p/pr1/observability?trace=t1&span=s1",
+        ],
+        // evaluations/runs.py; no cookie is read, so a fresh browser lands on the run.
+        ["/w/ws1/p/pr1/evaluations/results/run1", "/m/w/ws1/p/pr1/evaluations/results/run1"],
+        // organization_service.py emails this link.
+        ["/w/org1/p/pr1/settings?tab=workspace", "/m/w/org1/p/pr1/settings?tab=workspace"],
+        ["/settings", "/m/"],
+        ["/workspaces/accept?token=t&organization_id=o1", "/m/auth?token=t&organization_id=o1"],
+        ["/workspaces/accept", "/m/invite"],
+        ["/post-signup", "/m/"],
+        ["/ws1/apps/app1", "/m/"],
+        ["/no/such/page?secret=s", "/m/"],
+        [
+            "/auth?token=t&email=a%40b.c&organization_id=o&workspace_id=w&project_id=p",
+            "/m/auth?token=t&email=a%40b.c&organization_id=o&workspace_id=w&project_id=p",
+        ],
+        ["/auth?auth_error=sso_required", "/m/auth?auth_error=sso_required"],
+        ["/auth/reset-password?token=t&tenantId=public", "/m/auth/reset-password?token=t&tenantId=public"],
+        ["/auth/callback/sso:acme:okta?code=c&state=s", "/m/auth/callback/sso:acme:okta?code=c&state=s"],
+        ["/auth/verify-email?x=1", "/m/auth?x=1"],
+    ]
+
+    it.each(cases)("maps %s → %s", (path, expected) => {
+        expect(legacy(path)).toBe(expected)
+    })
+
+    it("names no /m page for a path it sends to the root, so the proxy can log it", () => {
+        expect(mobileRouteFor("/no/such/page", "", {developerViews: true})).toBeNull()
+        expect(mobileRouteFor("/w/ws1/p/pr1/evaluations/results/run1", "", {developerViews: true})).toBe(
+            "/m/w/ws1/p/pr1/evaluations/results/run1",
+        )
     })
 })
 
@@ -198,7 +242,7 @@ describe("mobileRouteFor", () => {
         ["/w/ws1/p/pr1/apps/archived", "", null],
         ["/w/ws1/p/pr1/agents/archived", "", null],
         ["/settings", "", null],
-        ["/workspaces/accept", "", null],
+        ["/workspaces/accept", "", "/m/invite"],
         // A website template link opens that template's setup step on /m.
         ["/w", "?template=pr-reviewer", "/m/?template=pr-reviewer"],
         [

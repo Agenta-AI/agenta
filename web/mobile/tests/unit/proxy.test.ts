@@ -1,5 +1,5 @@
 import {NextRequest} from "next/server"
-import {afterEach, beforeEach, describe, expect, it} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {config, proxy} from "../../src/proxy"
 
@@ -117,11 +117,60 @@ describe("mobile reverse gate proxy with an invite", () => {
     })
 })
 
+describe("legacy desktop URLs at /legacy", () => {
+    const legacy = (path: string, headers: Record<string, string> = doc(DESKTOP_UA)) =>
+        proxy(req(`/m/legacy${path}`, headers))
+
+    it("answers with the /m page, 307, the developer views counted as on", () => {
+        const res = legacy("/w/ws1/p/pr1/evaluations/results/run1")
+        expect(res.status).toBe(307)
+        expect(res.headers.get("location")).toBe(
+            "http://localhost:3000/m/w/ws1/p/pr1/evaluations/results/run1",
+        )
+    })
+
+    it("keeps the trace of an SDK trace link", () => {
+        expect(legacy("/w/ws1/p/pr1/observability?trace=t1").headers.get("location")).toBe(
+            "http://localhost:3000/m/w/ws1/p/pr1/observability?trace=t1",
+        )
+    })
+
+    it("answers every request, not only document loads", () => {
+        expect(legacy("/w/ws1/p/pr1/sessions/s1", {}).headers.get("location")).toBe(
+            "http://localhost:3000/m/w/ws1/p/pr1/sessions/s1",
+        )
+    })
+
+    it("sends an unknown path to the /m root and logs the path without the query", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+        try {
+            const res = legacy("/no/such/page?token=secret")
+            expect(res.status).toBe(307)
+            expect(res.headers.get("location")).toBe("http://localhost:3000/m/")
+            expect(warn).toHaveBeenCalledTimes(1)
+            expect(String(warn.mock.calls[0][0])).toContain("/no/such/page")
+            expect(String(warn.mock.calls[0][0])).not.toContain("secret")
+        } finally {
+            warn.mockRestore()
+        }
+    })
+
+    it("does not log a path it maps", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+        try {
+            legacy("/w/ws1/p/pr1/agents")
+            expect(warn).not.toHaveBeenCalled()
+        } finally {
+            warn.mockRestore()
+        }
+    })
+})
+
 describe("mobile reverse gate proxy at /__gate", () => {
     const gate = (to: string) => `/m/__gate?to=${encodeURIComponent(to)}`
 
     it("matches entry routes only, so client navigations skip the middleware", () => {
-        expect(config.matcher).toEqual(["/", "/auth/:path*", "/invite", "/__gate"])
+        expect(config.matcher).toEqual(["/", "/auth/:path*", "/invite", "/__gate", "/legacy/:path*"])
     })
 
     it("returns a Classic-mode-on user to the desktop equivalent of the page", () => {
