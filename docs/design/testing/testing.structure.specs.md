@@ -193,7 +193,7 @@ sdk/
 web/
   tests/                                  # Shared Playwright infrastructure
     package.json                          # Acceptance scripts (test:acceptance, test:acceptance:ui, test:acceptance:debug)
-    playwright.config.ts                  # Playwright configuration (testDir points to acceptance/)
+    playwright.config.ts                  # Playwright configuration (testDir is specs/<layer>)
     playwright/
       config/
         testTags.ts                       # Tag definitions and syntax
@@ -213,44 +213,11 @@ web/
       E2E_TEST_ORGANIZATION_GUIDE.md
       UTILITIES_AND_FIXTURES_GUIDE.md
       RECORDING_GUIDE.md
-  oss/tests/
-    manual/                               # Manual tests
-      datalayer/
-        test-apps.ts                      # Data layer integration tests
-        test-observability.ts
-    legacy/                               # .gitkeep placeholder
-    playwright/
-      acceptance/                         # Acceptance test suites organized by feature
-        settings/
-        app/
-        playground/
-        prompt-registry/
-        testsset/
-        observability/
-        deployment/
-        smoke.spec.ts                     # Smoke test
-      integration/                        # .gitkeep placeholder
-      unit/                               # .gitkeep placeholder
-      utils/                              # .gitkeep placeholder
-  ee/tests/
-    manual/                               # .gitkeep placeholder
-    legacy/                               # .gitkeep placeholder
-    playwright/
-      acceptance/                         # EE acceptance test suites
-        settings/
-        app/
-        playground/
-        prompt-registry/
-        testsset/
-        auto-evaluation/
-        observability/
-        deployment/
-        human-annotation/
-      integration/                        # .gitkeep placeholder
-      unit/                               # .gitkeep placeholder
-      utils/                              # .gitkeep placeholder
-  oss/src/components/Playground/state/atoms/__tests__/
-    core.test.ts                          # Component unit test (colocated with source)
+    specs/<layer>/                        # /m specs by layer (empty; harness disabled)
+  mobile/tests/
+    unit/                                 # vitest unit and render tests for /m
+  packages/<package>/tests/
+    unit/                                 # vitest unit tests for each @agenta/* package
 ```
 
 ### Services
@@ -303,15 +270,12 @@ pytest/unit/
 
 ### Component unit tests (Web)
 
-Web component unit tests remain **colocated with source code** in `__tests__/` directories:
+Web unit tests (vitest) live in a `tests/unit/` folder next to `src/` in the app and in each package (a few older package tests still sit in `src/**/__tests__/`):
 
 ```
-web/oss/src/
-  components/<Feature>/state/atoms/__tests__/*.test.ts
-  lib/helpers/__tests__/*.test.ts
+web/mobile/tests/unit/*.test.ts(x)
+web/packages/<package>/tests/unit/*.test.ts(x)
 ```
-
-This keeps unit tests close to the code they test and allows for fast feedback during development.
 
 ---
 
@@ -337,7 +301,6 @@ The `manual/` folder accepts any kind of scripts or documentation. It's **freest
 **Examples:**
 - `api/oss/tests/manual/annotations/crud.http` -- Manual CRUD operations
 - `api/ee/tests/manual/auth/*.http` -- Auth flow testing
-- `web/oss/tests/manual/datalayer/*.ts` -- Data layer integration tests (run manually with tsx)
 
 ### legacy/ -- Archived tests
 

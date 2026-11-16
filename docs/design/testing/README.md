@@ -171,30 +171,18 @@ uv run pytest oss/tests/pytest/acceptance/ -v -m "coverage_smoke and cost_free"
 
 ### Web Tests
 
+The Playwright harness in `web/tests` is disabled: it holds no specs, and no workflow runs it.
+New `/m` specs go in `web/tests/specs/<layer>/` (default layer `acceptance`). Before the first one, rewrite
+`playwright/global-setup.ts` to sign in through `/m`.
+
+Unit tests for `/m` and the `@agenta/*` packages run with vitest from each app or package folder:
+
 ```bash
-cd web/tests
-
-# Run smoke tests (OSS) - AGENTA_LICENSE not needed when path is explicit
-AGENTA_WEB_URL=http://localhost:10180 \
-TESTMAIL_NAMESPACE=<your-namespace> \
-TESTMAIL_API_KEY=<your-key> \
-  npx playwright test ../oss/tests/playwright/acceptance/smoke.spec.ts
-
-# Run smoke tests (EE)
-AGENTA_WEB_URL=http://localhost:10180 \
-TESTMAIL_NAMESPACE=<your-namespace> \
-TESTMAIL_API_KEY=<your-key> \
-  npx playwright test ../ee/tests/playwright/acceptance/smoke.spec.ts
-
-# Run all acceptance tests for a specific feature (OSS)
-npx playwright test ../oss/tests/playwright/acceptance/settings/
-
-# Run with tag filters (requires AGENTA_LICENSE when using default testDir)
-AGENTA_LICENSE=oss npx playwright test --grep "@coverage:smoke"
-AGENTA_LICENSE=oss npx playwright test --grep "@coverage:smoke.*@cost:free"
+cd web/mobile && pnpm test
+cd web/packages/agenta-chat && pnpm test
 ```
 
-**Note:** Web tests require valid TESTMAIL credentials. See [web/tests/playwright.config.ts](../../web/tests/playwright.config.ts) for configuration details.
+**Note:** Playwright specs, once added, need valid TESTMAIL credentials. See [web/tests/playwright.config.ts](../../web/tests/playwright.config.ts) for configuration details.
 
 ---
 

@@ -53,9 +53,6 @@ The `manual/` folder has no fixed substructure but commonly organizes by domain 
 - `workflows/*.py` -- SDK workflow testing
 - `tools/*.py` -- Tool invocation and schema validation
 
-**Web manual tests** (`web/oss/tests/manual/`):
-- `datalayer/*.ts` -- Data layer integration tests (Jotai atoms against live API)
-
 **Services manual tests** (`services/oss/tests/manual/`):
 - `smoke.http` -- Basic service health check
 
@@ -215,7 +212,7 @@ A minimal E2E suite that pays for itself:
 **Examples across interfaces:**
 - **API acceptance** (`api/oss/tests/pytest/acceptance/`): HTTP requests to API endpoints, organized by domain (workflows, evaluations, testsets, etc.)
 - **SDK acceptance** (`sdk/oss/tests/pytest/acceptance/`): SDK client calls against live API (workflows, evaluations, observability)
-- **Web acceptance** (`web/oss/tests/playwright/acceptance/`): Playwright browser tests against running web app (settings, app, playground, etc.)
+- **Web acceptance** (`web/tests/specs/`, disabled and empty): Playwright browser tests against the running `/m` app
 
 ---
 
