@@ -22,15 +22,20 @@ import {
     type Revision,
     type Testset,
 } from "@agenta/entities/testset"
+import {createT} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
 import {
     createAndRegisterEntityAdapter,
+    getEntityTypeLabel,
     type CommitContext,
     type CommitParams,
     type EntityModalAdapter,
 } from "../modals"
+
+const tNow = createT(commitModalCatalog)
 
 // ============================================================================
 // COMMIT REDUCER
@@ -63,7 +68,7 @@ const commitRevisionReducer = atom(null, async (get, set, params: CommitParams):
     })
 
     if (!result.success) {
-        throw result.error ?? new Error("Commit failed")
+        throw result.error ?? new Error(tNow("entityUi.commitModal.commitFailed"))
     }
 })
 
@@ -305,7 +310,7 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
 export const testsetModalAdapter: EntityModalAdapter<Testset> = createAndRegisterEntityAdapter({
     type: "testset",
     getDisplayName: (entity) => entity?.name ?? "Untitled Testset",
-    getDisplayLabel: (count) => (count === 1 ? "Testset" : "Testsets"),
+    getDisplayLabel: (count) => getEntityTypeLabel("testset", count),
     deleteAtom: testset.actions.delete,
     dataAtom: testsetDataAtom,
     canDelete: () => true,
@@ -324,7 +329,7 @@ export const revisionModalAdapter: EntityModalAdapter<Revision> = createAndRegis
         const version = entity.version ?? 0
         return `v${version}`
     },
-    getDisplayLabel: (count) => (count === 1 ? "Revision" : "Revisions"),
+    getDisplayLabel: (count) => getEntityTypeLabel("revision", count),
     deleteAtom: revision.actions.delete,
     dataAtom: revisionDataAtom,
     canDelete: () => true,

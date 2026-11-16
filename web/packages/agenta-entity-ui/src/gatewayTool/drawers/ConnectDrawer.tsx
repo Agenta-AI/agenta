@@ -7,6 +7,8 @@ import {
     usePersonalToolConnections,
     useToolConnectionsQuery,
 } from "@agenta/entities/gatewayTool"
+import {useT} from "@agenta/i18n"
+import toolConnectionsCatalog from "@agenta/i18n/catalogs/entityUi.toolConnections"
 import type {OwnerKind} from "@agenta/shared/types"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
@@ -81,10 +83,11 @@ export default function ConnectDrawer({
     // The allowed owners can change while the dialog is open (the switch was still loading):
     // a choice that is no longer allowed falls back to the first allowed owner.
     const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
+    const t = useT(toolConnectionsCatalog)
     const [loading, setLoading] = useState(false)
     /** A failed create said NOTHING before — the spinner just stopped, indistinguishable from
      * a popup that never came. The server's refusal must reach the person who clicked. */
-    const [submitError, setSubmitError] = useState<string | null>(null)
+    const [submitFailed, setSubmitFailed] = useState(false)
     // One suffix per drawer instance keeps the derived slug stable while the author edits the name.
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
@@ -102,7 +105,8 @@ export default function ConnectDrawer({
     const popupCleanupRef = useRef<(() => void) | null>(null)
     useEffect(() => () => popupCleanupRef.current?.(), [])
     const [name, setName] = useState(seedName)
-    const [nameError, setNameError] = useState<string | null>(null)
+    // A flag, not the message: the text is translated where it renders.
+    const [nameMissing, setNameMissing] = useState(false)
     const slug = generateDefaultSlug(
         name || integrationName || integrationKey,
         slugSuffixRef.current,
@@ -120,8 +124,8 @@ export default function ConnectDrawer({
         nameTouchedRef.current = false
         slugSuffixRef.current = randomAlphanumeric(3)
         setName(seedName)
-        setNameError(null)
-        setSubmitError(null)
+        setNameMissing(false)
+        setSubmitFailed(false)
         setLoading(false)
         setOwner(owners?.[0] ?? "project")
         onClose()
@@ -134,11 +138,11 @@ export default function ConnectDrawer({
     const handleSubmit = useCallback(async () => {
         // The name is now the only authored field, so it carries the validation the slug used to.
         if (!name.trim() || !slug.trim()) {
-            setNameError("Required")
+            setNameMissing(true)
             return
         }
-        setNameError(null)
-        setSubmitError(null)
+        setNameMissing(false)
+        setSubmitFailed(false)
         try {
             setLoading(true)
 
@@ -184,9 +188,7 @@ export default function ConnectDrawer({
             }
         } catch (error) {
             console.error("[ConnectDrawer] create connection failed", error)
-            setSubmitError(
-                "Couldn't start the connection — the server rejected it. Try again; if it keeps failing, this deployment's connections provider isn't configured.",
-            )
+            setSubmitFailed(true)
             setLoading(false)
         }
     }, [
@@ -203,13 +205,15 @@ export default function ConnectDrawer({
     const ownerOptions: OwnerOption<Exclude<OwnerKind, "organization">>[] = [
         {
             value: "user",
-            label: "Only me",
-            note: `Used when you run an agent that uses each person's own ${integrationName}. Your first ${integrationName} account becomes your default.`,
+            label: t("entityUi.toolConnections.onlyMe"),
+            note: t("entityUi.toolConnections.onlyMeNote", {name: integrationName}),
         },
         {
             value: "project",
-            label: `Everyone in ${projectName ?? "this project"}`,
-            note: "An agent in this project can use it as the agent's account, for every person who runs it.",
+            label: projectName
+                ? t("entityUi.toolConnections.everyoneInProject", {project: projectName})
+                : t("entityUi.toolConnections.everyoneInThisProject"),
+            note: t("entityUi.toolConnections.everyoneNote"),
         },
     ]
 
@@ -245,7 +249,7 @@ export default function ConnectDrawer({
             <ModalContent>
                 <div className="flex flex-col gap-1">
                     <span className="text-base font-medium leading-snug text-foreground">
-                        Connect {integrationName}
+                        {t("entityUi.toolConnections.connectName", {name: integrationName})}
                     </span>
                     {integrationDescription && (
                         <span className="text-sm text-colorTextDescription line-clamp-2">
@@ -256,22 +260,27 @@ export default function ConnectDrawer({
 
                 {/* Form (explicitly controlled — no antd Form) */}
                 <div className="flex flex-col gap-4">
-                    <Field label="Name" error={nameError}>
+                    <Field
+                        label={t("entityUi.toolConnections.name")}
+                        error={nameMissing ? t("entityUi.toolConnections.required") : null}
+                    >
                         <Input
                             autoFocus
-                            placeholder={`e.g. My ${integrationName} Account`}
+                            placeholder={t("entityUi.toolConnections.namePlaceholder", {
+                                name: integrationName,
+                            })}
                             value={name}
-                            aria-invalid={nameError ? true : undefined}
+                            aria-invalid={nameMissing ? true : undefined}
                             onChange={(e) => {
                                 nameTouchedRef.current = true
                                 setName(e.target.value)
-                                if (nameError && e.target.value.trim()) setNameError(null)
+                                if (nameMissing && e.target.value.trim()) setNameMissing(false)
                             }}
                         />
                     </Field>
 
                     {owners && owners.length > 1 ? (
-                        <Field label="Who can use it">
+                        <Field label={t("entityUi.toolConnections.whoCanUseIt")}>
                             <OwnerRadioGroup
                                 value={owner}
                                 options={ownerOptions.filter((option) =>
@@ -283,7 +292,7 @@ export default function ConnectDrawer({
                     ) : null}
 
                     {availableModes.length > 1 && (
-                        <Field label="Auth Method">
+                        <Field label={t("entityUi.toolConnections.authMethod")}>
                             <Select
                                 value={selectedMode}
                                 onValueChange={(v) => setSelectedMode(v as AuthMode)}
@@ -294,7 +303,9 @@ export default function ConnectDrawer({
                                 <SelectContent>
                                     {availableModes.map((m) => (
                                         <SelectItem key={m} value={m}>
-                                            {m === "oauth" ? "OAuth" : "API Key"}
+                                            {m === "oauth"
+                                                ? "OAuth"
+                                                : t("entityUi.toolConnections.apiKey")}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -303,16 +314,16 @@ export default function ConnectDrawer({
                     )}
                 </div>
 
-                {submitError ? (
+                {submitFailed ? (
                     <p className="m-0 text-xs leading-snug text-[var(--ag-colorError)]">
-                        {submitError}
+                        {t("entityUi.toolConnections.submitFailed")}
                     </p>
                 ) : null}
 
                 <ModalFooter
                     onCancel={handleClose}
                     onConfirm={handleSubmit}
-                    confirmLabel="Connect"
+                    confirmLabel={t("entityUi.toolConnections.connect")}
                     isLoading={loading}
                 />
             </ModalContent>

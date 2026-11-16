@@ -1,3 +1,9 @@
+import {createT} from "@agenta/i18n"
+import agentConfigCatalog from "@agenta/i18n/catalogs/entityUi.agentConfig"
+
+// Every helper here translates when called, so a re-rendering card reads the current language.
+const tNow = createT(agentConfigCatalog)
+
 /**
  * Reduce an agent revision's `parameters` to the handful of facts an overview row can state.
  *
@@ -112,7 +118,11 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
  * the shared one and drifted back to the wrong word once already.
  */
 export const mcpSummaryDetail = (mcps: number, {canEdit = false} = {}): string =>
-    mcps ? `${mcps} configured` : canEdit ? "Connect a server" : "None configured"
+    mcps
+        ? tNow("entityUi.agentConfig.mcpsConfigured", {count: mcps})
+        : canEdit
+          ? tNow("entityUi.agentConfig.connectAServer")
+          : tNow("entityUi.agentConfig.noneConfigured")
 
 /**
  * What the skills row says. Same shape as the MCP row's, and here for the same reason: an empty
@@ -121,10 +131,10 @@ export const mcpSummaryDetail = (mcps: number, {canEdit = false} = {}): string =
  */
 export const skillsSummaryDetail = (skills: number, {canEdit = false} = {}): string =>
     skills
-        ? `${skills} ${skills === 1 ? "skill" : "skills"}`
+        ? tNow("entityUi.agentConfig.skillsCount", {count: skills})
         : canEdit
-          ? "Add skills"
-          : "None available"
+          ? tNow("entityUi.agentConfig.addSkills")
+          : tNow("entityUi.agentConfig.noneAvailable")
 
 /**
  * What the instructions row says. `AGENTS.md · 28 words`, or the action when there is no brief.
@@ -132,7 +142,11 @@ export const skillsSummaryDetail = (skills: number, {canEdit = false} = {}): str
  * for the same fact and the kind of difference nothing was watching.
  */
 export const instructionsSummaryDetail = (words: number | null, {canEdit = false} = {}): string =>
-    words ? `AGENTS.md · ${words} words` : canEdit ? "Add instructions" : "No instructions"
+    words
+        ? tNow("entityUi.agentConfig.instructionsWords", {count: words})
+        : canEdit
+          ? tNow("entityUi.agentConfig.addInstructions")
+          : tNow("entityUi.agentConfig.noInstructions")
 
 /**
  * The tools row's wording. Its noun is the one thing each host names for itself: the playground
@@ -147,17 +161,56 @@ export interface AgentConfigToolsCopy {
     toolsNone: string
 }
 
-export const toolsCopyFor = (noun: string, plural: string): AgentConfigToolsCopy => ({
-    toolsTitle: plural,
-    toolsCount: (count) => `${count} enabled`,
-    toolsAdd: `Add ${noun}`,
-    toolsNone: `No ${noun}`,
-})
+const toolsCount = (count: number) => tNow("entityUi.agentConfig.enabledCount", {count})
+
+/**
+ * The two nouns the hosts use ("tools", "integrations") have their own translated sentences; the
+ * getters read the language when the row renders. Any other noun stays in English.
+ */
+export const toolsCopyFor = (noun: string, plural: string): AgentConfigToolsCopy => {
+    if (noun === "tools") {
+        return {
+            get toolsTitle() {
+                return tNow("entityUi.agentConfig.tools")
+            },
+            toolsCount,
+            get toolsAdd() {
+                return tNow("entityUi.agentConfig.addTools")
+            },
+            get toolsNone() {
+                return tNow("entityUi.agentConfig.noTools")
+            },
+        }
+    }
+    if (noun === "integrations") {
+        return {
+            get toolsTitle() {
+                return tNow("entityUi.agentConfig.integrations")
+            },
+            toolsCount,
+            get toolsAdd() {
+                return tNow("entityUi.agentConfig.addIntegrations")
+            },
+            get toolsNone() {
+                return tNow("entityUi.agentConfig.noIntegrations")
+            },
+        }
+    }
+    return {toolsTitle: plural, toolsCount, toolsAdd: `Add ${noun}`, toolsNone: `No ${noun}`}
+}
 
 /** The playground's own nouns, and the default every host gets. */
 export const DEFAULT_TOOLS_COPY: AgentConfigToolsCopy = {
-    ...toolsCopyFor("tools", "Tools"),
-    toolsNone: "None enabled",
+    get toolsTitle() {
+        return tNow("entityUi.agentConfig.tools")
+    },
+    toolsCount,
+    get toolsAdd() {
+        return tNow("entityUi.agentConfig.addTools")
+    },
+    get toolsNone() {
+        return tNow("entityUi.agentConfig.noneEnabled")
+    },
 }
 
 /**
@@ -184,12 +237,24 @@ export const AGENT_CONFIG_ROW_KEYS = [
 export type AgentConfigRowKey = (typeof AGENT_CONFIG_ROW_KEYS)[number]
 
 export const AGENT_CONFIG_ROW_TITLES: Record<AgentConfigRowKey, string> = {
-    model: "Model",
-    instructions: "Instructions",
-    tools: "Tools",
-    mcps: "MCP servers",
-    skills: "Skills",
-    permissions: "Permissions",
+    get model() {
+        return tNow("entityUi.agentConfig.model")
+    },
+    get instructions() {
+        return tNow("entityUi.agentConfig.instructions")
+    },
+    get tools() {
+        return tNow("entityUi.agentConfig.tools")
+    },
+    get mcps() {
+        return tNow("entityUi.agentConfig.mcpServers")
+    },
+    get skills() {
+        return tNow("entityUi.agentConfig.skills")
+    },
+    get permissions() {
+        return tNow("entityUi.agentConfig.permissions")
+    },
 }
 
 /**
@@ -198,4 +263,4 @@ export const AGENT_CONFIG_ROW_TITLES: Record<AgentConfigRowKey, string> = {
  * load.
  */
 export const permissionsSummaryDetail = (permissions: string | null): string =>
-    permissions || "Not set"
+    permissions || tNow("entityUi.agentConfig.notSet")

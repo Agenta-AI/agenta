@@ -30,6 +30,8 @@ import {
     type SubscriptionPair,
 } from "@agenta/entities/secret"
 import {providerTitleForKind} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, Button, Divider} from "@agenta/ui/ui"
 import {ArrowLeft, ArrowSquareOut, WarningCircle} from "@phosphor-icons/react"
@@ -159,6 +161,7 @@ const ProviderDrawer = ({
     organizationConnections,
     ownerChoice,
 }: ProviderDrawerProps) => {
+    const t = useT(providerDrawerCatalog)
     const [view, setView] = useState<DrawerView>({level: "catalog"})
     const readOnly = !!organization?.readOnly
     // Outside the Organization tab, an organization connection is the project's to use, never to
@@ -245,7 +248,7 @@ const ProviderDrawer = ({
     const backButton = (
         <button
             type="button"
-            aria-label="Back to the provider catalog"
+            aria-label={t("entityUi.providerDrawer.backToCatalog")}
             onClick={goBack}
             className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 text-colorText"
         >
@@ -268,9 +271,9 @@ const ProviderDrawer = ({
     const title =
         view.level === "catalog" ? (
             isSettings ? (
-                "Add a provider"
+                t("entityUi.providerDrawer.addProvider")
             ) : (
-                "Model providers"
+                t("entityUi.providerDrawer.modelProviders")
             )
         ) : view.level === "subscription" ? (
             <span className="flex min-w-0 items-center gap-2" style={{maxWidth: titleMaxWidth}}>
@@ -289,7 +292,9 @@ const ProviderDrawer = ({
                 <span className="truncate">
                     {view.connection?.name ?? providerTitleForKind(view.kind)}
                 </span>
-                {readOnly ? <Badge className="shrink-0">Organization</Badge> : null}
+                {readOnly ? (
+                    <Badge className="shrink-0">{t("entityUi.providerDrawer.organization")}</Badge>
+                ) : null}
             </span>
         )
 
@@ -306,7 +311,7 @@ const ProviderDrawer = ({
                 <Divider className="m-0" />
                 <div className="flex shrink-0 items-center justify-end gap-2 px-6 py-3">
                     <Button variant="outline" onClick={onClose}>
-                        Close
+                        {t("entityUi.providerDrawer.close")}
                     </Button>
                 </div>
             </>
@@ -325,7 +330,7 @@ const ProviderDrawer = ({
                 canSave={cardSave?.canSave ?? false}
                 // One label in every entry context: nothing is written until it is pressed, which
                 // is as true of the first save as of the tenth.
-                submitLabel="Done"
+                submitLabel={t("entityUi.providerDrawer.done")}
                 cancelVariant="ghost"
                 onSubmit={() => cardSave?.submit()}
             />
@@ -333,25 +338,27 @@ const ProviderDrawer = ({
             <DrawerFooter
                 onCancel={goBack}
                 canSave
-                submitLabel="Done"
+                submitLabel={t("entityUi.providerDrawer.done")}
                 cancelVariant="ghost"
                 onSubmit={() => pairSave?.submit()}
             />
         ) : isSettings ? (
             <p className="m-0 flex w-full items-center justify-between gap-4 text-field-sm text-colorTextSecondary">
-                <span>Subscriptions are configured in your deployment, not added here.</span>
+                <span>{t("entityUi.providerDrawer.subscriptionsConfigured")}</span>
                 <a
                     href={subscriptionDocsUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="flex shrink-0 items-center gap-1 text-btn-link hover:text-btn-link-hover"
                 >
-                    docs
+                    {t("entityUi.providerDrawer.docs")}
                     <ArrowSquareOut size={12} />
                 </a>
             </p>
         ) : visibleCount ? (
-            <p className="m-0 text-field-sm text-colorTextSecondary">{visibleCount} connected</p>
+            <p className="m-0 text-field-sm text-colorTextSecondary">
+                {t("entityUi.providerDrawer.connectedCount", {count: visibleCount})}
+            </p>
         ) : undefined
 
     return (

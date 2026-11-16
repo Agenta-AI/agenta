@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import variantCatalog from "@agenta/i18n/catalogs/entityUi.variant"
 import {Tag as AgentaTag} from "@agenta/ui/components"
 import {
     Badge,
@@ -28,6 +30,7 @@ const VariantDetails = ({
     onDiscardDraft,
     hideDiscard = false,
 }: VariantDetailsProps) => {
+    const t = useT(variantCatalog)
     return (
         <div className="flex items-center gap-1">
             {variantName ? <span>{variantName}</span> : null}
@@ -55,7 +58,7 @@ const VariantDetails = ({
                                 disabled={!onDiscardDraft}
                                 onSelect={() => onDiscardDraft?.()}
                             >
-                                Discard draft changes
+                                {t("entityUi.variant.discardDraft")}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -64,7 +67,7 @@ const VariantDetails = ({
                 isLatest &&
                 showLatestTag && (
                     <Badge className={`bg-[var(--ag-c-E6F4FF)] text-[var(--ag-c-1677FF)]`}>
-                        Last modified
+                        {t("entityUi.variant.lastModified")}
                     </Badge>
                 )
             )}

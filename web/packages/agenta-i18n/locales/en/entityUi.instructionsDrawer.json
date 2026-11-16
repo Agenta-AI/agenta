@@ -1,0 +1,14 @@
+{
+    "outputFormat": "Output format",
+    "toneAndStyle": "Tone & style",
+    "guardrails": "Guardrails",
+    "writingGoodAgentsMd": "Writing a good AGENTS.md",
+    "tipRole": "Open with the agent's role and goal in one or two lines.",
+    "tipSections": "Keep short, labelled sections (Role, Tools, Guardrails).",
+    "tipOutput": "Be concrete about the output format and hard limits.",
+    "tipImperative": "Prefer imperative instructions over long prose.",
+    "suggested": "Suggested",
+    "cancel": "Cancel",
+    "save": "Save",
+    "placeholder": "# Role\n\nDescribe what the agent does and how it should behave…"
+}

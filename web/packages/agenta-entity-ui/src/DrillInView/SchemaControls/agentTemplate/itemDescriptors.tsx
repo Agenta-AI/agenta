@@ -3,12 +3,16 @@
  * instructions file) to an {@link ItemDescriptor} (avatar, name, description, tags). Kept beside the
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
+import {createT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {humanizeActionKey, skillDisplayName, stripStaticSkillPrefix} from "@agenta/shared/utils"
 import {McpServerMark, SkillMark} from "@agenta/ui/agent-icon"
 import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
 import {SKILL_NAME_PATTERN} from "../skillName"
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
+
+const tNow = createT(configItemsCatalog)
 
 /** How a config-item row presents itself: avatar, name + description, and type tags. */
 export interface ItemDescriptor {
@@ -112,7 +116,7 @@ export function describeSubagent(
     const stored = typeof t.name === "string" && t.name ? t.name : undefined
     const name = currentName || stored || slug
     return {
-        name: name ?? "Subagent",
+        name: name ?? tNow("entityUi.configItems.subagent"),
         // Prose, never monospace: this is an agent's name, not an identifier.
         monoName: false,
         description: typeof t.description === "string" ? t.description : undefined,
@@ -126,9 +130,11 @@ export function describeSubagent(
         avatarStyle: chrome?.style,
         // No type tag. "workflow" is an internal type and nothing user-meaningful replaces it.
         tags: [],
-        typeLabel: "subagent",
+        typeLabel: tNow("entityUi.configItems.subagentType"),
         typeColor: "geekblue",
-        subtitle: slug ? `Subagent · ${slug}` : "Subagent",
+        subtitle: slug
+            ? tNow("entityUi.configItems.subagentWithSlug", {slug})
+            : tNow("entityUi.configItems.subagent"),
     }
 }
 
@@ -152,15 +158,17 @@ export function describeTool(tool: unknown): ItemDescriptor {
                   ? `${slug ?? ""} v${t.version as string}`
                   : slug
         return {
-            name: refName ?? slug ?? "Workflow tool",
+            name: refName ?? slug ?? tNow("entityUi.configItems.workflowTool"),
             description: typeof t.description === "string" ? (t.description as string) : undefined,
             mono: "",
             color: "#0d9488",
             icon: <GraphIcon size={15} weight="fill" />,
-            tags: ["workflow"],
-            typeLabel: "workflow",
+            tags: [tNow("entityUi.configItems.workflowTag")],
+            typeLabel: tNow("entityUi.configItems.workflowTag"),
             typeColor: "geekblue",
-            subtitle: target ? `Referenced workflow · ${target}` : "Referenced workflow",
+            subtitle: target
+                ? tNow("entityUi.configItems.referencedWorkflowWithTarget", {target})
+                : tNow("entityUi.configItems.referencedWorkflow"),
         }
     }
 
@@ -175,8 +183,11 @@ export function describeTool(tool: unknown): ItemDescriptor {
             color: "#1c2c3d",
             icon: <Plugs size={15} weight="fill" />,
             tags: [connection.integration],
-            typeLabel: "integration",
-            subtitle: `Integration · ${connection.integration} · ${connection.connection} connection`,
+            typeLabel: tNow("entityUi.configItems.integrationType"),
+            subtitle: tNow("entityUi.configItems.integrationSubtitle", {
+                integration: connection.integration,
+                connection: connection.connection,
+            }),
         }
     }
     if (entry) {
@@ -190,8 +201,10 @@ export function describeTool(tool: unknown): ItemDescriptor {
             mono: monogram(gateway.integration),
             color: "#1c2c3d",
             tags: [gateway.integration],
-            typeLabel: "third-party",
-            subtitle: `Connected app tool · ${gateway.integration}`,
+            typeLabel: tNow("entityUi.configItems.thirdPartyType"),
+            subtitle: tNow("entityUi.configItems.connectedAppTool", {
+                integration: gateway.integration,
+            }),
         }
     }
 
@@ -205,26 +218,26 @@ export function describeTool(tool: unknown): ItemDescriptor {
                 ? (t.type as string)
                 : Object.keys(t).find((k) => k !== "type" && k !== "function")
         return {
-            name: builtinName ?? typeValue ?? "Built-in tool",
+            name: builtinName ?? typeValue ?? tNow("entityUi.configItems.builtInTool"),
             mono: "io",
             color: "#0d9488",
-            tags: ["built-in"],
-            typeLabel: "built-in",
+            tags: [tNow("entityUi.configItems.builtInTag")],
+            typeLabel: tNow("entityUi.configItems.builtInTag"),
             typeColor: "cyan",
-            subtitle: "Provider built-in tool",
+            subtitle: tNow("entityUi.configItems.providerBuiltInTool"),
         }
     }
 
     // Function definition (custom inline tool).
     return {
-        name: fnName ?? "Tool",
+        name: fnName ?? tNow("entityUi.configItems.tool"),
         description,
         mono: "{}",
         color: "#7c3aed",
-        tags: ["definition"],
-        typeLabel: "definition",
+        tags: [tNow("entityUi.configItems.definitionTag")],
+        typeLabel: tNow("entityUi.configItems.definitionTag"),
         typeColor: "purple",
-        subtitle: "Schema-only · executed by your app",
+        subtitle: tNow("entityUi.configItems.schemaOnly"),
     }
 }
 
@@ -235,7 +248,10 @@ export function describeMcp(server: unknown): ItemDescriptor {
         s.connection && typeof s.connection === "object"
             ? (s.connection as Record<string, unknown>)
             : {}
-    const name = typeof s.name === "string" && s.name ? (s.name as string) : "MCP server"
+    const name =
+        typeof s.name === "string" && s.name
+            ? (s.name as string)
+            : tNow("entityUi.configItems.mcpServer")
     return {
         name,
         // A server name is prose, not an identifier.
@@ -250,9 +266,9 @@ export function describeMcp(server: unknown): ItemDescriptor {
         // row and is not even true of a gateway-referenced connection: the transport is
         // the connection's business, not the agent item's.
         tags: [],
-        typeLabel: "MCP server",
+        typeLabel: tNow("entityUi.configItems.mcpServer"),
         typeColor: "cyan",
-        subtitle: "Model Context Protocol server",
+        subtitle: tNow("entityUi.configItems.mcpServerSubtitle"),
     }
 }
 
@@ -352,34 +368,41 @@ export function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
     const embedName = staticEmbedName(s)
     if (isStaticSkill(s)) {
-        const name = titleOf(embedName) || titleOf(staticEmbedSlug(s)) || "Agenta skill"
+        const name =
+            titleOf(embedName) ||
+            titleOf(staticEmbedSlug(s)) ||
+            tNow("entityUi.configItems.agentaSkill")
         return {
             name,
             ...SKILL_MARK,
             // "Agenta", the word the skill picker uses for a built-in skill.
             tags: ["Agenta"],
-            typeLabel: "static skill",
-            subtitle: "Provided by Agenta — read-only",
+            typeLabel: tNow("entityUi.configItems.staticSkillType"),
+            subtitle: tNow("entityUi.configItems.staticSkillSubtitle"),
         }
     }
     if (isEmbedRefSkill(s)) {
         // Registry-by-default: the raw "@ag.embed" marker is plumbing, not information.
         // Following the head is the default and says nothing; only a pin is worth a tag.
         const pinned = embedRevisionVersion(s)
-        const name = titleOf(embedName) || titleOf(staticEmbedSlug(s)) || "Skill reference"
+        const name =
+            titleOf(embedName) ||
+            titleOf(staticEmbedSlug(s)) ||
+            tNow("entityUi.configItems.skillReference")
         return {
             name,
             description: typeof s.description === "string" ? (s.description as string) : undefined,
             ...SKILL_MARK,
-            tags: pinned ? [{label: "Pinned"}] : [],
-            typeLabel: "registry skill",
+            tags: pinned ? [{label: tNow("entityUi.configItems.pinned")}] : [],
+            typeLabel: tNow("entityUi.configItems.registrySkillType"),
             typeColor: "gold",
             subtitle: pinned
-                ? "Registry skill — pinned to the version it was added at"
-                : "Registry skill — follows the latest version",
+                ? tNow("entityUi.configItems.registrySkillPinned")
+                : tNow("entityUi.configItems.registrySkillLatest"),
         }
     }
-    const name = (typeof s.name === "string" && titleOf(s.name)) || "Skill"
+    const name =
+        (typeof s.name === "string" && titleOf(s.name)) || tNow("entityUi.configItems.skill")
     return {
         name,
         description: typeof s.description === "string" ? (s.description as string) : undefined,
@@ -387,9 +410,9 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         // No "skill" tag: the section it sits in is already Skills. The other branches tag what a
         // reader cannot otherwise tell — that it is built in, or pinned.
         tags: [],
-        typeLabel: "skill",
+        typeLabel: tNow("entityUi.configItems.skillType"),
         typeColor: "gold",
-        subtitle: "Inline SKILL.md package",
+        subtitle: tNow("entityUi.configItems.inlineSkill"),
     }
 }
 
@@ -411,12 +434,12 @@ export function mdPreview(md: string): string {
 export function describeInstruction(filename: string, content: string): ItemDescriptor {
     return {
         name: filename,
-        description: mdPreview(content) || "Empty file",
+        description: mdPreview(content) || tNow("entityUi.configItems.emptyFile"),
         mono: "md",
         color: "#0f766e",
         icon: <FileText size={14} />,
         tags: [],
-        typeLabel: "instructions",
-        subtitle: "Markdown instructions for the agent",
+        typeLabel: tNow("entityUi.configItems.instructionsType"),
+        subtitle: tNow("entityUi.configItems.instructionsSubtitle"),
     }
 }

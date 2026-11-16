@@ -13,6 +13,8 @@ import {isRecentlyChanged, useRecentChangeClock} from "@agenta/entities/drive"
 import {type FileDropProps, useStageDrop} from "@agenta/entities/drive"
 import {driveHasMixedOrigins, useSessionDriveSummary} from "@agenta/entities/drive"
 import {isSessionFresh} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {Tag} from "@agenta/ui/components/presentational"
 import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
@@ -79,6 +81,7 @@ export function ContextRail({
      * disable drop-to-stage. */
     onStageFiles?: (files: DroppedFile[]) => void
 }) {
+    const t = useT(driveRailCatalog)
     const [open, setOpen] = useAtom(contextRailOpenAtom)
     // Drop-to-stage: a file drag over the rail (strip or expanded) opens the drawer with the files
     // staged, so the destination is chosen there (recents has no folder of its own).
@@ -119,12 +122,12 @@ export function ContextRail({
                             setOpen(true)
                         }
                     }}
-                    aria-label="Show files"
+                    aria-label={t("entityUi.driveRail.showFiles")}
                     className={`group flex h-full cursor-pointer flex-col items-center gap-2.5 border-0 border-l border-solid pt-3 transition-colors hover:bg-[var(--ag-colorFillTertiary)] ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
                     style={{width: STRIP_WIDTH, borderColor: BORDER}}
                     {...stageDropProps}
                 >
-                    <Tooltip title="Show files" side="left">
+                    <Tooltip title={t("entityUi.driveRail.showFiles")} side="left">
                         <span className="flex h-7 w-7 items-center justify-center rounded text-colorTextSecondary transition-colors group-hover:text-colorText">
                             <Sidebar size={15} />
                         </span>
@@ -135,8 +138,14 @@ export function ContextRail({
                         <Tooltip
                             title={
                                 drive.partialErrored
-                                    ? "Some files couldn’t be loaded — open to retry"
-                                    : `${drive.fileCount}${drive.fileCountCapped ? "+" : ""} file${drive.fileCount === 1 && !drive.fileCountCapped ? "" : "s"} in this conversation`
+                                    ? t("entityUi.driveRail.someFilesFailedRetry")
+                                    : drive.fileCountCapped
+                                      ? t("entityUi.driveRail.filesInConversationCapped", {
+                                            count: drive.fileCount,
+                                        })
+                                      : t("entityUi.driveRail.filesInConversation", {
+                                            count: drive.fileCount,
+                                        })
                             }
                             side="left"
                         >
@@ -158,7 +167,7 @@ export function ContextRail({
                         </Tooltip>
                     ) : null}
                     {busy ? (
-                        <Tooltip title="Agent is running" side="left">
+                        <Tooltip title={t("entityUi.driveRail.agentRunning")} side="left">
                             <span className="relative flex h-2 w-2">
                                 <span className="absolute inline-flex h-full w-full rounded-full bg-colorInfo opacity-60 motion-safe:animate-ping" />
                                 <span className="relative inline-flex h-2 w-2 rounded-full bg-colorInfo" />
@@ -196,6 +205,7 @@ const ExpandedRail = ({
     dropProps?: FileDropProps
     dropActive?: boolean
 }) => {
+    const t = useT(driveRailCatalog)
     const now = useRecentChangeClock(drive.lastTouchedAt)
     const showOrigin = driveHasMixedOrigins(drive.recents)
     const copyPath = useCopyDrivePath()
@@ -207,7 +217,7 @@ const ExpandedRail = ({
             {...dropProps}
         >
             <div className="flex items-center gap-1.5 px-3 pt-3">
-                <span className="text-xs font-medium">Files</span>
+                <span className="text-xs font-medium">{t("entityUi.driveRail.files")}</span>
                 {drive.fileCount > 0 ? (
                     <Tag
                         size="small"
@@ -221,8 +231,8 @@ const ExpandedRail = ({
                     <Tooltip
                         title={
                             drive.partialErrored
-                                ? "Some files couldn’t be loaded — open to retry"
-                                : "Open the Files drawer"
+                                ? t("entityUi.driveRail.someFilesFailedRetry")
+                                : t("entityUi.driveRail.openFilesDrawer")
                         }
                         side="bottom"
                     >
@@ -234,15 +244,15 @@ const ExpandedRail = ({
                                 </DriveWarningBadge>
                             }
                             onClick={onOpenFiles}
-                            aria-label="Open the files drawer"
+                            aria-label={t("entityUi.driveRail.openFilesDrawerAria")}
                         />
                     </Tooltip>
-                    <Tooltip title="Collapse panel" side="bottom">
+                    <Tooltip title={t("entityUi.driveRail.collapsePanel")} side="bottom">
                         <Button
                             type="text"
                             icon={<Sidebar size={13} />}
                             onClick={onCollapse}
-                            aria-label="Collapse panel"
+                            aria-label={t("entityUi.driveRail.collapsePanel")}
                         />
                     </Tooltip>
                 </div>
@@ -277,7 +287,7 @@ const ExpandedRail = ({
                             >
                                 {phase === "error" ? (
                                     <Text type="secondary" className="px-1 pb-1 !text-xs">
-                                        Couldn&rsquo;t load files.{" "}
+                                        {t("entityUi.driveRail.couldNotLoadFiles")}{" "}
                                         {drive.retry ? (
                                             <DriveRetryButton
                                                 onRetry={drive.retry}
@@ -289,11 +299,11 @@ const ExpandedRail = ({
                                     // Files exist but none changed in THIS conversation (recents = its
                                     // record log).
                                     <Text type="secondary" className="px-1 pb-1 !text-xs">
-                                        No changes yet — open “View all files” to browse.
+                                        {t("entityUi.driveRail.noChangesYet")}
                                     </Text>
                                 ) : phase === "empty" ? (
                                     <Text type="secondary" className="px-1 pb-1 !text-xs">
-                                        No files yet.
+                                        {t("entityUi.driveRail.noFilesYet")}
                                     </Text>
                                 ) : (
                                     <>
@@ -391,7 +401,12 @@ const ExpandedRail = ({
                                                                                     [
                                                                                         file.item_count !=
                                                                                         null
-                                                                                            ? `${file.item_count} item${file.item_count === 1 ? "" : "s"}`
+                                                                                            ? t(
+                                                                                                  "entityUi.driveRail.itemsCount",
+                                                                                                  {
+                                                                                                      count: file.item_count,
+                                                                                                  },
+                                                                                              )
                                                                                             : null,
                                                                                         relTime,
                                                                                     ]
@@ -422,7 +437,7 @@ const ExpandedRail = ({
                                         (drive.reconciling || drive.isFetching) ? (
                                             <div className="flex items-center gap-1.5 px-1 pt-0.5 text-xs text-colorTextTertiary">
                                                 <CircleNotch size={11} className="animate-spin" />
-                                                <span>Loading more…</span>
+                                                <span>{t("entityUi.driveRail.loadingMore")}</span>
                                             </div>
                                         ) : null}
                                         {drive.fileCount > 5 ? (
@@ -434,7 +449,7 @@ const ExpandedRail = ({
                                                 }}
                                                 className={`mt-0.5 w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline ${FOCUS_RING}`}
                                             >
-                                                View all files
+                                                {t("entityUi.driveRail.viewAllFiles")}
                                             </button>
                                         ) : null}
                                     </>

@@ -45,6 +45,8 @@ import {type SessionDriveData} from "@agenta/entities/drive"
 import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {projectIdAtom} from "@agenta/shared/state"
 import {InputAffix as Input} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
@@ -97,8 +99,8 @@ const CODE_EDIT_KINDS = new Set<DriveFileKind>(["code", "json", "html"])
 const PROSE_KINDS = new Set<DriveFileKind>(["markdown", "text"])
 
 const noop = () => undefined
-/** The rail's static root row. */
-const ROOT_NODE = {name: "All files", path: "", isFolder: true, children: []}
+/** The rail's static root row; its name is translated where it renders. */
+const ROOT_NODE = {name: "", path: "", isFolder: true, children: []}
 
 /**
  * The browsing body — loading/empty/error states + the two-pane search/tree/preview. Owns its
@@ -161,6 +163,7 @@ export function DriveExplorer({
     treePersistKey?: string
     closeVariant?: "close" | "collapse" | "back"
 }) {
+    const t = useT(driveExplorerCatalog)
     const chrome = chromeProp ?? onClose != null
     const rootLabel = driveRootLabel(drive.mount)
     const {
@@ -565,7 +568,9 @@ export function DriveExplorer({
     )
 
     // Row 2's read-side actions: copy path (none at the root), download (file, folder zip, or all).
-    const onCopyCurrentPath = selectedPath ? () => copyText(selectedPath, "Path copied") : undefined
+    const onCopyCurrentPath = selectedPath
+        ? () => copyText(selectedPath, t("entityUi.driveExplorer.pathCopied"))
+        : undefined
     const copyLink = useContext(DriveLinkContext)
     const onCopyCurrentLink =
         copyLink && selectedPath != null
@@ -649,7 +654,7 @@ export function DriveExplorer({
                 path={selectedPath ?? ""}
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
-                note={tooLargeToEdit ? "Read-only · too large to edit here" : undefined}
+                note={tooLargeToEdit ? t("entityUi.driveExplorer.readOnlyTooLarge") : undefined}
                 appView={
                     htmlApp
                         ? {
@@ -671,7 +676,7 @@ export function DriveExplorer({
         const contentPane =
             selectedPath == null ? (
                 <div className="flex h-full flex-1 items-center justify-center text-xs text-colorTextTertiary">
-                    Select a file to preview it.
+                    {t("entityUi.driveExplorer.selectFileToPreview")}
                 </div>
             ) : selectedIsFolder ? (
                 <FolderView
@@ -780,7 +785,7 @@ export function DriveExplorer({
                                 size="sm"
                                 value={search}
                                 onValueChange={setSearch}
-                                placeholder="Search files"
+                                placeholder={t("entityUi.driveExplorer.searchFiles")}
                                 className="w-full"
                                 prefix={
                                     <MagnifyingGlass
@@ -819,7 +824,10 @@ export function DriveExplorer({
                             rootRow={
                                 chrome && !searchActive ? (
                                     <TreeRow
-                                        node={ROOT_NODE}
+                                        node={{
+                                            ...ROOT_NODE,
+                                            name: t("entityUi.driveExplorer.allFiles"),
+                                        }}
                                         depth={0}
                                         isOpen
                                         selected={selectedPath === ""}

@@ -1,0 +1,18 @@
+{
+    "title": "削除",
+    "titleTestset_other": "テストセットを削除（{{count}}）",
+    "titleRevision_other": "リビジョンを削除（{{count}}）",
+    "titleVariant_other": "バリアントを削除（{{count}}）",
+    "titleEvaluator_other": "評価器を削除（{{count}}）",
+    "titleApplication_other": "アプリケーションを削除（{{count}}）",
+    "titleSimpleQueue_other": "注釈キューを削除（{{count}}）",
+    "titleItems_other": "{{count}} 件を削除",
+    "confirm": "以下を削除してもよろしいですか？この操作は元に戻せません。",
+    "warning": "警告",
+    "cannotDelete": "削除できません",
+    "blockedItems": "以下の項目は削除できません：",
+    "deleteFailed": "削除に失敗しました",
+    "deleted": "削除しました",
+    "delete": "削除",
+    "someBlocked": "一部の項目は削除できません"
+}
