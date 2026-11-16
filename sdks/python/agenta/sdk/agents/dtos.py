@@ -344,7 +344,7 @@ class InvalidAgentDrivesError(AgentTemplateShapeError):
     route can name it in its envelope; ``value`` is the offending value, safe to echo.
     """
 
-    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-drives"
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-drive-entry"
 
     def __init__(self, *, field: str, value: Any, reason: str) -> None:
         super().__init__(f"agent template {field}: {reason}")

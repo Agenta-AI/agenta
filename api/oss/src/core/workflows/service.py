@@ -414,8 +414,10 @@ def _agent_drives(data: Any) -> Optional[List[Any]]:
         raise InvalidAgentDrivesError(
             field=e.field,
             value=e.value,
-            message=f"The drive list is not valid: {e.field} {e.reason}.",
-            next_step="Correct agent.drives as the message says, then commit again.",
+            message=f"The drive list is not valid: parameters.agent.{e.field} {e.reason}.",
+            next_step=(
+                "Correct parameters.agent.drives as the message says, then commit again."
+            ),
         ) from e
 
 
