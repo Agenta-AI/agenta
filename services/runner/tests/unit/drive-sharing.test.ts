@@ -465,6 +465,10 @@ describe("prepareEnvironmentSetup signs every drive at the same time", () => {
       errorCode: "session_drive_required",
     });
     assert.equal(signs, 0);
+    assert.equal(
+      SESSION_DRIVE_REQUIRED_MESSAGE,
+      "The inprocess sandbox needs the session drive, and this agent has it turned off. Turn the session drive on, or run the agent on the 'local' sandbox.",
+    );
   });
 
   it("does not sign the session drive up front when it is off", async () => {

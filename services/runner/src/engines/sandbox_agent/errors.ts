@@ -112,7 +112,7 @@ export const SESSION_DRIVE_REQUIRED_CODE: RunErrorCode = "session_drive_required
 
 /** The line the person reads when an agent without a session drive runs on `inprocess`. */
 export const SESSION_DRIVE_REQUIRED_MESSAGE =
-  "The inprocess sandbox needs the session drive, and this agent has it turned off. Turn the session drive on, or run the agent on the 'local' or 'daytona' sandbox.";
+  "The inprocess sandbox needs the session drive, and this agent has it turned off. Turn the session drive on, or run the agent on the 'local' sandbox.";
 
 export const ACCESS_DENIED_CODE: RunErrorCode = "access_denied";
 
