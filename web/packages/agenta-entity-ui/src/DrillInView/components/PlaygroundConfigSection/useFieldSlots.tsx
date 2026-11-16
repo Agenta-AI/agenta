@@ -40,6 +40,8 @@ import type {SiblingGroupKey} from "./constants"
 import {hasParameters} from "./schemaData"
 import type {PathSchema} from "./types"
 import type {PromptModelInfo} from "./useModelConfigurePopover"
+import {createT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 
 const RUNTIME_SELECT_OPTIONS = ["python", "typescript", "javascript"].map((value) => ({
     label: <span className="capitalize">{value}</span>,
@@ -68,6 +70,8 @@ interface UseFieldSlotsParams {
     stickyHeaderTop: number
     toggleSection: (key: string) => void
 }
+
+const tNow = createT(playgroundConfigCatalog)
 
 export function useFieldSlots({
     activeData,
@@ -208,13 +212,17 @@ export function useFieldSlots({
                                                 variant="ghost"
                                                 size="icon-sm"
                                                 onClick={() => onRefinePrompt(fieldKey)}
-                                                aria-label="Refine prompt with AI"
+                                                aria-label={tNow(
+                                                    "entityUi.playgroundConfig.refinePrompt",
+                                                )}
                                                 className="opacity-60 hover:opacity-100"
                                             >
                                                 <MagicWand size={16} aria-hidden="true" />
                                             </Button>
                                         </TooltipTrigger>
-                                        <TooltipContent>Refine prompt with AI</TooltipContent>
+                                        <TooltipContent>
+                                            {tNow("entityUi.playgroundConfig.refinePrompt")}
+                                        </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
                             )}
@@ -224,7 +232,8 @@ export function useFieldSlots({
                             >
                                 <PopoverTrigger asChild>
                                     <Button size="sm" variant="outline">
-                                        {selectedModelLabel || "Select model"}
+                                        {selectedModelLabel ||
+                                            tNow("entityUi.playgroundConfig.selectModel")}
                                         <CaretDown size={12} />
                                     </Button>
                                 </PopoverTrigger>
@@ -246,7 +255,7 @@ export function useFieldSlots({
                                 <DropdownMenuTrigger asChild disabled={disabled}>
                                     <Button size="sm" variant="outline">
                                         {RUNTIME_SELECT_OPTIONS.find((o) => o.value === codeRuntime)
-                                            ?.label ?? "Select runtime"}
+                                            ?.label ?? tNow("entityUi.playgroundConfig.selectRuntime")}
                                         <CaretDown size={12} />
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -284,7 +293,9 @@ export function useFieldSlots({
                                 disabled={disabled}
                                 className="text-xs text-gray-500"
                             >
-                                {feedbackMode === "basic" ? "Advanced" : "Basic"}
+                                {feedbackMode === "basic"
+                                    ? tNow("entityUi.playgroundConfig.advanced")
+                                    : tNow("entityUi.playgroundConfig.basic")}
                             </Button>
                         </div>
                     )}

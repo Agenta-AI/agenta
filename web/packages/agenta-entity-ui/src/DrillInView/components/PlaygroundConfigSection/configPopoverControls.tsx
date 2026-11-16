@@ -25,6 +25,8 @@ import {
     type SelectTriggerProps,
 } from "@agenta/ui/ui"
 import {XCircle} from "@phosphor-icons/react"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 
 export interface ConfigSelectOption {
     value: string
@@ -57,6 +59,7 @@ export function ConfigSelect({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: ConfigSelectProps) {
+    const t = useT(playgroundConfigCatalog)
     const showClear = !!allowClear && value != null && value !== "" && !disabled
     return (
         <span className="group/select relative block w-full">
@@ -97,7 +100,7 @@ export function ConfigSelect({
             {showClear ? (
                 <button
                     type="button"
-                    aria-label="Clear selection"
+                    aria-label={t("entityUi.playgroundConfig.clearSelection")}
                     onClick={(e) => {
                         e.stopPropagation()
                         onChange(null)

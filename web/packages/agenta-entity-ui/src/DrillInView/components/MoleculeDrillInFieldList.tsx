@@ -11,12 +11,15 @@ import {type PathItem, getItemsAtPath} from "@agenta/shared/utils"
 
 import {useDrillIn} from "./MoleculeDrillInContext"
 import {MoleculeDrillInFieldItem} from "./MoleculeDrillInFieldItem"
+import {useT} from "@agenta/i18n"
+import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
 
 // ============================================================================
 // COMPONENT
 // ============================================================================
 
 export function MoleculeDrillInFieldList() {
+    const t = useT(drillInCatalog)
     const {rootData, currentPath, classNames, styles, slots} = useDrillIn()
 
     // Get items at current path (uses rootData, not full entity)
@@ -41,7 +44,7 @@ export function MoleculeDrillInFieldList() {
 
         return (
             <div className={classNames.empty} style={styles?.empty}>
-                No items to display
+                {t("entityUi.drillIn.noItems")}
             </div>
         )
     }

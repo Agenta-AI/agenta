@@ -15,6 +15,8 @@ import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
 
 import {AdvancedConfigFields} from "./AdvancedConfigFields"
 import {ConfigSelect} from "./configPopoverControls"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 
 export interface ModelConfigEditorProps {
     value: Record<string, unknown>
@@ -53,6 +55,7 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
     disabled,
     excludeKeys = [],
 }: ModelConfigEditorProps) {
+    const t = useT(playgroundConfigCatalog)
     // A stored model no connection offers still has to be visible and selected, so it joins the
     // menu as its own row. Done here rather than upstream so the fallback-model editor — same
     // component, its own draft config — merges ITS model, not the primary one.
@@ -101,7 +104,7 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
                         disabled={disabled}
                         size="sm"
                         allowClear
-                        placeholder="Select one"
+                        placeholder={t("entityUi.playgroundConfig.selectOne")}
                         // The visible label above; the shared "Select one" placeholder names nothing.
                         aria-label={fieldLabel}
                         options={enumValues.map((v) => ({
@@ -145,7 +148,7 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
                     // is portaled, so it is free of the 320px configure popover it opens from.
                     providerDropdownWidth={560}
                     connectionColumnWidth={290}
-                    searchPlaceholder="Search models"
+                    searchPlaceholder={t("entityUi.playgroundConfig.searchModels")}
                     options={groups}
                     value={(value.model as string | undefined) ?? undefined}
                     selectedKey={selectedKey}

@@ -45,6 +45,8 @@ import {describeSkill} from "../SchemaControls/agentTemplate/itemDescriptors"
 import {connectionFromConfig, modelIdFromConfig} from "../SchemaControls/connectionUtils"
 import {integrationPermissionSummary} from "../SchemaControls/integrationPolicy"
 import {buildIntegrationRows} from "../SchemaControls/toolUtils"
+import {createT} from "@agenta/i18n"
+import workflowReferenceCatalog from "@agenta/i18n/catalogs/entityUi.workflowReference"
 
 // Map the molecule's canonical workflow type down to the four the reference picker badges.
 function toReferenceType(t: WorkflowType | null | undefined): WorkflowReferenceType | undefined {
@@ -305,6 +307,8 @@ function isPromptLike(v: Record<string, unknown>): boolean {
     )
 }
 
+const tNow = createT(workflowReferenceCatalog)
+
 // One prompt/agent config → Configuration parts: the prompt Messages, model, remaining model
 // settings, tools, response_format, template_format, agent instructions/skills.
 function promptConfigParts(prefix: string, cfg: Record<string, unknown>): WorkflowConfigPart[] {
@@ -321,7 +325,7 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
     if (messages.length) {
         parts.push({
             key: `${prefix}messages`,
-            label: "Messages",
+            label: tNow("entityUi.workflowReference.messages"),
             kind: "messages",
             content: "",
             messages,
@@ -336,7 +340,7 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
           : null
     if (llm) {
         if (typeof llm.model === "string" && llm.model) {
-            parts.push({key: `${prefix}model`, label: "Model", kind: "text", content: llm.model})
+            parts.push({key: `${prefix}model`, label: tNow("entityUi.workflowReference.model"), kind: "text", content: llm.model})
         }
         const settings = {...llm}
         delete settings.model
@@ -345,7 +349,7 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
         if (Object.keys(settings).length) {
             parts.push({
                 key: `${prefix}settings`,
-                label: "Model settings",
+                label: tNow("entityUi.workflowReference.modelSettings"),
                 kind: "json",
                 content: JSON.stringify(settings, null, 2),
             })
@@ -353,7 +357,7 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
         if (isPlainRecord(llm.response_format)) {
             parts.push({
                 key: `${prefix}response_format`,
-                label: "Response format",
+                label: tNow("entityUi.workflowReference.responseFormat"),
                 kind: "json",
                 content: JSON.stringify(llm.response_format, null, 2),
             })
@@ -363,7 +367,7 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
     if (typeof cfg.template_format === "string" && cfg.template_format) {
         parts.push({
             key: `${prefix}template_format`,
-            label: "Template format",
+            label: tNow("entityUi.workflowReference.templateFormat"),
             kind: "text",
             content: cfg.template_format,
         })
@@ -379,7 +383,7 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
     if (instructionsText.trim()) {
         parts.push({
             key: `${prefix}instructions`,
-            label: "Instructions",
+            label: tNow("entityUi.workflowReference.instructions"),
             kind: "text",
             content: instructionsText,
         })
@@ -395,7 +399,7 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
     if (tools.length) {
         parts.push({
             key: `${prefix}tools`,
-            label: "Tools",
+            label: tNow("entityUi.workflowReference.tools"),
             kind: "json",
             content: JSON.stringify(tools, null, 2),
         })
@@ -404,7 +408,7 @@ function promptConfigParts(prefix: string, cfg: Record<string, unknown>): Workfl
     if (Array.isArray(cfg.skills) && cfg.skills.length) {
         parts.push({
             key: `${prefix}skills`,
-            label: "Skills",
+            label: tNow("entityUi.workflowReference.skills"),
             kind: "json",
             content: JSON.stringify(cfg.skills, null, 2),
         })
@@ -422,7 +426,7 @@ function buildConfigParts(data: unknown): WorkflowConfigPart[] {
     if (typeof script === "string" && script.trim()) {
         parts.push({
             key: "code",
-            label: "Handler",
+            label: tNow("entityUi.workflowReference.handler"),
             kind: "code",
             content: script,
             language: "python",
@@ -444,7 +448,7 @@ function buildConfigParts(data: unknown): WorkflowConfigPart[] {
         if (parts.length === (script ? 1 : 0)) {
             parts.push({
                 key: "config",
-                label: "Config",
+                label: tNow("entityUi.workflowReference.config"),
                 kind: "json",
                 content: JSON.stringify(params, null, 2),
             })
