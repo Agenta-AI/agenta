@@ -117,7 +117,7 @@ The `spans` table SHALL have a nullable column `turn_id` with an index on `(proj
 
 ### Requirement: One turn id across an approval resume
 
-A run that resumes a turn after a person answers a paused tool call through a continuation command SHALL write the paused turn's id as `ag.turn.id` on its spans, so spans of different traces share one turn id (Decided on 16 November 2026).
+A run that resumes a turn after a person answers a paused tool call through a continuation command SHALL write the paused turn's id as `ag.turn.id` on its spans, so spans of different traces share one turn id, except after a lost-delivery recovery (Decided on 16 November 2026).
 
 #### Scenario: The person approves a paused tool call
 
@@ -140,6 +140,11 @@ A run that resumes a turn after a person answers a paused tool call through a co
 
 - **WHEN** the resumed run of turn `t2` pauses again, and the person approves again
 - **THEN** the second resumed run also writes `ag.turn.id: t2`
+
+#### Scenario: A second approval after a lost-delivery recovery
+
+- **WHEN** the delivery of a resume is lost, the recovery runs a replacement execution, and that replacement pauses for a second approval that the person approves
+- **THEN** the second resume carries the replacement execution's id as `ag.turn.id`, not the paused turn's id (known limit)
 
 #### Scenario: An answer through a channel
 
