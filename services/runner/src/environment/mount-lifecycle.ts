@@ -80,7 +80,7 @@ import {
   writeSystemPromptLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
 import { containsTransportEndpointDisconnected } from "../engines/sandbox_agent/runtime-policy.ts";
-import { throwIfAcquireAborted } from "./acquire-abort.ts";
+import { throwIfAcquireAborted, waitForAcquire } from "./acquire-abort.ts";
 import { rethrowIfInvariant, type AcquireContext } from "./acquire-context.ts";
 
 /** The Pi agent directory inside a Daytona sandbox. Injected so this unit stays import-light. */
@@ -358,8 +358,13 @@ export async function mountLocalProjectMount(
   try {
     // `mountStorage` keeps a live mount as it is, and one left by an earlier environment was made
     // with that environment's access and credentials: detach it first, or do not mount at all.
+    const leftover = await waitForAcquire(
+      () => (deps.isMounted ?? isMounted)(mountPath, ctx.log),
+      deps.signal,
+    );
+    throwIfAcquireAborted(deps.signal);
     if (
-      (await (deps.isMounted ?? isMounted)(mountPath, ctx.log)) &&
+      leftover &&
       !(await (deps.unmountStorage ?? unmountStorage)(mountPath, { log: ctx.log }))
     ) {
       ctx.log(`local project mount not replaced slug=${drive.slug}: the earlier mount did not detach`);

@@ -292,6 +292,37 @@ describe("project drive mounts", () => {
     }
   });
 
+  it("ends promptly when the run is stopped while it probes for a leftover mount, and never detaches or mounts", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-probe-abort-"));
+    const controller = new AbortController();
+    const steps: string[] = [];
+    const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read", credentials };
+    try {
+      const pending = mountLocalProjectMount(
+        projectContext(cwd, []),
+        {
+          ...depsFor(controller.signal, async () => {
+            steps.push("mount");
+            return true;
+          }),
+          isMounted: () => new Promise<boolean>(() => {}),
+          unmountStorage: async () => {
+            steps.push("unmount");
+            return true;
+          },
+        },
+        drive,
+      );
+      setTimeout(() => controller.abort(), 10);
+      const started = Date.now();
+      assert.equal(await pending, false);
+      assert.ok(Date.now() - started < 1_000);
+      assert.deepEqual(steps, []);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("mounts a read-write drive writable", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-rw-"));
     let readOnly: boolean | undefined;
