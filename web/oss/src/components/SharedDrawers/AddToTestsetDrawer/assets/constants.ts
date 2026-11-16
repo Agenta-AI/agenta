@@ -1,3 +1,0 @@
-export const PREVIEW_ROW_LIMIT = 5
-export const PREVIEW_ROW_HARD_LIMIT = 20
-export const MAX_TRACE_ANALYSIS_SAMPLE_SIZE = 50

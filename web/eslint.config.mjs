@@ -39,26 +39,6 @@ const config = [
             },
         },
     },
-    // Prevent re-exporting from @agenta/* packages in app layer (oss/src and ee/src)
-    // This ensures consumers import directly from packages for proper tree-shaking
-    {
-        files: ["oss/src/**/*.ts", "oss/src/**/*.tsx", "ee/src/**/*.ts", "ee/src/**/*.tsx"],
-        rules: {
-            "no-restricted-syntax": [
-                "error",
-                {
-                    selector: "ExportNamedDeclaration[source.value=/^@agenta/]",
-                    message:
-                        "Do not re-export from @agenta/* packages. Consumers should import directly from the source package for proper tree-shaking.",
-                },
-                {
-                    selector: "ExportAllDeclaration[source.value=/^@agenta/]",
-                    message:
-                        "Do not re-export from @agenta/* packages. Consumers should import directly from the source package for proper tree-shaking.",
-                },
-            ],
-        },
-    },
     {
         rules: {
             "prefer-const": "off",
@@ -126,11 +106,6 @@ const config = [
                         },
                         {
                             pattern: "./__generated__/**",
-                            group: "parent",
-                            position: "before",
-                        },
-                        {
-                            pattern: "@/oss/**",
                             group: "parent",
                             position: "before",
                         },

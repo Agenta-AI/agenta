@@ -6,15 +6,11 @@
 # Dependencies
 node_modules
 .pnpm-store
-oss/node_modules
-ee/node_modules
 tests/node_modules
 packages/*/node_modules
 
 # Build outputs
 .turbo
-oss/.next
-ee/.next
 *.tsbuildinfo
 dist/
 build/

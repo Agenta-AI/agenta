@@ -2,11 +2,8 @@
     "name": "agenta-web",
     "version": "0.128.14",
     "workspaces": [
-        "ee",
         "mobile",
-        "oss",
         "tests",
-        "variants-state",
         "packages/*",
         "website"
     ],
@@ -19,8 +16,6 @@
         "next": "15.5.28"
     },
     "devDependencies": {
-        "@agenta/ee": "link:ee",
-        "@agenta/oss": "link:oss",
         "@eslint/eslintrc": "^3.3.5",
         "@eslint/js": "^9.39.4",
         "@lexical/eslint-plugin": "^0.46.0",
@@ -48,30 +43,12 @@
     },
     "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
     "scripts": {
-        "build-oss": "turbo run build --filter=@agenta/oss",
-        "build-ee": "turbo run build --filter=@agenta/ee",
         "build-mobile": "turbo run build --filter=@agenta/mobile",
-        "dev-ee": "turbo run dev --filter=@agenta/ee",
-        "dev-oss": "turbo run dev --filter=@agenta/oss",
         "dev-mobile": "turbo run dev --filter=@agenta/mobile",
         "lint": "turbo run lint",
         "lint-fix": "turbo run lint -- --fix",
-        "type-check": "pnpm --filter @agenta/oss exec tsc --noEmit && pnpm --filter @agenta/ee exec tsc --noEmit",
-        "type-check:native": "pnpm --filter @agenta/oss exec tsgo --noEmit && pnpm --filter @agenta/ee exec tsgo --noEmit",
-        "test:revision-centric": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-revision-centric.ts",
-        "test:apps": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-apps.ts",
-        "test:environments": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-environments.ts",
-        "test:deployments": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-deployments.ts",
-        "test:orgs": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-orgs.ts",
-        "test:profile": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-profile.ts",
-        "test:workspace": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-workspace.ts",
-        "test:project": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-project.ts",
-        "test:newPlayground": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-newPlayground.ts",
-        "test:playground-dev": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/run-playground-tests.ts",
-        "test:observability": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-observability.ts",
-        "test:datalayer": "pnpm test:revision-centric && pnpm test:apps && pnpm test:environments && pnpm test:deployments && pnpm test:orgs && pnpm test:profile && pnpm test:workspace && pnpm test:project && pnpm test:newPlayground && pnpm test:observability",
-        "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
-        "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
+        "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ../.gitignore",
+        "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ../.gitignore",
         "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts && pnpm --filter @agenta/mobile generate:tokens",
         "generate:phosphor-catalog": "pnpm --filter @agenta/ui generate:icons"
     }

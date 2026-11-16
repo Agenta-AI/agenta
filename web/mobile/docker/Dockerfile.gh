@@ -74,13 +74,6 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
 
-# web/entrypoint.sh (set -e) does `mkdir -p /app/<license>/public` before
-# writing __env.js and mirroring it into mobile/public. This image ships only
-# mobile/ and /app is root-owned, so pre-create both license dirs writable
-# for the runtime user or the container exits at startup.
-RUN mkdir -p /app/oss/public /app/ee/public && \
-    chown -R agenta:agenta /app/oss /app/ee
-
 COPY --chown=agenta:agenta --from=builder /app/mobile/.next/standalone /app
 COPY --chown=agenta:agenta --from=builder /app/mobile/.next/static /app/mobile/.next/static
 COPY --chown=agenta:agenta --from=builder /app/mobile/public /app/mobile/public

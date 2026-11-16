@@ -92,22 +92,6 @@ jobs:
           npm pkg set version="$new_version"
           WEB_VERSION=$new_version
 
-          echo "Bumping web/ee"
-          cd ee
-          current_version=$(node -p "require('./package.json').version")
-          new_version=$(next_version "$current_version")
-          npm pkg set version="$new_version"
-          EE_VERSION=$new_version
-          cd ..
-
-          echo "Bumping web/oss"
-          cd oss
-          current_version=$(node -p "require('./package.json').version")
-          new_version=$(next_version "$current_version")
-          npm pkg set version="$new_version"
-          OSS_VERSION=$new_version
-          cd ..
-
           echo "Bumping web/mobile"
           cd mobile
           current_version=$(node -p "require('./package.json').version")
@@ -163,8 +147,6 @@ jobs:
           # this application repo.
 
           WEB_VERSION=$(echo "$WEB_VERSION" | tr -d '[:space:]')
-          EE_VERSION=$(echo "$EE_VERSION" | tr -d '[:space:]')
-          OSS_VERSION=$(echo "$OSS_VERSION" | tr -d '[:space:]')
           MOBILE_VERSION=$(echo "$MOBILE_VERSION" | tr -d '[:space:]')
           TS_CLIENT_VERSION=$(echo "$TS_CLIENT_VERSION" | tr -d '[:space:]')
           PY_CLIENT_VERSION=$(echo "$PY_CLIENT_VERSION" | tr -d '[:space:]')
@@ -174,8 +156,6 @@ jobs:
           HELM_VERSION=$(echo "$HELM_VERSION" | tr -d '[:space:]')
 
           echo "WEB_VERSION='$WEB_VERSION'"
-          echo "EE_VERSION='$EE_VERSION'"
-          echo "OSS_VERSION='$OSS_VERSION'"
           echo "MOBILE_VERSION='$MOBILE_VERSION'"
           echo "TS_CLIENT_VERSION='$TS_CLIENT_VERSION'"
           echo "PY_CLIENT_VERSION='$PY_CLIENT_VERSION'"
@@ -184,7 +164,7 @@ jobs:
           echo "SERVICES_VERSION='$SERVICES_VERSION'"
           echo "HELM_VERSION='$HELM_VERSION'"
 
-          if [ "$EE_VERSION" = "$OSS_VERSION" ] && [ "$OSS_VERSION" = "$MOBILE_VERSION" ] && [ "$MOBILE_VERSION" = "$WEB_VERSION" ] && [ "$WEB_VERSION" = "$TS_CLIENT_VERSION" ] && [ "$TS_CLIENT_VERSION" = "$PY_CLIENT_VERSION" ] && [ "$PY_CLIENT_VERSION" = "$PY_SDK_VERSION" ] && [ "$PY_SDK_VERSION" = "$API_VERSION" ] && [ "$API_VERSION" = "$SERVICES_VERSION" ] && [ "$SERVICES_VERSION" = "$HELM_VERSION" ]; then
+          if [ "$MOBILE_VERSION" = "$WEB_VERSION" ] && [ "$WEB_VERSION" = "$TS_CLIENT_VERSION" ] && [ "$TS_CLIENT_VERSION" = "$PY_CLIENT_VERSION" ] && [ "$PY_CLIENT_VERSION" = "$PY_SDK_VERSION" ] && [ "$PY_SDK_VERSION" = "$API_VERSION" ] && [ "$API_VERSION" = "$SERVICES_VERSION" ] && [ "$SERVICES_VERSION" = "$HELM_VERSION" ]; then
               echo "VERSIONS_MATCH=true" >> $GITHUB_OUTPUT
               echo "NEW_VERSION=$WEB_VERSION" >> $GITHUB_OUTPUT
           else
@@ -225,8 +205,6 @@ jobs:
           body: |
             New version v${{ steps.bump_versions.outputs.NEW_VERSION }} in
             - web
-              - web/oss
-              - web/ee
               - web/mobile
             - services
             - api

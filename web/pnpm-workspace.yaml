@@ -1,6 +1,4 @@
 packages:
-  - 'oss'
-  - 'ee'
   - 'mobile'
   - 'tests'
   - 'packages/*'
