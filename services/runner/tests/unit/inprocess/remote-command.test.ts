@@ -9,12 +9,12 @@
  * final poll loses no output).
  */
 import { execSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { bounded, DaytonaCallTimeoutError } from "../../../src/engines/inprocess/sandbox/daytona-api.ts";
-import { commandLifetimeSeconds, launchScript, OUTPUT_CHUNK_BYTES } from "../../../src/engines/inprocess/sandbox/remote-command.ts";
+import { commandLifetimeSeconds, launchScript, OUTPUT_CHUNK_BYTES, parsePoll, pollScript } from "../../../src/engines/inprocess/sandbox/remote-command.ts";
 import { createTestWorkspace, type TestWorkspace } from "../../utils/inprocess-workspace.ts";
 import type { LocalSandbox } from "../../utils/local-daytona.ts";
 
@@ -297,6 +297,32 @@ describe("reading a finished command's output is repeatable (Codex R6 P1-3)", ()
     await ws.bash("seq 1 5000", { outputPath, discardOutputUpTo: { bytes: 1_000, lines: 100 } });
     await sleep(200);
     expect(existsSync(ws.inSandbox(outputPath))).toBe(true);
+  });
+});
+
+describe("a poll that races the supervisor's start", () => {
+  it("never reports a command as dead because the supervisor started between the poll's reads", () => {
+    // The supervisor writes `pgid` and then takes the claim. Here that happens at the exact moment
+    // the poll reads `pgid` (the shim `cat` is the poll's only read of it): the poll finds no
+    // `pgid`, and by the time it looks again the attempt is claimed. Whatever order the poll reads
+    // in, it must not answer "claimed, not alive, no exit code", which the runner reads as a death.
+    const base = mkdtempSync(join(tmpdir(), "poll-race-"));
+    const dir = join(base, "attempt");
+    const outputPath = join(base, "out.log");
+    mkdirSync(dir);
+    writeFileSync(outputPath, "");
+    // A live process group for the supervisor to record: the one this test runs in.
+    const stat = readFileSync("/proc/self/stat", "utf-8");
+    const liveGroup = stat.slice(stat.lastIndexOf(")") + 2).split(" ")[2]!;
+    const shims = join(base, "shims");
+    mkdirSync(shims);
+    const cat = join(shims, "cat");
+    writeFileSync(cat, `#!/bin/bash\n/usr/bin/cat "$@"; status=$?\nif [ "$1" = "${dir}/pgid" ] && [ ! -e "${dir}/claim" ]; then echo ${liveGroup} > "${dir}/pgid"; mkdir "${dir}/claim"; fi\nexit $status\n`);
+    chmodSync(cat, 0o755);
+    const answer = execSync(pollScript(dir, outputPath, 0), { env: { ...process.env, PATH: `${shims}:${process.env.PATH}` } }).toString();
+    const poll = parsePoll(answer);
+    expect(poll.exitCode).toBeUndefined();
+    expect(poll.claimed && !poll.alive).toBe(false);
   });
 });
 

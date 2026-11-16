@@ -201,7 +201,7 @@ export function launchScript(
  * supervisor writes `pgid` before it claims, and the exit code before it removes `pgid`, so
  * "claimed, not alive and no exit code" means the command died without recording one.
  */
-function pollScript(dir: string, outputPath: string, offset: number): string {
+export function pollScript(dir: string, outputPath: string, offset: number): string {
   return bash([
     `d=${shellQuote(dir)}; f=${shellQuote(outputPath)}; off=${offset}; max=${OUTPUT_CHUNK_BYTES}`,
     `c=0; [ -d "$d/claim" ] && [ ! -f "$d/cancelled" ] && c=1`,
@@ -256,7 +256,7 @@ interface Poll {
   data: Buffer;
 }
 
-function parsePoll(output: string): Poll {
+export function parsePoll(output: string): Poll {
   const newline = output.indexOf("\n");
   const head = (newline === -1 ? output : output.slice(0, newline)).trim().split(/\s+/);
   if (head.length !== 8) throw new Error(`unexpected poll answer: ${output.slice(0, 80)}`);
