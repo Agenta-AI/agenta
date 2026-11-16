@@ -1,6 +1,6 @@
 import {useEffect} from "react"
 
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -27,7 +27,7 @@ import {AppTitleSkeleton} from "./states/AppTitleSkeleton"
 import {AppUsageSkeleton} from "./states/AppUsageSkeleton"
 import {useOverviewApp} from "./useOverviewApp"
 
-// The charts download only in beta developer mode, after the overview itself.
+// The charts download only in Developer Mode, after the overview itself.
 const AppUsageSection = dynamic(() => import("./AppUsageSection").then((m) => m.AppUsageSection), {
     ssr: false,
     loading: () => <AppUsageSkeleton />,
@@ -36,11 +36,11 @@ const AppUsageSection = dynamic(() => import("./AppUsageSection").then((m) => m.
 /**
  * The overview of one prompt or custom app: where it is deployed, its newest prompts, and its
  * newest evaluations. An agent id goes to the agent overview. An archived app opens too,
- * without its actions menu. In beta developer mode an evaluator id shows the same overview
+ * without its actions menu. In Developer Mode an evaluator id shows the same overview
  * without Deployment, as in the old app; outside it an evaluator is "not found". Any other
  * id (unknown, or an archived evaluator) is "not found".
  *
- * Each section loads and fails on its own. The usage charts show only in beta developer mode.
+ * Each section loads and fails on its own. The usage charts show only in Developer Mode.
  */
 export const AppOverviewScreen = ({
     workspaceId,
@@ -57,8 +57,8 @@ export const AppOverviewScreen = ({
     const queryClient = useQueryClient()
     const base = `/w/${workspaceId}/p/${projectId}`
     const overview = useOverviewApp(projectId, appId)
-    // Beta developer mode matches /w: the menu sits right after the title, and authors show names.
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    // Developer Mode matches /w: the menu sits right after the title, and authors show names.
+    const beta = useAtomValue(developerModeActiveAtom)
     const showUsage = beta
     const status = overview.status
 

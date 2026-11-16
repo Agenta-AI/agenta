@@ -11,7 +11,7 @@ export default function AppTracesPage() {
     const projectId = read("project_id")
     if (!workspaceId || !projectId || !read("app_id")) return null
     return (
-        <DeveloperViewGate viewId="observability-app-filter" betaOnly>
+        <DeveloperViewGate viewId="observability-app-filter" developerModeOnly>
             <ObservabilityScreen workspaceId={workspaceId} projectId={projectId} />
         </DeveloperViewGate>
     )

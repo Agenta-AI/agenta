@@ -19,7 +19,7 @@ const picker = vi.hoisted(() => ({
 
 vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
-    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => picker.beta)}
+    return {...(await original<object>()), developerModeActiveAtom: atom(() => picker.beta)}
 })
 // The create flow is a separate chunk: a stand-in that "creates" Tone at once.
 vi.mock("next/dynamic", () => ({
@@ -130,12 +130,12 @@ describe("QueueEvaluatorField", () => {
         host.remove()
     })
 
-    it("Without beta developer mode the picker offers no create", async () => {
+    it("Without Developer Mode the picker offers no create", async () => {
         await mount()
         expect(picker.onCreateNew).toBeUndefined()
     })
 
-    it("In beta developer mode a created human evaluator is added to the queue", async () => {
+    it("In Developer Mode a created human evaluator is added to the queue", async () => {
         picker.beta = true
         await mount([existing("rev-1")])
         await act(async () => picker.onCreateNew?.())

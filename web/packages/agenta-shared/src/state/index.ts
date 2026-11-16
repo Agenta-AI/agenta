@@ -17,12 +17,11 @@ export {
 } from "./featureFlags"
 export {
     advancedNavHiddenAtom,
-    betaDeveloperModeActiveAtom,
-    betaDeveloperModeFlagAtom,
-    classicModeEnabledAtom,
+    developerModeActiveAtom,
+    developerModeEnabledAtom,
     navSimplifiedDefaultAtom,
     navSimplifiedOverrideAtom,
-} from "./classicMode"
+} from "./developerMode"
 export {simulatedAgentRunAtomFamily} from "./simulatedAgentRun"
 export type {SimulatedAgentRunRequest} from "./simulatedAgentRun"
 export {openAgentConfigSectionAtom} from "./openConfigSection"

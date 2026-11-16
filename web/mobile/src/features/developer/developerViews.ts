@@ -17,7 +17,7 @@ import {
  * - `preview`: shown only to a user who turned it on in Settings › Preferences › Feature Flags.
  * - `on`: shown to everyone.
  *
- * Stages matter only to a user without beta developer mode. With it, every view is on and no
+ * Stages matter only to a user without Developer Mode. With it, every view is on and no
  * code checks a stage: see `enabledDeveloperViewsAtom`. A deployment can force any view on for
  * everyone, whatever its stage: see `readForcedDeveloperViewIds`.
  */

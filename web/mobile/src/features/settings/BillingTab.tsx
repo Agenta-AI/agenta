@@ -6,7 +6,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ANALYTICS_COLOR_CSS} from "@agenta/observability-ui/analytics"
 import {fetchBillingUsage, useBillingCatalog, useBillingSubscription} from "@agenta/settings-ui"
 import {isBillingEnabled} from "@agenta/shared/api"
-import {classicModeEnabledAtom} from "@agenta/shared/state"
+import {developerModeEnabledAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -42,7 +42,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     // Reading the plan is open to every role; changing it, cancelling it and the payments portal
     // are what the API keeps for `edit_billing`.
     const canEditBilling = useProjectPermission(projectId, "edit_billing")
-    const developerMode = useAtomValue(classicModeEnabledAtom)
+    const developerMode = useAtomValue(developerModeEnabledAtom)
 
     const usage = useQuery({
         queryKey: ["billing", "usage", projectId],

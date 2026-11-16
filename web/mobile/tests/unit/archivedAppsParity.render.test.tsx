@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act, createElement} from "react"
 
-import {activeUserIdAtom, betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, developerModeActiveAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -36,10 +36,10 @@ vi.mock("@agenta/shared/api", async (original) => ({
 vi.mock("@agenta/entities/shared/user", () => ({
     UserAuthorLabel: ({fallback}: {fallback?: string}) => createElement("span", null, fallback),
 }))
-// Beta developer mode is a plain atom here, so a test turns it on with the store.
+// Developer Mode is a plain atom here, so a test turns it on with the store.
 vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
-    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(false)}
+    return {...(await original<object>()), developerModeActiveAtom: atom(false)}
 })
 vi.mock("@agenta/ui/app-message", () => ({message: {success: api.success, error: api.error}}))
 vi.mock("@agenta/auth-ui", () => ({NotFoundScreen: () => createElement("p", null, "not found")}))
@@ -160,14 +160,14 @@ afterEach(() => {
 })
 
 describe("Archived apps list, matching the classic app", () => {
-    it("The back arrow goes to Prompts in beta developer mode", async () => {
-        store.set(betaDeveloperModeActiveAtom as never, true as never)
+    it("The back arrow goes to Prompts in Developer Mode", async () => {
+        store.set(developerModeActiveAtom as never, true as never)
         await mountWithViews("archived-apps")
         const back = document.querySelector<HTMLAnchorElement>('a[aria-label="Back to prompts"]')
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/prompts")
     })
 
-    it("Without beta developer mode the back arrow goes home, even with the Prompts page on", async () => {
+    it("Without Developer Mode the back arrow goes home, even with the Prompts page on", async () => {
         await mountWithViews("archived-apps,prompts")
         const back = document.querySelector<HTMLAnchorElement>('a[aria-label="Back to home"]')
         expect(back?.getAttribute("href")).toBe("/w/ws/p/pr/apps")

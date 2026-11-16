@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar, type ListTableSelection} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -59,7 +59,7 @@ type OpenDialog = {projectId: string} & (
  * The create button, Clone and Rename show only to a reader who may edit test sets. Each opens
  * its dialog on this page.
  *
- * Beta developer mode adds what the classic list has: the Date Created filter, row checkboxes
+ * Developer Mode adds what the classic list has: the Date Created filter, row checkboxes
  * with bulk export and bulk archive, Copy ID, and the classic column order. Without it the list
  * stays as it was.
  */
@@ -74,7 +74,7 @@ export const TestsetsListScreen = ({
     useBindWorkspaceMembers()
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     const router = useRouter()
     const openRevision = useMemo(
         () => ({

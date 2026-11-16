@@ -40,7 +40,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const {atom} = await import("jotai")
     return {
         ...(await importOriginal<typeof import("@agenta/shared/state")>()),
-        betaDeveloperModeActiveAtom: atom(() => developerMode.current),
+        developerModeActiveAtom: atom(() => developerMode.current),
     }
 })
 // The turn actions are the trace drawer's; their own gates are covered by their tests.

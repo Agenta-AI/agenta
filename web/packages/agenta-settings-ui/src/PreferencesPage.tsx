@@ -3,7 +3,7 @@ import settingsPreferencesCatalog from "@agenta/i18n/catalogs/settings.preferenc
 import {
     agentaChannelSurfaceEnabledAtom,
     channelDebugEnabledAtom,
-    classicModeEnabledAtom,
+    developerModeEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "@agenta/shared/state"
 import {Switch} from "@agenta/ui/ui"
@@ -15,7 +15,7 @@ import {ThemePicker, type ThemePickerProps} from "./ThemePicker"
 
 /** One switch on the Preferences page. The key names the row, not its storage. */
 export type PreferenceKey =
-    | "classic-mode"
+    | "developer-mode"
     | "playground-inspector"
     | "channel-debug"
     | "agenta-channel-surface"
@@ -44,7 +44,7 @@ export const PREFERENCE_SECTIONS: PreferenceSection[] = [
         title: "settings.preferences.featureFlags",
         items: [
             {
-                key: "classic-mode",
+                key: "developer-mode",
                 title: "settings.preferences.developerMode",
                 description: "settings.preferences.developerModeDescription",
             },
@@ -83,13 +83,13 @@ export type PreferenceBindings = Partial<Record<PreferenceKey, PreferenceBinding
 
 /** Every row bound to its shared atom. A host replaces a binding only where its behavior differs. */
 export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding> => {
-    const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
+    const [developerMode, setDeveloperMode] = useAtom(developerModeEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
     const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
     const [channelProbe, setChannelProbe] = useAtom(agentaChannelSurfaceEnabledAtom)
 
     return {
-        "classic-mode": {enabled: classicMode, onChange: setClassicMode},
+        "developer-mode": {enabled: developerMode, onChange: setDeveloperMode},
         "playground-inspector": {enabled: inspector, onChange: setInspector},
         "channel-debug": {enabled: channelDebug, onChange: setChannelDebug},
         "agenta-channel-surface": {enabled: channelProbe, onChange: setChannelProbe},

@@ -11,7 +11,7 @@ export default function AppEvaluationsPage() {
     const projectId = read("project_id")
     if (!workspaceId || !projectId || !read("app_id")) return null
     return (
-        <DeveloperViewGate viewId="evaluations" betaOnly>
+        <DeveloperViewGate viewId="evaluations" developerModeOnly>
             <EvaluationsRoute workspaceId={workspaceId} projectId={projectId} />
         </DeveloperViewGate>
     )

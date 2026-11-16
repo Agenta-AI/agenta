@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
 import {TrayIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -64,8 +64,8 @@ export const PromptsScreen = ({
     const {openFolder} = browser
     const router = useRouter()
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
-    // Beta developer mode reaches Archived apps from here; its rail has no row for it.
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    // Developer Mode reaches Archived apps from here; its rail has no row for it.
+    const developerMode = useAtomValue(developerModeActiveAtom)
     const overviewEnabled = useDeveloperViewEnabled("app-overview") === true
 
     const overviewHref = useCallback(

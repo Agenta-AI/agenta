@@ -21,7 +21,7 @@ import {
 } from "@agenta/navigation"
 import type {CommandPaletteEntry, CommandPaletteGroup} from "@agenta/navigation-ui"
 import {getSettingsSidebarTabs} from "@agenta/settings"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {
     ChatsCircleIcon,
     GavelIcon,
@@ -99,9 +99,9 @@ export const useCommandPaletteGroups = (
     const searching = useAtomValue(sidebarSessionSearchLoadingAtom)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const access = useMobileSettingsAccess()
-    // Beta developer mode only, and only while the palette is open with a query: the prompt apps
+    // Developer Mode only, and only while the palette is open with a query: the prompt apps
     // and the evaluators load then, not with the rail.
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     const open = useAtomValue(sidebarSessionSearchOpenAtom)
     const views = useEnabledDeveloperViews()
     const findWorkflows = developerMode && open && typed

@@ -1,4 +1,4 @@
-import {betaDeveloperModeActiveAtom, projectIdAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom, projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
 const WORKSPACE_IN_PATH = /\/w\/([^/]+)\/p\//
@@ -10,7 +10,7 @@ const WORKSPACE_IN_PATH = /\/w\/([^/]+)\/p\//
  */
 export const traceDrawerProjectURLSourceAtom = atom((get) => {
     const projectId = get(projectIdAtom)
-    if (!projectId || !get(betaDeveloperModeActiveAtom) || typeof window === "undefined") return ""
+    if (!projectId || !get(developerModeActiveAtom) || typeof window === "undefined") return ""
     const workspaceId = WORKSPACE_IN_PATH.exec(window.location.pathname)?.[1]
     return workspaceId ? `/w/${workspaceId}/p/${projectId}` : ""
 })

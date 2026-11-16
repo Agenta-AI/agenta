@@ -33,7 +33,7 @@ import {
     useSessionRowChrome,
     type SessionActionTarget,
 } from "@agenta/sessions-ui"
-import {betaDeveloperModeActiveAtom, userAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom, userAtom} from "@agenta/shared/state"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
 import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
@@ -154,7 +154,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
 )
 
 /**
- * The prompt apps under the beta developer mode Prompts row, as in the old app. The list loads
+ * The prompt apps under the Developer Mode Prompts row, as in the old app. The list loads
  * only while the row is open.
  */
 export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
@@ -231,7 +231,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             : undefined
     }, [mac])
     const developerViews = useEnabledDeveloperViews()
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     const wrapSessionRow = useCallback(
         (ref: SidebarEntityRef, node: ReactNode) =>
             createElement(SessionRowActions, {
@@ -340,15 +340,15 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** Templates and Settings (not in the settings scope), plus Invite Teammate in beta developer mode. */
+/** Templates and Settings (not in the settings scope), plus Invite Teammate in Developer Mode. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
 ): SidebarConfig[] => {
     const t = useT(navigationCatalog, commonCatalog)
     const version = useMobileVersion()
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
-    // No project id, no permission request: outside beta developer mode nothing is asked.
+    const developerMode = useAtomValue(developerModeActiveAtom)
+    // No project id, no permission request: outside Developer Mode nothing is asked.
     const [, , , , projectId = ""] = projectURL.split("/")
     const canInvite = useProjectPermission(
         developerMode ? projectId : "",

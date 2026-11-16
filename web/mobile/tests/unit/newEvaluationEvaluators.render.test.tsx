@@ -40,7 +40,7 @@ vi.mock(
 const gate = vi.hoisted(() => ({beta: false, flowKind: "", flowMounts: 0}))
 vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
-    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => gate.beta)}
+    return {...(await original<object>()), developerModeActiveAtom: atom(() => gate.beta)}
 })
 // The create flow is a separate chunk: a stand-in that "creates" Tone at once.
 vi.mock("next/dynamic", () => ({
@@ -238,7 +238,7 @@ describe("evaluators step", () => {
         expect(link?.getAttribute("target")).toBe("_blank")
     })
 
-    it("In beta developer mode a human evaluator is created here and picked", async () => {
+    it("In Developer Mode a human evaluator is created here and picked", async () => {
         gate.beta = true
         const onPick = vi.fn()
         await mountEvaluators("human", {onPick})

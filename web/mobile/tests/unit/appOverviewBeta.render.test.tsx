@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-// The app overview's Recent Prompts in beta developer mode gets what /w has: the Playground
+// The app overview's Recent Prompts in Developer Mode gets what /w has: the Playground
 // button, Open in Playground and Delete in the row menu, and the editable drawer. Without beta
 // developer mode the section stays as it was.
 import {act, createElement, type ReactNode} from "react"
 
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -18,7 +18,7 @@ const fixture = vi.hoisted(() => ({
 
 vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
-    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(false)}
+    return {...(await original<object>()), developerModeActiveAtom: atom(false)}
 })
 vi.mock("next/router", () => ({
     useRouter: () => ({query: {}, pathname: "/", push: vi.fn(), replace: vi.fn()}),
@@ -90,7 +90,7 @@ let host: HTMLDivElement
 let root: Root
 
 const setBeta = (on: boolean) =>
-    getDefaultStore().set(betaDeveloperModeActiveAtom as never, on as never)
+    getDefaultStore().set(developerModeActiveAtom as never, on as never)
 const mount = (archived = false) =>
     act(() => {
         root.render(
@@ -124,7 +124,7 @@ afterEach(() => {
     host.remove()
 })
 
-describe("Recent Prompts without beta developer mode", () => {
+describe("Recent Prompts without Developer Mode", () => {
     it("keeps the section as it was: no Playground button, no Delete, the read-only drawer", () => {
         fixture.revisionId = "rev-2"
         mount()
@@ -137,7 +137,7 @@ describe("Recent Prompts without beta developer mode", () => {
     })
 })
 
-describe("Recent Prompts in beta developer mode", () => {
+describe("Recent Prompts in Developer Mode", () => {
     it("adds the Playground button beside View all prompts", () => {
         setBeta(true)
         mount()
@@ -173,7 +173,7 @@ describe("Recent Prompts in beta developer mode", () => {
     })
 })
 
-describe("Recent Prompts of an archived app in beta developer mode", () => {
+describe("Recent Prompts of an archived app in Developer Mode", () => {
     it("opens the read-only drawer with no Deploy, so no revision can be committed", () => {
         setBeta(true)
         fixture.revisionId = "rev-2"
@@ -248,14 +248,14 @@ describe("Overview evaluations tables", () => {
             (button) => button.textContent?.trim() === "New evaluation",
         )
 
-    it("keeps the basic columns and no create button without beta developer mode", () => {
+    it("keeps the basic columns and no create button without Developer Mode", () => {
         section()
         expect(fixture.runsTableProps?.kind).toBeUndefined()
         expect(fixture.runsTableProps?.scope).toBe("app")
         expect(newEvaluation()).toBeUndefined()
     })
 
-    it("shows the kind's metric columns, the Application column and New evaluation in beta developer mode", () => {
+    it("shows the kind's metric columns, the Application column and New evaluation in Developer Mode", () => {
         setBeta(true)
         section()
         expect(fixture.runsTableProps?.kind).toBe("auto")

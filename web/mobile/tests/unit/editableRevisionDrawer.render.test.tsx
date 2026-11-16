@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The editable revision drawer of beta developer mode (Registry, Deployments), on the real
+ * The editable revision drawer of Developer Mode (Registry, Deployments), on the real
  * workflow molecule, commit atoms and playground controller. Only HTTP is mocked: the `axios` of
  * `@agenta/shared/api` answers from the fixtures below, and the commit test asserts the exact
  * request it sent.

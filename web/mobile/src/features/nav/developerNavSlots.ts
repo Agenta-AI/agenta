@@ -21,7 +21,7 @@ export interface DeveloperNavSlots {
 }
 
 /**
- * Beta developer mode gets the old app's layout, with `promptsChildren` (the prompt apps) under
+ * Developer Mode gets the old app's layout, with `promptsChildren` (the prompt apps) under
  * Prompts; without beta the rail stays as it was.
  */
 export const developerNavSlots = (

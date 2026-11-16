@@ -15,7 +15,7 @@ const userSchema = z.object({
     username: z.string(),
     email: z.string(),
     // Optional so a response without it still validates: this is the only field the schema
-    // lets through that nothing renders — `state/classicMode` reads it to tell whether an
+    // lets through that nothing renders — `state/developerMode` reads it to tell whether an
     // account predates the simplified experience, on any device rather than only the one it
     // signed up on.
     created_at: z.string().optional(),

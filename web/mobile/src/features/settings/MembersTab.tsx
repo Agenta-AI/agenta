@@ -15,7 +15,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import settingsMemberRolesCatalog from "@agenta/i18n/catalogs/settings.memberRoles"
 import settingsMembersTabCatalog from "@agenta/i18n/catalogs/settings.membersTab"
 import {MembersPage} from "@agenta/settings-ui"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
     AlertDialog,
@@ -87,7 +87,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     // The compat hook is null where no router is mounted (a host that renders the tab alone).
     const router = useRouter()
     const inviteRequested =
-        useAtomValue(betaDeveloperModeActiveAtom) && router?.query.inviteModal === "open"
+        useAtomValue(developerModeActiveAtom) && router?.query.inviteModal === "open"
     useEffect(() => {
         if (!router || !inviteRequested || !scopeKnown || !canInvite) return
         setInviteOpen(true)

@@ -91,7 +91,7 @@ vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
     return {
         ...(await original<object>()),
-        betaDeveloperModeActiveAtom: atom(() => state.beta),
+        developerModeActiveAtom: atom(() => state.beta),
     }
 })
 // The picker and the editable drawer are separate chunks too.
@@ -417,7 +417,7 @@ describe("EvaluatorsScreen", () => {
         expect(state.replace).toHaveBeenCalled()
     })
 
-    it("Without beta developer mode there is no automatic create and a row opens the read-only drawer", async () => {
+    it("Without Developer Mode there is no automatic create and a row opens the read-only drawer", async () => {
         state.query = {revisionId: "w1-r3"}
         await mount()
         await flush()
@@ -426,7 +426,7 @@ describe("EvaluatorsScreen", () => {
         expect(document.querySelector('[data-testid="editor-drawer"]')).toBeNull()
     })
 
-    it("In beta developer mode a row opens the editable drawer on that revision", async () => {
+    it("In Developer Mode a row opens the editable drawer on that revision", async () => {
         state.beta = true
         state.query = {revisionId: "w1-r2"}
         await mount()

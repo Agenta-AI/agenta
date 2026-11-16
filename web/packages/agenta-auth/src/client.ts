@@ -1,8 +1,4 @@
 import {isMcpRelayUrl} from "@agenta/shared/api"
-import {
-    MOBILE_AUTH_CALLBACK_COOKIE,
-    MOBILE_AUTH_CALLBACK_MAX_AGE,
-} from "@agenta/shared/utils/mobileGate"
 import SuperTokens from "supertokens-web-js"
 import EmailPassword from "supertokens-web-js/recipe/emailpassword"
 import Passwordless from "supertokens-web-js/recipe/passwordless"
@@ -145,20 +141,10 @@ function mobileCallbackUri(providerId: string): string {
     return `${getRegisteredWebUrl()}/m/auth/callback/${providerId}`
 }
 
-function markMobileAuthCallback(): void {
-    document.cookie = `${MOBILE_AUTH_CALLBACK_COOKIE}=1; path=/; max-age=${MOBILE_AUTH_CALLBACK_MAX_AGE}; samesite=lax`
-}
-
-export function clearMobileAuthCallbackMark(): void {
-    if (typeof document === "undefined") return
-    document.cookie = `${MOBILE_AUTH_CALLBACK_COOKIE}=; path=/; max-age=0; samesite=lax`
-}
-
 /**
- * Start an OIDC sign-in. The provider redirects to the registered DESKTOP URI;
- * the cookie tells the desktop gate to forward that landing to /m/auth/callback,
- * where completeOidcSignIn finishes the exchange against the same-origin
- * sessionStorage OAuth state. No new redirect URI has to be registered.
+ * Start an OIDC sign-in. The provider redirects to the registered root URI, which
+ * forwards to /m/auth/callback, where completeOidcSignIn finishes the exchange
+ * against the same-origin sessionStorage OAuth state.
  */
 export async function startOidcSignIn(providerId: string): Promise<{kind: "error"} | never> {
     ensureAuthInit()
@@ -168,13 +154,11 @@ export async function startOidcSignIn(providerId: string): Promise<{kind: "error
             frontendRedirectURI: mobileCallbackUri(providerId),
             redirectURIOnProviderDashboard: providerRedirectUri(providerId),
         })
-        markMobileAuthCallback()
         window.location.assign(authUrl)
         return await new Promise<never>(() => {
             /* navigating away — never settles */
         })
     } catch {
-        clearMobileAuthCallbackMark()
         return {kind: "error"}
     }
 }
@@ -186,7 +170,6 @@ export type OidcCallbackOutcome =
 /** Finish the redirect flow: verify state, exchange the code, set the session. */
 export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
     ensureAuthInit()
-    clearMobileAuthCallbackMark()
     try {
         const result = await ThirdParty.signInAndUp()
         if (result.status === "OK") return {kind: "ok", createdNewUser: result.createdNewRecipeUser}

@@ -16,7 +16,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const original = await importOriginal<Record<string, unknown>>()
     const {atom} = await import("jotai")
     betaAtom.current = atom(false)
-    return {...original, betaDeveloperModeActiveAtom: betaAtom.current}
+    return {...original, developerModeActiveAtom: betaAtom.current}
 })
 vi.mock("@/components/PageNotFound", () => ({PageNotFound: () => <p>not found</p>}))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
@@ -24,7 +24,7 @@ vi.mock("@/components/PageNotFound", () => ({PageNotFound: () => <p>not found</p
 
 const P = "/w/ws-1/p/proj-1"
 
-describe("a project page with ?app= in beta developer mode", () => {
+describe("a project page with ?app= in Developer Mode", () => {
     it("moves to the app's own page and keeps the other parameters", () => {
         expect(appPageTarget(`${P}/variants?app=a1&tab=deployments`, "variants", true)).toBe(
             `${P}/apps/a1/variants?tab=deployments`,
@@ -38,7 +38,7 @@ describe("a project page with ?app= in beta developer mode", () => {
         expect(appPageTarget(`${P}/variants`, "variants", true)).toBeNull()
     })
 
-    it("stays without beta developer mode", () => {
+    it("stays without Developer Mode", () => {
         expect(appPageTarget(`${P}/variants?app=a1`, "variants", false)).toBeNull()
         expect(appPageTarget(`${P}/endpoints?app=a1`, "endpoints", false)).toBeNull()
     })
@@ -54,7 +54,7 @@ describe("the app routes", () => {
         act(() =>
             root.render(
                 <Provider store={store}>
-                    <DeveloperViewGate viewId="variants" betaOnly>
+                    <DeveloperViewGate viewId="variants" developerModeOnly>
                         <p>registry</p>
                     </DeveloperViewGate>
                 </Provider>,
@@ -71,11 +71,11 @@ describe("the app routes", () => {
     })
     afterEach(() => act(() => root.unmount()))
 
-    it("open in beta developer mode", () => {
+    it("open in Developer Mode", () => {
         expect(render(true)).toBe("registry")
     })
 
-    it("are not found without beta developer mode, even with the view on", () => {
+    it("are not found without Developer Mode, even with the view on", () => {
         store.set(developerViewPreviewAtomFamily("variants"), true)
         expect(render(false)).toBe("not found")
     })

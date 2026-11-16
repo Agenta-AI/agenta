@@ -2,7 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {workflowLatestRevisionIdAtomFamily, type Workflow} from "@agenta/entities/workflow"
 import {useSettledValue} from "@agenta/shared/hooks"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {Button, Segmented} from "@agenta/ui/ui"
@@ -46,7 +46,7 @@ const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
     {ssr: false},
 )
-// Beta developer mode only; everyone else keeps the read-only drawer.
+// Developer Mode only; everyone else keeps the read-only drawer.
 const EditableRevisionDrawerHost = dynamic(
     () =>
         import("../revisions/EditableRevisionDrawerHost").then(
@@ -89,8 +89,8 @@ export const VariantsTab = ({
     const [deployRow, setDeployRow] = useState<AppRevisionRow | null>(null)
     const [deleteRow, setDeleteRow] = useState<AppRevisionRow | null>(null)
     const [revisionId, setRevisionId] = useRevisionParam()
-    const betaDeveloperMode = useAtomValue(betaDeveloperModeActiveAtom)
-    // Beta developer mode: the old app's Registry, with selection and expandable variants.
+    const developerMode = useAtomValue(developerModeActiveAtom)
+    // Developer Mode: the old app's Registry, with selection and expandable variants.
     const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
     const [selected, setSelected] = useState<Set<string>>(() => new Set())
     const [deletion, setDeletion] = useState<RegistryDeletion | null>(null)
@@ -117,10 +117,10 @@ export const VariantsTab = ({
     )
     const navigationIds = useMemo(
         () =>
-            betaDeveloperMode
+            developerMode
                 ? registryRows.map((row) => row.revision.revisionId)
                 : visibleRevisionIds(groups, collapsed),
-        [betaDeveloperMode, collapsed, groups, registryRows],
+        [developerMode, collapsed, groups, registryRows],
     )
     const openRow = useCallback(
         (row: AppRevisionRow) => setRevisionId(row.revisionId),
@@ -207,7 +207,7 @@ export const VariantsTab = ({
                             value={mode}
                             onChange={(value) => changeMode(String(value))}
                         />
-                        {betaDeveloperMode ? (
+                        {developerMode ? (
                             <Button
                                 size="sm"
                                 disabled={useApiChoices.length === 0}
@@ -220,7 +220,7 @@ export const VariantsTab = ({
                     </>
                 }
             />
-            {betaDeveloperMode ? (
+            {developerMode ? (
                 <RegistryTable
                     rows={registryRows}
                     isLoading={revisions.isPending}
@@ -313,7 +313,7 @@ export const VariantsTab = ({
             ) : null}
 
             {revisionId ? (
-                betaDeveloperMode ? (
+                developerMode ? (
                     <EditableRevisionDrawerHost
                         projectId={projectId}
                         kind="variant"

@@ -6,7 +6,7 @@ import type {TraceSpanNode} from "@agenta/observability"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {StatusRenderer} from "@agenta/observability-ui"
 import {getTraceDrawerReferences, TraceAnnotations} from "@agenta/observability-ui/traceDrawer"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
 import {
@@ -75,7 +75,7 @@ export const SessionTurnPanel = ({
 }: SessionTurnPanelProps) => {
     const t = useT(sessionCatalog)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     const [showHidden, setShowHidden] = useState(false)
     const messages = useMemo(() => extractTurnMessages(trace), [trace])
     const hidden = hiddenMessageCount(messages, index)

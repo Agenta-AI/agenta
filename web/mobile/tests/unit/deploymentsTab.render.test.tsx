@@ -41,7 +41,7 @@ vi.mock("@agenta/shared/utils", async (original) => ({
 }))
 vi.mock("@agenta/shared/state", async (original) => ({
     ...(await original<object>()),
-    betaDeveloperModeActiveAtom: {id: "beta"},
+    developerModeActiveAtom: {id: "beta"},
 }))
 vi.mock("@agenta/entities/environment", () => ({
     appEnvironmentsLoadableAtomFamily: () => ({id: "environments"}),
@@ -371,7 +371,7 @@ describe("DeployToEnvironmentDialog", () => {
     })
 })
 
-describe("DeploymentsTab in beta developer mode", () => {
+describe("DeploymentsTab in Developer Mode", () => {
     const productionCard = () =>
         [...document.querySelectorAll("button[aria-pressed]")].find((el) =>
             el.textContent?.toLowerCase().includes("production"),
@@ -388,7 +388,7 @@ describe("DeploymentsTab in beta developer mode", () => {
         expect(productionCard()?.textContent).not.toContain("2026")
     })
 
-    it("Without beta developer mode that card keeps its date", () => {
+    it("Without Developer Mode that card keeps its date", () => {
         fixture.environments.data = [
             {...environment("production", null, null), updatedAt: "2026-03-04T10:15:00Z"},
         ]
@@ -423,7 +423,7 @@ describe("DeploymentsTab in beta developer mode", () => {
         expect(toolbarButtons()).toEqual(["Export CSV", "Deploy", "Use API"])
     })
 
-    it("Without beta developer mode the toolbar keeps only Deploy", () => {
+    it("Without Developer Mode the toolbar keeps only Deploy", () => {
         fixture.history.data = [historyRow("e1", 1, "rev-2")]
         mountTab()
         expect(toolbarButtons()).toEqual(["Deploy"])
@@ -502,14 +502,14 @@ describe("DeployRevisionDialog current variant", () => {
             (el) => el.children.length === 0 && el.textContent === "v2",
         )
 
-    it("shows the current variant as a name and a version tag in beta developer mode", () => {
+    it("shows the current variant as a name and a version tag in Developer Mode", () => {
         fixture.beta = true
         dialog()
         expect(versionTags().length).toBeGreaterThan(0)
         expect(text()).not.toContain("First v2")
     })
 
-    it("keeps the plain text without beta developer mode", () => {
+    it("keeps the plain text without Developer Mode", () => {
         dialog()
         expect(text()).toContain("First v2")
         expect(versionTags()).toHaveLength(0)

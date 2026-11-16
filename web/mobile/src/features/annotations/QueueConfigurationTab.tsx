@@ -1,6 +1,6 @@
 import {annotationSessionController, queueKindLabel} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {Badge} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -19,7 +19,7 @@ const ReadOnlyEditor = dynamic(() => import("./ReadOnlyEditor").then((m) => m.Re
 const NO_VALUE = <span className="text-muted-foreground">—</span>
 
 /**
- * The queue's settings. In beta developer mode a user who may edit queues can change the name
+ * The queue's settings. In Developer Mode a user who may edit queues can change the name
  * and description and delete the queue; everyone else reads them.
  */
 export const QueueConfigurationTab = ({
@@ -33,7 +33,7 @@ export const QueueConfigurationTab = ({
     listHref: string
 }) => {
     const queue = useAtomValue(simpleQueueMolecule.selectors.data(queueId))
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const beta = useAtomValue(developerModeActiveAtom)
     const evaluatorRevisionIds = useAtomValue(
         annotationSessionController.selectors.evaluatorRevisionIds(),
     )

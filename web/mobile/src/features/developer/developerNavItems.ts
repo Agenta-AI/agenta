@@ -22,7 +22,7 @@ export const developerRowKey = (viewId: string) => `developer-view-${viewId}`
  * One rail section per nav section that has an enabled view, or nothing at all. Links do not
  * prefetch when they scroll into view: a developer view's code must not load on the pages every
  * user opens.
- * Without beta developer mode only; beta uses `developerRailItems`.
+ * Without Developer Mode only; beta uses `developerRailItems`.
  */
 export const developerNavItems = (
     projectURL: string,
@@ -51,7 +51,7 @@ export const developerNavItems = (
         ]
     })
 
-/** Where a developer view sits in the beta developer mode rail. */
+/** Where a developer view sits in the Developer Mode rail. */
 type DeveloperRailPlacement = "lead" | "evaluation"
 
 interface DeveloperRailRow {
@@ -82,7 +82,7 @@ export interface DeveloperRail {
     evaluation: SidebarConfig[]
 }
 
-/** The beta developer mode rows, from enabled views only; an empty group is left out. */
+/** The Developer Mode rows, from enabled views only; an empty group is left out. */
 export const developerRailItems = (
     projectURL: string,
     views: readonly DeveloperView[],

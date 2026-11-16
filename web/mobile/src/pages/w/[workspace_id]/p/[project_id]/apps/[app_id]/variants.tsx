@@ -11,7 +11,7 @@ export default function AppVariantsPage() {
     const projectId = read("project_id")
     if (!workspaceId || !projectId || !read("app_id")) return null
     return (
-        <DeveloperViewGate viewId="variants" betaOnly>
+        <DeveloperViewGate viewId="variants" developerModeOnly>
             <VariantsScreen workspaceId={workspaceId} projectId={projectId} />
         </DeveloperViewGate>
     )

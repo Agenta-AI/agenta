@@ -1,9 +1,5 @@
 // @vitest-environment jsdom
-import {
-    activeUserIdAtom,
-    betaDeveloperModeFlagAtom,
-    navSimplifiedOverrideAtom,
-} from "@agenta/shared/state"
+import {activeUserIdAtom, navSimplifiedOverrideAtom} from "@agenta/shared/state"
 import {createStore} from "jotai"
 import {afterEach, describe, expect, it} from "vitest"
 
@@ -18,8 +14,6 @@ const store = (developerMode: boolean) => {
     const s = createStore()
     s.set(activeUserIdAtom, "u1")
     s.set(navSimplifiedOverrideAtom, !developerMode)
-    // The deployment flag is unset and the stored beta switch is off: neither plays a part.
-    s.set(betaDeveloperModeFlagAtom, false)
     return s
 }
 

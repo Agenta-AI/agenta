@@ -1,11 +1,11 @@
 import {useEffect} from "react"
 
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 /**
- * The app page a project page with `?app=` moves to in beta developer mode, inside the app menu:
+ * The app page a project page with `?app=` moves to in Developer Mode, inside the app menu:
  * `/variants?app=<id>&tab=deployments` to `/apps/<id>/variants?tab=deployments`. Null otherwise.
  */
 export const appPageTarget = (
@@ -24,10 +24,10 @@ export const appPageTarget = (
     return `${base}/apps/${encodeURIComponent(appId)}/${page}${rest ? `?${rest}` : ""}`
 }
 
-/** Moves the page to its app page in beta developer mode. True while it moves. */
+/** Moves the page to its app page in Developer Mode. True while it moves. */
 export const useAppPageRedirect = (page: "variants" | "endpoints"): boolean => {
     const router = useRouter()
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const beta = useAtomValue(developerModeActiveAtom)
     const target = router.isReady ? appPageTarget(router.asPath, page, beta) : null
     useEffect(() => {
         if (target) void router.replace(target)

@@ -92,7 +92,7 @@ const stubFetchJson = (reply: (request: SentJson) => unknown): SentJson[] => {
     return sent
 }
 
-describe("Testsets list in beta developer mode", () => {
+describe("Testsets list in Developer Mode", () => {
     let root: Root
     let host: HTMLDivElement
     let runsUsingTestsets: string[]

@@ -36,7 +36,7 @@ vi.mock("next/link", () => ({
 }))
 vi.mock("@agenta/shared/state", async (original) => ({
     ...(await original<object>()),
-    betaDeveloperModeActiveAtom: {id: "beta"},
+    developerModeActiveAtom: {id: "beta"},
 }))
 vi.mock("@agenta/entities/environment", () => ({
     environmentsListQueryAtomFamily: () => ({id: "list"}),
@@ -149,14 +149,14 @@ describe.each([
     ["Registry", variantsTab, "variant"],
     ["Deployments", deploymentsTab, "deployment"],
 ])("%s revision drawer", (_screen, tab, kind) => {
-    it("opens the read-only drawer without beta developer mode", () => {
+    it("opens the read-only drawer without Developer Mode", () => {
         mount(tab())
         expect(drawer()?.getAttribute("data-testid")).toBe("read-only-drawer")
         expect(drawer()?.getAttribute("data-kind")).toBe(kind)
         expect(document.querySelector('[data-testid="editable-drawer"]')).toBeNull()
     })
 
-    it("opens the editable drawer in beta developer mode", () => {
+    it("opens the editable drawer in Developer Mode", () => {
         fixture.beta = true
         mount(tab())
         expect(drawer()?.getAttribute("data-testid")).toBe("editable-drawer")
@@ -176,7 +176,7 @@ describe("Deployment drawer header", () => {
     const buttons = () =>
         [...(drawer()?.querySelectorAll("button, a") ?? [])].map((el) => el.textContent?.trim())
 
-    it("offers Open in playground and Deploy in beta developer mode, as /w does", () => {
+    it("offers Open in playground and Deploy in Developer Mode, as /w does", () => {
         fixture.beta = true
         mount(deploymentsTab())
         expect(buttons()).toEqual(["Open in playground", "Deploy"])
@@ -192,7 +192,7 @@ describe("Deployment drawer header", () => {
         expect(deploy?.hasAttribute("disabled")).toBe(true)
     })
 
-    it("keeps the read-only drawer's header without beta developer mode", () => {
+    it("keeps the read-only drawer's header without Developer Mode", () => {
         mount(deploymentsTab())
         expect(buttons()).toEqual(["Open in playground"])
     })

@@ -2,7 +2,7 @@ import {useState} from "react"
 
 import {playgroundController} from "@agenta/playground"
 import {EvaluatorPicker} from "@agenta/playground-ui/panels/evaluator"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {useAtomValue, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -15,13 +15,13 @@ const CreateEvaluatorFlow = dynamic(
 )
 
 /**
- * The app playground's evaluator picker. In beta developer mode it also offers "Create new
+ * The app playground's evaluator picker. In Developer Mode it also offers "Create new
  * evaluator": the template picker, then the editable drawer without a test pane (the playground
  * keeps its state), and the new evaluator runs after the app, as a picked one does.
  */
 export const PlaygroundEvaluatorPicker = () => {
     const store = useStore()
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const beta = useAtomValue(developerModeActiveAtom)
     const [creating, setCreating] = useState(false)
 
     const connect = (created: CreatedEvaluator) => {

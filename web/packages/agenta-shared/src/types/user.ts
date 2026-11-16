@@ -14,7 +14,7 @@ export interface User {
      * When the ACCOUNT was created, as the backend stringifies a timezone-aware datetime
      * ("2026-08-01 12:34:56.789012+00:00" — note the space, not a `T`).
      *
-     * Optional because the field is only as reliable as the response: `state/classicMode` reads
+     * Optional because the field is only as reliable as the response: `state/developerMode` reads
      * it to decide whether this account predates the simplified experience, and treats anything
      * missing or unparseable as "no".
      */

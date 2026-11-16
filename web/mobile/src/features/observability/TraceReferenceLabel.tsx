@@ -1,5 +1,5 @@
 import {createReferenceLabels} from "@agenta/observability-ui/traceDrawer"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
 const routes = createReferenceLabels({
@@ -22,7 +22,7 @@ export const TraceReferenceLabel = ({
     kind,
     ...props
 }: {kind: TraceReferenceKind} & Record<string, unknown>) => {
-    const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     if (!developerMode) {
         const label = typeof props.label === "string" ? props.label : null
         return <span className="text-colorText">{label ?? "—"}</span>

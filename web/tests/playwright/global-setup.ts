@@ -884,7 +884,7 @@ async function authenticateUserImpl({
 /**
  * Storage keys owned by `@agenta/shared`'s classicMode state. Copied rather than imported: the
  * test package does not depend on the web packages, and the values run inside `page.evaluate`.
- * Source of truth: `web/packages/agenta-shared/src/state/classicMode.ts`.
+ * Source of truth: `web/packages/agenta-shared/src/state/developerMode.ts`.
  */
 const ACTIVE_USER_ID_KEY = "agenta:onboarding:active-user-id"
 const navSimplifiedOverrideKey = (userId: string) =>

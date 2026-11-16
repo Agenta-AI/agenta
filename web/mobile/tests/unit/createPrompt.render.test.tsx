@@ -7,7 +7,7 @@ import {act, type ReactNode} from "react"
 
 import {
     activeUserIdAtom,
-    betaDeveloperModeActiveAtom,
+    developerModeActiveAtom,
     projectIdAtom,
     sessionAtom,
 } from "@agenta/shared/state"
@@ -34,7 +34,7 @@ vi.mock("next/router", () => ({useRouter: () => router}))
 vi.mock("@agenta/shared/state", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/shared/state")>()
     const {atom} = await import("jotai")
-    return {...actual, betaDeveloperModeActiveAtom: atom(false)}
+    return {...actual, developerModeActiveAtom: atom(false)}
 })
 vi.mock("@/features/context/useProjectPermission", () => ({
     useProjectPermission: () => true,
@@ -209,7 +209,7 @@ describe("New prompt", () => {
     afterEach(() => {
         act(() => root.unmount())
         document.body.innerHTML = ""
-        store.set(betaDeveloperModeActiveAtom as never, false as never)
+        store.set(developerModeActiveAtom as never, false as never)
     })
 
     it("Without developer mode, Create new and the folder menu keep New folder only, and no template is fetched", async () => {
@@ -227,7 +227,7 @@ describe("New prompt", () => {
     })
 
     it("With developer mode, the folder menu offers New prompt between Move and New folder", async () => {
-        store.set(betaDeveloperModeActiveAtom as never, true as never)
+        store.set(developerModeActiveAtom as never, true as never)
         router.query = {folderId: "f1"}
         mount()
         await settle()
@@ -244,7 +244,7 @@ describe("New prompt", () => {
     })
 
     it("Chat opens the draft in the drawer; Create makes the app and opens it in the playground", async () => {
-        store.set(betaDeveloperModeActiveAtom as never, true as never)
+        store.set(developerModeActiveAtom as never, true as never)
         mount()
         await settle()
 
@@ -338,7 +338,7 @@ describe("New prompt", () => {
         expect(findDialog("Test app")).toBeUndefined()
     }, 60_000)
     it("Closing the drawer before Create saves nothing and leaves the list as it was", async () => {
-        store.set(betaDeveloperModeActiveAtom as never, true as never)
+        store.set(developerModeActiveAtom as never, true as never)
         mount()
         await settle()
 
@@ -362,7 +362,7 @@ describe("New prompt", () => {
         expect(router.push).not.toHaveBeenCalled()
     }, 60_000)
     it("Set up workflow tests the URL, creates the app in the open folder and opens it", async () => {
-        store.set(betaDeveloperModeActiveAtom as never, true as never)
+        store.set(developerModeActiveAtom as never, true as never)
         router.query = {folderId: "f1"}
         mount()
         await settle()
@@ -425,7 +425,7 @@ describe("New prompt", () => {
         )
     }, 60_000)
     it("Set up workflow keeps Create off for a taken name or a URL that fails the test", async () => {
-        store.set(betaDeveloperModeActiveAtom as never, true as never)
+        store.set(developerModeActiveAtom as never, true as never)
         mount([{id: "app-9", name: "Support bot"}])
         await settle()
 

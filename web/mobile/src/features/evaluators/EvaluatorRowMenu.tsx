@@ -47,7 +47,7 @@ export const EvaluatorRowMenu = ({
     onOpen?: () => void
     /** "Configure" or "Edit" in the active list, "Open details" in the archived list. */
     openLabel?: "Configure" | "Edit" | "Open details"
-    /** The evaluator's Overview page, in beta developer mode only. */
+    /** The evaluator's Overview page, in Developer Mode only. */
     overviewHref?: string | null
     onArchive?: () => void
     onRestore?: () => void

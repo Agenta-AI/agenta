@@ -28,7 +28,7 @@ const fixture = vi.hoisted(() => ({
 
 vi.mock("@agenta/shared/state", async (importOriginal) => ({
     ...(await importOriginal<object>()),
-    betaDeveloperModeActiveAtom: {id: "beta"},
+    developerModeActiveAtom: {id: "beta"},
 }))
 
 vi.mock("next/router", () => ({
@@ -234,7 +234,7 @@ describe("VariantsScreen", () => {
         )
     })
 
-    it("Beta developer mode shows one row per variant with a checkbox, like the old app", () => {
+    it("Developer Mode shows one row per variant with a checkbox, like the old app", () => {
         fixture.beta = true
         fixture.query = {app_id: "app-1"}
         localStorage.setItem("agenta:registry:display-mode", "variants")
@@ -253,7 +253,7 @@ describe("VariantsScreen", () => {
         ).not.toBeNull()
     })
 
-    it("Without beta developer mode the Registry has no checkboxes", () => {
+    it("Without Developer Mode the Registry has no checkboxes", () => {
         fixture.query = {app: "app-1"}
         fixture.revisions.rows = [revision("r1", 1, "va", "Support")]
         mount()

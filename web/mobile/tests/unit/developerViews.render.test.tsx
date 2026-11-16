@@ -190,14 +190,14 @@ describe("developer views", () => {
     })
 
     describe("evaluations view", () => {
-        it("Evaluations stay off without beta developer mode or a forced view, even for a preview opt-in", async () => {
+        it("Evaluations stay off without Developer Mode or a forced view, even for a preview opt-in", async () => {
             const actual = await vi.importActual<{DEVELOPER_VIEWS: readonly DeveloperView[]}>(
                 "@/features/developer/developerViews",
             )
             const evaluations = actual.DEVELOPER_VIEWS.find((view) => view.id === "evaluations")
             expect(evaluations).toBeDefined()
             // Hidden: the nav item, the runs list, the results page and the new evaluation
-            // sheet behind them show only with beta developer mode or a forced view.
+            // sheet behind them show only with Developer Mode or a forced view.
             expect(evaluations!.stage).toBe("hidden")
             expect(evaluations!.routes).toEqual([
                 "/evaluations",

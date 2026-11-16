@@ -7,9 +7,6 @@ import {refreshSessionOutcome} from "./auth"
 /** Mobile's own last-visited workspace/project, for `/m/` root resolution. */
 export const LAST_CONTEXT_KEY = "agenta:mobile:last-context"
 
-/** Desktop's continuity map ({[workspaceId]: projectId}) — read-only here. */
-const DESKTOP_LAST_USED_KEY = "lastUsedProjectsByWorkspace"
-
 export interface LastContext {
     workspaceId: string
     projectId: string
@@ -187,20 +184,6 @@ export function readLastContext(): LastContext | null {
         return null
     } catch {
         return null
-    }
-}
-
-export function readDesktopLastUsed(): Record<string, string> {
-    try {
-        const raw = localStorage.getItem(DESKTOP_LAST_USED_KEY)
-        const parsed = raw ? (JSON.parse(raw) as unknown) : null
-        if (!parsed || typeof parsed !== "object") return {}
-        const entries = Object.entries(parsed as Record<string, unknown>).filter(
-            (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1] !== "",
-        )
-        return Object.fromEntries(entries)
-    } catch {
-        return {}
     }
 }
 

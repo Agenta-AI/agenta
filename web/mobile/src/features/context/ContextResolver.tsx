@@ -13,7 +13,6 @@ import {
     fetchProjects,
     projectHomeUrl,
     projectTemplateUrl,
-    readDesktopLastUsed,
     readLastContext,
     peekTemplateKey,
     type LastContext,
@@ -32,7 +31,7 @@ interface ContextResolverProps {
 }
 
 /**
- * `/m/` root flow: resolve a project (remembered → desktop continuity → first) and forward to
+ * `/m/` root flow: resolve a project (remembered → first) and forward to
  * its home. There is no picker page — switching lives in the drawer. This route only ever shows
  * the home skeleton, an error, or leaves.
  *
@@ -72,7 +71,6 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
                 shortcut: stored,
                 groups,
                 groupsLoaded: result?.kind === "ok",
-                desktopLastUsed: readDesktopLastUsed(),
                 workspaceId,
             }),
         [router.isReady, stored, groups, result, workspaceId],

@@ -3,7 +3,7 @@ import {useState} from "react"
 import {appEnvironmentsLoadableAtomFamily} from "@agenta/entities/environment"
 // The narrow path: the `variant` barrel also carries the revision drawer.
 import VariantDetailsWithStatus from "@agenta/entity-ui/variant-details"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {CommitMessageInput, Tag} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -45,8 +45,8 @@ export const DeployRevisionDialog = ({
     onClose: () => void
 }) => {
     const environments = useAtomValue(appEnvironmentsLoadableAtomFamily(appId))
-    // Beta developer mode shows the current variant as /w does: its name and a version tag.
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    // Developer Mode shows the current variant as /w does: its name and a version tag.
+    const beta = useAtomValue(developerModeActiveAtom)
     const deploy = useDeployRevision()
     const [picked, setPicked] = useState<string | null>(null)
     const [note, setNote] = useState("")

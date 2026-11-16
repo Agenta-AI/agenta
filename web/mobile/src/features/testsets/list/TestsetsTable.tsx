@@ -89,7 +89,7 @@ export interface TestsetsTableProps {
     onClone?: (row: TestsetRow) => void
     onRename?: (row: TestsetRow) => void
     /**
-     * Beta developer mode: the classic column order and date, Copy ID, the archive dialog that
+     * Developer Mode: the classic column order and date, Copy ID, the archive dialog that
      * names every test set, and the next page loading on scroll. Off keeps the list as it was.
      */
     developerMode?: boolean

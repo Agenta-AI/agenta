@@ -11,7 +11,7 @@ export default function AppEndpointsPage() {
     const projectId = read("project_id")
     if (!workspaceId || !projectId || !read("app_id")) return null
     return (
-        <DeveloperViewGate viewId="endpoints" betaOnly>
+        <DeveloperViewGate viewId="endpoints" developerModeOnly>
             <EndpointsScreen workspaceId={workspaceId} projectId={projectId} />
         </DeveloperViewGate>
     )

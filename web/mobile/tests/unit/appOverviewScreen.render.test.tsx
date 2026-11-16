@@ -44,7 +44,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const original = await importOriginal<Record<string, unknown>>()
     const {atom} = await import("jotai")
     beta.atom = atom(false)
-    return {...original, betaDeveloperModeActiveAtom: beta.atom}
+    return {...original, developerModeActiveAtom: beta.atom}
 })
 vi.mock("next/dynamic", () => ({
     default: (loader: () => Promise<ComponentType<Record<string, unknown>>>) => {
@@ -272,13 +272,13 @@ describe("app overview screen", () => {
         expect([...order].sort((a, b) => a - b)).toEqual(order)
     })
 
-    it("Without beta developer mode the overview has no usage charts", async () => {
+    it("Without Developer Mode the overview has no usage charts", async () => {
         await mount("app-1")
         expect(text()).toContain("deployment-section")
         expect(text()).not.toContain("usage-section")
     })
 
-    it("In beta developer mode the usage charts of this app lead the overview", async () => {
+    it("In Developer Mode the usage charts of this app lead the overview", async () => {
         if (beta.atom) store.set(beta.atom, true)
         await mount("app-1")
         const body = text()
@@ -286,7 +286,7 @@ describe("app overview screen", () => {
         expect(body.indexOf("usage-section")).toBeLessThan(body.indexOf("deployment-section"))
     })
 
-    it("In beta developer mode an evaluator gets its overview without Deployment", async () => {
+    it("In Developer Mode an evaluator gets its overview without Deployment", async () => {
         if (beta.atom) store.set(beta.atom, true)
         await mount("eval-1")
         expect(host.querySelector("h1")?.textContent).toBe("Answer check")
@@ -299,13 +299,13 @@ describe("app overview screen", () => {
         expect(body).not.toContain("deployment-section")
     })
 
-    it("Without beta developer mode an evaluator id shows not found", async () => {
+    it("Without Developer Mode an evaluator id shows not found", async () => {
         await mount("eval-1")
         expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()
         expect(text()).not.toContain("prompts-section")
     })
 
-    it("An archived evaluator shows not found in beta developer mode", async () => {
+    it("An archived evaluator shows not found in Developer Mode", async () => {
         if (beta.atom) store.set(beta.atom, true)
         await mount("eval-gone")
         expect(host.querySelector("[data-testid=not-found]")).not.toBeNull()

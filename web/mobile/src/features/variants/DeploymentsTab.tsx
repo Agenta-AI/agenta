@@ -3,7 +3,7 @@ import {useMemo, useState} from "react"
 import {environmentsListQueryAtomFamily, type AppDeploymentRow} from "@agenta/entities/environment"
 import type {Workflow} from "@agenta/entities/workflow"
 import {useSettledValue} from "@agenta/shared/hooks"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {downloadCsv} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {LoadError} from "@agenta/ui/components/presentational"
@@ -38,12 +38,12 @@ const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
     {ssr: false},
 )
-// Beta developer mode: "Use API" opens the code in a drawer for the selected environment.
+// Developer Mode: "Use API" opens the code in a drawer for the selected environment.
 const UseApiDrawer = dynamic(
     () => import("../endpoints/UseApiDrawer").then((module) => module.UseApiDrawer),
     {ssr: false},
 )
-// Beta developer mode only; everyone else keeps the read-only drawer.
+// Developer Mode only; everyone else keeps the read-only drawer.
 const EditableRevisionDrawerHost = dynamic(
     () =>
         import("../revisions/EditableRevisionDrawerHost").then(
@@ -85,13 +85,13 @@ export const DeploymentsTab = ({
     const endpointsEnabled = useDeveloperViewEnabled("endpoints")
     const playgroundEnabled = useDeveloperViewEnabled("playground") === true
     const [revisionId, setRevisionId] = useRevisionParam()
-    const betaDeveloperMode = useAtomValue(betaDeveloperModeActiveAtom)
+    const developerMode = useAtomValue(developerModeActiveAtom)
     const [search, setSearch] = useState("")
     const [useApiOpen, setUseApiOpen] = useState(false)
     const term = useSettledValue(search).trim()
     const [revertRow, setRevertRow] = useState<AppDeploymentRow | null>(null)
     const [deployOpen, setDeployOpen] = useState(false)
-    // Beta developer mode: selected history rows, by environment revision id.
+    // Developer Mode: selected history rows, by environment revision id.
     const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set())
 
     const slugParam = read("env")
@@ -151,7 +151,7 @@ export const DeploymentsTab = ({
             `${app.slug || app.name || "app"}-${selected?.slug ?? "deployments"}-deployments.csv`,
         )
     const pickedRows = () => rows.filter((row) => selectedRows.has(row.envRevisionId))
-    const developer: DeploymentHistoryDeveloper | undefined = betaDeveloperMode
+    const developer: DeploymentHistoryDeveloper | undefined = developerMode
         ? {
               selection: {
                   selectedKeys: selectedRows,
@@ -215,7 +215,7 @@ export const DeploymentsTab = ({
                     searchPlaceholder="Search"
                     actions={
                         <div className="ml-auto flex items-center gap-2">
-                            {betaDeveloperMode ? (
+                            {developerMode ? (
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -228,7 +228,7 @@ export const DeploymentsTab = ({
                                     Export CSV
                                 </Button>
                             ) : null}
-                            {betaDeveloperMode ? null : endpointsEnabled ? (
+                            {developerMode ? null : endpointsEnabled ? (
                                 <Button asChild variant="outline" size="sm">
                                     <Link href={`${base}/endpoints?app=${app.id}`} prefetch={false}>
                                         <Lightning aria-hidden size={14} />
@@ -239,15 +239,15 @@ export const DeploymentsTab = ({
                             {canDeploy && selected ? (
                                 <Button
                                     size="sm"
-                                    variant={betaDeveloperMode ? "outline" : "default"}
+                                    variant={developerMode ? "outline" : "default"}
                                     onClick={() => setDeployOpen(true)}
                                 >
                                     <CloudArrowUp aria-hidden size={14} />
                                     Deploy
                                 </Button>
                             ) : null}
-                            {/* Beta developer mode: Use API is the main action, as in /w. */}
-                            {betaDeveloperMode && selected ? (
+                            {/* Developer Mode: Use API is the main action, as in /w. */}
+                            {developerMode && selected ? (
                                 <Button size="sm" onClick={() => setUseApiOpen(true)}>
                                     <Code aria-hidden size={14} />
                                     Use API
@@ -279,7 +279,7 @@ export const DeploymentsTab = ({
             </div>
 
             {revisionId ? (
-                betaDeveloperMode ? (
+                developerMode ? (
                     <EditableRevisionDrawerHost
                         projectId={projectId}
                         kind="deployment"

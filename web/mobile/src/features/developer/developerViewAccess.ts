@@ -1,8 +1,4 @@
-import {
-    activeUserIdAtom,
-    betaDeveloperModeActiveAtom,
-    userScopedFlagAtom,
-} from "@agenta/shared/state"
+import {activeUserIdAtom, developerModeActiveAtom, userScopedFlagAtom} from "@agenta/shared/state"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 
@@ -35,7 +31,7 @@ export const isDeveloperViewEnabled = (
 const NO_VIEWS: readonly DeveloperView[] = []
 
 /**
- * The enabled views, or `null` until the signed-in user is known. Beta developer mode turns on
+ * The enabled views, or `null` until the signed-in user is known. Developer Mode turns on
  * every view, whatever its stage.
  *
  * Null on the first render on purpose: the user's preferences and the runtime env are both
@@ -43,7 +39,7 @@ const NO_VIEWS: readonly DeveloperView[] = []
  */
 export const enabledDeveloperViewsAtom = atom((get): readonly DeveloperView[] | null => {
     if (!get(activeUserIdAtom)) return null
-    if (get(betaDeveloperModeActiveAtom)) return DEVELOPER_VIEWS
+    if (get(developerModeActiveAtom)) return DEVELOPER_VIEWS
     const forcedIds = readForcedDeveloperViewIds()
     return DEVELOPER_VIEWS.filter((view) =>
         isDeveloperViewEnabled(view, {
@@ -71,12 +67,12 @@ export interface DeveloperViewPreviewSwitch {
 
 /**
  * One Preferences switch per view in `preview`, and its setter keyed by view id. A view the
- * deployment forces on gets no switch, and beta developer mode shows none: they would change
+ * deployment forces on gets no switch, and Developer Mode shows none: they would change
  * nothing. Empty until the user is known, for the same reason as above.
  */
 export const developerViewPreviewSwitchesAtom = atom(
     (get): readonly DeveloperViewPreviewSwitch[] => {
-        if (!get(activeUserIdAtom) || get(betaDeveloperModeActiveAtom)) return []
+        if (!get(activeUserIdAtom) || get(developerModeActiveAtom)) return []
         const forcedIds = readForcedDeveloperViewIds()
         return DEVELOPER_VIEWS.filter(
             (view) => view.stage === "preview" && !forcedIds.has(view.id),

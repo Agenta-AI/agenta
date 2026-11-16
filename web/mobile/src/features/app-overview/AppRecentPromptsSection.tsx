@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {workflowLatestRevisionIdAtomFamily, type Workflow} from "@agenta/entities/workflow"
-import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
+import {developerModeActiveAtom} from "@agenta/shared/state"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {Button} from "@agenta/ui/ui"
 import {CloudArrowUp, Rocket} from "@phosphor-icons/react"
@@ -29,7 +29,7 @@ const RevisionDrawerHost = dynamic(
     () => import("../revisions/RevisionDrawerHost").then((module) => module.RevisionDrawerHost),
     {ssr: false},
 )
-// Beta developer mode only; everyone else keeps the read-only drawer.
+// Developer Mode only; everyone else keeps the read-only drawer.
 const EditableRevisionDrawerHost = dynamic(
     () =>
         import("../revisions/EditableRevisionDrawerHost").then(
@@ -45,7 +45,7 @@ const DeleteRevisionDialog = dynamic(
 export const RECENT_PROMPTS_COUNT = 5
 
 /**
- * The five newest revisions of the app. A row opens the revision drawer. Beta developer mode adds
+ * The five newest revisions of the app. A row opens the revision drawer. Developer Mode adds
  * what /w has: the Playground button, Open in Playground and Delete in the row menu, and the
  * editable drawer. An evaluator is not deployed and has no Registry, so it gets neither Deploy
  * nor the Registry link.
@@ -72,7 +72,7 @@ export const AppRecentPromptsSection = ({
     const [revisionId, setRevisionId] = useRevisionParam()
     const [deployRow, setDeployRow] = useState<AppRevisionRow | null>(null)
     const [deleteRow, setDeleteRow] = useState<AppRevisionRow | null>(null)
-    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const beta = useAtomValue(developerModeActiveAtom)
     // The editable drawer can commit a revision, so an archived app keeps the read-only one.
     const editable = beta && !archived
     const canDelete = useProjectPermission(projectId, "edit_workflows") && !archived

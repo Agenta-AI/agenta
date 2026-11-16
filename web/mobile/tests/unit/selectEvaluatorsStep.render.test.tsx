@@ -14,7 +14,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const gate = vi.hoisted(() => ({beta: false}))
 vi.mock("@agenta/shared/state", async (original) => {
     const {atom} = await import("jotai")
-    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => gate.beta)}
+    return {...(await original<object>()), developerModeActiveAtom: atom(() => gate.beta)}
 })
 // The create flow is a separate chunk: a stand-in that "creates" Tone 2 at once.
 vi.mock("next/dynamic", () => ({
@@ -107,14 +107,14 @@ const buttonByText = (text: string) =>
     Array.from(host.querySelectorAll("button")).find((button) => button.textContent?.includes(text))
 
 describe("select evaluators step", () => {
-    it("Without beta developer mode there is no Create evaluator", async () => {
+    it("Without Developer Mode there is no Create evaluator", async () => {
         await render(<Step />)
         expect(buttonByText("Create evaluator")).toBeUndefined()
         await render(<Step evaluators={[]} />)
         expect(buttonByText("Create evaluator")).toBeUndefined()
     })
 
-    it("In beta developer mode Create evaluator makes a human evaluator and selects it", async () => {
+    it("In Developer Mode Create evaluator makes a human evaluator and selects it", async () => {
         gate.beta = true
         await render(<Step />)
         await act(async () => buttonByText("Create evaluator")?.click())
@@ -122,7 +122,7 @@ describe("select evaluators step", () => {
         expect(host.querySelector("[data-testid=selected]")?.textContent).toBe("tone-2")
     })
 
-    it("With no evaluators yet, beta developer mode offers to create the first one", async () => {
+    it("With no evaluators yet, Developer Mode offers to create the first one", async () => {
         gate.beta = true
         await render(<Step evaluators={[]} />)
         expect(buttonByText("Create evaluator")).toBeDefined()

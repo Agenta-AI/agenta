@@ -32,7 +32,7 @@ vi.mock("@agenta/shared/state", async (importOriginal) => {
     const {atom} = await import("jotai")
     return {
         ...actual,
-        betaDeveloperModeActiveAtom: atom(() => fixture.developerMode),
+        developerModeActiveAtom: atom(() => fixture.developerMode),
         projectIdAtom: atom(() => "proj-1"),
     }
 })

@@ -42,8 +42,6 @@ let root: Root
 let host: HTMLDivElement
 
 beforeEach(() => {
-    // The deployment offers beta developer mode (`AGENTA_BETA_DEVELOPER_MODE=true`).
-    vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -129,16 +127,5 @@ describe("PreferencesPage", () => {
                 expect(item.description.split(". ").length).toBe(1)
             }
         }
-    })
-})
-
-describe("beta developer mode switch", () => {
-    it("is gone, even where the deployment offers it and the user stored it on", () => {
-        localStorage.setItem("agenta:settings:u1:beta-developer-mode", "true")
-        renderBound({developerMode: true})
-        expect(
-            host.querySelector('[role=switch][aria-label="Use new beta developer mode"]'),
-        ).toBeNull()
-        expect(host.textContent).not.toContain("Use new beta developer mode")
     })
 })
