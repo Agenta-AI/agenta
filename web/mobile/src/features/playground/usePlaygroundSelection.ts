@@ -268,7 +268,7 @@ export const usePlaygroundSelection = ({appId}: {appId: string}): PlaygroundSele
         if (detail.isPending) return "loading"
         if (!appUsable) return "not-found"
         if (!primaryId) {
-            // An app with no revision gets the error state, as in the old playground.
+            // An app with no revision gets the error state.
             return latestId || latestQuery.isPending ? "loading" : "error"
         }
         // A primary that is not a revision of this app is about to be replaced: wait for that.

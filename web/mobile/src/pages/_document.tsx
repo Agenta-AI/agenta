@@ -5,9 +5,8 @@ import Script from "next/script"
 import {isEmbedPath} from "@/features/embed/embedRoute"
 
 // Runs synchronously before paint to apply the persisted theme, preventing a
-// flash of the wrong theme on load. Same localStorage key as the desktop app
-// ("agenta-theme", JSON-encoded by usehooks-ts, default "system") so the
-// user's theme follows them between /m and the desktop app.
+// flash of the wrong theme on load. Reads "agenta-theme" (JSON-encoded by
+// usehooks-ts, default "system").
 const themeInitScript = `(function(){try{var r=localStorage.getItem('agenta-theme');var m=r?(r.charAt(0)==='"'?JSON.parse(r):r):'system';var d=m==='dark'||(m==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}}catch(e){}})();`
 
 export default function Document({__NEXT_DATA__}: DocumentProps) {
@@ -16,9 +15,7 @@ export default function Document({__NEXT_DATA__}: DocumentProps) {
     return (
         <Html lang="en" className="antialiased">
             <Head>
-                {/* Own copies under public/, not a reach into the desktop app's /assets: the
-                    mobile image ships standalone and must not 404 its own icon wherever the
-                    desktop is not deployed. The `/m` prefix is written out because basePath is
+                {/* The `/m` prefix is written out because basePath is
                     not applied to a bare href here, same as the __env.js script below. */}
                 <link rel="icon" href="/m/assets/favicon.ico" sizes="any" />
                 <link rel="icon" href="/m/assets/agenta-symbol.svg" type="image/svg+xml" />

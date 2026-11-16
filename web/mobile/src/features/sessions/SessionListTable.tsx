@@ -138,7 +138,7 @@ export const SessionListTable = ({
     const list = useSessionsList({
         activityFloor,
         // Release contract: the human list hides automation runs; the Type filter's "Automation
-        // runs" swaps in the automation policy. Same policies the desktop list passes.
+        // runs" swaps in the automation policy.
         defaultPolicy: {origin: "exclude-trigger", expansions: []},
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
     })

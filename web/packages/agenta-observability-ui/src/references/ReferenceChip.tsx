@@ -32,7 +32,7 @@ export interface ReferenceChipProps {
     kind: ReferenceKind
     label: string
     href?: string | null
-    /** Opens the link in a new tab, as the old app's drawer does. */
+    /** Opens the link in a new tab. */
     openExternally?: boolean
     identifiers?: ReferenceIdentifiers
     /** The entity is gone: a muted, struck-through chip with no link. */
@@ -102,7 +102,7 @@ export const ReferenceChipSkeleton = () => <SkeletonBlock className="h-[22px] w-
 
 /**
  * A linked reference: tone, entity icon, name, version and a link arrow. Hovering it shows the
- * identifiers with copy buttons. No antd, so both apps can render it.
+ * identifiers with copy buttons.
  */
 export const ReferenceChip = ({
     kind,

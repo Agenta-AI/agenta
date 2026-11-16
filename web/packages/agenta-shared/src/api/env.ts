@@ -124,8 +124,8 @@ export const getEnabledSandboxProviders = (): string[] => {
 /**
  * Edition and feature gates, read from the same env on every host.
  *
- * These decide which settings tabs exist, so the desktop and /m have to agree — a second
- * copy of `=== "ee"` somewhere is how one surface ends up showing a tab the other hides.
+ * These decide which settings tabs exist — a second copy of `=== "ee"` somewhere is how one
+ * surface ends up showing a tab the other hides.
  */
 
 /** Enterprise or any cloud tier. Note `cloud*` counts: cloud runs the EE feature set. */

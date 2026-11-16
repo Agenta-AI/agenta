@@ -16,7 +16,7 @@ const CompareRunsPicker = dynamic(
     {ssr: false, loading: () => <CompareRunsSkeleton />},
 )
 
-/** The old app's reasons, shown on the disabled button. */
+/** The reasons, shown on the disabled button. */
 const BLOCK_REASONS: Record<CompareBlockReason, string> = {
     "no-input": "Comparison requires at least one input step.",
     "no-testset": "Comparison is available only for testset-based evaluations.",

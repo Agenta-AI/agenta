@@ -5,9 +5,8 @@
  * Restoring never rewrites history — it commits a new version holding the old content. The
  * engine for that lives in `@agenta/playground`; this file is the surface.
  *
- * Both hosts render it: the desktop playground header and the mobile session top bar, through the
- * shared `AgentRevisionStatus`. Below `sm` the two panes become one at a time — a phone has no
- * room for a 250px rail beside a diff.
+ * The session top bar renders it through the shared `AgentRevisionStatus`. Below `sm` the two
+ * panes become one at a time — a phone has no room for a 250px rail beside a diff.
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 

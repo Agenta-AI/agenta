@@ -6,7 +6,7 @@ import {useRouter} from "next/router"
 import {useRailScope} from "./railScope"
 
 /**
- * The persistent lg+ sidebar — the DESKTOP rail component, docked. Hidden below lg, where the
+ * The persistent lg+ sidebar — the shared rail component, docked. Hidden below lg, where the
  * same shell lives inside the NavDrawer sheet instead; the two share one nav model, one
  * open-groups bucket and one collapsed state, so the rail and the drawer never drift.
  *

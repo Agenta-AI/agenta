@@ -32,7 +32,7 @@ const TITLES: Record<AppRunKind, string> = {
  * The five newest runs of one kind for the app, in the runs list table without its Application
  * column. With no runs it shows the kind's empty state and no start button.
  *
- * Developer Mode shows the runs as /w does: the kind's metric columns, the Application
+ * Developer Mode shows the runs: the kind's metric columns, the Application
  * column with the variant version, and a New evaluation button.
  */
 export const AppEvaluationsSection = ({

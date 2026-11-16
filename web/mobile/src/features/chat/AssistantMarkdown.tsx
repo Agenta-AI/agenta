@@ -46,8 +46,8 @@ export const proseClassName = [
 export const markdownIcons: Partial<IconMap> = {CopyIcon: Copy, CheckIcon: Check}
 
 /**
- * Assistant message text rendered as markdown through the shared `ChatMarkdown` renderer, so
- * mobile and desktop parse, highlight, and heal identically; only the token layer differs.
+ * Assistant message text rendered as markdown through the shared `ChatMarkdown` renderer, which
+ * parses, highlights, and heals; only the token layer is this app's.
  *
  * Text is revealed on the frame clock, so incomplete-markdown repair has to outlive the last
  * delta — until the reveal drains, what is on screen is a truncated prefix.
@@ -84,7 +84,7 @@ export const AssistantMarkdown = ({
 /**
  * The user's own turn, through the same pipeline — no typewriter, nothing streams. The composer
  * serialises a draft as markdown, escapes and all, so a literal render showed `hi\_name` for a
- * typed `hi_name`; the desktop bubble has always rendered markdown, and this matches it.
+ * typed `hi_name`.
  */
 export const UserMarkdown = ({text}: {text: string}) => (
     <ChatMarkdown

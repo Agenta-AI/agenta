@@ -20,19 +20,15 @@ export interface AgentOverviewLayoutProps {
 }
 
 /**
- * THE agent overview arrangement, shared by the desktop page and the mobile screen: activity
- * reads in a flexible left column, the agent's own state stands as a fixed-width rail beside it,
- * and the two stack below lg. One definition so the two surfaces cannot drift — the components
- * inside the slots are already shared (`AgentConfigSummaryCard`, `NextTriggersSection`,
- * `SessionCardList`); this is the composition that was still being written twice.
+ * THE agent overview arrangement: activity reads in a flexible left column, the agent's own
+ * state stands as a fixed-width rail beside it, and the two stack below lg.
  *
  * ONE scroller, and it is this frame — not the host's page, and not one per column. The columns
  * used to scroll independently, which put two scrollbars side by side and left them disagreeing
  * about where the top was; letting the page scroll instead pushed the whole surface, header and
  * all, off the screen. So the frame takes the height its host gives it and both columns move
  * together inside it. The host must therefore bound this: give it a parent with a definite
- * height (the desktop page asks the layout for its full-height frame, mobile's `ScreenScaffold`
- * takes `fill`), or `flex-1` has no space to resolve against.
+ * height (mobile's `ScreenScaffold` takes `fill`), or `flex-1` has no space to resolve against.
  */
 export const AgentOverviewLayout = ({
     main,

@@ -4,7 +4,7 @@
  *
  * Both transports (`fetchPage`, `flushBatch`) are injected, so the whole
  * pipeline is exercised here against fakes — no network, no CSV encoding,
- * no oss coupling.
+ * no app coupling.
  */
 
 import {describe, expect, it} from "vitest"
@@ -253,7 +253,7 @@ describe("exportMatchingTraces", () => {
 
     it("accepts a fetchPage that retries internally (rate-limit-wrapper contract)", async () => {
         // Demonstrates the integration contract: callers may wrap their
-        // transport with retry logic (e.g. `withRateLimitRetry` in oss) so a
+        // transport with retry logic (e.g. `withRateLimitRetry`) so a
         // transient failure pauses and re-fetches before resolving. The
         // pipeline must accept the eventual successful resolution without
         // double-counting rows or breaking pagination.

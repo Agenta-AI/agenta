@@ -17,8 +17,8 @@ import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 
 /**
  * Mobile binding: the shared vault table, with create/edit in a sheet and delete in a modal. The
- * desktop puts the same two surfaces in antd modals; the table and its mutations are shared,
- * so only the surfaces differ. `edit_secret` decides whether a new secret asks "Who can use it".
+ * table and its mutations are shared. `edit_secret` decides whether a new secret asks "Who can
+ * use it".
  */
 export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const t = useT(settingsSecretsTabCatalog, commonCatalog)

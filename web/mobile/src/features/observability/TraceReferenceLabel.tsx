@@ -15,8 +15,8 @@ const routes = createReferenceLabels({
 export type TraceReferenceKind = keyof typeof routes
 
 /**
- * One trace drawer reference slot on /m. Developer mode shows the named, linked chips of the old
- * app; otherwise the plain label stays, as before.
+ * One trace drawer reference slot on /m. Developer mode shows the named, linked
+ * chips; otherwise the plain label stays.
  */
 export const TraceReferenceLabel = ({
     kind,

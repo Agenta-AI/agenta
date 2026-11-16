@@ -57,9 +57,8 @@ const BadgeShell = ({
 
 /**
  * THE session list card: the shared `SessionCardList` (same rows, pins and grouping) inside the
- * panel chrome, with the header's waiting badge and "View all" link. One definition for the
- * desktop overview and the mobile screen — opening a row and the row menu arrive as props,
- * because only those are genuinely the host's.
+ * panel chrome, with the header's waiting badge and "View all" link. Opening a row and the row
+ * menu arrive as props, because only those are genuinely the host's.
  */
 export const SessionListCard = ({
     title,

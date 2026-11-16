@@ -18,7 +18,7 @@ import {
 import {describe, expect, it} from "vitest"
 
 describe("annotation helpers", () => {
-    it("Queue status labels match the old list", () => {
+    it("Queue status labels", () => {
         const statuses = [
             "pending",
             "queued",

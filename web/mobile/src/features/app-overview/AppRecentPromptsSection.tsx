@@ -46,7 +46,7 @@ export const RECENT_PROMPTS_COUNT = 5
 
 /**
  * The five newest revisions of the app. A row opens the revision drawer. Developer Mode adds
- * what /w has: the Playground button, Open in Playground and Delete in the row menu, and the
+ * the Playground button, Open in Playground and Delete in the row menu, and the
  * editable drawer. An evaluator is not deployed and has no Registry, so it gets neither Deploy
  * nor the Registry link.
  */

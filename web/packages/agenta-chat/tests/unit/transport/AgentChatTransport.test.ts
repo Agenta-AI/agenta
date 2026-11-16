@@ -68,8 +68,8 @@ describe("AgentChatTransport", () => {
 
         const transport = new AgentChatTransport({
             api: "/api/agent/invoke",
-            // Mirrors the desktop caller (AgentConversation.tsx): the request builder's headers
-            // carry the Accept the negotiator branches on — this transport itself sets none.
+            // The caller's request builder headers carry the Accept the negotiator branches on —
+            // this transport itself sets none.
             headers: {Accept: "text/event-stream"},
             fetch: baseFetch as unknown as typeof fetch,
         })

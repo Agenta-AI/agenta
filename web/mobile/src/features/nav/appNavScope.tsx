@@ -56,7 +56,7 @@ export interface AppNavEvaluator {
     latestRevisionId: string | null
 }
 
-/** The old app's app menu, with its labels and URLs. */
+/** The app menu, with its labels and URLs. */
 export const appNavItems = (
     projectURL: string,
     appId: string,

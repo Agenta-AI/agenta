@@ -11,7 +11,7 @@ declare global {
 
 const websiteId = () => getEnv("NEXT_PUBLIC_CRISP_WEBSITE_ID")
 
-/** Cloud only, like the desktop rail, and only where a Crisp website is configured. */
+/** Cloud only, and only where a Crisp website is configured. */
 export const isLiveChatEnabled = (): boolean => isEE() && Boolean(websiteId())
 
 export const liveChatOpenAtom = atom(false)

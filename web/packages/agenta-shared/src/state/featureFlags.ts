@@ -2,8 +2,8 @@
  * Per-user experimental settings — the "Feature Flags" and "Debugging" switches in Settings › Preferences.
  *
  * They live here, not in an app, because a flag is read where the feature is (a package) and
- * written where the settings page is (every app). Both surfaces on a browser share one atom
- * and one storage key, so turning voice input on in `/m` is honoured by the desktop too.
+ * written where the settings page is (the app). Reader and writer share one atom and one
+ * storage key.
  */
 
 import {atom} from "jotai"

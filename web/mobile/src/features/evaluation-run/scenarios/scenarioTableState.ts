@@ -4,7 +4,7 @@ import {atomFamily} from "jotai-family"
 
 /**
  * The applied scenario filter of each run. It stays while the page is open, so switching tabs and
- * back keeps it, as in the old app.
+ * back keeps it.
  */
 export const scenarioFilterAtomFamily = atomFamily((_runId: string) =>
     atom<PredicateGroup>(EMPTY_SCENARIO_FILTER),

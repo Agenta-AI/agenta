@@ -1,12 +1,12 @@
 /**
  * DrillInUIContext
  *
- * Context for injecting OSS-specific UI components into the DrillInView system.
+ * Context for injecting app-specific UI components into the DrillInView system.
  * This allows the package to remain dependency-free while still supporting
  * rich editors and chat message components when provided.
  *
  * Usage:
- * 1. OSS wraps the app with DrillInUIProvider, passing OSS components
+ * 1. The app wraps itself with DrillInUIProvider, passing its components
  * 2. Package components use useDrillInUI() to get the injected components
  * 3. If components are not provided, fallbacks are used
  */
@@ -176,7 +176,7 @@ export interface WorkflowConfigPayload {
 
 /**
  * Bridge for the "reference a workflow as a tool" source in the tool selector (#4860).
- * OSS supplies the project's workflows plus resolvers for a workflow's input schema, its
+ * The app supplies the project's workflows plus resolvers for a workflow's input schema, its
  * revisions (variant axis), and its environments (environment axis); the selector emits a
  * `type:"reference"` tools[] entry that the backend runs server-side as a callback tool.
  * Parallels {@link GatewayToolsBridge}.
@@ -328,7 +328,7 @@ export interface DrillInUIComponents {
      * LLM provider configuration data for model selection.
      * Used by: GroupedChoiceControl, ConfigurationSection, LegacyPlaygroundConfigSection
      *
-     * Instead of injecting a whole component, OSS provides:
+     * Instead of injecting a whole component, the app provides:
      * - extraOptionGroups: vault/custom secret options to merge into the dropdown
      * - footerContent: "Add provider" button + drawer rendered in the dropdown footer
      */
@@ -445,7 +445,7 @@ export interface DrillInUIProviderProps {
  *
  * @example
  * ```tsx
- * // In OSS app wrapper
+ * // In the app wrapper
  * <DrillInUIProvider
  *   components={{
  *     EditorProvider,

@@ -1,10 +1,9 @@
-// Assembled 2026-07-25 from the behavior half of the old desktop approval dock: the
-// `getPendingApprovals` extraction, the shown-set latch (`resolvingIds` freeze so a
-// multi-gate resolve doesn't step through the batch), the `responding` reset on gate change,
-// and the respond / approve-all fan-out. The desktop dock keeps its own chrome on top.
-// Deliberately omitted (desktop-only): the "always allow this tool" grant (an app-layer
-// config write-through), the friendly per-tool body registry, and the trace link — the skin
-// supplies those around this hook's state.
+// The behavior half of the approval dock: the `getPendingApprovals` extraction, the shown-set
+// latch (`resolvingIds` freeze so a multi-gate resolve doesn't step through the batch), the
+// `responding` reset on gate change, and the respond / approve-all fan-out.
+// Not handled here: the "always allow this tool" grant (an app-layer config write-through),
+// the friendly per-tool body registry, and the trace link — the skin supplies those around this
+// hook's state.
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {createT} from "@agenta/i18n"

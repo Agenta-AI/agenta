@@ -1,18 +1,12 @@
 /**
  * The turn-level account of a run that failed: the glyph, "The agent run failed", and the reason.
  *
- * Shared by both apps. It was written twice, as the desktop's `RunErrorBody` and the mobile app's
- * private `RunErrorCallout`, which were a reimplementation of each other rather than a copy: the
- * clamp threshold, the toggle wording and the retry rule each existed in two places, and only the
- * desktop one had a test. This is the one implementation of all three.
- *
  * An everyday reason shows in full; a big one (a stacktrace) clamps behind a "Show more" that
  * opens a scrollable block, so it cannot drown the chat.
  *
- * The two recovery escapes are props rather than wiring, because the destination is not shared:
- * the desktop app opens its provider drawer and the mobile app routes to Settings -> LLM providers,
- * which renders the same page. Still props, and still omitted rather than faked where a host has
- * nowhere to send the reader, because a button that opens nothing is worse than no button.
+ * The two recovery escapes are props rather than wiring, because the host owns the destination.
+ * They are omitted rather than faked where a host has nowhere to send the reader, because a
+ * button that opens nothing is worse than no button.
  */
 import {AGENT_NEEDS_SETUP_CODE} from "@agenta/entities/workflow"
 import {agentNeedsSetupTitle} from "@agenta/entity-ui/needs-setup"

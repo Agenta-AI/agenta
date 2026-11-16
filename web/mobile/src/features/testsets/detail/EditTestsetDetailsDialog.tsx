@@ -13,8 +13,8 @@ import {
 } from "@agenta/ui/ui"
 
 /**
- * Name and description of the test set. Save is off while the name is blank: the old app saved
- * an empty name. A save does not create a revision.
+ * Name and description of the test set. Save is off while the name is blank.
+ * A save does not create a revision.
  */
 export const EditTestsetDetailsDialog = ({
     open,

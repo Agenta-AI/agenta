@@ -51,7 +51,7 @@ export const PlaygroundWorkspace = ({
     revisionIds: string[]
     onWorkflowRevisionCommitted: (fromRevisionId: string, toRevisionId: string) => void
 }) => {
-    // Form, JSON or YAML: kept while the page is open, as in the old playground.
+    // Form, JSON or YAML: kept while the page is open.
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
     const switchTo = useSwitchRevision()
     // A revision the server has deleted is read only from that moment. It stays on screen until

@@ -5,7 +5,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * Whether a route id can name a test set page: a revision id (a UUID) or `new`.
- * Any other value is a page that does not exist. The old app drew an empty editor for it.
+ * Any other value is a page that does not exist.
  */
 export const isTestsetRouteId = (id: string): boolean =>
     id === NEW_TESTSET_ROUTE_ID || UUID.test(id)

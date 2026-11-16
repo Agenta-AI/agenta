@@ -42,7 +42,7 @@ export const appSwitchHref = (
 
 /**
  * The app menu's switcher over the prompt apps and the evaluators that have their own pages (the
- * non-deterministic ones, as in the old app), newest first. The lists load on first open.
+ * non-deterministic ones), newest first. The lists load on first open.
  */
 export const AppSwitcher = ({
     projectURL,

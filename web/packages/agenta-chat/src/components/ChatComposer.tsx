@@ -1,5 +1,5 @@
 /**
- * THE chat composer — one input for every surface, extracted from the desktop composer dock.
+ * THE chat composer — one input for every surface.
  * It owns the shared core: the lazy Lexical rich input (markdown, Enter-sends, the send button
  * that becomes Stop while streaming), the paperclip attach button, the attachments tray in the
  * input's header slot, and the paste-to-attach path. Host-specific chrome (voice mic, context
@@ -52,7 +52,7 @@ export interface ChatComposerProps {
     dictating?: boolean
     /** Live analyser for the dictated voice; absent ⇒ no wave (a refused stream, or no mic). */
     dictationAnalyserRef?: RefObject<AnalyserNode | null>
-    /** Width column for the input (desktop passes its chat column; mobile's rail is outside). */
+    /** Width column for the input. */
     className?: string
     /** How far the editor may grow before it scrolls itself; see RichChatInput. */
     maxHeightClassName?: string

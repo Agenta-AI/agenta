@@ -61,8 +61,8 @@ export interface AnnotationRowContext {
 }
 
 /**
- * The annotation slot. Two render points because the original occupies both the tail of the
- * main line and a second line beneath it; keeping them separate lets the row own the layout
+ * The annotation slot. Two render points because the annotation control occupies both the tail
+ * of the main line and a second line beneath it; keeping them separate lets the row own the layout
  * without knowing what the slot renders.
  */
 export interface AnnotationRowSlot {

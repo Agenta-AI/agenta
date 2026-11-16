@@ -25,8 +25,7 @@ interface Provisional {
  * saw — the next committed mount would then reuse it and silently ignore its own seed. An abandoned
  * render's provisional chat is simply never published, and is garbage with the fiber.
  *
- * `shouldPreserve` is the host's verdict, read at unmount: the desktop asks "is its tab still open?",
- * mobile "is its run still streaming?".
+ * `shouldPreserve` is the host's verdict, read at unmount: "is its run still streaming?".
  */
 export const useSessionChat = ({
     sessionId,

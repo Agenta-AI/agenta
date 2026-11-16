@@ -1,9 +1,8 @@
 /**
  * Skin registration store + resolvers.
  *
- * The store starts EMPTY. A skin (the desktop's `assets/toolDisplay.ts`, mobile's shadcn skin)
- * calls `registerChatSkin` to contribute client-tool widgets, approval bodies, and per-tool display
- * overrides.
+ * The store starts EMPTY. A skin (the app's shadcn skin) calls `registerChatSkin` to contribute
+ * client-tool widgets, approval bodies, and per-tool display overrides.
  *
  * The tool-display half is more than a store: it is THE place a raw runtime tool name (AI SDK part)
  * becomes what the chat UI shows, for every host. Resolution order: registered override →

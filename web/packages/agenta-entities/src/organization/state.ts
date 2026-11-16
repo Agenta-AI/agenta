@@ -9,8 +9,8 @@ const membersSourceAtom = atom<Atom<WorkspaceMember[]>>(fallbackMembersAtom)
  * Current workspace's members — the host seam for author attribution.
  *
  * Package code that resolves a record's author (annotations, for one) reads
- * this instead of an org store. OSS binds its `selectedOrg.default_workspace`
- * members; mobile leaves the default empty, in which case ids render raw.
+ * this instead of an org store. The host binds its members list; unbound,
+ * the list is empty and ids render raw.
  */
 export const workspaceMembersAtom = atom((get) => get(get(membersSourceAtom)))
 

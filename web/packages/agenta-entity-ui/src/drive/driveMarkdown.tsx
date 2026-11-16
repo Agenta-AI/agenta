@@ -8,9 +8,9 @@ export interface DriveCodeBlockProps {
 /**
  * The syntax-highlighted code viewer the file preview uses.
  *
- * Injected for the same reason as the markdown renderer, plus one of its own: the desktop's is
- * Lexical + lazy-Shiki, an ~8.7 MB chunk that must stay out of any host that does not open code
- * files. Unregistered hosts fall back to plain preformatted text.
+ * Injected for the same reason as the markdown renderer, plus one of its own: a highlighter is a
+ * large chunk that must stay out of any host that does not open code files. Unregistered hosts fall
+ * back to plain preformatted text.
  */
 let codeBlockRenderer: ComponentType<DriveCodeBlockProps> | null = null
 
@@ -32,9 +32,9 @@ export interface DriveMarkdownProps {
 /**
  * The markdown renderer the file preview uses.
  *
- * Injected rather than imported: the desktop renders its chat Markdown component (Lexical/Prism
- * chrome and all), and another host may render its own. Registered once at startup; until then a
- * preview falls back to plain preformatted text rather than failing to render.
+ * Injected rather than imported: the host renders its own Markdown component. Registered once at
+ * startup; until then a preview falls back to plain preformatted text rather than failing to
+ * render.
  */
 let markdownRenderer: ComponentType<DriveMarkdownProps> | null = null
 

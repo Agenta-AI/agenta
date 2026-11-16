@@ -1,6 +1,6 @@
 /**
- * The shared approval card — ONE design for a human-in-the-loop gate, rendered identically by the
- * desktop dock and mobile, in every mode.
+ * The shared approval card — ONE design for a human-in-the-loop gate, rendered identically in
+ * every mode.
  *
  * The card deliberately shows no payload, no diff, and no digest. A gate resolves to plain
  * language through `describeApproval`, and everything beyond the one-sentence ask folds behind a

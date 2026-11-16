@@ -49,7 +49,7 @@ export interface AnnotationProgress {
 
 /**
  * Callbacks for annotation session side-effects.
- * Used by platform-specific code (OSS/EE) to react to session events.
+ * Used by the host app to react to session events.
  */
 export interface AnnotationSessionCallbacks {
     onQueueOpened?: (queueId: string, queueType: QueueType) => void

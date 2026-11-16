@@ -2,7 +2,7 @@
 
 ## Goal
 
-Replace all direct `axios` API calls in `@agenta/entities` (and OSS/EE app code) with `agenta-sdk` methods. The SDK becomes the single source of truth for all Agenta API interactions.
+Replace all direct `axios` API calls in `@agenta/entities` (and app code) with `agenta-sdk` methods. The SDK becomes the single source of truth for all Agenta API interactions.
 
 ## Architecture
 
@@ -108,12 +108,12 @@ For each domain in `@agenta/entities/src/*/api/`:
 
 1. Remove `axios` from `@agenta/shared` dependencies
 2. Remove `configureAxios`, `createAxiosInstance` from `@agenta/shared/api`
-3. Remove `axiosConfig.ts` from OSS app
+3. Remove `axiosConfig.ts` from the app
 4. Update `@agenta/entities` to remove `axios` peer dependency
 
-### Phase 4: Migrate OSS/EE app-level API calls
+### Phase 4: Migrate app-level API calls
 
-Remaining axios calls in the old desktop app's `src/lib/` and `src/services/` that aren't in entities.
+Remaining app-level axios calls that aren't in entities.
 
 ## Key Decisions
 

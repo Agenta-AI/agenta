@@ -62,8 +62,7 @@ interface AnnotationBatchRequest {
  *
  * Deduplicates by (traceId, spanId) pair.
  * Indexes results by both the annotation's own trace_id:span_id AND
- * by all `links[*].trace_id:span_id` entries — matching how the
- * legacy `EvalRunDetails/atoms/annotations.ts` batch fetcher works.
+ * by all `links[*].trace_id:span_id` entries.
  */
 const annotationBatchFetcher = createBatchFetcher<AnnotationBatchRequest, Annotation[]>({
     serializeKey: (req) => `${req.projectId}:${encodeAnnotationId(req.traceId, req.spanId)}`,

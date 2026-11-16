@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** Role label colors in the chat cells: the antd scale by default (the old app), theme tokens by opt-in. */
+/** Role label colors in the chat cells: the antd scale by default, theme tokens by opt-in. */
 import {act} from "react"
 
 import {createRoot, type Root} from "react-dom/client"
@@ -35,7 +35,7 @@ const roleClasses = () =>
     ])
 
 describe("role label colors", () => {
-    it("The default map is the antd scale the old app shows", () => {
+    it("The default map is the antd scale", () => {
         expect(ROLE_COLOR_CLASSES).toEqual({
             user: "text-blue-6",
             assistant: "text-green-6",

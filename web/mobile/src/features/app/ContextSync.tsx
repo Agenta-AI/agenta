@@ -16,8 +16,8 @@ export const ContextSync = () => {
     const setSession = useSetAtom(setSessionAtom)
     const {user, isPending: profilePending, error: profileError} = useProfile()
 
-    // The identity half of the app context, and this app's answer to the desktop's
-    // `UserListener`. Entity queries scoped by user gate on it — the vault's secrets key is
+    // The identity half of the app context. Entity queries scoped by user gate on it — the
+    // vault's secrets key is
     // `["vault", "secrets", user?.id, projectId]` with `enabled: !!user` — so without this the
     // Secrets and LLMs tabs sat on their skeletons forever, waiting on a query never enabled.
     // A failed read keeps what the last answer said (see the session flag below).
@@ -32,13 +32,13 @@ export const ContextSync = () => {
     // someone a blank slate on every reload. A settled answer with no user IS a sign-out though,
     // and holding the old id there would show the next person on this browser the last one's
     // preferences.
-    // `uid`, not `id`: the desktop scopes these by `Session.getUserId()`.
+    // `uid`, not `id`: these are scoped by `Session.getUserId()`.
     useEffect(() => {
         if (profilePending || profileError) return
         setActiveUserId(user?.uid ?? null)
     }, [profilePending, profileError, user?.uid, setActiveUserId])
 
-    // The auth half of the same context, and the other half of the desktop's `SessionListener`.
+    // The auth half of the same context.
     // `sessionAtom` defaults to FALSE and every entity query gates on it, so a host that never
     // sets it leaves those queries permanently disabled — and a disabled TanStack v5 query reports
     // `isPending: true` forever, with no request and no error. That is what left the agent's
@@ -47,9 +47,8 @@ export const ContextSync = () => {
     // cleared. The operational sections below it render from other atoms, which is why only the
     // config rows looked stuck.
     //
-    // Driven off the SETTLED profile rather than the route: desktop can pre-set it from a
-    // ProtectedRoute-guarded URL, but a project id in a mobile URL is not proof of auth, and
-    // optimistically claiming a session would 401-storm every gated query behind it.
+    // Driven off the SETTLED profile rather than the route: a project id in a URL is not proof
+    // of auth, and optimistically claiming a session would 401-storm every gated query behind it.
     //
     // A FAILED profile read is not a sign-out: `useProfile` resolves a real 401 to `null`, so an
     // error here is a network blip, a 5xx or an aborted request on reload. Writing `false` on it

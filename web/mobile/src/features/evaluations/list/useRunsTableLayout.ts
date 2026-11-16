@@ -20,7 +20,7 @@ interface SizedColumn extends ListTableColumn {
 
 const GAP = 12
 
-// Status, name, kind and the two creation columns are always drawn, as in the old list.
+// Status, name, kind and the two creation columns are always drawn.
 const STATUS: SizedColumn = {
     key: "status",
     label: "Status",
@@ -94,7 +94,7 @@ const wideColumns = (
         .map((reference) => REFERENCE[reference]),
     ...plan.evaluators.flatMap((group) =>
         group.columns.map((column) => {
-            // The old list puts the evaluator over its metrics; one header row says both.
+            // The evaluator sits over its metrics; one header row says both.
             const label = `${evaluatorNames[group.id] ?? group.id} · ${column.label}`
             const width = metricWidth(label)
             return {
@@ -118,7 +118,7 @@ const wideColumns = (
 ]
 
 /**
- * The columns of a runs table: the old list's columns for the tab and the runs on screen, less
+ * The columns of a runs table: the columns for the tab and the runs on screen, less
  * the ones the reader hid in the column menu (kept per browser under `columnsKey`). Without a
  * `columnsKey` (the app overview) every column shows and there is no menu.
  */

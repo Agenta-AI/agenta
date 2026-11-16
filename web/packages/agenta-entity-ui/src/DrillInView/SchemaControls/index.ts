@@ -5,7 +5,7 @@
  * These components work with JSON Schema to automatically render
  * appropriate controls based on schema metadata.
  *
- * Components that need OSS-specific UI (like ChatMessageList) use the
+ * Components that need app-specific UI (like ChatMessageList) use the
  * DrillInUIContext for dependency injection. SelectLLMProviderBase is used
  * directly from @agenta/ui with config data from context.
  */

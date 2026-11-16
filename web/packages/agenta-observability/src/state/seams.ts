@@ -2,8 +2,8 @@
  * Host seams.
  *
  * The observability state layer is scoped by an app and a workflow context that
- * only the desktop app has. Rather than reach into an OSS store, the package
- * declares the shape it needs and each host binds an atom to read it from.
+ * only the host has. The package declares the shape it needs and each host binds
+ * an atom to read it from.
  *
  * Binding an *atom* (not a value) matters: the query atoms read the scope
  * synchronously during evaluation, so a host that pushed values from an effect

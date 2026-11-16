@@ -3,7 +3,7 @@
  *
  * The "Configure provider" drawer — the add/edit flow for a custom (self-managed) provider
  * credential. Host-neutral: it is the drill-in `llmProviderConfig.openConfigureProvider` seam, so
- * both the desktop playground and `/m` open the identical surface.
+ * every caller opens the identical surface.
  */
 import {lazy, Suspense, useRef} from "react"
 

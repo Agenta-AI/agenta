@@ -22,7 +22,7 @@ const shape = (items: SidebarConfig[]): Row[] =>
     }))
 
 describe("the developer rows of the main rail", () => {
-    it("Developer Mode lays them out like the old app: Prompts, Evaluation, Observability", () => {
+    it("Developer Mode lays them out as Prompts, Evaluation, Observability", () => {
         const slots = developerNavSlots(P, DEVELOPER_VIEWS, true)
         expect(shape(slots.afterHome)).toEqual([
             {key: "developer-view-prompts", title: "Prompts", link: `${P}/prompts`},
@@ -54,7 +54,7 @@ describe("the developer rows of the main rail", () => {
         ])
     })
 
-    it("Developer Mode lists no Endpoints, Archived apps or Registry row, as the old app", () => {
+    it("Developer Mode lists no Endpoints, Archived apps or Registry row", () => {
         const {afterHome, afterSessions} = developerNavSlots(P, DEVELOPER_VIEWS, true)
         const links = JSON.stringify(shape([...afterHome, ...afterSessions]))
         expect(links).not.toContain("/endpoints")

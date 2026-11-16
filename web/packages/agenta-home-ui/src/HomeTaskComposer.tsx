@@ -256,7 +256,7 @@ export const HomeTaskComposer = ({
                         dictationAnalyserRef={voiceEnabled ? voice.dictationAnalyserRef : undefined}
                         onSubmit={async (text) => {
                             // `RichChatInput` neither awaits nor catches this, so a rejecting host
-                            // would surface as an unhandled rejection and nothing else. Both hosts
+                            // would surface as an unhandled rejection and nothing else. Hosts
                             // report their own failures; this only stops the rejection escaping.
                             try {
                                 if (creating) {

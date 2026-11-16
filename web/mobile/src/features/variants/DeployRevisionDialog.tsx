@@ -45,7 +45,7 @@ export const DeployRevisionDialog = ({
     onClose: () => void
 }) => {
     const environments = useAtomValue(appEnvironmentsLoadableAtomFamily(appId))
-    // Developer Mode shows the current variant as /w does: its name and a version tag.
+    // Developer Mode shows the current variant: its name and a version tag.
     const beta = useAtomValue(developerModeActiveAtom)
     const deploy = useDeployRevision()
     const [picked, setPicked] = useState<string | null>(null)

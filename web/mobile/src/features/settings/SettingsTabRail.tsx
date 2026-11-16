@@ -12,7 +12,7 @@ import {AVAILABLE_SETTINGS_TABS, useMobileSettingsAccess} from "./settingsTabs"
 /**
  * The NESTED settings rail — a second rail beside the main one, behind
  * `NEXT_PUBLIC_SETTINGS_NESTED_NAV`. Off by default: settings takes over the main sidebar
- * instead, as oss/ee do. Grouping and labels come from `@agenta/settings` either way.
+ * instead. Grouping and labels come from `@agenta/settings` either way.
  */
 export const SettingsTabRail = ({
     active,

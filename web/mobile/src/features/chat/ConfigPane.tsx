@@ -23,13 +23,12 @@ import {useOpenModelSetup} from "./useOpenModelSetup"
 
 /**
  * Build's left pane: the SHARED config panel under the SHARED "Configuration" header, with the
- * SHARED Files region — the same three components the desktop playground renders.
+ * SHARED Files region.
  *
  * The drive is session-scoped, so the session is passed straight in: this surface already knows
- * which conversation it is (the desktop has to resolve it from its open tabs instead).
+ * which conversation it is.
  *
- * Deploy and the overflow menu are absent, not reproduced: both still read this app's app-layer
- * state on the desktop side, and the header takes them as slots precisely so a surface that
+ * Deploy and the overflow menu are absent: the header takes them as slots, so a surface that
  * cannot offer them simply does not.
  */
 export const ConfigPane = ({
@@ -98,9 +97,9 @@ export const ConfigPane = ({
                         <AgentConfigHeader
                             revisionId={entityId}
                             // `/m` mounts the auto-commit engine, so this header shows Save
-                            // rather than Commit. The desktop playground keeps Commit.
+                            // rather than Commit.
                             autoSave
-                            // The desktop's collapse: the header owns "«", the top bar owns the
+                            // The collapse: the header owns "«", the top bar owns the
                             // "»" that brings the panel back. Without a way OUT, the restore
                             // control in the bar could never be reached.
                             trailing={

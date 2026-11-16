@@ -14,7 +14,7 @@ const CatalogDrawer = dynamic(
 )
 
 /**
- * The naming and create step of New prompt, as in /w: the editable revision drawer on the local
+ * The naming and create step of New prompt: the editable revision drawer on the local
  * draft. The user can change and test the prompt, then Create names it and makes the app. The
  * page loads this file with `next/dynamic` and renders it only while a draft is open.
  */

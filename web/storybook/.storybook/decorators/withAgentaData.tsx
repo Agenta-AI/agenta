@@ -16,7 +16,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
  *     the app. Entity packages read from this to gate queries behind auth readiness").
  *     Nearly every query is gated on them — `enabled: get(sessionAtom) && Boolean(projectId)`.
  *  2. **The QueryClient.** The app injects it with `useHydrateAtoms([[queryClientAtom, qc]])`
- *     (`oss/src/state/Providers.tsx:21`). Seeding that client's cache seeds every
+ *     (`mobile/src/features/app/AppProviders.tsx`). Seeding that client's cache seeds every
  *     `atomWithQuery` AND every molecule, because `createEntityController` derives
  *     `serverData` from `query.data` ("single source of truth for server state").
  *

@@ -30,7 +30,7 @@ import {useAtom, useSetAtom} from "jotai"
 
 import {Field} from "./Field"
 
-/** The events a subscription can carry today — the desktop drawer offers the same one. */
+/** The events a subscription can carry today. */
 const EVENT_OPTIONS: {
     label: CatalogKey<typeof commonCatalog | typeof settingsWebhookFormSheetCatalog>
     value: WebhookEventType
@@ -45,7 +45,7 @@ type AuthMode = "signature" | "authorization"
 
 /**
  * Subscribe an endpoint, or edit one. Covers the `webhook` provider — a URL of your own,
- * signed or bearer-authorised. GitHub dispatch subscriptions are desktop-only: they are a
+ * signed or bearer-authorised. GitHub dispatch subscriptions are not covered: they are a
  * template over repo/workflow/branch fields that has no mobile surface yet, and this sheet
  * never rewrites one it did not create.
  */
@@ -59,7 +59,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
 
     const [name, setName] = useState("")
     const [url, setUrl] = useState("")
-    // The FULL list, not one value: a subscription created on the desktop or through the API
+    // The FULL list, not one value: a subscription created through the API
     // can carry several, and this sheet offers one option — saving must not silently drop the
     // rest. Picking here is an explicit narrowing to the chosen one.
     const [eventTypes, setEventTypes] = useState<WebhookEventType[]>([EVENT_OPTIONS[0].value])

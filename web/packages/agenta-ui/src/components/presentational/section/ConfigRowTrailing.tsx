@@ -72,8 +72,7 @@ export function ConfigRowTrailing({
 
 /**
  * The geometry every config-panel region header shares, fill excluded, so the Configuration,
- * Triggers and Files bars cannot drift. No `w-full`: preflight is off on the desktop, so
- * `width:100%` plus the bar's own `px-4` overflows its parent by 32px.
+ * Triggers and Files bars cannot drift.
  */
 export const CONFIG_REGION_BAR =
     "h-[48px] flex items-center justify-between overflow-hidden border-b border-colorBorderSecondary py-2 px-4"

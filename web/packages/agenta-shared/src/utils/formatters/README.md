@@ -147,17 +147,6 @@ const formatViews = createFormatter({
 formatViews(1500000)  // "1.5M views"
 ```
 
-## Migration from OSS
-
-If you're migrating from the OSS formatters:
-
-| Old (OSS) | New (@agenta/shared) |
-|-----------|---------------------|
-| `format3Sig(value)` | `formatSignificant(value)` |
-| `formatCompactNumber(value)` | `formatCompact(value)` |
-| `formatTokenUsage(value)` | `formatTokens(value)` |
-| Custom `METRIC_FORMATTERS` config | `createFormatter(options)` |
-
 ## Types
 
 ```typescript

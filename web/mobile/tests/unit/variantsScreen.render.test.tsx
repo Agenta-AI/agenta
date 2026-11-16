@@ -234,7 +234,7 @@ describe("VariantsScreen", () => {
         )
     })
 
-    it("Developer Mode shows one row per variant with a checkbox, like the old app", () => {
+    it("Developer Mode shows one row per variant with a checkbox", () => {
         fixture.beta = true
         fixture.query = {app_id: "app-1"}
         localStorage.setItem("agenta:registry:display-mode", "variants")

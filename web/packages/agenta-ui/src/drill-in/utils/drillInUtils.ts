@@ -1,7 +1,7 @@
 /**
  * Utility functions for DrillIn components
  *
- * Pure functions with no external dependencies - safe to use in both package and OSS.
+ * Pure functions with no external dependencies - safe to use in both package and app.
  */
 
 import {isChatMessageObject} from "@agenta/shared/utils"

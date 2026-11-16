@@ -25,8 +25,8 @@ import {useOrganizationOwner} from "./useOrganizationOwner"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 /**
- * Mobile binding: the shared projects table, with create / delete as modals; rename is inline
- * (the desktop uses antd modals — same verbs, each app's own idiom). The mutations live in
+ * Mobile binding: the shared projects table, with create / delete as modals; rename is inline.
+ * The mutations live in
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
 export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {

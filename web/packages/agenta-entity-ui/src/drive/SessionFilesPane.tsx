@@ -47,8 +47,7 @@ const tNow = createT(filesPaneCatalog)
 
 /** The pane's open/close/toggle — one hook so the splitter host, the session bar toggle, and
  * every opener (config Files section, context rail, inspector) drive the SAME state. */
-/** `scope` is the HOST's to resolve (the desktop passes its chat scope key) — the package must
- * not reach into the app's chat slice for it. */
+/** `scope` is the HOST's to resolve — the package must not reach into the app's chat slice for it. */
 export const useSessionFilesPane = (scope: string, sessionId: string) => {
     const [scopeOpen, setScopeOpen] = useAtom(sessionFilesPaneOpenAtomFamily(scope))
     const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
@@ -92,7 +91,7 @@ export function SessionFilesPane({
     sessionId: string
     /** Every selection, for a host that mirrors it in the URL. */
     onSelectionChange?: (item: DriveLinkItem) => void
-    /** Who closes the pane: row 1's "»" (the desktop), the host's own session-bar toggle
+    /** Who closes the pane: row 1's "»" (`"collapse"`), the host's own session-bar toggle
      * (`"none"` — `/m`, where the panel icon shows the open state and flips it), or a leading
      * "»" (`"back"` — a phone, where the pane has the screen and that bar is off it). */
     closeControl?: "collapse" | "back" | "none"

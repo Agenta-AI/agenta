@@ -1572,7 +1572,6 @@ export function validateEvaluatorInputs(ctx: EvaluatorInputContext): EvaluatorIn
 /**
  * Transform trace-prefixed keys in evaluator settings.
  * Strips `trace.` prefix from setting values (e.g. `"trace.spans.output"` → `"spans.output"`).
- * Mirrors DebugSection's `transformTraceKeysInSettings` from legacy evaluations.
  */
 function transformTraceKeysInSettings(settings: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {}

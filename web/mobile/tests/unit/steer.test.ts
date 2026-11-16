@@ -27,7 +27,7 @@ describe("buildApprovalAnswer", () => {
 })
 
 describe("isSteerEnabled", () => {
-    it("is off unless the flag is explicitly true (desktop parity)", () => {
+    it("is off unless the flag is explicitly true", () => {
         expect(isSteerEnabled()).toBe(false)
         process.env[FLAG] = "false"
         expect(isSteerEnabled()).toBe(false)

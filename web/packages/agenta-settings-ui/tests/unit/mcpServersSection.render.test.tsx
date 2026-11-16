@@ -2,8 +2,7 @@
 /**
  * What the MCP registry has to say on screen, not just compute.
  *
- * This section had no unit or rendered test in either app before this file; the only thing
- * covering it was the Playwright suite, which drives `/w` alone. Each case here is a way the
+ * Each case here is a way the
  * page could read as safe or complete when it is not: a credential's name mistaken for its
  * value, a dead login shown as connected, a destructive verb that does not say what it ends,
  * and an open drawer reporting a state the list has already moved past.

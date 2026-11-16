@@ -74,8 +74,8 @@ const orderByZoneAtom = atomWithStorage<Record<string, string[]>>(
 )
 
 /**
- * Project-scoped, NOT scope-scoped: the arrangement is the user's, not the rail's, so the desktop
- * rail, the collapsed rail and the mobile drawer read one list. Never persist an unscoped key —
+ * Project-scoped, NOT scope-scoped: the arrangement is the user's, not the rail's, so the expanded
+ * rail, the collapsed rail and the drawer read one list. Never persist an unscoped key —
  * the pre-`:v2` chat-slice keys survived a sign-out and were readable by whoever signed in next.
  */
 const zoneKey = (projectId: string, zone: string) => `${projectId}:${zone}`

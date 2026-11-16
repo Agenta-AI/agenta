@@ -51,7 +51,7 @@ import {
 /**
  * Interface for resolving runnable types from entity IDs.
  *
- * OSS/EE layers implement this interface to provide entity-specific
+ * The app layer implements this interface to provide entity-specific
  * type resolution without leaking entity logic into the package.
  */
 export interface RunnableTypeResolver {
@@ -80,7 +80,7 @@ let currentResolver: RunnableTypeResolver = defaultResolver
 /**
  * Set the runnable type resolver.
  *
- * Call this at app initialization to register the OSS/EE resolver.
+ * Call this at app initialization to register the app's resolver.
  *
  * @param resolver - The resolver implementation
  */

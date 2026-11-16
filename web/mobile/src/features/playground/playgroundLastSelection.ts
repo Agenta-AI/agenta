@@ -1,6 +1,6 @@
 /**
- * The revisions each app's playground showed last, so the next visit opens on them. The key and
- * shape are /w's (`{[appId]: ids}`): a user who moves between the two apps keeps one selection.
+ * The revisions each app's playground showed last, so the next visit opens on them, stored
+ * as `{[appId]: ids}`.
  * Storage that is full, blocked or holds bad data reads as "nothing stored".
  */
 const KEY = "agenta:playground:last-selection"

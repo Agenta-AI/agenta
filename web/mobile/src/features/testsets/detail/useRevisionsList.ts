@@ -24,8 +24,8 @@ export const revisionsListQueryKey = (projectId: string, testsetId: string) =>
  * test set starts with, so it is left out.
  *
  * Nothing loads until `load()` runs, which the version menu and the actions menu call when they
- * first open. `status` tells "not asked yet" from "loading", because the old app showed a
- * different text for each.
+ * first open. `status` tells "not asked yet" from "loading", because each shows a
+ * different text.
  */
 export function useRevisionsList({
     projectId,

@@ -5,7 +5,7 @@ import {useRouter} from "next/router"
 const PARAM = "revisionId"
 
 /**
- * The open revision, kept in the URL as `?revisionId=` (the /w name, so /w links open here too).
+ * The open revision, kept in the URL as `?revisionId=`.
  * The URL is the drawer's only open state; `null` closes it.
  */
 export const useRevisionParam = () => {

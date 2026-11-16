@@ -21,13 +21,13 @@ import {useAuthSuccess} from "./useAuthSuccess"
 
 /**
  * Landing for an OIDC redirect the mobile app started. The provider redirected
- * to the desktop `/auth/callback/<id>` (the only registered URI) and the device
- * gate forwarded it here with the query intact; signInAndUp reads the OAuth
+ * to the root `/auth/callback/<id>` (the only registered URI) and `proxy.ts`
+ * forwarded it here with the query intact; signInAndUp reads the OAuth
  * state from the same-origin sessionStorage and exchanges the code.
  *
- * On EE the exchange itself is a guarded auth POST, so — exactly as the desktop
- * callback does — the code is not sent until the Turnstile widget has produced a
- * token. Without one the API refuses the exchange and the sign-in dies here.
+ * On EE the exchange itself is a guarded auth POST, so the code is not sent until the
+ * Turnstile widget has produced a token. Without one the API refuses the exchange and the
+ * sign-in dies here.
  */
 export const OidcCallbackScreen = () => {
     const t = useT(oidcCatalog)

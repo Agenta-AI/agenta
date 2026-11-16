@@ -33,10 +33,10 @@ const identityOf = (
 })
 
 /**
- * One run's configuration in the compared Configuration tab, as the old app lays it out: the run
+ * One run's configuration in the compared Configuration tab: the run
  * name in its color, its summary card, then its test set, application and evaluators. A section
  * the run lacks stays, with a note, so an absence reads as a difference. A compared run marks the
- * fields that differ from the base run's with "Differs", as the old app does.
+ * fields that differ from the base run's with "Differs".
  */
 export const CompareConfigColumn = ({
     projectId,

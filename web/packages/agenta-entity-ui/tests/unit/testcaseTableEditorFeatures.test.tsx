@@ -1,7 +1,7 @@
 /**
  * The editor features of TestcaseTable: the settings button, the cell popover with Copy and
  * the edited-row marker. Each is off by default, so a picker or a preview (the playground load
- * dialogs, also in the old app) renders exactly as before. The grid is replaced by a plain
+ * dialogs) renders exactly as before. The grid is replaced by a plain
  * table, so the test sees what TestcaseTable and EntityTable hand to it.
  */
 import {act, type ReactNode} from "react"

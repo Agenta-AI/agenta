@@ -19,8 +19,7 @@ const AgentIconPicker = dynamic(
 /**
  * Pick one agent's glyph and colour from a panel anchored to the chip.
  *
- * The panel is the desktop's own `AgentIconPicker`, rendered verbatim, so the two surfaces cannot
- * drift on what the control looks like or how it behaves. It is 300px wide and clears a 375px
+ * The panel is `AgentIconPicker`, rendered verbatim. It is 300px wide and clears a 375px
  * phone with room either side, which is why this is a popover on every width rather than a sheet.
  *
  * Saves as you pick. There is no confirm — outside-click and Escape close it.

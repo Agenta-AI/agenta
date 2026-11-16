@@ -45,8 +45,8 @@ const lastChange = ({workflow, latestRevision}: EvaluatorEntry): string =>
     latestRevision.created_at ?? latestRevision.updated_at ?? workflow.created_at ?? ""
 
 /**
- * Pick the evaluators of one category and mode. Live evaluators come newest change first, as in
- * /w; archived ones newest archive first.
+ * Pick the evaluators of one category and mode. Live evaluators come newest change first;
+ * archived ones newest archive first.
  *
  * @param workflows - Evaluator workflows from the workflow query.
  * @param latestRevisions - The latest revision of each workflow, by workflow id.

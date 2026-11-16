@@ -130,8 +130,7 @@ export interface TurnStatus {
 
 /**
  * The seven status derivations of a turn (answer/reasoning/content presence, "no response", and
- * the error-surfacing rules), as a pure function. The one implementation: the desktop chat's
- * `AgentMessage.tsx` calls it too.
+ * the error-surfacing rules), as a pure function.
  */
 export const deriveTurnStatus = (
     message: UIMessage,

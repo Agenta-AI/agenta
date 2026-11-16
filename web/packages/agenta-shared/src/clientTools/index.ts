@@ -75,9 +75,8 @@ export function isInteractionEndedOutput(output: unknown): boolean {
 }
 
 /**
- * Normalised view of a tool part a client-tool widget reads, mirroring OSS's `ClientToolMeta`
- * (`clientTools/types.ts`). Structural (no `ai` dependency beyond the raw part) so a skin widget
- * and the resolvers agree on one shape.
+ * Normalised view of a tool part a client-tool widget reads. Structural (no `ai` dependency beyond
+ * the raw part) so a skin widget and the resolvers agree on one shape.
  */
 export interface ClientToolMeta {
     toolCallId: string
@@ -94,7 +93,7 @@ export interface ClientToolMeta {
 }
 
 /**
- * Settle the parked part. Mirrors OSS `SettleClientTool`: exactly one of `output`/`errorText`.
+ * Settle the parked part: exactly one of `output`/`errorText`.
  * A host may resolve `false` when the write did not land and the part is still parked.
  */
 export interface SettleClientTool {
@@ -136,7 +135,7 @@ export const declinedConnectOutput = (input: unknown): ConnectOutput => ({
     reason: "declined",
 })
 
-/** Props every client-tool widget receives — mirrors OSS `ClientToolHandlerProps`. */
+/** Props every client-tool widget receives. */
 export interface ClientToolWidgetProps {
     meta: ClientToolMeta
     /** Settle the part (resumes the run). No-op once already settled. */

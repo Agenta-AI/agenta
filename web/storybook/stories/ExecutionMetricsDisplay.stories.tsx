@@ -9,7 +9,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A row of icon badges for latency / tokens / cost, or — in the `plain` variant — one line of dot-separated muted text. Composes the @agenta/ui Badge + Tooltip internally.\n\n**Used in:** the shared generation-result utils behind playground outputs (`badge`), and the turn footer both apps render via `TurnFooter` in `@agenta/chat` (`plain`).",
+                    "A row of icon badges for latency / tokens / cost, or — in the `plain` variant — one line of dot-separated muted text. Composes the @agenta/ui Badge + Tooltip internally.\n\n**Used in:** the shared generation-result utils behind playground outputs (`badge`), and the turn footer rendered via `TurnFooter` in `@agenta/chat` (`plain`).",
             },
         },
     },

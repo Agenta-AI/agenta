@@ -23,10 +23,10 @@ import {useMobileSettingsAccess} from "./settingsTabs"
 
 /**
  * Mobile binding: the shared keys table with this app's delete confirm and the one-time reveal
- * of a new key. The desktop binding is `oss/.../settings/APIKeys/APIKeys.tsx`.
+ * of a new key.
  *
- * The edit gate is the effective `edit_api_keys` permission read from the backend — the same
- * action the desktop's role table resolves — rather than an optimistic flag, because a key is a
+ * The edit gate is the effective `edit_api_keys` permission read from the backend
+ * rather than an optimistic flag, because a key is a
  * credential and the buttons should not appear for a member who cannot mint one.
  */
 export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {

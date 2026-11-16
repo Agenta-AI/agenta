@@ -3,7 +3,7 @@
  *
  * The shape of an authenticated user across packages.
  * Populated into the primitive `userAtom` in `@agenta/shared/state`
- * by app-level bootstrap (see OSS `UserListener`).
+ * by app-level bootstrap (see `ContextSync` in `web/mobile`).
  */
 export interface User {
     id: string

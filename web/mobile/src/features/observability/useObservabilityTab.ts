@@ -7,7 +7,7 @@ import {currentQuery} from "./bindTraceDrawerSeams"
 export type ObservabilityTab = "traces" | "sessions"
 
 /**
- * The open tab lives in the address bar as `?tab=sessions`, the old app's param, so a reload or
+ * The open tab lives in the address bar as `?tab=sessions`, so a reload or
  * a link keeps it. Traces is the default and has no param.
  */
 export const useObservabilityTab = () => {

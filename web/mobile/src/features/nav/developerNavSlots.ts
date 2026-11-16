@@ -21,7 +21,7 @@ export interface DeveloperNavSlots {
 }
 
 /**
- * Developer Mode gets the old app's layout, with `promptsChildren` (the prompt apps) under
+ * Developer Mode gets its own layout, with `promptsChildren` (the prompt apps) under
  * Prompts; without beta the rail stays as it was.
  */
 export const developerNavSlots = (
@@ -36,7 +36,7 @@ export const developerNavSlots = (
     }
     const rail = developerRailItems(projectURL, views)
     return {
-        // Collapsed, Prompts opens its page rather than a flyout of apps, as in the old app.
+        // Collapsed, Prompts opens its page rather than a flyout of apps.
         afterHome: rail.lead.map((row) =>
             row.key === PROMPTS_ROW_KEY && promptsChildren.length
                 ? {...row, submenu: promptsChildren, hideChildrenWhenCollapsed: true}

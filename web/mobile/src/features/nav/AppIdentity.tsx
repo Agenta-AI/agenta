@@ -3,7 +3,7 @@ import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {CheckIcon, Gavel, SquaresFourIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-/** An app's or evaluator's square, name and type, as the old app's app menu shows it. */
+/** An app's or evaluator's square, name and type. */
 export const AppIdentity = ({
     name,
     evaluator = false,
@@ -19,8 +19,8 @@ export const AppIdentity = ({
     const Icon = evaluator ? Gavel : SquaresFourIcon
     return (
         <div className={clsx("flex w-full min-w-0 items-center", showDetails ? "gap-2" : "gap-0")}>
-            {/* The info and warning tints have no semantic role here; they are theme tokens, the
-                old app's blue and orange. */}
+            {/* The info and warning tints have no semantic role here; they are the theme's blue
+                and orange. */}
             <span
                 className={clsx(
                     "flex shrink-0 items-center justify-center",

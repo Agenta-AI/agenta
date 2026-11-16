@@ -74,7 +74,7 @@ const VARS: Record<string, [string, string]> = {
         ]),
     ),
     // Section-row icons, chip fills and the destructive/neutral hover fills the shared drill-in
-    // controls paint with. Verified missing from the mobile bundle while oss generated them.
+    // controls paint with.
     colorIcon: [color(p.text.icon.light), color(p.text.icon.dark)],
     colorIconHover: [color(p.text.iconHover.light), color(p.text.iconHover.dark)],
     colorTextHeading: [color(p.text.heading.light), color(p.text.heading.dark)],
@@ -83,10 +83,9 @@ const VARS: Record<string, [string, string]> = {
     colorWhite: [color(p.surface.white.light), color(p.surface.white.dark)],
     colorFillChip: [color(p.fill.chip.light), color(p.fill.chip.dark)],
     colorErrorBg: [color(p.semantic.errorBg.light), color(p.semantic.errorBg.dark)],
-    // The status vocabulary the shared surfaces paint refusals, banners and tiles with. Every
-    // one resolved on /w and generated nothing on /m, so the same component rendered an
-    // untinted box there: a refused field with no red text, a banner with no amber edge, a
-    // server tile with no fill.
+    // The status vocabulary the shared surfaces paint refusals, banners and tiles with. Without
+    // them a component rendered an untinted box: a refused field with no red text, a banner with
+    // no amber edge, a server tile with no fill.
     colorErrorText: [color(p.semantic.errorText.light), color(p.semantic.errorText.dark)],
     colorInfoBg: [color(p.surface.infoBg.light), color(p.surface.infoBg.dark)],
     colorWarningBorder: [
@@ -136,15 +135,12 @@ const VARS: Record<string, [string, string]> = {
         color(p.semantic.primaryBorderHover.light),
         color(p.semantic.primaryBorderHover.dark),
     ],
-    // The PAGE surface, and it is `surface.container` — NOT `surface.base`. The desktop shell
-    // paints its content area #141414 dark / #fff light (Layout/assets/styles.ts), which is
-    // exactly this role; `surface.base` is pure black and made every mobile screen read a full
-    // step darker than the same page on desktop. The rail stays one step below it
-    // (`--ag-sidebar-bg` = shell.railBg #121316), as on desktop.
+    // The PAGE surface, and it is `surface.container` — NOT `surface.base`, which is pure
+    // black and made every screen read a full step too dark. The rail stays one step below it
+    // (`--ag-sidebar-bg` = shell.railBg #121316).
     background: [color(p.surface.container.light), color(p.surface.container.dark)],
     foreground: [color(p.text.primary.light), color(p.text.primary.dark)],
-    // Cards must sit ABOVE the page now that the page is `container` — same step the desktop
-    // rail cards use (`colorBgElevated`).
+    // Cards must sit ABOVE the page now that the page is `container` (`colorBgElevated`).
     card: [color(p.surface.elevated.light), color(p.surface.elevated.dark)],
     "card-foreground": [color(p.text.primary.light), color(p.text.primary.dark)],
     popover: [color(p.surface.elevated.light), color(p.surface.elevated.dark)],
@@ -159,24 +155,24 @@ const VARS: Record<string, [string, string]> = {
     "muted-foreground": [color(p.text.secondary.light), color(p.text.secondary.dark)],
     // Dark accent is a NEUTRAL step, not controlItemBgActive.dark (#57572a):
     // shadcn `accent` drives ghost/outline hover fills and the skeleton base.
-    // The selection-tint yellow stays desktop-only; introduce a separate token
+    // The selection-tint yellow stays out of `accent`; introduce a separate token
     // if a selected-state tint is needed later.
     accent: [color(p.surface.controlItemBgActive.light), color(p.scales.zinc[2].dark)],
     "accent-foreground": [color(p.text.primary.light), color(p.text.primary.dark)],
     destructive: [color(p.semantic.error.light), color(p.semantic.error.dark)],
     // Not a shadcn role: session liveness needs a third state between the accent (a turn is
-    // running, act on it) and muted (ended). Same semantic family the desktop uses for "healthy".
+    // running, act on it) and muted (ended).
     success: [color(p.semantic.success.light), color(p.semantic.success.dark)],
     // Bright-red fill gets dark text in dark mode, matching the primary treatment.
     "destructive-foreground": [color(p.surface.white.light), color(p.button.primaryText.dark)],
-    // Both are `--ag-colorBorder` (border.default) on desktop — see shadcnTokens.ts.
+    // Both are `--ag-colorBorder` (border.default) — see shadcnTokens.ts.
     border: [color(p.border.default.light), color(p.border.default.dark)],
     input: [color(p.border.default.light), color(p.border.default.dark)],
-    // ── The surface LADDER, emitted under its desktop `--ag-surface-*` names ──
+    // ── The surface LADDER, emitted under its `--ag-surface-*` names ──
     // `@agenta/ui/surfaces.css` styles `.ag-app-ground` / `.ag-panel-raised` / `.ag-canvas` /
     // `.ag-surface-card` from these literal names. Without them every shared panel renders on a
     // flat background: the components are identical, but the raised/recessed contrast that makes
-    // the desktop workspace read as layered simply is not there.
+    // the workspace read as layered simply is not there.
     "ag-surface-app": [color(p.playgroundSurface.app.light), color(p.playgroundSurface.app.dark)],
     "ag-surface-gutter": [
         color(p.playgroundSurface.gutter.light),
@@ -234,7 +230,7 @@ const VARS: Record<string, [string, string]> = {
         color(p.playgroundSurface.inspectorShadow.light),
         color(p.playgroundSurface.inspectorShadow.dark),
     ],
-    // ── App-shell vars, emitted under their desktop `--ag-` names ──
+    // ── App-shell vars, emitted under their `--ag-` names ──
     // The shared SidebarShell styles the rail with `var(--ag-sidebar-bg)`/`var(--ag-shell-line)`
     // literally, so mobile must publish the same names off the same palette roles.
     "ag-sidebar-bg": [color(p.shell.railBg.light), color(p.shell.railBg.dark)],
@@ -242,8 +238,8 @@ const VARS: Record<string, [string, string]> = {
     // shadcn's `ring` is a neutral grey, not the brand colour (palette `surface.ring`).
     ring: [color(p.surface.ring.light), color(p.surface.ring.dark)],
     // ── @agenta/ui control primitives (Button/Input/Switch) ──
-    // The kit's state tokens, fed from the SAME palette roles that generate the desktop
-    // --ag-* layer, so a shared control renders identically in both apps.
+    // The kit's state tokens, fed from the SAME palette roles that generate the
+    // --ag-* layer.
     placeholder: [color(p.text.placeholder.light), color(p.text.placeholder.dark)],
     "focus-ring": [color(p.semantic.primaryBorder.light), color(p.semantic.primaryBorder.dark)],
     disabled: [color(p.text.disabled.light), color(p.text.disabled.dark)],
@@ -276,7 +272,7 @@ const VARS: Record<string, [string, string]> = {
     "btn-link-hover": [color(p.button.linkHover.light), color(p.button.linkHover.dark)],
     "btn-link-active": [color(p.button.linkActive.light), color(p.button.linkActive.dark)],
     // Plain vars referenced VERBATIM inside the kit's arbitrary shadow values
-    // (shadow-[0_2px_0_var(--ag-controlOutline)]) — emitted with the desktop's exact names.
+    // (shadow-[0_2px_0_var(--ag-controlOutline)]) — emitted with these exact names.
     "ag-ring": [color(p.surface.ring.light), color(p.surface.ring.dark)],
     "ag-controlOutline": [
         color(p.surface.controlOutline.light),
@@ -289,7 +285,7 @@ const VARS: Record<string, [string, string]> = {
     "switch-handle-shadow": [color(p.shadow.switchHandle.light), color(p.shadow.switchHandle.dark)],
     // RichChatInput (the shared composer) styles itself with raw --ag-* custom properties —
     // undefined vars would collapse its border-color to currentColor. Same palette roles that
-    // generate the desktop layer.
+    // generate the --ag-* layer.
     "ag-composer-border": [color(p.composer.border.light), color(p.composer.border.dark)],
     "ag-composer-focus": [color(p.composer.focus.light), color(p.composer.focus.dark)],
     "ag-composer-placeholder": [
@@ -304,7 +300,7 @@ const VARS: Record<string, [string, string]> = {
         color(p.composer.sendDisabledFg.light),
         color(p.composer.sendDisabledFg.dark),
     ],
-    // ── Run-status dots, under their desktop `--ag-run-status-*` names ──
+    // ── Run-status dots, under their `--ag-run-status-*` names ──
     // The nav rail already paints a blocked session with `--ag-run-status-warning`, and the
     // sessions list has to agree with it. The semantic `colorWarning` is a TEXT amber (#8a6400),
     // dark enough to read as brown at 7px; these are the dot hues.
@@ -316,7 +312,7 @@ const VARS: Record<string, [string, string]> = {
         color(p.runStatus.processing.dark),
     ],
     "ag-run-status-error": [color(p.runStatus.error.light), color(p.runStatus.error.dark)],
-    // The tinted panel surface, under its desktop name: the shared PanelSection styles itself
+    // The tinted panel surface, under its `--ag-` name: the shared PanelSection styles itself
     // with `var(--ag-surface-paper)` literally, so /m must publish the same name or every panel
     // header renders on no background at all.
     "ag-surface-paper": [color(p.tintedSurface.paper.light), color(p.tintedSurface.paper.dark)],
@@ -327,9 +323,8 @@ const VARS: Record<string, [string, string]> = {
     "hero-action-hover-bg": [color(p.heroAction.hoverBg.light), color(p.heroAction.hoverBg.dark)],
     "hero-action-text": [color(p.heroAction.text.light), color(p.heroAction.text.dark)],
     // Full shadow lists, not colors — the kit's `shadow-overlay`, `shadow-dialog` and
-    // `shadow-tertiary` read these by their desktop names. `--ag-boxShadowSecondary` was
-    // referenced by globals.css and defined nowhere on /m, so every kit overlay dropped its
-    // shadow here while carrying one on /w.
+    // `shadow-tertiary` read these by name; without `--ag-boxShadowSecondary`
+    // every kit overlay drops its shadow.
     "ag-boxShadowSecondary": [color(p.shadow.overlay.light), color(p.shadow.overlay.dark)],
     "ag-boxShadowTertiary": [color(p.shadow.tertiary.light), color(p.shadow.tertiary.dark)],
     "ag-colorText": [color(p.text.primary.light), color(p.text.primary.dark)],
@@ -355,7 +350,7 @@ const VARS: Record<string, [string, string]> = {
 }
 
 /**
- * Dark-only bridges: roles whose LIGHT value is an antd() ref the desktop keeps deliberately, so
+ * Dark-only bridges: roles whose LIGHT value is an antd() ref palette.ts keeps deliberately, so
  * antd upgrades keep tracking. Resolving those to literals here would freeze antd's current output
  * into the source of truth; mobile has no antd to track anyway, so it keeps its own light literals
  * and takes only the dark side — which is the side that carries the separating ring.

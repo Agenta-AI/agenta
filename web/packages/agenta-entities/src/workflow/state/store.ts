@@ -193,8 +193,8 @@ export function primeWorkflowRevisionDetailCacheImperative(
  * Put a just-committed revision into the ref lists the revision pickers read, so it appears at
  * once instead of after the invalidation's refetch lands.
  *
- * Both lists are thin `{count, refs}` caches keyed differently — the desktop picker lists by
- * VARIANT, the mobile top bar by WORKFLOW — so a commit has to seed both or one of them shows a
+ * Both lists are thin `{count, refs}` caches keyed differently — one by VARIANT, the mobile top
+ * bar by WORKFLOW — so a commit has to seed both or one of them shows a
  * dropdown whose newest entry is the revision before the one the header names.
  */
 export function primeCommittedRevisionRefLists(

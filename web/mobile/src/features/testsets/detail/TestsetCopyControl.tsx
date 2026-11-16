@@ -13,7 +13,6 @@ import {CaretDown, Check, Copy} from "@phosphor-icons/react"
 
 type CopyKind = "id" | "slug"
 
-/** The key the old app used, so a reader keeps the choice they made there. */
 export const LAST_COPY_KEY = "testcase-header-last-copy-action"
 const COPIED_MS = 2000
 

@@ -3,7 +3,7 @@
  *
  * Type definitions for the PlaygroundEntityProvider pattern.
  * These types define the interface for dependency injection of entity
- * molecules, allowing OSS and EE to provide different implementations.
+ * molecules, allowing the host to provide its own implementations.
  *
  * ## Usage
  *

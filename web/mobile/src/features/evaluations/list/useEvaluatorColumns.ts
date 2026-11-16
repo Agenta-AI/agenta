@@ -16,7 +16,7 @@ interface EvaluatorInfo {
 }
 
 /**
- * The evaluator columns as the old list shows them: each group with the evaluator's name, and
+ * The evaluator columns: each group with the evaluator's name, and
  * without the metrics the evaluator types as text (a comment does not aggregate). The names and
  * the schemas come in one batched request each; the atom is rebuilt only when a group changes.
  */

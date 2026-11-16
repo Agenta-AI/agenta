@@ -5,7 +5,7 @@ import type {WorkspaceMember} from "../../organization"
 import {groupOutputValues} from "./helpers"
 
 /**
- * Structural constraint covering both `AnnotationResponseDto` and the OSS
+ * Structural constraint covering both `AnnotationResponseDto` and
  * `EvaluatorDto` — the transform only reads these three fields, so the package
  * does not need to depend on either concrete type.
  */

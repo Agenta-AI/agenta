@@ -1,9 +1,8 @@
 /**
  * The conversation's edge fades and reading column, shared by every chat surface.
  *
- * Here and not in an app because both surfaces render the same transcript, and the rules below are
- * not obvious enough to re-derive: the top is a MASK, the bottom cannot be, and the bottom overlay
- * has to be suppressed on hover. /m shipped with no fades at all until this moved.
+ * Here and not in the app because the rules below are not obvious enough to re-derive: the top is
+ * a MASK, the bottom cannot be, and the bottom overlay has to be suppressed on hover.
  */
 /** Height of the top-edge fade, in px. Shared by the CSS mask and the SC-1 pin so a pinned turn
  * lands BELOW the fade (otherwise the freshly-asked question renders partially faded). */

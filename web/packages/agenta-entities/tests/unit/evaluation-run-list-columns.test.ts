@@ -1,6 +1,6 @@
 /**
  * The runs list columns against real runs captured from a test stack: two auto runs with three
- * evaluators and a live run with two. Expected columns are the ones the old app's list shows.
+ * evaluators and a live run with two.
  */
 import {describe, expect, it} from "vitest"
 
@@ -69,7 +69,7 @@ describe("runs list columns", () => {
         expect(runListColumns([], "all").evaluators).toEqual([])
     })
 
-    it("humanizes metric paths like the old app", () => {
+    it("humanizes metric paths", () => {
         expect(humanizeMetricPath("attributes.ag.data.outputs.score")).toBe("Score")
         expect(humanizeMetricPath("outputs.is_valid")).toBe("Output Is Valid")
         expect(humanizeMetricPath("attributes.ag.data.outputs.json_id")).toBe("JSON ID")

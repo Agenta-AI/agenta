@@ -1,6 +1,6 @@
 /**
- * Maps a legacy desktop URL to the `/m` page that shows the same thing. `web/mobile/src/proxy.ts`
- * uses it to answer old links, bookmarks and SDK trace links.
+ * Maps a URL outside `/m` to the `/m` page that shows the same thing. `web/mobile/src/proxy.ts`
+ * uses it to answer links, bookmarks and SDK trace links.
  */
 
 import {SESSION_QUERY_PARAM} from "../sessionParam"
@@ -18,7 +18,7 @@ const TEMPLATE_QUERY_PARAM = "template"
 const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(?:\/(.*))?$/
 
 /**
- * Desktop sub-paths under `/apps` that are NOT an agent id — they must not be read as one.
+ * Sub-paths under `/apps` that are NOT an agent id — they must not be read as one.
  * `/apps/archived` is the archived list, `/apps/agent-templates` the template gallery.
  */
 const APPS_RESERVED = new Set(["archived", "agent-templates"])
@@ -111,7 +111,7 @@ const developerAppRoute = (
 }
 
 /**
- * Desktop URL → the `/m` route that shows the same thing, or `null` when `/m` has no such
+ * A URL outside `/m` → the `/m` route that shows the same thing, or `null` when `/m` has no such
  * screen (evaluations, test sets, prompts, evaluators, annotations, the registry).
  *
  * The proxy logs a null answer and sends the link to the `/m` root: see {@link mapDesktopToMobile}.
@@ -133,7 +133,7 @@ export function mobileRouteFor(
         return `/m${page}${search}`
     }
 
-    // An invite opened on the desktop: `/m` takes it through its sign-in, like an emailed invite.
+    // An invite link: `/m` takes it through its sign-in, like an emailed invite.
     if (/^\/workspaces\/accept\/?$/.test(pathname)) {
         return new URLSearchParams(search).get("token") ? `/m/auth${search}` : "/m/invite"
     }
@@ -179,7 +179,7 @@ export function mobileRouteFor(
                 segments.slice(3),
             )
             // A section with no view of its own (sessions, ...) still lands on the app's screen.
-            // The playground's own selection rides along: both apps read `?revisions=`.
+            // The playground's own selection rides along: `/m` reads the same `?revisions=`.
             const revisions = second === "playground" ? params.get("revisions") : null
             const deployments = second === "variants" && params.get("tab") === "deployments"
             const selection = revisions
@@ -189,7 +189,7 @@ export function mobileRouteFor(
                   : ""
             if (appRoute !== undefined) return appRoute ? `${base}${appRoute}${selection}` : null
         }
-        // Every other app-scoped desktop page (playground, overview, sessions, deployments…)
+        // Every other app-scoped page (playground, overview, sessions, deployments…)
         // collapses to the agent's own screen — the only agent surface `/m` has.
         return `${base}/agents/${first}`
     }
@@ -204,7 +204,7 @@ export function mobileRouteFor(
     }
 
     if (head === "observability" && !first) {
-        // ?session={id} is the desktop observability drawer's own param,
+        // ?session={id} is the observability drawer's own param,
         // distinct from SESSION_QUERY_PARAM — land in that session's chat.
         const drawerSession = params.get("session")
         if (drawerSession) return `${base}/sessions/${encodeURIComponent(drawerSession)}`
@@ -221,7 +221,7 @@ export function mobileRouteFor(
     if (head === "settings" && !first) {
         // `/m` Settings reads the same `tab` keys and falls back for one it does not have.
         const tab = params.get("tab")
-        // The pack picker opens from Billing on the desktop and from Credits in `/m`.
+        // A Billing link to the pack picker lands on Credits, where `/m` opens it.
         if (tab === "billing" && params.get("buy_credits") === "1") {
             return `${base}/settings?tab=credits&buy_credits=1`
         }
@@ -237,7 +237,8 @@ export function mobileRouteFor(
 }
 
 /**
- * Desktop URL → mobile equivalent, falling back to the `/m` root for a page `/m` does not have.
+ * A URL outside `/m` → its `/m` equivalent, falling back to the `/m` root for a page `/m` does not
+ * have.
  */
 export function mapDesktopToMobile(
     pathname: string,

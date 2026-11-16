@@ -1,6 +1,5 @@
 /**
- * THE agents roster — the card grid every app's Agents page renders. Extracted from the desktop
- * page (whose `AgentsGrid` now maps onto this), so a roster is the same object on every surface:
+ * THE agents roster — the card grid the Agents page renders, the same object on every surface:
  * the same cards, the same waiting badge, the same dashed create cell, the same empty state.
  *
  * It owns the mapping from roster entries to `AgentCard`s inside `AgentCardGrid`. What stays with
@@ -13,7 +12,7 @@ import type {ReactNode} from "react"
 import {AgentCard} from "./AgentCard"
 import {AgentCardGrid} from "./AgentCardGrid"
 
-/** What the roster needs of an agent. Both apps' row shapes map onto this. */
+/** What the roster needs of an agent. A host's row shape maps onto this. */
 export interface AgentRosterEntry {
     id: string
     name: string

@@ -209,7 +209,7 @@ describe("DeploymentsTab", () => {
         expect(text()).toContain("Renamed v1")
     })
 
-    it("Modified by shows the member's username, as in /w", () => {
+    it("Modified by shows the member's username", () => {
         fixture.members = [
             {user: {id: "user-1", username: "sam.lee", email: "sam@example.com"}},
             {user: {id: "user-2", email: "alex@example.com"}},
@@ -377,7 +377,7 @@ describe("DeploymentsTab in Developer Mode", () => {
             el.textContent?.toLowerCase().includes("production"),
         )
 
-    it("An environment with nothing deployed shows a dash for Last modified, as /w does", () => {
+    it("An environment with nothing deployed shows a dash for Last modified", () => {
         fixture.beta = true
         fixture.environments.data = [
             environment("development", "rev-2", "First"),
@@ -416,7 +416,7 @@ describe("DeploymentsTab in Developer Mode", () => {
             .map((el) => el.textContent?.trim())
             .filter((label) => ["Export CSV", "Deploy", "Use API"].includes(label ?? ""))
 
-    it("The toolbar reads Export CSV, Deploy, then Use API as the main button, as in /w", () => {
+    it("The toolbar reads Export CSV, Deploy, then Use API as the main button", () => {
         fixture.beta = true
         fixture.history.data = [historyRow("e1", 1, "rev-2")]
         mountTab()

@@ -14,8 +14,8 @@
  * `dragListener` is off either way — the press starts the drag through `dragControls`, so the
  * browser keeps the gesture until we decide it is a drag.
  *
- * Motion props pass through: the desktop's chips animate their width + gap margin on enter/exit and
- * track themselves into view via `onUpdate`, and that keeps working while they are drag slots.
+ * Motion props pass through: chips that animate their width + gap margin on enter/exit and track
+ * themselves into view via `onUpdate` keep doing so while they are drag slots.
  */
 import {useCallback, useEffect, useRef, useState, type ReactNode, type Ref} from "react"
 

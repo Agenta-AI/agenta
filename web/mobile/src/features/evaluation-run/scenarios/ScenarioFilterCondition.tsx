@@ -9,7 +9,7 @@ import {X} from "@phosphor-icons/react"
 import {ScenarioFilterValue} from "./ScenarioFilterValue"
 import {scenarioFilterFieldId, type ScenarioFilterField} from "./useScenarioFilter"
 
-/** The operator words of the old app's filter. */
+/** The operator words of the filter. */
 const OPERATOR_LABELS: Record<FilterOperator, string> = {
     eq: "equals",
     ne: "not equals",

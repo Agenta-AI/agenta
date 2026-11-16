@@ -90,7 +90,7 @@ export const TestsetDetailScreen = ({
 
     const mayEdit = useProjectPermission(projectId, "edit_testsets")
     const canEdit = mayEdit && !archivedTestset.isArchived
-    // Same rule as the list: the old app gated exports on API key rights.
+    // Same rule as the list: exports are gated on API key rights.
     const mayViewKeys = useProjectPermission(projectId, "view_api_keys")
     const mayEditKeys = useProjectPermission(projectId, "edit_api_keys")
     const canExport = mayViewKeys && mayEditKeys

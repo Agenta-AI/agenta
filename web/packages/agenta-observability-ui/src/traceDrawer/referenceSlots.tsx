@@ -5,8 +5,8 @@ import type {SimpleQueue} from "@agenta/entities/simpleQueue"
 /**
  * Host slots for the reference labels the trace drawer renders.
  *
- * `@/oss/components/References` is 20 files and ~3.5k lines of app-coupled lookup UI, so the
- * drawer takes the components as slots rather than dragging that closure into the package. Same
+ * The reference lookup UI is app-coupled, so the drawer takes the components as slots rather
+ * than dragging it into the package. Same
  * contract as `configureUserReference` in `@agenta/ui`: the host registers once at boot, the
  * package renders whatever it was given, and a host that registers nothing gets a plain label
  * instead of a crash.

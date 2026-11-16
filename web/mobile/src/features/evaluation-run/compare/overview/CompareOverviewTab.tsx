@@ -12,7 +12,7 @@ import {CompareSummaryTable} from "./CompareSummaryTable"
 import {useCompareOverview} from "./useCompareOverview"
 
 /**
- * The Overview tab while runs are compared, as in the old app: the summary with one column per
+ * The Overview tab while runs are compared: the summary with one column per
  * run, the radar with one series per run, and one card per evaluator metric with a bar per run.
  */
 export const CompareOverviewTab = ({

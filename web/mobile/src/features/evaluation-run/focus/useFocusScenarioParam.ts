@@ -6,8 +6,8 @@ const SCENARIO_PARAM = "focusScenarioId"
 const RUN_PARAM = "focusRunId"
 
 /**
- * The focused scenario, kept in the URL as `?focusScenarioId=` and `?focusRunId=` (the /w names,
- * so /w links open here too). The URL is the drawer's only open state. `setScenarioId(null)`
+ * The focused scenario, kept in the URL as `?focusScenarioId=` and `?focusRunId=`.
+ * The URL is the drawer's only open state. `setScenarioId(null)`
  * closes the drawer and removes both parameters.
  */
 export const useFocusScenarioParam = (runId: string) => {

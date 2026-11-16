@@ -17,14 +17,13 @@ import {heldCommitAtomFamily} from "./selectedRevision"
 import {ShareMenu} from "./ShareMenu"
 
 /**
- * The session workspace's top bar — the desktop playground's header on this surface: which agent
+ * The session workspace's top bar: which agent
  * you are working on, which revision, and whether it is saved.
  *
- * No Build/Chat switch: the desktop hides it too (`SHOW_MODE_SWITCH = false` in its playground
- * header). The config panel is shown or collapsed, and that is the whole model — a mode switch on
- * top of a collapse gives two controls for one piece of state.
+ * No Build/Chat switch. The config panel is shown or collapsed, and that is the whole model: a
+ * mode switch on top of a collapse gives two controls for one piece of state.
  *
- * It spans both panes (config and conversation), exactly as the desktop bar spans its panels, so
+ * It spans both panes (config and conversation), so
  * the identity belongs to the workspace and not to either pane.
  */
 export const SessionTopBar = ({
@@ -68,7 +67,7 @@ export const SessionTopBar = ({
         <AgentPageHeader
             // Nav is the DRAWER here, as on every other screen in this app — not a bespoke back
             // chevron. It hides itself at lg, where the rail takes over and the bar then opens with
-            // the agent icon exactly like the desktop playground's. Getting back to the sessions
+            // the agent icon. Getting back to the sessions
             // list is the drawer's Sessions entry, or the tab rail above the conversation.
             leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
             // One slot for both halves: the shared identity owns the chip and the inline rename,
@@ -97,7 +96,7 @@ export const SessionTopBar = ({
                     />
                 ) : undefined
             }
-            // The desktop puts this at the header's right edge too, not on the tab strip.
+            // At the header's right edge, not on the tab strip.
             actions={
                 <>
                     {agentId && !agentHidden ? (

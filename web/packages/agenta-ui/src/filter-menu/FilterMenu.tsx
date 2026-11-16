@@ -38,8 +38,7 @@ export interface FilterMenuProps extends FilterMenuTriggerProps, FilterMenuPlace
  * group below it, a search field over the lot and a reset beneath.
  *
  * Host-agnostic by construction — antd-free, entity-free, and every icon arrives as a
- * `ReactNode` prop — so `web/mobile` (which bans antd) and the desktop app mount the same
- * component over their own data.
+ * `ReactNode` prop — so any host mounts it over its own data.
  */
 export const FilterMenu = ({
     sections,

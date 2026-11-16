@@ -36,7 +36,7 @@ import {useNewAgentAction} from "./useNewAgentAction"
  * its composer runs a task with an agent that already exists, so with none it disables itself and
  * leaves one button on an empty page.
  *
- * Like the desktop, this mounts the REAL workspace around a local-only agent minted up front, so
+ * This mounts the REAL workspace around a local-only agent minted up front, so
  * the config pane (model, instructions, tools) is live before anything is created — you can see
  * and change what you are about to build. The conversation half is replaced by the create surface
  * until the agent exists; submitting commits that same ephemeral rather than minting a second one.
@@ -186,7 +186,7 @@ export const FirstRunScreen = ({
     }
 
     const createSurface = (
-        // The desktop's shape: the question at the top, then the offer and the composer docked at
+        // The question at the top, then the offer and the composer docked at
         // the bottom of the panel. `min-h-0` + the flex spacer is what pins them there instead of
         // letting the whole column sit under the hero.
         <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 pb-4 lg:px-8">
@@ -214,7 +214,7 @@ export const FirstRunScreen = ({
                     )}
                 </div>
 
-                {/* Pushes everything below to the bottom of the panel, as the desktop does. */}
+                {/* Pushes everything below to the bottom of the panel. */}
                 <div className="min-h-6 flex-1" />
 
                 {/* The offer slot: the strip folds away while a `?template=` arrival creates. */}

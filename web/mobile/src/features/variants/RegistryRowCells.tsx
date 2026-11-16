@@ -12,7 +12,7 @@ const stop = {
     onKeyDown: (event: {stopPropagation: () => void}) => event.stopPropagation(),
 }
 
-/** One Registry row's cells, in column order, with the old app's columns. */
+/** One Registry row's cells, in column order. */
 export const RegistryRowCells = ({
     row,
     narrow,

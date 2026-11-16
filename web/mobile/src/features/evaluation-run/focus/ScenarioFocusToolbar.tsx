@@ -19,7 +19,7 @@ const FORMATS = [
 ]
 
 /**
- * The drawer's tools, as the old app has them: full screen (on a wide screen; a phone already
+ * The drawer's tools: full screen (on a wide screen; a phone already
  * shows the drawer full screen), fold every section (or unfold them all once one is folded), copy the scenario as JSON, and
  * the Form or JSON view.
  */

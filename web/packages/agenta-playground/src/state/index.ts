@@ -9,7 +9,7 @@
  * The state is organized into:
  * - **Types**: Type definitions for playground entities and state
  * - **Controllers**: High-level APIs for managing state (PUBLIC)
- * - **Context**: Entity provider injection for OSS/EE compatibility
+ * - **Context**: Entity provider injection from the app layer
  * - **Atoms**: Internal implementation (NOT exported from main package)
  *
  * ## Usage

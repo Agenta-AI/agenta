@@ -1,6 +1,5 @@
 import {useCallback, useState} from "react"
 
-/** The old app's key, so a user keeps the same picked evaluators in both apps. */
 const storageKey = (projectId: string) => `${projectId}-evaluator`
 
 const readSelection = (projectId: string): string[] => {

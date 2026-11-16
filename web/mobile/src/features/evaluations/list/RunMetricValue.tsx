@@ -3,7 +3,7 @@ import {EvaluatorMetricBar} from "@agenta/ui/cell-renderers"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 /**
- * One metric of one run, as the old list draws it: a true/false bar with the share of true, the
+ * One metric of one run: a true/false bar with the share of true, the
  * most frequent value of a category metric, else the value as text ("$0.0012", "522ms", "0.85").
  */
 export const RunMetricValue = ({

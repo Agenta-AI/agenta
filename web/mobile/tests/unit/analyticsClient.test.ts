@@ -14,7 +14,7 @@ beforeEach(() => {
 })
 
 describe("loading PostHog", () => {
-    it("uses desktop OSS persistence and deduplicates concurrent loads", async () => {
+    it("uses OSS persistence and deduplicates concurrent loads", async () => {
         const {loadPostHog} = await import("@/features/analytics/client")
         const [a, b] = await Promise.all([loadPostHog(), loadPostHog()])
         expect(a).toBe(b)

@@ -46,7 +46,7 @@ export type EventsQueryResponse = AgentaApi.EventsQueryResponse
  * without duplicating event data per row.
  *
  * `__isSkeleton` is required (not optional as on the base) so the row type
- * also satisfies the stricter `InfiniteTableRowBase` of the OSS table shell.
+ * also satisfies the stricter `InfiniteTableRowBase` of the table shell.
  */
 export interface EventTableRow extends InfiniteTableRowBase {
     id: string

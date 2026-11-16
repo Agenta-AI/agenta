@@ -16,7 +16,7 @@ const BASIC_COLUMNS: RunListColumns = {
 }
 
 /**
- * The columns of the runs list for the tab and the runs on screen, as the old list picks them;
+ * The columns of the runs list for the tab and the runs on screen;
  * without a tab, the basic columns.
  * The list refreshes every five seconds while a run is in progress. The same plan object comes
  * back until a column changes, so the header and the cells do not redraw on every refresh.

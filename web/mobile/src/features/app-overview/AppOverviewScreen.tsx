@@ -37,7 +37,7 @@ const AppUsageSection = dynamic(() => import("./AppUsageSection").then((m) => m.
  * The overview of one prompt or custom app: where it is deployed, its newest prompts, and its
  * newest evaluations. An agent id goes to the agent overview. An archived app opens too,
  * without its actions menu. In Developer Mode an evaluator id shows the same overview
- * without Deployment, as in the old app; outside it an evaluator is "not found". Any other
+ * without Deployment; outside it an evaluator is "not found". Any other
  * id (unknown, or an archived evaluator) is "not found".
  *
  * Each section loads and fails on its own. The usage charts show only in Developer Mode.
@@ -57,7 +57,7 @@ export const AppOverviewScreen = ({
     const queryClient = useQueryClient()
     const base = `/w/${workspaceId}/p/${projectId}`
     const overview = useOverviewApp(projectId, appId)
-    // Developer Mode matches /w: the menu sits right after the title, and authors show names.
+    // Developer Mode: the menu sits right after the title, and authors show names.
     const beta = useAtomValue(developerModeActiveAtom)
     const showUsage = beta
     const status = overview.status

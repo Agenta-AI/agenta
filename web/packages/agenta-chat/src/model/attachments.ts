@@ -1,7 +1,6 @@
 import {generateId} from "@agenta/shared/utils"
 
-/** A file staged for upload before it's sent — neutral shape, independent of the desktop
- * upload-item type. */
+/** A file staged for upload before it's sent. */
 export interface PendingAttachment {
     file: File
     uid: string
@@ -9,8 +8,7 @@ export interface PendingAttachment {
 }
 
 // Unique per staged ROW, not per file identity: a name-mtime-size key collided whenever the
-// same file was attached twice (paste then drop) — one remove then wiped both rows. Mirrors
-// the desktop composer's fix.
+// same file was attached twice (paste then drop) — one remove then wiped both rows.
 export const toPendingAttachment = (file: File): PendingAttachment => ({
     file,
     uid: `att-${generateId()}`,
@@ -18,8 +16,8 @@ export const toPendingAttachment = (file: File): PendingAttachment => ({
 })
 
 /**
- * A file moving through (or done with) the upload pipeline — the neutral replacement for the
- * antd `UploadFile` shape the desktop tray used. Only the fields the pipeline actually reads.
+ * A file moving through (or done with) the upload pipeline. Only the fields the pipeline actually
+ * reads.
  */
 export interface StagedUpload<TResponse = unknown> {
     /** Unique per staged ROW (the tray's React key, remove/retry handle, upload idempotency key). */

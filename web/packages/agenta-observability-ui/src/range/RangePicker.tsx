@@ -52,11 +52,10 @@ const EMPTY_DRAFT: DateRangeValue = {}
 
 /**
  * The observability/analytics time-range picker: the ten shared presets plus an explicit
- * start/end, replacing the antd `Sort` popover.
+ * start/end.
  *
  * Controlled by contract. `value` is the applied window and the only source of the readout, so
- * switching tabs or remounting can never show a range the query is not using — the defect the
- * antd original had, where the label came from `useState(defaultSortValue)`. The only local
+ * switching tabs or remounting can never show a range the query is not using. The only local
  * state is the popover's own: open, which panel is showing, and the custom-range DRAFT that
  * Cancel must be able to discard.
  */

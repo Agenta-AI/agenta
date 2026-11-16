@@ -1,8 +1,6 @@
 /**
- * CSV export of evaluation runs, copied from the old app as pure functions: the cell escaping of
- * `@agenta/ui` `useTableExport`, and the value and header rules of
- * `EvaluationRunsTablePOC/hooks/useEvaluationRunsColumns/utils.tsx` and
- * `EvaluationRunsTable/export/*`. The caller resolves names (evaluators, members) and passes them in.
+ * CSV export of evaluation runs as pure functions: the cell escaping, and the value and header
+ * rules. The caller resolves names (evaluators, members) and passes them in.
  *
  * @packageDocumentation
  */

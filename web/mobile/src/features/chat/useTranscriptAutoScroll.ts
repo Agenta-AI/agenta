@@ -42,8 +42,8 @@ export const useTranscriptAutoScroll = (content: unknown, sessionId?: string) =>
     const anchorRef = useRef<string | null>(null)
     // Answers the reader took over from; never anchored again.
     const releasedRef = useRef(new Set<string>())
-    // The jump pill is a SEPARATE, much further threshold (`shouldRevealJump`, shared with the
-    // desktop): leaving the follow band means "stop auto-scrolling", not "offer a way back" — at
+    // The jump pill is a SEPARATE, much further threshold (`shouldRevealJump`): leaving the
+    // follow band means "stop auto-scrolling", not "offer a way back" — at
     // 80px the pill used to appear on barely a nudge.
     const [showJump, setShowJump] = useState(false)
     // The scroller's edge fades, from the same measurements: they are its scroll state, not a

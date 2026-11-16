@@ -5,8 +5,8 @@
  * `<pkg>/node_modules/@agenta/<dep>`, so two packages that depend on each other produce a
  * directory tree of unbounded depth. Webpack's `FileSystemInfo` hashes a context directory by
  * walking it recursively, and it resolves each symlink to its absolute target before recursing —
- * so the walk ping-pongs between the two package directories forever. The `next build` of
- * desktop app then died with `RangeError: Invalid array length` (or a heap OOM, depending on the
+ * so the walk ping-pongs between the two package directories forever. A `next build` then
+ * dies with `RangeError: Invalid array length` (or a heap OOM, depending on the
  * cap) inside `FileSystemInfo._getUnresolvedContextTsh`, with no stack and no module name.
  *
  * Nothing else catches this. TypeScript, ESLint, and every unit test are happy with a cycle; the

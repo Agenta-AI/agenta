@@ -51,8 +51,7 @@ const parseJsonContent = (raw: string): {content?: CustomSecretContent; error?: 
 }
 
 /**
- * Create or edit a named secret. The desktop modal offers a key/value grid and a JSON editor
- * for the `json` format; here the same value is typed as JSON text and validated on save —
+ * Create or edit a named secret. A `json` secret is typed as JSON text and validated on save —
  * one control instead of two views, which is the right trade on a phone.
  */
 export const SecretFormSheet = ({

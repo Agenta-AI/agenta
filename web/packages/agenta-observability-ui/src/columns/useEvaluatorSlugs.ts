@@ -5,11 +5,7 @@ import {annotationEvaluatorSlugsAtom, useObservability} from "@agenta/observabil
 import {useAtomValue} from "jotai"
 
 /**
- * Which evaluator columns the traces table shows.
- *
- * This lived in the desktop app, so `/m` hardcoded an empty list and silently had no evaluator columns
- * (and, once the CSV learned to export them, no evaluator headers either) — the exact drift the
- * shared table was meant to end. Both surfaces derive it here now.
+ * Which evaluator columns the traces table (and its CSV export) shows.
  */
 
 /**

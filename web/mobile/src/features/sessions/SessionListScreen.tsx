@@ -44,8 +44,7 @@ import {useSessionRowMenu} from "./useSessionRowMenu"
  *
  * One search field and one filter button, not a row of switches: type, status, agent and how the
  * rows are cut all live inside the menu, so this app has ONE way to configure a list rather than
- * one per page. Filtering still runs on the shared atoms `@agenta/sessions/state` owns, so this
- * page and the desktop one narrow the same set the same way; only the controls differ.
+ * one per page. Filtering still runs on the shared atoms `@agenta/sessions/state` owns.
  */
 export const SessionListScreen = ({
     workspaceId,
@@ -132,8 +131,8 @@ export const SessionListScreen = ({
         clearSearch()
     }, [agentLinkEnabled, applyScope, clearSearch, routeAgent, routeMode])
 
-    // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
-    // the desktop list bind. Without them a row here offers only the pin.
+    // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview
+    // binds. Without them a row here offers only the pin.
     const sessionMenu = useSessionRowMenu(base)
     // An agent heading's "+": the same blank start every other "+" in the app makes.
     const startBlank = useStartBlankSession(base)

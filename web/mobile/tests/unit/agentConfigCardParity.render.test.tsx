@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 //
-// The agent's Configuration card says the same things on both apps, on every harness.
+// The agent's Configuration card says the same things as the shared card, on every harness.
 //
-// The two cards are not one component and should not be: the desktop one renders the playground
-// panel's accordion sections, and this app's renders the overview rail's own shell, which its two
-// sibling cards share so the three read as one column rather than three framed panels. What must
-// not differ is WHICH rows there are and what each is called.
+// The two cards are not one component and should not be: `AgentConfigSummaryCard` renders
+// the playground panel's accordion sections, and this app's renders the overview rail's own
+// shell, which its two sibling cards share so the three read as one column rather than three
+// framed panels. What must not differ is WHICH rows there are and what each is called.
 //
 // It had differed, three times over. The MCP row said "N connected", claiming an authorized state
 // no summary card can know, where the shared card had been fixed to "N configured". The
@@ -35,7 +35,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {AgentConfigCard} from "@/features/agents/AgentConfigCard"
 
 // Hoisted above the imports by vitest. The revision seam is mocked at the module both cards read
-// it from, not at the package barrel: the desktop card imports `./state` directly, so a barrel
+// it from, not at the package barrel: the shared card imports `./state` directly, so a barrel
 // mock leaves it on the real atom and it renders its pending skeleton forever.
 vi.mock("../../../packages/agenta-entity-ui/src/agent/state", async () => {
     const {atom} = await import("jotai")
@@ -123,7 +123,7 @@ const bothCards = async (agent: Record<string, unknown>) => {
     return {mobile, desktop}
 }
 
-describe.each(HARNESSES)("the Configuration card on $label, on both apps", ({kind}) => {
+describe.each(HARNESSES)("the Configuration card on $label, on both cards", ({kind}) => {
     it("names every row the shared vocabulary lists", async () => {
         const {mobile, desktop} = await bothCards(populated(kind))
 
@@ -165,7 +165,7 @@ describe.each(HARNESSES)("an agent with nothing configured on $label", ({kind}) 
     it("offers the action on every empty row, on both cards", async () => {
         // Both cards' rows open the editor, so an empty row has to offer the verb. The mobile
         // card reported the absence on two of them, beside its own "Add instructions": it said
-        // "No integrations" and "No skills" where the desktop card says "Add tools" and
+        // "No integrations" and "No skills" where the shared card says "Add tools" and
         // "Add skills". The noun differs by host; the verb must not.
         const {mobile, desktop} = await bothCards(bare(kind))
 

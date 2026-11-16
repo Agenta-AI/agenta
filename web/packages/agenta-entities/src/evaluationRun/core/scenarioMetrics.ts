@@ -1,10 +1,9 @@
 /**
- * The metric values of one scenario, as the old app's scenario table prints them
- * (`EvalRunDetails/atoms/scenarioColumnValues.ts` and `TableCells/MetricCell.tsx`).
+ * The metric values of one scenario, as the scenario table prints them.
  *
  * A scenario's metric rows hold `data[stepKey][metricKey]`: a stat blob over that one scenario.
  * The invocation metrics (cost, duration, tokens, errors) are read from the invocation step first,
- * then from the other steps in run order, as the old app tries its candidate step keys.
+ * then from the other steps in run order.
  *
  * @packageDocumentation
  */

@@ -1,8 +1,8 @@
 /**
  * The turn's account of an MCP server that did not join the run, with the way back.
  *
- * Shared by both apps deliberately: the same sentence and the same action the permission drawer
- * shows for the same connection, so a lapsed login reads as one message with one remedy wherever
+ * Deliberately the same sentence and the same action the permission drawer shows for the same
+ * connection, so a lapsed login reads as one message with one remedy wherever
  * the reader meets it (spec D4; UI QA round 3, D2).
  *
  * The Reconnect action is offered only once the endpoint row is resolved, because reconnecting

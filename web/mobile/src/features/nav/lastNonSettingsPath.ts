@@ -3,7 +3,7 @@ import {useEffect} from "react"
 import {atom, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-/** Where the settings scope's "← Back" returns to — the desktop keeps the same ref. */
+/** Where the settings scope's "← Back" returns to. */
 export const lastNonSettingsPathAtom = atom<string | null>(null)
 
 const isSettingsPath = (asPath: string) => asPath.split("?")[0].endsWith("/settings")

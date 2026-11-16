@@ -112,6 +112,6 @@ export * from "./etl/exportWriter"
 export {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "./etl/exportUtils"
 
 // ============================================================================
-// Trace tree shaping — shared by the desktop drawer and the mobile trace list
+// Trace tree shaping — shared by the trace drawer and the trace list
 // ============================================================================
 export * from "./trace"

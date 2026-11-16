@@ -45,7 +45,7 @@ const valuesOf = (rows: readonly ScenarioRow[], field: FilterableField) =>
 /**
  * The scenario filter of a run: the columns it offers, and the rows that match it.
  *
- * The filter offers evaluator outputs and metrics, as in the old app. A column's type comes from
+ * The filter offers evaluator outputs and metrics. A column's type comes from
  * the values the loaded scenarios hold. While a filter is on, only matching rows show, plus rows
  * whose values did not load (they keep their retry). Too few matches make the table read the next
  * pages, until it has enough or no pages remain.

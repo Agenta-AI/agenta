@@ -102,8 +102,8 @@ export const EvaluatorsScreen = ({
     const navigationIds = rows.map((row) => row.id)
 
     const [, setRevisionId] = useRevisionParam()
-    // Developer Mode creates and edits automatic evaluators in the editable drawer, as /w
-    // does. Without it the Automatic tab keeps the read-only drawer and has no create.
+    // Developer Mode creates and edits automatic evaluators in the editable drawer.
+    // Without it the Automatic tab keeps the read-only drawer and has no create.
     const developerMode = useAtomValue(developerModeActiveAtom)
     const editable = developerMode && category === "automatic"
     const editor = useEvaluatorEditor(editable)

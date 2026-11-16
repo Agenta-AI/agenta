@@ -1,7 +1,7 @@
 /**
- * THE session card list — the designed rows from the desktop Home card (status glyph + dot,
- * title, pending chip, agent name, activity, pin, context menu, subtitle), extracted so every
- * surface renders the same list with WORKING pinning instead of a lookalike. Data and grouping
+ * THE session card list — the designed rows (status glyph + dot, title, pending chip, agent
+ * name, activity, pin, context menu, subtitle), so every surface renders the same list with
+ * WORKING pinning instead of a lookalike. Data and grouping
  * come from `useSessionCardList` (waiting → pinned → recent) and `useSessionPins`; the host
  * supplies only its verbs: how a row opens, and its context-menu entries.
  */

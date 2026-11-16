@@ -43,11 +43,9 @@ import {
 import {CaretDownIcon, CheckIcon, PlusIcon, TrashIcon, XIcon} from "@phosphor-icons/react"
 
 /**
- * AnnotationFilterRow — the evaluator + feedback sub-row of the observability filter dialog,
- * ported off antd from `oss/src/components/Filters/Filters.tsx` (lines 938–1283 plus the JSX at
- * 1560–1611 and 1763–1907 those handlers drive).
+ * AnnotationFilterRow — the evaluator + feedback sub-row of the observability filter dialog.
  *
- * LAYOUT IS THE CALLER'S. The original renders in two places: the evaluator control sits inline
+ * LAYOUT IS THE CALLER'S. The row renders in two places: the evaluator control sits inline
  * on the field/operator line, the feedback control on a second line below it. So the two halves
  * are exported separately (`AnnotationEvaluatorControl`, `AnnotationFeedbackControl`) and
  * `AnnotationFilterRow` is only the stacked convenience composition. Everything the row needs
@@ -55,8 +53,8 @@ import {CaretDownIcon, CheckIcon, PlusIcon, TrashIcon, XIcon} from "@phosphor-ic
  * catalogue — is a prop; this file reads no atoms and knows nothing about `FilterItem`.
  *
  * VALUE CONTRACT. `onChange(undefined)` means "this row's value is now empty" — the dialog
- * stores `[]`; `onChange(v)` means store `[v]`. That mirrors the original `setAnnotationValue`,
- * which is also where `feedback.valueType` gets its `"string"` default.
+ * stores `[]`; `onChange(v)` means store `[v]`. `setAnnotationValue` below applies it, and
+ * is also where `feedback.valueType` gets its `"string"` default.
  */
 
 /** Scalars the backend accepts for a feedback comparison. */

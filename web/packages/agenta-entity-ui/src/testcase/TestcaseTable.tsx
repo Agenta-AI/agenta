@@ -287,9 +287,8 @@ export function TestcaseTable({
         [],
     )
 
-    // Share chip visibility pref with OSS TestcasesTableShell so toggling
-    // chips off in one surface (eg. main testsets page) hides them in all
-    // testcase tables consistently.
+    // Share chip visibility pref across testcase tables so toggling chips
+    // off in one surface hides them in all of them consistently.
     const typeChips = useMemo<TypeChipConfig<TestcaseTableRow>>(
         () => ({
             defaultEnabled: true,

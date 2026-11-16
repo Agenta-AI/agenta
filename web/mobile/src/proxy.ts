@@ -2,8 +2,8 @@ import {mapDesktopToMobile, mobileRouteFor} from "@agenta/shared/utils/mobileGat
 import {NextRequest, NextResponse} from "next/server"
 
 /**
- * Answers legacy desktop URLs. NextRequest adapter only; the map lives in
- * @agenta/shared/utils/mobileGate.
+ * Answers root URLs that `next.config.ts` sends to `/m/legacy`. NextRequest adapter only; the
+ * map lives in @agenta/shared/utils/mobileGate.
  */
 export function proxy(request: NextRequest) {
     // At runtime Next strips basePath ("/m") from nextUrl before the handler;
@@ -11,12 +11,12 @@ export function proxy(request: NextRequest) {
     const raw = request.nextUrl.pathname
     const pathname = raw === "/m" ? "/" : raw.startsWith("/m/") ? raw.slice("/m".length) : raw
 
-    // `next.config.ts` redirects every desktop root path here, unchanged, with its query.
+    // `next.config.ts` redirects every other root path here, unchanged, with its query.
     if (/^\/legacy(\/|$)/.test(pathname)) return legacyRedirect(request, pathname)
     return NextResponse.next()
 }
 
-/** Desktop links open in every browser, so the developer views count as on (`/m` gates them). */
+/** Root links open in every browser, so the developer views count as on (`/m` gates them). */
 function legacyRedirect(request: NextRequest, pathname: string) {
     const desktopPath = pathname.slice("/legacy".length) || "/"
     const {search} = request.nextUrl

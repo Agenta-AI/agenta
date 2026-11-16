@@ -4,7 +4,7 @@ import {mapDesktopToMobile, mobileRouteFor} from "../../src/utils/mobileGate"
 import {SESSION_QUERY_PARAM} from "../../src/utils/sessionParam"
 
 describe("mapDesktopToMobile", () => {
-    it("maps desktop auth to the mobile sign-in page", () => {
+    it("maps /auth to the /m sign-in page", () => {
         expect(mapDesktopToMobile("/auth", "")).toBe("/m/auth")
         expect(mapDesktopToMobile("/auth/reset-password", "")).toBe("/m/auth/reset-password")
     })
@@ -34,7 +34,7 @@ describe("mapDesktopToMobile", () => {
     })
 })
 
-describe("mapDesktopToMobile — legacy desktop URLs", () => {
+describe("mapDesktopToMobile — URLs outside /m", () => {
     const legacy = (path: string) => {
         const url = new URL(path, "http://localhost")
         return mapDesktopToMobile(url.pathname, url.search, {developerViews: true})
@@ -86,7 +86,7 @@ describe("mapDesktopToMobile — legacy desktop URLs", () => {
 
 describe("mobileRouteFor", () => {
     const cases: [string, string, string | null][] = [
-        // Home is /apps on both apps.
+        // Home is /apps.
         ["/w/ws1/p/pr1", "", "/m/w/ws1/p/pr1/apps"],
         ["/w/ws1/p/pr1/apps", "", "/m/w/ws1/p/pr1/apps"],
         ["/w/ws1/p/pr1/agents", "", "/m/w/ws1/p/pr1/agents"],
@@ -108,7 +108,7 @@ describe("mobileRouteFor", () => {
         ["/w/ws1/p/pr1/apps/a1", "", "/m/w/ws1/p/pr1/agents/a1"],
         ["/w/ws1/p/pr1/apps/a1/overview", "", "/m/w/ws1/p/pr1/agents/a1"],
         ["/w/ws1/p/pr1/apps/a1/playground", "", "/m/w/ws1/p/pr1/agents/a1"],
-        // Desktop-only areas.
+        // Areas /m has no page for.
         ["/w/ws1/p/pr1/evaluations", "", null],
         ["/w/ws1/p/pr1/testsets", "", null],
         ["/w/ws1/p/pr1/prompts", "", null],

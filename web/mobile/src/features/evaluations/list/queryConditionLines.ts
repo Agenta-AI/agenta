@@ -6,7 +6,7 @@ import {
     type FieldConfig,
 } from "@agenta/observability/filters"
 
-/** One condition of a stored query as the old query preview prints it. */
+/** One condition of a stored query as a query preview prints it. */
 export interface QueryConditionLine {
     field: string
     operator: string
@@ -48,7 +48,7 @@ const operatorLabel = (operator: string, config: FieldConfig | undefined) => {
 
 /**
  * The conditions of a stored query as "field operator value" lines, with the labels of the trace
- * filter ("Trace Type is invocation"), copied from the old app's `FiltersPreview`.
+ * filter ("Trace Type is invocation").
  */
 export const queryConditionLines = (
     conditions: readonly StoredQueryCondition[],

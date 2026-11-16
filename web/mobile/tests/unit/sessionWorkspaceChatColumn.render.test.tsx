@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// The chat column survives a browser whose desktop playground collapsed nothing.
+// The chat column survives a browser whose wide-screen config pane collapsed nothing.
 //
 // THIS PINS MAIN'S MECHANISM, not this delta's. `agenta:chat:config-panel-collapsed` used to be
 // one origin-wide boolean: on a desktop it means "the config pane sits beside the conversation",
@@ -137,7 +137,7 @@ const chatColumnVisible = (): boolean => {
 }
 
 describe("the session workspace on a phone", () => {
-    it("shows the conversation though the desktop stored an expanded config pane", async () => {
+    it("shows the conversation though a wide screen stored an expanded config pane", async () => {
         const store = createStore()
         store.set(phoneViewportAtom, true)
 

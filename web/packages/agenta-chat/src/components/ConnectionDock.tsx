@@ -1,6 +1,6 @@
 /**
  * The shared connect dock — ONE design for the parked `request_connection` calls a run is blocked
- * on, rendered identically by the desktop dock and mobile.
+ * on.
  *
  * A turn can park several connections at once, so the dock is a SHINGLE STACK: the front card owns
  * the actions, and the rest sit behind it as bottom-aligned edges the user can pull forward. Only

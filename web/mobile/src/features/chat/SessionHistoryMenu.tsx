@@ -14,11 +14,8 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
  * The tab bar's session history: a clock button beside the `+` that opens every session for this
  * agent, so one that is not currently a chip is still one click away.
  *
- * The desktop carries the same control in the same slot. It is NOT a port of that component: the
- * desktop's list is bound to its per-scope TAB store (open tabs vs closed history), which this app
- * has no equivalent of — sessions are routes here. What both surfaces genuinely share is the list
- * itself, so this is the shared `SessionCardList` in a popover, with the same rows, pins, status
- * dots and context-menu verbs the pane and the sessions page already render.
+ * Sessions are routes here, so this is the shared `SessionCardList` in a popover, with the same
+ * rows, pins, status dots and context-menu verbs the pane and the sessions page already render.
  */
 export const SessionHistoryMenu = ({
     agentId,

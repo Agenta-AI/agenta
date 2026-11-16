@@ -186,7 +186,7 @@ describe("revision step", () => {
             />,
         )
 
-    it("The revision step shows the /w columns: model, created on, created by and commit notes", async () => {
+    it("The revision step shows the columns: model, created on, created by and commit notes", async () => {
         await mountRevisions("auto")
         expect(headers()).toEqual(["Name", "Model", "Created on", "Created by", "Commit notes"])
         const row = rowByText("default v3")?.textContent ?? ""

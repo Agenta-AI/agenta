@@ -12,8 +12,8 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The skill registry browse page in its two frames. `toolbar` (the default, " +
-                    "what desktop ships): one row with `+ New skill ▾`, search and the archived " +
+                    "The skill registry browse page in its two frames. `toolbar` (the default): " +
+                    "one row with `+ New skill ▾`, search and the archived " +
                     "toggle, source chips once a repo is imported, then the sectioned card grid. " +
                     "`rail`: the FilterRailLayout variant with title, search and sources in a " +
                     "side rail (behind NEXT_PUBLIC_AGENT_BROWSE_RAIL).",

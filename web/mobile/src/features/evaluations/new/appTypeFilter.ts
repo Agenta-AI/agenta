@@ -1,6 +1,6 @@
 import type {WorkflowType} from "@agenta/entities/workflow"
 
-/** The app types the Application step filters by, as /w offers them. */
+/** The app types the Application step filters by. */
 export type AppTypeFilter = "all" | "chat" | "completion" | "custom"
 
 export const APP_TYPE_FILTERS: readonly {value: AppTypeFilter; label: string}[] = [

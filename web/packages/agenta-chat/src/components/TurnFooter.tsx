@@ -16,9 +16,7 @@ import {TurnTimestamp} from "./TurnTimestamp"
 /**
  * A turn's meta line: when it ran, what it cost, and what you can do with it.
  *
- * One component for every host. It used to be assembled by hand in two apps, and the two
- * copies drifted on icons, on clipboard handling, and on which buttons
- * appeared — so the footer lives here and each app only supplies the parts it derives differently.
+ * One component for every host; the host only supplies the parts it derives differently.
  *
  * Each segment owns the separator BEFORE it, and only draws it when it renders something itself —
  * so a turn with no known figures, or one with no actions, leaves no dangling `·`.

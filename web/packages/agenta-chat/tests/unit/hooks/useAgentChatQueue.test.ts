@@ -1378,7 +1378,7 @@ describe("useAgentChatQueue late refusal recovery", () => {
 })
 
 describe("useAgentChatQueue late refusal recovery, asynchronous composer", () => {
-    // The live defect on staging at 66ed5a6c57: on /w, a refusal arriving as a 200 whose stream
+    // The live defect on staging at 66ed5a6c57: a refusal arriving as a 200 whose stream
     // errors left the message in BOTH places, a flagged row AND the text in the composer, so it
     // could be sent twice. The restorer places the text into Lexical, which commits on a later
     // tick, so a restorer that can only answer on the next tick was read as a refusal to take it.
@@ -1437,7 +1437,7 @@ describe("useAgentChatQueue late refusal recovery, asynchronous composer", () =>
     })
 
     it("still drops the row for a composer that answers immediately", async () => {
-        // Both hosts' restorers may report synchronously; that path must not regress.
+        // A host's restorer may report synchronously; that path must not regress.
         const {server, watchers} = durableServer()
         const restoreRefusedSend = vi.fn(() => true)
         const {result} = setup({...settledEmpty, server, restoreRefusedSend})

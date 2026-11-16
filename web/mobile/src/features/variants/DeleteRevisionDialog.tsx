@@ -131,7 +131,7 @@ export const DeleteRevisionDialog = ({
                             <AlertDialogAction asChild>
                                 <Button
                                     variant="destructive"
-                                    // A solid red button, as /w's delete confirm.
+                                    // A solid red button.
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     disabled={pending || checking || failed}
                                     onClick={(event) => {

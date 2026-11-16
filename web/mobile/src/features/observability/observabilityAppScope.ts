@@ -10,8 +10,8 @@ import {currentQuery} from "./bindTraceDrawerSeams"
 const observabilityAppIdAtom = atom<string | null>(null)
 
 /**
- * Both fields carry the picked app. The package gives `appId` a "last used app" fallback on the
- * old app's project pages, which would send an app id with no matching filter row.
+ * Both fields carry the picked app. The package gives `appId` a "last used app" fallback on
+ * project pages, which would send an app id with no matching filter row.
  */
 const mobileObservabilityScopeAtom = atom((get): ObservabilityScope => {
     const appId = get(observabilityAppIdAtom)

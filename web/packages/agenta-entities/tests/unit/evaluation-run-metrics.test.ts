@@ -452,7 +452,7 @@ describe("cost, duration and tokens of a live run", () => {
     const stats = (id: string) => catalog.find((entry) => entry.id === id)?.stats
 
     it("add up what every evaluator spends on one trace", () => {
-        // Judge 483.65 ms + regex 0.21 ms per trace; the old app printed their average, 242 ms.
+        // Judge 483.65 ms + regex 0.21 ms per trace: a sum, not their average (242 ms).
         expect(stats("duration")?.mean).toBeCloseTo(483.86, 2)
         expect(stats("duration")?.count).toBe(112)
         // Only the judge reports tokens and cost.

@@ -1,14 +1,13 @@
 /**
- * Run comparison rules, copied from the old app as pure functions: the `?compare=` URL value
- * (`EvalRunDetails/state/urlCompare.ts`), the run structure and the "can this run be compared"
- * check (`EvalRunDetails/atoms/compare.ts`), and the candidate rule of `CompareRunsMenu.tsx`.
+ * Run comparison rules as pure functions: the `?compare=` URL value, the run structure, the "can
+ * this run be compared" check, and the candidate rule.
  *
  * @packageDocumentation
  */
 
 import {runStatusTone} from "./runKind"
 
-/** The old app compares a run with at most 4 others. */
+/** A run compares with at most 4 others. */
 export const MAX_COMPARISON_RUNS = 4
 
 export const COMPARE_QUERY_KEY = "compare"
@@ -329,7 +328,7 @@ export function matchCompareGroupKey(
     return sameKind.length === 1 && baseSameKind.length === 1 ? sameKind[0].key : null
 }
 
-/** What identifies a run's configuration, as the old app compares it. */
+/** What identifies a run's configuration for comparison. */
 export interface RunConfigIdentity {
     testsets: readonly {testsetId: string; revisionId: string | null}[]
     applicationId: string | null
@@ -353,7 +352,7 @@ export interface RunConfigDiff {
 }
 
 /**
- * The old app's compare rule for the Configuration tab: only what identifies the configuration
+ * The compare rule for the Configuration tab: only what identifies the configuration
  * counts, never names or descriptions. Test sets compare as a set of ids, and a test set revision
  * only when both runs name one. The app compares by id, the variant by revision id and version (a
  * changed prompt is a new revision). Evaluators compare by id and version, in any order.

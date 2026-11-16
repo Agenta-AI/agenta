@@ -1,8 +1,7 @@
 /**
  * A session menu row that names its key on the right, the way a desktop menu does.
  *
- * Lives here so every session menu — the desktop playground's tab bar, the shared tab rail — prints
- * the same row shape from the same registry entry. The wrapper has to grow inside the menu item's
+ * Lives here so every session menu prints the same row shape from the same registry entry. The wrapper has to grow inside the menu item's
  * own flex row, or the keycap sits against the label instead.
  */
 import type {ReactNode} from "react"
@@ -28,8 +27,6 @@ const ACTIVE_ONLY_SHORTCUTS: Record<string, string> = {
  * `Alt+R` and `Alt+A` act on whichever session is active, never on the row whose menu is open
  * (`useSessionShortcuts`). Printing the keycap on every row taught the opposite: open the menu on
  * another tab, read "Archive ⌥A", press it, and the ACTIVE session is archived instead (#6842).
- *
- * Shared so the desktop tab bar and the tab rail cannot drift on which rows earn a keycap.
  */
 export const withSessionShortcutKeys = <T,>(
     entries: readonly T[],

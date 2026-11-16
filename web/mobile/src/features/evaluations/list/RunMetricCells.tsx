@@ -23,8 +23,7 @@ const IDLE = atom<{data: EvaluationMetric[] | undefined; isPending: boolean; isE
 /**
  * The metric cells of one run, in column order: one per evaluator metric, then cost, duration,
  * tokens and errors. The run-level metrics load once the row is near the screen; the runs that
- * ask in the same frame share one request. A live run shows its latest window, as the old list
- * does.
+ * ask in the same frame share one request. A live run shows its latest window.
  */
 export const RunMetricCells = ({
     run,
@@ -49,7 +48,7 @@ export const RunMetricCells = ({
             {columns.evaluators.flatMap((group) =>
                 group.columns.map((column) => {
                     const stepKey = column.stepKeysByRunId[run.id]
-                    // The run has no such evaluator: an empty cell, as in the old list.
+                    // The run has no such evaluator: an empty cell.
                     if (!stepKey) return <span key={column.id} />
                     const value = stats
                         ? selectRunMetricStats(stats, {metricKey: column.metricKey, stepKey})

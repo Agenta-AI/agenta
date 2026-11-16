@@ -5,7 +5,7 @@ import {CircleNotch, WarningCircle} from "@phosphor-icons/react"
 
 export type SessionHistoryNoticeState = "reconnecting" | "incomplete"
 
-/** User-visible reconnect/history integrity states shared by desktop and mobile chat surfaces. */
+/** User-visible reconnect/history integrity states. */
 export const SessionHistoryNotice = ({
     state,
     className,

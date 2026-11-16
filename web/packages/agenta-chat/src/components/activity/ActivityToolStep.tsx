@@ -296,7 +296,6 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                             {hasNote ? (
                                 // A harness wraps a tool's own message in its
                                 // `tool_use_error` envelope; the reader wants the message.
-                                // Its other call site is the desktop's ToolActivity.
                                 <ToolIOBlock
                                     label={t("chat.activity.labelNote")}
                                     value={unwrapToolUseError(errorText)}

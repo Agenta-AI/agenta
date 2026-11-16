@@ -25,7 +25,7 @@ export {SESSIONS_PAGE_SIZE}
  * Every session in the project with a pending human gate, in one unpaginated call. Two jobs: the
  * per-row "waiting" badge, and the id set the "Waiting" filter pushes down to the server.
  *
- * Cadence mirrors mobile: 15s while anything is pending (a running turn is what mints new gates),
+ * Cadence: 15s while anything is pending (a running turn is what mints new gates),
  * stopped when idle, re-checked on focus.
  */
 /** The project's actionable gates: every reader shares this key, and the watch invalidates it. */
@@ -136,8 +136,8 @@ const STATUS_FLAGS: Partial<
  * than the set — wrong counts, and an empty first page while later pages hold matches.
  *
  * The key and the request come from `@agenta/entities/session`; the query-client policy (stale
- * time, refetch cadence) stays here, because desktop and mobile don't agree on it. Mobile adopts
- * the same factory once its session PRs stop moving.
+ * time, refetch cadence) stays here. Mobile adopts the same factory once its session PRs stop
+ * moving.
  */
 
 export const useSessionList = ({
@@ -192,8 +192,7 @@ export const useSessionList = ({
         // only their membership is being rechecked.
         placeholderData: keepPreviousData,
         staleTime: 30_000,
-        // Explicit because the hosts disagree on the default: the desktop inherits TanStack's
-        // `true`, `/m` sets `false` app-wide. On a phone, coming back to the tab IS the "what
+        // Explicit because `/m` sets `false` app-wide. On a phone, coming back to the tab IS the "what
         // changed?" signal — a backgrounded PWA never remounts, so without this the list only
         // ever refreshed via the project watch.
         refetchOnWindowFocus: true,

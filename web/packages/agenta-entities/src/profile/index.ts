@@ -85,8 +85,8 @@ export interface UseProfileOptions {
 /**
  * The signed-in user, for surfaces that just need to show who you are.
  *
- * Deliberately thinner than the desktop's profile atom, which additionally persists to disk,
- * gates a fanout and redirects on failure — app concerns. A 401 resolves to `null` (signed
+ * Deliberately thin: persisting to disk, gating a fanout and redirecting on failure are app
+ * concerns. A 401 resolves to `null` (signed
  * out) rather than throwing, so a host can render a signed-out state without a error boundary.
  */
 export const useProfile = ({enabled = true}: UseProfileOptions = {}) => {

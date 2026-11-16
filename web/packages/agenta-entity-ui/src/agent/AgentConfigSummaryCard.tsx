@@ -59,10 +59,10 @@ const DEFAULT_COPY: AgentConfigSummaryCopy = DEFAULT_TOOLS_COPY
 
 export interface AgentConfigSummaryCardProps {
     appId: string
-    /** Opens the editing surface (the playground on desktop). Absent = read-only host (mobile):
+    /** Opens the editing surface. Absent = read-only host:
      * the Edit action and the row-level "opens elsewhere" affordances are hidden. */
     onEdit?: () => void
-    /** Overrides the tools row's wording; defaults to the "tool" noun oss/ee use. */
+    /** Overrides the tools row's wording; defaults to the "tool" noun. */
     copy?: Partial<AgentConfigSummaryCopy>
 }
 

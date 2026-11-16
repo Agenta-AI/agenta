@@ -26,9 +26,8 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof AgentOverviewSkeleton>
 
-// The frame scrolls inside itself, so it needs a host that bounds its height — the desktop page
-// asks the layout for its full-height frame, mobile's `ScreenScaffold` takes `fill`. The
-// decorator stands in for that here.
+// The frame scrolls inside itself, so it needs a host that bounds its height — mobile's
+// `ScreenScaffold` takes `fill`. The decorator stands in for that here.
 export const Default: Story = {
     decorators: [
         (Story) => (

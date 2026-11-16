@@ -48,10 +48,9 @@ export interface NavMenuProps {
 
 // calc, not 94%: an exact 8px inset each side, so the row's right edge lines up with the
 // 8px-inset collapse toggle in the brand row.
-// h-7/text-sm: the desktop rail's own row, and the reading rhythm ChatGPT and Manus keep. A
+// h-7/text-sm: the rail's own row, and the reading rhythm ChatGPT and Manus keep. A
 // 26px/13px pass was tried and read as one packed column with no breathing room.
-// gap-[10px], not gap-2: antd Menu's icon margin is 10px, and at 8px every label in the
-// rail sat 2px left of where the desktop app has always drawn it.
+// gap-[10px], not gap-2: the rail's icon-to-label gap is 10px.
 // leading-7, not leading-none: `truncate` clips to the line box, and a line box equal to the
 // font size slices the descenders off every g, p and y.
 const ROW_HEIGHT = "h-7 text-sm leading-7"

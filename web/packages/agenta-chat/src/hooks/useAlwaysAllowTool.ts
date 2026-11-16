@@ -76,10 +76,9 @@ export function foldPermissions(
  * Platform ops (`commit_revision`, schedules), client tools, and MCP tools return `eligible: false`
  * and always stay gated (see `gateRulePattern`).
  *
- * On grant we raise a single draft-change signal that desktop's config pane consumes two ways: the
- * section it landed in pulses for attention, and a contained banner offers Undo. Hosts without a
- * config pane (mobile) simply have no consumer — the write itself is the behavior. `revoke` is the
- * exact inverse (`"ask"` for tools, `allowed:false` for harness rules).
+ * On grant we raise a single draft-change signal a config pane can consume. A host with no consumer
+ * still gets the write itself — that is the behavior. `revoke` is the exact inverse (`"ask"` for
+ * tools, `allowed:false` for harness rules).
  */
 const tNow = createT(chatSlashCommandsCatalog)
 

@@ -69,7 +69,7 @@ export const DeploymentsTab = ({
     const {environments, variantNames} = useAppEnvironments(app.id)
     const environmentList = useAtomValue(environmentsListQueryAtomFamily(false))
     // /m does not bind the shared user atoms, so the author label cannot resolve an id by itself.
-    // The names come from the workspace members, as /w shows them: the username, else the email.
+    // The names come from the workspace members: the username, else the email.
     const {org} = useSettingsOrg(workspaceId)
     const authorNames = useMemo(
         () =>
@@ -246,7 +246,7 @@ export const DeploymentsTab = ({
                                     Deploy
                                 </Button>
                             ) : null}
-                            {/* Developer Mode: Use API is the main action, as in /w. */}
+                            {/* Developer Mode: Use API is the main action. */}
                             {developerMode && selected ? (
                                 <Button size="sm" onClick={() => setUseApiOpen(true)}>
                                     <Code aria-hidden size={14} />

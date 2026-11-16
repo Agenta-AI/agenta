@@ -2,7 +2,7 @@ import {LoadError} from "@agenta/ui/components/presentational"
 
 /**
  * The app, its latest revision, or the selected revision failed to load (an app with no
- * revision lands here too, as in the old playground). Try again fetches the failed requests
+ * revision lands here too). Try again fetches the failed requests
  * again; it does not reload the page, so local drafts survive.
  */
 export const PlaygroundLoadError = ({onRetry}: {onRetry: () => void}) => (

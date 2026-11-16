@@ -29,4 +29,3 @@ None. No existing spec covers invites.
 - `web/packages/agenta-shared/src/utils/mobileGate/index.ts` and its tests.
 - `web/mobile/src/features/invite/` (new), `web/mobile/src/pages/invite/index.tsx` (new), `SignInScreen.tsx`, `ContextResolver.tsx`, `features/onboarding/*`.
 - `docs/design/onboarding-revamp/questions-and-survey-parity.md`: the old form no longer sends `survey sent` for invites.
-- No change to the old desktop app, which is abandoned.

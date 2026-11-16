@@ -52,16 +52,11 @@ subscription logins. Because `run.sh` assembles the same set every time, a routi
 profile for it and no env key is needed. It owns the catch-all: Traefik routes
 ``PathPrefix(`/`)`` to it with `priority=1`, below the api and services routers, and nginx sends
 `location /` to it through a variable upstream, so nginx still starts when it is left out. The
-app answers `/m` itself and redirects legacy root paths into `/m`. A backend-only run
+app answers `/m` itself; `proxy.ts` redirects `/` to `/m` and maps other root paths to their `/m`
+pages with `mapDesktopToMobile`. A backend-only run
 (`--no-web` / `--web-mode none`) leaves it out; `--web-local` leaves it out and runs
 `web/mobile` from the checkout instead. The dev image builds from
 `web/mobile/docker/Dockerfile.dev`.
-
-The gate has no switch either. A phone on a desktop route goes to `/m`, a user with Classic mode
-off goes to `/m` for the pages it has, a user with Classic mode on who opens `/m` goes back to
-`/w`, and a desktop browser may open `/m`. `AGENTA_MOBILE_GATE`, `AGENTA_MOBILE_REVERSE_GATE`
-and `AGENTA_MOBILE_ENABLED` are gone, and so is `run.sh --no-mobile`; a stale value in an env
-file changes nothing.
 
 ### Restart one service (surgical)
 

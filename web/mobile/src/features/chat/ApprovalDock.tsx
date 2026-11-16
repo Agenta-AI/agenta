@@ -7,7 +7,7 @@ import {isSteerEnabled} from "./steer"
 import type {ApprovalActions} from "./useApprovalActions"
 
 /**
- * Bottom-anchored human-in-the-loop dock — the SAME `ApprovalCard` the desktop dock renders
+ * Bottom-anchored human-in-the-loop dock — the shared `ApprovalCard`
  * (eyebrow, one-sentence ask, detail toggle, always-allow), in touch sizing. This wrapper
  * is only the mobile adapter: the safe-area footer shell and how a response actually fires
  * (the engine for plain approve/deny + Approve all; the detached resume for a steer note). It

@@ -15,7 +15,7 @@ const PlaygroundNewEvaluationSheet = dynamic(() => import("./PlaygroundNewEvalua
 
 /**
  * "New Evaluation" in the playground header: the auto evaluation wizard with the revisions on
- * screen already picked, as in /w. A local draft has no id the server knows, so it is left out.
+ * screen already picked. A local draft has no id the server knows, so it is left out.
  * Shown only while the evaluations view is on, because the started run opens there.
  */
 export const PlaygroundNewEvaluation = ({

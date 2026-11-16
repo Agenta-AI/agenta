@@ -23,7 +23,7 @@ const SEARCH_DELAY_MS = 200
 
 /**
  * Every item in queue order, narrowed by the status filter and the search. The search runs on the
- * client like the old list: ids, the item text and every metric value. It waits for typing to
+ * client: ids, the item text and every metric value. It waits for typing to
  * pause, because the queue is not paged and each pass reads every row. The filter is an atom that
  * reads the item names and metric values it matches against, so a row that matches only once its
  * data arrives shows up then.

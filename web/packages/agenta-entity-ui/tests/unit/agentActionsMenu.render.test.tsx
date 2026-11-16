@@ -1,8 +1,8 @@
 /**
  * The agent kebab and the restore write behind it.
  *
- * The menu is one definition shared by the desktop overview header and the mobile roster, so the
- * first assertion is that a host passing none of the new props sees exactly today's menu.
+ * The menu is one definition shared by every host, so the first assertion is that a host passing
+ * none of the new props sees exactly today's menu.
  */
 import {act, type ReactNode} from "react"
 

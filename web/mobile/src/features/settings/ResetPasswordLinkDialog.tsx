@@ -59,7 +59,7 @@ export const ResetPasswordLinkDialog = ({
         setLoading(false)
     }, [target])
 
-    // Minting a login link is a deliberate step, so it waits for a confirmation, as in the old app.
+    // Minting a login link is a deliberate step, so it waits for a confirmation.
     const generate = () => {
         if (!target) return
         const run = ++sequence.current

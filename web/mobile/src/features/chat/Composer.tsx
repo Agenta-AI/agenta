@@ -32,15 +32,15 @@ import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
 
 /**
- * The mobile composer shell — the SAME `ChatComposer` the desktop dock renders (lazy rich
+ * The mobile composer shell — the shared `ChatComposer` (lazy rich
  * input, paperclip, attachments tray, queue-aware placeholder), pinned in the screen footer.
  * This wrapper owns only mobile chrome (the safe-area bar + content rail) and the send
  * transport: staged attachments upload to the sessions attachment store and ride the send as
- * reference file parts, exactly like desktop.
+ * reference file parts.
  *
- * Voice rides the same slots the desktop dock uses — the mic in `extraPrefix`, the recording
- * takeover over the input, the permission notice above it — so dictation and voice messages
- * behave identically on both surfaces and stay behind one per-user setting.
+ * Voice rides the composer's slots — the mic in `extraPrefix`, the recording takeover over
+ * the input, the permission notice above it — so dictation and voice messages stay behind one
+ * per-user setting.
  */
 export const Composer = ({
     entityId,
@@ -66,7 +66,7 @@ export const Composer = ({
     entityId: string
     sessionId: string
     /** Owned by the screen, not here: a refusal that arrives after the send resolved restores the
-     * tray from outside this component (`restoreRefusedSend`), the same division the desktop uses. */
+     * tray from outside this component (`restoreRefusedSend`). */
     attachments: ReturnType<typeof useComposerAttachments>
     onSend: (input: {
         text: string
@@ -113,7 +113,7 @@ export const Composer = ({
     useComposerPrefill(richInputRef)
 
     // The `/` palette and its pickers, anchored to the composer box so they open where the
-    // palette was. /new mirrors the session rail's `+`, exactly as it does on the desktop.
+    // palette was. /new mirrors the session rail's `+`.
     const composerBoxRef = useRef<HTMLDivElement>(null)
     // A tap outside is a deliberate move elsewhere — the one close that must not pull focus back.
     const skipFocusRestoreRef = useRef(false)
@@ -173,7 +173,7 @@ export const Composer = ({
 
     /**
      * `extraFiles` are takes that never entered the tray (a voice message sent outright), so
-     * they upload here before the send — the same seam the desktop dock uses.
+     * they upload here before the send.
      */
     const submit = (
         text: string,
@@ -280,7 +280,7 @@ export const Composer = ({
     // unusable composer is a dead end for a file.
     const attachmentsBlocked = () => voiceRecorder.active || disabled
 
-    // Desktop accepts a drop anywhere on the canvas and highlights only the composer. Mobile owns
+    // A drop lands anywhere on the canvas and highlights only the composer. The composer owns
     // no element above itself, so it reaches for the shared `.ag-canvas` root and binds there —
     // the overlay still paints over the composer alone.
     const dropHostRef = useRef<HTMLDivElement>(null)

@@ -11,8 +11,8 @@ vi.mock("@agenta/shared/api", async (original) => ({
 import {fetchWorkflowsBatch} from "../../src/workflow/api/api"
 
 /**
- * `fetchWorkflowsBatch` feeds the latest-revision query that /w reads. Its request must stay as it
- * is: one row per workflow, grouped by artifact, for one workflow or several.
+ * `fetchWorkflowsBatch` feeds the latest-revision query. Its request must stay as it is: one row
+ * per workflow, grouped by artifact, for one workflow or several.
  */
 describe("fetchWorkflowsBatch request", () => {
     beforeEach(() => {

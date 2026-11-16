@@ -20,8 +20,8 @@ import {cn} from "./utils"
  * key — runs the same `onResizeStart → onResize → onResizeEnd` cycle through the same clamp.
  *
  * The divider is the agent playground's seam: the panes sit FLUSH and the divider is painted on
- * the seam itself — a 2px hairline plus a grip pill that takes a primary tint on hover/drag
- * (ported from `.playground-splitter-agent` in globals.css). The bar carries no layout width, so
+ * the seam itself — a 2px hairline plus a grip pill that takes a primary tint on hover/drag.
+ * The bar carries no layout width, so
  * the grab target is a wider invisible overlay centred on the seam.
  */
 export interface SplitPaneProps {
@@ -60,7 +60,7 @@ export interface SplitPaneProps {
 
 /**
  * The bar carries NO layout width: the agent playground's panes sit flush and the divider is
- * PAINTED on the seam, which is what `.playground-splitter-agent` did (`flex-basis: 0; width: 0`).
+ * PAINTED on the seam (`flex-basis: 0; width: 0`).
  * A tinted gutter channel here made the two seams read differently from each other, because each
  * one's neighbouring surfaces differ.
  */

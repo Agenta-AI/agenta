@@ -18,7 +18,7 @@ const doc = (ua: string, extra: Record<string, string> = {}) => ({
 })
 
 describe("non-legacy paths", () => {
-    it("pass through, whatever the device or the old gate cookies say", () => {
+    it("pass through, whatever the device or the cookies say", () => {
         const cookie = {cookie: "agenta-classic-mode=1; agenta-mobile-optin=1"}
         for (const ua of [DESKTOP_UA, MOBILE_UA]) {
             for (const path of ["/m", "/m/", "/m/auth", "/m/?view=mobile", "/m/invite"]) {
@@ -28,7 +28,7 @@ describe("non-legacy paths", () => {
     })
 })
 
-describe("legacy desktop URLs at /legacy", () => {
+describe("root URLs at /legacy", () => {
     const legacy = (path: string, headers: Record<string, string> = doc(DESKTOP_UA)) =>
         proxy(req(`/m/legacy${path}`, headers))
 

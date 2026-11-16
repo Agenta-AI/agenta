@@ -7,8 +7,8 @@
  * (environment axis).
  *
  * Package-level on purpose: every surface that renders the agent config panel needs it, and it
- * depends on nothing app-specific — only `@agenta/entities` state and the project id. The desktop
- * playground and the mobile Build pane both feed it into their own DrillInUIProvider.
+ * depends on nothing app-specific — only `@agenta/entities` state and the project id. The host
+ * feeds it into its own DrillInUIProvider.
  */
 import {useMemo} from "react"
 

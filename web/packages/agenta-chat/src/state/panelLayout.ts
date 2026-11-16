@@ -24,8 +24,7 @@ export const chatPanelMaximizedAtom = atom(
 /**
  * Below this width the config pane and the transcript cannot share the screen: the pane alone
  * asks for 300-440px and the transcript for 420px more. A phone therefore shows the config pane
- * and nothing else, which is not where a chat starts. The number is antd's `md` breakpoint, the
- * same "too small for the desktop layout" line `NoMobilePageWrapper` already draws.
+ * and nothing else, which is not where a chat starts. The number is antd's `md` breakpoint.
  */
 export const PHONE_VIEWPORT_QUERY = "(max-width: 767.98px)"
 
@@ -140,7 +139,7 @@ export const revealConfigPaneAtom = atom(null, (_get, set) => {
     set(configPanelCollapsedAtom, false)
 })
 
-/** Persisted width of the pane docked beside the chat (the desktop Inspector, /m's config rail). */
+/** Persisted width of the pane docked beside the chat. */
 export const rightPanelWidthAtom = atomWithStorage<number>(
     "agenta:agent-chat:right-panel-width",
     460,
@@ -156,7 +155,7 @@ export const filesPaneWidthAtom = atomWithStorage<number>("agenta:agent-chat:fil
 export const FILES_PANE_MIN = 420
 export const FILES_PANE_MAX = 1600
 
-/** The agent config pane's fixed width in the desktop MainLayout; kept in sync there. */
+/** The agent config pane's fixed width. */
 export const AGENT_CONFIG_WIDTH = 440
 
 /** Divider hairlines + panel edge paddings between the four regions. */
@@ -168,7 +167,7 @@ const SEAM_SLACK = 25
  * CHAT_MIN; at or above it they may stay open together.
  *
  * Takes the nav sidebar width rather than importing it, so `@agenta/chat` keeps no dependency on
- * `@agenta/navigation`. Both hosts pass SIDEBAR_DEFAULT_WIDTH — they dock the same sidebar.
+ * `@agenta/navigation`. The host passes SIDEBAR_DEFAULT_WIDTH.
  */
 export const panesCoexistMinWindow = (sidebarWidth: number): number =>
     sidebarWidth + AGENT_CONFIG_WIDTH + CHAT_MIN + FILES_PANE_MIN + SEAM_SLACK

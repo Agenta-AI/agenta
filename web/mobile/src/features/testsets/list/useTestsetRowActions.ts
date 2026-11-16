@@ -119,7 +119,7 @@ export function useTestsetRowActions({
         [guarded, projectId],
     )
 
-    /** Each test set downloads as its own file, one after another, as the old app does. */
+    /** Each test set downloads as its own file, one after another. */
     const exportMany = useCallback(
         async (rows: readonly TestsetRowRef[], format: TestsetExportFormat) => {
             for (const row of rows) await exportTestset(row, format)
@@ -129,7 +129,7 @@ export function useTestsetRowActions({
 
     /**
      * Archive one or more test sets with all their revisions. Refused as a whole when an
-     * evaluation uses any of them, as the old app does: nothing is archived then.
+     * evaluation uses any of them: nothing is archived then.
      */
     const archiveMany = useCallback(
         async (rows: readonly TestsetRowRef[]): Promise<void> => {

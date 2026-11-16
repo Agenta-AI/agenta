@@ -1,7 +1,6 @@
-// Canonical since the desktop re-plumb: OSS's sessions.ts deleted its copied blocks and both
-// apps read/write THIS store (localStorage keys `agenta:agent-chat:{messages,record-counts}:v2`).
-// The rest of that OSS file (scope-keyed history/tabs, server reconciliation, archive/delete
-// remotes, timestamps) is app-layer session-LIST state and stays out of the package deliberately.
+// The transcript store (localStorage keys `agenta:agent-chat:{messages,record-counts}:v2`).
+// Session-LIST state (scope-keyed history/tabs, server reconciliation, archive/delete remotes,
+// timestamps) is app-layer and stays out of the package deliberately.
 // Deletion is exposed as `dropSessionMessagesAtom` so a consumer that forgets a session cannot
 // drop the transcript store without its watermark (the two must never diverge).
 import type {UIMessage} from "ai"

@@ -32,7 +32,7 @@ export interface AgentNameInlineProps {
     name: string
     /** Reflect a committed name back to the host (it keeps showing the live name). */
     onRenamed?: (name: string) => void
-    /** Commit override. The desktop passes its app-management rename, which refreshes more caches. */
+    /** Commit override, for a host whose rename refreshes more caches. */
     onRename?: (id: string, name: string) => Promise<boolean>
     /** True when `name` already belongs to a different agent — blocks the commit without a modal. */
     isDuplicateName?: (name: string, selfId?: string) => boolean

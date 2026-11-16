@@ -29,7 +29,7 @@
     text-align: center;
 }
 
-/* No unscoped `h1` rule here. This file is imported app-wide (both apps' globals.css), so a bare
+/* No unscoped `h1` rule here. This file is imported app-wide (the app's globals.css), so a bare
    `h1 { color: #333 }` — Lexical playground boilerplate, alongside `.App` below — repainted EVERY
    page title in the app a hardcoded grey that no theme could override. The editor styles its own
    headings through `.editor-heading-h1` further down; app headings inherit, as they should. */

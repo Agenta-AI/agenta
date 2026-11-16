@@ -58,7 +58,7 @@ describe("the pages that show the app menu", () => {
 })
 
 describe("the app menu", () => {
-    it("lists Overview, Playground, Registry, Evaluations and Observability, like /w", () => {
+    it("lists Overview, Playground, Registry, Evaluations and Observability", () => {
         const items = appNavItems(P, "a1", DEVELOPER_VIEWS)
         expect(items.map(({title, link, prefetch}) => ({title, link, prefetch}))).toEqual([
             {title: "Overview", link: `${P}/apps/a1/overview`, prefetch: false},

@@ -5,9 +5,7 @@
    per-theme ladder emitted from `playgroundSurface` in palette.ts. Roles invert by theme
    automatically via the token values.
 
-   Lives in @agenta/ui because BOTH apps' chrome needs it: the desktop playground and the mobile
-   session workspace render the same panels, and a panel without its surface reads as flat.
-   Import it once per app (oss/mobile globals.css) — never copy the rules.
+   Import it once (mobile globals.css) — never copy the rules.
    ──────────────────────────────────────────────────────────────────────────────────────────── */
 
 .ag-app-ground {

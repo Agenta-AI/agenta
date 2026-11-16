@@ -5,7 +5,7 @@ import {Button, Field, Input, LoadingButton, Textarea} from "@agenta/ui/ui"
 import {useQueueDetailsForm} from "./useQueueDetailsForm"
 
 /**
- * The editable Name and Description of the Configuration tab, as in /w. Reset and Save show
+ * The editable Name and Description of the Configuration tab. Reset and Save show
  * once a value differs from the saved one.
  */
 export const QueueDetailsForm = ({

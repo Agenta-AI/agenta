@@ -74,7 +74,7 @@ const nextConfig: NextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
-    // Desktop root URLs. Always 307: a cached 308 would loop if /m later moves to basePath "/".
+    // Root URLs. Always 307: a cached 308 would loop if /m later moves to basePath "/".
     async redirects() {
         const legacy = (source: string, destination: string) => ({
             source,
@@ -90,7 +90,7 @@ const nextConfig: NextConfig = {
             legacy("/favicon.ico", "/m/assets/favicon.ico"),
             legacy("/assets/:path*", "/m/assets/:path*"),
             legacy("/robots.txt", "/m/robots.txt"),
-            // Any other root path goes to `proxy.ts`, which owns the desktop-to-`/m` mapping.
+            // Any other root path goes to `proxy.ts`, which maps it to an `/m` route.
             legacy(
                 "/:head((?!(?:m|api|services|_next)(?:/|$))[^/]+)/:rest*",
                 "/m/legacy/:head/:rest*",

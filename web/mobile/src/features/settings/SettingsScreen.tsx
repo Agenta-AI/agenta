@@ -52,9 +52,9 @@ const usePreloadSettingsTabs = () => {
 }
 
 /**
- * Settings on /m: the desktop's own tab model, with one tab open at a time.
+ * Settings on /m: the shared tab model, with one tab open at a time.
  *
- * By default the settings nav TAKES OVER the main sidebar exactly as oss/ee do — no second rail,
+ * By default the settings nav TAKES OVER the main sidebar — no second rail,
  * no in-page top bar, the content pane starts at the tab title. `NEXT_PUBLIC_SETTINGS_NESTED_NAV`
  * brings back the nested rail beside the main one.
  *

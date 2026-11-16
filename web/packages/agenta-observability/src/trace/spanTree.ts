@@ -1,7 +1,7 @@
 import type {TraceSpanNode} from "../core/traceSpan"
 
 /**
- * Span-tree shaping, shared by the desktop trace drawer and the mobile trace list.
+ * Span-tree shaping, shared by the trace drawer and the trace list.
  *
  * Both filters return a NEW tree and never mutate the input, because the drawer keeps the
  * unfiltered tree around to restore when the search box is cleared.

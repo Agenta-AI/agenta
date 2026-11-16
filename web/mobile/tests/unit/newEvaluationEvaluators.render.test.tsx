@@ -152,7 +152,7 @@ describe("evaluators step", () => {
         }
     })
 
-    it("An auto run lists automatic evaluators in a table with the /w columns", async () => {
+    it("An auto run lists automatic evaluators in a table with its columns", async () => {
         await mountEvaluators("auto")
         expect(headers()).toEqual([
             "Name",

@@ -213,7 +213,7 @@ describe("The completion run pane", () => {
         expect(card()?.textContent).toContain("Paris")
     })
 
-    it("The row actions come in the old playground's order: details, remove, duplicate", () => {
+    it("The row actions come in order: details, remove, duplicate", () => {
         const row = rows()[0]
         const labels = [...row.querySelectorAll("button")]
             .map((item) => item.getAttribute("aria-label"))

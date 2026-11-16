@@ -9,7 +9,7 @@
  * tests rather than inline.
  */
 export interface SessionPaneInputs {
-    /** The Build/Chat switch. Shared with the desktop playground through localStorage. */
+    /** The Build/Chat switch, read from localStorage. */
     chatMaximized: boolean
     /** The config pane's collapse state, which `configPanelCollapsedAtom` defaults per device. */
     configCollapsed: boolean
@@ -44,13 +44,13 @@ export const resolveSessionPanes = ({
     if (filesOpen && (filesExpanded || !twoPane))
         return {showConfig: false, showPane: false, showFiles: true}
     const showConfig = !chatMaximized && !configCollapsed && hasEntity
-    // The sessions rail stands in for the config panel ONLY in maximized mode, as on the desktop.
+    // The sessions rail stands in for the config panel ONLY in maximized mode.
     // Collapsing config collapses the PANE and gives the width to the conversation; swapping the
     // rail in instead means the collapse never actually frees any space.
     //
     // That swap needs two panes to mean anything. On a phone it put the sessions list where the
-    // chat belongs, with no way out: `/m` reads the maximized flag and never writes it, and the
-    // desktop playground writes it to the same origin. A phone in maximized mode shows the
-    // conversation, and the tab rail above it still reaches every session.
+    // chat belongs, with no way out: `/m` reads the stored maximized flag and never writes
+    // it. A phone in maximized mode shows the conversation, and the tab rail above it still
+    // reaches every session.
     return {showConfig, showPane: showConfig || (twoPane && chatMaximized), showFiles: filesOpen}
 }

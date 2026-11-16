@@ -3,9 +3,7 @@
  *
  * With popups blocked, authorizing navigates the whole tab, and what returns is a page served
  * by the API that knows the deployment's origin and nothing else. It used to send everyone to a
- * bare `/settings`: on classic that forwards on to the scoped page, so it merely looked slow,
- * and on /m there is no such route at all, so a person who started on mobile came back into the
- * desktop app (UI QA round 3, D1). The tab writes down where it stood before it leaves.
+ * bare `/settings`, and /m has no such route. The tab writes down where it stood before it leaves.
  */
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 

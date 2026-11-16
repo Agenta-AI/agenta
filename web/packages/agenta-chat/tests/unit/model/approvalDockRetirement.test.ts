@@ -1,5 +1,5 @@
 /**
- * Increment-6 browser pass, round 8, item 3 — the desktop approval dock after a clean approve.
+ * Increment-6 browser pass, round 8, item 3 — the approval dock after a clean approve.
  *
  * The records below are the REAL durable record log of session
  * 973bfdbd-0226-477d-865a-479f4c3e3db1, ordered as `GET /sessions/records` returns them. The dock

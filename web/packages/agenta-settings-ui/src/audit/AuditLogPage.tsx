@@ -35,7 +35,7 @@ export interface AuditLogPageProps {
      * on first paint — `hasAudit` reads `false` while the queries are in flight.
      */
     entitlementsLoading?: boolean
-    /** The date-range control — the desktop's preset picker is the host's. */
+    /** The date-range control — the host's. */
     renderDateRange?: AuditLogFiltersProps["renderDateRange"]
     /** The upgrade link on the locked state — routing and billing availability are the host's. */
     upgradeAction?: ReactNode

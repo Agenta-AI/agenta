@@ -5,7 +5,7 @@ import {useRouter} from "next/router"
 
 import {isEvaluatorCategory} from "./evaluatorsView"
 
-/** The open tab: `?tab=` when it names one, else Automatic, as in /w. */
+/** The open tab: `?tab=` when it names one, else Automatic. */
 export const useEvaluatorCategory = () => {
     const router = useRouter()
     const tab = router.query.tab

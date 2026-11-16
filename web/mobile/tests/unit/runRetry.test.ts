@@ -17,9 +17,9 @@ describe("runRetryAction", () => {
         expect(retry).not.toHaveBeenCalled()
     })
 
-    it("does not narrow by failure class, which the callout decides for both apps", () => {
+    it("does not narrow by failure class, which the callout decides", () => {
         // It used to answer only for `continuation_resumed`, so a rate limit or a lost execution
-        // drew no button here and did on the desktop.
+        // drew no button.
         const retry = vi.fn()
         expect(runRetryAction(turn(true), retry)).toBeDefined()
     })

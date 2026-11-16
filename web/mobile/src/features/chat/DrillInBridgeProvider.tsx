@@ -25,11 +25,10 @@ const openTrace = ({traceId, spanId}: {traceId: string; spanId?: string | null})
 }
 
 /**
- * The host facts the shared config panel reads off DrillInUIContext — the same set the desktop
- * provider supplies, from the same packages, so the two surfaces cannot drift.
+ * The host facts the shared config panel reads off DrillInUIContext.
  *
- * Only the "Open agent" link differs: it lands on this app's agent overview, not the desktop
- * playground, because routes are the one thing a host genuinely owns.
+ * The "Open agent" link lands on this app's agent overview: routes are the one thing a host
+ * genuinely owns.
  *
  * What a commit leads to is the screen's call: the agent session pins the new revision to the
  * session, the prompt playground swaps it into its selection.

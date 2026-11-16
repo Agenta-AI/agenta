@@ -33,7 +33,7 @@ export interface CreditTopUpsSectionProps {
 /**
  * Buying credit packs: the entry (the picker for a paid plan, the upgrade path for the free
  * plan, nothing where purchases are off), and the result of a checkout the payer came back from.
- * Shared by both apps; each host passes only its URL state and its upgrade path.
+ * The host passes only its URL state and its upgrade path.
  */
 export const CreditTopUpsSection = ({
     projectId,

@@ -20,16 +20,10 @@ import type {TraceRow} from "../columns/getObservabilityColumns"
 import {useEvaluatorSlugs} from "../columns/useEvaluatorSlugs"
 
 /**
- * The traces table both surfaces render.
+ * The observability traces table.
  *
- * `/m` and the desktop app drew the same rows through two different shells, which is how they drifted:
- * the same change had to be made twice, and usually was not. They share this one now that
- * @agenta/ui is runtime antd-free, so `/m` can render the FULL shell — paging,
- * column-visibility persistence, row selection — instead of a reduced copy of it.
- *
- * What this owns is what both surfaces agree on: the columns, the row key, and paging driven
- * by `useObservability`. Everything else is forwarded, so a surface can bring its own
- * selection, scope or toolbar without a second implementation growing back.
+ * This owns the columns, the row key, and paging driven by `useObservability`. Everything else
+ * is forwarded, so a surface can bring its own selection, scope or toolbar.
  */
 export interface ObservabilityTracesTableProps extends Omit<
     InfiniteVirtualTableFeatureProps<TraceRow>,

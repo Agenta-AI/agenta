@@ -52,16 +52,15 @@ const ObservabilitySessionDrawer = dynamic(
 /**
  * Project-wide observability.
  *
- * This app replaces the desktop one, so the screen is not phone-only: `AppShell` gives it the
+ * The screen is not phone-only: `AppShell` gives it the
  * persistent rail at lg+, the hamburger only appears below lg, and the body runs the full
- * content width the way the desktop table does.
+ * content width.
  *
- * Both the toolbar and the range picker are the SAME components the desktop renders, so search,
+ * Both the toolbar and the range picker are shared components, so search,
  * Root/LLM/All, realtime and auto-refresh behave identically here without a line of mobile-only
  * chrome. Export and delete are hidden by omitting their handlers, which is how the toolbar
  * expresses a capability the host does not offer — not a fork.
  */
-/** The same two tabs, with the same icons, the desktop header shows. */
 const TabLabel = ({tab}: {tab: ObservabilityTab}) => {
     const t = useT(screenCatalog)
     return (
@@ -167,7 +166,7 @@ const ObservabilityContent = ({
     )
 
     const onRefresh = useCallback(async () => {
-        // As in the old app: the annotations reload with the traces, and the evaluator list too,
+        // The annotations reload with the traces, and the evaluator list too,
         // so a new score shows in its evaluator column.
         if (tab === "traces") {
             await Promise.all([fetchAnnotations(), fetchTraces()])
@@ -192,7 +191,7 @@ const ObservabilityContent = ({
                         </div>
                     }
                 >
-                    {/* The desktop app shows a table, so at lg+ so does this. Below lg the same
+                    {/* A table at lg+. Below lg the same
                         rows stack, which is the only presentation that fits a phone. */}
                     <PageLayout
                         title={t("observability.screen.title")}

@@ -134,7 +134,7 @@ export {
     parseSamplingRate,
     selectLiveEvaluators,
     type LiveFilterRow,
-    // Shared evaluation logic (copied from the old app)
+    // Shared evaluation logic
     buildRunStatsMap,
     INVOCATION_METRIC_PREFIX,
     invocationMetricValues,

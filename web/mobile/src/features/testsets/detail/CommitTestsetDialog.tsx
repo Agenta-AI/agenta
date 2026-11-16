@@ -51,7 +51,7 @@ export const changeText = (summary: SummaryCounts): string | null => {
 
 /**
  * The commit step: what will change, the next version and a message, and on the right a
- * preview of each changed row and column, as in the old app. A new test set has no version to
+ * preview of each changed row and column. A new test set has no version to
  * move from, so that line is left out.
  */
 export const CommitTestsetDialog = ({

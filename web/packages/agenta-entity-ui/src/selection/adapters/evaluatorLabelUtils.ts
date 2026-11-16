@@ -2,7 +2,6 @@
  * Evaluator Label Utilities
  *
  * Pure rendering functions for evaluator workflow items with colored type tags.
- * Moved from OSS `useEvaluatorBrowseAdapter.ts` to enable package-level reuse.
  *
  * Uses:
  * - `getWorkflowTypeColor` from `@agenta/entities/workflow` for consistent type colors

@@ -19,7 +19,7 @@ const MISSING = "—"
 const settingText = (value: unknown): string =>
     typeof value === "string" ? value : (JSON.stringify(value) ?? MISSING)
 
-/** A small labelled block of the open card, as the old app lays them out. */
+/** A small labelled block of the open card. */
 const Field = ({label, children}: {label: string; children: ReactNode}) => (
     <div className="flex min-w-0 flex-col gap-1.5">
         <span className="text-sm font-medium text-foreground">{label}</span>

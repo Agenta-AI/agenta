@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * The session header's share actions on /m. Publish opens the channels panel. The Templates menu's
- * items send the same requests as the /w playground header, as the CURRENT session's pending
+ * items send their requests as the CURRENT session's pending
  * task. The conversation sends a pending task once, like a typed message, and never through the
  * composer, so one tap is one visible user message and the unsent draft stays.
  */

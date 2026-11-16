@@ -14,7 +14,7 @@ describe("@agenta/chat package contract", () => {
         expect(pkg.exports["./components"]).toBe("./src/components/index.ts")
     })
 
-    it("never depends on desktop UI toolkits", () => {
+    it("never depends on the forbidden UI toolkits", () => {
         const all = {...pkg.dependencies, ...pkg.peerDependencies, ...pkg.devDependencies}
         for (const dep of FORBIDDEN) expect(all[dep], dep).toBeUndefined()
     })

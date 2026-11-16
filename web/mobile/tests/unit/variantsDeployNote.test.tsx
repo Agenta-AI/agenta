@@ -80,7 +80,7 @@ describe("Deploy note", () => {
     })
     afterEach(() => act(() => root.unmount()))
 
-    it("An empty note stays empty, as in /w, not the raw app key", async () => {
+    it("An empty note stays empty, not the raw app key", async () => {
         await act(async () => {
             await writes.deploy({
                 target: TARGET,

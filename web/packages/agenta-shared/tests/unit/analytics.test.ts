@@ -9,8 +9,8 @@ import {
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe("shared desktop and mobile analytics", () => {
-    it("reads the existing desktop visitor ID", () => {
+describe("shared analytics", () => {
+    it("reads the existing visitor ID", () => {
         vi.stubGlobal("localStorage", {getItem: () => "existing-desktop-id"})
         expect(generateOrRetrieveDistinctId()).toBe("existing-desktop-id")
     })

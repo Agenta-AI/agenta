@@ -50,7 +50,7 @@ export interface ProjectOrgSwitcherViewProps {
     panelContainer?: HTMLElement | null
     /** Theme fly-out row above logout — omit and no theme control renders. */
     theme?: SwitcherThemeControl
-    /** Rendered beside the trigger on the expanded rail — the desktop's help menu button. */
+    /** Rendered beside the trigger on the expanded rail — the help menu button. */
     trailing?: ReactNode
     /** Quiet text inside the expanded trigger, before the caret (the app version). */
     triggerMeta?: ReactNode
@@ -142,9 +142,8 @@ export const EntryList = ({entries, close}: {entries: SwitcherEntry[]; close: ()
 )
 
 /**
- * The rail's project/org switcher, ported from the OSS design: a two-panel popup (projects,
- * then organizations behind "Switch organization") docked at the trigger. Data and actions
- * arrive as props — the desktop binds its org state, the mobile drawer its workspaces.
+ * The rail's project/org switcher: a two-panel popup (projects, then organizations behind
+ * "Switch organization") docked at the trigger. Data and actions arrive as props.
  */
 export const ProjectOrgSwitcherView = ({
     collapsed,

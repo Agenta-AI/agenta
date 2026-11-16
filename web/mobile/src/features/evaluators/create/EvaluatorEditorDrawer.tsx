@@ -57,7 +57,7 @@ export const EvaluatorEditorDrawer = ({
                     navigationIds={navigationIds}
                     onNavigate={onNavigate}
                     onClose={onClose}
-                    // A new evaluator opens with the test pane, as in /w.
+                    // A new evaluator opens with the test pane.
                     defaultTesting={local && !onPlayground}
                     playground={!onPlayground}
                     canCommit={canCommit}

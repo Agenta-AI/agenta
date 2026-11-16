@@ -3,7 +3,7 @@ import {useRouter} from "next/router"
 import {DeveloperViewGate} from "@/features/developer/DeveloperViewGate"
 import {EvaluationsRoute} from "@/features/evaluations/new/EvaluationsRoute"
 
-/** The app's evaluation runs, as in the old app. The screen reads the app from the path. */
+/** The app's evaluation runs. The screen reads the app from the path. */
 export default function AppEvaluationsPage() {
     const router = useRouter()
     const read = (key: string) => (typeof router.query[key] === "string" ? router.query[key] : "")

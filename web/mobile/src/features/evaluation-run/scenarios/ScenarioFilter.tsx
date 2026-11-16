@@ -24,7 +24,7 @@ const blankCondition = (): RowPredicate => ({
 })
 
 /**
- * The scenario filter, as in the old app: conditions on evaluator outputs and metrics, all joined
+ * The scenario filter: conditions on evaluator outputs and metrics, all joined
  * by And or by Or. The conditions are edited in a draft and applied with Apply.
  */
 export const ScenarioFilter = ({

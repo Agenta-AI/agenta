@@ -2,9 +2,8 @@
  * THE session tab rail — the horizontal strip of session chips that sits above a conversation, so
  * switching sessions is one tap and the neighbours stay visible.
  *
- * The strip and the chips are the SAME components the desktop playground's tab bar renders
- * (`SessionTabStrip` + `SessionTab`); this adds the one thing that differs — where the tabs come
- * from. WHICH tabs exist is the user's open set; their rows are fetched by id
+ * The strip and the chips are the shared `SessionTabStrip` + `SessionTab`; this adds where the
+ * tabs come from. WHICH tabs exist is the user's open set; their rows are fetched by id
  * (`useSessionTabRows` → `SessionRowVm`, shared status meta and title precedence), so a session
  * reads the same here as in every list. The card list is consulted only to seed the open set and
  * its order on a first visit — never to decide membership, so a session leaving the sidebar's
@@ -167,8 +166,8 @@ const useRevealWhenActive = (active: boolean) => {
 }
 
 /**
- * A row as a chip: the shared `SessionTab`, with the status dot derived from the row view-model
- * (the desktop passes its own live-status dot instead). The wrapper keeps the active chip in view.
+ * A row as a chip: the shared `SessionTab`, with the status dot derived from the row view-model.
+ * The wrapper keeps the active chip in view.
  */
 const RailTab = ({
     vm,

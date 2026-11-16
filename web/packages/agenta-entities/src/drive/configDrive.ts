@@ -14,9 +14,8 @@ import {useSessionDriveSummary, type SessionDriveData} from "./useSessionDrive"
  * The drive backing the config panel's Files region: the conversation's cwd mount plus the
  * agent's durable folder (resolved from the edited revision's artifact).
  *
- * The SESSION is the host's to resolve and is passed in — the desktop derives it from its open
- * chat tabs (a stale active id falls back to the first open tab, a never-run tab resolves to
- * none), a session-scoped surface already knows it. An empty id holds the queries off, which is
+ * The SESSION is the host's to resolve and is passed in — a session-scoped surface already knows
+ * it. An empty id holds the queries off, which is
  * the "open a conversation to browse them here" state.
  */
 export function useConfigDrive(

@@ -1,7 +1,6 @@
 import type {TraceTreeSettingsState} from "@agenta/observability-ui/traceDrawer"
 import {atomWithStorage} from "jotai/utils"
 
-/** Same key /w uses, so a choice made there carries over. */
 export const observabilitySessionAnnotationsVisibleAtom = atomWithStorage(
     "chat-session-annotation-ui",
     true,

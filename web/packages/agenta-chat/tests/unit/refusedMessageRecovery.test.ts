@@ -289,11 +289,11 @@ describe("restoreHeldRefusedSend has no row to fall back on", () => {
 })
 
 /**
- * The live defect, at the helper. The desktop composer is Lexical, and `setMarkdown` schedules the
+ * The live defect, at the helper. The composer is Lexical, and `setMarkdown` schedules the
  * write rather than applying it, so reading the editor back in the calling tick answers "no" for a
  * placement that is on its way. The caller keeps the flagged row on that answer, and the text turns
  * up in the composer a moment later, so the same message is in both places and can be sent twice.
- * Reproduced on staging at `66ed5a6c57` on /w with a refusal arriving as a 200 whose stream errors.
+ * Reproduced on staging at `66ed5a6c57` with a refusal arriving as a 200 whose stream errors.
  */
 describe("restoreRefusedSend against a composer that commits late", () => {
     /** Applies `setMarkdown` after `commitAfter` microtask turns, the way Lexical batches. */

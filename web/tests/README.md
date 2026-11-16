@@ -1,10 +1,8 @@
 # Agenta Cloud E2E Tests
 
-> **Status: disabled.** This harness holds no specs and no workflow runs it. The desktop
-> specs it used to run were deleted with the desktop app. The config, runner, API fixtures
-> and reporters stay for future `/m` specs, which go in `web/tests/specs/<layer>/` (default layer `acceptance`). Before the first
-> spec, rewrite `playwright/global-setup.ts`: it still signs in through the old desktop sign-in
-> page and must sign in through `/m` instead.
+> **Status: disabled.** This harness holds no specs and no workflow runs it. Specs go in
+> `web/tests/specs/<layer>/` (default layer `acceptance`). Before the first spec, rewrite
+> `playwright/global-setup.ts` to sign in through `/m`.
 
 ## 📚 E2E Reference Guides
 

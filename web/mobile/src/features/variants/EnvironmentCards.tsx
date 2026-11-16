@@ -9,7 +9,7 @@ const CARD_CLASS =
     "flex min-w-0 flex-col gap-2 rounded-lg border border-solid bg-card p-3 text-left text-sm"
 
 const CardBody = ({environment}: {environment: AppEnvironmentDeployment}) => {
-    // Developer Mode matches /w: an environment with nothing deployed has no date.
+    // Developer Mode: an environment with nothing deployed has no date.
     const beta = useAtomValue(developerModeActiveAtom)
     const undeployed = beta && !environment.deployedVariantName
     return (

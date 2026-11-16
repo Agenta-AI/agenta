@@ -62,13 +62,13 @@ const useRoleReach = (): RoleReach => {
  * Read-only host for most tabs: it renders lists but brings none of the create/edit dialogs,
  * so those write affordances stay off. Tools and MCP servers are the exceptions — their
  * sections moved to `@agenta/settings-ui` and carry their own dialogs, so this app renders
- * the same surface the desktop does. Edition comes from the same env the desktop reads. Flags that
+ * them in full. Edition comes from the env. Flags that
  * name a role's reach (Analytics, Access & Security) come from the backend check, so a reader never
  * opens a page whose every request the API would refuse; the rest are optimistic view flags.
  */
 const useSettingsAccess = ({projectId, analytics, owner}: RoleReach): SettingsAccess => {
-    // Edition and feature gates come from the shared helpers the desktop uses, so a tab cannot
-    // be visible here and hidden there. `isEE()` also accepts the `cloud*` tiers, which a bare
+    // Edition and feature gates come from the shared helpers.
+    // `isEE()` also accepts the `cloud*` tiers, which a bare
     // `=== "ee"` misses.
     const enterprise = isEE()
     const billingEnabled = isBillingEnabled()

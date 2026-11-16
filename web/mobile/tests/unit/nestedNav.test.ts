@@ -9,7 +9,7 @@ afterEach(() => {
 })
 
 describe("isNestedSettingsNavEnabled", () => {
-    it("is off unless the flag is explicitly true — the default is the oss takeover", () => {
+    it("is off unless the flag is explicitly true — the default is the takeover", () => {
         expect(isNestedSettingsNavEnabled()).toBe(false)
         process.env[FLAG] = "false"
         expect(isNestedSettingsNavEnabled()).toBe(false)

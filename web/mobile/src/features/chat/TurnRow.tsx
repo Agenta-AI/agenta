@@ -156,7 +156,7 @@ const TurnRowInner = ({
         sessionTurnStartedAt: sessionTurn.startedAt,
         sessionTurnsPending: sessionTurn.pending,
         copyText,
-        // Rewinding the last turn re-runs the current one; hidden, as on desktop.
+        // Rewinding the last turn re-runs the current one; hidden.
         onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,
         onViewTrace: canViewSpans ? (id: string) => openTraceDrawer({traceId: id}) : undefined,
         // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
@@ -165,13 +165,13 @@ const TurnRowInner = ({
     // Live while this client streams it, or while a poll says the run goes on elsewhere.
     const live = !turn.isUser && (turn.isStreamingTurn || (turn.isLast && remoteRunning))
     // A failure the records never carried lives on the trace: a model call that died with no
-    // answer. Read only for an answer-less settled turn, as the desktop does.
+    // answer. Read only for an answer-less settled turn.
     const answerless = !turn.isUser && turn.status.noResponse && !live && !turn.status.showError
     const traceSummary = useAtomValue(
         traceDataSummaryAtomFamily(answerless && traceId ? traceId : ""),
     )
     // A trace keeps the provider's failure as it came back, which can be a raw JSON body with
-    // account ids; only its sanitized sentence may reach the screen, as on the desktop.
+    // account ids; only its sanitized sentence may reach the screen.
     const traceError = answerless ? readableTraceError(traceSummary.error) : null
     const errorText = turn.status.showError
         ? (turn.status.errorText ?? t("chat.mobileTurn.somethingWentWrong"))
@@ -251,7 +251,7 @@ const TurnRowInner = ({
         [activity.steps, activity.messages, runOpen],
     )
 
-    // The turn's meta line sits under the answer, revealed on hover or focus like the desktop's;
+    // The turn's meta line sits under the answer, revealed on hover or focus;
     // the row keeps its height so nothing shifts when it appears. Not while the run is parked on
     // the reader: the turn is not over, only waiting.
     const renderMetaLine = (failed?: RunFailureView) =>
@@ -276,7 +276,7 @@ const TurnRowInner = ({
                 part.kind === "quote" ? (
                     <UserQuoteBlock key={key} quote={part.quote} />
                 ) : (
-                    // Markdown, as the desktop bubble renders it: the composer's export is markdown.
+                    // Markdown: the composer's export is markdown.
                     <UserMarkdown key={key} text={part.text} />
                 ),
             )}
@@ -371,7 +371,7 @@ const TurnRowInner = ({
         userParts.length > 0 ||
         turn.status.showError
 
-    // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
+    // A long pasted message clamps behind "Show more" rather than burying its reply.
     const userBody = turn.isUser ? (
         <CollapsibleMessageBody stateKey={messageBodyKey(turn.message.id)}>
             {body}
@@ -428,8 +428,8 @@ const TurnRowInner = ({
                 content={hasBubbleContent ? content : failureNote}
                 header={header}
             />
-            {/* A user turn's actions, revealed on hover or keyboard focus — the lane the desktop
-                transcript reserves. An assistant turn carries its meta line in flow instead. The
+            {/* A user turn's actions, revealed on hover or keyboard focus.
+                An assistant turn carries its meta line in flow instead. The
                 debug trace action stays visible on touch while the inspector flag is on. */}
             {turn.isUser ? (
                 <div

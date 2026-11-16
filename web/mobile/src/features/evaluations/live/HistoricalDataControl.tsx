@@ -1,8 +1,8 @@
 import {Input, SimpleTooltip, Switch} from "@agenta/ui/ui"
 
 /**
- * "Run on historical data", shown off and disabled with its start and end dates, as in the old
- * app: the API does not run a live evaluation over past traces yet.
+ * "Run on historical data", shown off and disabled with its start and end dates:
+ * the API does not run a live evaluation over past traces yet.
  */
 export const HistoricalDataControl = () => (
     <div className="flex flex-wrap items-center justify-between gap-3">

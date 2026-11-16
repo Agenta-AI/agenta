@@ -61,7 +61,7 @@ export type {
     TypedPathInfo,
 } from "./pathUtils"
 
-// The query param a session is addressed by, on either app
+// The query param a session is addressed by
 export {SESSION_QUERY_PARAM} from "./sessionParam"
 
 // The query params a drive selection and an open automation are linked by

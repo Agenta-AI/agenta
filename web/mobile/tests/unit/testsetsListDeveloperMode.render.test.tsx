@@ -252,7 +252,7 @@ describe("Testsets list in Developer Mode", () => {
         expect(menuItem("Archive")).toBeDefined()
     })
 
-    it("In developer mode the columns follow the classic order and the date shows the time", async () => {
+    it("In developer mode the columns follow the developer order and the date shows the time", async () => {
         await mount(true)
 
         const text = host.textContent ?? ""

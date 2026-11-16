@@ -54,7 +54,7 @@ const fetchArchivedApp = async (projectId: string, appId: string): Promise<Workf
  *
  * An id in neither list may be an archived app. Only then does a second request look for it, so
  * an active app costs nothing extra. In Developer Mode an id that is no app at all may be an
- * evaluator, which has an overview as in the old app; its detail loads only then.
+ * evaluator, which has an overview; its detail loads only then.
  */
 export const useOverviewApp = (projectId: string, appId: string): OverviewApp => {
     const prompts = useAtomValue(promptWorkflowsListQueryStateAtom)

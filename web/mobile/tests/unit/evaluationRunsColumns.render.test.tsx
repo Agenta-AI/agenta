@@ -331,7 +331,7 @@ describe("evaluation runs list columns", () => {
         expect(headers()).not.toContain("Correctness · Comment")
     })
 
-    it("A metric cell shows the same text as the old list", async () => {
+    it("A metric cell shows its formatted text", async () => {
         env.query = {kind: "auto"}
         route([autoRun("a")])
         await mount()

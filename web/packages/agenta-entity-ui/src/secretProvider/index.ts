@@ -63,8 +63,7 @@ export {organizationRefusal, organizationSaveError} from "./useOrganizationProje
 
 /**
  * The "Configure provider" drawer and the drill-in `llmProviderConfig` bridge that opens it —
- * host-neutral, so the desktop playground and `/m` share one model-picker footer and one vault
- * provider group builder.
+ * host-neutral: one model-picker footer and one vault provider group builder.
  */
 export {
     default as ConfigureProviderDrawer,

@@ -10,7 +10,7 @@ import {useEditEvaluationRun} from "./useEditEvaluationRun"
 
 /**
  * The "Edit evaluation" dialog for one run, opened from the run's menu and from the Configuration
- * tab ("Edit", "Add evaluator"). As in the old app, a live run and a closed run cannot be edited,
+ * tab ("Edit", "Add evaluator"). A live run and a closed run cannot be edited,
  * and a reader who may not edit runs cannot either: `canEdit` is false and `dialog` is null.
  */
 export const useRunEditDialog = (projectId: string, runId: string, header: RunHeader) => {

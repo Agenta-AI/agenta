@@ -52,7 +52,7 @@ None. The current baseline specifications describe installation, routing, reply 
 - **Runner**: one new hidden run-context value, `$ctx.tool.call_id`, used to make a send idempotent (`services/runner/src/tools/relay.ts`).
 - **API**: new authenticated tool routes under `/api/channels/tools/`, including `POST /api/channels/tools/availability`, which tells the agent runtime which channel tools a run gets, a tool service under `api/oss/src/core/channels/tools/`, three migrations (`oss000000036` to `oss000000038`: a nullable-thread outbox with a `space_id` column, a `sent_at` column on the inbox table, and a full-text expression index), and two Slack adapter methods, for member channels and for older history pages.
 - **Web app**: the chat and the tool permission controls know the four tools as platform tools (`web/packages/agenta-chat/src/skin/registry.ts`, `PLATFORM_OPS` in `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolPermission.ts`).
-- **Settings UI**: a new Advanced section (`web/packages/agenta-settings-ui/src/channels/ChannelAdvancedSection.tsx`) in the manage panel shared by the desktop app and `/m`.
+- **Settings UI**: a new Advanced section (`web/packages/agenta-settings-ui/src/channels/ChannelAdvancedSection.tsx`) in the channel manage panel.
 - **Slack app**: no new scopes.
 
 No credential, raw Slack ID, raw Telegram ID, project ID, connection ID, or channel-agent ID ever appears in a tool's input or output.

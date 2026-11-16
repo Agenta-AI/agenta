@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * The Select Evaluators step of the trace annotate sheet, and the selection it keeps per project
- * in local storage (the same key the old app uses).
+ * in local storage.
  */
 import {act, useState} from "react"
 

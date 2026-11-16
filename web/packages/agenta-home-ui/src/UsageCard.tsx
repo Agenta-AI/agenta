@@ -44,7 +44,7 @@ const Stat = ({label, value, loading}: {label: string; value: string; loading: b
 export interface UsageCardProps {
     /** Scope to one app/agent; omit for the whole project. */
     appId?: string | null
-    /** Rendered under the shared detail figures when expanded — desktop's charts. */
+    /** Rendered under the shared detail figures when expanded. */
     expandedContent?: ReactNode
 }
 

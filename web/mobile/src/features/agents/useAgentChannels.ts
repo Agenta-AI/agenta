@@ -16,8 +16,8 @@ import {getApiUrl} from "@/lib/env"
 
 const tNow = createT(channelsReloadErrorCatalog)
 
-/** The hosted Slack install URL — a browser redirect into Slack's OAuth, same route the
- * desktop host builds. `getApiUrl()` is the host `_app` pins the SDK to, so both agree. */
+/** The hosted Slack install URL — a browser redirect into Slack's OAuth. `getApiUrl()` is the
+ * host `_app` pins the SDK to, so both agree. */
 const buildSlackInstallUrl = (projectId: string): string => {
     const params = new URLSearchParams({project_id: projectId})
     return `${getApiUrl()}/channels/catalog/channels/slack/install/?${params.toString()}`

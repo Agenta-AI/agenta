@@ -1,6 +1,6 @@
 import type {Folder, FolderTreeNode, Workflow} from "@agenta/entities/workflow"
 
-/** A prompt in the list. Its type comes from its latest revision, as in /w. */
+/** A prompt in the list. Its type comes from its latest revision. */
 export type PromptItem = Workflow
 
 /** One line of the list: a folder or a prompt, and how deep it sits in a search tree. */

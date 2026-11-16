@@ -90,7 +90,7 @@ export const VariantsTab = ({
     const [deleteRow, setDeleteRow] = useState<AppRevisionRow | null>(null)
     const [revisionId, setRevisionId] = useRevisionParam()
     const developerMode = useAtomValue(developerModeActiveAtom)
-    // Developer Mode: the old app's Registry, with selection and expandable variants.
+    // Developer Mode: the full Registry, with selection and expandable variants.
     const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
     const [selected, setSelected] = useState<Set<string>>(() => new Set())
     const [deletion, setDeletion] = useState<RegistryDeletion | null>(null)

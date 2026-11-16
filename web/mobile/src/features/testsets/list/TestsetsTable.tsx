@@ -48,7 +48,7 @@ const WIDE_COLUMNS = [
 ]
 const NARROW_COLUMNS = [NAME_COLUMN, dateColumn("100px"), ACTIONS_COLUMN]
 
-// Developer mode follows the classic app: Date Created, with the time, before Created by.
+// Developer mode: Date Created, with the time, before Created by.
 const DEVELOPER_WIDE_COLUMNS = [
     NAME_COLUMN,
     COMMIT_COLUMN,
@@ -89,7 +89,7 @@ export interface TestsetsTableProps {
     onClone?: (row: TestsetRow) => void
     onRename?: (row: TestsetRow) => void
     /**
-     * Developer Mode: the classic column order and date, Copy ID, the archive dialog that
+     * Developer Mode: the developer column order and date, Copy ID, the archive dialog that
      * names every test set, and the next page loading on scroll. Off keeps the list as it was.
      */
     developerMode?: boolean

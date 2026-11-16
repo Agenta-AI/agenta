@@ -10,7 +10,7 @@ import {useConfirmModal} from "../settings/useConfirmModal"
 /**
  * What leaving the page would lose: a local copy of a revision (it has no saved revision to come
  * back to) and the unsaved edits of the connected test set. The edits of a saved revision are not
- * in it: they stay when the page is left, as in the old playground.
+ * in it: they stay when the page is left.
  */
 const loseOnLeaveAtom = atom((get) => {
     const hasLocalCopy = get(playgroundController.selectors.nodes()).some((node) =>
@@ -24,7 +24,7 @@ const loseOnLeaveAtom = atom((get) => {
 })
 
 /**
- * The browser asks before the page unloads with any unsaved edit, as in the old playground: a
+ * The browser asks before the page unloads with any unsaved edit: a
  * reload loses them all. A link inside the app goes straight through when the edits stay (the
  * edits of saved revisions); it asks first only when something would be lost (a local copy, or
  * unsaved test set edits).

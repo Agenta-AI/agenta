@@ -61,7 +61,7 @@ interface DeveloperRailRow {
     placement: DeveloperRailPlacement
 }
 
-/** The old app's developer rows, labels and icons; no Endpoints or Archived apps row (D7). */
+/** The developer rows, labels and icons; no Endpoints or Archived apps row (D7). */
 const DEVELOPER_RAIL_ROWS: readonly DeveloperRailRow[] = [
     {viewId: "prompts", title: "Prompts", icon: SquaresFourIcon, placement: "lead"},
     {viewId: "testsets", title: "Test sets", icon: DatabaseIcon, placement: "evaluation"},

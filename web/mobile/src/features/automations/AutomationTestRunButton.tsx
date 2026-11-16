@@ -20,7 +20,7 @@ import {runNowText} from "./runNowText"
  * to be handed its text to send.
  *
  * Not the shared `RunSubscriptionButton`: that publishes to `simulatedAgentRunAtomFamily`, which
- * only the desktop playground reads, so on this surface it would silently do nothing.
+ * nothing on this surface reads, so it would silently do nothing.
  *
  * Disabled with a reason rather than hidden — "why can't I test this" is a question the control
  * itself should answer.

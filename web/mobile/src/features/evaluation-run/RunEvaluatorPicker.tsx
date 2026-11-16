@@ -3,7 +3,7 @@ import type {DraftEvaluator} from "../evaluations/new/newEvaluationDraft"
 
 /**
  * The "Add evaluator" picker of the edit dialog: the new evaluation's evaluator table, human
- * evaluators for a human run and automatic ones for the others, as in the old app. The run's own
+ * evaluators for a human run and automatic ones for the others. The run's own
  * evaluators show as picked and cannot be removed here; a staged one is removed by picking it again.
  */
 export const RunEvaluatorPicker = ({

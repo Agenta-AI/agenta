@@ -16,11 +16,7 @@ export interface ThemeOption {
 
 /**
  * Single source of truth for the theme choices, wherever they are offered — the sidebar
- * switcher's fly-out and the Preferences tab, on the desktop and on mobile. Light first.
- *
- * It lives here rather than in either app because both offer the same three, and three copies of
- * a three-item list is how they drift: mobile's was missing `short`, so it could not render the
- * switcher's current-value row at all.
+ * switcher's fly-out and the Preferences tab. Light first.
  */
 export const THEME_OPTIONS: ThemeOption[] = [
     {mode: "light", label: "Light", short: "Light"},

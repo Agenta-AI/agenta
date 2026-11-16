@@ -15,7 +15,7 @@ import {
 } from "@phosphor-icons/react"
 import Link from "next/link"
 
-/** The /w row actions Developer Mode adds. Revert then shows disabled, with its reason. */
+/** The row actions Developer Mode adds. Revert then shows disabled, with its reason. */
 export interface DeploymentRowExtras {
     onUseApi?: () => void
     playgroundHref?: string | null

@@ -97,7 +97,7 @@ afterEach(() => {
 })
 
 describe("EvaluatorTemplatePicker", () => {
-    it("lists the 11 templates /w offers, with the whole description", async () => {
+    it("lists the 11 templates, with the whole description", async () => {
         await mount()
         expect(tags()).toHaveLength(11)
         expect(tags()).not.toContain("feedback")

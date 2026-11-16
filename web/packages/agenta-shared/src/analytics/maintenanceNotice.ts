@@ -1,6 +1,6 @@
 /**
  * The maintenance notice: a bar across the top of the app for a planned event, driven
- * entirely by a PostHog feature flag. Both apps (/m and /w) render it from this logic.
+ * entirely by a PostHog feature flag.
  *
  * The words live in the flag's payload, not in the code, so a notice can be put up,
  * reworded and taken down from PostHog without a deploy.

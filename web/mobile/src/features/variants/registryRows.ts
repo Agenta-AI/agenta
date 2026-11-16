@@ -3,7 +3,7 @@ import type {VariantsDisplayMode} from "./variantsView"
 
 /**
  * A Registry row. In Variants mode a variant shows as one row (its latest revision) that expands
- * to its older revisions, as in the old app. In Revisions mode every revision is a row.
+ * to its older revisions. In Revisions mode every revision is a row.
  */
 export interface RegistryRow {
     /** The selection and React key: `variant:<id>` for a variant row, else the revision id. */

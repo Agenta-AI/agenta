@@ -185,17 +185,11 @@ const REFUSED_SEND_SUBJECT = "Message"
 
 /**
  * The composer's rejection rows for a send that never left, ready for `setRejections`.
- *
- * One place because there were three: the classic conversation's two catches and the mobile
- * composer's, each building the row by hand, and only the mobile one had a case over it. That
- * asymmetry is round-4 D98 — replacing the reason with a hardcoded string on classic left every
- * suite green. There is no per-app wording left to diverge now.
  */
 export const refusedSendRejections = (error: unknown): AttachmentRejection[] => [
     {name: REFUSED_SEND_SUBJECT, reason: describeRefusedSend(error)},
 ]
 
-// Keep byte parity with the desktop parser until its duplicate is removed.
 /**
  * Best-effort human reason from a useChat stream error: a plain string or a `{status:{…}}`
  * envelope. An engine's own wording is translated — "Failed to fetch" under "The agent run

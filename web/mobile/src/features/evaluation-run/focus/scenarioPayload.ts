@@ -2,7 +2,7 @@ import {unwrapStatsForCompare, type RunColumnGroup} from "@agenta/entities/evalu
 
 import type {ScenarioRow} from "../scenarios/scenarioColumns"
 
-/** The whole scenario as data, as the old app's JSON view and its copy button give it. */
+/** The whole scenario as data, for the JSON view and its copy button. */
 export interface ScenarioPayload {
     inputs: Record<string, unknown>
     outputs: Record<string, unknown>

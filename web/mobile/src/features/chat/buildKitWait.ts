@@ -9,9 +9,8 @@ export const BUILD_KIT_WAIT_LIMIT_MS = 10_000
  * Resolve once the build-kit overlay has settled (true), or after `limitMs` (false).
  *
  * A new agent's first turn must carry the build kit (tools, skills, sandbox permissions). A turn
- * sent without it runs kit-less, and the next turn's full config evicts the warm sandbox. Desktop
- * waits the same way for its first-run seed (`useFirstRunSeed`), bounded so a broken overlay
- * endpoint does not hold the message forever.
+ * sent without it runs kit-less, and the next turn's full config evicts the warm sandbox. The wait
+ * is bounded so a broken overlay endpoint does not hold the message forever.
  */
 export const waitForBuildKit = (
     store: Store,

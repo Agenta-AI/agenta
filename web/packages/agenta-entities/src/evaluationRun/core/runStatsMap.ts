@@ -1,17 +1,14 @@
 /**
- * Run-level metric aggregation, copied from the old app (`EvalRunDetails/atoms/runMetrics.ts`,
- * `flattenRunLevelMetricData` and `mergeBasicStats`) as pure functions.
+ * Run-level metric aggregation as pure functions.
  *
  * The metrics API returns one run-level row per run: `data[stepKey][metricKey]` is a stat blob. The
  * screens look a metric up either per step (`{stepKey}.{metricKey}`, an evaluator column) or by the
  * metric key alone (`attributes.ag.metrics.duration.cumulative`, an invocation column). This module
  * builds that flat map once per run.
  *
- * One deliberate difference from the old app: the old flatten merges every step into the key-only
- * entry after it has set the invocation step's value, so an evaluator step that comes after the
- * invocation step in the response is averaged in. On the parity data that turned the app's 522 ms
- * mean into 261 ms. Here the key-only entry of an invocation metric (`attributes.ag.metrics.*`)
- * comes from the invocation step only, as the old code's own comment intends.
+ * The key-only entry of an invocation metric (`attributes.ag.metrics.*`) comes from the
+ * invocation step only. Merging every step into it would average in an evaluator step that comes
+ * after the invocation step in the response (on the parity data, a 522 ms mean became 261 ms).
  *
  * @packageDocumentation
  */
@@ -93,7 +90,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /**
  * Which run-level row to read. `static`: the static row (no scenario, no timestamp), else the
  * newest timestamped row; the run page's summary reads this. `latest`: the newest timestamped row,
- * else the static row; the old app's runs list shows a live run's latest window this way.
+ * else the static row; the runs list shows a live run's latest window this way.
  */
 export type RunLevelRowPreference = "static" | "latest"
 
@@ -113,7 +110,7 @@ export function runLevelMetricRow<T extends StatsMapMetric>(
 
 /**
  * Flatten one run's run-level metric row. Every stat lands under `{stepKey}.{metricKey}`. The
- * key-only entry of an evaluator metric merges every step that reports it (the old app's rule); the
+ * key-only entry of an evaluator metric merges every step that reports it; the
  * key-only entry of an invocation metric is the invocation step's, else the first step's that has it.
  */
 export function buildRunStatsMap(
@@ -165,7 +162,7 @@ export function buildRunStatsMap(
 
 /**
  * The stats of one metric. With a step key only that step's entry counts, so two runs with
- * different evaluators never match each other's metric (the old app's rule); without one the
+ * different evaluators never match each other's metric; without one the
  * key-only entry.
  */
 export function selectRunMetricStats(

@@ -53,7 +53,7 @@ export const TestcaseEditorDrawerContent = ({
         <div
             className={[
                 "flex h-full w-full flex-col overflow-hidden [&_.drill-in-breadcrumb]:pl-4 [&_.drill-in-field-content]:px-4 [&_.drill-in-field-content]:pt-2",
-                // As in the old app: a text box is as tall as its text (the shared editor theme
+                // A text box is as tall as its text (the shared editor theme
                 // sets 150px, which this app loads unlayered), and message text uses the normal
                 // font, not the code face.
                 "[&_.editor-input]:!min-h-[34px]",
@@ -78,7 +78,7 @@ export const TestcaseEditorDrawerContent = ({
                     rootViewMode={rootViewMode}
                     collapseSignal={collapseSignal}
                     // Fields follow the test set column order, and change only through the
-                    // column actions, as in the old app.
+                    // column actions.
                     fieldOrder="data"
                     fieldControls={false}
                 />

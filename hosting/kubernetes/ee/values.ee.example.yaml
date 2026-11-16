@@ -500,7 +500,7 @@ posthog:
 # ================================================================== #
 # === ingress ===
 # Path routing: / and /m → web-mobile, /api → api, /services → services.
-# web-mobile redirects / to /m and sends old desktop URLs to their /m pages.
+# web-mobile redirects / to /m and other root paths to their /m pages.
 #
 # Do NOT strip /api.  The API is mounted at /api (SCRIPT_NAME plus the FastAPI
 # root_path), so it needs the prefix and its redirects keep it.  This matches
@@ -525,8 +525,8 @@ posthog:
 #     services:
 #       path: /services
 #       pathType: Prefix
-#     web:              # the root route; it goes to web-mobile. The name is kept
-#       path: /         # from the retired desktop app so existing values still work.
+#     web:              # the root route; it goes to web-mobile.
+#       path: /
 #       pathType: Prefix
 
 # ================================================================== #

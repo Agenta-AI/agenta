@@ -45,9 +45,8 @@ const steppedSession = <T extends {id: string}>(
 
 /**
  * Session shortcuts for a chat surface that keeps sessions in a strip. Every action arrives as a
- * callback, so the hook knows nothing about its host: the desktop playground drives it today, and
- * `/m` can drive the same one when it grows a keyboard surface. A phone never sends an Alt chord,
- * so mounting it there is inert rather than harmful.
+ * callback, so the hook knows nothing about its host. A phone never sends an Alt chord, so
+ * mounting it there is inert rather than harmful.
  *
  * The bindings: `Alt+1…9` jumps to the Nth open session, `Alt+Z` and
  * `Alt+X` step to the previous/next one (wrapping), `Alt++` opens a new session, `Alt+W` closes the

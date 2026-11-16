@@ -21,7 +21,7 @@ baseline.
 - Keep deployment scriptable and repeatable.
 - Use a single public gateway domain with path routing:
   - `/` and `/m/*` -> web-mobile (no prefix strip: the app is built with basePath `/m`;
-    it redirects `/` to `/m` and old desktop URLs to their `/m` pages)
+    it redirects `/` to `/m` and other root paths to their `/m` pages)
   - `/api/` -> api
   - `/services/` -> services
 
@@ -253,8 +253,8 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 
 `bootstrap.sh` creates a `web-mobile` service with every environment. It is the
 only frontend: the gateway routes `/`, `/m` and every other path that `/api` and
-`/services` do not claim to it. `web-mobile` redirects `/` to `/m` and old desktop
-URLs to their `/m` pages.
+`/services` do not claim to it. `web-mobile` redirects `/` to `/m` and other
+root paths to their `/m` pages.
 An environment bootstrapped before `web-mobile` became standard has no such
 service; re-run `bootstrap.sh` to add it. `configure.sh` stops when it is
 missing. `deploy-from-images.sh` requires `AGENTA_WEB_MOBILE_IMAGE` and always

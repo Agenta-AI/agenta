@@ -4,8 +4,7 @@ import type {ReactNode} from "react"
  * The declarative shape behind {@link FilterMenu} and {@link GroupMenu}.
  *
  * Deliberately antd-free and entity-free: every icon is a `ReactNode` the consumer supplies, so
- * the menu never reaches for an icon set on its host's behalf and `web/mobile` (no antd,
- * lint-enforced) and the desktop app can mount the same component.
+ * the menu never reaches for an icon set on its host's behalf.
  */
 
 /** Which block of the panel a row sits in. Sort and group render first, filters under them. */

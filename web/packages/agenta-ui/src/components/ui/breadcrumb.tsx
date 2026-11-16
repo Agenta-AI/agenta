@@ -17,10 +17,7 @@ import {cn} from "./utils"
  *   lastItemColor / linkHoverColor          = colorText            (#1c2c3d light)
  *   separatorMargin = marginXS (8px)  ·  fontSize 12px  ·  lineHeight 1.6667 (→ text-field-md)
  *
- * antd → @agenta/ui mapping. The layout call-site (`oss/src/components/Layout/assets/
- * Breadcrumbs.tsx`) renders a next/link `<Link>` — a real `<a>` — inside `title`, so antd's
- * `.ant-breadcrumb-link a` rules DO apply; the call-site then neutralises them with
- * `!p-0 !h-auto hover:!bg-transparent`. We drop antd's `padding: 0 4px` / `margin-inline: -4px`
+ * antd → @agenta/ui mapping. We drop antd's `padding: 0 4px` / `margin-inline: -4px`
  * pair (they cancel to zero) and the `colorBgTextHover` hover pill, which is the one real
  * deviation — see Breadcrumb.md §Deliberate deviations:
  *   <Breadcrumb items={[{title, href, menu}]} separator="/" />

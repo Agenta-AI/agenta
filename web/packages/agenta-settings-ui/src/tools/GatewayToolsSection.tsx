@@ -176,11 +176,11 @@ const connectedCollapsedAtom = atomWithStorage(
 const yoursCollapsedAtom = atomWithStorage("agenta:settings:integrations-yours-collapsed", false)
 
 export interface GatewayToolsSectionProps {
-    /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
+    /** Destructive confirmation, supplied by the host. */
     confirm?: ConfirmDestructive
     /** Hides connect, run and the Available catalog: the connect form is still antd-backed. */
     readOnly?: boolean
-    /** Overrides the nouns; defaults to the "tool" wording oss/ee use. */
+    /** Overrides the nouns; defaults to the "tool" wording. */
     copy?: Partial<GatewayToolsSectionCopy>
     /**
      * The project group's heading: the project switch. Given, the group is the project's and

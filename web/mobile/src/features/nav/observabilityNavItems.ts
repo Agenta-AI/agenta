@@ -10,7 +10,7 @@ export const tNow = createT(navigationCatalog)
 /** The nav labels' translator: callers inside React pass their own `t`, so a memo follows the language. */
 export type NavTranslate = (key: CatalogKey<typeof navigationCatalog>) => string
 
-/** The Observability rail row, in developer mode only (the old app hides it from the simple nav). */
+/** The Observability rail row, in developer mode only (hidden from the simple nav). */
 export const observabilityNavItems = (
     projectURL: string,
     developerMode: boolean,

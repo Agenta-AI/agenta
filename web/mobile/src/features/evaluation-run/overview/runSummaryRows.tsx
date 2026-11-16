@@ -46,9 +46,8 @@ const mean = (stats: MetricStats) =>
     stats.mean ?? (stats.sum !== undefined && stats.count ? stats.sum / stats.count : undefined)
 
 /**
- * Cost, duration and tokens show the average per scenario; errors show the total. The old app
- * labels these rows "(Total)" but prints a mean that also counts the evaluator steps (its
- * duration reads half the app's real mean), so /m keeps "(Avg)" and the app step's mean.
+ * Cost, duration and tokens show the average per scenario; errors show the total. The mean is
+ * the app step's alone: one that also counts the evaluator steps reads half the real duration.
  */
 const INVOCATION_ROWS = [
     {id: "cost", label: "Cost (Avg)", format: (s: MetricStats) => fmt(mean(s), formatCost)},
@@ -105,7 +104,7 @@ const metricRowLabel = (metric: OverviewMetric) => (
     </span>
 )
 
-/** The summary rows of one run, in the order the old app lists them. */
+/** The summary rows of one run. */
 export function buildRunSummaryRows({
     header,
     references,
@@ -142,7 +141,7 @@ export function buildRunSummaryRows({
         rows.push({
             key: "queries",
             label: "Filters / Queries",
-            // The filter itself and the sampling rate, as the old app prints them.
+            // The filter itself and the sampling rate.
             value:
                 query === undefined ? (
                     PENDING

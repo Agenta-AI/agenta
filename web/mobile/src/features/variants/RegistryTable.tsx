@@ -26,7 +26,7 @@ const NARROW_COLUMNS: ListTableColumn[] = [
 /** Tailwind's `sm`. Below it only Name and Created on stay. */
 const WIDE_QUERY = "(min-width: 640px)"
 
-/** The Developer Mode Registry: the old app's columns, row selection, expandable variants. */
+/** The Developer Mode Registry: full columns, row selection, expandable variants. */
 export const RegistryTable = ({
     rows,
     isLoading,

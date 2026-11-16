@@ -17,11 +17,10 @@ import {DrawerProjectSwitcher} from "./DrawerProjectSwitcher"
 import {MOBILE_NAV_SCOPE_ID, useMobileBottomNavItems, useMobileNavItems} from "./useMobileNavItems"
 
 /**
- * Mobile's scope for the SHARED `SidebarShell` — the same header/sections/footer contract the
- * desktop rail fills, so both apps render one rail component with one geometry. The scope is
- * where mobile's differences live (its item list, its switcher binding); nothing forks.
+ * Mobile's scope for the SHARED `SidebarShell` — its header/sections/footer contract. The
+ * scope is where mobile's differences live (its item list, its switcher binding); nothing forks.
  *
- * Built per workspace/project like the desktop's `create()`, so the slot components and the
+ * Built per workspace/project, so the slot components and the
  * section hook keep stable identities across renders (a fresh slot type would remount the
  * switcher, and with it the drawer's open popover, on every render).
  */
@@ -51,7 +50,7 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
     // (`/sessions/<id>`), so the route match highlights it on its own — but when its agent heading
     // is collapsed, its row leaves the tree and the `/sessions` parent prefix-matches and grabs the
     // highlight. Pinning routes through `resolveSelectedKey`, which selects nothing when the row is
-    // not rendered — so a collapse moves the highlight nowhere, as on desktop.
+    // not rendered — so a collapse moves the highlight nowhere.
     const useSelection = (): SidebarSelection => {
         const router = useRouter()
         const sessionId =
@@ -75,7 +74,7 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         return useMemo(
             () => [
                 {key: "project", items},
-                // `vertical` mirrors the desktop rail: Help & Docs opens as a flyout, not inline.
+                // `vertical`: Help & Docs opens as a flyout, not inline.
                 {
                     key: "bottom",
                     items: bottomItems,
@@ -87,7 +86,7 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         )
     }
 
-    // Docked at lg+, so it carries the desktop's collapse toggle; in the drawer `onDismiss`
+    // Docked at lg+, so it carries the collapse toggle; in the drawer `onDismiss`
     // arrives and the same button becomes the sheet's close.
     const Header = ({collapsed, onDismiss}: SidebarSlotContext) => (
         <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton onDismiss={onDismiss} />} />

@@ -3,7 +3,7 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 /**
- * The evaluator's own Overview page, as in the old app, or null outside Developer Mode: the
+ * The evaluator's own Overview page, or null outside Developer Mode: the
  * evaluator pages exist only there.
  */
 export const useEvaluatorOverviewHref = (workflowId: string): string | null => {

@@ -1,9 +1,8 @@
 /**
- * @agenta/home-ui — Home, composed once for both apps.
+ * @agenta/home-ui — Home, composed once.
  *
- * The page's shape (hero, composer, in-flight column, rail) lives here so the desktop app and
- * the mobile app cannot drift into two different pages. Anything only one app can render
- * (the expanded analytics dashboard, an app's routing verbs) arrives as a slot.
+ * The page's shape (hero, composer, in-flight column, rail) lives here. Anything only the app can
+ * render (the expanded analytics dashboard, its routing verbs) arrives as a slot.
  */
 export {HomeOverview, type HomeOverviewProps} from "./HomeOverview"
 export {HomeFocus, type HomeFocusProps} from "./HomeFocus"

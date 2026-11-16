@@ -1,5 +1,5 @@
 /**
- * The scenario table logic copied from the old app: the filter rules, the per-scenario metric
+ * The scenario table logic: the filter rules, the per-scenario metric
  * values and their cell text, and the column settings.
  */
 import {describe, expect, it} from "vitest"
@@ -146,7 +146,7 @@ describe("scenario metrics", () => {
         expect(metricCellText(COST, null)).toBe("—")
     })
 
-    it("An evaluator value prints as the old app prints it", () => {
+    it("An evaluator value prints as a metric cell", () => {
         const path = "attributes.ag.data.outputs.score"
         expect(metricCellText(path, 0.66666)).toBe("0.667")
         expect(metricCellText(path, one(0.25))).toBe("0.25")

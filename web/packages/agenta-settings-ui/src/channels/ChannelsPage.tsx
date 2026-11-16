@@ -22,9 +22,8 @@ import {useChannelPanel, type ChannelsPanelRenderProps} from "./useChannelPanel"
 /**
  * The agent page's Channels section: connect and manage the chat tools an agent answers in.
  *
- * Reusable across the desktop app and /m. The host supplies the sliding panel container via
- * `renderPanel` (a drawer on desktop, a bottom sheet on /m), the connections it loaded, and
- * the real actions; everything inside — the connect flow and the manage view — is shared.
+ * The host supplies the sliding panel container via `renderPanel`, the connections it loaded,
+ * and the real actions; everything inside — the connect flow and the manage view — is shared.
  *
  * A channel connection is one per project and answers as one agent. Each platform row is in
  * one of three states relative to the agent whose page is open: not connected ("Connect"),
@@ -49,7 +48,7 @@ export interface ChannelsPageProps {
     onRetry?: () => Promise<void>
     /** The real actions; defaults to no-op actions for previews. */
     actions?: ChannelsActions
-    /** Host-provided sliding container: antd/@agenta drawer on desktop, a Sheet on /m. */
+    /** Host-provided sliding container. */
     renderPanel: (props: ChannelsPanelRenderProps) => React.ReactNode
     /** The hosted bot/app handle to show, e.g. "@newagentabot". */
     hostedHandle?: string

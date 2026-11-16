@@ -2,10 +2,8 @@
  * Soft default for the `trace_type` filter on the app-scoped observability
  * page (`/apps/<entityId>/traces`).
  *
- * Lives in entities (not in OSS) so the truth table can be unit-tested with
- * vitest. The OSS atom in `state/newObservability/atoms/controls.ts` calls
- * this helper and applies the result as a filter when no user override is
- * present.
+ * Lives in entities so the truth table can be unit-tested with vitest. The
+ * caller applies the result as a filter when no user override is present.
  *
  * - `tab === "sessions"` → no default (Sessions tab is app-only; evaluators
  *   don't emit them — the tab itself is hidden for evaluator workflows per

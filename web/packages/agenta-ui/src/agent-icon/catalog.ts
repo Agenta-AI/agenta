@@ -1,6 +1,6 @@
 /**
- * The icon catalog, lazily. Both pickers — the desktop popover and mobile's sheet — load it
- * through here, so they share one chunk and one cache.
+ * The icon catalog, lazily. Every picker loads it through here, so they share one chunk and one
+ * cache.
  */
 import type {PhosphorCatalogEntry} from "./catalog.generated"
 

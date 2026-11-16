@@ -20,7 +20,7 @@ export interface TraceRowMetrics {
 
 export interface TraceRowProps {
     span: TraceSpanNode
-    /** Which inline metrics to show. Desktop drives this from its tree settings. */
+    /** Which inline metrics to show — the host's tree settings. */
     metrics?: TraceRowMetrics
     className?: string
 }
@@ -30,9 +30,8 @@ const METRIC_CLASS = "flex items-center font-mono gap-0.5"
 /**
  * A trace span as a compact row: type glyph, span name, and inline latency / cost / tokens.
  *
- * Extracted from the trace drawer's tree, which is the only non-table trace presentation the
- * app ships. Desktop renders it inside its tree; mobile renders it as a list row. The metrics
- * come from the packaged span selectors, so both surfaces format a number the same way.
+ * The metrics come from the packaged span selectors, so every surface formats a number the
+ * same way.
  */
 export const TraceRow = ({span, metrics = {}, className}: TraceRowProps) => {
     const {latency = true, cost = true, tokens = true} = metrics

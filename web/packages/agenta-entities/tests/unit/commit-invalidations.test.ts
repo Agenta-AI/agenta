@@ -91,7 +91,7 @@ describe("the revision the commit just created", () => {
         queryClient.setQueryData(WORKFLOW_KEY, before)
     })
 
-    it("is in the by-variant list at once — the desktop picker", async () => {
+    it("is in the by-variant list at once", async () => {
         await store.set(commitWorkflowRevisionAtom, {revisionId: SOURCE})
         const list = queryClient.getQueryData<RefList>(VARIANT_KEY)
         expect(list?.refs.map((r) => r.id)).toEqual(["new-revision", "old-revision"])

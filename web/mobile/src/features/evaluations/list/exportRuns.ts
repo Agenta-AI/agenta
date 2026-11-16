@@ -37,7 +37,7 @@ const queryText = (revision: LiveQueryRevision | undefined): string | null => {
 const trimmed = (value: string | null | undefined) => value?.trim() || null
 
 /**
- * Saves the runs as a CSV file with the columns on screen, as the old list's Export CSV does.
+ * Saves the runs as a CSV file with the columns on screen.
  * The metrics (and the queries, when the Query column shows) of every run come in one request
  * each, so rows that never scrolled into view export their numbers too. Names come from what the
  * list already loaded; a name that has not loaded writes its id.

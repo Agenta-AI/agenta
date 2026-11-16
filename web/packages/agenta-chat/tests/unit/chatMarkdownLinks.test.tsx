@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The shared chat renderer's anchor: a path opens the file, a web link still opens a tab (#6659),
- * and a target that names a host is refused rather than followed (#6666). Both apps render through
- * `ChatMarkdown`, so these are asserted once, here, rather than per host.
+ * and a target that names a host is refused rather than followed (#6666). Every chat surface
+ * renders through `ChatMarkdown`, so these are asserted once, here.
  */
 import {createElement, type ReactNode} from "react"
 

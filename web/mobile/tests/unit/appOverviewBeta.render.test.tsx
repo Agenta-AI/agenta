@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The app overview's Recent Prompts in Developer Mode gets what /w has: the Playground
+// The app overview's Recent Prompts in Developer Mode gets the Playground
 // button, Open in Playground and Delete in the row menu, and the editable drawer. Without beta
 // developer mode the section stays as it was.
 import {act, createElement, type ReactNode} from "react"

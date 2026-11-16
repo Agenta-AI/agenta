@@ -2,7 +2,7 @@
  * Field utility functions for FieldRenderers
  *
  * Pure functions for parsing and detecting field data types.
- * These are used by both the package components and can be imported by OSS.
+ * These are used by the package components and can be imported by the app.
  */
 
 import type {SimpleChatMessage, MessageContent} from "@agenta/shared/types"

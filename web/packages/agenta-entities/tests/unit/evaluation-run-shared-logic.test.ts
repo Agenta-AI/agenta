@@ -1,7 +1,7 @@
 /**
  * The shared evaluation logic against real API responses, captured from a test stack: two finished
  * auto runs on the same test set and evaluators, and a live run (its static row and four
- * timestamped rows). Expected texts are what the old app prints for the same responses.
+ * timestamped rows).
  */
 import {describe, expect, it} from "vitest"
 
@@ -65,22 +65,21 @@ describe("run-level metric aggregation", () => {
         })
     })
 
-    it("shows why the old app printed 261 ms: it averaged one evaluator step into the app's duration", () => {
+    it("does not average an evaluator step into the app's duration (261 ms)", () => {
         const app = selectRunMetricStats(map, {metricKey: DURATION, stepKey: APP_STEP})
         const evaluator = selectRunMetricStats(map, {
             metricKey: DURATION,
             stepKey: STARTS_UPPERCASE_STEP,
         })
         expect(app && evaluator).toBeTruthy()
-        // The old flatten set the app's stats, then merged the next step in: (5223.472 + 2.091) / 20.
+        // Merging the next step into the app's stats gives (5223.472 + 2.091) / 20.
         const oldAppValue = mergeMetricStats(app ?? undefined, evaluator ?? {})
         expect(oldAppValue.mean).toBeCloseTo(261.278, 3)
         expect(selectRunMetricStats(map, {metricKey: DURATION})?.mean).not.toBeCloseTo(261.278, 0)
     })
 
-    // The old list cells and CSV export print cost with the shared currency formatter ("$0.000005");
-    // only the old overview table used its own 2-decimal formatter ("$0.00").
-    it("prints the list and export cells as the old app does", () => {
+    // The list cells and CSV export print cost with the shared currency formatter ("$0.000005").
+    it("prints the list and export cells", () => {
         expect(formatMetricValue(TOKENS, selectRunMetricStats(map, {metricKey: TOKENS}))).toBe("40")
         expect(formatMetricValue(COST, selectRunMetricStats(map, {metricKey: COST}))).toBe(
             "$0.000005",
@@ -158,7 +157,7 @@ describe("metric numbers", () => {
 })
 
 describe("runs list filters", () => {
-    it("sends the old app's flags per tab, leaving out annotation queue runs", () => {
+    it("sends the flags per tab, leaving out annotation queue runs", () => {
         expect(runListTabFlags("all")).toEqual({has_testcases: false, has_traces: false})
         expect(runListTabFlags("human")).toEqual({
             has_human: true,
@@ -185,7 +184,7 @@ describe("runs list filters", () => {
         expect(buildRunReferencePayload({testset: []})).toBeUndefined()
     })
 
-    it("builds the runs query body the old app sends", () => {
+    it("builds the runs query body", () => {
         expect(
             buildRunsQueryBody({
                 search: "capitals",

@@ -1,12 +1,7 @@
 /**
  * useVaultSecret — React hook over the secret molecule's atoms.
  *
- * Hook name is preserved (NOT renamed to useSecretController) so that the
- * 9 OSS consumer files migrate by changing only the import path. Same
- * identifier, same return shape, same call signature — keeps the big-bang
- * PR a mechanical refactor.
- *
- * Return shape (unchanged from OSS):
+ * Return shape:
  *   - loading: boolean
  *   - secrets: LlmProvider[]                  (standard provider configs)
  *   - customRowSecrets: LlmProvider[]         (custom provider configs)
@@ -41,7 +36,7 @@ import {
 /**
  * Hook for managing vault secrets and LLM provider keys.
  *
- * Behaviors preserved verbatim from the OSS implementation:
+ * Behaviors:
  *
  *   - Triggers `migrateKeys()` once when the user is authenticated and
  *     migration has not been attempted (`user && !migrating && !migrated`).

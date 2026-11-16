@@ -13,7 +13,7 @@ import {ArrowSquareOut, ChartBar, Copy, DotsThreeVertical, Trash} from "@phospho
 import type {QueueToDelete} from "./useQueueDelete"
 
 /**
- * The row's actions: Open, View Results (as in the old app), Copy ID and Delete. Delete shows only to a reader who may delete queues; the dialog and the
+ * The row's actions: Open, View Results, Copy ID and Delete. Delete shows only to a reader who may delete queues; the dialog and the
  * request belong to `useQueueDelete`, so the menu only names the queue.
  */
 export const QueueRowMenu = ({

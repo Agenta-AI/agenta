@@ -1,7 +1,5 @@
 /**
- * The request body that changes a run's name and description and adds evaluators to it, copied
- * from the old app's
- * `saveEvaluationEditAtom` (`EvalRunDetails/atoms/mutations/editEvaluation.ts`).
+ * The request body that changes a run's name and description and adds evaluators to it.
  *
  * `PATCH /simple/evaluations/{id}` replaces the run's data, so the body sends every step the run
  * already has, each with its own origin. A bare id list would reset the origins to "custom" and
@@ -51,8 +49,8 @@ function stepOrigins(
 
 /**
  * The body that renames a run and sets its description, keeping its steps as they are. Added
- * evaluator revisions join the run with the origin of its first evaluator step, as in the old app,
- * so a human run stays human; a revision the run already has keeps its own step.
+ * evaluator revisions join the run with the origin of its first evaluator step, so a human run
+ * stays human; a revision the run already has keeps its own step.
  */
 export function buildRunEditBody(
     run: RunEditInput,

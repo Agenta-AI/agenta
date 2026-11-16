@@ -92,7 +92,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     {
         kind: "app",
         icon: createElement(ChatsCircleIcon, {size: 14}),
-        // Its OWN scope: the source reads that scope's filters, so the desktop rail's filters
+        // Its OWN scope: the source reads that scope's filters, so another scope's filters
         // cannot narrow this drawer. Mobile has no filter UI, so this scope keeps the defaults.
         listAtom: sidebarSessionsListAtomFamily(MOBILE_NAV_SCOPE_ID),
         getLabel: (session) => session.name || tNow("navigation.items.untitledSession"),
@@ -154,7 +154,7 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
 )
 
 /**
- * The prompt apps under the Developer Mode Prompts row, as in the old app. The list loads
+ * The prompt apps under the Developer Mode Prompts row. The list loads
  * only while the row is open.
  */
 export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
@@ -173,7 +173,7 @@ export const mobilePromptsEntity = defineSidebarEntity<Workflow>(
 )
 
 /**
- * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
+ * The rail's nav model, narrowed
  * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
  * forking a component.
  */
@@ -308,8 +308,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // without bound, so Observability (and whatever lands after it) stays on screen.
                 scrollChildren: true,
                 onReachEnd: loadMoreSessions,
-                // Search reaches past what the rail lists; the filter narrows it. Same pair,
-                // same order, as the desktop rail.
+                // Search reaches past what the rail lists; the filter narrows it.
                 groupAction: createElement(
                     "span",
                     {className: "flex items-center gap-0.5"},
@@ -405,8 +404,8 @@ export const useMobileBottomNavItems = (
 }
 
 /**
- * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
- * same place the desktop rail puts it. It is a menu you reach for, not a place in the product,
+ * Help & Docs as an item the rail renders as an icon button beside the project switcher.
+ * It is a menu you reach for, not a place in the product,
  * and the row it held was the widest thing in the rail's footer.
  */
 export const useMobileHelpItem = ({

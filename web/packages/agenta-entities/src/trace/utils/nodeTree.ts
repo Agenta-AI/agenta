@@ -1,8 +1,8 @@
 /**
  * Span-tree traversal.
  *
- * Generic over the node type so callers keep their own span shape (OSS's
- * annotation-carrying `TraceSpanNode`, the packaged one, or a session node).
+ * Generic over the node type so callers keep their own span shape (the
+ * packaged `TraceSpanNode` or a session node).
  */
 
 interface SpanNodeLike {

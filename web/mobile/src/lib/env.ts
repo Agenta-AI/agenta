@@ -14,7 +14,7 @@ declare global {
  *
  * `process.env[key]` with a computed key is not inlined by Next, so a flag that is not also in
  * `__env.js` reads as empty in a built image no matter how the container is configured. Naming
- * each key here keeps it statically bundled — the same shape as the desktop's `processEnv`.
+ * each key here keeps it statically bundled.
  */
 const buildEnv: Record<string, string | undefined> = {
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,

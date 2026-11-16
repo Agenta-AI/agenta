@@ -50,8 +50,7 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
 /**
  * The help menu's "What's new?" block: a heading, the recent releases, and the way to the rest.
  *
- * Shared by both rails so one changelog reads the same in the desktop app and in `/m`. `version`
- * rides the last row — the running build belongs beside the list of what shipped.
+ * `version` rides the last row — the running build belongs beside the list of what shipped.
  */
 export const buildReleaseNavItems = (
     version: string | undefined,

@@ -47,7 +47,7 @@ export const DeployToEnvironmentDialog = ({
     }
     onClose: () => void
 }) => {
-    // Developer Mode shows the revisions as /w's table does: version tag, deployments, model.
+    // Developer Mode shows the revisions as a table: version tag, deployments, model.
     const beta = useAtomValue(developerModeActiveAtom)
     const title = beta
         ? environment.name.charAt(0).toUpperCase() + environment.name.slice(1)

@@ -331,9 +331,7 @@ export const resolveFromTrace: StepResolver = ({result, row, path}) => {
  *
  * Detect that exact shape (`type: "string"` + numeric `count`, no
  * distribution / scalar fields) so `resolveFromMetric` can return `null`
- * and let the composed `resolveFromTrace` fallback take over. Mirrors the
- * legacy `isStringTypePlaceholder` check in
- * `EvalRunDetails/atoms/scenarioColumnValues.ts`.
+ * and let the composed `resolveFromTrace` fallback take over.
  */
 function isStringTypeMetricPlaceholder(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false

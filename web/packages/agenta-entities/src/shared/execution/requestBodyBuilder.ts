@@ -20,8 +20,8 @@ import {
 } from "./valueExtraction"
 
 // ---------------------------------------------------------------------------
-// Duck-typed interfaces — compatible with EnhancedVariant (OSS) and
-// workflow entity data without importing either.
+// Duck-typed interfaces — compatible with variant and workflow entity
+// data without importing either.
 // ---------------------------------------------------------------------------
 
 /** Minimal variant shape used by the request body builder */

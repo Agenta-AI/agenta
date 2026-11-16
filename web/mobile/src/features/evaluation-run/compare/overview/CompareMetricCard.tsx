@@ -24,7 +24,7 @@ const DELTA_TONE = {
 } as const
 
 /**
- * One evaluator metric of every compared run, as the old app draws it: each run's value in its
+ * One evaluator metric of every compared run: each run's value in its
  * color with the change against the base run under it, and one bar per run in the distribution.
  */
 export const CompareMetricCard = ({runs}: {runs: readonly CompareMetricRun[]}) => {

@@ -9,10 +9,9 @@ import {useStartTaskSession} from "./useStartTaskSession"
  * Consume a "Test run" from the shared automations section for the agent being built.
  *
  * The section publishes the run to `simulatedAgentRunAtomFamily`, keyed by the revision it
- * shows, and on the desktop the playground's chat panel picks it up. This surface has no
- * such panel, so without a reader here the menu item did nothing at all. A test run here is
- * the same hand-off the automation detail screen's Test run makes: a NEW session with the
- * agent, the run's text sent as its first turn.
+ * shows. No chat panel here reads it, so without a reader the menu item did nothing at all. A
+ * test run here is the same hand-off the automation detail screen's Test run makes: a NEW
+ * session with the agent, the run's text sent as its first turn.
  */
 export const useTriggerTestRun = ({
     entityId,

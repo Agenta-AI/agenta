@@ -26,7 +26,7 @@ export {
     revisionsListQueryAtomFamily,
     enableRevisionsListQueryAtom,
     latestRevisionForTestsetAtomFamily,
-    // Latest revision helpers (for OSS table cells)
+    // Latest revision helpers (for table cells)
     latestRevisionQueryAtomFamily,
     latestRevisionAtomFamily,
     latestRevisionStatefulAtomFamily,

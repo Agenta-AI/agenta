@@ -6,8 +6,7 @@ import type {EnhancedButtonProps as ButtonProps} from "@agenta/ui/components/pre
 /** Host side effects a commit triggers that this package has no business knowing about. */
 export interface CommitHostAdapter {
     /**
-     * The app the commit belongs to. The desktop reads its selected app; a surface scoped to one
-     * agent already knows it. Used for the post-commit navigation payload only.
+     * The app the commit belongs to. Used for the post-commit navigation payload only.
      */
     appId?: string | null
     /**
@@ -16,11 +15,11 @@ export interface CommitHostAdapter {
      */
     appSlug?: string | null
     /**
-     * Refresh whatever list caches the host keeps outside the entities layer (the desktop's
-     * variant registry and evaluator tables). Called after every successful commit.
+     * Refresh whatever list caches the host keeps outside the entities layer. Called after every
+     * successful commit.
      */
     onAfterCommit?: () => void
-    /** Analytics/onboarding hook — the desktop records a widget event here. */
+    /** Analytics/onboarding hook. */
     onCommitted?: () => void
     /**
      * The visibility a create from an ephemeral entity asks for. Omitted: the server default

@@ -58,7 +58,7 @@ const VersionCard = ({
     </section>
 )
 
-/** The config of two revisions side by side, the older one as the original, as in the old app. */
+/** The config of two revisions side by side, the older one as the original. */
 export const CompareRevisionsDialog = ({
     revisions,
     onClose,

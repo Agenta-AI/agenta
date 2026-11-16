@@ -3428,7 +3428,7 @@ const syncToTestsetsAtom = atom(null, async (get, set) => {
 
 /**
  * Register callbacks for annotation session side-effects.
- * Used by platform-specific code (OSS/EE) to react to session events.
+ * Used by the host app to react to session events.
  *
  * @example
  * ```typescript

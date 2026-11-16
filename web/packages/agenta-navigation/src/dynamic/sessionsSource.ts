@@ -1093,7 +1093,7 @@ export const sidebarSessionsListAtomFamily = atomFamily((scopeId: string) =>
 /**
  * Is the Sessions group open enough to read its list from outside it?
  *
- * `alwaysOpen` HAS to be in this test: Sessions is rendered always-open on desktop, so its key is
+ * `alwaysOpen` HAS to be in this test: Sessions can be rendered always-open, so its key is
  * never written to the persisted open set — reading only that set left the Agent facet with no
  * options to offer. `idleReadyAtom` holds every such read until after first paint.
  */

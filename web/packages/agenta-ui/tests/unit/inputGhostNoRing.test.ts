@@ -4,7 +4,7 @@ import {inputVariants} from "../../src/components/ui/input"
 
 /**
  * A borderless field sits inside a frame that is its visual edge (the session search palette's
- * row). Since the focus ring became a class both apps generate, a borderless field on the default
+ * row). Since the focus ring became a class, a borderless field on the default
  * variant drew a 3px ring box on focus. The ghost variant is the one to use there: no border and
  * no focus ring.
  */

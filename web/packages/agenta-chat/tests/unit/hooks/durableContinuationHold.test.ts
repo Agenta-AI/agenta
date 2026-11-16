@@ -37,7 +37,7 @@ const messagesAfter = (count: number): UIMessage[] =>
 
 let sessions = 0
 
-/** The hook as the desktop mounts it after a durable approve. */
+/** The hook as the host mounts it after a durable approve. */
 const renderQueue = (initial: {messages: UIMessage[]; continuationExecutionId?: string | null}) => {
     const sessionId = `session-${++sessions}`
     return renderHook(

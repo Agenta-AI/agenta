@@ -13,7 +13,7 @@ import {useRouter} from "next/router"
 const NONE: string[] = []
 
 /**
- * The runs compared with `runId`, kept in `?compare=a,b` as in the old app. The base run, repeats
+ * The runs compared with `runId`, kept in `?compare=a,b`. The base run, repeats
  * and runs past the limit are dropped. A run that cannot be compared (not finished, not on a test
  * set) compares nothing. A change replaces the address without a new history entry.
  */

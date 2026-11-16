@@ -9,7 +9,7 @@ import {ChatDotsIcon, NoteIcon, RobotIcon, SquaresFourIcon, type Icon} from "@ph
 
 import {promptsCopy} from "./promptsCopy"
 
-/** The prompt types the old app offers, in its order. */
+/** The prompt types on offer, in order. */
 const PROMPT_TYPES: readonly {type: AppType; Icon: Icon}[] = [
     {type: "chat", Icon: ChatDotsIcon},
     {type: "completion", Icon: NoteIcon},

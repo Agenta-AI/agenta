@@ -21,7 +21,7 @@ export const evaluatorPlaygroundHref = (base: string, revisionId: string): strin
 export const parseRevisionIds = (value: string | string[] | undefined): string[] =>
     typeof value === "string" ? [...new Set(value.split(",").filter(Boolean))] : []
 
-/** The hash key of the playground snapshot, the same as /w so links work in both apps. */
+/** The hash key of the playground snapshot. */
 export const SNAPSHOT_PARAM = "pgSnapshot"
 
 /** `href` with an encoded playground snapshot in its hash. */

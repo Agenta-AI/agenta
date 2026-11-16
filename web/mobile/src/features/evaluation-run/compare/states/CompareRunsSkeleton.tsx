@@ -1,6 +1,6 @@
 import {SkeletonBlock} from "@agenta/ui/ui"
 
-/** Three rows the size of a candidate row, with the old app's loading text for screen readers. */
+/** Three rows the size of a candidate row, with loading text for screen readers. */
 export const CompareRunsSkeleton = () => (
     <div className="flex flex-col gap-1 p-2" role="status">
         <span className="sr-only">Loading evaluations...</span>

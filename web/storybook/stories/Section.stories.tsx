@@ -17,7 +17,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Section primitives (SectionCard, SectionHeaderRow, SectionLabel, ConfigBlock, SectionSkeleton) — pure @agenta/ui layout composites. SectionSkeleton wraps the @agenta/ui Skeleton.\n\n**Used in:** nowhere — `SectionCard`, `SectionHeaderRow`, `SectionLabel`, `ConfigBlock` and `SectionSkeleton` all have zero call-sites. The eval-run configuration view ships its own local copies under `oss/src/components/EvalRunDetails/components/views/ConfigurationView/components/SectionPrimitives.tsx`.",
+                    "Section primitives (SectionCard, SectionHeaderRow, SectionLabel, ConfigBlock, SectionSkeleton) — pure @agenta/ui layout composites. SectionSkeleton wraps the @agenta/ui Skeleton.\n\n**Used in:** nowhere — `SectionCard`, `SectionHeaderRow`, `SectionLabel`, `ConfigBlock` and `SectionSkeleton` all have zero call-sites.",
             },
         },
     },

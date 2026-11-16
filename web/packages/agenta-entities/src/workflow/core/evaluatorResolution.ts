@@ -4,7 +4,7 @@
  * Pure functions for resolving evaluator references from evaluation run data
  * and extracting metric definitions from evaluator schemas.
  *
- * These utilities are used by the EvalRunDetails UI to map evaluator references
+ * These utilities are used by the evaluation run UI to map evaluator references
  * (artifact IDs, revision IDs, slugs) to resolved evaluator definitions with
  * their metric columns.
  *

@@ -159,7 +159,7 @@ afterEach(() => {
     document.body.innerHTML = ""
 })
 
-describe("Archived apps list, matching the classic app", () => {
+describe("Archived apps list", () => {
     it("The back arrow goes to Prompts in Developer Mode", async () => {
         store.set(developerModeActiveAtom as never, true as never)
         await mountWithViews("archived-apps")

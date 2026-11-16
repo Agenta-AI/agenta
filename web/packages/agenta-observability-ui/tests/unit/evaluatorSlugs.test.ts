@@ -7,9 +7,7 @@ import {
 } from "../../src/columns/useEvaluatorSlugs"
 
 /**
- * This derivation lived in the desktop app, so `/m` hardcoded `[]` and silently showed no evaluator
- * columns — and, once the CSV learned to export them, no evaluator headers either. It is shared
- * now, which means both surfaces depend on these two rules holding.
+ * The traces table's evaluator columns and CSV headers depend on these two rules holding.
  */
 
 const span = (metrics: Record<string, unknown> | undefined, children?: unknown[]) =>

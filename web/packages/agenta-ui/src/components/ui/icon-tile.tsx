@@ -15,8 +15,7 @@ import {cn} from "./utils"
  * on top; this uses `--info-bg` with an `--info` glyph, which is the same reading in both themes
  * and keeps the system's own foreground/fill convention.
  *
- * Radius is off the control scale on purpose: the spec's 5 / 6 / 10 px do not exist as tokens and
- * `rounded-md` is 6 px on /w and 8 px on /m, so a token here would render two different tiles.
+ * Radius is off the control scale on purpose: the spec's 5 / 6 / 10 px do not exist as tokens.
  * The glyph takes `currentColor` and its size from the tile, so a caller passes a bare icon.
  */
 const iconTileVariants = cva(

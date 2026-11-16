@@ -35,8 +35,7 @@ export interface PreferenceSection {
 }
 
 /**
- * The page's sections, rows and copy. Defined once so `/w` and `/m` cannot drift: a host decides
- * how each row is bound, and may add rows of its own through `hostItems`.
+ * The page's sections, rows and copy. A host decides how each row is bound, and may add rows of its own through `hostItems`.
  */
 export const PREFERENCE_SECTIONS: PreferenceSection[] = [
     {
@@ -98,7 +97,7 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
 
 /**
  * A row only one host shows, placed after the shared rows of a {@link PREFERENCE_SECTIONS}
- * section. `/m` lists its developer views in preview this way; `/w` passes none.
+ * section. `/m` lists its developer views in preview this way.
  */
 export interface HostPreferenceItem {
     /** The `key` of the section it joins. */
@@ -120,9 +119,6 @@ export interface PreferencesPageProps {
 
 /**
  * The Preferences tab: Appearance, then the shared {@link PREFERENCE_SECTIONS}.
- *
- * Theme is a per-viewer choice both apps show the same way; the switches share storage across
- * apps, so a choice made in `/m` holds on the desktop and the other way round.
  */
 export const PreferencesPage = ({
     theme,

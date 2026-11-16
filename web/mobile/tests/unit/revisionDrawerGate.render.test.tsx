@@ -176,7 +176,7 @@ describe("Deployment drawer header", () => {
     const buttons = () =>
         [...(drawer()?.querySelectorAll("button, a") ?? [])].map((el) => el.textContent?.trim())
 
-    it("offers Open in playground and Deploy in Developer Mode, as /w does", () => {
+    it("offers Open in playground and Deploy in Developer Mode", () => {
         fixture.beta = true
         mount(deploymentsTab())
         expect(buttons()).toEqual(["Open in playground", "Deploy"])

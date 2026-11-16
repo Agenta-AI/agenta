@@ -425,7 +425,7 @@ const MD_CONTROLS = {code: {copy: true, download: false}, mermaid: false, table:
 
 export interface ChatMarkdownProps {
     content: string
-    /** Typography + token layer owned by the host surface (antd on desktop, shadcn on mobile). */
+    /** Typography + token layer owned by the host surface. */
     baseClassName: string
     /** Per-call-site tweak appended after `baseClassName`. */
     className?: string
@@ -438,7 +438,7 @@ export interface ChatMarkdownProps {
 }
 
 /**
- * Shared agent-chat markdown renderer for desktop and mobile. Presentational only — the typing
+ * Shared agent-chat markdown renderer. Presentational only — the typing
  * reveal (`useTypewriter`) stays with each host so it is never applied twice.
  *
  * Sanitization is Streamdown's default rehype pipeline (`rehype-raw → rehype-sanitize (GitHub

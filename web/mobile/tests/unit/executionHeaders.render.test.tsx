@@ -230,7 +230,7 @@ describe("Execution headers", () => {
     })
 
     it("The small entry and the controller's setter are the same atom", () => {
-        // /w registers through the controller; the runner reads the atom both name.
+        // Callers register through the controller; the runner reads the atom both name.
         expect(executionItemController.actions.setExecutionHeaders).toBe(executionHeadersAtom)
     })
 

@@ -13,7 +13,7 @@ export interface PageTitleProps {
 }
 
 /**
- * The tab name, in one place — the SAME formatter on both surfaces, so a tab reads identically:
+ * The tab name, in one place — the SAME formatter on every surface, so a tab reads identically:
  * `Section | Entity`, falling back to `Section | Agenta` when a screen names no entity, and to
  * `Agenta` alone when it names neither.
  */

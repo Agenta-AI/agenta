@@ -78,7 +78,7 @@ export async function fetchAllPreviewTraces(
     // querySpans (POST /spans/query, flat SpansResponse); trace-tree queries
     // (focus === "trace") go through queryTraces (POST /traces/query ->
     // {traces: TraceOutput[]}, adapted back to the legacy map so the coalescer,
-    // prefetch, ETL and OSS drawers keep reading data.traces[traceIdNoDashes]).
+    // prefetch, ETL and drawers keep reading data.traces[traceIdNoDashes]).
     // The new /spans/query rejects focus="trace" with 409.
     //
     // OQ(P5 integration): the trace-tree callers pass UNDASHED trace_ids in the

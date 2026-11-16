@@ -124,7 +124,7 @@ const partHasLanded = (part: ToolUIPart): boolean =>
 /**
  * What ONE tool row says, in the tense the part is actually in.
  *
- * Shared because both chat surfaces render the same row: a failure reads as one thought
+ * A failure reads as one thought
  * ("Reading a file failed") rather than claiming the action completed and contradicting it a few
  * words later.
  */

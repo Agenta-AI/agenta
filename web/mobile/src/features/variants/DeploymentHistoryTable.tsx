@@ -28,7 +28,7 @@ const NARROW_COLUMNS: ListTableColumn[] = [REVISION, VARIANT, DATE("104px"), ACT
 const WIDE_QUERY = "(min-width: 640px)"
 
 /**
- * What Developer Mode adds, as /w has it: row selection, the variant as a name and version
+ * What Developer Mode adds: row selection, the variant as a name and version
  * tag, avatars, and the longer row menu.
  */
 export interface DeploymentHistoryDeveloper {

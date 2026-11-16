@@ -57,9 +57,8 @@ import {useSheetComments} from "./spreadsheetComments"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
 import type {Sheet, Workbook} from "./workbook"
 
-// The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
-// lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
-// what stops that chunk reaching a host that never opens code files.
+// The host's code viewer (see `registerDriveCodeBlock`). The indirection keeps a highlighter
+// chunk out of a host that never opens code files.
 const LazyCodeBlock = DriveCodeBlock
 
 // Inline-render caps (bytes). Over-cap is a graceful card, never a frozen tab.
