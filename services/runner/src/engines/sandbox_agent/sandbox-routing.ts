@@ -31,10 +31,11 @@ const ROUTED_PROVIDERS: readonly string[] = ["daytona", "inprocess"];
 /**
  * The provider `request` runs on after harness routing. Pi runs `inprocess` only in a session
  * with a run credential: its files live on the session's drive, which the runner signs with that
- * credential. A Pi run without them (a sessionless invoke, an evaluation) runs on `daytona`.
+ * credential. A Pi run without them (a sessionless invoke, an evaluation, an agent with its session
+ * drive turned off) runs on `daytona`.
  */
 export function routeSandboxForHarness(
-  request: Pick<AgentRunRequest, "sandbox" | "harness" | "sessionId" | "telemetry">,
+  request: Pick<AgentRunRequest, "sandbox" | "harness" | "sessionId" | "telemetry" | "hasSessionDrive">,
   config: RunnerConfig = loadRunnerConfig(),
 ): string {
   // `resolveSandboxProviderId`'s precedence, against `config`.
@@ -53,6 +54,7 @@ export function routeSandboxForHarness(
   const inProcessHarness =
     SANDBOX_PROVIDER_TRAITS.inprocess.harnesses?.includes(harness) ?? false;
   const hasDrive =
+    request.hasSessionDrive !== false &&
     Boolean(request.sessionId?.trim()) &&
     Boolean(runCredential(request as AgentRunRequest));
   return inProcessHarness && hasDrive ? "inprocess" : "daytona";

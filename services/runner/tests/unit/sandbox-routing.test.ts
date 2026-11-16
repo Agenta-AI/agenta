@@ -59,6 +59,10 @@ describe("routing on (the default)", () => {
 
   it("runs Pi on Daytona without a session: in-process keeps its files on the session drive", () => {
     assert.equal(route(inSession({ sandbox: "daytona", sessionId: undefined })), "daytona");
+    // An agent with its session drive turned off has no drive for inprocess to work on.
+    assert.equal(route(inSession({ sandbox: "daytona", hasSessionDrive: false })), "daytona");
+    assert.equal(route(inSession({ sandbox: "inprocess", hasSessionDrive: false })), "daytona");
+    assert.equal(route(inSession({ sandbox: "daytona", hasSessionDrive: true })), "inprocess");
     assert.equal(route(inSession({ sandbox: "inprocess", sessionId: "  " })), "daytona");
   });
 
