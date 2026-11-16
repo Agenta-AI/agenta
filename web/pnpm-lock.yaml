@@ -1474,6 +1474,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/sessions-ui':
         specifier: workspace:../agenta-sessions-ui
         version: link:../agenta-sessions-ui
