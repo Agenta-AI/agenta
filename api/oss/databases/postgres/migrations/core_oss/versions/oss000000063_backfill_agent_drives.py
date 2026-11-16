@@ -64,7 +64,7 @@ def _with_drives(text: str) -> Optional[str]:
     if agent.get("drives") is None:
         agent["drives"] = [{"kind": "agent"}]
         changed = True
-    return json.dumps(data, ensure_ascii=False) if changed else None
+    return json.dumps(data) if changed else None
 
 
 def _backfill(connection, *, batch_size: int = BATCH_SIZE) -> int:
