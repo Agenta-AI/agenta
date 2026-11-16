@@ -40,7 +40,7 @@ import {useDriveTreeKeyboard} from "@agenta/entities/drive"
 import {useDriveTreePane} from "@agenta/entities/drive"
 import {useDriveTreeReveal} from "@agenta/entities/drive"
 import {useDriveTreeViewport} from "@agenta/entities/drive"
-import {useDriveUploads} from "@agenta/entities/drive"
+import {canWriteAt, useDriveUploads} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
@@ -320,8 +320,8 @@ export function DriveExplorer({
     const selectedMountPath = selectedResolved?.path ?? selectedPath ?? ""
     const selectedFileSize = selected?.size ?? selectedNode?.size ?? undefined
 
-    // Writes share the upload gate: a writable, real mount — and not a read-only project drive.
-    const canWrite = canUpload && !drive.resolveMount(currentFolder)?.readOnly
+    // Writes share the upload gate, judged at the destination: a mount backs it, not a read drive.
+    const canWrite = canUpload && canWriteAt(drive, currentFolder)
     // The pane's own box: confirms render inside it, not over the whole window.
     const paneRef = useRef<HTMLDivElement>(null)
     const getPane = useCallback(() => paneRef.current, [])
@@ -597,7 +597,7 @@ export function DriveExplorer({
                 mirrored={mirrored}
             />
         )
-    } else if (drive.fileCount === 0) {
+    } else if (drive.fileCount === 0 && !drive.projectDrives?.length) {
         body = <DriveEmptyState scope={scope} />
     } else {
         // The folder's verbs — row 2's ⋯ and the blank-space right-click menu share them.

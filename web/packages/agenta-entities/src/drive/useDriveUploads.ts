@@ -22,6 +22,12 @@ import {type SessionDriveData} from "./useSessionDrive"
 
 const NO_FILES: DroppedFile[] = []
 
+/** Can the drive write into this presented folder: a mount backs it and it is not a read drive. */
+export const canWriteAt = (drive: Pick<SessionDriveData, "resolveMount">, folder: string) => {
+    const target = drive.resolveMount(folder)
+    return Boolean(target) && !target?.readOnly
+}
+
 /** The staged tile's id — stable per position + destination path, and the handle removeStaged uses. */
 const stagedId = (dropped: DroppedFile, index: number) => `${index}-${dropped.relativePath}`
 
@@ -71,11 +77,12 @@ export function useDriveUploads({
     // The single switch for every upload affordance here: header button, drop-to-upload on folders
     // and panes, and the staged-files inbox.
     const uploadInputRef = useRef<HTMLInputElement>(null)
-    const canUpload = !explicitFiles && !!drive.mount
+    // A session whose only writable drive is a project drive has no primary mount.
+    const canUpload = !explicitFiles && (!!drive.mount || Boolean(drive.projectDrives?.length))
     const uploadIntoFolder = useCallback(
         (picked: DroppedFile[], folder: string) => {
             const resolved = drive.resolveMount(folder)
-            if (!resolved || resolved.readOnly) return
+            if (!resolved || !canWriteAt(drive, folder)) return
             mountUpload.upload(picked, {
                 mount: resolved.mount,
                 destFolder: resolved.path,

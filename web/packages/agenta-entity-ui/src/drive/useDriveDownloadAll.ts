@@ -9,6 +9,23 @@ import {downloadMountArchive} from "@agenta/entities/drive"
 import {AGENT_FILES_DIR, projectDriveDir, type SessionDriveData} from "@agenta/entities/drive"
 import {message} from "@agenta/ui/app-message"
 
+/** Every mount the drive folds in, each under its presented folder; a primary mount is optional. */
+export const driveArchiveMounts = (
+    drive: Pick<SessionDriveData, "mount" | "resolveMount" | "projectDrives">,
+): {mountId: string; prefix: string}[] => {
+    const out: {mountId: string; prefix: string}[] = []
+    const cwd = drive.mount
+    if (cwd?.id) {
+        out.push({mountId: cwd.id, prefix: ""})
+        const agent = drive.resolveMount(AGENT_FILES_DIR)
+        if (agent && agent.mount.id !== cwd.id)
+            out.push({mountId: agent.mount.id, prefix: AGENT_FILES_DIR})
+    }
+    for (const project of drive.projectDrives ?? [])
+        out.push({mountId: project.mount.id, prefix: projectDriveDir(project.slug)})
+    return out
+}
+
 export function useDriveDownloadAll({
     drive,
     projectId,
@@ -20,18 +37,7 @@ export function useDriveDownloadAll({
     // the agent's durable folder under `agent-files/`, each project drive under `drives/<slug>/`).
     // The toast rides the kit message service.
     const [downloadingAll, setDownloadingAll] = useState(false)
-    const archiveMounts = useMemo(() => {
-        const cwd = drive.mount
-        if (!cwd?.id) return []
-        const out = [{mountId: cwd.id, prefix: ""}]
-        const agent = drive.resolveMount(AGENT_FILES_DIR)
-        if (agent && agent.mount.id !== cwd.id) {
-            out.push({mountId: agent.mount.id, prefix: AGENT_FILES_DIR})
-        }
-        for (const project of drive.projectDrives ?? [])
-            out.push({mountId: project.mount.id, prefix: projectDriveDir(project.slug)})
-        return out
-    }, [drive])
+    const archiveMounts = useMemo(() => driveArchiveMounts(drive), [drive])
     const handleDownloadAll = useCallback(async () => {
         if (!archiveMounts.length || downloadingAll) return
         setDownloadingAll(true)

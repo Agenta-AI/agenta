@@ -14,6 +14,7 @@ import {useCallback, useEffect, useMemo, useReducer, useRef, useState, type Reac
 
 import {
     cleanPath,
+    foldProjectFiles,
     parentOf,
     PROJECT_DRIVES_DIR,
     projectDriveDir,
@@ -110,6 +111,17 @@ export function useLazyDriveTree(
     const [dirVersion, forceVersion] = useReducerVersion()
     const [fetchingDirs, setFetching] = useSetState()
 
+    // A drive that leaves the configuration leaves the tree: its cached levels and loading flags go.
+    const prevProjectDirs = useRef(projectDirs)
+    useEffect(() => {
+        const removed = prevProjectDirs.current.filter((d) => !projectDirs.includes(d))
+        prevProjectDirs.current = projectDirs
+        if (!removed.length) return
+        for (const key of [...removed, ...dropDirs(dirFilesRef.map, removed)])
+            setFetching(key, false)
+        forceVersion()
+    }, [projectDirs, dirFilesRef, setFetching, forceVersion])
+
     const onResult = useCallback(
         (path: string, files: MountFile[] | null, fetching: boolean) => {
             let changed = false
@@ -179,10 +191,7 @@ export function useLazyDriveTree(
             path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
         }))
         const projects = projectDrives.flatMap((d, i) =>
-            (projectFullQs[i]?.data ?? []).map((f) => ({
-                ...f,
-                path: `${projectDriveDir(d.slug)}/${cleanPath(f.path)}`,
-            })),
+            foldProjectFiles(d, projectFullQs[i]?.data ?? []),
         )
         return [...cwd, ...agent, ...projects, ...projectFolders(projectDirs)]
     }, [searchActive, cwdFullQ.data, agentFullQ.data, projectDrives, projectDirs, projectFullQs])
@@ -227,10 +236,14 @@ export function useLazyDriveTree(
         [subscriberPaths, drive, includeGitignored, onResult],
     )
 
+    // A level no mount backs (the root of a session that has only project drives, or `drives/`
+    // there) has nothing to fetch: its entries come from the drives folded under it.
     const loadedDirs = useMemo(() => {
         void dirVersion
-        return new Set(dirFilesRef.map.keys())
-    }, [dirFilesRef, dirVersion])
+        const loaded = new Set(dirFilesRef.map.keys())
+        for (const p of ["", ...subscriberPaths]) if (!drive.resolveMount(p)) loaded.add(p)
+        return loaded
+    }, [dirFilesRef, dirVersion, subscriberPaths, drive])
 
     return {
         files: searchActive ? (fullFiles ?? []) : lazyFiles,
@@ -249,6 +262,15 @@ export function useLazyDriveTree(
 // --- tiny state helpers (kept local so the hook reads top-down) --------------------------------
 
 const NO_PROJECTS: NonNullable<SessionDriveData["projectDrives"]> = []
+
+/** Drop every cached level at or under `dirs`; answers the dropped keys. */
+export const dropDirs = (map: Map<string, unknown>, dirs: readonly string[]): string[] => {
+    const dropped = [...map.keys()].filter((k) =>
+        dirs.some((d) => k === d || k.startsWith(`${d}/`)),
+    )
+    for (const k of dropped) map.delete(k)
+    return dropped
+}
 
 /** Each project drive's folder, so an empty drive still shows at `drives/<slug>/`. */
 const projectFolders = (dirs: string[]): MountFile[] =>
