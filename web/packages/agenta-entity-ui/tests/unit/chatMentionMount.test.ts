@@ -59,3 +59,30 @@ describe("resolveMentionMount", () => {
         })
     })
 })
+
+describe("resolveMentionMount with project drives", () => {
+    const prices = {id: "prices"}
+    const drives = [{slug: "price-lists", mount: prices}]
+
+    it("opens a drives/<slug>/ link in that project drive, written either way", () => {
+        for (const href of ["drives/price-lists/2026.md", "/drives/price-lists/2026.md"]) {
+            expect(resolveMentionMount(href, cwd, agent, drives)).toEqual({
+                mount: prices,
+                path: "2026.md",
+            })
+        }
+    })
+
+    it("opens a sandbox path through the drives/<slug> link in that project drive", () => {
+        expect(
+            resolveMentionMount("/var/lib/agenta/mounts/s/m/drives/price-lists/a/b.csv", cwd, agent, drives),
+        ).toEqual({mount: prices, path: "a/b.csv"})
+    })
+
+    it("keeps a drives/ path of an unknown slug on the session drive", () => {
+        expect(resolveMentionMount("drives/other/x.md", cwd, agent, drives)).toEqual({
+            mount: cwd,
+            path: "drives/other/x.md",
+        })
+    })
+})

@@ -10,20 +10,31 @@ import {createContext, useContext, useMemo, type ReactNode} from "react"
 interface DriveSession {
     sessionId: string | null
     artifactId: string | null
+    revisionId: string | null
 }
 
-const DriveSessionContext = createContext<DriveSession>({sessionId: null, artifactId: null})
+const DriveSessionContext = createContext<DriveSession>({
+    sessionId: null,
+    artifactId: null,
+    revisionId: null,
+})
 
 export function DriveSessionProvider({
     sessionId,
     artifactId = null,
+    revisionId = null,
     children,
 }: {
     sessionId: string
     artifactId?: string | null
+    /** The revision the conversation runs; its `drives` list names the project drives. */
+    revisionId?: string | null
     children: ReactNode
 }) {
-    const value = useMemo(() => ({sessionId, artifactId}), [sessionId, artifactId])
+    const value = useMemo(
+        () => ({sessionId, artifactId, revisionId}),
+        [sessionId, artifactId, revisionId],
+    )
     return <DriveSessionContext.Provider value={value}>{children}</DriveSessionContext.Provider>
 }
 
@@ -33,3 +44,7 @@ export const useDriveSessionId = (): string | null => useContext(DriveSessionCon
 /** The enclosing conversation's artifact (workflow) id — for the agent's durable `agent-files`
  * mount; null outside a conversation. */
 export const useDriveArtifactId = (): string | null => useContext(DriveSessionContext).artifactId
+
+/** The enclosing conversation's revision id — for the project drives (`drives/<slug>/`) its
+ * configuration names; null outside a conversation. */
+export const useDriveRevisionId = (): string | null => useContext(DriveSessionContext).revisionId

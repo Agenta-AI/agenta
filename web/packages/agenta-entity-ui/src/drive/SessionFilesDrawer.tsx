@@ -9,14 +9,14 @@
  */
 import {useMemo} from "react"
 
-import {AGENT_FILES_DIR, cleanPath, type DroppedFile} from "@agenta/entities/drive"
+import {AGENT_FILES_DIR, cleanPath, fileOrigin, type DroppedFile} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {drivePathFromToolPath} from "@agenta/entities/session"
 import {atom, useAtom} from "jotai"
 import {atomFamily} from "jotai-family"
 
 import {type DriveId} from "./DriveExplorer"
-import {useDriveArtifactId} from "./driveSessionContext"
+import {useDriveArtifactId, useDriveRevisionId} from "./driveSessionContext"
 import {FilesDrawer} from "./FilesDrawer"
 import {driveQuickLookAtomFamily} from "./quickLook"
 
@@ -53,7 +53,8 @@ export const resolveQuickLookPath = (recents: {path: string}[], requested: strin
         // A presented path written absolute (`/agent-files/x`) is the drive's own, not `/etc/x`, so
         // it is checked before any sandbox root is looked for in it (#7715).
         const presented = cleanPath(requested)
-        if (presented.startsWith(`${AGENT_FILES_DIR}/`)) return presented
+        if (presented.startsWith(`${AGENT_FILES_DIR}/`) || fileOrigin(presented) === "project")
+            return presented
         const resolved = drivePathFromToolPath(requested)
         if (!resolved) return recents.some((f) => f.path === presented) ? presented : requested
         // The agent mount is presented folded under `agent-files/`, except on a drive that IS the
@@ -79,6 +80,7 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
     const [staged, setStaged] = useAtom(filesDrawerStagedAtomFamily(sessionId))
     const artifactId = useDriveArtifactId()
+    const revisionId = useDriveRevisionId()
     const open = gridOpen || quickLook != null || staged.length > 0
 
     // Summary drive (cheap) — DriveExplorer lazy-loads the rest. Gated on open (the agent-mount query
@@ -86,6 +88,7 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const drive = useSessionDriveSummary(
         open ? sessionId : "",
         open ? (artifactId ?? undefined) : undefined,
+        open ? (revisionId ?? undefined) : undefined,
     )
 
     // Resolve the quick-look path (possibly a tail) to the presented drive path the tree selects by.

@@ -320,8 +320,8 @@ export function DriveExplorer({
     const selectedMountPath = selectedResolved?.path ?? selectedPath ?? ""
     const selectedFileSize = selected?.size ?? selectedNode?.size ?? undefined
 
-    // Writes share the upload gate: a writable, real mount.
-    const canWrite = canUpload
+    // Writes share the upload gate: a writable, real mount — and not a read-only project drive.
+    const canWrite = canUpload && !drive.resolveMount(currentFolder)?.readOnly
     // The pane's own box: confirms render inside it, not over the whole window.
     const paneRef = useRef<HTMLDivElement>(null)
     const getPane = useCallback(() => paneRef.current, [])

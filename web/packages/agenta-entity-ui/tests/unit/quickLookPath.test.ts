@@ -76,3 +76,11 @@ describe("resolveQuickLookPath with a user folder named `agenta-*`", () => {
         ).toBe("notes/agenta-demo/a.md")
     })
 })
+
+describe("resolveQuickLookPath with project drives", () => {
+    it("keeps an absolute drives/<slug>/ path as the drive's own path", () => {
+        expect(resolveQuickLookPath(recents, "/drives/price-lists/2026.md")).toBe(
+            "drives/price-lists/2026.md",
+        )
+    })
+})

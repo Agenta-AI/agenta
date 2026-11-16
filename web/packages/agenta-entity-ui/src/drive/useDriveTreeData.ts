@@ -20,7 +20,6 @@ import {
     looksLikeFilePath,
     driveHasMixedOrigins,
     fileOrigin,
-    type FileOrigin,
     type SessionDriveData,
 } from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
@@ -103,14 +102,14 @@ export function useDriveTreeData({
         [explicitFiles, lazyTree.files],
     )
     // "Show temporary files" is the origin filter: session-scoped files are the temporary ones.
-    const originFilter: "all" | FileOrigin = showOrigin && !showTemporary ? "agent" : "all"
+    const hideTemporary = showOrigin && !showTemporary
     const originFiltered = useMemo(() => {
         // Local-file mode: the explicit list is the whole tree; the mount's lazy files are ignored.
         let files = explicitFiles ?? lazyTree.files
-        if (originFilter !== "all") files = files.filter((f) => fileOrigin(f.path) === originFilter)
+        if (hideTemporary) files = files.filter((f) => fileOrigin(f.path) !== "session")
         if (!showHidden) files = files.filter((f) => !isHiddenPath(f.path))
         return files
-    }, [explicitFiles, lazyTree.files, originFilter, showHidden])
+    }, [explicitFiles, lazyTree.files, hideTemporary, showHidden])
     // Listed files first: an upload whose file has landed yields to the real entry (one path, one
     // node — the tile keeps its slot).
     const tree = useMemo(

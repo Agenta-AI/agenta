@@ -71,6 +71,16 @@ describe("turnFiles", () => {
         ])
     })
 
+    it("matches a link into a project drive to a write through its drives/<slug> link", () => {
+        const written = write("/var/lib/agenta/mounts/s/m/drives/price-lists/2026.md")
+        expect(turnFiles([tool("1", [written])], ["[prices](drives/price-lists/2026.md)"])).toEqual(
+            [written],
+        )
+        expect(turnFiles([], ["[prices](drives/price-lists/2026.md)"])).toEqual([
+            {op: "link", path: "drives/price-lists/2026.md"},
+        ])
+    })
+
     it("keeps a linked file that only shares a name with a written one", () => {
         const written = write("/var/lib/agenta/mounts/s/m/notes/report.md")
         expect(turnFiles([tool("1", [written])], ["[report](report.md)"])).toEqual([

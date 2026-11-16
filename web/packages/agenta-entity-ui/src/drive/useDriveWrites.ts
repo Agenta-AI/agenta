@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     AGENT_FILES_DIR,
+    fileOrigin,
     moveMountFile,
     createMountFolder,
     deleteMountPath,
@@ -38,7 +39,7 @@ export function useDriveWrites(
             success?: string,
         ): Promise<boolean> => {
             const resolved = drive.resolveMount(presentedPath)
-            if (!resolved?.mount) {
+            if (!resolved?.mount || resolved.readOnly) {
                 void message.error("This location can't be written to")
                 return false
             }
@@ -122,10 +123,15 @@ export function useDriveWrites(
         [run, projectId, getContainer],
     )
 
-    /** Mount roots (the root, `agent-files/`) never offer Delete. */
+    /** Mount roots (the root, `agent-files/`, `drives/<slug>/`) and read drives never offer Delete. */
     const canDelete = useCallback(
-        (presentedPath: string) => presentedPath !== "" && presentedPath !== AGENT_FILES_DIR,
-        [],
+        (presentedPath: string) => {
+            if (presentedPath === "" || presentedPath === AGENT_FILES_DIR) return false
+            if (fileOrigin(presentedPath) !== "project") return true
+            const resolved = drive.resolveMount(presentedPath)
+            return Boolean(resolved && resolved.path !== "" && !resolved.readOnly)
+        },
+        [drive],
     )
 
     return useMemo(

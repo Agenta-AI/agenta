@@ -6,7 +6,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {driveRootLabel} from "@agenta/entities/drive"
 import {downloadMountArchive} from "@agenta/entities/drive"
-import {AGENT_FILES_DIR, type SessionDriveData} from "@agenta/entities/drive"
+import {AGENT_FILES_DIR, projectDriveDir, type SessionDriveData} from "@agenta/entities/drive"
 import {message} from "@agenta/ui/app-message"
 
 export function useDriveDownloadAll({
@@ -17,7 +17,8 @@ export function useDriveDownloadAll({
     projectId: string | null | undefined
 }) {
     // "Download all" — ONE streaming zip spanning every mount the drive folds in (cwd at the root,
-    // the agent's durable folder under `agent-files/`). The toast rides the kit message service.
+    // the agent's durable folder under `agent-files/`, each project drive under `drives/<slug>/`).
+    // The toast rides the kit message service.
     const [downloadingAll, setDownloadingAll] = useState(false)
     const archiveMounts = useMemo(() => {
         const cwd = drive.mount
@@ -27,6 +28,8 @@ export function useDriveDownloadAll({
         if (agent && agent.mount.id !== cwd.id) {
             out.push({mountId: agent.mount.id, prefix: AGENT_FILES_DIR})
         }
+        for (const project of drive.projectDrives ?? [])
+            out.push({mountId: project.mount.id, prefix: projectDriveDir(project.slug)})
         return out
     }, [drive])
     const handleDownloadAll = useCallback(async () => {
