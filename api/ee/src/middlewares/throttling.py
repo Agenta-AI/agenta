@@ -80,9 +80,10 @@ _BOOKKEEPING_ROUTES: tuple[tuple[str, str], ...] = (
     # Attachment staging into the sandbox.
     ("get", "/sessions/attachments/{}/content"),
     ("post", "/sessions/attachments/reference"),
-    # Mount credentials for the session and agent mounts.
+    # Mount credentials for the session, agent and project mounts.
     ("post", "/sessions/mounts/sign"),
     ("post", "/mounts/agents/sign"),
+    ("post", "/mounts/projects/sign"),
     # Run-credential refresh.
     ("get", "/access/permissions/check"),
     # Subscription-login upkeep the runner publishes back to the vault.

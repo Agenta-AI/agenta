@@ -46,7 +46,10 @@ export async function signProjectMountCredentials(
   deps: SignMountDeps,
 ): Promise<MountCredentials | null> {
   return signMountCredentialsAt(
-    `${deps.apiBase}/mounts/projects/sign?slug=${encodeURIComponent(slug)}&access=${encodeURIComponent(access)}`,
+    {
+      url: `${deps.apiBase}/mounts/projects/sign?slug=${encodeURIComponent(slug)}&access=${encodeURIComponent(access)}`,
+      method: "POST",
+    },
     `slug=${slug} access=${access}`,
     deps,
   );

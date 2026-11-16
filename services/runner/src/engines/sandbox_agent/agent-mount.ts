@@ -49,18 +49,21 @@ export async function signAgentMountCredentials(
   name: string = "default",
 ): Promise<MountCredentials | null> {
   return signMountCredentialsAt(
-    `${deps.apiBase}/mounts/agents/sign?artifact_id=${encodeURIComponent(artifactId)}&name=${encodeURIComponent(name)}`,
+    {
+      url: `${deps.apiBase}/mounts/agents/sign?artifact_id=${encodeURIComponent(artifactId)}&name=${encodeURIComponent(name)}`,
+      method: "POST",
+    },
     `artifact=${artifactId} name=${name}`,
     deps,
   );
 }
 
 /**
- * POST one mounts sign route, bounded to 10 s so a hung endpoint fails open (null) instead of
+ * Call one mounts sign route, bounded to 10 s so a hung endpoint fails open (null) instead of
  * stalling the acquire. `subject` names the drive in log lines.
  */
 export async function signMountCredentialsAt(
-  url: string,
+  request: { url: string; method: "POST" },
   subject: string,
   deps: SignMountDeps,
 ): Promise<MountCredentials | null> {
@@ -71,8 +74,8 @@ export async function signMountCredentialsAt(
     ? AbortSignal.any([deps.signal, timeoutSignal])
     : timeoutSignal;
   try {
-    const res = await doFetch(url, {
-      method: "POST",
+    const res = await doFetch(request.url, {
+      method: request.method,
       headers: {
         "content-type": "application/json",
         authorization: deps.authorization,
