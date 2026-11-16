@@ -882,7 +882,7 @@ async function authenticateUserImpl({
 }
 
 /**
- * Storage keys owned by `@agenta/shared`'s classicMode state. Copied rather than imported: the
+ * Storage keys owned by `@agenta/shared`'s developerMode state. Copied rather than imported: the
  * test package does not depend on the web packages, and the values run inside `page.evaluate`.
  * Source of truth: `web/packages/agenta-shared/src/state/developerMode.ts`.
  */

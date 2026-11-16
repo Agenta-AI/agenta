@@ -22,7 +22,7 @@ export const developerRowKey = (viewId: string) => `developer-view-${viewId}`
  * One rail section per nav section that has an enabled view, or nothing at all. Links do not
  * prefetch when they scroll into view: a developer view's code must not load on the pages every
  * user opens.
- * Without Developer Mode only; beta uses `developerRailItems`.
+ * Without Developer Mode only; Developer Mode uses `developerRailItems`.
  */
 export const developerNavItems = (
     projectURL: string,

@@ -22,8 +22,6 @@ allowed() {
         docs/docs/self-host/upgrade-and-migrate/01-upgrading.mdx) return 0 ;;
         # Asserts the chart still accepts and ignores the old `web` values key (design.md D8).
         hosting/kubernetes/helm/tests/test_web_mobile.py) return 0 ;;
-        # Until PR 5 removes the desktop-only package code.
-        web/packages/*) return 0 ;;
     esac
     return 1
 }
