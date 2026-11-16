@@ -21,13 +21,17 @@ const LANGUAGE_NAMES: Record<Language, string> = {
 const NAME_FONT =
     '"PingFang SC", "Hiragino Sans", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans CJK JP", sans-serif'
 
-/** "Beta" is the same word in every language, so it is not a translated key. */
-const LanguageLabel = ({language}: {language: Language}) => (
-    <span className="flex min-w-0 items-center gap-2">
-        <span style={{fontFamily: NAME_FONT}}>{LANGUAGE_NAMES[language]}</span>
-        {language === "en" ? null : <Badge className="text-muted-foreground">Beta</Badge>}
-    </span>
-)
+const LanguageLabel = ({language}: {language: Language}) => {
+    const t = useT(settingsPreferencesCatalog)
+    return (
+        <span className="flex min-w-0 items-center gap-2">
+            <span style={{fontFamily: NAME_FONT}}>{LANGUAGE_NAMES[language]}</span>
+            {language === "en" ? null : (
+                <Badge className="text-muted-foreground">{t("settings.preferences.beta")}</Badge>
+            )}
+        </span>
+    )
+}
 
 /** Shown while the flag is on, and to anyone who already chose a language other than English. */
 export const LanguagePicker = () => {

@@ -16,11 +16,13 @@ import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {UserAuthorLabel, useIsCurrentUser, useUserDisplayName} from "@agenta/entities/shared/user"
 import {useT, createT} from "@agenta/i18n"
 import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
+import settingsAuditEventTypesCatalog from "@agenta/i18n/catalogs/settings.auditEventTypes"
 import {dayjs} from "@agenta/shared/utils"
 import {Copy, Eye} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {copyWithMessage} from "../shared/copyWithMessage"
+import {localDate} from "../shared/localDate"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
 import {eventTypeLabel} from "./eventTypeLabels"
@@ -52,9 +54,28 @@ export const EventTimestampCell = ({eventId}: {eventId: string}) => {
     if (!event) return <Dash />
 
     const time = dayjs(event.timestamp)
-    const short = time.isSame(dayjs(), "year")
-        ? time.format("MMM D, HH:mm:ss")
-        : time.format("MMM D YYYY, HH:mm")
+    const thisYear = time.isSame(dayjs(), "year")
+    const short = localDate(
+        time.toDate(),
+        thisYear
+            ? {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false,
+              }
+            : {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+              },
+        () => (thisYear ? time.format("MMM D, HH:mm:ss") : time.format("MMM D YYYY, HH:mm")),
+    )
     return (
         <span
             className="truncate tabular-nums text-muted-foreground"
@@ -67,12 +88,15 @@ export const EventTimestampCell = ({eventId}: {eventId: string}) => {
 
 /** The event as a sentence, with its dotted type under it. */
 export const EventTypeCell = ({eventId}: {eventId: string}) => {
+    const typeText = useT(settingsAuditEventTypesCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId))
     if (!event) return <Dash />
 
     return (
         <div className="flex min-w-0 flex-col">
-            <span className="truncate text-foreground">{eventTypeLabel(event.event_type)}</span>
+            <span className="truncate text-foreground">
+                {eventTypeLabel(event.event_type, typeText)}
+            </span>
             <span
                 className="truncate font-mono text-[11.5px] text-muted-foreground"
                 title={event.event_type}

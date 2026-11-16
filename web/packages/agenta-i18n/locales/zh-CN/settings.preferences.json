@@ -1,5 +1,6 @@
 {
     "appearance": "外观",
+    "beta": "Beta",
     "betaDeveloperMode": "使用新的 Beta 开发者模式",
     "betaDeveloperModeDescription": "开发者模式保留在新应用中并显示开发者板块，而不是打开经典应用。",
     "channelDebug": "渠道调试",

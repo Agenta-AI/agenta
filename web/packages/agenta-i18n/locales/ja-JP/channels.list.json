@@ -4,7 +4,7 @@
     "addOwnBot": "独自のボットを追加",
     "addWorkspace": "別のワークスペースを追加",
     "bots": "ボット",
-    "connectedCount": "{{count}} 件接続済み",
+    "connectedCount_other": "{{count}} 件接続済み",
     "numbers": "番号",
     "workspaces": "ワークスペース"
 }

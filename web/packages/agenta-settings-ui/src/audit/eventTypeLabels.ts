@@ -1,4 +1,56 @@
-/** Human labels for dotted audit event types; the raw type stays the filter value. */
+/**
+ * Human labels for dotted audit event types; the raw type stays the filter value. Known types and
+ * resource groups read from the `settings.auditEventTypes` catalog. A type that catalog does not
+ * list (a new one the API adds) is built from its words, in English.
+ */
+import type {CatalogKey} from "@agenta/i18n"
+import type settingsAuditEventTypesCatalog from "@agenta/i18n/catalogs/settings.auditEventTypes"
+
+type EventKey = CatalogKey<typeof settingsAuditEventTypesCatalog>
+/** A `t` that holds the audit event type catalog. */
+export type EventTypeT = (key: EventKey) => string
+
+const key = (name: string) => `settings.auditEventTypes.${name}` as EventKey
+
+/** Event type to catalog key. The type is the filter value, so it is never translated. */
+const EVENT_KEYS: Record<string, EventKey> = Object.fromEntries(
+    [
+        ["unknown", "unknownEvent"],
+        ["webhooks.subscriptions.tested", "webhooksSubscriptionsTested"],
+        ["gateways.called", "gatewaysCalled"],
+        ["agents.sharing.changed", "agentsSharingChanged"],
+        ["sessions.sharing.changed", "sessionsSharingChanged"],
+        ["organization_secrets.changed", "organizationSecretsChanged"],
+        ["traces.fetched", "tracesFetched"],
+        ["traces.queried", "tracesQueried"],
+        ["testcases.fetched", "testcasesFetched"],
+        ["testcases.queried", "testcasesQueried"],
+        ...["queries", "testsets", "workflows", "environments"].flatMap((resource) =>
+            ["retrieved", "fetched", "queried", "logged", "committed"].map((action) => [
+                `${resource}.revisions.${action}`,
+                `${resource}Revisions${action[0].toUpperCase()}${action.slice(1)}`,
+            ]),
+        ),
+    ].map(([type, name]) => [type, key(name)]),
+)
+
+/** Resource (first segment) to the catalog key of its group heading. */
+const GROUP_KEYS: Record<string, EventKey> = Object.fromEntries(
+    [
+        ["webhooks", "groupWebhooks"],
+        ["gateways", "groupGateways"],
+        ["agents", "groupAgents"],
+        ["sessions", "groupSessions"],
+        ["organization_secrets", "groupOrganizationSecrets"],
+        ["traces", "groupTraces"],
+        ["queries", "groupQueries"],
+        ["testcases", "groupTestCases"],
+        ["testsets", "groupTestSets"],
+        ["workflows", "groupWorkflows"],
+        ["environments", "groupEnvironments"],
+        ["unknown", "groupUnknown"],
+    ].map(([resource, name]) => [resource, key(name)]),
+)
 
 /** [singular, plural] for each known resource segment. */
 const NOUNS: Record<string, [string, string]> = {
@@ -41,7 +93,9 @@ const noun = (segment: string, plural: boolean): string => {
 }
 
 /** "Committed workflow revision", "Queried traces", "Viewed workflow revision log". */
-export const eventTypeLabel = (eventType: string): string => {
+export const eventTypeLabel = (eventType: string, t: EventTypeT): string => {
+    const known = EVENT_KEYS[eventType]
+    if (known) return t(known)
     const segments = eventType.split(".").filter(Boolean)
     if (segments.length < 2) return capitalize(`${segments[0] ?? "unknown"} event`)
 
@@ -56,8 +110,10 @@ export const eventTypeLabel = (eventType: string): string => {
 }
 
 /** The resource heading an event type sits under, e.g. "Workflows" or "Test sets". */
-export const eventTypeGroup = (eventType: string): string => {
+export const eventTypeGroup = (eventType: string, t: EventTypeT): string => {
     const resource = eventType.split(".")[0] ?? ""
+    const known = GROUP_KEYS[resource]
+    if (known) return t(known)
     return capitalize(noun(resource, true))
 }
 

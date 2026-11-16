@@ -11,11 +11,13 @@
     "invalidSlug": "Use only lowercase letters (a-z) and hyphens (-) for the slug",
     "issuerAndClientRequired": "Issuer URL and client ID are required",
     "issuerUrl": "Issuer URL",
+    "issuerUrlPlaceholder": "https://idp.example.com",
     "saveFailed": "Could not save the provider",
     "saveProvider": "Save provider",
     "saving": "Saving…",
     "scopes": "Scopes",
     "scopesHint": "Separate scopes with commas",
     "slug": "Slug",
-    "slugHint": "Lowercase letters and hyphens only"
+    "slugHint": "Lowercase letters and hyphens only",
+    "slugPlaceholder": "okta"
 }

@@ -4,7 +4,8 @@
     "addOwnBot": "Add your own bot",
     "addWorkspace": "Add another workspace",
     "bots": "Bots",
-    "connectedCount": "{{count}} connected",
+    "connectedCount_one": "{{count}} connected",
+    "connectedCount_other": "{{count}} connected",
     "numbers": "Numbers",
     "workspaces": "Workspaces"
 }

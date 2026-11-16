@@ -1,6 +1,7 @@
 import type {WorkspaceMember} from "@agenta/entities/organization"
-import {useT} from "@agenta/i18n"
+import {useT, type CatalogKey} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMemberRolesCatalog from "@agenta/i18n/catalogs/settings.memberRoles"
 import {
     Select,
     SelectContent,
@@ -10,9 +11,27 @@ import {
     SkeletonBlock,
 } from "@agenta/ui/ui"
 
-/** "admin" reads as "Admin" in the table and in the picker. */
-export const memberRoleLabel = (role: string) =>
-    role ? role.charAt(0).toUpperCase() + role.slice(1) : "—"
+type RoleKey = CatalogKey<typeof settingsMemberRolesCatalog>
+
+const ROLE_KEYS: Record<string, RoleKey> = {
+    owner: "settings.memberRoles.owner",
+    admin: "settings.memberRoles.admin",
+    developer: "settings.memberRoles.developer",
+    editor: "settings.memberRoles.editor",
+    annotator: "settings.memberRoles.annotator",
+    viewer: "settings.memberRoles.viewer",
+    member: "settings.memberRoles.member",
+}
+
+/**
+ * "admin" reads as "Admin" in the table and in the picker. A role this app has no text for
+ * (a custom role) reads as its own name.
+ */
+export const memberRoleLabel = (role: string, t: (key: RoleKey) => string) => {
+    const key = ROLE_KEYS[role]
+    if (key) return t(key)
+    return role ? role.charAt(0).toUpperCase() + role.slice(1) : "—"
+}
 
 /** The role a member holds. The API keeps one role per member, so the first one is it. */
 export const memberRole = (member: WorkspaceMember) => member.roles?.[0]?.role_name ?? ""
@@ -41,13 +60,13 @@ export const MemberRoleCell = ({
     pending?: boolean
     onChange: (role: string) => void
 }) => {
-    const t = useT(commonCatalog)
+    const t = useT(commonCatalog, settingsMemberRolesCatalog)
     const role = memberRole(member)
     const joined = member.user.status === "member"
 
     if (pending) return <SkeletonBlock active className="h-6 w-24 rounded-control-sm" />
     if (!canChange || isOwner || !joined || offeredRoles.length === 0) {
-        return <span>{memberRoleLabel(role)}</span>
+        return <span>{memberRoleLabel(role, t)}</span>
     }
 
     // A stored role the plan no longer offers (an editor after a move to Pro) matches no item, so
@@ -56,12 +75,12 @@ export const MemberRoleCell = ({
     return (
         <Select value={offered ? role : undefined} onValueChange={onChange}>
             <SelectTrigger size="sm" className="w-full" aria-label={t("common.role")}>
-                <SelectValue placeholder={memberRoleLabel(role)} />
+                <SelectValue placeholder={memberRoleLabel(role, t)} />
             </SelectTrigger>
             <SelectContent>
                 {offeredRoles.map((entry) => (
                     <SelectItem key={entry} value={entry}>
-                        {memberRoleLabel(entry)}
+                        {memberRoleLabel(entry, t)}
                     </SelectItem>
                 ))}
             </SelectContent>

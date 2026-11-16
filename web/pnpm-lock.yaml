@@ -1875,6 +1875,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/observability':
         specifier: workspace:../agenta-observability
         version: link:../agenta-observability

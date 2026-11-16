@@ -1,0 +1,6 @@
+{
+    "createAgent": "Créer un agent",
+    "description": "Dès que vos agents s’exécuteront, vous verrez leur coût, leur fréquence d’exécution et la fiabilité de leur fin d’exécution.",
+    "newRunsNote": "Les nouvelles exécutions apparaissent ici en une minute environ.",
+    "title": "Vos analyses s’afficheront ici"
+}

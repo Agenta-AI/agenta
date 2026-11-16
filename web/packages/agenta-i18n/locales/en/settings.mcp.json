@@ -10,6 +10,7 @@
     "emptyBody": "Connect a server by URL. You'll sign in or add a key once; agents in this project can then add it and choose what it may run.",
     "emptyTitle": "No MCP servers connected",
     "notSignedIn": "Not signed in",
+    "oauth": "OAuth",
     "removeFailed": "Failed to remove the MCP server.",
     "removeMessage": "{{name}} is removed from this project. Agents configured to use it stop working, and reconnecting later creates a new connection.",
     "removeTitle": "Remove server",

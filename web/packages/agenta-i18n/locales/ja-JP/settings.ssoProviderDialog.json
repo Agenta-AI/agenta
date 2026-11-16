@@ -11,11 +11,13 @@
     "invalidSlug": "スラッグには小文字 (a-z) とハイフン (-) のみを使用してください",
     "issuerAndClientRequired": "発行者 URL とクライアント ID は必須です",
     "issuerUrl": "発行者 URL",
+    "issuerUrlPlaceholder": "https://idp.example.com",
     "saveFailed": "プロバイダーを保存できませんでした",
     "saveProvider": "プロバイダーを保存",
     "saving": "保存中…",
     "scopes": "スコープ",
     "scopesHint": "スコープはカンマで区切ってください",
     "slug": "スラッグ",
-    "slugHint": "小文字とハイフンのみ"
+    "slugHint": "小文字とハイフンのみ",
+    "slugPlaceholder": "okta"
 }

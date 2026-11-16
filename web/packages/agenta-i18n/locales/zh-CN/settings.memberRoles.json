@@ -1,0 +1,9 @@
+{
+    "admin": "管理员",
+    "annotator": "标注员",
+    "developer": "开发者",
+    "editor": "编辑者",
+    "member": "成员",
+    "owner": "所有者",
+    "viewer": "查看者"
+}
