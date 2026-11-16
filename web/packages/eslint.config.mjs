@@ -72,8 +72,7 @@ export const restrictedImportPatterns = [
  */
 export const restrictedSyntax = [
     {
-        selector:
-            'ImportExpression > Literal[value="@agenta/shared/api"]',
+        selector: 'ImportExpression > Literal[value="@agenta/shared/api"]',
         message:
             "Dynamic-import '@agenta/shared/api/hostQueryClient' instead — importing the api barrel dynamically can reach the `queryClient` singleton, whose writes are dead on a host that installed its own client.",
     },
