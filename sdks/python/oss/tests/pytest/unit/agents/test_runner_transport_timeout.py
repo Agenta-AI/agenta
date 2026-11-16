@@ -188,6 +188,15 @@ def test_the_default_outlasts_the_runner_tool_call_limit_and_grace():
     assert ts_runner.DEFAULT_RUNNER_TIMEOUT_SECONDS > 300 + 120
 
 
+def test_the_default_outlasts_a_reference_tool_call():
+    """A reference tool (another agent called as a tool) sends no record while the child runs,
+    for up to the runner's default tool-call limit (30 min) plus its 120 s grace."""
+    from agenta.sdk.agents.platform.workflow import REFERENCE_TOOL_TIMEOUT_MS
+
+    assert REFERENCE_TOOL_TIMEOUT_MS / 1000 == 30 * 60
+    assert ts_runner.DEFAULT_RUNNER_TIMEOUT_SECONDS > 30 * 60 + 120
+
+
 def test_the_sandbox_agent_backend_uses_the_transport_default(monkeypatch):
     from agenta.sdk.agents.adapters.sandbox_agent import SandboxAgentBackend
 

@@ -31,6 +31,7 @@
     "@daytonaio/sdk": "npm:@daytona/sdk@^0.198.0",
     "@earendil-works/pi-ai": "0.80.6",
     "@earendil-works/pi-coding-agent": "0.99.1",
+    "@modelcontextprotocol/sdk": "~1.32.0",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/core": "2.8.0",
     "@opentelemetry/exporter-trace-otlp-proto": "0.220.0",
@@ -50,11 +51,12 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/proper-lockfile": "4.1.4",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "esbuild": "0.28.1",
     "tsx": "4.23.15",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vite": "8.1.6",
+    "vitest": "^4.1.12"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -75,7 +77,7 @@
     "overrides": {
       "@grpc/grpc-js": "1.14.5",
       "@hono/node-server": "1.19.15",
-      "@modelcontextprotocol/sdk@<1.31.0": "~1.31.0",
+      "@modelcontextprotocol/sdk@<1.32.0": "~1.32.0",
       "@opentelemetry/propagator-jaeger": "2.9.0",
       "axios": "1.20.0",
       "brace-expansion": "5.0.12",

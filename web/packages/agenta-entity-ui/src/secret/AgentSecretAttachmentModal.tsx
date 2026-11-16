@@ -11,8 +11,7 @@ import {
 } from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {OwnerKind} from "@agenta/shared/types"
-import {isValidUUID, slugifyBase, toEnvVarName} from "@agenta/shared/utils"
-import {message} from "@agenta/ui/app-message"
+import {isValidUUID} from "@agenta/shared/utils"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {
     Input,
@@ -29,6 +28,14 @@ import {ACCOUNT_COPY} from "../accounts/copy"
 import {useAccountChoice} from "../accounts/useAccountChoice"
 import {useProjectName} from "../accounts/useProjectName"
 
+import {
+    ENV_NAME,
+    matchRequestedSecret,
+    newSecretOwners,
+    preserveAgentSecretEnvOverride,
+    suggestedAgentSecretEnv,
+    type AgentSecretRequestSeed,
+} from "./agentSecretRules"
 import {OwnerRadioGroup} from "./OwnerRadioGroup"
 import {SecretCreateFields} from "./SecretCreateFields"
 import {useSecretForm, type SavedSecret} from "./SecretForm"
@@ -37,12 +44,6 @@ import {YourSecretLine} from "./YourSecretLine"
 export interface AgentSecretAttachmentTarget {
     revisionId: string
     label: string
-}
-
-export interface AgentSecretRequestSeed {
-    name: string
-    envVar?: string
-    reason?: string
 }
 
 export interface AgentSecretAttachmentResult {
@@ -75,7 +76,6 @@ export interface AgentSecretAttachmentModalProps {
     container?: HTMLElement | null
 }
 
-const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 const SECRET_FIELD_ID = "agent-secret-attach-secret"
 const ENV_FIELD_ID = "agent-secret-attach-env"
 /** The picker option that swaps in the inline create fields. */
@@ -84,56 +84,6 @@ const NEW_SECRET = "__new__"
 const PERSONAL_SECRET = "__personal__"
 
 type SecretOwner = Exclude<OwnerKind, "organization">
-
-/** Who may own a new secret, as on Settings; the first is the default. Absent: the project's. */
-export const newSecretOwners = (
-    personalAccountsOn: boolean,
-    canCreateProjectSecret: boolean,
-): SecretOwner[] | undefined => {
-    if (!personalAccountsOn) return undefined
-    return canCreateProjectSecret ? ["user", "project"] : ["user"]
-}
-
-/** The saved secret the agent most likely means: same env var, name, or slug as the request. */
-export const matchRequestedSecret = <
-    T extends Pick<NamedSecretRow, "name" | "slug" | "defaultEnvVar">,
->(
-    secrets: T[],
-    request?: AgentSecretRequestSeed,
-): T | undefined => {
-    if (!request) return undefined
-    const name = request.name.trim().toLowerCase()
-    const slug = slugifyBase(request.name)
-    return (
-        (request.envVar ? secrets.find((s) => s.defaultEnvVar === request.envVar) : undefined) ??
-        secrets.find((s) => s.name?.trim().toLowerCase() === name) ??
-        secrets.find((s) => !!slug && s.slug === slug)
-    )
-}
-
-export const suggestedAgentSecretEnv = ({
-    requestEnv,
-    defaultEnvVar,
-    name,
-}: {
-    requestEnv?: string
-    defaultEnvVar?: string
-    name: string
-}): string => requestEnv || defaultEnvVar || toEnvVarName(name)
-
-export const preserveAgentSecretEnvOverride = ({
-    current,
-    touched,
-    requestEnv,
-    defaultEnvVar,
-    name,
-}: {
-    current: string
-    touched: boolean
-    requestEnv?: string
-    defaultEnvVar?: string
-    name: string
-}): string => (touched ? current : suggestedAgentSecretEnv({requestEnv, defaultEnvVar, name}))
 
 /** The variable as typed, a beat behind, so typing it asks the server once and not per letter. */
 const useDebouncedEnv = (envVar: string, active: boolean): string => {
@@ -325,7 +275,11 @@ export function AgentSecretAttachmentModal({
             // Stored first: a failed attach retries from the line, which then shows this choice.
             setSelectedSlug(PERSONAL_SECRET)
             const stored = secret.id ? await storeChoice({secretId: secret.id}) : false
-            if (stored !== true) message.error(ACCOUNT_COPY.choiceFailed)
+            // A run reads the value through the choice, so no choice means no attachment.
+            if (stored !== true) {
+                setError(ACCOUNT_COPY.choiceFailed)
+                return
+            }
             await attach(PERSONAL_SECRET, secret)
             return
         }
@@ -524,7 +478,7 @@ export function AgentSecretAttachmentModal({
                         {envError
                             ? "Use letters, digits, and underscores; do not start with a digit."
                             : duplicate
-                              ? "This secret or environment variable is already attached."
+                              ? "This environment variable is already attached."
                               : "The agent receives this secret through the named variable."}
                     </span>
                 </div>

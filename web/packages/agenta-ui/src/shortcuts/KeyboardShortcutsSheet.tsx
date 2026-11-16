@@ -85,8 +85,6 @@ export const useShortcutsSheetHotkey = (onOpen: () => void, enabled = true) => {
     useEffect(() => {
         if (!enabled) return
         const listener = (event: KeyboardEvent) => {
-            // A dialog, menu or popover already owns the keyboard; do not stack a second one.
-            if (event.defaultPrevented || isOverlayOpen()) return
             if (
                 event.key !== "?" ||
                 event.metaKey ||
@@ -95,6 +93,8 @@ export const useShortcutsSheetHotkey = (onOpen: () => void, enabled = true) => {
                 event.isComposing
             )
                 return
+            // A dialog, menu or popover already owns the keyboard; do not stack a second one.
+            if (event.defaultPrevented || isOverlayOpen()) return
             const target = event.target as HTMLElement | null
             if (
                 target &&

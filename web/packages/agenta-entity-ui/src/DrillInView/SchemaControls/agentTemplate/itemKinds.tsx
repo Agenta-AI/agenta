@@ -6,7 +6,7 @@
 import type {ComponentType, ReactNode} from "react"
 
 import {readMcpConnectionSlug} from "@agenta/entities/mcpEndpoint"
-import {GraduationCap, Plugs, Wrench} from "@phosphor-icons/react"
+import {Compass, HardDrives, Wrench} from "@phosphor-icons/react"
 
 import {McpServerFormView} from "../McpServerFormView"
 import {SkillFormView} from "../SkillFormView"
@@ -113,7 +113,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
     mcp: {
         kind: "mcp",
         field: "mcps",
-        icon: <Plugs size={16} />,
+        icon: <HardDrives size={16} />,
         noun: "server",
         emptyLabel: "No MCP servers yet",
         describe: describeMcp,
@@ -139,7 +139,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
     skill: {
         kind: "skill",
         field: "skills",
-        icon: <GraduationCap size={16} />,
+        icon: <Compass size={16} />,
         noun: "skill",
         emptyLabel: "No skills yet",
         describe: describeSkill,
