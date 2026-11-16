@@ -75,6 +75,10 @@ export const resolveQuickLookPath = (
             folded
         )
     }
+    // A complete drive path, or a configured project path, wins over a shorter tail match.
+    const presented = cleanPath(requested)
+    if (recents.some((f) => f.path === presented)) return presented
+    if (fileOrigin(presented, projectDrives) === "project") return presented
     return (
         recents.find((f) => matchesTail(f.path, requested))?.path ??
         drivePathFromToolPath(requested)?.path ??

@@ -107,6 +107,8 @@ const projectMountsQueryFamily = atomFamily((slugsKey: string) =>
 )
 
 export interface ProjectDrivesState {
+    /** The project entries the configuration names, resolved or not. */
+    configured: ProjectDriveEntry[]
     /** The project drives that have an active mount, in configuration order. */
     drives: ProjectDrive[]
     /** The slug lookup is still in flight. */
@@ -120,6 +122,7 @@ export interface ProjectDrivesState {
 const NO_DRIVES: ProjectDrive[] = []
 const noop = () => {}
 const IDLE: ProjectDrivesState = {
+    configured: NO_ENTRIES,
     drives: NO_DRIVES,
     isPending: false,
     isFetching: false,
@@ -151,6 +154,7 @@ export const projectDrivesStateAtomFamily = atomFamily((revisionId: string) =>
         if (!entries.length) return IDLE
         const query = get(projectMountsQueryFamily(slugsKeyOf(entries)))
         return {
+            configured: entries,
             drives: get(projectDrivesAtomFamily(revisionId)),
             isPending: query.isPending && query.fetchStatus !== "idle",
             isFetching: query.isFetching,

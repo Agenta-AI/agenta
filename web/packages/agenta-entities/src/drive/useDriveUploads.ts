@@ -47,6 +47,19 @@ export const ensureWritable = (
     return false
 }
 
+/** Retry a failed upload only while its folder is still writable: the drive's access can change
+ * (a drive set to read) after the upload first failed. */
+export const retryIfWritable = (
+    drive: Pick<SessionDriveData, "resolveMount">,
+    items: readonly Pick<MountUploadItem, "id" | "presentedFolder">[],
+    id: string,
+    retry: (id: string) => void,
+): void => {
+    const item = items.find((it) => it.id === id)
+    if (item && !ensureWritable(drive, item.presentedFolder)) return
+    retry(id)
+}
+
 export function useDriveUploads({
     drive,
     explicitFiles,
@@ -157,6 +170,11 @@ export function useDriveUploads({
         [mountUpload.items, uploadPath],
     )
 
+    const retryUpload = useCallback(
+        (id: string) => retryIfWritable(drive, mountUpload.items, id, mountUpload.retry),
+        [drive, mountUpload.items, mountUpload.retry],
+    )
+
     return {
         canUpload,
         uploadInputRef,
@@ -168,7 +186,7 @@ export function useDriveUploads({
         staged,
         stagedItems,
         removeStaged,
-        retryUpload: mountUpload.retry,
+        retryUpload,
         dismissUpload: mountUpload.dismiss,
     }
 }

@@ -20,10 +20,16 @@ import {
 } from "../../src/drive/projectDrives"
 import {message} from "@agenta/ui/app-message"
 
-import {canWriteAt, DRIVE_NOT_WRITABLE, ensureWritable} from "../../src/drive/useDriveUploads"
+import {
+    canWriteAt,
+    DRIVE_NOT_WRITABLE,
+    ensureWritable,
+    retryIfWritable,
+} from "../../src/drive/useDriveUploads"
 import {
     driveHasMixedOrigins,
     fileOrigin,
+    resolveProjectMount,
     summarizeProjectDrives,
 } from "../../src/drive/useSessionDrive"
 import {queryMountsBySlugs} from "../../src/session/api/api"
@@ -231,5 +237,49 @@ describe("ensureWritable", () => {
         expect(ensureWritable(drive, "drives/prices")).toBe(false)
         expect(message.error).toHaveBeenCalledWith(DRIVE_NOT_WRITABLE)
         expect(DRIVE_NOT_WRITABLE).toBe("This location can't be written to")
+    })
+})
+
+describe("retryIfWritable", () => {
+    const drive = {
+        resolveMount: (path: string) =>
+            path === "drives/prices"
+                ? {mount: {id: "m"}, path: "", readOnly: true}
+                : {mount: {id: "cwd"}, path},
+    }
+    const items = [
+        {id: "u1", presentedFolder: "drives/prices"},
+        {id: "u2", presentedFolder: "notes"},
+    ]
+
+    it("does not retry an upload whose folder became read-only", () => {
+        const retry = vi.fn()
+        retryIfWritable(drive, items, "u1", retry)
+        expect(retry).not.toHaveBeenCalled()
+        retryIfWritable(drive, items, "u2", retry)
+        expect(retry).toHaveBeenCalledWith("u2")
+    })
+})
+
+describe("resolveProjectMount", () => {
+    const prices = {slug: "prices", access: "read" as const, mount: {id: "m-prices"}}
+
+    it("maps a resolved drive's path to its mount, read-only for a read drive", () => {
+        expect(resolveProjectMount("drives/prices/a.txt", [prices])).toEqual({
+            mount: prices.mount,
+            path: "a.txt",
+            readOnly: true,
+        })
+    })
+
+    // While the lookup is pending or failed, a configured path must not fall back to the session
+    // folder, where it would look writable.
+    it("gives no target for a configured drive whose mount is not resolved", () => {
+        expect(resolveProjectMount("drives/prices/a.txt", [], [{slug: "prices"}])).toBeNull()
+    })
+
+    it("is undefined for a path outside every configured drive", () => {
+        expect(resolveProjectMount("drives/other/a.txt", [], [{slug: "prices"}])).toBeUndefined()
+        expect(resolveProjectMount("notes.md", [prices])).toBeUndefined()
     })
 })

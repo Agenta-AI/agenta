@@ -57,7 +57,9 @@ describe("isListableDrivePath with project drive links", () => {
     })
 
     it("keeps a real top-level entry inside a project mount", () => {
-        expect(isListableDrivePath("price-lists", {fromAgentMount: true, projectDrives})).toBe(true)
+        expect(
+            isListableDrivePath("drives/price-lists", {fromAgentMount: true, projectDrives}),
+        ).toBe(true)
     })
 
     it("names only the link of a configured slug", () => {

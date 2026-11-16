@@ -28,7 +28,6 @@ import {
 import {
     PROJECT_DRIVES_DIR,
     projectDriveDir,
-    projectDrivesAtomFamily,
     projectDrivesStateAtomFamily,
     resolveProjectDrivePath,
     type ProjectDrive,
@@ -79,15 +78,20 @@ export const fileOrigin = (path: string, projectDrives: ProjectSlugs = []): File
     return resolveProjectDrivePath(rel, projectDrives) ? "project" : "session"
 }
 
-/** A presented path inside one of the session's project drives, mapped to that drive's mount. A
- * read drive answers `readOnly`, so no surface offers a write there. */
-const resolveProjectMount = (
+/**
+ * A presented path inside one of the session's project drives, mapped to that drive's mount. A
+ * read drive answers `readOnly`, so no surface offers a write there. A path under a configured
+ * drive whose mount is not resolved (lookup pending or failed) answers null: no target at all,
+ * never the session folder. `undefined`: the path is not a project path.
+ */
+export const resolveProjectMount = (
     path: string,
     projectDrives: readonly ProjectDrive[],
-): ResolvedMountPath | null => {
+    configured: readonly {slug: string}[] = projectDrives,
+): ResolvedMountPath | null | undefined => {
     const hit = resolveProjectDrivePath(path, projectDrives)
-    if (!hit) return null
-    return {mount: hit.drive.mount, path: hit.path, readOnly: hit.drive.access === "read"}
+    if (hit) return {mount: hit.drive.mount, path: hit.path, readOnly: hit.drive.access === "read"}
+    return resolveProjectDrivePath(path, configured) ? null : undefined
 }
 
 /** Present a project drive's mount-relative entries under its `drives/<slug>/` folder. */
@@ -239,13 +243,13 @@ export function useSessionDrive(
     const agentFilesQuery = useAtomValue(
         mountFilesQueryFamily({mountId: agentMount?.id ?? "", includeGitignored}),
     )
-    const projectDrives = useAtomValue(projectDrivesAtomFamily(revisionId ?? ""))
+    const projectState = useAtomValue(projectDrivesStateAtomFamily(revisionId ?? ""))
+    const projectDrives = projectState.drives
     const projectListingsAtom = useMemo(
         () =>
             atom((get) =>
-                projectDrives.map(
-                    (d) =>
-                        get(mountFilesQueryFamily({mountId: d.mount.id, includeGitignored})).data,
+                projectDrives.map((d) =>
+                    get(mountFilesQueryFamily({mountId: d.mount.id, includeGitignored})),
                 ),
             ),
         [projectDrives, includeGitignored],
@@ -290,7 +294,7 @@ export function useSessionDrive(
         }))
         const projectStats = projectDrives.map((d, i) => ({
             drive: d,
-            stats: driveFileStats(projectListings[i] ?? null),
+            stats: driveFileStats(projectListings[i]?.data ?? null),
         }))
         const projectFiles = projectStats.flatMap(({drive, stats}) =>
             foldProjectFiles(drive, stats.files),
@@ -311,8 +315,8 @@ export function useSessionDrive(
 
         const resolveMount = (path: string): ResolvedMountPath | null => {
             const rel = cleanPath(path)
-            const project = resolveProjectMount(rel, projectDrives)
-            if (project) return project
+            const project = resolveProjectMount(rel, projectDrives, projectState.configured)
+            if (project !== undefined) return project
             if (agentOnly)
                 return agentMount
                     ? {mount: agentMount, path: unfoldAgentPath(rel, agentOwnsFold)}
@@ -330,10 +334,12 @@ export function useSessionDrive(
         const agentPending =
             Boolean(artifactId) &&
             (agentMountQuery.isPending || Boolean(agentMount && agentFilesQuery.isPending))
+        const projectPending = projectState.isPending || projectListings.some((q) => q.isPending)
         const isLoading =
             (Boolean(sessionId) &&
                 (mountsQuery.isPending || Boolean(mount && filesQuery.isPending))) ||
-            agentPending
+            agentPending ||
+            projectPending
         // The session cwd mount and the artifact-scoped agent mount fail independently — mirror the
         // `isLoading` split above so an agent-mount failure surfaces as an error even with no session
         // (otherwise the drive reads as an empty "No files yet" instead of the real failure).
@@ -349,7 +355,11 @@ export function useSessionDrive(
                 (Boolean(agentMount) &&
                     !agentFilesQuery.isPending &&
                     (agentListing === null || agentFilesQuery.isError)))
-        const errored = sessionErrored || agentErrored
+        // A failed project lookup or listing reads as a failure, not as an empty drive.
+        const projectErrored =
+            projectState.isError ||
+            projectListings.some((q) => q.isError || (!q.isPending && q.data === null))
+        const errored = sessionErrored || agentErrored || projectErrored
 
         const totalSize =
             cwdStats.totalSize +
@@ -372,6 +382,7 @@ export function useSessionDrive(
         mount,
         agentMount,
         projectDrives,
+        projectState,
         projectListings,
         filesQuery.data,
         filesQuery.isPending,
@@ -696,8 +707,8 @@ export function useSessionDriveSummary(
 
         const resolveMount = (path: string): ResolvedMountPath | null => {
             const rel = cleanPath(path)
-            const project = resolveProjectMount(rel, projectDrives)
-            if (project) return project
+            const project = resolveProjectMount(rel, projectDrives, projectState.configured)
+            if (project !== undefined) return project
             if (agentOnly)
                 return agentMount
                     ? {mount: agentMount, path: unfoldAgentPath(rel, agentOwnsFold)}

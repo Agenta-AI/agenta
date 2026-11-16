@@ -84,3 +84,17 @@ describe("resolveQuickLookPath with project drives", () => {
         ).toBe("drives/price-lists/2026.md")
     })
 })
+
+describe("resolveQuickLookPath prefers a full path over a shorter tail", () => {
+    const rows = [{path: "a.md"}, {path: "drives/prices/a.md"}]
+
+    it("keeps a complete relative drive path", () => {
+        expect(resolveQuickLookPath(rows, "drives/prices/a.md")).toBe("drives/prices/a.md")
+    })
+
+    it("keeps a configured project path even before it is listed", () => {
+        expect(
+            resolveQuickLookPath([{path: "a.md"}], "drives/prices/a.md", [{slug: "prices"}]),
+        ).toBe("drives/prices/a.md")
+    })
+})
