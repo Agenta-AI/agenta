@@ -9,11 +9,14 @@
 
 import React, {type ReactNode, useCallback, useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
 import {Cascader, type CascaderOption} from "@agenta/ui/ui"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
+import {tSelection} from "../../../text"
 import type {
     EntitySelectionResult,
     HierarchyLevel,
@@ -75,7 +78,7 @@ function buildLoadingOption(
     levelConfig: HierarchyLevel<unknown>,
     levelIndex: number,
 ): EntityCascaderOption {
-    const textLabel = "Loading..."
+    const textLabel = tSelection("entityUi.selection.loading")
 
     return {
         value: `__loading__-${levelIndex}`,
@@ -101,11 +104,12 @@ export function CascaderVariant<TSelection = EntitySelectionResult>({
     className,
     disabled = false,
     size = "middle",
-    placeholder = "Select...",
+    placeholder,
     popupClassName,
     columnMaxWidth,
     displayRender: displayRenderProp,
 }: CascaderVariantProps<TSelection>) {
+    const t = useT(selectionCatalog)
     const {hierarchyLevels, selectableLevel, createSelection} = useEntitySelectionCore({
         adapter: adapterProp,
         instanceId,
@@ -289,7 +293,7 @@ export function CascaderVariant<TSelection = EntitySelectionResult>({
             loadData={loadData}
             onChange={handleChange}
             displayRender={displayRender}
-            placeholder={placeholder}
+            placeholder={placeholder ?? t("entityUi.selection.selectPlaceholder")}
             size={SIZE_MAP[size]}
             disabled={disabled}
             className={className}

@@ -6,11 +6,15 @@
 
 import {useCallback} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import saveModalCatalog from "@agenta/i18n/catalogs/entityUi.saveModal"
 import {message} from "@agenta/ui/app-message"
 import {ModalFooter} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {saveModalLoadingAtom, saveModalCanProceedAtom, executeSaveAtom} from "../state"
+
+const tNow = createT(saveModalCatalog)
 
 interface EntitySaveFooterProps {
     /** Callback when modal is closed/cancelled */
@@ -28,6 +32,7 @@ interface EntitySaveFooterProps {
  * - Loading state during save
  */
 export function EntitySaveFooter({onClose, onSuccess}: EntitySaveFooterProps) {
+    const t = useT(saveModalCatalog)
     const isLoading = useAtomValue(saveModalLoadingAtom)
     const canProceed = useAtomValue(saveModalCanProceedAtom)
     const executeSave = useSetAtom(executeSaveAtom)
@@ -35,7 +40,7 @@ export function EntitySaveFooter({onClose, onSuccess}: EntitySaveFooterProps) {
     const handleSave = useCallback(async () => {
         const result = await executeSave()
         if (result.success && result.id) {
-            message.success("Saved successfully")
+            message.success(tNow("entityUi.saveModal.saved"))
             onSuccess?.({id: result.id, name: result.name!})
         }
     }, [executeSave, onSuccess])
@@ -44,7 +49,7 @@ export function EntitySaveFooter({onClose, onSuccess}: EntitySaveFooterProps) {
         <ModalFooter
             onCancel={onClose}
             onConfirm={handleSave}
-            confirmLabel="Save"
+            confirmLabel={t("entityUi.saveModal.save")}
             isLoading={isLoading}
             canConfirm={canProceed}
         />

@@ -3,6 +3,8 @@
  * subscription "Choose a trigger" chooser AND the tools "Third-party integration" catalog), so
  * the app grid looks identical across triggers and tools. Dark-safe (`--ag-color*` tokens).
  */
+import {useT} from "@agenta/i18n"
+import catalogChooserCatalog from "@agenta/i18n/catalogs/entityUi.catalogChooser"
 import {EntityCard} from "@agenta/ui"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Lightning, Plugs} from "@phosphor-icons/react"
@@ -83,6 +85,7 @@ export function AppCard({
     /** "subtle" drops the rest border for a fill-based tile (agent playground catalog). */
     variant?: "bordered" | "subtle"
 }) {
+    const t = useT(catalogChooserCatalog)
     const shownCategories = (categories ?? []).filter(Boolean).slice(0, 2).map(formatCategoryLabel)
     return (
         <EntityCard
@@ -97,7 +100,9 @@ export function AppCard({
                             <TooltipTrigger asChild>
                                 <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
                             </TooltipTrigger>
-                            <TooltipContent>Connected</TooltipContent>
+                            <TooltipContent>
+                                {t("entityUi.catalogChooser.connected")}
+                            </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 ) : pending ? (
@@ -107,7 +112,7 @@ export function AppCard({
                                 <span className="size-1.5 shrink-0 rounded-full bg-[var(--ag-colorWarning)]" />
                             </TooltipTrigger>
                             <TooltipContent>
-                                Connection pending — finish or retry connecting
+                                {t("entityUi.catalogChooser.connectionPending")}
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>

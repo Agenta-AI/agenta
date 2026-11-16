@@ -8,12 +8,16 @@
  * (creating a new revision with a commit message).
  */
 
+import {createT} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
 
 import {getEntityAdapter} from "../adapters"
 import type {CommitContext, EntityReference} from "../types"
+
+const tNow = createT(commitModalCatalog)
 
 // ============================================================================
 // CORE STATE ATOMS
@@ -270,7 +274,7 @@ export const executeCommitAtom = atom(null, async (get, set) => {
     const canProceed = get(commitModalCanProceedAtom)
 
     if (!entity || !canProceed) {
-        set(commitModalErrorAtom, new Error("Cannot commit: missing entity or message"))
+        set(commitModalErrorAtom, new Error(tNow("entityUi.commitModal.missingMessage")))
         return {success: false, error: "Missing entity or message"}
     }
 
