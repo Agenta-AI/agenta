@@ -208,7 +208,9 @@ Each span stores its own `ag.session.id` and `ag.turn.id` in the columns `sessio
 }
 ```
 
-Use the field `session_id` in the same way to get every span of one session. A run that resumes after a person approves a tool call in Agenta keeps the turn id of the paused run, so the query returns the spans of both runs. An approval given through a channel, such as a chat app, does not carry the turn id yet: the resumed run's spans get a new turn id.
+Use the field `session_id` in the same way to get every span of one session. A run that resumes after a person approves a tool call in Agenta keeps the turn id of the paused run, so the query returns the spans of both runs. Two cases do not keep the turn id yet, and their resumed spans get a new one: an approval given through a channel, such as a chat app, and a second approval after Agenta recovered a lost delivery of the first resume.
+
+Spans stored before this column existed have no `turn_id`, and only their root span has `session_id`. A query on these columns does not return the child spans of older traces.
 
 ## Examples
 
