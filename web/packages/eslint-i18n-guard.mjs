@@ -17,18 +17,48 @@ const WEB_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
  * Where a hardcoded string is an error. Each entry is a folder, or a glob of .tsx files,
  * relative to `web/`. Add your folder here when its strings are all in catalogs.
  *
- * Settings is listed except four files that still hold a hardcoded string. Add each back
- * once the string moves: LanguagePicker.tsx ("Beta"), audit/AuditEventDrawer.tsx,
- * mcp/McpServersSection.tsx ("OAuth"), and SsoProviderDialog.tsx and WebhookFormSheet.tsx
- * (example placeholders).
+ * A few files in translated folders still hold a hardcoded string and are left out of the
+ * globs: audit/AuditEventDrawer.tsx, the auth AgentaBrand.tsx, and in navigation-ui
+ * SessionSearchPalette.tsx, SidebarLogo.tsx and releaseItems.tsx.
  */
 export const ERROR_FOLDERS = [
-    "mobile/src/features/settings/states",
-    "mobile/src/features/settings/!(SsoProviderDialog|WebhookFormSheet).tsx",
+    "mobile/src/components",
+    "mobile/src/features/agents",
+    "mobile/src/features/app",
+    "mobile/src/features/auth",
+    "mobile/src/features/automations",
+    "mobile/src/features/chat",
+    "mobile/src/features/context",
+    "mobile/src/features/home",
+    "mobile/src/features/nav",
+    "mobile/src/features/onboarding",
+    "mobile/src/features/sessions",
+    "mobile/src/features/settings",
+    "mobile/src/features/skills",
+    "packages/agenta-auth-ui/src/!(AgentaBrand).tsx",
+    "packages/agenta-automation-ui/src",
+    "packages/agenta-chat/src",
+    "packages/agenta-home-ui/src",
+    "packages/agenta-navigation-ui/src/!(SessionSearchPalette|SidebarLogo|releaseItems).tsx",
+    "packages/agenta-observability-ui/src/actions",
+    "packages/agenta-observability-ui/src/analytics",
+    "packages/agenta-observability-ui/src/cells",
+    "packages/agenta-observability-ui/src/columns",
+    "packages/agenta-observability-ui/src/delete",
+    "packages/agenta-observability-ui/src/empty",
+    "packages/agenta-observability-ui/src/filters",
+    "packages/agenta-observability-ui/src/range",
+    "packages/agenta-observability-ui/src/session",
+    "packages/agenta-observability-ui/src/table",
+    "packages/agenta-observability-ui/src/toolbar",
+    "packages/agenta-sessions-ui/src",
     "packages/agenta-settings/src",
+    "packages/agenta-settings-ui/src/*.tsx",
     "packages/agenta-settings-ui/src/access",
+    "packages/agenta-settings-ui/src/audit/!(AuditEventDrawer).tsx",
     "packages/agenta-settings-ui/src/billing",
     "packages/agenta-settings-ui/src/channels",
+    "packages/agenta-settings-ui/src/mcp",
     "packages/agenta-settings-ui/src/members",
     "packages/agenta-settings-ui/src/organizations",
     "packages/agenta-settings-ui/src/projects",
@@ -38,6 +68,20 @@ export const ERROR_FOLDERS = [
     "packages/agenta-settings-ui/src/shared",
     "packages/agenta-settings-ui/src/tools",
     "packages/agenta-settings-ui/src/webhooks",
+    "packages/agenta-skills-ui/src",
+    "packages/agenta-ui/src/ChatMessage",
+    "packages/agenta-ui/src/CopyTooltip",
+    "packages/agenta-ui/src/InfiniteVirtualTable",
+    "packages/agenta-ui/src/QuoteSelection",
+    "packages/agenta-ui/src/RichChatInput",
+    "packages/agenta-ui/src/SelectLLMProvider",
+    "packages/agenta-ui/src/SharedEditor",
+    "packages/agenta-ui/src/agent-icon",
+    "packages/agenta-ui/src/list-table",
+    "packages/agenta-ui/src/shortcuts",
+    "packages/agenta-ui/src/theme",
+    "packages/agenta-ui/src/type-chip",
+    "packages/agenta-ui/src/utils",
 ]
 
 const TEXT_PROPS = new Set(["title", "placeholder", "label", "aria-label", "description", "alt"])
