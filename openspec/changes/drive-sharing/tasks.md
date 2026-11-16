@@ -55,7 +55,7 @@ Release 1 has four parts. The SDK and agent service part (section 2) fixes the s
 
 - [ ] 5.1 On the local deployment, per backend (`local`, `inprocess`; `daytona` within the rules for cloud sandboxes): two agents read one drive; two agents share a read-write drive and see each other's files after the upload and a cache refresh.
 - [ ] 5.2 Per backend: a write to a read drive fails with a read-only error, from a file tool and from a shell command, and the store holds no change.
-- [ ] 5.3 Per backend: an existing agent saved before the release runs exactly as before; an agent with an empty list has no `agent-files/`; `has_session_drive: false` gives a throwaway folder.
+- [ ] 5.3 Per backend: an existing agent saved before the release runs exactly as before; an agent with an empty list has no `agent-files/`; `has_session_drive: false` gives a throwaway folder on `local` and `daytona`, and the refusal `session_drive_required` on `inprocess`.
 - [ ] 5.4 Saving an agent that names a missing drive answers 422 `drive_not_found`; the agent's own commit tool cannot change `drives`.
 - [ ] 5.5 Measure the cold start with zero, one and three project drives on each backend and record the numbers in this change.
 - [ ] 5.6 Ship release 1 in this order: the API, then the runner, then the agent service. No configuration with the new keys is saved before the agent service runs release 1.
