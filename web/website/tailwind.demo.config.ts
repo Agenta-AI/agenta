@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 import colors from "tailwindcss/colors";
 
-import { controlScale } from "../packages/agenta-ui/src/styles/theme/controlScale";
+import { controlScale } from "@agenta/ui/theme-tokens";
 
 import antdTailwind from "./tailwind-demo/antd-tailwind.json";
 import { shadcnTokens } from "./tailwind-demo/shadcnTokens";
@@ -184,7 +184,7 @@ const createConfig = (content: string[] = []): Config => {
       "../packages/agenta-chat/src/**/*.{js,ts,jsx,tsx}",
       "../packages/agenta-skills-ui/src/**/*.{js,ts,jsx,tsx}",
       // Streamdown ships class-based typography; Tailwind only generates what it scans.
-      // Resolved from the workspace store, so the glob works from both oss and ee.
+      // Resolved from the workspace store.
       "../node_modules/.pnpm/streamdown@*/node_modules/streamdown/dist/*.js",
       ...content,
     ],

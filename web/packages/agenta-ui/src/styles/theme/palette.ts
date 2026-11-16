@@ -191,41 +191,6 @@ export const shadow = {
     },
 } satisfies Record<string, Pair>
 
-// Component-level light overrides (antd `components` map). Kept minimal: only where a
-// global token cannot express the design.
-export const componentsLight = {
-    Menu: {
-        // The nav rail sits on the warm ground, so its selected row is a WHITE pill —
-        // whereas `controlItemBgActive` (list/menu selection on white popup surfaces)
-        // has to stay a tint to be visible at all.
-        itemSelectedBg: "#ffffff",
-        itemSelectedColor: INK,
-    },
-}
-
-// `colorLink` is one of antd's SEED tokens, so a global override is stripped and the
-// darkAlgorithm's own derivation is painted instead (#8ccfff seeds to #7ab3dc, the same
-// transform that turns #f2f25c into #d1d151). Component tokens are NOT seed-filtered, so
-// pinning it on the four components that draw links is what actually lands the value.
-const DARK_LINK = accent.link.dark as string
-
-// Component-level dark overrides (antd `components` map).
-export const componentsDark = {
-    Button: {
-        primaryColor: "#141414", // dark text on the bright-yellow primary
-        defaultBg: "transparent",
-        defaultHoverBg: "rgba(255, 255, 255, 0.04)",
-        defaultActiveBg: "rgba(255, 255, 255, 0.08)",
-        colorLink: DARK_LINK,
-    },
-    Drawer: {
-        colorBgElevated: "#141414", // full-height drawer = container surface, not elevated
-    },
-    Typography: {colorLink: DARK_LINK},
-    Table: {colorLink: DARK_LINK},
-    Transfer: {colorLink: DARK_LINK},
-}
-
 // ============================================================================
 // SCALES — role-inverted Tailwind ramps. CONSOLIDATION NOTE: gray, neutral, and
 // slate share a BYTE-IDENTICAL dark ladder (darkNeutral below); zinc and ag-gray
@@ -754,139 +719,6 @@ export const button = {
     disabledInputBorder: {light: HAIRLINE, dark: "#424242"},
 } satisfies Record<string, Pair>
 
-// ============================================================================
-// ANTD LIGHT TOKEN OVERRIDES — the light twin of DARK_TOKEN_OVERRIDES.
-//
-// Light mode feeds antd a full token dump (styles/tokens/antd-themeConfig.json) that
-// still carries the pre-recolor navy system. Whatever that dump says is what antd
-// RENDERS, so palette edits alone would never reach the screen. This map lands the
-// palette's light values in the rendered --ant-* variables — the light half of the
-// seed-vs-rendered rule. Every value is a role above; the handful of antd-only
-// intermediate steps are documented derivations of one.
-// ============================================================================
-const l = (p: Pair): string => p.light as string
-
-export const antdLight: Record<string, string> = {
-    // text
-    colorText: l(text.primary),
-    colorTextBase: l(text.primary),
-    colorTextHeading: l(text.heading),
-    colorIconHover: l(text.iconHover),
-    colorTextSecondary: l(text.secondary),
-    colorTextLabel: l(text.label),
-    colorTextTertiary: l(text.tertiary),
-    colorTextDescription: l(text.description),
-    colorIcon: l(text.icon),
-    colorTextQuaternary: l(text.quaternary),
-    colorTextDisabled: l(text.disabled),
-    colorTextPlaceholder: l(text.placeholder),
-    colorTextLightSolid: l(text.lightSolid),
-    // surfaces
-    colorBgContainer: l(surface.container),
-    colorBgElevated: l(surface.elevated),
-    colorBgLayout: l(surface.layout),
-    colorBgBase: l(surface.base),
-    colorBgMask: l(surface.mask),
-    colorBgSpotlight: l(surface.spotlight),
-    colorBgContainerDisabled: l(surface.containerDisabled),
-    colorBorderBg: l(surface.container),
-    colorWhite: l(surface.white),
-    // borders + fills
-    colorBorder: l(border.default),
-    colorBorderSecondary: l(border.secondary),
-    colorSplit: l(border.split),
-    colorFill: l(fill.fill),
-    colorFillSecondary: l(fill.secondary),
-    colorFillTertiary: l(fill.tertiary),
-    colorFillQuaternary: l(fill.quaternary),
-    colorFillContent: l(fill.secondary),
-    colorFillContentHover: l(fill.fill),
-    colorFillAlter: l(fill.quaternary),
-    colorFillAlterSolid: GROUND,
-    colorBgTextHover: l(button.textHoverBg),
-    colorBgTextActive: l(button.textActiveBg),
-    // control items + focus
-    controlItemBgActive: l(surface.controlItemBgActive),
-    controlItemBgActiveHover: l(surface.controlItemBgActiveHover),
-    controlItemBgActiveDisabled: l(fill.fill),
-    controlItemBgHover: l(fill.tertiary),
-    controlOutline: l(surface.controlOutline),
-    controlTmpOutline: l(fill.quaternary),
-    // primary (warm ink)
-    colorPrimary: l(accent.primary),
-    colorPrimaryHover: l(accent.primaryHover),
-    colorPrimaryActive: l(button.primaryActive),
-    colorPrimaryText: l(accent.primaryText),
-    colorPrimaryTextHover: l(accent.primaryHover),
-    colorPrimaryTextActive: l(button.primaryActive),
-    colorPrimaryBg: GROUND,
-    colorPrimaryBgHover: PAPER_SOFT,
-    colorPrimaryBorder: l(semantic.primaryBorder),
-    colorPrimaryBorderHover: l(semantic.primaryBorderHover),
-    // links (olive; the only text-safe yellow-family step)
-    colorLink: l(accent.link),
-    colorLinkHover: l(accent.linkHover),
-    colorLinkActive: l(accent.linkActive),
-    colorLinkOnInk: l(accent.linkOnInk),
-    // info (deep blue)
-    colorInfo: l(semantic.info),
-    colorInfoText: l(semantic.info),
-    colorInfoHover: l(semantic.infoHover),
-    colorInfoTextHover: l(semantic.infoHover),
-    colorInfoActive: l(semantic.infoActive),
-    colorInfoTextActive: l(semantic.infoActive),
-    colorInfoBg: l(surface.infoBg),
-    colorInfoBgHover: l(surface.infoBgHover),
-    colorInfoBorder: l(semantic.infoBorder),
-    colorInfoBorderHover: l(semantic.infoBorderHover),
-    // success
-    colorSuccess: l(semantic.success),
-    colorSuccessText: l(semantic.success),
-    colorSuccessActive: l(semantic.success),
-    colorSuccessHover: l(semantic.successHover),
-    colorSuccessTextHover: l(semantic.successHover),
-    colorSuccessTextActive: l(semantic.success),
-    colorSuccessBg: l(semantic.successBg),
-    colorSuccessBgHover: "#dcead1", // successBg one step toward the border
-    colorSuccessBorder: l(semantic.successBorder),
-    colorSuccessBorderHover: l(semantic.successHover),
-    // warning
-    colorWarning: l(semantic.warning),
-    colorWarningText: l(semantic.warningText),
-    colorWarningActive: l(semantic.warning),
-    colorWarningHover: l(semantic.warningHover),
-    colorWarningTextHover: l(semantic.warningHover),
-    colorWarningTextActive: l(semantic.warning),
-    colorWarningBg: l(semantic.warningBg),
-    colorWarningBgHover: "#f5e8bf", // warningBg one step toward the border
-    colorWarningBorder: l(semantic.warningBorder),
-    colorWarningBorderHover: l(semantic.warningHover),
-    colorWarningOutline: "rgba(138, 100, 0, 0.12)",
-    // error — body text is the deep rosewood; #d94c4a is border/large-text only
-    colorError: l(semantic.error),
-    colorErrorText: l(semantic.errorText),
-    colorErrorHover: l(semantic.errorHover),
-    colorErrorTextHover: l(semantic.errorHover),
-    colorErrorActive: l(semantic.errorActive),
-    colorErrorTextActive: l(semantic.errorActive),
-    colorErrorBg: l(semantic.errorBg),
-    colorErrorBgHover: "#f2d4d4", // errorBg one step toward the border
-    colorErrorBorder: l(semantic.errorBorder),
-    colorErrorBorderHover: l(semantic.error),
-    colorErrorOutline: l(surface.errorOutline),
-    // the brand neutral ramp antd exposes as --ant-zinc-*
-    "zinc.1": GROUND,
-    "zinc.2": PAPER_SOFT,
-    "zinc.3": HAIRLINE,
-    "zinc.4": CONTROL_BORDER,
-    "zinc.5": INK_FAINT,
-    "zinc.6": INK_TERTIARY,
-    "zinc.7": INK_SECONDARY,
-    "zinc.8": INK_HOVER,
-    "zinc.9": INK,
-    "zinc.10": INK_DEEP,
-}
-
 export const palette = {
     surface,
     text,
@@ -896,9 +728,6 @@ export const palette = {
     heroAction,
     semantic,
     shadow,
-    antdLight,
-    componentsLight,
-    componentsDark,
     scales,
     alphaFill,
     referenceTag,

@@ -258,10 +258,9 @@
     --text-field-md--line-height: 1.4285714285714286;
     --text-field-lg: 16px;
     --text-field-lg--line-height: 1.5;
-    /* The `secondary` step of the type scale, same literals as oss/tailwind.config.ts. Leaving it
-       undeclared did not inherit the scale — it fell through to Tailwind's stock 12px/16px, so
-       every shared @agenta/* component's secondary text rendered a step smaller here than in
-       oss/ee. `sm` stays stock 14/20 (`body`) in both, so only this step needs stating. */
+    /* The `secondary` step of the type scale. Left undeclared, it falls through to Tailwind's
+       stock 12px/16px and shared @agenta/* secondary text renders a step too small. `sm` stays
+       stock 14/20 (`body`), so only this step needs stating. */
     --text-xs: 13px;
     --text-xs--line-height: 18px;
     /* The kit Badge's own step. Omitting it did not fall back to anything — `text-badge-md`
@@ -327,7 +326,7 @@
        (`animate-sheet-in-right`, `animate-overlay-in`, …) whose keyframes live in the desktop's
        Tailwind config. Tailwind only emits a utility it can resolve, so without these the shared
        drawers opened with no slide and no mask — the components were right, the keyframes simply
-       did not exist here. Values mirror oss/tailwind.config.ts (antd's own durations/easings). */
+       did not exist here. Values follow antd's own durations and easings. */
     --animate-overlay-in: overlay-in 0.2s ease;
     --animate-overlay-out: overlay-out 0.2s ease;
     --animate-dialog-in: dialog-in 0.2s cubic-bezier(0.08, 0.82, 0.17, 1);

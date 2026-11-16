@@ -1,10 +1,6 @@
 /**
- * Token contract for the shadcn primitives in @agenta/ui — utility name → CSS variable.
- *
- * Three consumers compile this: web/oss (Tailwind v3 `theme.extend.colors`), Storybook, and
- * web/mobile (Tailwind v4, via scripts/generate-shadcn-tokens.ts). Shared so a component
- * written against `bg-btn-default-bg` resolves identically everywhere, instead of each app
- * maintaining its own alias table and drifting.
+ * Token contract for the shadcn primitives in @agenta/ui (utility name → CSS variable), as the
+ * website demo's Tailwind v3 config needs it.
  */
 // ── shadcn token bridge ──────────────────────────────────────────
 // Semantic token names consumed by the shadcn components in

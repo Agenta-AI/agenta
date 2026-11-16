@@ -151,8 +151,8 @@ const VARS: Record<string, [string, string]> = {
     "popover-foreground": [color(p.text.primary.light), color(p.text.primary.dark)],
     primary: [color(p.accent.primary.light), color(p.accent.primary.dark)],
     // Light primary is brand navy → white text; dark primary is brand yellow →
-    // dark text (mirrors componentsDark.Button.primaryColor in palette.ts).
-    "primary-foreground": [color(p.surface.white.light), p.componentsDark.Button.primaryColor],
+    // dark text (button.primaryText in palette.ts).
+    "primary-foreground": [color(p.surface.white.light), color(p.button.primaryText.dark)],
     secondary: [color(p.scales.zinc[1].light), color(p.scales.zinc[1].dark)],
     "secondary-foreground": [color(p.text.primary.light), color(p.text.primary.dark)],
     muted: [color(p.scales.zinc[1].light), color(p.scales.zinc[1].dark)],
@@ -168,7 +168,7 @@ const VARS: Record<string, [string, string]> = {
     // running, act on it) and muted (ended). Same semantic family the desktop uses for "healthy".
     success: [color(p.semantic.success.light), color(p.semantic.success.dark)],
     // Bright-red fill gets dark text in dark mode, matching the primary treatment.
-    "destructive-foreground": [color(p.surface.white.light), p.componentsDark.Button.primaryColor],
+    "destructive-foreground": [color(p.surface.white.light), color(p.button.primaryText.dark)],
     // Both are `--ag-colorBorder` (border.default) on desktop — see shadcnTokens.ts.
     border: [color(p.border.default.light), color(p.border.default.dark)],
     input: [color(p.border.default.light), color(p.border.default.dark)],
