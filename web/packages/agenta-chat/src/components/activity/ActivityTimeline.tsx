@@ -1,5 +1,7 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
 import {CaretRight, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
@@ -233,8 +235,30 @@ interface LiveLine {
 }
 
 /** What the collapsed line narrates for a step, in words and in the dots' motion. */
+const tNow = createT(chatActivityCatalog)
+
+/** The English words `stageWords` hands out, by the catalog key that says them in any language. */
+const STAGE_WORD_KEYS = {
+    Working: "chat.activity.working",
+    Thinking: "chat.activity.thinking",
+    "Still working": "chat.activity.stillWorking",
+    Sending: "chat.activity.sending",
+    "Getting things ready": "chat.activity.gettingReady",
+    "Starting the sandbox": "chat.activity.startingSandbox",
+    "Setting up the environment": "chat.activity.settingUpEnvironment",
+    "Loading details": "chat.activity.loadingDetails",
+    "Preparing the workspace": "chat.activity.preparingWorkspace",
+    "Almost there": "chat.activity.almostThere",
+    "Opening the agent session": "chat.activity.openingSession",
+    "Starting the agent": "chat.activity.startingAgent",
+    "Still starting up": "chat.activity.stillStarting",
+} as const
+
+const stageWordText = (word: string): string =>
+    word in STAGE_WORD_KEYS ? tNow(STAGE_WORD_KEYS[word as keyof typeof STAGE_WORD_KEYS]) : word
+
 const liveStep = (step: ActivityStep): LiveLine => {
-    if (step.kind === "thought") return {text: "Thinking", format: "thinking"}
+    if (step.kind === "thought") return {text: tNow("chat.activity.thinking"), format: "thinking"}
     // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
     const display = resolveToolDisplay(
         partToolName(step.part),
@@ -401,15 +425,15 @@ export const ActivityTimeline = ({
     const line: LiveLine | null = !(live || awaiting)
         ? null
         : awaiting
-          ? {text: "Waiting for you", format: "working"}
+          ? {text: tNow("chat.activity.waitingForYou"), format: "working"}
           : beforeFirstStep
-            ? {text: stageWord, format: "working"}
+            ? {text: stageWordText(stageWord), format: "working"}
             : resuming && !current
-              ? {text: "Working", format: "working"}
+              ? {text: tNow("chat.activity.working"), format: "working"}
               : writing && !current
-                ? {text: "Answering", format: "writing"}
+                ? {text: tNow("chat.activity.answering"), format: "writing"}
                 : idle || !verbStep
-                  ? {text: "Working", format: "working"}
+                  ? {text: tNow("chat.activity.working"), format: "working"}
                   : liveStep(verbStep)
     if (line) {
         title = <SwapLabel shimmer suffix={clock} text={line.text} />
@@ -417,7 +441,10 @@ export const ActivityTimeline = ({
         // Failed before any step: there is no work to name, only the failure.
         title = <span className="text-colorError">{failed.label}</span>
     } else {
-        title = elapsed === null ? "Worked" : `Worked for ${formatElapsed(elapsed, {live: false})}`
+        title =
+            elapsed === null
+                ? tNow("chat.activity.worked")
+                : tNow("chat.activity.workedFor", {time: formatElapsed(elapsed, {live: false})})
         if (failed) {
             title = (
                 <>

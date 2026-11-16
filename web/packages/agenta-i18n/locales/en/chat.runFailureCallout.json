@@ -1,0 +1,15 @@
+{
+    "addYourKey": "Add your key",
+    "buyCredits": "Buy credits",
+    "messageNotSent": "Message not sent",
+    "modelUnavailable": "This model isn't available for your organization",
+    "openAiProviders": "Open AI providers",
+    "outOfCredits": "You're out of credits",
+    "plansAndBilling": "Plans and billing",
+    "runFailed": "The agent run failed",
+    "showLess": "Show less",
+    "showMore": "Show more",
+    "taskTookTooLong": "This task took too long",
+    "tooManyTasks": "Too many tasks running at the same time",
+    "tryAgain": "Try again"
+}

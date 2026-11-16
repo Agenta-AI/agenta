@@ -31,8 +31,10 @@ export interface RepoImportDrawerProps {
     title: string
     /** The line under the URL field. */
     hint: string
-    /** Plural, e.g. "skills". */
-    noun: string
+    /** The error shown when the scan finds nothing, as a full sentence. */
+    noneFoundText: string
+    /** The heading over the found list, e.g. "Skills found"; the count follows it. */
+    foundLabel: string
     scan: (repoUrl: string) => Promise<RepoScanResult>
     /** Pick several rows, all available ones preselected; otherwise exactly one. */
     multiple?: boolean
@@ -57,7 +59,8 @@ export function RepoImportDrawer({
     onClose,
     title,
     hint,
-    noun,
+    noneFoundText,
+    foundLabel,
     scan,
     multiple = false,
     confirmLabel,
@@ -103,7 +106,7 @@ export function RepoImportDrawer({
             const response = await scan(repoUrl.trim())
             if (id !== requestId.current) return
             if (response.candidates.length === 0) {
-                setError(`No ${noun} found in this repository.`)
+                setError(noneFoundText)
                 return
             }
             setFound(response)
@@ -125,7 +128,7 @@ export function RepoImportDrawer({
         } finally {
             if (id === requestId.current) setBusy(false)
         }
-    }, [multiple, noun, repoUrl, scan])
+    }, [multiple, noneFoundText, repoUrl, scan])
 
     const confirm = useCallback(async () => {
         const id = ++requestId.current
@@ -250,8 +253,7 @@ export function RepoImportDrawer({
                     <>
                         <div className="flex flex-col gap-1.5 text-xs">
                             <span className="font-medium">
-                                {noun[0].toUpperCase() + noun.slice(1)} found ·{" "}
-                                {found.candidates.length}
+                                {foundLabel} · {found.candidates.length}
                             </span>
                             {found.candidates.length > 5 ? (
                                 <Input

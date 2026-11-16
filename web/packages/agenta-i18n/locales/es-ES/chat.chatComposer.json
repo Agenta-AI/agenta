@@ -1,0 +1,14 @@
+{
+    "attachComingSoon": "Adjuntar archivos estará disponible pronto",
+    "attachFiles": "Adjuntar archivos",
+    "attachUpTo": "Hasta {{count}} archivos",
+    "listening": "Escuchando…",
+    "placeholderFirst": "¿En qué trabajamos?",
+    "placeholderKeyboard": "Pregunta al agente… (Intro para enviar, ⌘/Ctrl+Intro para nueva línea)",
+    "placeholderQuoted": "¿Qué debería cambiar de la parte citada?",
+    "placeholderTouch": "Pregunta al agente…",
+    "placeholderWaiting": "Responde arriba o escribe un mensaje",
+    "quotesAttached_many": "{{count}} citas adjuntas",
+    "quotesAttached_one": "{{count}} cita adjunta",
+    "quotesAttached_other": "{{count}} citas adjuntas"
+}

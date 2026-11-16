@@ -1,0 +1,20 @@
+{
+    "attachmentsLabel": "{{count}} archivos adjuntos",
+    "attachmentsOnly": "(solo archivos adjuntos)",
+    "cancel": "Cancelar",
+    "cancelEditing": "Cancelar edición",
+    "editQueued": "Editar mensaje en cola",
+    "emptyMessage": "(mensaje vacío)",
+    "noLongerQueued": "Este mensaje ya no está en cola.",
+    "queuedCount_many": "{{count}} mensajes en cola",
+    "queuedCount_one": "{{count}} mensaje en cola",
+    "queuedCount_other": "{{count}} mensajes en cola",
+    "quotesLabel_many": "{{count}} citas",
+    "quotesLabel_one": "{{count}} cita",
+    "quotesLabel_other": "{{count}} citas",
+    "removeQueued": "Quitar mensaje en cola",
+    "sendBlocked": "Primero se está enviando otro mensaje",
+    "sendNow": "Enviar ahora",
+    "sending": "Enviando",
+    "waitsForAnswer": " · espera tu respuesta"
+}

@@ -122,7 +122,8 @@ export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillI
             onClose={onClose}
             title="Import skills from a repo"
             hint="Scan a public GitHub repository for SKILL.md folders."
-            noun="skills"
+            noneFoundText="No skills found in this repository."
+            foundLabel="Skills found"
             multiple
             scan={scan}
             confirmLabel={(count) => `Import ${formatCount(count, "skill")}`}

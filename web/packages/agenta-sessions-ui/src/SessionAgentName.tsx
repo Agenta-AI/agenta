@@ -1,6 +1,8 @@
 import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {useAtomValue} from "jotai"
 
 /**
@@ -8,6 +10,7 @@ import {useAtomValue} from "jotai"
  * revision's, which carries the variant label or nothing at all (see web/CLAUDE.md).
  */
 export const SessionAgentName = ({agentId}: {agentId: string | null}) => {
+    const t = useT(sessionsRowsCatalog)
     const nameAtom = useMemo(
         () => workflowMolecule.selectors.artifactName(agentId ?? ""),
         [agentId],
@@ -16,11 +19,18 @@ export const SessionAgentName = ({agentId}: {agentId: string | null}) => {
 
     if (!agentId) {
         return (
-            <span className="text-xs text-colorTextTertiary" title="This session has no turns yet">
-                No agent yet
+            <span
+                className="text-xs text-colorTextTertiary"
+                title={t("sessions.rows.noAgentTooltip")}
+            >
+                {t("sessions.rows.noAgentYet")}
             </span>
         )
     }
 
-    return <span className="text-xs text-colorTextSecondary truncate">{name || "Agent"}</span>
+    return (
+        <span className="text-xs text-colorTextSecondary truncate">
+            {name || t("sessions.rows.agent")}
+        </span>
+    )
 }

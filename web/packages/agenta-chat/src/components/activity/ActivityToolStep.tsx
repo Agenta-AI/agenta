@@ -11,6 +11,8 @@ import {
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import type {FileActivity} from "@agenta/entities/session"
 import {driveQuickLookAtomFamily, useDriveSessionId} from "@agenta/entity-ui/drive"
+import {richText, useT} from "@agenta/i18n"
+import chatActivityCatalog from "@agenta/i18n/catalogs/chat.activity"
 import {ArrowSquareOut, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -112,18 +114,24 @@ const Sentence = ({
     /** Set when the detail names a file the reader can open. */
     onOpenFile?: () => void
 }) => {
+    const t = useT(chatActivityCatalog)
     const landed = (part.state as string) === "output-available"
     const sentence = landed ? display.activity.done : display.activity.running
     const verb = display.verb ? (landed ? display.verb.done : display.verb.running) : null
     const object =
         display.detail ??
         (verb && sentence.startsWith(`${verb} `) ? sentence.slice(verb.length + 1) : null)
-    const action = <strong className="font-medium">{inSentence(display.activity.running)}</strong>
+    const action = inSentence(display.activity.running)
+    const withAction = (text: string) =>
+        richText(text, {
+            action: (children) => <strong className="font-medium">{children}</strong>,
+        })
     // A gate is written from the reader's side: what they are being asked, or what they said.
-    if (state === "awaiting") return <>Needs your approval for {action}</>
-    if (state === "approved") return <>You approved {action}</>
-    if (state === "denied") return <>You denied {action}</>
-    if (state === "responded") return <>You answered {action}</>
+    if (state === "awaiting")
+        return <>{withAction(t("chat.activity.needsApprovalFor", {action}))}</>
+    if (state === "approved") return <>{withAction(t("chat.activity.youApproved", {action}))}</>
+    if (state === "denied") return <>{withAction(t("chat.activity.youDenied", {action}))}</>
+    if (state === "responded") return <>{withAction(t("chat.activity.youAnswered", {action}))}</>
     const opens = display.detail ? onOpenFile : undefined
     if (verb && object) {
         return (
@@ -196,6 +204,7 @@ interface StepViewProps {
 }
 
 const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}: StepViewProps) => {
+    const t = useT(chatActivityCatalog)
     const state = stateOf(part)
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
@@ -251,7 +260,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                 }`}
             >
                 <Sentence part={part} display={display} state={state} onOpenFile={openNamed} />
-                {others ? ` and ${others} other${others === 1 ? "" : "s"}` : null}
+                {others ? t("chat.activity.andOthers", {count: others}) : null}
             </span>
             {opensFile ? (
                 <ArrowSquareOut size={11} className="shrink-0 text-colorTextDisabled" />
@@ -281,14 +290,22 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                 <div id={panelId} className="flex min-w-0 flex-col gap-2 pl-[38px]">
                     {everOpen ? (
                         <>
-                            {hasInput ? <ToolIOBlock label="input" value={input} /> : null}
+                            {hasInput ? (
+                                <ToolIOBlock label={t("chat.activity.labelInput")} value={input} />
+                            ) : null}
                             {hasNote ? (
                                 // A harness wraps a tool's own message in its
                                 // `tool_use_error` envelope; the reader wants the message.
                                 // Its other call site is the desktop's ToolActivity.
-                                <ToolIOBlock label="note" value={unwrapToolUseError(errorText)} />
+                                <ToolIOBlock
+                                    label={t("chat.activity.labelNote")}
+                                    value={unwrapToolUseError(errorText)}
+                                />
                             ) : hasOutput ? (
-                                <ToolIOBlock label="result" value={output} />
+                                <ToolIOBlock
+                                    label={t("chat.activity.labelResult")}
+                                    value={output}
+                                />
                             ) : null}
                         </>
                     ) : null}

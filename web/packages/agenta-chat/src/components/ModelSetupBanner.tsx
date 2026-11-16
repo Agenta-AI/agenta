@@ -1,4 +1,6 @@
 import {AGENT_NEEDS_SETUP_TITLE, MODEL_NEEDS_SETUP_MESSAGE} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import chatModelSetupBannerCatalog from "@agenta/i18n/catalogs/chat.modelSetupBanner"
 import {Alert, Button} from "@agenta/ui/ui"
 import {Lock} from "@phosphor-icons/react"
 
@@ -24,11 +26,12 @@ export const ModelSetupBanner = ({
     layout = "strip",
     onSetUp,
 }: ModelSetupBannerProps) => {
+    const t = useT(chatModelSetupBannerCatalog)
     const {blocked, canFix} = useAgentModelSetup(revisionId)
     const action =
         onSetUp && canFix ? (
             <Button size="sm" className="shrink-0" onClick={onSetUp}>
-                Set up
+                {t("chat.modelSetupBanner.setUp")}
             </Button>
         ) : null
 
