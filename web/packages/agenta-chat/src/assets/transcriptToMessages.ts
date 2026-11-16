@@ -1,6 +1,3 @@
-// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
-// (Was a copy of web/oss/src/components/AgentChatSlice/assets/transcriptToMessages.ts.)
-//
 // Re-synced 2026-08-03 to full parity with the original: the approval-resume handling (pause
 // folding, the resumed settle pass, tool-call dedup, re-raise under a new toolCallId) — without
 // which a resumed turn replays as still parked and the reload keeps the approval dock up — and

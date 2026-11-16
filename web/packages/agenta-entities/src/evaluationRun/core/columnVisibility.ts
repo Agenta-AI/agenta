@@ -1,7 +1,7 @@
 /**
  * Column settings of the scenario table: which columns are hidden, and what a group's checkbox
- * shows. Copied from the old app's column visibility popover (web/oss
- * `EvalRunDetails/components/columnVisibility`, `@agenta/ui/table` `ColumnVisibilityPopoverContentBase`),
+ * shows. Copied from the old app's column visibility popover
+ * (`EvalRunDetails/components/columnVisibility`, `@agenta/ui/table` `ColumnVisibilityPopoverContentBase`),
  * where a group is checked when all its columns show, half checked when some do.
  *
  * @packageDocumentation

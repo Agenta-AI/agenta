@@ -204,7 +204,7 @@ export function mobileRouteFor(
     }
 
     if (head === "observability" && !first) {
-        // ?session={id} is the observability drawer's own param (web/oss/src/state/url/session.ts),
+        // ?session={id} is the desktop observability drawer's own param,
         // distinct from SESSION_QUERY_PARAM — land in that session's chat.
         const drawerSession = params.get("session")
         if (drawerSession) return `${base}/sessions/${encodeURIComponent(drawerSession)}`

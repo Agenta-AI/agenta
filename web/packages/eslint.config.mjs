@@ -181,13 +181,6 @@ const config = [
                         ...[
                             "antd",
                             "@agenta/ui",
-                            "@agenta/playground-ui",
-                            "@agenta/playground-ui/components",
-                            "@agenta/playground-ui/execution-items",
-                            "@agenta/playground-ui/adapters",
-                            "@agenta/playground-ui/playground-inputs-body",
-                            "@agenta/playground-ui/execution-item-comparison-view",
-                            "@agenta/playground-ui/workflow-revision-drawer",
                         ].map((name) => ({
                             name,
                             message:

@@ -22,7 +22,7 @@ import {useEvaluatorSlugs} from "../columns/useEvaluatorSlugs"
 /**
  * The traces table both surfaces render.
  *
- * `/m` and web/oss drew the same rows through two different shells, which is how they drifted:
+ * `/m` and the desktop app drew the same rows through two different shells, which is how they drifted:
  * the same change had to be made twice, and usually was not. They share this one now that
  * @agenta/ui is runtime antd-free, so `/m` can render the FULL shell — paging,
  * column-visibility persistence, row selection — instead of a reduced copy of it.

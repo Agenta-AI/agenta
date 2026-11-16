@@ -1,7 +1,7 @@
 /**
  * The project's MCP connections, as one settings section both hosts mount.
  *
- * It lives here rather than in `web/oss` so the desktop and the mobile app render the same
+ * It lives here rather than in an app so every host renders the same
  * surface from the same code. That is the whole reason the integrations section next door
  * takes a copy override, and this follows it.
  *

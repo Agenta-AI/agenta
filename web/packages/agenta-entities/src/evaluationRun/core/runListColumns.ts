@@ -1,6 +1,6 @@
 /**
  * The columns of the evaluation runs list, copied from the old app's list
- * (web/oss `EvaluationRunsTablePOC/hooks/useEvaluationRunsColumns` and `utils/referenceSchema.ts`)
+ * (`EvaluationRunsTablePOC/hooks/useEvaluationRunsColumns` and `utils/referenceSchema.ts`)
  * as pure functions.
  *
  * The old list picks its columns from the runs on screen: a reference column (test set, query,

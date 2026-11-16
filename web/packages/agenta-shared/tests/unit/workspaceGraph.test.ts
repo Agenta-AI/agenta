@@ -6,7 +6,7 @@
  * directory tree of unbounded depth. Webpack's `FileSystemInfo` hashes a context directory by
  * walking it recursively, and it resolves each symlink to its absolute target before recursing —
  * so the walk ping-pongs between the two package directories forever. The `next build` of
- * `@agenta/oss` then dies with `RangeError: Invalid array length` (or a heap OOM, depending on the
+ * desktop app then died with `RangeError: Invalid array length` (or a heap OOM, depending on the
  * cap) inside `FileSystemInfo._getUnresolvedContextTsh`, with no stack and no module name.
  *
  * Nothing else catches this. TypeScript, ESLint, and every unit test are happy with a cycle; the

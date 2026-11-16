@@ -365,58 +365,6 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.11)(jsdom@26.1.0)(vite@8.1.6(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4))
 
-  packages/agenta-annotation-ui:
-    dependencies:
-      '@agenta/annotation':
-        specifier: workspace:../agenta-annotation
-        version: link:../agenta-annotation
-      '@agenta/entities':
-        specifier: workspace:../agenta-entities
-        version: link:../agenta-entities
-      '@agenta/entity-ui':
-        specifier: workspace:../agenta-entity-ui
-        version: link:../agenta-entity-ui
-      '@agenta/i18n':
-        specifier: workspace:../agenta-i18n
-        version: link:../agenta-i18n
-      '@agenta/shared':
-        specifier: workspace:../agenta-shared
-        version: link:../agenta-shared
-      '@agenta/ui':
-        specifier: workspace:../agenta-ui
-        version: link:../agenta-ui
-      '@phosphor-icons/react':
-        specifier: ^2.1.10
-        version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      antd:
-        specifier: '>=5.0.0'
-        version: 6.3.7(date-fns@4.4.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      dayjs:
-        specifier: ^1.11.20
-        version: 1.11.20
-      jotai:
-        specifier: '>=2.9.0'
-        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
-      react:
-        specifier: '>=18.0.0'
-        version: 19.2.6
-      react-dom:
-        specifier: '>=18.0.0'
-        version: 19.2.6(react@19.2.6)
-    devDependencies:
-      '@types/node':
-        specifier: ^20.19.20
-        version: 20.19.39
-      '@types/react':
-        specifier: ^19.0.10
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.0.4
-        version: 19.2.3(@types/react@19.2.14)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
   packages/agenta-api-client:
     devDependencies:
       '@types/node':
@@ -1194,9 +1142,6 @@ importers:
 
   packages/agenta-observability-ui:
     dependencies:
-      '@agenta/annotation-ui':
-        specifier: workspace:../agenta-annotation-ui
-        version: link:../agenta-annotation-ui
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities

@@ -23,7 +23,7 @@ import Router from "next/router"
 import {deleteTraceModalAtom} from "./store/atom"
 
 /**
- * The trace-delete confirmation, shared by /m and web/oss.
+ * The trace-delete confirmation.
  *
  * The only app-specific part was the currently open trace, which is routing state: a host
  * that has a trace drawer passes its id so the drawer can close behind the delete, and a

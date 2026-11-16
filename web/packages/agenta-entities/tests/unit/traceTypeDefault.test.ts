@@ -2,8 +2,7 @@
  * Unit tests for defaultTraceTypeForWorkflow.
  *
  * The helper drives the soft-default `trace_type` filter on
- * `/apps/<entityId>/traces` (see `web/oss/src/state/newObservability/atoms/
- * controls.ts:filtersAtomFamily`). The truth table matters because getting
+ * `/apps/<entityId>/traces`. The truth table matters because getting
  * this wrong means evaluator users land on an empty page by default — the
  * regression that #4384 disabled the whole evaluator full-page flow over.
  */

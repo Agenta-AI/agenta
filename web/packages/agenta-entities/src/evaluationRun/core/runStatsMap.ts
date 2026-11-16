@@ -1,5 +1,5 @@
 /**
- * Run-level metric aggregation, copied from the old app (web/oss `EvalRunDetails/atoms/runMetrics.ts`,
+ * Run-level metric aggregation, copied from the old app (`EvalRunDetails/atoms/runMetrics.ts`,
  * `flattenRunLevelMetricData` and `mergeBasicStats`) as pure functions.
  *
  * The metrics API returns one run-level row per run: `data[stepKey][metricKey]` is a stat blob. The

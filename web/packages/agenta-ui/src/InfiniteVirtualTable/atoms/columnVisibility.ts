@@ -7,7 +7,7 @@ import {atomWithImmer} from "jotai-immer"
 import type {ColumnViewportVisibilityEvent} from "../types"
 
 // The state below is a Map of Maps, and immer refuses to draft those until this runs. It is
-// idempotent, and it belongs here rather than in a host's boot: only web/oss called it, so
+// idempotent, and it belongs here rather than in a host's boot: only the desktop called it, so
 // every other host of this table (/m, Storybook, tests) crashed on the first visibility write.
 enableMapSet()
 

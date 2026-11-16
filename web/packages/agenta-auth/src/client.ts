@@ -11,9 +11,8 @@ import {authApiUrl, authEnv} from "./runtime"
 import {readAuthRejection} from "./turnstile"
 
 /**
- * Headless SuperTokens client (supertokens-web-js — same 0.16.x the desktop's
- * supertokens-auth-react wraps). appInfo mirrors web/oss/src/config/appInfo.ts
- * exactly (apiDomain + "/api/auth"), so every app shares the one cookie session
+ * Headless SuperTokens client (supertokens-web-js 0.16.x). appInfo uses
+ * apiDomain + "/api/auth", so every app shares the one cookie session
  * against the same backend. The API host and env come from configureAuth().
  *
  * All four recipes are registered unconditionally: unlike the desktop's
@@ -123,9 +122,8 @@ export async function clearEmailCodeAttempt(): Promise<void> {
 /* ------------------------------ OIDC / social ----------------------------- */
 
 /**
- * Web origin the providers' redirect URIs are registered against. Byte-identical
- * to the desktop's expression (web/oss/src/components/pages/auth/SocialAuth) —
- * the redirect URI we hand SuperTokens must match the registered one exactly.
+ * Web origin the providers' redirect URIs are registered against. The redirect
+ * URI we hand SuperTokens must match the registered one exactly.
  */
 function getRegisteredWebUrl(): string {
     return authEnv("NEXT_PUBLIC_AGENTA_WEB_URL") || authEnv("NEXT_PUBLIC_AGENTA_API_URL")

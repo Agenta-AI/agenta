@@ -4,8 +4,7 @@ Internal workspace packages for the Agenta monorepo.
 
 ## Packages
 
-The app that consumes these is `web/mobile`. `web/oss` and `web/ee` are the
-abandoned desktop app. Most domains come as a pair: a headless package (state,
+The app that consumes these is `web/mobile`. Most domains come as a pair: a headless package (state,
 API calls, no React UI) and a `-ui` package that renders it.
 
 Foundation:
@@ -23,7 +22,7 @@ Domains:
 
 | Headless | UI | Domain |
 |----------|----|--------|
-| `@agenta/annotation` | `@agenta/annotation-ui` | Annotation queues and sessions |
+| `@agenta/annotation` | — | Annotation queues and sessions |
 | `@agenta/auth` | `@agenta/auth-ui` | Sign-in flows (email, OTP, social, region, Turnstile) |
 | — | `@agenta/automation-ui` | Automations (schedules and event subscriptions) |
 | `@agenta/chat` | — | Agent chat: model, transport, state, hooks, and chat components |

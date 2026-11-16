@@ -23,12 +23,7 @@
 export type TraceTypeDefault = "invocation" | "annotation"
 export type ObservabilityTab = "traces" | "sessions"
 
-/**
- * Workflow role kind, mirrored locally to keep this helper free of OSS
- * imports. OSS' canonical type lives at
- * `web/oss/src/state/workflow/destinations.ts:11` with the same shape; the
- * compiler will catch any drift at the wire-up site in `controls.ts`.
- */
+/** Workflow role kind. */
 export type WorkflowKindForTraceDefault = "app" | "evaluator" | "snippet"
 
 export function defaultTraceTypeForWorkflow(

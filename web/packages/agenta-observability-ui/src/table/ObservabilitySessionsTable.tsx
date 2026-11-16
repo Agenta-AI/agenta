@@ -15,7 +15,7 @@ import {useSessionColumns, type SessionRow} from "../columns/getSessionColumns"
 /**
  * The sessions table both surfaces render.
  *
- * Same story as the traces table: `/m` and web/oss each had their own, so the same change had
+ * Same story as the traces table: `/m` and the desktop app each had their own, so the same change had
  * to be made twice. This owns what they agree on — the columns, the row shape derived from
  * `useSessions`, and paging — and forwards everything else.
  */

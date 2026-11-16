@@ -1,5 +1,4 @@
-// Assembled from the behavior half of
-// web/oss/src/components/AgentChatSlice/components/ApprovalDock.tsx (2026-07-25): the
+// Assembled 2026-07-25 from the behavior half of the old desktop approval dock: the
 // `getPendingApprovals` extraction, the shown-set latch (`resolvingIds` freeze so a
 // multi-gate resolve doesn't step through the batch), the `responding` reset on gate change,
 // and the respond / approve-all fan-out. The desktop dock keeps its own chrome on top.

@@ -2,6 +2,9 @@
 
 Shared utilities and primitives for Agenta packages and apps.
 
+> There is no root export. Import each symbol from its subpath (`@agenta/shared/utils`,
+> `@agenta/shared/api`, `@agenta/shared/state`, ...); the root imports below name the module only.
+
 ## Installation
 
 This is an internal workspace package. Add it to your package's dependencies:

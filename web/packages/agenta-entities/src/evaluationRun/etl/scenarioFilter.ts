@@ -3,7 +3,7 @@
  * column holds, how typed text becomes a condition value, and when the table must read more pages
  * to find matches.
  *
- * Copied from the old app (web/oss `EvalRunDetails/etl/scenarioFilterState.ts`,
+ * Copied from the old app (`EvalRunDetails/etl/scenarioFilterState.ts`,
  * `ScenarioFilterBar.tsx`, `useScenarioFilter.ts`) as pure functions.
  *
  * @packageDocumentation

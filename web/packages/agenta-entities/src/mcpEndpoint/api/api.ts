@@ -322,7 +322,7 @@ export const listMcpTools = async (slug: string, projectId?: string): Promise<Mc
         params: {
             protocolVersion: MCP_PROTOCOL_VERSION,
             capabilities: {},
-            clientInfo: {name: "agenta-web", version: "1"},
+            clientInfo: {name: "agenta", version: "1"},
         },
     })
     const negotiated = jsonRpcResult(handshake.data, "initialize").protocolVersion

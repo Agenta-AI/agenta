@@ -8,7 +8,7 @@ import {
 
 /**
  * The viewport visibility state is a `Map` of `Map`s, and immer only drafts those once
- * `enableMapSet()` has run on the SAME immer instance. Only web/oss called it, and jotai-immer
+ * `enableMapSet()` has run on the SAME immer instance. Only the desktop called it, and jotai-immer
  * had resolved a second copy of immer, so the first visibility write threw "The plugin for
  * 'MapSet' has not been loaded" and took `/evaluations` down on reload.
  *

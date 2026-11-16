@@ -1,4 +1,4 @@
-// Assembled from web/oss/src/components/AgentChatSlice/AgentConversation.tsx (2026-07-25) —
+// Assembled 2026-07-25 from the old desktop conversation host —
 // the headless conversation host for one agent session. Copy-faithful on the shared engine
 // behavior: transport wiring, resume predicate, hydration + revalidate-on-open, queue release,
 // approvals, run-status publish, error stamping, persist-on-settle + expand-prune, stop/rewind.

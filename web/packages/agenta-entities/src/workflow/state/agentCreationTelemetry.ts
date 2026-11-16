@@ -3,7 +3,7 @@
  *
  * Every `null` that factory returns reaches the user as the same generic sentence and reaches no
  * server, so a production failure cannot be told apart from any other. A host installs a reporter
- * (`web/oss` wires PostHog once its client is live); everywhere else the default no-op keeps the
+ * (for example PostHog once its client is live); everywhere else the default no-op keeps the
  * package free of an analytics dependency and keeps self-hosted builds silent.
  *
  * The payload is an allowlist on purpose: fixed keys, fixed enums and numbers only. Error

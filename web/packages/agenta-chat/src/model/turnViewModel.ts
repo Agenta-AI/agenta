@@ -1,5 +1,5 @@
-// Assembled from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx and
-// AgentConversation.tsx (2026-07-25): the per-turn derivations the desktop computes inline —
+// Assembled 2026-07-25 from the old desktop agent message and conversation: the per-turn
+// derivations it computed inline —
 // the tool-parts signature memo key, the executed-identity dedup set, the render-item folding,
 // the status derivation, the empty-turn collapse gate, and the borrowed turn trace for user
 // rows. Pure so the conversation hook can memoize the whole list per commit.

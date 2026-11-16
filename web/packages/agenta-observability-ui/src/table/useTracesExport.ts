@@ -23,11 +23,11 @@ import Papa from "papaparse"
 import type {TraceRow} from "../columns/getObservabilityColumns"
 
 /**
- * CSV export for the traces table, shared by /m and web/oss.
+ * CSV export for the traces table.
  *
  * Every piece this needs — the query params, the adaptive page fetcher, the writer, the row
  * mapper — already lived in @agenta/observability; only the app id and filename came from
- * web/oss app state, so those are injected and the rest moves here unchanged.
+ * app state, so those are injected.
  */
 /** Leaf titles only: a group's own title has no row data behind it. */
 const flattenLeafTitles = <T>(columns: ColumnDefs<T>): string[] =>
@@ -140,7 +140,7 @@ export const makeEvaluatorMetricsEnrichment = <T extends {trace_id?: string; spa
 export interface UseTracesExportOptions {
     columns: ColumnDefs<TraceRow>
     canExportData?: boolean
-    /** web/oss reads its current app; /m has none, so both supply their own. */
+    /** The host supplies the current app id, if it has one. */
     resolveAppId?: () => string
     resolveFilename?: () => string
 }

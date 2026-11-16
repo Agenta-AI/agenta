@@ -17,8 +17,7 @@ import type {InfiniteTableRowBase} from "../../shared/tableTypes"
 
 /**
  * `EventType` / `RequestType` are re-exported as runtime enums (const + type)
- * so consumers — notably the audit-log filter dropdowns in `web/oss`, which
- * does not depend on `@agentaai/api-client` directly — can build option lists
+ * so consumers that do not depend on `@agentaai/api-client` directly can build option lists
  * without reaching into the generated client.
  */
 export const EventType = AgentaApi.EventType

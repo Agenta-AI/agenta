@@ -127,7 +127,7 @@ export {
 export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/gatewayTool"
 
 // Channels connect screen (agent page). The shared UI plus the actions builder the
-// hosts (web/oss, /m) wire to the generated channels client.
+// host (/m) wires to the generated channels client.
 export {
     ChannelsPage,
     ChannelsPanelSheet,
