@@ -75,7 +75,12 @@ describe("resolveMentionMount with project drives", () => {
 
     it("opens a sandbox path through the drives/<slug> link in that project drive", () => {
         expect(
-            resolveMentionMount("/var/lib/agenta/mounts/s/m/drives/price-lists/a/b.csv", cwd, agent, drives),
+            resolveMentionMount(
+                "/var/lib/agenta/mounts/s/m/drives/price-lists/a/b.csv",
+                cwd,
+                agent,
+                drives,
+            ),
         ).toEqual({mount: prices, path: "a/b.csv"})
     })
 
