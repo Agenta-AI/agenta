@@ -613,6 +613,33 @@ describe("local runs with drives (engine composition)", () => {
     }
   });
 
+  it("names agent-files/ in the citation sentence exactly when the resolved list has the agent drive", async () => {
+    for (const [extra, named] of [
+      [{}, true],
+      [{ drives: [{ kind: "agent" }] }, true],
+      [{ drives: [{ kind: "project", slug: "notes", access: "read" }] }, false],
+      [{ runContext: undefined }, false],
+    ] as Array<[Partial<AgentRunRequest>, boolean]>) {
+      const cwd = join(tmpdir(), `agenta-drives-cite-${process.pid}-${Date.now()}`);
+      mkdirSync(cwd, { recursive: true });
+      const { calls, deps } = fakeHarness({ cwd });
+      deps.signAgentMountCredentials = signed("agent");
+      deps.signProjectMountCredentials = signed("notes");
+      deps.mountStorage = (async () => true) as never;
+      deps.unmountStorage = (async () => true) as never;
+      try {
+        await runSandboxAgent(request({ sessionId: undefined, ...extra }), undefined, undefined, deps);
+        const md: string = calls.workspacePlan.prompt.agentsMd ?? "";
+        assert.equal(md.includes(fileCitationAppendix(true).text), named, JSON.stringify(extra));
+        assert.equal(md.includes(fileCitationAppendix(false).text), !named, JSON.stringify(extra));
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+        rmSync(`${cwd}-agent`, { recursive: true, force: true });
+        rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("keeps today's agent drive for a request without drives", async () => {
     const cwd = join(tmpdir(), `agenta-drives-legacy-${process.pid}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });

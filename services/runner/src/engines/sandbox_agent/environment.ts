@@ -1498,8 +1498,7 @@ async function acquireEnvironmentOnce(
           : join(plan.workspace.cwd, `.${plan.acpAgent}`, "skills")
         : undefined,
       toolNames: plan.tools.toolSpecs.map((spec) => spec.name),
-      hasAgentDrive:
-        request.drives === undefined || request.drives.some((d) => d?.kind === "agent"),
+      hasAgentDrive: environment.drives.some((d) => d.kind === "agent"),
       projectDrives: projectDrives(environment.drives).map((drive) => ({
         slug: drive.slug,
         access: drive.access,
