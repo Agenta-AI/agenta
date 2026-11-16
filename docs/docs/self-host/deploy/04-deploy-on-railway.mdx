@@ -14,7 +14,7 @@ Railway is a managed platform that handles containers, databases, and networking
 The scripts create the following services inside one Railway project:
 
 - **Gateway** (Nginx) with a public domain that routes traffic by path
-- **Web** frontend (Next.js)
+- **Web app** (`web-mobile`, Next.js, served at `/m`)
 - **API** backend (FastAPI + Gunicorn)
 - **Services** backend (FastAPI + Gunicorn)
 - **runner** for agent workflows
@@ -26,7 +26,7 @@ The scripts create the following services inside one Railway project:
 - **Worker (queues)** for queue consumers such as evaluations, webhooks, events, interactions, and triggers
 - **Cron** for scheduled maintenance tasks
 
-All traffic enters through the gateway. The gateway routes `/` to web, `/api/` to the API, and `/services/` to the services backend.
+All traffic enters through the gateway. The gateway routes `/` and `/m` to the web app, `/api/` to the API, and `/services/` to the services backend.
 
 ## Prerequisites
 
@@ -84,7 +84,6 @@ Set the image tags you want to deploy. Use `latest` for the most recent stable r
 
 ```bash
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
-export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
 export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
 export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:latest"
@@ -102,7 +101,6 @@ You can also pin to a specific version instead of `latest`:
 
 ```bash
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:v0.30.0"
-export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:v0.30.0"
 export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:v0.30.0"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:v0.30.0"
 export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:v0.30.0"
@@ -118,7 +116,7 @@ If you want to re-run health checks manually:
 ./hosting/railway/oss/scripts/smoke.sh
 ```
 
-The smoke script checks three endpoints through the gateway: `/w`, `/api/health`, and `/services/health`. It retries with backoff until all three respond with HTTP 200.
+The smoke script checks three endpoints through the gateway: `/m`, `/api/health`, and `/services/health`. It retries with backoff until all three respond with HTTP 200. It also follows a table of old desktop URLs and checks that each one lands on its `/m` page.
 
 ## Upgrading an Existing Deployment
 
@@ -129,7 +127,6 @@ export RAILWAY_PROJECT_NAME="agenta-oss"
 export RAILWAY_ENVIRONMENT_NAME="production"
 
 export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
-export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
 export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:latest"
 export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
 export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:latest"
