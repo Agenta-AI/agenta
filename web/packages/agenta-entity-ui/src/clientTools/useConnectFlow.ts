@@ -34,6 +34,8 @@ import {
     useToolsConnections,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {createT} from "@agenta/i18n"
+import clientToolsCatalog from "@agenta/i18n/catalogs/entityUi.clientTools"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {
     connectRequestRefs,
@@ -46,6 +48,8 @@ import {
 import {consentPopupFeatures} from "../shared/consentPopupFeatures"
 
 import {prettyIntegration} from "./useIntegrationIdentity"
+
+const tNow = createT(clientToolsCatalog)
 
 /**
  * No terminal signal within this bound settles the call as a timeout so the run can't wait forever.
@@ -254,7 +258,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
                 setErrorText(
                     error instanceof Error
                         ? error.message
-                        : "Could not save the answer. Try again.",
+                        : tNow("entityUi.clientTools.couldNotSaveAnswer"),
                 )
             }
             try {
@@ -272,7 +276,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
                     // as success, the card paints a settled outcome over a gate that is still
                     // open and disarms the retry (see `SettleClientTool`).
                     if (landed === false) {
-                        onSubmissionError(new Error("Could not save the answer. Try again."))
+                        onSubmissionError(new Error(tNow("entityUi.clientTools.couldNotSaveAnswer")))
                         return
                     }
                     pendingAnswerRef.current = null

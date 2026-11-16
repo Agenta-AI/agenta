@@ -2,6 +2,8 @@ import {useState} from "react"
 
 import type {AgentSecretBinding} from "@agenta/entities/secret"
 import {commitAgentCredentialsAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import clientToolsCatalog from "@agenta/i18n/catalogs/entityUi.clientTools"
 import type {ClientToolMeta} from "@agenta/shared/clientTools"
 import {Button} from "@agenta/ui/ui"
 import {Key} from "@phosphor-icons/react"
@@ -30,6 +32,7 @@ export const SecretRequestDock = ({
     onAdoptRevision,
     onOutput,
 }: SecretRequestDockProps) => {
+    const t = useT(clientToolsCatalog)
     const [targetId, setTargetId] = useState(revisionId)
     // The dock outlives a revision switch on both hosts, so it follows the prop when it moves.
     const [seenRevisionId, setSeenRevisionId] = useState(revisionId)
@@ -60,7 +63,7 @@ export const SecretRequestDock = ({
               reason: input.reason as string,
           }
         : undefined
-    const label = artifactName || "This agent"
+    const label = artifactName || t("entityUi.clientTools.thisAgent")
     const existingIndex = request
         ? bindings.findIndex((item) => item.binding.name === request.envVar)
         : -1
@@ -94,24 +97,24 @@ export const SecretRequestDock = ({
             <div
                 className="rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-colorText"
                 role="region"
-                aria-label="Secret request"
+                aria-label={t("entityUi.clientTools.secretRequestAria")}
             >
                 <div className="flex items-center gap-2 text-xs font-medium">
                     <Key size={14} />
-                    Secret needed to continue
+                    {t("entityUi.clientTools.secretNeededToContinue")}
                 </div>
                 <p className="mb-1 mt-3 text-sm">
                     <strong className="font-semibold">
-                        {request?.name ?? "Secret setup unavailable"}
+                        {request?.name ?? t("entityUi.clientTools.secretSetupUnavailable")}
                     </strong>
                     {request
                         ? ` · ${request.reason}`
-                        : "This request is missing its setup details."}
+                        : t("entityUi.clientTools.requestMissingSetupDetails")}
                 </p>
                 <p className="mb-3 text-xs text-colorTextSecondary">
                     {existing
-                        ? "This secret is attached. Continue with the saved configuration."
-                        : `Available for future runs of ${label}.`}
+                        ? t("entityUi.clientTools.secretAttachedContinue")
+                        : t("entityUi.clientTools.availableForFutureRuns", {label})}
                 </p>
                 <div className="flex justify-end gap-2">
                     <Button
@@ -120,7 +123,7 @@ export const SecretRequestDock = ({
                         disabled={settling}
                         onClick={() => settle({status: "cancelled"})}
                     >
-                        Not now
+                        {t("entityUi.clientTools.notNow")}
                     </Button>
                     {existing ? (
                         <>
@@ -130,7 +133,7 @@ export const SecretRequestDock = ({
                                 disabled={settling || dirty || !canEditSecrets}
                                 onClick={() => setOpen(true)}
                             >
-                                Configure
+                                {t("entityUi.clientTools.configure")}
                             </Button>
                             <Button
                                 size="sm"
@@ -139,7 +142,7 @@ export const SecretRequestDock = ({
                                     configured(existing.secret, existing.binding.name, targetId)
                                 }
                             >
-                                Continue
+                                {t("entityUi.clientTools.continue")}
                             </Button>
                         </>
                     ) : (
@@ -148,13 +151,13 @@ export const SecretRequestDock = ({
                             disabled={!valid || settling || !canEditSecrets}
                             onClick={() => setOpen(true)}
                         >
-                            Configure
+                            {t("entityUi.clientTools.configure")}
                         </Button>
                     )}
                 </div>
                 {existing && !canEditSecrets ? (
                     <p className="mb-0 mt-2 text-right text-xs text-colorTextSecondary">
-                        You do not have permission to change this secret attachment.
+                        {t("entityUi.clientTools.noPermissionSecretAttachment")}
                     </p>
                 ) : null}
             </div>

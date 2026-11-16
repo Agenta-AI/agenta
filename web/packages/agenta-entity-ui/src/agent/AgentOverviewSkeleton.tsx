@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import agentOverviewCatalog from "@agenta/i18n/catalogs/entityUi.agentOverview"
 import {PanelSection, PanelSurface} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
@@ -33,18 +35,20 @@ const TextRows = ({widths}: {widths: string[]}) => (
  * row count: this hands off to those placeholders, not to loaded content, so a section that
  * guessed at the row limit would snap to a different height the moment the real card mounted.
  */
-export const AgentOverviewSkeleton = () => (
+export const AgentOverviewSkeleton = () => {
+    const t = useT(agentOverviewCatalog)
+    return (
     <AgentOverviewLayout
         main={
             <>
                 <SkeletonBlock active className="h-[92px] w-full rounded-xl" />
                 <div className="flex flex-col gap-10">
-                    <PanelSection variant="page" title="Sessions">
+                    <PanelSection variant="page" title={t("entityUi.agentOverview.sessions")}>
                         <ListRows />
                     </PanelSection>
                     <PanelSection
                         variant="page"
-                        title="Automation runs"
+                        title={t("entityUi.agentOverview.automationRuns")}
                         minHeightClassName="min-h-[100px]"
                     >
                         <ListRows />
@@ -56,25 +60,30 @@ export const AgentOverviewSkeleton = () => (
             <PanelSurface className="flex flex-col gap-3">
                 {/* Six rows, one per config section — the one card whose placeholder is a fixed
                     count rather than a shape. */}
-                <PanelSection title="Configuration" bodyClassName="flex flex-col px-4 pb-3">
+                <PanelSection
+                    title={t("entityUi.agentOverview.configuration")}
+                    bodyClassName="flex flex-col px-4 pb-3">
                     <div className="flex flex-col gap-2 py-1">
                         {[0, 1, 2, 3, 4, 5].map((i) => (
                             <SkeletonBlock key={i} active className="h-6 w-full" />
                         ))}
                     </div>
                 </PanelSection>
-                <PanelSection title="Files">
+                <PanelSection title={t("entityUi.agentOverview.files")}>
                     <TextRows widths={["w-full", "w-5/6", "w-2/3"]} />
                 </PanelSection>
-                <PanelSection title="Automations">
+                <PanelSection title={t("entityUi.agentOverview.automations")}>
                     <TextRows widths={["w-3/4", "w-1/2"]} />
                 </PanelSection>
                 {/* Usage has no placeholder of its own — it renders its real rows with em-dashes
                     until the figures land, so two bars stand in for that pair. */}
-                <PanelSection title="Usage" bodyClassName="flex flex-col gap-3 px-4 pb-4">
+                <PanelSection
+                    title={t("entityUi.agentOverview.usage")}
+                    bodyClassName="flex flex-col gap-3 px-4 pb-4">
                     <TextRows widths={["w-1/2", "w-1/3"]} />
                 </PanelSection>
             </PanelSurface>
         }
     />
 )
+}

@@ -1,5 +1,8 @@
 import {type ReactNode, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentConfigCatalog from "@agenta/i18n/catalogs/entityUi.agentConfig"
+
 import {
     ConfigAccordionSection,
     PANEL_ACTION_CLASS,
@@ -70,10 +73,9 @@ export const AgentConfigSummaryCard = ({
     onEdit,
     copy: copyOverrides,
 }: AgentConfigSummaryCardProps) => {
-    const copy = useMemo<AgentConfigSummaryCopy>(
-        () => ({...DEFAULT_COPY, ...copyOverrides}),
-        [copyOverrides],
-    )
+    const t = useT(agentConfigCatalog)
+    // Not memoized: the default copy translates when read, so it is read on every render.
+    const copy: AgentConfigSummaryCopy = {...DEFAULT_COPY, ...copyOverrides}
     // Configuration lives on a revision, not on the artifact — reading the artifact gave a
     // workflow with no parameters, so every row said "Not set".
     const revisionAtom = useMemo(() => agentLatestRevisionAtomFamily(appId), [appId])
@@ -99,7 +101,12 @@ export const AgentConfigSummaryCard = ({
             // A model is the one required setting, so its absence is a warning rather than a gap.
             ...(summary.model
                 ? stated(model)
-                : {summary: onEdit ? "Choose a model" : "Not set", status: "warning" as const}),
+                : {
+                      summary: onEdit
+                          ? t("entityUi.agentConfig.chooseAModel")
+                          : t("entityUi.agentConfig.notSet"),
+                      status: "warning" as const,
+                  }),
         },
         {
             key: "instructions",
@@ -148,12 +155,12 @@ export const AgentConfigSummaryCard = ({
 
     return (
         <PanelSection
-            title="Configuration"
+            title={t("entityUi.agentConfig.configuration")}
             bodyClassName="flex flex-col px-4 pb-3"
             extra={
                 onEdit ? (
                     <button type="button" onClick={onEdit} className={PANEL_ACTION_CLASS}>
-                        Edit
+                        {t("entityUi.agentConfig.edit")}
                     </button>
                 ) : undefined
             }
@@ -166,7 +173,7 @@ export const AgentConfigSummaryCard = ({
                 </div>
             ) : revision.isError ? (
                 <SectionLoadError
-                    message="Couldn't load this agent's configuration."
+                    message={t("entityUi.agentConfig.couldNotLoadConfiguration")}
                     onRetry={() => void revision.refetch()}
                 />
             ) : (

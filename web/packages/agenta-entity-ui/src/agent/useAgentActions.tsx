@@ -1,11 +1,16 @@
 import {useCallback} from "react"
 
 import {archiveWorkflow, unarchiveWorkflow, updateWorkflow} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
+
+// Toasts and modals are opened from callbacks, so they translate at call time.
+const tNow = createT(agentActionsCatalog)
 
 export interface AgentActionTarget {
     id: string
@@ -23,7 +28,7 @@ export const useRenameAgent = () => {
             try {
                 await updateWorkflow(projectId, {id, name})
             } catch {
-                message.error("Couldn't rename this agent")
+                message.error(tNow("entityUi.agentActions.couldNotRename"))
                 return false
             }
             void queryClient.invalidateQueries({queryKey: ["workflows"]})
@@ -72,7 +77,7 @@ export const useUpdateAgentDescription = () => {
             try {
                 await updateWorkflow(projectId, {id, description})
             } catch {
-                message.error("Couldn't update this agent's description")
+                message.error(tNow("entityUi.agentActions.couldNotUpdateDescription"))
                 return false
             }
             void queryClient.invalidateQueries({queryKey: ["workflows"]})
@@ -100,32 +105,36 @@ export const useAgentActions = () => {
         void queryClient.invalidateQueries({queryKey: ["agent-workflows"]})
     }, [queryClient])
 
-    const copy = useCallback(async (value: string, label: string) => {
-        try {
-            await navigator.clipboard.writeText(value)
-            message.success(`${label} copied`)
-        } catch {
-            message.error(`Couldn't copy the ${label.toLowerCase()}`)
-        }
-    }, [])
+    /** `messages` are the caller's own toasts, already translated. */
+    const copy = useCallback(
+        async (value: string, messages: {copied: string; failed: string}) => {
+            try {
+                await navigator.clipboard.writeText(value)
+                message.success(messages.copied)
+            } catch {
+                message.error(messages.failed)
+            }
+        },
+        [],
+    )
 
     const rename = useCallback(
         (target: AgentActionTarget) => {
             let next = target.name ?? ""
             modal.confirm({
-                title: "Rename agent",
+                title: tNow("entityUi.agentActions.renameAgent"),
                 content: (
                     <Input
                         autoFocus
                         defaultValue={next}
-                        aria-label="Agent name"
+                        aria-label={tNow("entityUi.agentActions.agentName")}
                         className="mt-2"
                         onChange={(event) => {
                             next = event.target.value
                         }}
                     />
                 ),
-                okText: "Rename",
+                okText: tNow("entityUi.agentActions.rename"),
                 onOk: async () => {
                     const name = next.trim()
                     if (name) await renameAgent(target.id, name)
@@ -138,15 +147,17 @@ export const useAgentActions = () => {
     const remove = useCallback(
         (target: AgentActionTarget) => {
             modal.confirm({
-                title: "Archive agent",
-                content: `"${target.name?.trim() || "This agent"}" will be archived along with its variants and revisions. Its past sessions stay readable.`,
-                okText: "Archive",
+                title: tNow("entityUi.agentActions.archiveAgent"),
+                content: tNow("entityUi.agentActions.archiveConfirm", {
+                    name: target.name?.trim() || tNow("entityUi.agentActions.thisAgent"),
+                }),
+                okText: tNow("entityUi.agentActions.archive"),
                 okButtonProps: {danger: true},
                 onOk: async () => {
                     try {
                         await archiveWorkflow(projectId, target.id)
                     } catch {
-                        message.error("Couldn't archive this agent")
+                        message.error(tNow("entityUi.agentActions.couldNotArchive"))
                         return
                     }
                     revalidate()

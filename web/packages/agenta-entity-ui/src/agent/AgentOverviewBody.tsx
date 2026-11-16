@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentOverviewCatalog from "@agenta/i18n/catalogs/entityUi.agentOverview"
 import {SessionListCard, type SessionListCardProps} from "@agenta/sessions-ui"
 import {PanelSurface} from "@agenta/ui/components/presentational"
 
@@ -62,7 +64,9 @@ export const AgentOverviewBody = ({
     agentNames,
     channels,
     configCopy,
-}: AgentOverviewBodyProps) => (
+}: AgentOverviewBodyProps) => {
+    const t = useT(agentOverviewCatalog)
+    return (
     <AgentOverviewLayout
         main={
             <>
@@ -72,10 +76,10 @@ export const AgentOverviewBody = ({
                 <div className="flex flex-col gap-10">
                     <SessionListCard
                         withPinned
-                        title="Sessions"
+                        title={t("entityUi.agentOverview.sessions")}
                         agentId={agentId}
                         limit={6}
-                        emptyText="Conversations with this agent will show up here."
+                        emptyText={t("entityUi.agentOverview.sessionsEmpty")}
                         viewAllHref={sessionsHref}
                         alwaysShowPin={alwaysShowPin}
                         onOpenRow={onOpenRow}
@@ -87,12 +91,12 @@ export const AgentOverviewBody = ({
                         user configured but did not start. */}
                     <SessionListCard
                         withPinned
-                        title="Automation runs"
+                        title={t("entityUi.agentOverview.automationRuns")}
                         agentId={agentId}
                         origin="trigger"
                         limit={5}
                         minHeightClassName="min-h-[100px]"
-                        emptyText="Runs from automations bound to this agent will show up here."
+                        emptyText={t("entityUi.agentOverview.automationRunsEmpty")}
                         viewAllHref={automationSessionsHref ?? sessionsHref}
                         alwaysShowPin={alwaysShowPin}
                         onOpenRow={onOpenRow}
@@ -116,3 +120,4 @@ export const AgentOverviewBody = ({
         }
     />
 )
+}

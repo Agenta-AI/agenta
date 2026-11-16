@@ -3,15 +3,20 @@
  * in one place. Every state states its consequence — what happens if you press Create now.
  */
 import type {AgentSetupStatus} from "@agenta/entities/workflow"
+import {createT} from "@agenta/i18n"
+import onboardingCatalog from "@agenta/i18n/catalogs/entityUi.onboarding"
+
+// Read at call time, so a caller that re-renders on a language change gets the new text.
+const tNow = createT(onboardingCatalog)
 
 export const setupTitle = (status: AgentSetupStatus): string => {
     switch (status) {
         case "empty":
-            return "Any accounts to connect?"
+            return tNow("entityUi.onboarding.titleEmpty")
         case "all-set":
-            return "Ready to build"
+            return tNow("entityUi.onboarding.titleAllSet")
         default:
-            return "Connect what it needs"
+            return tNow("entityUi.onboarding.titleDefault")
     }
 }
 
@@ -25,12 +30,12 @@ export const setupTitle = (status: AgentSetupStatus): string => {
  */
 export const setupLead = (status: AgentSetupStatus, fromTemplate = false): string => {
     if (status === "empty") {
-        return "We didn't spot a specific service in your description. Add one now, or let the agent ask when it needs one."
+        return tNow("entityUi.onboarding.leadEmpty")
     }
     if (fromTemplate) {
-        return "This template needs these accounts. Connect them now so the agent can run the moment it's built."
+        return tNow("entityUi.onboarding.leadTemplate")
     }
-    return "From your description. Connect now so the agent can run the moment it's built — or skip, and it'll ask when it gets there."
+    return tNow("entityUi.onboarding.leadDescription")
 }
 
 /** The muted line beside the primary action. */
@@ -38,10 +43,10 @@ export const setupFootnote = (status: AgentSetupStatus): string => {
     // Blocked says NOTHING here: the header badge and the amber Required rows already say it
     // twice, and the disabled Create button says what it costs — a third line is nagging.
     if (status === "blocked") return ""
-    if (status === "empty") return "Nothing required."
+    if (status === "empty") return tNow("entityUi.onboarding.footnoteEmpty")
     // "ready" means optional rows are still unconnected — leaving one IS skipping it, and this
     // line says what that costs.
-    if (status === "ready") return "Connect these now, or the agent will ask later."
+    if (status === "ready") return tNow("entityUi.onboarding.connectNowOrLater")
     // all-set: silent for now. The badge ("All set") and the title ("Ready to build") already
     // carry the state; a line here is pending better copy, so the branch stays.
     return ""
@@ -52,41 +57,78 @@ export const setupBadge = (
     status: AgentSetupStatus,
     accountCount: number,
 ): {text: string; tone: "neutral" | "warning" | "success"} | null => {
-    if (status === "blocked") return {text: "Required", tone: "warning"}
-    if (status === "all-set") return {text: "All set", tone: "success"}
-    if (accountCount > 0) return {text: `${accountCount} found`, tone: "neutral"}
+    if (status === "blocked") return {text: tNow("entityUi.onboarding.required"), tone: "warning"}
+    if (status === "all-set") return {text: tNow("entityUi.onboarding.allSet"), tone: "success"}
+    if (accountCount > 0) return {
+            text: tNow("entityUi.onboarding.foundCount", {count: accountCount}),
+            tone: "neutral",
+        }
     return null
 }
 
 export const SETUP_COPY = {
-    suggestionsLabel: "Also add",
-    browseAll: "Search all",
-    create: "Create agent",
-    dismiss: "Cancel setup",
-} as const
+    get suggestionsLabel() {
+        return tNow("entityUi.onboarding.alsoAdd")
+    },
+    get browseAll() {
+        return tNow("entityUi.onboarding.searchAll")
+    },
+    get create() {
+        return tNow("entityUi.onboarding.createAgent")
+    },
+    get dismiss() {
+        return tNow("entityUi.onboarding.cancelSetup")
+    },
+}
 
 /**
  * The chat's "Connect your accounts" card (approved board `chat-connect-card`): the title, the
  * badge, the footer line and "Continue" are approved. The row texts are drafts from spec 5.3.
  */
 export const PERSONAL_SETUP_COPY = {
-    title: "Connect your accounts",
-    badge: "Optional",
-    footnote: "Connect these now, or the agent will ask later.",
-    continue: "Continue",
-    dismiss: "Close",
+    get title() {
+        return tNow("entityUi.onboarding.connectYourAccounts")
+    },
+    get badge() {
+        return tNow("entityUi.onboarding.optional")
+    },
+    get footnote() {
+        return tNow("entityUi.onboarding.connectNowOrLater")
+    },
+    get continue() {
+        return tNow("entityUi.onboarding.continue")
+    },
+    get dismiss() {
+        return tNow("entityUi.onboarding.close")
+    },
     // Drafts.
-    chooseAccount: (name: string) => `Choose which of your ${name} accounts to use`,
-    connectAccount: (name: string) => `Connect your ${name} account`,
-    signIn: (name: string) => `Sign in to ${name} with your own account`,
-    chooseSecret: (envVar: string) => `Choose your value for ${envVar}`,
-    addSecret: (envVar: string) => `Add your value for ${envVar}`,
-    connect: "Connect",
-    connectAnother: "Connect another",
-    signInAction: "Sign in",
-    defaultMark: "Default",
-    connected: "Connected",
-    signedIn: "Signed in as you",
-    chosen: "Chosen",
-    failed: "That did not work. Try again.",
-} as const
+    chooseAccount: (name: string) => tNow("entityUi.onboarding.chooseAccount", {name}),
+    connectAccount: (name: string) => tNow("entityUi.onboarding.connectAccount", {name}),
+    signIn: (name: string) => tNow("entityUi.onboarding.signInWithOwnAccount", {name}),
+    chooseSecret: (envVar: string) => tNow("entityUi.onboarding.chooseSecret", {envVar}),
+    addSecret: (envVar: string) => tNow("entityUi.onboarding.addSecret", {envVar}),
+    get connect() {
+        return tNow("entityUi.onboarding.connect")
+    },
+    get connectAnother() {
+        return tNow("entityUi.onboarding.connectAnother")
+    },
+    get signInAction() {
+        return tNow("entityUi.onboarding.signIn")
+    },
+    get defaultMark() {
+        return tNow("entityUi.onboarding.default")
+    },
+    get connected() {
+        return tNow("entityUi.onboarding.connected")
+    },
+    get signedIn() {
+        return tNow("entityUi.onboarding.signedInAsYou")
+    },
+    get chosen() {
+        return tNow("entityUi.onboarding.chosen")
+    },
+    get failed() {
+        return tNow("entityUi.onboarding.failed")
+    },
+}

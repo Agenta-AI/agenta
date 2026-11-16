@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -76,6 +78,7 @@ export const AgentActionsMenu = ({
     onCloseAutoFocus,
     className,
 }: AgentActionsMenuProps) => {
+    const t = useT(agentActionsCatalog)
     const actions = useAgentActions()
 
     return (
@@ -83,7 +86,7 @@ export const AgentActionsMenu = ({
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    aria-label="Agent actions"
+                    aria-label={t("entityUi.agentActions.agentActions")}
                     // ::after hit extender: 28px is under the touch guideline.
                     className={`relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:-inset-1.5 after:content-[''] hover:bg-colorFillTertiary hover:text-colorText ${className ?? ""}`}
                 >
@@ -100,49 +103,54 @@ export const AgentActionsMenu = ({
                 {onOpen ? (
                     <DropdownMenuItem onSelect={onOpen}>
                         <Note size={16} />
-                        Open configuration
+                        {t("entityUi.agentActions.openConfiguration")}
                     </DropdownMenuItem>
                 ) : null}
                 {onOpenPlayground ? (
                     <DropdownMenuItem onSelect={onOpenPlayground}>
                         <Rocket size={16} />
-                        Open in playground
+                        {t("entityUi.agentActions.openInPlayground")}
                     </DropdownMenuItem>
                 ) : null}
                 {onPublish ? (
                     <DropdownMenuItem onSelect={onPublish}>
                         <Broadcast size={16} />
-                        Publish
+                        {t("entityUi.agentActions.publish")}
                     </DropdownMenuItem>
                 ) : null}
                 {archived ? null : onConfigure ? (
                     <DropdownMenuItem onSelect={onConfigure}>
                         <PencilSimple size={16} />
-                        Configure
+                        {t("entityUi.agentActions.configure")}
                     </DropdownMenuItem>
                 ) : (
                     <DropdownMenuItem onSelect={onRename ?? (() => actions.rename(agent))}>
                         <PencilSimple size={16} />
-                        Rename
+                        {t("entityUi.agentActions.rename")}
                     </DropdownMenuItem>
                 )}
                 {onEditDescription ? (
                     <DropdownMenuItem onSelect={onEditDescription}>
                         <TextAlignLeft size={16} />
-                        Edit description
+                        {t("entityUi.agentActions.editDescription")}
                     </DropdownMenuItem>
                 ) : null}
                 {agent.slug ? (
-                    <DropdownMenuItem onSelect={() => void actions.copy(agent.slug!, "Slug")}>
+                    <DropdownMenuItem onSelect={() =>
+                            void actions.copy(agent.slug!, {
+                                copied: t("entityUi.agentActions.slugCopied"),
+                                failed: t("entityUi.agentActions.couldNotCopySlug"),
+                            })
+                        }>
                         <Copy size={16} />
-                        Copy Slug
+                        {t("entityUi.agentActions.copySlug")}
                     </DropdownMenuItem>
                 ) : null}
                 {archived ? (
                     onRestore ? (
                         <DropdownMenuItem onSelect={onRestore}>
                             <ArrowCounterClockwise size={16} />
-                            Restore
+                            {t("entityUi.agentActions.restore")}
                         </DropdownMenuItem>
                     ) : null
                 ) : canArchive ? (
@@ -157,7 +165,7 @@ export const AgentActionsMenu = ({
                             onSelect={onDelete ?? (() => actions.remove(agent))}
                         >
                             <Archive size={16} />
-                            Archive agent
+                            {t("entityUi.agentActions.archiveAgent")}
                         </DropdownMenuItem>
                     </>
                 ) : null}
