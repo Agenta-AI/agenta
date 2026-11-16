@@ -53,10 +53,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.api).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
-{{- define "agenta.web.enabled" -}}
-{{- $v := (default dict .Values.web).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
 {{- define "agenta.services.enabled" -}}
 {{- $v := (default dict .Values.services).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -132,7 +128,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    Replicas (default 1).
    ================================================================ */}}
 {{- define "agenta.api.replicas" -}}{{ default 1 (default dict .Values.api).replicas }}{{- end }}
-{{- define "agenta.web.replicas" -}}{{ default 1 (default dict .Values.web).replicas }}{{- end }}
 {{- define "agenta.webMobile.replicas" -}}{{ default 1 (default dict .Values.webMobile).replicas }}{{- end }}
 {{- define "agenta.services.replicas" -}}{{ default 1 (default dict .Values.services).replicas }}{{- end }}
 {{- define "agenta.agentRunner.replicas" -}}{{ default 1 (default dict .Values.agentRunner).replicas }}{{- end }}
@@ -154,7 +149,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    Ports (defaults).
    ================================================================ */}}
 {{- define "agenta.api.port" -}}{{ default 8000 (default dict .Values.api).port }}{{- end }}
-{{- define "agenta.web.port" -}}{{ default 3000 (default dict .Values.web).port }}{{- end }}
 {{- define "agenta.webMobile.port" -}}{{ default 3000 (default dict .Values.webMobile).port }}{{- end }}
 {{- define "agenta.services.port" -}}{{ default 80 (default dict .Values.services).port }}{{- end }}
 {{- define "agenta.agentRunner.port" -}}{{ default 8765 (default dict .Values.agentRunner).port }}{{- end }}
@@ -210,7 +204,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
    Image pull policies (default IfNotPresent).
    ================================================================ */}}
 {{- define "agenta.api.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.api).image).pullPolicy }}{{- end }}
-{{- define "agenta.web.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.web).image).pullPolicy }}{{- end }}
 {{- define "agenta.webMobile.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.webMobile).image).pullPolicy }}{{- end }}
 {{- define "agenta.services.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.services).image).pullPolicy }}{{- end }}
 {{- define "agenta.agentRunner.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict .Values.agentRunner).image).pullPolicy }}{{- end }}
@@ -325,22 +318,6 @@ ghcr.io/agenta-ai/agenta-api
 {{- define "agenta.apiImage" -}}
 {{- $img := default dict (default dict .Values.api).image -}}
 {{ include "agenta.apiImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
-{{- end }}
-
-{{- define "agenta.webImageRepository" -}}
-{{- $img := default dict (default dict .Values.web).image -}}
-{{- if $img.repository -}}
-{{- $img.repository -}}
-{{- else if eq (include "agenta.edition" .) "ee" -}}
-ghcr.io/agenta-ai/internal-ee-agenta-web
-{{- else -}}
-ghcr.io/agenta-ai/agenta-web
-{{- end -}}
-{{- end }}
-
-{{- define "agenta.webImage" -}}
-{{- $img := default dict (default dict .Values.web).image -}}
-{{ include "agenta.webImageRepository" . }}:{{ $img.tag | default .Chart.AppVersion }}
 {{- end }}
 
 {{- define "agenta.webMobileImageRepository" -}}
@@ -574,14 +551,6 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{/* ================================================================
    Edition-specific paths and database names
    ================================================================ */}}
-{{- define "agenta.webServerPath" -}}
-{{- if eq (include "agenta.edition" .) "ee" -}}
-./ee/server.js
-{{- else -}}
-./oss/server.js
-{{- end -}}
-{{- end }}
-
 {{- define "agenta.alembicRunnerModule" -}}
 {{- if eq (include "agenta.edition" .) "ee" -}}
 ee.databases.postgres.migrations.runner
@@ -1745,17 +1714,11 @@ failureThreshold: 3
   key: api
   replicas: {{ include "agenta.api.replicas" . }}
   enabled: {{ include "agenta.api.enabled" . }}
-- component: web
-  key: web
-  replicas: {{ include "agenta.web.replicas" . }}
-  enabled: {{ include "agenta.web.enabled" . }}
 - component: web-mobile
   key: webMobile
   replicas: {{ include "agenta.webMobile.replicas" . }}
-  {{- /* Not web.enabled. web-mobile-deployment.yaml renders unconditionally, and
-         values.schema.json refuses webMobile.enabled: false, so the mobile app is
-         always deployed. Tying its budget to the desktop app left it with none
-         whenever someone turned the desktop app off. */}}
+  {{- /* web-mobile-deployment.yaml renders unconditionally, and values.schema.json
+         refuses webMobile.enabled: false, so the mobile app is always deployed. */}}
   enabled: true
 - component: services
   key: services

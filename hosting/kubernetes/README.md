@@ -18,7 +18,7 @@ and `run.sh` picks it up.
 
 ## What the chart deploys
 
-The api, the web app, the mobile web app, the services API, the agent runner, the
+The api, the web app (`web-mobile`, served at `/m`), the services API, the agent runner, the
 stream worker, the queue worker, the cron loop, SuperTokens, and a migration Job.
 It can also bundle PostgreSQL, two Redis instances, and SeaweedFS, or you can
 point it at your own.
@@ -158,15 +158,17 @@ api:
     annotations:
       cloud.google.com/neg: '{"ingress": true}'
       cloud.google.com/backend-config: '{"default": "agenta-api"}'
-web:
+webMobile:
   service:
     annotations:
       cloud.google.com/neg: '{"ingress": true}'
 ```
 
-`webMobile.service.annotations` and `services.service.annotations` work the same
-way. The BackendConfig objects themselves are yours to create; put them in
-`extraObjects` if you want the release to own them.
+`services.service.annotations` works the same way. The `web-mobile` Service
+backs both `/` and `/m`, so a `web.service` block from the retired desktop app
+does nothing; move its annotations to `webMobile.service`. The BackendConfig
+objects themselves are yours to create; put them in `extraObjects` if you want
+the release to own them.
 
 To route one more path on the same host, or a second hostname, use
 `ingress.extraPaths` and `ingress.extraHosts`. The Service must already exist in
@@ -224,7 +226,7 @@ Four things to get right:
 - `preStop: {sleep: ...}` needs Kubernetes 1.30 or later. Below that, use
   `preStop: {exec: {command: ["sh", "-c", "sleep 10"]}}`, and note that the image
   must have that shell. The chart's own default hook is an exec `sleep 10` on
-  `agentRunner`, `api`, `services`, `web` and `webMobile`; a custom image without
+  `agentRunner`, `api`, `services` and `webMobile`; a custom image without
   `sleep` must set its own `lifecycle`.
 - `strategy` is for Deployments. The durable Redis and SeaweedFS are
   StatefulSets and the migration is a Job; neither has a `spec.strategy`, so the
@@ -233,7 +235,7 @@ Four things to get right:
 - `maxUnavailable: 0` needs room for one more pod than you run today. On a full
   cluster the rollout waits for a node instead of starting.
 
-The keys work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
+The keys work on every workload: `api`, `services`, `webMobile`, `cron`,
 `workerStreams`, `workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`,
 `redisDurable`, `store.seaweedfs` and `alembic`.
 
@@ -587,7 +589,7 @@ api:
         optional: true
 ```
 
-Both work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
+Both work on every workload: `api`, `services`, `webMobile`, `cron`,
 `workerStreams`, `workerQueues`, `agentRunner`, `alembic` and `supertokens`.
 
 Be careful on the runner. Its environment is narrow on purpose, because a local

@@ -41,10 +41,6 @@ global:
 #   image:
 #     tag: latest
 #     pullPolicy: IfNotPresent
-# web:
-#   image:
-#     tag: latest
-#     pullPolicy: IfNotPresent
 # webMobile:
 #   image:
 #     repository: ghcr.io/agenta-ai/agenta-web-mobile
@@ -198,9 +194,9 @@ global:
 # Uncomment only what you want to change.
 #
 #   mcpGateway.enabled            -> AGENTA_MCP_GATEWAY_ENABLED (api, workers,
-#                                    cron, alembic, services; also web and
-#                                    web-mobile, which hide the MCP settings
-#                                    tab when it is off)
+#                                    cron, alembic, services; also web-mobile,
+#                                    which hides the MCP settings tab when it
+#                                    is off)
 #   mcpGateway.hostAllowlist      -> AGENTA_MCP_GATEWAY_HOST_ALLOWLIST
 #   llmGateway.enabled            -> AGENTA_LLM_GATEWAY_ENABLED
 #   gatewayEgress.insecureAllowed -> AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED
@@ -444,7 +440,7 @@ posthog:
 #       memory: 512Mi
 
 # ================================================================== #
-# === api / web / services / workers / cron — deployment knobs ===
+# === api / webMobile / services / workers / cron — deployment knobs ===
 # ================================================================== #
 # Every workload below also takes `extraEnv` (explicit Kubernetes env entries, so
 # valueFrom works) and `envFrom` (raw secretRef/configMapRef entries). Matching names
@@ -466,16 +462,6 @@ posthog:
 #       memory: 512Mi
 #     limits:
 #       memory: 1Gi
-# web:
-#   enabled: true
-#   replicas: 1
-#   port: 3000
-#   resources:
-#     requests:
-#       cpu: 100m
-#       memory: 256Mi
-#     limits:
-#       memory: 512Mi
 # webMobile:
 #   enabled: true
 #   replicas: 1
@@ -513,7 +499,8 @@ posthog:
 
 # ================================================================== #
 # === ingress ===
-# Path routing: / → web, /m → web-mobile, /api → api, /services → services.
+# Path routing: / and /m → web-mobile, /api → api, /services → services.
+# web-mobile redirects / to /m and sends old desktop URLs to their /m pages.
 #
 # Do NOT strip /api.  The API is mounted at /api (SCRIPT_NAME plus the FastAPI
 # root_path), so it needs the prefix and its redirects keep it.  This matches
@@ -538,8 +525,8 @@ posthog:
 #     services:
 #       path: /services
 #       pathType: Prefix
-#     web:
-#       path: /
+#     web:              # the root route; it goes to web-mobile. The name is kept
+#       path: /         # from the retired desktop app so existing values still work.
 #       pathType: Prefix
 
 # ================================================================== #

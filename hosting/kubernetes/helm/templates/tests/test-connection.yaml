@@ -1,7 +1,5 @@
 {{- $apiEnabled := eq (include "agenta.api.enabled" .) "true" }}
-{{- $webEnabled := eq (include "agenta.web.enabled" .) "true" }}
 {{- $stEnabled := eq (include "agenta.supertokens.enabled" .) "true" }}
-{{- if or $apiEnabled $webEnabled $stEnabled }}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -23,16 +21,14 @@ spec:
           wget -q --spider http://{{ include "agenta.fullname" . }}-api:{{ include "agenta.api.port" . }}/health
           echo "API is healthy."
     {{- end }}
-    {{- if $webEnabled }}
-    - name: test-web
+    - name: test-web-mobile
       image: busybox:1
       command: ['sh', '-c']
       args:
         - |
           echo "Testing Web endpoint..."
-          wget -q --spider http://{{ include "agenta.fullname" . }}-web:{{ include "agenta.web.port" . }}/
+          wget -q --spider http://{{ include "agenta.fullname" . }}-web-mobile:{{ include "agenta.webMobile.port" . }}/m/__env.js
           echo "Web is reachable."
-    {{- end }}
     {{- if $stEnabled }}
     - name: test-supertokens
       image: busybox:1
@@ -43,4 +39,3 @@ spec:
           wget -q --spider http://{{ include "agenta.fullname" . }}-supertokens:{{ include "agenta.supertokens.port" . }}/hello
           echo "SuperTokens is healthy."
     {{- end }}
-{{- end }}

@@ -98,12 +98,11 @@ API_ARGS = [
 
 # Every workload, as (values key, component label, takes a spec.strategy).
 # A Deployment takes one; the two StatefulSets and the migration Job do not.
-# The README and values.yaml both list these 13, so this table is the check
+# The README and values.yaml both list these 12, so this table is the check
 # that the list is true.
 WORKLOADS = (
     ("api", "api", True),
     ("services", "services", True),
-    ("web", "web", True),
     ("webMobile", "web-mobile", True),
     ("cron", "cron", True),
     ("workerStreams", "worker-streams", True),
@@ -135,7 +134,6 @@ DEFAULT_STRATEGIES = {
     "cron": {"type": "Recreate"},
     "redis-volatile": {"type": "Recreate"},
     "services": ROLLING_NO_GAP,
-    "web": ROLLING_NO_GAP,
     "web-mobile": ROLLING_NO_GAP,
     "worker-streams": ROLLING_NO_GAP,
     "worker-queues": ROLLING_NO_GAP,
@@ -147,7 +145,6 @@ DEFAULT_GRACE_PERIODS = {
     "worker-streams": 120,
     "worker-queues": 120,
     "services": 60,
-    "web": 60,
     "web-mobile": 60,
 }
 SLEEP_10 = {"preStop": {"exec": {"command": ["sleep", "10"]}}}
@@ -155,7 +152,6 @@ DEFAULT_LIFECYCLES = {
     "api": SLEEP_10,
     "runner": SLEEP_10,
     "services": SLEEP_10,
-    "web": SLEEP_10,
     "web-mobile": SLEEP_10,
 }
 
@@ -175,12 +171,12 @@ def assert_default_rollout_keys(workload: dict) -> None:
 
 
 def every_workload_reads_its_own_keys() -> None:
-    """Set the three keys on all 13 workloads at once, in one render.
+    """Set the three keys on all 12 workloads at once, in one render.
 
     Each workload gets a grace period of its own, so a workload that reads
     another one's value fails here instead of looking correct. A workload that
     reads no value at all fails too. Without this, dropping `lifecycle` from,
-    say, the web or the runner template would pass every other assertion in
+    say, the web-mobile or the runner template would pass every other assertion in
     this file.
     """
     args = list(ALL_WORKLOADS_ON)

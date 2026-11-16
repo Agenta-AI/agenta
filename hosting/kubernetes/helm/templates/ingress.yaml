@@ -1,14 +1,8 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $ingress := default dict $values.ingress -}}
-{{- $apiEnabled := eq (include "agenta.api.enabled" .) "true" -}}
-{{- $servicesEnabled := eq (include "agenta.services.enabled" .) "true" -}}
-{{- $webEnabled := eq (include "agenta.web.enabled" .) "true" -}}
 {{- $extraPaths := default (list) $ingress.extraPaths -}}
 {{- $extraHosts := default (list) $ingress.extraHosts -}}
-{{- /* The main host rule needs at least one path. Skip it, but still render the Ingress,
-       when the operator disabled every chart component and routes only extra hosts. */ -}}
-{{- $mainHostHasPaths := or $apiEnabled $servicesEnabled $webEnabled true (gt (len $extraPaths) 0) -}}
-{{- if and (eq (include "agenta.ingress.enabled" .) "true") (or $mainHostHasPaths (gt (len $extraHosts) 0)) }}
+{{- if eq (include "agenta.ingress.enabled" .) "true" }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -30,7 +24,6 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   rules:
-    {{- if $mainHostHasPaths }}
     - host: {{ include "agenta.ingress.host" . }}
       http:
         paths:
@@ -59,22 +52,22 @@ spec:
                 name: {{ include "agenta.fullname" . }}-web-mobile
                 port:
                   name: http
-          {{- if eq (include "agenta.web.enabled" .) "true" }}
+          {{- /* The root route keeps its old values key, ingress.paths.web, so a pathType
+                 set for the retired desktop app still applies. web-mobile answers / with a
+                 redirect to /m and maps legacy desktop URLs. */}}
           - path: {{ include "agenta.ingress.paths.web.path" . }}
             pathType: {{ include "agenta.ingress.paths.web.pathType" . }}
             backend:
               service:
-                name: {{ include "agenta.fullname" . }}-web
+                name: {{ include "agenta.fullname" . }}-web-mobile
                 port:
                   name: http
-          {{- end }}
           {{- /* Extra routes on the same host, for a Service the chart does not own
                  (for example /llm in front of a gateway). Appended after the built-in
                  paths. */}}
           {{- range $extraPaths }}
           {{- include "agenta.ingress.extraPath" . | nindent 10 }}
           {{- end }}
-    {{- end }}
     {{- /* Extra hosts, each with its own path list. Use this for a second hostname
            that must reach a Service in this namespace. */}}
     {{- range $extraHosts }}

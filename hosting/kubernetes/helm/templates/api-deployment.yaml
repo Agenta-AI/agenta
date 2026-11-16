@@ -34,7 +34,7 @@ spec:
          maxSurge: 25%. For one replica, these round down to 0 unavailable pods and up
          to 1 surge pod, so the explicit 0/1 limits preserve those availability limits.
          The api previously had no preStop hook and used the default 30-second grace
-         period. Now it uses the same rollout and shutdown defaults as services, web
+         period. Now it uses the same rollout and shutdown defaults as services
          and webMobile. See the README section "Graceful rollouts". */}}
   {{- with $api.strategy }}
   strategy:

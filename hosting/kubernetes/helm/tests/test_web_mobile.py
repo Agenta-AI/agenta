@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["PyYAML>=6"]
 # ///
-"""Rendered-chart regression coverage for the default-on mobile web workload.
+"""Rendered-chart regression coverage for web-mobile, the only web workload.
 
 Run: uv run hosting/kubernetes/helm/tests/test_web_mobile.py
 Requires the `helm` binary on PATH.
@@ -96,7 +96,7 @@ def main() -> int:
     mobile_deployment = component(docs, "Deployment", "web-mobile")
     mobile_container = container(mobile_deployment)
     mobile_service = component(docs, "Service", "web-mobile")
-    desktop_deployment = component(docs, "Deployment", "web")
+    assert components(docs, "web") == [], "the desktop web workload is gone"
 
     assert mobile_deployment["spec"]["replicas"] == 1
     assert mobile_container["image"].startswith("ghcr.io/agenta-ai/agenta-web-mobile:")
@@ -110,14 +110,15 @@ def main() -> int:
         "AGENTA_MOBILE_ENABLED",
     ):
         assert env_value(mobile_deployment, key) is None
-    for key in ("AGENTA_MOBILE_GATE", "AGENTA_MOBILE_ENABLED"):
-        assert env_value(desktop_deployment, key) is None
     for probe in ("startupProbe", "livenessProbe", "readinessProbe"):
         assert mobile_container[probe]["httpGet"]["path"] == "/m/__env.js"
 
     mobile_path = next(path for path in ingress_paths(docs) if path["path"] == "/m")
     assert mobile_path["pathType"] == "Prefix"
     assert mobile_path["backend"]["service"]["name"].endswith("-web-mobile")
+    root_path = next(path for path in ingress_paths(docs) if path["path"] == "/")
+    assert root_path["pathType"] == "Prefix"
+    assert root_path["backend"]["service"]["name"].endswith("-web-mobile")
 
     # The embed widget page reads AGENTA_API_INTERNAL_URL; it is set only when configured.
     assert env_value(mobile_deployment, "AGENTA_API_INTERNAL_URL") is None
@@ -158,15 +159,13 @@ def main() -> int:
     mobile_only_docs = render(
         [
             "--set",
-            "web.enabled=false",
-            "--set",
             "api.enabled=false",
             "--set",
             "services.enabled=false",
         ]
     )
     assert component(mobile_only_docs, "Deployment", "web-mobile")
-    assert [path["path"] for path in ingress_paths(mobile_only_docs)] == ["/m"]
+    assert [path["path"] for path in ingress_paths(mobile_only_docs)] == ["/m", "/"]
 
     # There is no opt-out: the schema refuses webMobile.enabled.
     refused = subprocess.run(
@@ -185,13 +184,48 @@ def main() -> int:
     )
     assert refused.returncode != 0, "webMobile.enabled=false must be refused"
 
+    assert_stale_web_values_are_ignored()
+
     print("OK: Helm always deploys and routes web-mobile.")
     return 0
+
+
+def assert_stale_web_values_are_ignored() -> None:
+    """An upgrade keeps the values of the retired desktop app. They must not fail the
+    render, bring back a `web` workload, or lose the root route's pathType."""
+    docs = render(
+        [
+            "--set",
+            "web.enabled=true",
+            "--set",
+            "web.replicas=2",
+            "--set",
+            "web.image.repository=ghcr.io/agenta-ai/agenta-web",
+            "--set",
+            "web.image.tag=v0.128.0",
+            "--set-json",
+            'web.service.annotations={"cloud.google.com/neg": "ingress"}',
+            "--set",
+            "ingress.paths.web.pathType=ImplementationSpecific",
+        ]
+    )
+    assert components(docs, "web") == []
+    assert not any(
+        doc.get("metadata", {}).get("name", "").endswith("-web")
+        for doc in docs
+    )
+    root_path = next(path for path in ingress_paths(docs) if path["path"] == "/")
+    assert root_path["pathType"] == "ImplementationSpecific"
+    assert root_path["backend"]["service"]["name"] == "mobile-chart-test-agenta-web-mobile"
 
 
 def test_web_mobile_is_deployed_and_routed() -> None:
     """pytest entry point. The module also runs standalone; both call main()."""
     assert main() == 0, "web-mobile is deployed and routed"
+
+
+def test_upgrade_with_stale_web_values() -> None:
+    assert_stale_web_values_are_ignored()
 
 
 if __name__ == "__main__":

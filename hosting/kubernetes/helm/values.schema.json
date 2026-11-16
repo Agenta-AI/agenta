@@ -648,7 +648,7 @@
     "mcpGateway": {
       "type": "object",
       "additionalProperties": false,
-      "description": "The MCP gateway plane: an agent reaches an MCP server through Agenta, so the server's credential stays on the deployment. Rendered into the API, services, workers, cron and alembic containers; `enabled` also goes to the web and web-mobile containers, which hide the MCP settings tab when it is off.",
+      "description": "The MCP gateway plane: an agent reaches an MCP server through Agenta, so the server's credential stays on the deployment. Rendered into the API, services, workers, cron and alembic containers; `enabled` also goes to the web-mobile container, which hides the MCP settings tab when it is off.",
       "properties": {
         "enabled": {
           "type": [
@@ -1217,7 +1217,8 @@
               "description": "Mobile web route. The mobile image is built with basePath /m, so keep path at /m unless you rebuild it; pathType is free to change (a managed ingress may need ImplementationSpecific)."
             },
             "web": {
-              "$ref": "#/$defs/ingressPath"
+              "$ref": "#/$defs/ingressPath",
+              "description": "Root route (default path /). It routes to the web-mobile service, which redirects / to /m and maps old desktop URLs. The key keeps its name from the retired desktop app so an existing pathType still applies."
             }
           }
         },
@@ -1349,9 +1350,6 @@
           }
         }
       ]
-    },
-    "web": {
-      "$ref": "#/$defs/component"
     },
     "webMobile": {
       "allOf": [
