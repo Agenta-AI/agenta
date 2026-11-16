@@ -139,6 +139,20 @@ describe("a command's changes", () => {
 });
 
 describe("the start of a turn", () => {
+  it("keeps running commands on later turns with a read-only project drive, whose view it does not refresh", async () => {
+    const ws = createTestWorkspace({ readOnlyProject: "prices" });
+    expect((await ws.bash("echo first")).output).toContain("first");
+    for (const turn of ["second", "third"]) {
+      const before = sandboxOf(ws).commands.length;
+      ws.workspace.startTurn();
+      expect((await ws.bash(`echo ${turn}`)).output).toContain(turn);
+      const refresh = sandboxOf(ws).commands.slice(before).find((c) => c.includes(": refresh-view"));
+      expect(refresh).toContain(ws.inSandbox(ws.cwd));
+      expect(refresh).not.toContain("-project-prices");
+    }
+    await ws.workspace.sandbox.delete();
+  });
+
   it("refreshes the running sandbox's view of the drive before its next tool call, and starts nothing when none runs", async () => {
     const ws = createTestWorkspace();
     const { call, text } = tools(ws);

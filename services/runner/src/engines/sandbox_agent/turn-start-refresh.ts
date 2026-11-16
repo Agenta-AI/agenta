@@ -64,8 +64,11 @@ export interface TurnStartPlan {
   workspace: { cwd: string };
 }
 
+/** A read-only mount refuses the refresh attribute, so a read drive keeps geesefs's own cache expiry. */
 function projectRoots(env: TurnStartViews): Array<string | undefined> {
-  return projectDrives(env.drives).map((d) => d.mountedPath);
+  return projectDrives(env.drives)
+    .filter((d) => d.access !== "read")
+    .map((d) => d.mountedPath);
 }
 
 /** Refresh the durable folders' views for this turn. Never throws. */

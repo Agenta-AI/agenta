@@ -420,7 +420,7 @@ describe("prompt guidance for drives", () => {
 });
 
 describe("drive views and secrets", () => {
-  it("refreshes each mounted project drive at the start of a turn", async () => {
+  it("refreshes each mounted read-write project drive at the start of a turn, never a read-only one", async () => {
     const commands: string[][] = [];
     await refreshDriveViewsAtTurnStart(
       {
@@ -435,8 +435,9 @@ describe("drive views and secrets", () => {
         installedMountExpiries: { cwd: 1 },
         drives: [
           { kind: "agent", access: "read-write" },
-          { kind: "project", slug: "a", access: "read", credentials: creds("a"), mountedPath: "/w-project-a" },
+          { kind: "project", slug: "a", access: "read-write", credentials: creds("a"), mountedPath: "/w-project-a" },
           { kind: "project", slug: "b", access: "read", credentials: null },
+          { kind: "project", slug: "c", access: "read", credentials: creds("c"), mountedPath: "/w-project-c" },
         ],
       },
       { isDaytona: true, harnessInRunner: false, workspace: { cwd: "/w" } },

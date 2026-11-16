@@ -20,6 +20,8 @@ export class LinkMounter implements DriveMounter {
   readonly mounts: Array<{ sandboxId: string; path: string }> = [];
   /** When set, the store cannot be reached from the sandbox. */
   unreachable = false;
+  /** Paths mounted read-only: a refresh of one fails, as the attribute write does on `-o ro`. */
+  readonly readOnlyPaths = new Set<string>();
 
   constructor(
     private readonly daytona: LocalDaytona,
@@ -33,10 +35,12 @@ export class LinkMounter implements DriveMounter {
 
   /** A link has no cache to drop; the marker lets tests find the call. */
   refreshCommand(paths: string[]): string {
-    return `: refresh-view ${paths.join(" ")}`;
+    const readOnly = paths.some((p) => this.readOnlyPaths.has(p.replace(/^'|'$/g, "")));
+    return `: refresh-view ${paths.join(" ")}${readOnly ? "; echo 1; false" : ""}`;
   }
 
-  async mount(sandbox: DaytonaSandbox, path: string, _creds: MountCredentials): Promise<boolean> {
+  async mount(sandbox: DaytonaSandbox, path: string, _creds: MountCredentials, _signal?: AbortSignal, options?: { readOnly?: boolean }): Promise<boolean> {
+    if (options?.readOnly) this.readOnlyPaths.add(path);
     if (this.unreachable) throw new DriveUnreachableError("the store is not public and no tunnel forwards to it");
     const local = this.daytona.sandboxes.get(sandbox.id);
     if (!local || local.state !== "started") throw new Error(`sandbox ${sandbox.id} is not running`);

@@ -182,9 +182,12 @@ export class SandboxDrive {
     });
   }
 
-  /** The command that refreshes the sandbox's view of every root. */
+  /**
+   * The command that refreshes the sandbox's view of every writable root. The refresh writes an
+   * attribute, which a read-only mount refuses, so a read-only root keeps geesefs's own cache expiry.
+   */
   get refreshCommand(): string {
-    return this.mounter.refreshCommand(this.roots.map((r) => shellQuote(this.inSandbox(r.root))));
+    return this.mounter.refreshCommand(this.roots.filter((r) => !r.readOnly).map((r) => shellQuote(this.inSandbox(r.root))));
   }
 
   /**

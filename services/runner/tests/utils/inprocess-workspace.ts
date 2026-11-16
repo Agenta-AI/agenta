@@ -91,6 +91,8 @@ export function createTestWorkspace(options: {
   base?: string;
   owner?: SandboxOwner;
   skillModes?: Map<string, number>;
+  /** Adds a project drive mounted read-only, linked as `drives/<slug>`. */
+  readOnlyProject?: string;
 } = {}): TestWorkspace {
   const base = options.base ?? mkdtempSync(join(tmpdir(), "inprocess-ws-"));
   const cwd = join(base, "runner", "mounts", "conv");
@@ -98,6 +100,7 @@ export function createTestWorkspace(options: {
   const sessions = join(cwd, "agents", "sessions", "pi");
   mkdirSync(sessions, { recursive: true });
   mkdirSync(agent, { recursive: true });
+  if (options.readOnlyProject) mkdirSync(`${cwd}-project-${options.readOnlyProject}`, { recursive: true });
   try {
     symlinkSync(agent, join(cwd, "agent-files"));
   } catch {}
@@ -120,6 +123,9 @@ export function createTestWorkspace(options: {
     drive: [
       { root: cwd, credentials: () => TEST_CREDENTIALS },
       { root: agent, credentials: () => TEST_CREDENTIALS, link: { kind: "agent" } },
+      ...(options.readOnlyProject
+        ? [{ root: `${cwd}-project-${options.readOnlyProject}`, credentials: () => TEST_CREDENTIALS, link: { kind: "project" as const, slug: options.readOnlyProject }, readOnly: true }]
+        : []),
     ],
     skillModes: options.skillModes ?? new Map(),
     signTranscriptMount: async () => TEST_TRANSCRIPT_CREDENTIALS,
