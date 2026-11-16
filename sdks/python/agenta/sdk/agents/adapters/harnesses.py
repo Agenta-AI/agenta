@@ -85,6 +85,7 @@ class PiHarness(Harness):
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
                 [spec.name for spec in config.tool_specs],
+                drives=config.agent.drives,
             ),
         )
 
@@ -107,6 +108,7 @@ class ClaudeHarness(Harness):
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
                 [spec.name for spec in config.tool_specs],
+                drives=config.agent.drives,
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -141,6 +143,7 @@ class CodexHarness(Harness):
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
                 [spec.name for spec in config.tool_specs],
+                drives=config.agent.drives,
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -172,6 +175,7 @@ class MockHarness(Harness):
             platform_instructions=compose_platform_instructions(
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
+                drives=config.agent.drives,
             ),
             model=config.agent.model,
             model_ref=config.agent.model_ref,

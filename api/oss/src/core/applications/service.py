@@ -1097,6 +1097,9 @@ class SimpleApplicationsService:
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
         _reject_unreadable_agent_instructions(simple_application_create.data)
+        await self.applications_service.workflows_service.reject_unusable_agent_drives(
+            project_id=project_id, data=simple_application_create.data
+        )
 
         simple_application_flags = (
             SimpleApplicationFlags(**_dump_flags(simple_application_create.flags))
@@ -1348,6 +1351,42 @@ class SimpleApplicationsService:
         if application is None:
             return None
 
+        application_variant = await self.applications_service.fetch_application_variant(
+            project_id=project_id,
+            #
+            application_ref=Reference(id=application.id),
+        )
+
+        if application_variant is None:
+            return None
+
+        should_commit_revision = bool(simple_application_edit.model_fields_set - {"id"})
+
+        # The data the commit stores, chosen once and checked before the first write.
+        application_revision_data = None
+        if should_commit_revision:
+            if simple_application_edit.data:
+                application_revision_data = ApplicationRevisionData(
+                    **simple_application_edit.data.model_dump(mode="json"),
+                )
+            else:
+                latest_application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        #
+                        application_variant_ref=Reference(id=application_variant.id),
+                    )
+                )
+
+                if latest_application_revision is None:
+                    return None
+
+                application_revision_data = latest_application_revision.data
+
+            await self.applications_service.workflows_service.reject_unusable_agent_drives(
+                project_id=project_id, data=application_revision_data
+            )
+
         application_edit = ApplicationEdit(
             id=simple_application_edit.id,
             #
@@ -1381,37 +1420,8 @@ class SimpleApplicationsService:
         if application is None:
             return None
 
-        application_variant = await self.applications_service.fetch_application_variant(
-            project_id=project_id,
-            #
-            application_ref=Reference(id=application.id),
-        )
-
-        if application_variant is None:
-            return None
-
-        should_commit_revision = bool(simple_application_edit.model_fields_set - {"id"})
-
         if should_commit_revision:
             application_revision_slug = uuid4().hex[-12:]
-
-            if simple_application_edit.data:
-                application_revision_data = ApplicationRevisionData(
-                    **simple_application_edit.data.model_dump(mode="json"),
-                )
-            else:
-                latest_application_revision = (
-                    await self.applications_service.fetch_application_revision(
-                        project_id=project_id,
-                        #
-                        application_variant_ref=Reference(id=application_variant.id),
-                    )
-                )
-
-                if latest_application_revision is None:
-                    return None
-
-                application_revision_data = latest_application_revision.data
 
             application_revision_commit = ApplicationRevisionCommit(
                 slug=application_revision_slug,

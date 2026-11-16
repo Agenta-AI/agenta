@@ -2,10 +2,12 @@
 
 import pytest
 
-from agenta.sdk.agents.dtos import SessionContext
+from agenta.sdk.agents.dtos import AgentDrive, SessionContext
 from agenta.sdk.agents.platform_instructions import (
     AGENTA_CONFIG_SECTIONS,
     AGENTA_PLATFORM_BASE,
+    AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE,
+    PROJECT_DRIVES_GUIDANCE,
     CONFIG_COMMIT_TOOL,
     compose_platform_instructions,
     is_placeholder_agent_name,
@@ -279,3 +281,38 @@ def test_channel_guidance_appears_only_when_the_run_can_list_channels():
     # a tool the run does not have is never named
     assert "read_channel_messages" not in section
     assert "search_channel_messages" not in section
+
+
+def test_the_default_drive_list_keeps_todays_text():
+    today = compose_platform_instructions([], [], [])
+    assert today.startswith(AGENTA_PLATFORM_BASE)
+    assert (
+        compose_platform_instructions([], [], [], [AgentDrive(kind="agent")]) == today
+    )
+    assert PROJECT_DRIVES_GUIDANCE not in today
+
+
+def test_an_agent_without_an_agent_drive_is_never_sent_to_agent_files():
+    for drives in ([], [AgentDrive(kind="project", slug="price-lists")]):
+        text = compose_platform_instructions([], [], [], drives)
+        assert text.startswith(AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE)
+        assert "agent-files" not in text
+        assert "## Files and storage" in text
+        assert "## What does not work here" in text
+    # Project drives are durable; the agent's own durable folder is never mentioned.
+    assert "durable" not in AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE
+
+
+def test_project_drives_add_the_link_rule_for_drives():
+    text = compose_platform_instructions(
+        [],
+        [],
+        [],
+        [
+            AgentDrive(kind="agent"),
+            AgentDrive(kind="project", slug="price-lists", access="read"),
+        ],
+    )
+    assert text.startswith(AGENTA_PLATFORM_BASE)
+    assert PROJECT_DRIVES_GUIDANCE in text
+    assert "](drives/price-lists/prices.csv)" in text

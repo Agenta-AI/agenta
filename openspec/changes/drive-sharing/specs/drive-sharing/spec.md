@@ -67,7 +67,7 @@ The platform SHALL read an agent configuration that lacks `drives` and `has_sess
 
 ### Requirement: A save that breaks the drive rules is refused
 
-Every commit of an agent revision SHALL be refused with HTTP 422 when the drive list breaks the entry rules (code `invalid_drive_entry`) or when a `"project"` entry names a slug that has no active project drive in the same project (code `drive_not_found`), with the error envelope `{code, message, retryable, next_step, details}`.
+Every commit of an agent revision SHALL be refused with HTTP 422 when the drive list breaks the entry rules (code `invalid_drive_entry`), when `has_session_drive` is not a boolean (code `invalid_session_drive`), or when a `"project"` entry names a slug that has no active project drive in the same project (code `drive_not_found`), with the error envelope `{code, message, retryable, next_step, details}`.
 
 #### Scenario: Drive created first, then attached
 
@@ -84,6 +84,12 @@ Every commit of an agent revision SHALL be refused with HTTP 422 when the drive 
 
 - **WHEN** a caller saves a list with a project entry without a slug, an agent entry with a slug or an access, two agent entries, one slug twice, or 9 entries
 - **THEN** the save answers HTTP 422 with the code `invalid_drive_entry` and the broken rule in `details`
+
+#### Scenario: Session drive not a boolean
+
+- **WHEN** a caller saves an agent whose `has_session_drive` is `"yes"`
+- **THEN** the save answers HTTP 422 with the code `invalid_session_drive` and `details.field` `parameters.agent.has_session_drive`
+- **AND** no revision is stored
 
 #### Scenario: The same rules at run time
 

@@ -81,6 +81,8 @@ async def test_a_workflow_with_its_own_agent_parameter_still_gets_the_vault(
         {"harness": {"kind": "pi_core"}},
         {"runner": {}},
         {"sandbox": {}},
+        {"has_session_drive": True},
+        {"drives": [{"kind": "agent"}]},
     ],
 )
 async def test_any_agent_template_key_is_enough_to_recognise_an_agent(

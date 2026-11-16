@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from agenta.sdk.agents import (
     AgentDrive,
@@ -10,11 +11,14 @@ from agenta.sdk.agents import (
     AgentTemplateShapeError,
     HarnessKind,
     InvalidAgentDrivesError,
+    InvalidSessionDriveError,
+    PiAgentTemplate,
     PiHarness,
     SessionConfig,
     validate_agent_drives,
     validate_has_session_drive,
 )
+from agenta.sdk.utils.types import AgentTemplateSchema, build_agent_v0_default
 
 
 def _template(**agent):
@@ -94,6 +98,11 @@ def test_every_entry_rule_is_refused_with_its_field(drives, field):
     with pytest.raises(AgentTemplateShapeError) as at_run:
         _template(drives=drives)
     assert at_run.value.code == 400
+    # Direct construction refuses the same inputs.
+    for model in (AgentTemplate, PiAgentTemplate):
+        with pytest.raises(InvalidAgentDrivesError) as direct:
+            model(drives=drives)
+        assert direct.value.field == caught.value.field
 
 
 def test_eight_entries_are_allowed():
@@ -105,11 +114,27 @@ def test_eight_entries_are_allowed():
 
 @pytest.mark.parametrize("value", ["yes", 1, [], {}])
 def test_has_session_drive_must_be_a_boolean(value):
-    with pytest.raises(InvalidAgentDrivesError) as caught:
+    with pytest.raises(InvalidSessionDriveError):
         validate_has_session_drive(value)
-    assert caught.value.field == "has_session_drive"
-    with pytest.raises(AgentTemplateShapeError):
+    with pytest.raises(InvalidSessionDriveError):
         _template(has_session_drive=value)
+    with pytest.raises(InvalidSessionDriveError):
+        AgentTemplate(has_session_drive=value)
+
+
+def test_typed_entries_pass_the_same_rules():
+    with pytest.raises(InvalidAgentDrivesError) as caught:
+        AgentTemplate(drives=[AgentDrive(kind="agent"), AgentDrive(kind="agent")])
+    assert caught.value.field == "drives[1].kind"
+    with pytest.raises(InvalidAgentDrivesError):
+        AgentDrive(kind="agent", slug="x")
+    with pytest.raises(InvalidAgentDrivesError):
+        AgentDrive(kind="project")
+    typed = AgentTemplate(drives=[AgentDrive(kind="project", slug="price-lists")])
+    assert typed.drives == [
+        AgentDrive(kind="project", slug="price-lists", access="read-write")
+    ]
+    assert AgentTemplate().drives == [AgentDrive(kind="agent")]
 
 
 def test_the_harness_config_carries_the_drives_to_the_wire(make_env):
@@ -123,3 +148,42 @@ def test_the_harness_config_carries_the_drives_to_the_wire(make_env):
         "drives": [{"kind": "project", "slug": "price-lists", "access": "read"}],
         "hasSessionDrive": False,
     }
+
+
+def test_the_default_template_states_both_keys():
+    template = build_agent_v0_default()
+    assert template["has_session_drive"] is True
+    assert template["drives"] == [{"kind": "agent"}]
+    parsed = AgentTemplate.from_params({"agent": template})
+    assert parsed.drives == [AgentDrive(kind="agent")]
+
+
+def test_the_editor_schema_accepts_both_keys():
+    schema = AgentTemplateSchema.model_validate(
+        {
+            "has_session_drive": False,
+            "drives": [
+                {"kind": "agent"},
+                {"kind": "project", "slug": "price-lists", "access": "read"},
+            ],
+        }
+    )
+    assert schema.has_session_drive is False
+    assert [drive.kind for drive in schema.drives] == ["agent", "project"]
+    assert AgentTemplateSchema().model_dump()["drives"] == [
+        {"kind": "agent", "slug": None, "access": None}
+    ]
+
+
+@pytest.mark.parametrize(
+    "drives",
+    [
+        [{"kind": "session"}],
+        [{"kind": "project", "slug": "a", "access": "write"}],
+        [{"kind": "project", "slug": "a", "path": "x"}],
+        [{"kind": "project", "slug": f"d{i}"} for i in range(9)],
+    ],
+)
+def test_the_editor_schema_refuses_a_broken_entry(drives):
+    with pytest.raises(ValidationError):
+        AgentTemplateSchema.model_validate({"drives": drives})

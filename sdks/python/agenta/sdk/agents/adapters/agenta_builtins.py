@@ -81,6 +81,8 @@ _CONFIG_SCHEMA_FIELDS = """\
   "tools": [],
   "mcps": [],
   "skills": [],
+  "has_session_drive": true,
+  "drives": [{ "kind": "agent" }],
   "harness": { "kind": "pi_core" },
   "runner": { "kind": "sidecar", "permissions": { "default": "allow" } },
   "sandbox": { "kind": "local" }
@@ -260,6 +262,10 @@ the run:
   `permissions` (optional) is the security boundary: `{ "network": { "mode": "on"|"off"|
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":
   "strict"|"best_effort" }`.
+- `has_session_drive` and `drives` — the folders your files persist in. `drives` lists
+  `{ "kind": "agent" }` (your own `agent-files/`) and project drives
+  `{ "kind": "project", "slug": "<slug>", "access": "read"|"read-write" }` (at
+  `drives/<slug>/`). Your own commit cannot change either; a person changes them.
 """
 
 # The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the

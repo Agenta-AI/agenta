@@ -64,6 +64,7 @@ class MountScope(BaseModel):
 class MountQuery(BaseModel):
     session_id: Optional[str] = None
     agent_id: Optional[str] = None
+    slugs: Optional[List[str]] = None
     include_archived: bool = False
 
 

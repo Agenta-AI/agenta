@@ -4,7 +4,16 @@ from contextlib import asynccontextmanager
 from collections import deque
 from posixpath import basename
 from re import sub
-from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Protocol, Tuple
+from typing import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    TYPE_CHECKING,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+)
 from uuid import UUID, uuid4, uuid5, NAMESPACE_DNS
 
 import pathspec
@@ -146,6 +155,25 @@ def mint_agent_slug(*, artifact_id: str, name: str) -> str:
     canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
     slug_name = slugify_mount_name(name)
     return f"{RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
+
+
+def project_mount_lookup(
+    mounts_service: "MountsService",
+) -> Callable[..., Awaitable[Optional[Mount]]]:
+    """The lookup the workflows service checks project drives with at commit.
+
+    A reserved slug is never a project drive, so it reads as missing.
+    """
+
+    async def lookup(*, project_id: UUID, slug: str) -> Optional[Mount]:
+        try:
+            return await mounts_service.fetch_project_mount(
+                project_id=project_id, slug=slug
+            )
+        except MountSlugReserved:
+            return None
+
+    return lookup
 
 
 def reject_reserved_slug(slug: str) -> None:
@@ -931,6 +959,25 @@ class MountsService:
         )
         return mount
 
+    async def fetch_project_mount(
+        self,
+        *,
+        project_id: UUID,
+        slug: str,
+    ) -> Optional[Mount]:
+        """Fetch the active project mount with this slug, or None. Never creates one.
+
+        A reserved slug is refused, so this can never reach a session or an agent mount.
+        """
+        reject_reserved_slug(slug)
+        mount = await self.mounts_dao.fetch_mount_by_slug(
+            project_id=project_id,
+            slug=slug,
+        )
+        if mount is None or mount.session_id or mount.agent_id:
+            return None
+        return mount
+
     async def edit_mount(
         self,
         *,
@@ -1104,13 +1151,15 @@ class MountsService:
         *,
         project_id: UUID,
         mount_id: UUID,
+        read_only: bool = False,
     ) -> MountCredentials:
-        """Mint short-lived, prefix-scoped credentials for one mount.
+        """Mint prefix-scoped credentials for one mount.
 
         The master key signs the STS request API-side and never leaves; the returned
-        key pair + session token are scoped to this mount's prefix and expire in minutes.
+        key pair + session token are scoped to this mount's prefix and expire after
+        `AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS` (12 hours by default, to cover a full run).
         geesefs holds the credentials without refresh, so a turn outliving the TTL hits
-        ExpiredToken.
+        ExpiredToken. `read_only` signs credentials that can read and list but not write.
         """
         if self.mounts_store is None:
             raise MountStorageUnavailable()
@@ -1124,6 +1173,7 @@ class MountsService:
             bucket=bucket,
             prefix=prefix,
             duration_seconds=env.mounts.credentials_ttl_seconds,
+            read_only=read_only,
         )
         return MountCredentials(
             endpoint=self.mounts_store.endpoint_url,

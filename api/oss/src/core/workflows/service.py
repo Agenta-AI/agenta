@@ -52,8 +52,12 @@ from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.agents import (
     HarnessKind,
     InvalidHarnessKindError,
+    InvalidAgentDrivesError as AgentDrivesShapeError,
     InvalidAgentInstructionsError as AgentInstructionsShapeError,
+    InvalidSessionDriveError as SessionDriveShapeError,
+    validate_agent_drives,
     validate_agent_instructions,
+    validate_has_session_drive,
 )
 
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -177,10 +181,14 @@ from oss.src.core.sharing.service import invalidate_sharing_caches
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
+    AgentDriveNotFoundError,
     AgentReferenceUnresolved,
+    InvalidAgentDrivesError,
+    InvalidSessionDriveError,
     InvalidAgentHarnessError,
     InvalidAgentConnectionError,
     InvalidAgentInstructionsError,
+    ProjectMountLookupMissing,
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
@@ -376,6 +384,43 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
             )
 
 
+def _agent_drives(data: Any) -> Optional[List[Any]]:
+    """The parsed drive entries of an agent commit, or None for a workflow that is not an agent.
+
+    The rules are the SDK's: a broken entry answers ``invalid_drive_entry``, a broken
+    ``has_session_drive`` answers ``invalid_session_drive``.
+    """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump(mode="json", exclude_none=True)
+    if not isinstance(data, dict):
+        return None
+    agent = (data.get("parameters") or {}).get("agent")
+    if not isinstance(agent, dict):
+        return None
+    try:
+        validate_has_session_drive(agent.get("has_session_drive"))
+    except SessionDriveShapeError as e:
+        raise InvalidSessionDriveError(
+            field="has_session_drive",
+            value=e.value,
+            message="has_session_drive must be true or false.",
+            next_step=(
+                "Set parameters.agent.has_session_drive to true or false, then commit again."
+            ),
+        ) from e
+    try:
+        return validate_agent_drives(agent.get("drives"))
+    except AgentDrivesShapeError as e:
+        raise InvalidAgentDrivesError(
+            field=e.field,
+            value=e.value,
+            message=f"The drive list is not valid: parameters.agent.{e.field} {e.reason}.",
+            next_step=(
+                "Correct parameters.agent.drives as the message says, then commit again."
+            ),
+        ) from e
+
+
 def _validate_persisted_shape(data: dict) -> None:
     """The engine's final gate: the finished tree must be storable as it stands.
 
@@ -473,9 +518,40 @@ class WorkflowsService:
         # root that serves the archive routes (the triggers DAO is built after this
         # service there).
         self._triggers_dao: Optional["TriggersDAOInterface"] = None
+        self._project_mount_lookup: Optional[
+            Callable[..., Awaitable[Optional[Any]]]
+        ] = None
 
     def set_triggers_dao(self, triggers_dao: "TriggersDAOInterface") -> None:
         self._triggers_dao = triggers_dao
+
+    def set_project_mount_lookup(
+        self, lookup: Callable[..., Awaitable[Optional[Any]]]
+    ) -> None:
+        """``lookup(project_id=, slug=)`` returns the active project drive or None. Set by the
+        composition root, because the mounts service depends on this service."""
+        self._project_mount_lookup = lookup
+
+    async def reject_unusable_agent_drives(
+        self, *, project_id: UUID, data: Any
+    ) -> None:
+        """Refuse an agent commit whose drive list breaks a rule or names a missing drive."""
+        drives = _agent_drives(data)
+        if not drives:
+            return
+        for index, drive in enumerate(drives):
+            if drive.kind != "project":
+                continue
+            if self._project_mount_lookup is None:
+                raise ProjectMountLookupMissing()
+            if await self._project_mount_lookup(project_id=project_id, slug=drive.slug):
+                continue
+            raise AgentDriveNotFoundError(
+                field=f"drives[{index}].slug",
+                value=drive.slug,
+                message=f"The drive '{drive.slug}' does not exist in this project.",
+                next_step="Create the drive with POST /mounts/, then commit again.",
+            )
 
     def set_session_continuation_resumer(
         self, callback: Callable[..., Awaitable[Optional[str]]]
@@ -3249,6 +3325,11 @@ class WorkflowsService:
             workflow_revision_commit=workflow_revision_commit,
         )
 
+        await self.reject_unusable_agent_drives(
+            project_id=project_id,
+            data=_revision_commit.data,
+        )
+
         await self._reject_inconsistent_workflow_embeds(
             project_id=project_id,
             data=workflow_revision_commit.data,
@@ -4381,6 +4462,9 @@ class SimpleWorkflowsService:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
         _reject_unrunnable_agent_connection(simple_workflow_create.data)
+        await self.workflows_service.reject_unusable_agent_drives(
+            project_id=project_id, data=simple_workflow_create.data
+        )
 
         workflow_id = resource_identity(
             project_id,
@@ -4619,6 +4703,9 @@ class SimpleWorkflowsService:
         # artifact, variant, and blank revision behind.
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
         _reject_unrunnable_agent_connection(simple_workflow_create.data)
+        await self.workflows_service.reject_unusable_agent_drives(
+            project_id=project_id, data=simple_workflow_create.data
+        )
 
         simple_workflow_flags = SimpleWorkflowFlags(
             **WorkflowsService._dump_flags(simple_workflow_create.flags)
@@ -4869,6 +4956,44 @@ class SimpleWorkflowsService:
         if workflow is None:
             return None
 
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+        )
+
+        if workflow_variant is None:
+            return None
+
+        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
+
+        # The data the commit stores, chosen once and checked before the first write.
+        workflow_revision_data = None
+        if should_commit_revision:
+            if simple_workflow_edit.data:
+                workflow_revision_data = WorkflowRevisionData(
+                    **simple_workflow_edit.data.model_dump(mode="json"),
+                )
+            else:
+                latest_workflow_revision = (
+                    await self.workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        #
+                        workflow_variant_ref=Reference(id=workflow_variant.id),
+                    )
+                )
+
+                if latest_workflow_revision is None:
+                    return None
+
+                workflow_revision_data = latest_workflow_revision.data
+
+            await self.workflows_service.reject_unusable_agent_drives(
+                project_id=project_id, data=workflow_revision_data
+            )
+
         workflow_edit = WorkflowEdit(
             id=simple_workflow_edit.id,
             #
@@ -4904,39 +5029,8 @@ class SimpleWorkflowsService:
         if workflow is None:
             return None
 
-        workflow_variant: Optional[
-            WorkflowVariant
-        ] = await self.workflows_service.fetch_workflow_variant(
-            project_id=project_id,
-            #
-            workflow_ref=workflow_ref,
-        )
-
-        if workflow_variant is None:
-            return None
-
-        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
-
         if should_commit_revision:
             workflow_revision_slug = uuid4().hex[-12:]
-
-            if simple_workflow_edit.data:
-                workflow_revision_data = WorkflowRevisionData(
-                    **simple_workflow_edit.data.model_dump(mode="json"),
-                )
-            else:
-                latest_workflow_revision = (
-                    await self.workflows_service.fetch_workflow_revision(
-                        project_id=project_id,
-                        #
-                        workflow_variant_ref=Reference(id=workflow_variant.id),
-                    )
-                )
-
-                if latest_workflow_revision is None:
-                    return None
-
-                workflow_revision_data = latest_workflow_revision.data
 
             workflow_revision_commit = WorkflowRevisionCommit(
                 slug=workflow_revision_slug,

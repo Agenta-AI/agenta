@@ -36,6 +36,8 @@ from typing import Any, ClassVar, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .dtos import AgentDriveAccess, AgentDriveKind
+
 
 class _WireModel(BaseModel):
     """Base for every wire model: camelCase aliases, accept-by-name, allow extra.
@@ -505,9 +507,9 @@ class WireAgentDrive(_WireModel):
     """One configured drive entry (mirrors ``AgentDrive.to_wire``). A ``project`` entry carries
     its ``slug`` and its ``access``; an ``agent`` entry carries neither."""
 
-    kind: Literal["agent", "project"]
+    kind: AgentDriveKind
     slug: Optional[str] = None
-    access: Optional[Literal["read-write", "read"]] = None
+    access: Optional[AgentDriveAccess] = None
 
 
 class WireHarnessFile(_WireModel):

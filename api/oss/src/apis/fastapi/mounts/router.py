@@ -222,6 +222,15 @@ class MountsRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
+            "/projects/sign",
+            self.sign_project_mount_credentials,
+            methods=["POST"],
+            operation_id="sign_project_mount_credentials",
+            response_model=MountCredentialsResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
             "/agents/query",
             self.query_agent_mount,
             methods=["POST"],
@@ -495,6 +504,38 @@ class MountsRouter:
             mounts_service=self.mounts_service,
             project_id=UUID(request.state.project_id),
             mount_id=mount.id,
+        )
+        return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def sign_project_mount_credentials(
+        self,
+        request: Request,
+        *,
+        slug: str = Query(...),
+        access: Literal["read-write", "read"] = Query(default="read-write"),
+    ) -> MountCredentialsResponse:
+        """Sign credentials for an existing project drive, read-only for `access=read`.
+
+        Never creates a drive: a missing or archived one answers 404.
+        """
+        await self._check(request, Permission.USE_MOUNTS)
+        project_id = UUID(request.state.project_id)
+        mount = await self.mounts_service.fetch_project_mount(
+            project_id=project_id,
+            slug=slug,
+        )
+        if not mount:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Mount not found.",
+            )
+        credentials = await sign_mount_credentials(
+            mounts_service=self.mounts_service,
+            project_id=project_id,
+            mount_id=mount.id,
+            read_only=access == "read",
         )
         return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
 

@@ -9,6 +9,9 @@ from pydantic import Field, model_validator, AliasChoices
 
 
 from agenta.sdk.agents.dtos import (
+    MAX_AGENT_DRIVES,
+    AgentDriveAccess,
+    AgentDriveKind,
     HARNESS_IDENTITIES,
     UNLISTED_HARNESS_KINDS,
     SandboxPermission,
@@ -1267,6 +1270,29 @@ class _InstructionsSchema(BaseModel):
     )
 
 
+class _AgentDriveSchema(BaseModel):
+    """Strict twin of :class:`agenta.sdk.agents.dtos.AgentDrive` for schema generation.
+    ``validate_agent_drives`` owns the rules across entries (one agent entry, each slug once)."""
+
+    model_config = ConfigDict(extra="forbid", title="Drive")
+
+    kind: AgentDriveKind = Field(
+        title="Kind",
+        description="agent: the agent's own drive. project: a drive of the project, named by slug.",
+    )
+    slug: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        title="Slug",
+        description="The slug of the project drive. Required for project, absent for agent.",
+    )
+    access: Optional[AgentDriveAccess] = Field(
+        default=None,
+        title="Access",
+        description="Project drives only: read-write (default) or read.",
+    )
+
+
 class AgentTemplateSchema(AgSchemaMixin):
     """The agent template (the ``parameters.agent`` value), as one semantic type.
 
@@ -1320,6 +1346,20 @@ class AgentTemplateSchema(AgSchemaMixin):
             "Skills the agent ships: each is an inline skill template (resolved from the "
             "``skill-template`` catalog type) or an @ag.embed reference to a stored skill the "
             "backend inlines into that same shape before the runner sees it."
+        ),
+    )
+    has_session_drive: bool = Field(
+        default=True,
+        title="Session drive",
+        description="Keep each session's working folder in the store between turns.",
+    )
+    drives: List[_AgentDriveSchema] = Field(
+        default_factory=lambda: [_AgentDriveSchema(kind="agent")],
+        max_length=MAX_AGENT_DRIVES,
+        title="Drives",
+        description=(
+            "The durable drives the agent mounts: its own drive ({kind: agent}, at "
+            "agent-files/) and project drives ({kind: project, slug, access}, at drives/<slug>/)."
         ),
     )
     harness: "_HarnessSchema" = Field(
@@ -1540,6 +1580,8 @@ def build_agent_v0_default(
         # on the Agenta tools every new agent gets, in every run.
         "tools": [{"type": "agenta_tools", "tools": dict(DEFAULT_AGENTA_TOOLS)}],
         "mcps": [],
+        "has_session_drive": True,
+        "drives": [{"kind": "agent"}],
     }
     if skill_slug is not None:
         template["skills"] = [

@@ -345,6 +345,9 @@ class MountsDAO(MountsDAOInterface):
                 if mount_query.agent_id is not None:
                     stmt = stmt.where(MountDBE.agent_id == mount_query.agent_id)
 
+                if mount_query.slugs is not None:
+                    stmt = stmt.where(MountDBE.slug.in_(mount_query.slugs))
+
             else:
                 stmt = stmt.where(MountDBE.deleted_at.is_(None))
 

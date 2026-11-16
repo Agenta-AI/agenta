@@ -245,6 +245,83 @@ export class MountsClient {
     }
 
     /**
+     * Sign credentials for an existing project drive, read-only for `access=read`.
+     *
+     * Never creates a drive: a missing or archived one answers 404.
+     *
+     * @param {AgentaApi.SignProjectMountCredentialsRequest} request
+     * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.mounts.signProjectMountCredentials({
+     *         slug: "slug"
+     *     })
+     */
+    public signProjectMountCredentials(
+        request: AgentaApi.SignProjectMountCredentialsRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.MountCredentialsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__signProjectMountCredentials(request, requestOptions));
+    }
+
+    private async __signProjectMountCredentials(
+        request: AgentaApi.SignProjectMountCredentialsRequest,
+        requestOptions?: MountsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.MountCredentialsResponse>> {
+        const { slug, access } = request;
+        const _queryParams: Record<string, unknown> = {
+            slug,
+            access: access != null ? access : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "mounts/projects/sign",
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.MountCredentialsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/mounts/projects/sign");
+    }
+
+    /**
      * @param {AgentaApi.AgentMountQueryRequest} request
      * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
