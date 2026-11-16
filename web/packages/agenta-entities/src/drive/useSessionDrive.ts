@@ -5,6 +5,7 @@ import {atom, useAtomValue} from "jotai"
 import {
     drivePathFromToolPath,
     latestMountFilesQueryFamily,
+    mountDirQueryFamily,
     mountFilesQueryFamily,
     mountRootQueryFamily,
     pickCwdMount,
@@ -93,19 +94,30 @@ const foldProjectFiles = (drive: ProjectDrive, files: readonly MountFile[]): Mou
  * surface builds AND by the gate that decides whether a list is empty — so a gate can never keep a
  * row a list then drops (the bug class behind #5480).
  *
- * Excluded: runner plumbing ({@link isInternalDrivePath}), and the bare `agent-files` entry — that
- * one is the fold-point SYMLINK into the agent mount, not a file. Its CONTENTS are listed, folded
- * under `agent-files/` from the agent mount itself; the marker never is.
+ * Excluded: runner plumbing ({@link isInternalDrivePath}), the bare `agent-files` entry and each
+ * bare `drives/<slug>` entry — those are the fold-point SYMLINKS into the agent mount and the
+ * project drives, not files. Their CONTENTS are listed, folded in from the mounts themselves; the
+ * markers never are.
  *
- * That exclusion is about PROVENANCE, not the name: the marker only exists in the SESSION mount.
- * Inside the agent mount, `agent-files` is an ordinary directory a user is free to create, so a
- * caller listing agent-mount entries passes `fromAgentMount` and keeps it — otherwise the folder
- * vanishes from the root listing while the file count still counts what is inside it.
+ * That exclusion is about PROVENANCE, not the name: the markers only exist in the SESSION mount.
+ * Inside the agent mount or a project mount, the same paths are ordinary entries a user is free to
+ * create, so a caller listing such a mount's entries passes `fromAgentMount` and keeps them —
+ * otherwise the folder vanishes from the root listing while the file count still counts what is
+ * inside it.
  */
 export const isListableDrivePath = (path: string, opts?: {fromAgentMount?: boolean}): boolean => {
     const rel = cleanPath(path)
     if (!rel || isInternalDrivePath(rel)) return false
-    return opts?.fromAgentMount === true || rel !== AGENT_FILES_DIR
+    if (opts?.fromAgentMount === true) return true
+    return rel !== AGENT_FILES_DIR && !isProjectDriveLink(rel)
+}
+
+/** A `drives/<slug>` entry itself: the session folder's link to a project drive. */
+export const isProjectDriveLink = (path: string): boolean => {
+    const rel = cleanPath(path)
+    if (!rel.startsWith(`${PROJECT_DRIVES_DIR}/`)) return false
+    const slug = rel.slice(PROJECT_DRIVES_DIR.length + 1)
+    return Boolean(slug) && !slug.includes("/")
 }
 
 /** {@link isListableDrivePath} minus hidden paths; the explorer asks the wider one (#6027). */
@@ -532,6 +544,14 @@ export function useSessionDriveSummary(
         [projectDrives, hasVisibleRecords],
     )
     const projectSummary = useAtomValue(projectSummaryAtom)
+    // The cwd count is the store's, so it counts the `drives/<slug>` links; list that one folder to
+    // take them out. Only when the revision names project drives, so most sessions pay nothing.
+    const cwdLinksQuery = useAtomValue(
+        mountDirQueryFamily({
+            mountId: projectDrives.length ? (mount?.id ?? "") : "",
+            path: PROJECT_DRIVES_DIR,
+        }),
+    )
 
     // Re-run the underlying queries (retry from the errored state). `refetch()` bypasses `enabled`
     // and DOES invoke the queryFn on the empty-id (disabled) queries, but each queryFn guards its id
@@ -606,8 +626,11 @@ export function useSessionDriveSummary(
         const recents = recordRecents.length ? recordRecents : rootRecents
         const lastTouchedAt = recents.length ? (recents[0].touchedAt ?? null) : null
 
+        const cwdLinks = (cwdLinksQuery.data ?? []).filter(
+            (f) => !f.is_folder && isProjectDriveLink(f.path),
+        ).length
         const fileCount =
-            (cwdCount.data?.total ?? 0) +
+            Math.max(0, (cwdCount.data?.total ?? 0) - cwdLinks) +
             (agentMount ? (agentCount.data?.total ?? 0) : 0) +
             projectSummary.reduce((sum, {count}) => sum + (count?.total ?? 0), 0)
         const fileCountCapped =
@@ -736,6 +759,7 @@ export function useSessionDriveSummary(
         agentMount,
         projectDrives,
         projectSummary,
+        cwdLinksQuery.data,
         recordFiles,
         hasVisibleRecords,
         rootQuery.data,
