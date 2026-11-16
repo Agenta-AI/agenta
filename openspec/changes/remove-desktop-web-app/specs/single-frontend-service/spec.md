@@ -35,3 +35,17 @@ A CI step SHALL fail when a file outside the allowlist names `web/oss`, `web/ee`
 #### Scenario: New mention
 - **WHEN** a PR adds `web/oss` to a file outside the allowlist
 - **THEN** the guard step fails and names the file and line
+
+### Requirement: No antd in the frontend packages
+No `web/packages/*`, `web/mobile`, `web/website` or `web/storybook` source file SHALL import `antd` or `@ant-design/*`, and no `package.json` in `web/` SHALL declare them.
+
+#### Scenario: Lint blocks antd
+- **WHEN** a PR adds an `antd` import to a file in `web/packages`
+- **THEN** lint fails on that import
+
+### Requirement: Package code has a live consumer
+Every source file in `web/packages/*/src` SHALL be reached from `web/mobile`, `web/website`, `web/storybook` or a package unit test.
+
+#### Scenario: Unused-code report
+- **WHEN** the unused-code report runs on the `web` workspace after PR 5
+- **THEN** it lists no unused package file

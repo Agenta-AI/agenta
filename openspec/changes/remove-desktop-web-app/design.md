@@ -26,7 +26,6 @@ What ties the repo to the desktop app today:
 **Non-Goals:**
 - Moving `/m` to basePath `/`.
 - `/m` Playwright E2E coverage.
-- Removing `antd` from `@agenta/*` packages.
 - Rewriting dated design docs.
 - Changing SDK or backend link formats, or SuperTokens `website_base_path`.
 
@@ -107,10 +106,16 @@ Five PRs. PR 1 and PR 2 branch from `main` on their own. PR 3 stacks on both. PR
 | 2 | `feat(frontend): /m answers legacy desktop URLs and stops sending users to the desktop` | Legacy URL handler (D1–D4); desktop trip removal, Developer Mode kept (D5) | — |
 | 3 | `feat(hosting): route / to web-mobile and retire the web service` | Compose, nginx, helm, Railway, CI, upgrade note (D7–D9) | 1, 2 |
 | — | soak (D10) | | 3 live on cloud |
-| 4 | `chore(frontend): delete web/oss, web/ee and web/tests` | Delete the folders and their tooling, images and deps; then desktop-only package code | 3, soak |
-| 5 | `docs: remove desktop app mentions and guard against new ones` | Instructions, docs, comments, CI grep guard (D11) | 4 |
+| 4 | `chore(frontend): delete web/oss, web/ee and web/tests` | Delete the folders, their tooling, images and deps; rewrite docs and instructions; add the grep guard (D11) | 3, soak |
+| 5 | `refactor(frontend): remove desktop-only package code and antd` | Desktop gate code; package files and exports nothing live uses; `@agenta/annotation-ui`; antd components in `@agenta/playground-ui`; antd and `@ant-design/*` out of every package (D12) | 4 |
+
+### D12. Package code follows its last consumer
+
+After PR 4, the live consumers are `web/mobile`, `web/website`, `web/storybook` and package unit tests. Package code that none of them reaches is deleted in PR 5, not kept "in case". This includes all of `@agenta/annotation-ui` and the antd components in `@agenta/playground-ui`: a static trace on 2026-11-16 found no antd module reached from `/m` at runtime. The only live antd uses are type imports in `@agenta/ui`'s `InfiniteVirtualTable` and one story; they get local types. Then `antd` and `@ant-design/*` leave every `package.json` and a lint ban keeps them out. The trace is redone with `knip` at the start of PR 5, because `web/oss` was still a consumer when the baseline was taken.
 
 ## Risks / Trade-offs
+
+- [PR 5 deletes a component that `/m` reaches only through a dynamic path the trace missed] → the `/m` build, `speed:check` and the screenshot set catch it; the `knip` report lists every entry it used.
 
 - [Two redirect hops for `/w/*`] → Accepted; it keeps one owner of the mapping. Both hops are 307 and cheap.
 - [An unmapped legacy path lands on the `/m` root] → D10 logging finds it during the soak; add a mapping before the delete PR.

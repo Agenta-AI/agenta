@@ -50,7 +50,7 @@ Commit B: stop sending users to the desktop (Developer Mode stays).
 
 - [ ] 4.1 Watch the legacy fallback log on cloud for 7 days. Add a mapping for any path that has a `/m` page. Exit when 7 days pass with none.
 
-## 5. PR 4 — Delete web/oss, web/ee and web/tests
+## 5. PR 4 — Delete web/oss, web/ee and web/tests, and every mention
 
 Commit A: delete the folders and their tooling.
 
@@ -60,19 +60,36 @@ Commit A: delete the folders and their tooling.
 - [ ] 5.4 `web/entrypoint.sh` writes `__env.js` only into `mobile/public`; remove `/app/{oss,ee}/public` from `web/mobile/docker/Dockerfile.gh:82-83`; update `api/oss/tests/pytest/unit/test_web_entrypoint_email_env.py`.
 - [ ] 5.5 `web/package.json` (workspaces incl. `variants-state`, `link:` devDeps, oss/ee/test scripts, `format*` ignore paths, root `next`), `pnpm-workspace.yaml` (workspaces, overrides only oss needed), regenerate `pnpm-lock.yaml`, `turbo.json`, `web/eslint.config.mjs`, `web/mobile/eslint.config.mjs`, `web/.dockerignore`, root `.pre-commit-config.yaml`, root `.gitignore`.
 - [ ] 5.6 `.claude/launch.json`, `examples/python/RAG_QA_chatbot/run-agent-chat-slice.sh`, `sdks/python/oss/tests/.../test_vercel_stream_conformance.py` (pin to `web/mobile/package.json`).
-- [ ] 5.7 Proof: CI green (lint, types, unit, mobile, storybook and website builds); `pnpm install --frozen-lockfile` clean; grep for the guarded patterns returns only allowlisted files.
+- [ ] 5.7 Proof: CI green (lint, types, unit, mobile, storybook and website builds); `pnpm install --frozen-lockfile` clean.
 
-Commit B: desktop-only package code.
+Commit B: docs, instructions and the guard.
 
-- [ ] 5.8 `mobileGate`: delete `decideDesktopGate`, `isDesktopOnlyLink`, the desktop cookies and their writers (`agenta-classic-mode`, `agenta-beta-developer-mode`, `agenta-mobile-optout`/`optin`), `useClassicModeRedirect`, `desktopEscapeHref`, `writeClassicModeCookie`, and `MOBILE_AUTH_CALLBACK_COOKIE` with its use in `agenta-auth/src/client.ts`. Rename `classicModeEnabledAtom` and related names to developer-mode names with no behavior change; the Developer Mode switch stays.
-- [ ] 5.9 Delete `useFileActivityDetector` (`agenta-chat`), the `setup` option of `useCreateAgent` (`agenta-home-ui`), `readDesktopLastUsed` in `web/mobile/src/lib/context.ts`.
-- [ ] 5.10 Delete oss-only subpaths after checking in-package use: `@agenta/annotation-ui` root, `context`, `queue-list`, `session`; `@agenta/playground-ui/{workflow-revision-drawer,execution-items,execution-item-comparison-view,mode-switch}`; `@agenta/entities/{runnable/deploy,shared/invalidation}`; `@agenta/ui/custom-resize-handle.css`; `@agenta/chat/tests/goldenSessions`.
-- [ ] 5.11 Proof: CI green; `/m` smoke screenshots (home, agent chat, settings, sign-in).
+- [ ] 5.8 Rewrite agent instructions: root `AGENTS.md`, `web/AGENTS.md`, `web/mobile/AGENTS.md`, `.agents/skills/mobile-app-structure/SKILL.md:50`, `agent-release-gate/resources/test_qa_product_concurrency.py:429`.
+- [ ] 5.9 Rewrite `web/packages/README.md`, `hosting/docker-compose/ee/README.md`, `hosting/railway/oss/README.md`, `hosting/railway/oss/template/README.md`, `docs/docs/self-host/99-faq.mdx`, `03-deploy-to-kubernetes.mdx`, `04-deploy-on-railway.mdx`, `01-upgrading.mdx`, `docs/design/testing/*.specs.md`, open `openspec/changes/*` that name web/oss files.
+- [ ] 5.10 Rewrite or drop comments outside `web/packages`: `web/mobile/**`, `web/storybook/**`, `web/_reference/**`, `api/oss/src/core/sessions/streams/service.py:113`, `services/runner/src/engines/sandbox_agent/engine.ts:63`, `clients/scripts/generate.sh:528`, `17-check-mobile.yml:21-22`. Package comments change in PR 5 with the code they describe.
+- [ ] 5.11 Add the note to `docs/design/README.md`. Add the CI grep guard with the allowlist in design.md D11; match `agenta-web` only when not followed by `-mobile`. Allowlist `web/packages/**` until PR 5 lands, then remove it from the allowlist.
+- [ ] 5.12 Proof: the guard passes; the guard fails on a seeded mention in a scratch commit.
 
-## 6. PR 5 — Docs and guard
+## 6. PR 5 — Remove package code that only the desktop used, and antd
 
-- [ ] 6.1 Rewrite agent instructions: root `AGENTS.md`, `web/AGENTS.md`, `web/mobile/AGENTS.md`, `.agents/skills/mobile-app-structure/SKILL.md:50`, `agent-release-gate/resources/test_qa_product_concurrency.py:429`.
-- [ ] 6.2 Rewrite `web/packages/README.md`, `hosting/docker-compose/ee/README.md`, `hosting/railway/oss/README.md`, `hosting/railway/oss/template/README.md`, `docs/docs/self-host/99-faq.mdx`, `03-deploy-to-kubernetes.mdx`, `04-deploy-on-railway.mdx`, `01-upgrading.mdx`, `docs/design/testing/*.specs.md`, open `openspec/changes/*` that name web/oss files.
-- [ ] 6.3 Rewrite or drop code comments in `web/packages/**`, `web/mobile/**`, `web/storybook/**`, `web/_reference/**`, `api/oss/src/core/sessions/streams/service.py:113`, `services/runner/src/engines/sandbox_agent/engine.ts:63`, `clients/scripts/generate.sh:528`, `17-check-mobile.yml:21-22`.
-- [ ] 6.4 Add the note to `docs/design/README.md`. Add the CI grep guard with the allowlist in design.md D11; match `agenta-web` only when not followed by `-mobile`.
-- [ ] 6.5 Proof: the guard passes; the guard fails on a seeded mention in a scratch commit.
+Baseline (2026-11-16, static import trace from `web/mobile/src`, `web/mobile/scripts` and `web/website/src` through every `@agenta/*` export map; type-only imports ignored): about 190 package source files are not reached. Of these, `@agenta/annotation-ui` (30 of 30 files, 19 import antd) and `@agenta/playground-ui` (68 of 190, 28 import antd) are the bulk. The rest are 1 to 26 files each in `entities`, `entity-ui`, `settings-ui`, `ui`, `shared`, `observability*`, `annotation`. No antd module is reached at runtime from `/m`. Recompute this list at the start of the PR: `web/oss` was still a consumer when it was taken.
+
+Commit A: desktop gate and desktop-only symbols.
+
+- [ ] 6.1 `mobileGate`: delete `decideDesktopGate`, `isDesktopOnlyLink`, the desktop cookies and their writers (`agenta-classic-mode`, `agenta-beta-developer-mode`, `agenta-mobile-optout`/`optin`), `useClassicModeRedirect`, `desktopEscapeHref`, `writeClassicModeCookie`, and `MOBILE_AUTH_CALLBACK_COOKIE` with its use in `agenta-auth/src/client.ts`. Rename `classicModeEnabledAtom` and related names to developer-mode names with no behavior change; the Developer Mode switch stays.
+- [ ] 6.2 Delete `useFileActivityDetector` (`agenta-chat`), the `setup` option of `useCreateAgent` (`agenta-home-ui`), `readDesktopLastUsed` in `web/mobile/src/lib/context.ts`.
+
+Commit B: unused files and exports.
+
+- [ ] 6.3 Run an unused-code report (`knip` in the `web` workspace, entries: `web/mobile` pages, `web/mobile/scripts`, `web/website`, `web/storybook` stories, package unit tests). Save the report in the PR.
+- [ ] 6.4 Delete the whole `@agenta/annotation-ui` package. Replace the default add-to-queue slot in `agenta-observability-ui/src/traceDrawer/referenceSlots.tsx` with an empty default (`/m` already registers its own picker), then remove the `@agenta/annotation-ui/add-to-queue` alias from `web/mobile/next.config.ts` and the package ban from `web/mobile/eslint.config.mjs`.
+- [ ] 6.5 Delete the unused `@agenta/playground-ui` components (`ExecutionItems`, `ExecutionItemComparisonView`, `ExecutionHeader`, `ExecutionResultView`, `EntitySelector`, `TestsetSelectionModal`, `PlaygroundInputsBody`, `PlaygroundOutputs`, `TurnMessageHeaderOptions`, `EmptyState`, `shared/EvaluatorFieldGrid`, `shared/NodeResultCard`, `adapters/*`, `workflow-revision-drawer`, `mode-switch`, and the rest the report lists), their subpath exports, and their entries in the root barrel.
+- [ ] 6.6 Delete the other unused files and exports the report lists, including the subpaths `@agenta/entities/{runnable/deploy,shared/invalidation}`, `@agenta/ui/custom-resize-handle.css`, `@agenta/chat/tests/goldenSessions`. Delete unit tests that only cover deleted code.
+- [ ] 6.7 Storybook: delete stories whose component is deleted; switch stories that import the `@agenta/playground-ui` root barrel to subpaths.
+- [ ] 6.8 Rewrite or drop the package comments that name the desktop app (`agenta-observability-ui`, `agenta-entities`, `agenta-chat`, `agenta-ui`, `agenta-playground-ui`, `agenta-entity-ui`, `agenta-shared`, `agenta-settings-ui`, `agenta-auth`). Remove `web/packages/**` from the guard allowlist.
+
+Commit C: antd out of the packages.
+
+- [ ] 6.9 Replace the antd type imports in `agenta-ui/src/InfiniteVirtualTable/{antdColumns.ts,types.ts,components/InfiniteVirtualTableInner.tsx,hooks/useExpandableRows.tsx}` with local types, and the antd import in `storybook/stories/entity-ui/ObjectSchemaControl.stories.tsx`.
+- [ ] 6.10 Remove `antd` and `@ant-design/icons` from `agenta-ui`, `agenta-entities`, `agenta-entity-ui`, `agenta-playground-ui` and `storybook`; regenerate the lockfile. Add `antd` and `@ant-design/*` to the `web/packages` lint bans so they cannot come back.
+- [ ] 6.11 Proof: `git grep -E "from ['\"](antd|@ant-design/)"` in `web/` returns nothing; the unused-code report after the PR lists no file; CI green (lint, types, unit, mobile build and `speed:check`, storybook and website builds); `/m` screenshots of evaluations, annotations, testsets, prompts, playground, observability trace drawer (add-to-queue), agent chat and settings, before and after.

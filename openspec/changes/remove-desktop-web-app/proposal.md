@@ -14,7 +14,7 @@
 - `/m` stops sending users to the desktop. The Developer Mode switch stays and keeps gating the evaluations, annotations, testsets and prompts views.
 - `web-mobile` takes the catch-all route in compose, nginx, helm, Railway and cloud. The `web` service leaves every deployment.
 - After a soak with an exit criterion, `web/oss`, `web/ee` and `web/tests` are deleted with all their tooling, CI steps, images and dependencies.
-- Desktop-only package code is deleted.
+- Package code that only the desktop used is deleted, including `@agenta/annotation-ui` and the antd components in `@agenta/playground-ui`. `antd` and `@ant-design/*` leave every package.
 - Agent instructions, docs and comments stop naming the deleted paths. A CI grep guard keeps it that way.
 - **BREAKING (self-hosted)**: compose files and the helm chart no longer have a `web` service. Users update the compose file and the `agenta-web-mobile` tag together.
 
