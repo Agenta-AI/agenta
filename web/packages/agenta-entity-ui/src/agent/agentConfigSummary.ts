@@ -1,5 +1,6 @@
 import {createT} from "@agenta/i18n"
 import agentConfigCatalog from "@agenta/i18n/catalogs/entityUi.agentConfig"
+import {skillDisplayName, stripStaticSkillPrefix} from "@agenta/shared/utils"
 
 // Every helper here translates when called, so a re-rendering card reads the current language.
 const tNow = createT(agentConfigCatalog)
@@ -14,8 +15,6 @@ const tNow = createT(agentConfigCatalog)
  * Everything is optional on purpose: a revision written before a field existed, or an agent that
  * never set one, yields `null` and the row says so rather than the card failing to render.
  */
-import {skillDisplayName, stripStaticSkillPrefix} from "@agenta/shared/utils"
-
 export interface AgentConfigSummary {
     model: string | null
     harness: string | null

@@ -38,7 +38,6 @@ import {
 import {createT, useT} from "@agenta/i18n"
 import mcpPermissionsCatalog from "@agenta/i18n/catalogs/entityUi.mcpPermissions"
 import {projectIdAtom} from "@agenta/shared/state"
-import {formatCount} from "@agenta/shared/utils"
 import {McpServerMark} from "@agenta/ui/agent-icon"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Alert, Button, InlineConfirm} from "@agenta/ui/ui"
