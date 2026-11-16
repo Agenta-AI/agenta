@@ -11,6 +11,8 @@
  */
 import {useCallback, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {Keyboard} from "@phosphor-icons/react"
 
 import {Button, SimpleTooltip} from "../components/ui"
@@ -28,6 +30,7 @@ export const ShortcutsHelpButton = ({
     hotkey = true,
     className = "h-7 w-7 shrink-0 p-0",
 }: ShortcutsHelpButtonProps) => {
+    const t = useT(navigationCatalog)
     const [open, setOpen] = useState(false)
     useShortcutsSheetHotkey(
         useCallback(() => setOpen(true), []),
@@ -39,14 +42,15 @@ export const ShortcutsHelpButton = ({
             <SimpleTooltip
                 title={
                     <span className="flex items-center gap-1.5">
-                        Keyboard shortcuts <ShortcutKeys id="help.sheet" tone="inverse" />
+                        {t("navigation.items.keyboardShortcuts")}{" "}
+                        <ShortcutKeys id="help.sheet" tone="inverse" />
                     </span>
                 }
             >
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Keyboard shortcuts"
+                    aria-label={t("navigation.items.keyboardShortcuts")}
                     onClick={() => setOpen(true)}
                     className={className}
                 >

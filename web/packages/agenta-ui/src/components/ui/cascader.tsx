@@ -1,5 +1,8 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {X} from "@phosphor-icons/react"
 import {ChevronDown, ChevronRight, LoaderCircle} from "lucide-react"
 
@@ -133,8 +136,8 @@ export function Cascader({
     changeOnSelect = false,
     expandTrigger = "click",
     displayRender,
-    placeholder = "Select",
-    emptyText = "No data",
+    placeholder: placeholderProp,
+    emptyText: emptyTextProp,
     allowClear = false,
     showSearch = false,
     disabled = false,
@@ -153,6 +156,9 @@ export function Cascader({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: CascaderProps) {
+    const t = useT(uiControlsCatalog, commonCatalog)
+    const placeholder = placeholderProp ?? t("ui.controls.select")
+    const emptyText = emptyTextProp ?? t("ui.controls.noData")
     const [open, setOpen] = React.useState(defaultOpen)
     const [query, setQuery] = React.useState("")
     const [activePath, setActivePath] = React.useState<string[]>(value ?? [])
@@ -511,7 +517,7 @@ export function Cascader({
                                     type="button"
                                     data-cascader-clear
                                     tabIndex={-1}
-                                    aria-label="Clear selection"
+                                    aria-label={t("common.clearSelection")}
                                     className={cn(
                                         "absolute inset-0 flex cursor-pointer items-center justify-center border-0 bg-transparent p-0 opacity-0 transition-opacity hover:text-foreground",
                                         "group-hover:opacity-100 group-focus-within:opacity-100",
@@ -533,7 +539,7 @@ export function Cascader({
             <PopoverContent
                 align="start"
                 container={container}
-                aria-label={ariaLabel ?? "Options"}
+                aria-label={ariaLabel ?? t("ui.controls.options")}
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onCloseAutoFocus={(e) => e.preventDefault()}
                 className={cn("p-0 font-portal", contentClassName)}
@@ -542,7 +548,7 @@ export function Cascader({
                     {searching ? (
                         <div
                             role="listbox"
-                            aria-label={ariaLabel ?? "Search results"}
+                            aria-label={ariaLabel ?? t("ui.controls.searchResults")}
                             style={{...columnStyle, maxWidth: undefined}}
                             className="overflow-y-auto p-1"
                         >
@@ -598,7 +604,7 @@ export function Cascader({
                                             {isPending ? (
                                                 <LoaderCircle
                                                     className="size-3 animate-spin"
-                                                    aria-label="Loading"
+                                                    aria-label={t("common.loading")}
                                                 />
                                             ) : (
                                                 emptyText

@@ -1,5 +1,7 @@
 import {memo, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import type {MessageContent} from "@agenta/shared/types"
 import {getAttachments} from "@agenta/shared/utils"
 
@@ -110,6 +112,7 @@ const CHARS_PER_LINE = 80
  */
 const SingleMessage = memo(
     ({message, keyPrefix, index, truncate, maxLines, showDivider}: SingleMessageProps) => {
+        const t = useT(uiChatCatalog)
         const contentString = useMemo(() => getContentString(message.content), [message.content])
         const imageUrls = useMemo(() => getImageUrls(message.content), [message.content])
         // Calculate max chars based on maxLines to prevent overflow
@@ -135,7 +138,7 @@ const SingleMessage = memo(
                             <ImagePreview
                                 key={`${keyPrefix}-${index}-image-${imageIndex}`}
                                 src={imageUrl}
-                                alt={`Message attachment ${imageIndex + 1}`}
+                                alt={t("ui.chat.messageAttachmentN", {n: imageIndex + 1})}
                                 size={truncate ? 36 : 56}
                             />
                         ))}
@@ -143,7 +146,7 @@ const SingleMessage = memo(
                 )}
                 {message.tool_calls && message.tool_calls.length > 0 && (
                     <div className="flex flex-col gap-1">
-                        <span className="text-xs font-medium">Tool Calls:</span>
+                        <span className="text-xs font-medium">{t("ui.chat.toolCalls")}</span>
                         <span className="whitespace-pre-wrap break-words text-xs bg-zinc-1 rounded px-2 py-1 block">
                             {formatToolCalls(message.tool_calls)}
                         </span>

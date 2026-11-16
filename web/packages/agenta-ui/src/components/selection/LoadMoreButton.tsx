@@ -21,6 +21,9 @@
 
 import React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {ChevronDown} from "lucide-react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
@@ -118,8 +121,8 @@ export function LoadMoreButton({
     onClick,
     isLoading = false,
     hasMore: hasMoreProp = true,
-    label = "Load more",
-    loadingLabel = "Loading...",
+    label: labelProp,
+    loadingLabel: loadingLabelProp,
     totalCount: totalCountProp,
     loadedCount: loadedCountProp,
     showCount = false,
@@ -127,6 +130,9 @@ export function LoadMoreButton({
     className = "",
     block = true,
 }: LoadMoreButtonProps) {
+    const t = useT(uiControlsCatalog, commonCatalog)
+    const label = labelProp ?? t("common.loadMore")
+    const loadingLabel = loadingLabelProp ?? t("ui.controls.loadingDots")
     // Use counts object if provided, otherwise fall back to individual props
     const hasMore = counts?.hasMore ?? hasMoreProp
     const totalCount = counts?.totalCount ?? totalCountProp
@@ -141,9 +147,9 @@ export function LoadMoreButton({
     const countString = counts?.displayLabel
         ? ` (${counts.displayLabel})`
         : showCount && loadedCount !== undefined && totalCount
-          ? ` (${loadedCount} of ${totalCount})`
+          ? ` ${t("ui.controls.loadedOfTotal", {loaded: loadedCount, total: totalCount})}`
           : showCount && loadedCount !== undefined
-            ? ` (${loadedCount} loaded)`
+            ? ` ${t("ui.controls.loadedCount", {loaded: loadedCount})}`
             : ""
 
     return (
@@ -181,9 +187,11 @@ export function LoadMoreInline({
     onClick,
     isLoading = false,
     hasMore = true,
-    label = "Load more",
+    label: labelProp,
     className = "",
 }: LoadMoreInlineProps) {
+    const t = useT(uiControlsCatalog, commonCatalog)
+    const label = labelProp ?? t("common.loadMore")
     if (!hasMore && !isLoading) {
         return null
     }
@@ -200,7 +208,7 @@ export function LoadMoreInline({
                     )}
                 >
                     <Spinner size="small" />
-                    Loading...
+                    {t("ui.controls.loadingDots")}
                 </span>
             ) : (
                 <button
@@ -240,12 +248,12 @@ export interface EndOfListProps {
 /**
  * Indicator shown when all items have been loaded
  */
-export function EndOfList({
-    message = "All items loaded",
-    totalCount,
-    className = "",
-}: EndOfListProps) {
-    const displayMessage = totalCount ? `${message} (${totalCount} total)` : message
+export function EndOfList({message: messageProp, totalCount, className = ""}: EndOfListProps) {
+    const t = useT(uiControlsCatalog)
+    const message = messageProp ?? t("ui.controls.allItemsLoaded")
+    const displayMessage = totalCount
+        ? `${message} ${t("ui.controls.totalInParens", {total: totalCount})}`
+        : message
 
     return (
         <div className={cn("py-3 text-center", textColors.quaternary, className)}>

@@ -1,5 +1,7 @@
 import {lazy, Suspense} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {AutoFocusPlugin} from "@lexical/react/LexicalAutoFocusPlugin"
 import {ContentEditable} from "@lexical/react/LexicalContentEditable"
 import {LexicalErrorBoundary} from "@lexical/react/LexicalErrorBoundary"
@@ -88,6 +90,7 @@ const EditorPlugins = ({
     isDiffView = false,
     ariaLabel,
 }: EditorPluginsProps) => {
+    const t = useT(uiEditorCatalog)
     const markdown = useAtomValue(markdownViewAtom(id))
 
     return (
@@ -120,7 +123,9 @@ const EditorPlugins = ({
                         // Lexical 0.46 spreads standard aria-* onto the div; `ariaLabel` is dropped.
                         // Lexical sets role="textbox", so an unnamed surface fails aria-input-field-name.
                         aria-label={
-                            ariaLabel || placeholder || (codeOnly ? "Code editor" : "Text editor")
+                            ariaLabel ||
+                            placeholder ||
+                            (codeOnly ? t("ui.editor.codeEditor") : t("ui.editor.textEditor"))
                         }
                         className={clsx(
                             `editor-input relative outline-none min-h-[inherit] ${

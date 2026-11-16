@@ -1,10 +1,14 @@
 import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
+import {createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Copy} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 import {Popover, PopoverAnchor, PopoverArrow, PopoverContent} from "../components/ui/popover"
 import {message} from "../utils/appMessageContext"
+
+const tNow = createT(commonCatalog)
 
 /** Radix Popover has no hover trigger; reproduce antd's enter/leave delays. */
 function useHoverOpen(enterDelay: number, leaveDelay: number) {
@@ -92,7 +96,7 @@ const CellContentPopover = memo(
         const handleCopy = useCallback(() => {
             if (copyText) {
                 navigator.clipboard.writeText(copyText)
-                message.success("Copied to clipboard")
+                message.success(tNow("common.copiedToClipboard"))
             }
         }, [copyText])
 
