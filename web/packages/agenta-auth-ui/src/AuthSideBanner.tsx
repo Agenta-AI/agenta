@@ -133,7 +133,7 @@ const AuthSideBanner = () => {
                     href={`https://github.com/${REPO}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-6 items-center gap-1.5 self-start rounded-full border border-solid border-border px-3 text-xs uppercase tracking-[0.02em] text-muted-foreground no-underline outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]"
+                    className="inline-flex h-6 items-center gap-1.5 self-start rounded-full border border-solid border-border bg-background px-3 text-xs text-muted-foreground no-underline outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]"
                 >
                     <GithubMark />
                     Open source · {stars}
