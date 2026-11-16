@@ -4945,18 +4945,6 @@ class SimpleWorkflowsService:
 
         workflow_ref = Reference(id=simple_workflow_edit.id)
 
-        # The data this edit will commit: its own, or the current revision's when it has none.
-        data_to_commit: Any = simple_workflow_edit.data
-        if data_to_commit is None and simple_workflow_edit.model_fields_set - {"id"}:
-            current = await self.workflows_service.fetch_workflow_revision(
-                project_id=project_id,
-                workflow_ref=workflow_ref,
-            )
-            data_to_commit = current.data if current else None
-        await self.workflows_service.reject_unusable_agent_drives(
-            project_id=project_id, data=data_to_commit
-        )
-
         workflow: Optional[Workflow] = await self.workflows_service.fetch_workflow(
             project_id=project_id,
             #
@@ -4965,6 +4953,44 @@ class SimpleWorkflowsService:
 
         if workflow is None:
             return None
+
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+        )
+
+        if workflow_variant is None:
+            return None
+
+        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
+
+        # The data the commit stores, chosen once and checked before the first write.
+        workflow_revision_data = None
+        if should_commit_revision:
+            if simple_workflow_edit.data:
+                workflow_revision_data = WorkflowRevisionData(
+                    **simple_workflow_edit.data.model_dump(mode="json"),
+                )
+            else:
+                latest_workflow_revision = (
+                    await self.workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        #
+                        workflow_variant_ref=Reference(id=workflow_variant.id),
+                    )
+                )
+
+                if latest_workflow_revision is None:
+                    return None
+
+                workflow_revision_data = latest_workflow_revision.data
+
+            await self.workflows_service.reject_unusable_agent_drives(
+                project_id=project_id, data=workflow_revision_data
+            )
 
         workflow_edit = WorkflowEdit(
             id=simple_workflow_edit.id,
@@ -5001,39 +5027,8 @@ class SimpleWorkflowsService:
         if workflow is None:
             return None
 
-        workflow_variant: Optional[
-            WorkflowVariant
-        ] = await self.workflows_service.fetch_workflow_variant(
-            project_id=project_id,
-            #
-            workflow_ref=workflow_ref,
-        )
-
-        if workflow_variant is None:
-            return None
-
-        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
-
         if should_commit_revision:
             workflow_revision_slug = uuid4().hex[-12:]
-
-            if simple_workflow_edit.data:
-                workflow_revision_data = WorkflowRevisionData(
-                    **simple_workflow_edit.data.model_dump(mode="json"),
-                )
-            else:
-                latest_workflow_revision = (
-                    await self.workflows_service.fetch_workflow_revision(
-                        project_id=project_id,
-                        #
-                        workflow_variant_ref=Reference(id=workflow_variant.id),
-                    )
-                )
-
-                if latest_workflow_revision is None:
-                    return None
-
-                workflow_revision_data = latest_workflow_revision.data
 
             workflow_revision_commit = WorkflowRevisionCommit(
                 slug=workflow_revision_slug,

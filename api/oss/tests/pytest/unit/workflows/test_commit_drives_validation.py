@@ -5,6 +5,7 @@ The entry rules are the SDK's `validate_agent_drives` (code `invalid_drive_entry
 (code `drive_not_found`). Both answer 422 with the agent-facing envelope.
 """
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -12,10 +13,13 @@ import pytest
 from fastapi import HTTPException
 
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
+from oss.src.core.applications.dtos import ApplicationRevision, SimpleApplicationEdit
+from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.workflows.dtos import (
     SimpleWorkflowCreate,
     SimpleWorkflowEdit,
     WorkflowRevision,
+    WorkflowVariant,
     WorkflowRevisionCommit,
 )
 from oss.src.core.workflows.service import SimpleWorkflowsService, WorkflowsService
@@ -312,8 +316,12 @@ async def test_simple_edit_refuses_before_any_write():
 
 
 @pytest.mark.asyncio
-async def test_simple_edit_without_data_checks_the_data_it_reuses():
+async def test_simple_edit_without_data_reads_the_current_revision_once():
     simple, workflows_service = _simple_service()
+    variant_id = uuid4()
+    workflows_service.fetch_workflow_variant = AsyncMock(
+        return_value=WorkflowVariant(id=variant_id, slug="default")
+    )
     workflows_service.fetch_workflow_revision = AsyncMock(
         return_value=WorkflowRevision(id=uuid4(), slug="head", data=_MISSING_DRIVE)
     )
@@ -323,4 +331,38 @@ async def test_simple_edit_without_data_checks_the_data_it_reuses():
             user_id=uuid4(),
             simple_workflow_edit=SimpleWorkflowEdit(id=uuid4(), name="Renamed"),
         )
+    workflows_service.fetch_workflow_revision.assert_awaited_once()
+    assert (
+        workflows_service.fetch_workflow_revision.await_args.kwargs[
+            "workflow_variant_ref"
+        ].id
+        == variant_id
+    )
     workflows_service.edit_workflow.assert_not_awaited()
+    workflows_service.commit_workflow_revision.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_application_rename_without_data_is_refused_before_the_rename():
+    service, _, _ = _service()
+    applications_service = AsyncMock()
+    applications_service.workflows_service = service
+    applications_service.fetch_application = AsyncMock(
+        return_value=SimpleNamespace(id=uuid4(), flags=None, meta=None, tags=None)
+    )
+    applications_service.fetch_application_variant = AsyncMock(
+        return_value=SimpleNamespace(id=uuid4())
+    )
+    applications_service.fetch_application_revision = AsyncMock(
+        return_value=ApplicationRevision(id=uuid4(), slug="head", data=_MISSING_DRIVE)
+    )
+    simple = SimpleApplicationsService(applications_service=applications_service)
+    with pytest.raises(AgentDriveNotFoundError):
+        await simple.edit(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            simple_application_edit=SimpleApplicationEdit(id=uuid4(), name="Renamed"),
+        )
+    applications_service.fetch_application_revision.assert_awaited_once()
+    applications_service.edit_application.assert_not_awaited()
+    applications_service.commit_application_revision.assert_not_awaited()
