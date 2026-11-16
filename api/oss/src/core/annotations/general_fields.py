@@ -178,6 +178,11 @@ class AnnotationGeneralFieldsService:
                 getattr(references, key) for key in APPLICATION_REFERENCE_KEYS
             ):
                 root = await self._fetch_root(project_id=project_id, span=span)
+                root_session_id, _ = (
+                    _span_session_and_turn(root) if root is not None else (None, None)
+                )
+                if root_session_id and not await can_view_session(root_session_id):
+                    root = None
                 application_references = _application_references(root)
 
             scope = scope or AnnotationScope.SPAN

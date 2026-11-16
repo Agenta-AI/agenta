@@ -442,3 +442,15 @@ async def test_request_turn_of_another_session_does_not_stay():
         links={"invocation": Link(trace_id=TRACE, span_id=ROOT)},
     )
     assert (general_fields.session_id, general_fields.turn_id) == ("s-B", None)
+
+
+@pytest.mark.asyncio
+async def test_hidden_session_of_the_root_span_gives_no_application_references():
+    child_without_session = _span(CHILD, ROOT, {})
+    service = _service(spans=[AGENT_ROOT, child_without_session])
+    general_fields = await _build(
+        service,
+        links={"invocation": Link(trace_id=TRACE, span_id=CHILD)},
+        can_view_session=_deny,
+    )
+    assert general_fields.application_references == {}
