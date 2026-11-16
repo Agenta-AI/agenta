@@ -26,10 +26,10 @@ Commit A: legacy URL handler.
 - [ ] 2.4 Add `web/mobile/public/robots.txt`. Change `api/oss/src/apis/fastapi/tools/router.py:2223` to `/m/assets/favicon.ico`.
 - [ ] 2.5 Proof: unit tests for 2.1 and the proxy branch; `curl -I` table against a direct-port `web/mobile` for every scenario in `specs/legacy-desktop-urls/spec.md`, pasted in the PR.
 
-Commit B: stop sending users to the desktop (Developer Mode stays).
+Commit B: stop sending users to the desktop; Developer Mode becomes one switch.
 
-- [ ] 2.6 Remove the desktop bounce from `decideMobileGate`, remove `mobileGateScript` and its injection in `_document.tsx`, and remove `leaveForDesktop()` from `PreferencesTab` so the Developer Mode and beta switches only set their atoms. Keep both switches.
-- [ ] 2.7 Keep `classicModeEnabledAtom`, `betaDeveloperModeFlagAtom` and `betaDeveloperModeActiveAtom` unchanged. Check that every consumer (`DeveloperViewGate`, `developerViewAccess.ts`, `developerPageFrame.ts`, `features/app-overview/*`, `features/annotations/*`, `ArchivedAppsScreen`, `BillingTab`) behaves as before.
+- [ ] 2.6 Remove the desktop bounce from `decideMobileGate`, remove `mobileGateScript` and its injection in `_document.tsx`, and remove `leaveForDesktop()` from `PreferencesTab`.
+- [ ] 2.7 Make Developer Mode one switch: `betaDeveloperModeActiveAtom` depends on Developer Mode only; remove the beta developer mode switch from `PreferencesTab` and `PreferencesPage`. Every consumer (`DeveloperViewGate`, `developerViewAccess.ts`, `developerPageFrame.ts`, `features/app-overview/*`, `features/annotations/*`, `ArchivedAppsScreen`, `BillingTab`) keeps reading `betaDeveloperModeActiveAtom`. Unit test: Developer Mode on shows the developer views with no beta flag.
 - [ ] 2.8 Keep `useClassicModeCookieSync` and `useClassicModeRedirect` exported (`web/oss` imports them) until PR 4.
 - [ ] 2.9 Proof: unit test that `decideMobileGate` never returns a desktop location with `agenta-classic-mode=1`; screenshots of `/m` Preferences, and of evaluations, annotations, testsets and prompts with Developer Mode on and off, before and after, light and dark.
 
@@ -48,27 +48,28 @@ Commit B: stop sending users to the desktop (Developer Mode stays).
 
 ## 4. Soak
 
-- [ ] 4.1 Watch the legacy fallback log on cloud for 7 days. Add a mapping for any path that has a `/m` page. Exit when 7 days pass with none.
+- [ ] 4.1 Wait one release after the release that carries PR 3. Watch the legacy fallback log on cloud and add a mapping for any path that has a `/m` page before PR 4.
 
-## 5. PR 4 — Delete web/oss, web/ee and web/tests, and every mention
+## 5. PR 4 — Delete web/oss and web/ee, disable web/tests, and remove every mention
 
 Commit A: delete the folders and their tooling.
 
 - [ ] 5.1 Confirm `agenta_cloud` no longer publishes `agenta-web` or `internal-ee-agenta-web`.
-- [ ] 5.2 `git rm -r web/oss web/ee web/tests`.
-- [ ] 5.3 `42-railway-build.yml`: remove the `agenta-web` matrix entry, manifest entry and comment. `01-create-release-branch.yml`: remove the oss and ee version bumps and PR body lines. `12-check-unit-tests.yml:77` comment.
-- [ ] 5.4 `web/entrypoint.sh` writes `__env.js` only into `mobile/public`; remove `/app/{oss,ee}/public` from `web/mobile/docker/Dockerfile.gh:82-83`; update `api/oss/tests/pytest/unit/test_web_entrypoint_email_env.py`.
-- [ ] 5.5 `web/package.json` (workspaces incl. `variants-state`, `link:` devDeps, oss/ee/test scripts, `format*` ignore paths, root `next`), `pnpm-workspace.yaml` (workspaces, overrides only oss needed), regenerate `pnpm-lock.yaml`, `turbo.json`, `web/eslint.config.mjs`, `web/mobile/eslint.config.mjs`, `web/.dockerignore`, root `.pre-commit-config.yaml`, root `.gitignore`.
-- [ ] 5.6 `.claude/launch.json`, `examples/python/RAG_QA_chatbot/run-agent-chat-slice.sh`, `sdks/python/oss/tests/.../test_vercel_stream_conformance.py` (pin to `web/mobile/package.json`).
-- [ ] 5.7 Proof: CI green (lint, types, unit, mobile, storybook and website builds); `pnpm install --frozen-lockfile` clean.
+- [ ] 5.2 `git rm -r web/oss web/ee` (this removes the desktop Playwright specs too).
+- [ ] 5.3 Decouple `web/tests`: copy the types from `web/oss/src/lib/Types` and `usePreviewEvaluations/types` that its fixtures use; point `testDir` in `playwright/config/runtime.ts` and `scripts/run-tests.ts` at an empty `web/tests/specs`; drop the `AGENTA_LICENSE` switch; update `web/tests/README.md` and `guides/*` to say the harness is disabled and `global-setup.ts` needs a `/m` sign-in before the first spec.
+- [ ] 5.4 `42-railway-build.yml`: remove the `agenta-web` matrix entry, manifest entry and comment. `01-create-release-branch.yml`: remove the oss and ee version bumps and PR body lines. `12-check-unit-tests.yml:77` comment.
+- [ ] 5.5 `web/entrypoint.sh` writes `__env.js` only into `mobile/public`; remove `/app/{oss,ee}/public` from `web/mobile/docker/Dockerfile.gh:82-83`; update `api/oss/tests/pytest/unit/test_web_entrypoint_email_env.py`.
+- [ ] 5.6 `web/package.json` (workspaces incl. `variants-state`, `link:` devDeps, oss/ee scripts and the `test:*` datalayer scripts, `format*` ignore paths, root `next`), `pnpm-workspace.yaml` (workspaces, overrides only oss needed), regenerate `pnpm-lock.yaml`, `turbo.json`, `web/eslint.config.mjs`, `web/mobile/eslint.config.mjs`, `web/.dockerignore`, root `.pre-commit-config.yaml`, root `.gitignore`.
+- [ ] 5.7 `.claude/launch.json`, `examples/python/RAG_QA_chatbot/run-agent-chat-slice.sh`, `sdks/python/oss/tests/.../test_vercel_stream_conformance.py` (pin to `web/mobile/package.json`).
+- [ ] 5.8 Proof: CI green (lint, types, unit, mobile, storybook and website builds); `pnpm install --frozen-lockfile` clean.
 
 Commit B: docs, instructions and the guard.
 
-- [ ] 5.8 Rewrite agent instructions: root `AGENTS.md`, `web/AGENTS.md`, `web/mobile/AGENTS.md`, `.agents/skills/mobile-app-structure/SKILL.md:50`, `agent-release-gate/resources/test_qa_product_concurrency.py:429`.
-- [ ] 5.9 Rewrite `web/packages/README.md`, `hosting/docker-compose/ee/README.md`, `hosting/railway/oss/README.md`, `hosting/railway/oss/template/README.md`, `docs/docs/self-host/99-faq.mdx`, `03-deploy-to-kubernetes.mdx`, `04-deploy-on-railway.mdx`, `01-upgrading.mdx`, `docs/design/testing/*.specs.md`, open `openspec/changes/*` that name web/oss files.
-- [ ] 5.10 Rewrite or drop comments outside `web/packages`: `web/mobile/**`, `web/storybook/**`, `web/_reference/**`, `api/oss/src/core/sessions/streams/service.py:113`, `services/runner/src/engines/sandbox_agent/engine.ts:63`, `clients/scripts/generate.sh:528`, `17-check-mobile.yml:21-22`. Package comments change in PR 5 with the code they describe.
-- [ ] 5.11 Add the note to `docs/design/README.md`. Add the CI grep guard with the allowlist in design.md D11; match `agenta-web` only when not followed by `-mobile`. Allowlist `web/packages/**` until PR 5 lands, then remove it from the allowlist.
-- [ ] 5.12 Proof: the guard passes; the guard fails on a seeded mention in a scratch commit.
+- [ ] 5.9 Rewrite agent instructions: root `AGENTS.md`, `web/AGENTS.md`, `web/mobile/AGENTS.md`, `.agents/skills/mobile-app-structure/SKILL.md:50`, `agent-release-gate/resources/test_qa_product_concurrency.py:429`.
+- [ ] 5.10 Rewrite `web/packages/README.md`, `hosting/docker-compose/ee/README.md`, `hosting/railway/oss/README.md`, `hosting/railway/oss/template/README.md`, `docs/docs/self-host/99-faq.mdx`, `03-deploy-to-kubernetes.mdx`, `04-deploy-on-railway.mdx`, `01-upgrading.mdx`, `docs/design/testing/*.specs.md`, open `openspec/changes/*` that name web/oss files.
+- [ ] 5.11 Rewrite or drop comments outside `web/packages`: `web/mobile/**`, `web/storybook/**`, `web/_reference/**`, `api/oss/src/core/sessions/streams/service.py:113`, `services/runner/src/engines/sandbox_agent/engine.ts:63`, `clients/scripts/generate.sh:528`, `17-check-mobile.yml:21-22`. Package comments change in PR 5 with the code they describe.
+- [ ] 5.12 Add the note to `docs/design/README.md`. Add the CI grep guard with the allowlist in design.md D11; match `agenta-web` only when not followed by `-mobile`. Allowlist `web/packages/**` until PR 5 lands, then remove it from the allowlist.
+- [ ] 5.13 Proof: the guard passes; the guard fails on a seeded mention in a scratch commit.
 
 ## 6. PR 5 — Remove package code that only the desktop used, and antd
 

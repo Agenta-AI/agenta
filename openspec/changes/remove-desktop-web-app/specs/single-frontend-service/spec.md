@@ -23,11 +23,18 @@ Every deployment target (docker-compose oss and ee in dev, gh, gh.local and gh.s
 - **THEN** `/m/__env.js` serves the runtime config and no `/app/oss` or `/app/ee` folder is created
 
 ### Requirement: No desktop sources or images
-The repository SHALL contain no `web/oss`, `web/ee` or `web/tests` folder, no `@agenta/oss` or `@agenta/ee` workspace, and no workflow that builds `agenta-web` or `internal-ee-agenta-web`.
+The repository SHALL contain no `web/oss` or `web/ee` folder, no `@agenta/oss` or `@agenta/ee` workspace, and no workflow that builds `agenta-web` or `internal-ee-agenta-web`.
 
 #### Scenario: Clean install
 - **WHEN** a contributor runs `pnpm install --frozen-lockfile` in `web`
 - **THEN** it succeeds and installs no desktop workspace
+
+### Requirement: Disabled test harness
+`web/tests` SHALL import nothing from `web/oss` or `web/ee`, SHALL hold no specs, and SHALL NOT be run by any workflow.
+
+#### Scenario: Workflows
+- **WHEN** any workflow in `.github/workflows` runs
+- **THEN** no step installs or runs `agenta-web-tests`
 
 ### Requirement: Mentions are guarded
 A CI step SHALL fail when a file outside the allowlist names `web/oss`, `web/ee`, `@agenta/oss`, `@agenta/ee`, `agenta-web` (the desktop image), or the `web` service.

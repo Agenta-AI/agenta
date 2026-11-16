@@ -5,7 +5,7 @@ References are to `main` at the time of writing (2026-11-16). Live frontend: `we
 What ties the repo to the desktop app today:
 
 1. **Theme.** `web/oss/src/styles/theme/{palette,controlScale,legacy-shim}.ts` is the source of truth. `web/scripts/generate-tailwind-tokens.ts:24-29,41-45` imports it and resolves `antd` through `createRequire(web/oss/package.json)`. `web/mobile/scripts/generate-shadcn-tokens.ts:18-19` imports `@agenta/oss/...` through the root devDep `"@agenta/oss": "link:oss"`. `web/website/tailwind.demo.config.ts:1` imports `../oss/tailwind.config`. `web/packages/agenta-ui/components.json:7-8` points into oss.
-2. **Routing.** The `web` service owns `/`: Traefik `PathPrefix(/)`, nginx `location /` with a literal `web:3000` upstream (`hosting/docker-compose/oss/nginx/nginx.conf:111-113`), the Railway gateway, helm ingress `paths.web` (`templates/ingress.yaml:62-67`). Cloud ingress lives in `agenta_cloud`.
+2. **Routing.** The `web` service owns `/`: Traefik `PathPrefix(/)`, nginx `location /` with a literal `web:3000` upstream (`hosting/docker-compose/oss/nginx/nginx.conf:111-113`), the Railway gateway, helm ingress `paths.web` (`templates/ingress.yaml:62-67`). Cloud ingress lives in `agenta_cloud`; the user makes those changes.
 3. **Desktop gate.** `web/oss/src/middleware.ts` calls `decideDesktopGate` (`web/packages/agenta-shared/src/utils/mobileGate/index.ts`), which forwards most desktop URLs to `/m` through `mapDesktopToMobile` and keeps `/auth/callback`, `/post-signup`, `/workspaces/accept`, token links and `auth_error` links on desktop. `mapDesktopToMobile` is imperative (lines 254-366): `developerViews` from the `agenta-beta-developer-mode` cookie, `APPS_RESERVED`, query rewrites, fallback to the `/m` root. It drops `?trace=`.
 4. **Reverse gate.** `/m`'s `proxy.ts` (matcher `/`, `/auth/:path*`, `/invite`, `/__gate`) calls `decideMobileGate`, which sends `agenta-classic-mode=1` users to `/w`. `mobileGateScript` does the same client-side. The Classic mode switch lives in `PreferencesTab` / `PreferencesPage`. `classicModeEnabledAtom` also feeds `BillingTab.tsx:41` (`developerMode`) and `agenta-shared/src/state/classicMode.ts:264`. `web/oss` imports `useClassicModeCookieSync` and `useClassicModeRedirect`.
 5. **Links that stay forever.** The SDK builds `/w/{ws}/p/{proj}/observability?trace=` (`tracing.py:400`) and `/w/{ws}/p/{proj}/evaluations/results/{id}` (`evaluations/runs.py:199`). The API builds `/w/{org}/p/{proj}/settings?tab=workspace` (`organization_service.py:609`) and `{web_url}/assets/favicon.ico` (`tools/router.py:2223`). Old SDKs and old emails keep these in circulation.
@@ -19,7 +19,8 @@ What ties the repo to the desktop app today:
 ## Goals / Non-Goals
 
 **Goals:**
-- No `web/oss`, `web/ee`, `web/tests`, `web` service, or `agenta-web` image anywhere in the repo or its deploy targets.
+- No `web/oss`, `web/ee`, `web` service, or `agenta-web` image anywhere in the repo or its deploy targets.
+- `web/tests` stays as a Playwright harness with no desktop coupling and no specs, run by no workflow, ready for `/m` specs later.
 - Every URL that worked before lands on the right `/m` page, or on the `/m` root when no page matches.
 - Each PR leaves `main` deployable and ends in a state someone can check.
 
@@ -60,25 +61,28 @@ Legacy redirects never use 308. A cached permanent redirect would loop if `/m` l
 
 The observability mapping keeps `trace` (and `session`, as today) so SDK trace links open the trace.
 
-### D5. Remove the trip to the desktop, keep Developer Mode
+### D5. Remove the trip to the desktop; Developer Mode becomes one switch
 
-The Classic mode preference is also the `/m` Developer Mode switch. `classicModeEnabledAtom` is "the one atom both apps' Preferences pages bind their Developer Mode switch to" (`agenta-shared/src/state/classicMode.ts:251`), and `betaDeveloperModeActiveAtom = classicModeEnabledAtom && betaDeveloperModeFlagAtom` gates the evaluations, annotations, testsets and prompts views in `/m` (`DeveloperViewGate`, `developerViewAccess.ts`, `developerPageFrame.ts`, `features/app-overview/*`, `features/annotations/*`, `ArchivedAppsScreen`, `BillingTab`). Removing the switch or the atoms would hide those features.
+The Classic mode preference is also the `/m` Developer Mode switch. `classicModeEnabledAtom` is "the one atom both apps' Preferences pages bind their Developer Mode switch to" (`agenta-shared/src/state/classicMode.ts:251`), and `betaDeveloperModeActiveAtom = classicModeEnabledAtom && betaDeveloperModeFlagAtom` gates the evaluations, annotations, testsets and prompts views in `/m` (`DeveloperViewGate`, `developerViewAccess.ts`, `developerPageFrame.ts`, `features/app-overview/*`, `features/annotations/*`, `ArchivedAppsScreen`, `BillingTab`). Today, Developer Mode on without beta sends the user to the desktop.
 
-So PR 2 removes only the navigation to the desktop:
-- the desktop bounce in `decideMobileGate` and `mobileGateScript`;
-- `leaveForDesktop()` in `PreferencesTab` (`onClassicModeChange` and `onBetaDeveloperModeChange` only set the atoms).
+Decision (user, 2026-11-16): Developer Mode alone turns on the developer views. PR 2:
+- removes the desktop bounce in `decideMobileGate`, `mobileGateScript`, and `leaveForDesktop()` in `PreferencesTab`;
+- makes `betaDeveloperModeActiveAtom` depend on Developer Mode only, and removes the separate beta developer mode switch from `PreferencesTab` / `PreferencesPage`;
+- keeps every consumer reading `betaDeveloperModeActiveAtom`, so no feature code changes.
 
-The Developer Mode and beta developer mode switches, `classicModeEnabledAtom`, `betaDeveloperModeFlagAtom` and `betaDeveloperModeActiveAtom` keep their behavior in `/m`. Router config and images do not deploy atomically, so this lands before the cutover: a new router with an old `/m` image would loop a classic user between `/m` and `/w`.
+Users who already had Developer Mode and beta on see no change. Users with only Developer Mode on now see the developer views in `/m` instead of being sent to the desktop. Users with Developer Mode off see no change.
 
-PR 4 renames the classic-mode names to developer-mode names with no behavior change, and deletes what only the desktop used: the `agenta-classic-mode` and `agenta-beta-developer-mode` cookies and their writers, `useClassicModeRedirect`, `desktopEscapeHref`, `writeClassicModeCookie`.
+Router config and images do not deploy atomically, so this lands before the cutover: a new router with an old `/m` image would loop a classic user between `/m` and `/w`.
+
+PR 5 renames the classic-mode and beta names to developer-mode names with no behavior change, and deletes what only the desktop used: the `agenta-classic-mode` and `agenta-beta-developer-mode` cookies and their writers, `useClassicModeRedirect`, `desktopEscapeHref`, `writeClassicModeCookie`, `betaDeveloperModeFlagAtom`.
 
 ### D6. Theme source moves by copy
 
 `palette.ts`, `controlScale.ts`, `legacy-shim.ts` are copied into `web/packages/agenta-ui/src/styles/theme/` with a subpath export. The generator stops resolving `antd` from oss and stops writing `antd-overrides.generated.ts`. `web/oss` keeps its frozen copy until deletion; zero edits to `web/oss`. Proof: regenerated `theme-variables.css` and `theme.generated.css` are byte-identical.
 
-### D7. No CI auth bootstrap replacement
+### D7. web/tests stays as a disabled harness
 
-`bootstrap-auth.ts` gives nothing to the downstream jobs. PR 3 deletes the `auth_bootstrap` steps and `run-web-tests` together. `wait_for "Web"` follows `/` → `/m` and needs `/m` to answer 200 signed out.
+The desktop specs live in `web/oss/tests` and `web/ee/tests` and go with those folders. `web/tests` (Playwright config, runner, API fixtures, reports) can serve future `/m` specs, so it stays (user decision, 2026-11-16). PR 4 decouples it: copy the types it imports from `web/oss/src/lib` into `web/tests`, point `testDir` at an empty `web/tests/specs` folder instead of `../${license}/tests/playwright`, drop the license switch, and add a README note that it is disabled and that `global-setup.ts` still signs in through the old desktop page and needs a `/m` rewrite before the first spec. No workflow runs it: PR 3 removes `run-web-tests`, the `auth_bootstrap` steps (the api, sdk and services jobs mint their own accounts) and the `web` component of `test.sh`. `wait_for "Web"` follows `/` → `/m` and needs `/m` to answer 200 signed out.
 
 ### D8. Helm keeps `ingress.paths.web` as the root route
 
@@ -88,9 +92,9 @@ PR 4 renames the classic-mode names to developer-mode names with no behavior cha
 
 `location /` uses `set $mobile_upstream` with the resolver, like the `/m` blocks. A literal upstream fails nginx startup on `run.sh --no-web` stacks, where `web-mobile` is scaled to 0.
 
-### D10. Soak with an exit criterion
+### D10. Soak for one release
 
-After the cutover, `proxy.ts` logs the path (no query, no user data) of each legacy request and each `/m/legacy` fallback to the `/m` root. Exit: 7 days on cloud with no unmapped path that has a `/m` page. Rollback for cloud during the soak: revert the ingress and pin the last `agenta-web` tag. Self-hosters roll back by restoring the old compose file or chart; the upgrade note says so. `agenta-web` keeps being built until the delete PR so the pinned tag matches recent API changes.
+PR 4 merges in the release after the one that carries PR 3 (user decision, 2026-11-16). During that release, `proxy.ts` logs the path (no query, no user data) of each `/m/legacy` fallback to the `/m` root, and any path that has a `/m` page gets a mapping before PR 4. Rollback for cloud during the soak: revert the ingress and pin the last `agenta-web` tag. Self-hosters roll back by restoring the old compose file or chart; the upgrade note says so. `agenta-web` keeps being built until the delete PR so the pinned tag matches recent API changes.
 
 ### D11. Dated design docs stay
 
@@ -105,8 +109,8 @@ Five PRs. PR 1 and PR 2 branch from `main` on their own. PR 3 stacks on both. PR
 | 1 | `refactor(frontend): stop depending on web/oss from live code` | Theme source into `@agenta/ui` (D6); declare deps hidden by oss hoisting | — |
 | 2 | `feat(frontend): /m answers legacy desktop URLs and stops sending users to the desktop` | Legacy URL handler (D1–D4); desktop trip removal, Developer Mode kept (D5) | — |
 | 3 | `feat(hosting): route / to web-mobile and retire the web service` | Compose, nginx, helm, Railway, CI, upgrade note (D7–D9) | 1, 2 |
-| — | soak (D10) | | 3 live on cloud |
-| 4 | `chore(frontend): delete web/oss, web/ee and web/tests` | Delete the folders, their tooling, images and deps; rewrite docs and instructions; add the grep guard (D11) | 3, soak |
+| — | soak: one release (D10) | | 3 live on cloud |
+| 4 | `chore(frontend): delete web/oss and web/ee` | Delete the folders, their tooling, images and deps; decouple and disable `web/tests` (D7); rewrite docs and instructions; add the grep guard (D11) | 3, soak |
 | 5 | `refactor(frontend): remove desktop-only package code and antd` | Desktop gate code; package files and exports nothing live uses; `@agenta/annotation-ui`; antd components in `@agenta/playground-ui`; antd and `@ant-design/*` out of every package (D12) | 4 |
 
 ### D12. Package code follows its last consumer
@@ -121,7 +125,7 @@ After PR 4, the live consumers are `web/mobile`, `web/website`, `web/storybook` 
 - [An unmapped legacy path lands on the `/m` root] → D10 logging finds it during the soak; add a mapping before the delete PR.
 - [Self-hosters update the router but not the mobile tag] → `/` returns a 404 until they do. The upgrade note says to update both together.
 - [External `agenta_cloud` repo] → PR 3 needs a matching cloud ingress change after the PR 2 image is live; PR 4 needs the cloud release workflow to stop publishing `agenta-web` and `internal-ee-agenta-web` first.
-- [No browser E2E after `web/tests` goes] → The PR 3 curl table runs in `smoke.sh`. `/m` E2E is a named follow-up.
+- [No browser E2E runs after PR 3] → The PR 3 curl table runs in `smoke.sh`. `web/tests` stays ready for `/m` specs, a named follow-up.
 - [Two theme copies between PR 1 and PR 4] → The desktop copy is frozen and unused by `/m`; instructions point only at the new one from PR 1.
 
 ## Migration Plan
@@ -129,10 +133,9 @@ After PR 4, the live consumers are `web/mobile`, `web/website`, `web/storybook` 
 1. PR 1 and PR 2 land in any order.
 2. Release with PR 2 in the `agenta-web-mobile` image. Confirm it is live on cloud.
 3. PR 3 lands. Cloud ingress flips. Railway `apply.sh` updates the live template; existing previews are recycled. Self-host upgrade note ships.
-4. Soak (D10).
+4. Soak for one release (D10).
 5. `agenta_cloud` stops publishing desktop images. PR 4 lands, then PR 5.
 
 ## Open Questions
 
-- Who owns the `agenta_cloud` ingress and release changes, and in which release?
 - Does `12-check-unit-tests.yml` keep its `web-only` option name (it tests `web/mobile` and packages) or rename it?

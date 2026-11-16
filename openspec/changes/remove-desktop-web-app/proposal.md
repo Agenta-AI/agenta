@@ -11,9 +11,9 @@
 
 - The theme source moves into `@agenta/ui`. Generated CSS stays byte-identical.
 - `/m` answers every legacy desktop URL: `/`, `/w/*`, `/apps/*`, `/auth*`, `/post-signup`, `/workspaces/*`, `/settings`, any other root path, `/favicon.ico`, `/assets/*`, `/robots.txt`. One function, `mapDesktopToMobile`, owns the mapping.
-- `/m` stops sending users to the desktop. The Developer Mode switch stays and keeps gating the evaluations, annotations, testsets and prompts views.
+- `/m` stops sending users to the desktop. Developer Mode becomes one switch: turning it on shows the evaluations, annotations, testsets and prompts views. The separate beta developer mode switch merges into it.
 - `web-mobile` takes the catch-all route in compose, nginx, helm, Railway and cloud. The `web` service leaves every deployment.
-- After a soak with an exit criterion, `web/oss`, `web/ee` and `web/tests` are deleted with all their tooling, CI steps, images and dependencies.
+- One release after the cutover, `web/oss` and `web/ee` are deleted with all their tooling, CI steps, images and dependencies. `web/tests` stays as a disabled Playwright harness for future `/m` tests: its desktop specs go with `web/oss` and `web/ee`, and no workflow runs it.
 - Package code that only the desktop used is deleted, including `@agenta/annotation-ui` and the antd components in `@agenta/playground-ui`. `antd` and `@ant-design/*` leave every package.
 - Agent instructions, docs and comments stop naming the deleted paths. A CI grep guard keeps it that way.
 - **BREAKING (self-hosted)**: compose files and the helm chart no longer have a `web` service. Users update the compose file and the `agenta-web-mobile` tag together.
@@ -33,7 +33,7 @@ None.
 
 ## Impact
 
-- `web/oss`, `web/ee`, `web/tests` (deleted).
+- `web/oss`, `web/ee` (deleted); `web/tests` (kept, decoupled, disabled).
 - `web/packages/agenta-ui` (theme source), `web/packages/agenta-shared` (mobileGate, classic mode), `web/packages/agenta-auth`, `agenta-chat`, `agenta-home-ui`, `agenta-annotation-ui`, `agenta-playground-ui`, `agenta-entities` (dead exports).
 - `web/mobile` (`next.config.ts`, `proxy.ts`, Preferences, Billing, new `docker/Dockerfile.dev`, `public/robots.txt`).
 - `web/website`, `web/storybook` (config and declared deps).
