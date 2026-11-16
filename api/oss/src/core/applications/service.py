@@ -1097,6 +1097,9 @@ class SimpleApplicationsService:
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
         _reject_unreadable_agent_instructions(simple_application_create.data)
+        await self.applications_service.workflows_service.reject_unusable_agent_drives(
+            project_id=project_id, data=simple_application_create.data
+        )
 
         simple_application_flags = (
             SimpleApplicationFlags(**_dump_flags(simple_application_create.flags))
@@ -1338,6 +1341,9 @@ class SimpleApplicationsService:
     ) -> Optional[SimpleApplication]:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
         _reject_unreadable_agent_instructions(simple_application_edit.data)
+        await self.applications_service.workflows_service.reject_unusable_agent_drives(
+            project_id=project_id, data=simple_application_edit.data
+        )
 
         application = await self.applications_service.fetch_application(
             project_id=project_id,
