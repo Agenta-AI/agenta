@@ -10,7 +10,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "An icon plus a @agenta/ui Badge whose variant reflects connected/modified state.\n\n**Used in:** nowhere — zero call-sites across `web/oss`, `web/ee` and the packages. Low-risk to change.",
+                    "An icon plus a @agenta/ui Badge whose variant reflects connected/modified state.\n\n**Used in:** nowhere — zero call-sites across `web/mobile` and the packages. Low-risk to change.",
             },
         },
     },

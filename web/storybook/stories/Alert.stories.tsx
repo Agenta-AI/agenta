@@ -9,7 +9,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A banner or inline message with a status type, optional icon, description, close button and trailing action.\n\n**Used in:** nowhere — the `@agenta/ui` Alert has zero call-sites across `web/oss`, `web/ee` and the packages. Low-risk to change.",
+                    "A banner or inline message with a status type, optional icon, description, close button and trailing action.\n\n**Used in:** `web/mobile` (for example the human evaluator form and the cancel-subscription sheet) and the packages.",
             },
         },
     },

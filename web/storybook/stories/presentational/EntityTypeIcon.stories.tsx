@@ -9,7 +9,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Maps an entity type to a phosphor icon (Flask for evaluators, Lightning otherwise). Pure @agenta/ui presentational icon selector.\n\n**Used in:** nowhere — zero call-sites across `web/oss`, `web/ee` and the packages. Low-risk to change.",
+                    "Maps an entity type to a phosphor icon (Flask for evaluators, Lightning otherwise). Pure @agenta/ui presentational icon selector.\n\n**Used in:** nowhere — zero call-sites across `web/mobile` and the packages. Low-risk to change.",
             },
         },
     },

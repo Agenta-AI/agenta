@@ -11,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A path picker (wraps the @agenta/ui Combobox) with per-source icons and a trailing value-type label. A pure @agenta/ui composite.\n\n**Used in:** nowhere — zero call-sites across `web/oss`, `web/ee` and the packages. Low-risk to change.",
+                    "A path picker (wraps the @agenta/ui Combobox) with per-source icons and a trailing value-type label. A pure @agenta/ui composite.\n\n**Used in:** nowhere — zero call-sites across `web/mobile` and the packages. Low-risk to change.",
             },
         },
     },

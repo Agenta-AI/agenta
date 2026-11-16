@@ -11,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A config-panel header row (icon + label + version on the left, actions on the right, bordered/sticky container). A pure @agenta/ui composite; the title/subtitle are plain spans.\n\n**Used in:** nowhere — zero call-sites across `web/oss`, `web/ee` and the packages. Low-risk to change.",
+                    "A config-panel header row (icon + label + version on the left, actions on the right, bordered/sticky container). A pure @agenta/ui composite; the title/subtitle are plain spans.\n\n**Used in:** nowhere — zero call-sites across `web/mobile` and the packages. Low-risk to change.",
             },
         },
     },
