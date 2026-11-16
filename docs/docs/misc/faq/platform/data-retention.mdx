@@ -4,7 +4,7 @@ description: "Data retention by plan"
 slug: /faq/platform/data-retention
 ---
 
-Retention applies to trace data. A trace is the record of one run: the model calls, the tool calls, timing, inputs and outputs, errors, and the evaluations and annotations attached to that run.
+Retention applies to trace data. A trace is the record of one run: the model calls, the tool calls, timing, inputs and outputs, errors, and the results of automatic evaluators attached to that run.
 
 ## Agenta Cloud
 
@@ -20,6 +20,8 @@ How long Agenta Cloud keeps trace data depends on your plan.
 Agenta deletes trace data once it passes the limit for your plan. A cleanup job runs every 30 minutes, so data disappears shortly after it ages out. Deletion is permanent and there is no restore.
 
 If you need a trace for longer than your plan keeps it, export it or fetch it through the API before it ages out.
+
+Annotations are kept until you delete the project. This covers the feedback and scores that people and agents record through the web app, the annotation queues and the annotation API. An annotation stays after the run it links to is deleted, and it keeps the ids of the session and the turn it is about.
 
 Retention does not apply to the rest of your workspace. Your prompts, configurations, test sets, and evaluator definitions stay for as long as your account exists.
 
