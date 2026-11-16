@@ -703,6 +703,47 @@ describe("daytona runs with drives (engine composition)", () => {
   });
 });
 
+describe("daytona runs without a session drive", () => {
+  beforeEach(() => {
+    vi.stubEnv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local,daytona");
+    vi.stubEnv("AGENTA_RUNNER_DAYTONA_API_KEY", "test-key");
+    resetRunnerConfigCache();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetRunnerConfigCache();
+  });
+
+  it("keeps the harness transcript mounts but mounts no working folder", async () => {
+    const { deps } = fakeHarness();
+    let sessionSigns = 0;
+    deps.signSessionMountCredentials = (async () => {
+      sessionSigns += 1;
+      return creds("cwd");
+    }) as never;
+    const mounted: string[] = [];
+    deps.mountStorageRemote = (async (_sb: unknown, path: string) => {
+      mounted.push(path);
+      return true;
+    }) as never;
+    const transcripts: Array<{ session: string; endpoint: string | undefined | null }> = [];
+    deps.mountHarnessSessionDirs = (async (_sb: unknown, session: string, dirs: unknown[], _t: unknown, opts: { endpointFor?: (c: MountCredentials) => Promise<string | undefined | null> }) => {
+      assert.ok(dirs.length > 0);
+      transcripts.push({ session, endpoint: await opts.endpointFor?.({ ...creds("t"), endpoint: "https://s3.example.com" }) });
+    }) as never;
+    const result = await runSandboxAgent(
+      request({ harness: "claude", sandbox: "daytona", drives: [], hasSessionDrive: false }),
+      undefined,
+      undefined,
+      deps,
+    );
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(sessionSigns, 0, "the working folder is not signed");
+    assert.deepEqual(mounted, []);
+    assert.deepEqual(transcripts, [{ session: "sess-1", endpoint: undefined }]);
+  });
+});
+
 describe("inprocess runs with drives (engine composition)", () => {
   beforeEach(() => {
     vi.stubEnv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local,inprocess");

@@ -920,6 +920,11 @@ export interface MountHarnessSessionDirsDeps {
   signSessionMountCredentials?: typeof signSessionMountCredentials;
   mountStorageRemote?: typeof mountStorageRemote;
   signal?: AbortSignal;
+  /**
+   * The sandbox's endpoint for each dir's own credentials, when the caller has no session cwd
+   * mount to take it from; null skips the dir. Replaces `tunnelEndpoint`.
+   */
+  endpointFor?: (creds: MountCredentials) => Promise<string | undefined | null>;
 }
 
 /**
@@ -964,8 +969,10 @@ export async function mountHarnessSessionDirs(
       );
       continue;
     }
+    const endpoint = deps.endpointFor ? await deps.endpointFor(creds) : tunnelEndpoint;
+    if (endpoint === null) continue;
     await mountRemote(sandbox, dir.path, creds, {
-      endpoint: tunnelEndpoint,
+      endpoint,
       log,
       signal: deps.signal,
     });

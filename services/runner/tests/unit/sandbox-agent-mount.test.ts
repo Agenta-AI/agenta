@@ -235,6 +235,38 @@ describe("mountHarnessSessionDirs (S4, remote-only)", () => {
     assert.deepEqual(mountedPaths, ["/home/agent/.claude/projects"]);
   });
 
+  it("takes each dir's endpoint from endpointFor when given, and skips a dir it refuses", async () => {
+    const mounted: Array<{ path: string; endpoint: string | undefined }> = [];
+    await mountHarnessSessionDirs(
+      { runProcess: async () => ({ exitCode: 0 }) },
+      "sess-1",
+      [
+        { name: "claude-projects", path: "/home/agent/.claude/projects" },
+        { name: "pi-sessions", path: "/home/agent/.pi/agent/sessions" },
+      ],
+      "https://ignored.example",
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        log: SILENT,
+        signSessionMountCredentials: async (_s, _d, name) => ({
+          endpoint: `http://${name}`,
+          region: "us-east-1",
+          bucket: "b",
+          prefix: `p/${name}`,
+          accessKey: "AK",
+          secretKey: "SK",
+        }),
+        endpointFor: async (creds) => (creds.endpoint === "http://pi-sessions" ? null : "https://tunnel.example"),
+        mountStorageRemote: async (_sandbox, path, _creds, deps) => {
+          mounted.push({ path, endpoint: deps.endpoint });
+          return true;
+        },
+      },
+    );
+    assert.deepEqual(mounted, [{ path: "/home/agent/.claude/projects", endpoint: "https://tunnel.example" }]);
+  });
+
   it("is a no-op for an empty dir list", async () => {
     let called = false;
     const sandbox = { runProcess: async () => ({ exitCode: 0 }) };

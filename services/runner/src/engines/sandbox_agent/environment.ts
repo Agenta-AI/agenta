@@ -1159,6 +1159,17 @@ async function acquireEnvironmentOnce(
       storeReachableFromSandbox(endpoint) || tunnel
         ? undefined
         : "store-unreachable-and-no-tunnel";
+    /** How the sandbox reaches the store: directly (no endpoint), through the tunnel, or refused. */
+    const sandboxStoreRoute = async (storeEndpoint: string | undefined) => {
+      const endpoint = storeReachableFromSandbox(storeEndpoint)
+        ? undefined
+        : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+            storeEndpoint,
+            log: logger,
+            signal,
+          })) ?? undefined);
+      return { endpoint, refusal: mountRefusal(storeEndpoint, endpoint) };
+    };
     /** Set when a durable mount was ATTEMPTED and refused. Drives the model-facing sentence. */
     let agentMountSkipped: string | undefined;
 
@@ -1182,15 +1193,7 @@ async function acquireEnvironmentOnce(
           // session where they were there, found nothing, and told the user their work was missing.
           // Both surfaces now say so, the operator through the WARN below and the model through
           // `agentMountUnavailableGuidance`.
-          const storeEndpoint = environment.mountCreds.endpoint;
-          const endpoint = storeReachableFromSandbox(storeEndpoint)
-            ? undefined
-            : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
-                storeEndpoint,
-                log: logger,
-                signal,
-              })) ?? undefined);
-          const refusal = mountRefusal(storeEndpoint, endpoint);
+          const { endpoint, refusal } = await sandboxStoreRoute(environment.mountCreds.endpoint);
           const canMount = !refusal;
           if (refusal) {
             // WARN, not debug, and once per acquire rather than once per day: a run whose durable
@@ -1255,6 +1258,31 @@ async function acquireEnvironmentOnce(
         } finally {
           timingLog("mounts", mountsStartedAt);
         }
+      } else if (
+        plan.isDaytona &&
+        request.hasSessionDrive === false &&
+        sessionForMount &&
+        runCred
+      ) {
+        // No session drive: the working folder is throwaway, but the harness's own transcript
+        // folders still keep the conversation going between turns.
+        await (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
+          environment.sandbox,
+          sessionForMount,
+          harnessSessionMounts(plan.acpAgent, "/home/sandbox", DAYTONA_PI_DIR),
+          undefined,
+          {
+            apiBase: apiBase(),
+            authorization: runCred,
+            log: logger,
+            signal,
+            endpointFor: async (creds) => {
+              const { endpoint, refusal } = await sandboxStoreRoute(creds.endpoint);
+              if (refusal) logger(`WARN harness transcript mount SKIPPED for session=${sessionForMount}: ${refusal}.`);
+              return refusal ? null : endpoint;
+            },
+          },
+        );
       }
     })();
     const daytonaAgentMount = (async () => {
@@ -1266,15 +1294,7 @@ async function acquireEnvironmentOnce(
       ) {
         const agentMountStartedAt = Date.now();
         try {
-          const storeEndpoint = environment.agentMountCreds.endpoint;
-          const endpoint = storeReachableFromSandbox(storeEndpoint)
-            ? undefined
-            : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
-                storeEndpoint,
-                log: logger,
-                signal,
-              })) ?? undefined);
-          const refusal = mountRefusal(storeEndpoint, endpoint);
+          const { endpoint, refusal } = await sandboxStoreRoute(environment.agentMountCreds.endpoint);
           const canMount = !refusal;
           const mountPath = agentMountDir;
           if (refusal) {
@@ -1339,14 +1359,7 @@ async function acquireEnvironmentOnce(
         const creds = drive.credentials!;
         const mountPath = projectMountPath(plan.workspace.cwd, drive.slug);
         try {
-          const endpoint = storeReachableFromSandbox(creds.endpoint)
-            ? undefined
-            : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
-                storeEndpoint: creds.endpoint,
-                log: logger,
-                signal,
-              })) ?? undefined);
-          const refusal = mountRefusal(creds.endpoint, endpoint);
+          const { endpoint, refusal } = await sandboxStoreRoute(creds.endpoint);
           if (refusal) {
             logger(`WARN project drive mount SKIPPED slug=${drive.slug}: ${refusal}.`);
             return;
