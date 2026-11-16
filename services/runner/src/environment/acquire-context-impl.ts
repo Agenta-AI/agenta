@@ -181,6 +181,9 @@ export function createAcquireContext(
         [drive.slug]: mountExpiryMs(credential.expiresAt),
       };
     },
+    recordProjectLink(drive, linked) {
+      drive.linkFailed = !linked;
+    },
     recordResignedProjectCredential(drive, credential) {
       drive.credentials = credential;
     },

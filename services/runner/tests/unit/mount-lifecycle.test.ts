@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, lstatSync, mkdtempSync, readlinkSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "vitest";
@@ -180,6 +180,9 @@ describe("project drive mounts", () => {
       recordResignedProjectCredential: (drive: ProjectRunDrive, credential: typeof credentials) => {
         drive.credentials = credential;
       },
+      recordProjectLink: (drive: ProjectRunDrive, linked: boolean) => {
+        drive.linkFailed = !linked;
+      },
       takeRemountBudget: () => true,
     }) as unknown as AcquireContext;
 
@@ -212,6 +215,29 @@ describe("project drive mounts", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-project-price-lists`, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the mount but never touches a folder already at drives/<slug>", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-folder-"));
+    mkdirSync(join(cwd, "drives", "notes"), { recursive: true });
+    writeFileSync(join(cwd, "drives", "notes", "kept.md"), "mine");
+    const logs: string[] = [];
+    const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read-write", credentials };
+    try {
+      const mounted = await mountLocalProjectDrive(
+        { ...projectContext(cwd, []), log: (m: string) => logs.push(m) } as AcquireContext,
+        depsFor(new AbortController().signal, async () => true),
+        drive,
+      );
+      assert.equal(mounted, true);
+      assert.equal(drive.mountedPath, `${cwd}-project-notes`, "recorded for teardown");
+      assert.equal(drive.linkFailed, true);
+      assert.equal(readFileSync(join(cwd, "drives", "notes", "kept.md"), "utf-8"), "mine");
+      assert.ok(logs.includes("mount degraded kind=project_mount cause=link_failed slug=notes"));
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
     }
   });
 

@@ -4,7 +4,7 @@
  * `drives/<slug>`, the way the agent drive is linked as `agent-files` (`agent-mount.ts`).
  */
 
-import { mkdir } from "node:fs/promises";
+import { lstat, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { DriveAccess } from "../../protocol.ts";
@@ -52,9 +52,19 @@ export async function signProjectMountCredentials(
   );
 }
 
+function linkFailed(log: (msg: string) => void, slug: string, detail: string): false {
+  log(`${detail}`);
+  log(`mount degraded kind=project_mount cause=link_failed slug=${slug}`);
+  return false;
+}
+
 /**
  * Point `<cwd>/drives/<slug>` at the project drive's mount. Re-run on every turn: the link lives
  * on the session folder, where geesefs turns a symlink into an empty file across a remount.
+ *
+ * A real folder at the link path holds what was written there while the link was missing. It is
+ * never deleted or moved (it may not fit a read-only drive): the link fails, and the drive is not
+ * available until a person clears the folder.
  */
 export async function linkProjectDrive(
   cwd: string,
@@ -63,49 +73,62 @@ export async function linkProjectDrive(
   deps: EnsureDurableSymlinkDeps & { mkdir?: typeof mkdir } = {},
 ): Promise<boolean> {
   const log = deps.log ?? defaultLog;
+  const label = projectDriveLinkName(slug);
+  const linkPath = join(cwd, label);
   try {
     await (deps.mkdir ?? mkdir)(join(cwd, PROJECT_DRIVES_DIR_NAME), {
       recursive: true,
     });
+    const existing = await (deps.lstat ?? lstat)(linkPath).catch((err: NodeJS.ErrnoException) => {
+      if (err.code === "ENOENT") return undefined;
+      throw err;
+    });
+    if (existing?.isDirectory()) {
+      return linkFailed(log, slug, `${label} is a folder in ${cwd}; not replaced`);
+    }
   } catch (err) {
-    log(
-      `${PROJECT_DRIVES_DIR_NAME} folder failed in ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
+    return linkFailed(
+      log,
+      slug,
+      `${label} check failed in ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
-    return false;
   }
-  const label = projectDriveLinkName(slug);
-  const outcome = await ensureDurableSymlink(join(cwd, label), mountPath, label, {
+  const outcome = await ensureDurableSymlink(linkPath, mountPath, label, {
     ...deps,
     log,
   });
-  return outcome !== "failed";
+  return outcome === "failed" ? linkFailed(log, slug, `${label} link failed in ${cwd}`) : true;
 }
 
-/** Same link, made inside a remote sandbox. */
+/** Same link, made inside a remote sandbox, with the same rule for a folder at the link path. */
 export async function linkProjectDriveRemote(
   sandbox: SandboxExec,
   cwd: string,
   slug: string,
   mountPath: string,
   deps: { log?: (msg: string) => void } = {},
-): Promise<void> {
+): Promise<boolean> {
   const log = deps.log ?? defaultLog;
   const dir = join(cwd, PROJECT_DRIVES_DIR_NAME);
   const linkPath = join(cwd, projectDriveLinkName(slug));
+  const link = shellQuote(linkPath);
   try {
     const res = await sandbox.runProcess({
       command: "sh",
       args: [
         "-c",
-        `mkdir -p ${shellQuote(dir)} && { [ "$(readlink ${shellQuote(linkPath)} 2>/dev/null)" = ${shellQuote(mountPath)} ] || { rm -f ${shellQuote(linkPath)} && ln -s ${shellQuote(mountPath)} ${shellQuote(linkPath)}; }; }`,
+        `mkdir -p ${shellQuote(dir)} && { [ "$(readlink ${link} 2>/dev/null)" = ${shellQuote(mountPath)} ] || { { [ ! -d ${link} ] || [ -L ${link} ]; } && rm -f ${link} && ln -s ${shellQuote(mountPath)} ${link}; }; }`,
       ],
       timeoutMs: 30_000,
     });
     if (res?.exitCode !== 0) {
-      log(`remote ${projectDriveLinkName(slug)} link failed ${linkPath}: exit ${res?.exitCode}`);
+      return linkFailed(log, slug, `remote ${projectDriveLinkName(slug)} link failed ${linkPath}: exit ${res?.exitCode}`);
     }
+    return true;
   } catch (err) {
-    log(
+    return linkFailed(
+      log,
+      slug,
       `remote ${projectDriveLinkName(slug)} link failed ${linkPath}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
   }

@@ -299,6 +299,9 @@ export interface AcquireContext {
     credential: MountCredentials,
   ): void;
 
+  /** Record whether the drive's `drives/<slug>` link was made. */
+  recordProjectLink(drive: ProjectRunDrive, linked: boolean): void;
+
   /** Record a re-signed project drive credential, before its remount. */
   recordResignedProjectCredential(
     drive: ProjectRunDrive,

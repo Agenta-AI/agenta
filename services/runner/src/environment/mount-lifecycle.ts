@@ -363,9 +363,13 @@ export async function mountLocalProjectDrive(
     if (opts.cwdReady && !(await opts.cwdReady.then(() => true, () => false)))
       return true;
     throwIfAcquireAborted(deps.signal);
-    await linkProjectDrive(plan.workspace.cwd, drive.slug, mountPath, {
-      log: ctx.log,
-    });
+    // Mounted either way, so teardown unmounts it; a failed link only hides it from the model.
+    ctx.recordProjectLink(
+      drive,
+      await linkProjectDrive(plan.workspace.cwd, drive.slug, mountPath, {
+        log: ctx.log,
+      }),
+    );
     return true;
   } catch (err) {
     rethrowIfInvariant(err);

@@ -1367,12 +1367,15 @@ async function acquireEnvironmentOnce(
             ctx.commitProjectMount(drive, mountPath, creds);
             // The `drives/<slug>` link lives in the cwd, so it waits for the cwd mount.
             if (!(await daytonaCwdMount.then(() => true, () => false))) return;
-            await linkProjectDriveRemote(
-              environment.sandbox,
-              plan.workspace.cwd,
-              drive.slug,
-              mountPath,
-              { log: logger },
+            ctx.recordProjectLink(
+              drive,
+              await linkProjectDriveRemote(
+                environment.sandbox,
+                plan.workspace.cwd,
+                drive.slug,
+                mountPath,
+                { log: logger },
+              ),
             );
           }
         } catch (err) {
@@ -1487,7 +1490,7 @@ async function acquireEnvironmentOnce(
       projectDrives: projectDrives(environment.drives).map((drive) => ({
         slug: drive.slug,
         access: drive.access,
-        mountedPath: drive.mountedPath,
+        mountedPath: drive.linkFailed ? undefined : drive.mountedPath,
       })),
       ...(drivesListedEmpty(request)
         ? {

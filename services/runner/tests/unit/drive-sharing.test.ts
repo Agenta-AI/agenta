@@ -4,7 +4,8 @@
  * `sandbox-agent-mount.test.ts`, `inprocess/sandbox-drive` in the integration suite).
  */
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readlinkSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
@@ -192,6 +193,37 @@ describe("project drive paths and links", () => {
       // Renewed each turn: a correct link is kept, a wrong one replaced.
       assert.equal(await linkProjectDrive(cwd, "notes", "/target/other", { log: SILENT }), true);
       assert.equal(readlinkSync(join(cwd, "drives", "notes")), "/target/other");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("never replaces a folder at the link path, locally or in a sandbox, and reports the failure", async () => {
+    const cwd = join(tmpdir(), `agenta-project-folder-${process.pid}-${Date.now()}`);
+    mkdirSync(join(cwd, "drives", "notes"), { recursive: true });
+    writeFileSync(join(cwd, "drives", "notes", "kept.md"), "mine");
+    const sh: Parameters<typeof linkProjectDriveRemote>[0] = {
+      runProcess: async ({ args }) => {
+        try {
+          execFileSync("sh", args ?? []);
+          return { exitCode: 0 };
+        } catch (err) {
+          return { exitCode: (err as { status?: number }).status ?? 1 };
+        }
+      },
+    };
+    try {
+      const logs: string[] = [];
+      assert.equal(await linkProjectDrive(cwd, "notes", "/target/notes", { log: (m) => logs.push(m) }), false);
+      assert.equal(await linkProjectDriveRemote(sh, cwd, "notes", "/target/notes", { log: (m) => logs.push(m) }), false);
+      assert.equal(readFileSync(join(cwd, "drives", "notes", "kept.md"), "utf-8"), "mine");
+      assert.equal(logs.filter((m) => m === "mount degraded kind=project_mount cause=link_failed slug=notes").length, 2);
+      // The remote script makes a missing link, keeps a correct one, and replaces a wrong one.
+      assert.equal(await linkProjectDriveRemote(sh, cwd, "prices", "/target/prices", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "prices")), "/target/prices");
+      assert.equal(await linkProjectDriveRemote(sh, cwd, "prices", "/target/prices", { log: SILENT }), true);
+      assert.equal(await linkProjectDriveRemote(sh, cwd, "prices", "/target/moved", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "prices")), "/target/moved");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
@@ -497,6 +529,36 @@ describe("local runs with drives (engine composition)", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-agent`, { recursive: true, force: true });
+      rmSync(`${cwd}-project-prices`, { recursive: true, force: true });
+    }
+  });
+
+  it("tells the model a drive whose link is blocked by a folder is not available, and still unmounts it", async () => {
+    const cwd = join(tmpdir(), `agenta-drives-blocked-${process.pid}-${Date.now()}`);
+    mkdirSync(join(cwd, "drives", "prices"), { recursive: true });
+    writeFileSync(join(cwd, "drives", "prices", "kept.md"), "mine");
+    const { calls, deps, logs } = fakeHarness({ cwd });
+    const unmounted: string[] = [];
+    deps.signProjectMountCredentials = signed("prices");
+    deps.mountStorage = (async () => true) as never;
+    deps.unmountStorage = (async (path: string) => {
+      unmounted.push(path);
+      return true;
+    }) as never;
+    try {
+      const result = await runSandboxAgent(
+        request({ sessionId: undefined, drives: [{ kind: "project", slug: "prices", access: "read" }] }),
+        undefined,
+        undefined,
+        deps,
+      );
+      assert.equal(result.ok, true);
+      assert.ok(logs.includes("mount degraded kind=project_mount cause=link_failed slug=prices"));
+      assert.match(calls.workspacePlan.prompt.agentsMd, /`drives\/prices\/` is not available/);
+      assert.equal(readFileSync(join(cwd, "drives", "prices", "kept.md"), "utf-8"), "mine");
+      assert.ok(unmounted.includes(`${cwd}-project-prices`));
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-project-prices`, { recursive: true, force: true });
     }
   });

@@ -1471,7 +1471,7 @@ export async function runTurn(
     if (plan.driveOnRunner) {
       for (const drive of projectDrives(env.drives)) {
         if (drive.mountedPath) {
-          await linkProjectDrive(plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger });
+          drive.linkFailed = !(await linkProjectDrive(plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger }));
         }
       }
     }
