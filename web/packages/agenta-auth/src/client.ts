@@ -9,6 +9,7 @@ import Passwordless from "supertokens-web-js/recipe/passwordless"
 import Session from "supertokens-web-js/recipe/session"
 import ThirdParty from "supertokens-web-js/recipe/thirdparty"
 
+import {classifyAuthFailure, type AuthFailure} from "./authError"
 import {describeCreateCode, describeResendCode} from "./otpMachine"
 import {authApiUrl, authEnv} from "./runtime"
 import {readAuthRejection} from "./turnstile"
@@ -260,7 +261,7 @@ export type EmailPasswordDetailedOutcome =
     | {kind: "wrong-credentials"}
     | {kind: "field-error"; message: string; emailExists: boolean}
     | {kind: "not-allowed"; message: string}
-    | {kind: "error"}
+    | {kind: "error"; failure: AuthFailure}
 
 const FIELDS = (email: string, password: string) => [
     {id: "email", value: email},
@@ -289,7 +290,7 @@ export async function signInDetailed(
     } catch (error) {
         const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "not-allowed", message: rejection}
-        return {kind: "error"}
+        return {kind: "error", failure: classifyAuthFailure(error)}
     }
 }
 
@@ -319,7 +320,7 @@ export async function signUpDetailed(
     } catch (error) {
         const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "not-allowed", message: rejection}
-        return {kind: "error"}
+        return {kind: "error", failure: classifyAuthFailure(error)}
     }
 }
 
