@@ -30,7 +30,7 @@ CONFIG_COMMIT_TOOL = "commit_revision"
 # taken, so a trailing number is part of the seeded shape.
 _PLACEHOLDER_AGENT_NAME = re.compile(r"new agent(?: \d+)?|untitled(?: agent)?")
 
-_PLATFORM_HEAD = """\
+_HEAD_BEFORE_SCRATCH = """\
 ## Agenta platform
 
 You are running inside Agenta. Agenta is a platform where people build agents that work as
@@ -91,8 +91,17 @@ Do not add warnings, disclaimers, or approval steps for risks that are only hypo
 
 **Three things you do ask about.** Ask with `request_input` when you have it, with real
 options. Do not use it for a question you could answer yourself, and do not turn one question
-into a form. Scratch files, drafts, notes in your durable folder, and your own naming never need
-a question. The platform also has its own approval cards for some tool calls; those are not
+into a form. """
+
+_SCRATCH_WITH_AGENT_DRIVE = """\
+Scratch files, drafts, notes in your durable folder, and your own naming never need
+a question."""
+
+_SCRATCH_WITHOUT_AGENT_DRIVE = (
+    "Scratch files, drafts, notes, and your own naming never need a question."
+)
+
+_HEAD_AFTER_SCRATCH = """ The platform also has its own approval cards for some tool calls; those are not
 yours to ask, and a person who approved one has answered. For playground build-kit actions
 (such as editing this agent, updating a skill, or creating and removing automations), use the
 configured tool permission gate instead of asking for a second confirmation in conversation.
@@ -186,8 +195,8 @@ session file. A bare basename for a nested file does not open.
 _FILES_WITHOUT_AGENT_DRIVE = """\
 ## Files and storage
 
-You have no durable folder of your own. Nothing you write in your working directory or in
-`/tmp` is kept after this session, so do not promise to keep anything.
+Nothing you write in your working directory or in `/tmp` is kept after this session, so do
+not promise to keep anything.
 
 - **Your working directory** lasts for this session only. Use it for your work.
 - **`/tmp`** is fast local disk, and the person cannot see it. It can vanish when the session
@@ -207,11 +216,10 @@ _TOOLS_INSTALLED = """\
 You cannot use `apt` or `sudo`. Most tools are already installed: `git`, `gh`, `curl`, `jq`,
 `rg`, `fd`, `uv`, `python3` with the common data and web packages, `node` with `npm`, `pnpm`,
 `bun`, and `tsc`, `chromium` through Playwright (headless only), `ffmpeg`, the `poppler` PDF
-tools, `tesseract`, and `sqlite3`. Run `which <tool>` before you install anything. When a tool
-is missing, download it from its official source"""
+tools, `tesseract`, and `sqlite3`. Run `which <tool>` before you install anything."""
 
-_TOOLS_WITH_AGENT_DRIVE = """\
- and run it yourself. If the source publishes
+_TOOLS_WITH_AGENT_DRIVE = """ When a tool
+is missing, download it from its official source and run it yourself. If the source publishes
 a checksum or a signature, check it before you run the file. There is no Docker and no GPU.
 
 Keep every tool you add under `agent-files/.tools/`. That folder is dimmed for the person and
@@ -255,8 +263,8 @@ with a connection error, say that the run's network policy may block it. Do not 
 
 """
 
-_TOOLS_WITHOUT_AGENT_DRIVE = """\
- into `/tmp` and run it from there.
+_TOOLS_WITHOUT_AGENT_DRIVE = """ When a tool
+is missing, download it from its official source into `/tmp` and run it from there.
 If the source publishes a checksum or a signature, check it before you run the file. A tool you
 add lasts for this session only. There is no Docker and no GPU.
 
@@ -342,7 +350,11 @@ _TAIL_END = """\
 def _platform_base(*, has_agent_drive: bool) -> str:
     return "".join(
         (
-            _PLATFORM_HEAD,
+            _HEAD_BEFORE_SCRATCH,
+            _SCRATCH_WITH_AGENT_DRIVE
+            if has_agent_drive
+            else _SCRATCH_WITHOUT_AGENT_DRIVE,
+            _HEAD_AFTER_SCRATCH,
             _FILES_WITH_AGENT_DRIVE if has_agent_drive else _FILES_WITHOUT_AGENT_DRIVE,
             _TOOLS_INSTALLED,
             _TOOLS_WITH_AGENT_DRIVE if has_agent_drive else _TOOLS_WITHOUT_AGENT_DRIVE,

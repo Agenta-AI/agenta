@@ -299,6 +299,8 @@ def test_an_agent_without_an_agent_drive_is_never_sent_to_agent_files():
         assert "agent-files" not in text
         assert "## Files and storage" in text
         assert "## What does not work here" in text
+    # Project drives are durable; the agent's own durable folder is never mentioned.
+    assert "durable" not in AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE
 
 
 def test_project_drives_add_the_link_rule_for_drives():
