@@ -4,7 +4,16 @@ from contextlib import asynccontextmanager
 from collections import deque
 from posixpath import basename
 from re import sub
-from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Protocol, Tuple
+from typing import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    TYPE_CHECKING,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+)
 from uuid import UUID, uuid4, uuid5, NAMESPACE_DNS
 
 import pathspec
@@ -146,6 +155,25 @@ def mint_agent_slug(*, artifact_id: str, name: str) -> str:
     canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
     slug_name = slugify_mount_name(name)
     return f"{RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
+
+
+def project_mount_lookup(
+    mounts_service: "MountsService",
+) -> Callable[..., Awaitable[Optional[Mount]]]:
+    """The lookup the workflows service checks project drives with at commit.
+
+    A reserved slug is never a project drive, so it reads as missing.
+    """
+
+    async def lookup(*, project_id: UUID, slug: str) -> Optional[Mount]:
+        try:
+            return await mounts_service.fetch_project_mount(
+                project_id=project_id, slug=slug
+            )
+        except MountSlugReserved:
+            return None
+
+    return lookup
 
 
 def reject_reserved_slug(slug: str) -> None:

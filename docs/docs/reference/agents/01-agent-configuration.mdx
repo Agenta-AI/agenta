@@ -28,6 +28,8 @@ Every field is optional. An omitted field falls back to the default in the table
 | `tools`        | array  | No       | `[]`                               | Tools the agent can call. Each entry is one of the tool objects below.    |
 | `mcps`         | array  | No       | `[]`                               | MCP servers exposed to the agent.                                         |
 | `skills`       | array  | No       | `[]`                               | Skills the agent ships with.                                              |
+| `has_session_drive` | boolean | No | `true`                       | Whether the working folder of a session is kept between turns. See [has_session_drive](#has_session_drive). |
+| `drives`       | array  | No       | `[{"kind": "agent"}]`              | The agent drive and the project drives the agent mounts. See [drives](#drives). |
 | `harness`      | object | No       | see [harness](#harness)            | The coding agent to drive, plus its gating posture.                       |
 | `runner`       | object | No       | see [runner](#runner)              | The engine that drives the harness loop, plus the tool execution policy.  |
 | `sandbox`      | object | No       | see [sandbox](#sandbox)            | Where the agent runs, plus its security boundary.                         |
@@ -230,6 +232,88 @@ Each entry is an inline skill package. See [Skills](/concepts/skills).
 | `content`    | string  | Yes      |         | UTF-8 text, up to 200,000 characters.                                                                                         |
 | `executable` | boolean | No       | `false` | Mark the file executable when it is written out.                                                                              |
 
+## has_session_drive
+
+A boolean. When `true`, each session has a session drive: its working folder is kept in storage and is the same folder on every turn of the session. When `false`, each run works in a temporary folder that exists only as long as its sandbox.
+
+The `inprocess` sandbox needs the session drive. On that sandbox, `has_session_drive` must be `true`, or the run is refused.
+
+## drives
+
+The list of drives the agent mounts in each run. A drive is a folder of files that Agenta keeps in storage between runs. There are two kinds of entry:
+
+| Field    | Type                       | Required                 | Default        | Description                                                                 |
+| -------- | -------------------------- | ------------------------ | -------------- | --------------------------------------------------------------------------- |
+| `kind`   | `"agent"` \| `"project"`   | Yes                      |                | `agent` is the agent's own drive. `project` is a drive of the project.      |
+| `slug`   | string                     | For `project` only       |                | The slug of the project drive. Not allowed on an `agent` entry.             |
+| `access` | `"read-write"` \| `"read"` | No. For `project` only   | `"read-write"` | What the agent can do in the drive. Not allowed on an `agent` entry.        |
+
+Each drive appears as a folder in the agent's working folder:
+
+| Entry                                                        | Folder             | Access     |
+| ------------------------------------------------------------ | ------------------ | ---------- |
+| `{"kind": "agent"}`                                          | `agent-files/`     | Read-write |
+| `{"kind": "project", "slug": "price-lists", "access": "read"}` | `drives/price-lists/` | Read only |
+
+Rules:
+
+- At most 8 entries.
+- At most one `agent` entry.
+- Each slug at most once.
+- An entry accepts only `kind`, `slug`, and `access`.
+- An empty list means the agent mounts no agent drive and no project drive.
+
+A configuration without `drives` reads as `[{"kind": "agent"}]`, and a configuration without `has_session_drive` reads as `true`. Agents saved before these fields existed therefore keep their session drive and their agent drive.
+
+A project drive must exist before an agent lists it. Create it with `POST /api/mounts/`. See [Share a drive between agents](/reference/agents/files-and-attachments#share-a-drive-between-agents).
+
+An agent that reads a shared price list and keeps its own notes:
+
+```json
+{
+  "has_session_drive": true,
+  "drives": [
+    { "kind": "agent" },
+    { "kind": "project", "slug": "price-lists", "access": "read" }
+  ]
+}
+```
+
+An agent with no durable files:
+
+```json
+{ "has_session_drive": false, "drives": [] }
+```
+
+The agent cannot change its own `drives` or `has_session_drive` with its commit tool. A person, or another agent that edits agent configurations, changes them.
+
+### Save errors
+
+Saving a revision checks both fields. A failed check returns HTTP `422` and stores no revision.
+
+| `code`                  | When                                                                        |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `invalid_drive_entry`   | The `drives` list breaks one of the rules above.                            |
+| `invalid_session_drive` | `has_session_drive` is not `true` or `false`.                               |
+| `drive_not_found`       | A `project` entry names a slug with no active project drive in the project. |
+
+The response names the field that failed:
+
+```json
+{
+  "detail": {
+    "code": "drive_not_found",
+    "message": "The drive 'price-lists' does not exist in this project.",
+    "retryable": false,
+    "next_step": "Create the drive with POST /mounts/, then commit again.",
+    "details": {
+      "field": "parameters.agent.drives[1].slug",
+      "value": "price-lists"
+    }
+  }
+}
+```
+
 ## harness
 
 | Field         | Type                                   | Required | Default                                        | Description                                                                                                                                                                    |
@@ -321,6 +405,8 @@ This is the value a new agent starts with. It is also the `default` on the agent
   },
   "tools": [],
   "mcps": [],
+  "has_session_drive": true,
+  "drives": [{ "kind": "agent" }],
   "harness": { "kind": "pi_core" },
   "runner": { "kind": "sidecar", "permissions": { "default": "allow_reads" } },
   "sandbox": { "kind": "local" }
@@ -340,6 +426,8 @@ The parser returns HTTP `400` instead of falling back to a default when:
 | `harness` or `sandbox` as a bare string                                                      | Pre-migration flat selector | `{"kind": "..."}`                        |
 | A key other than `kind`, `permissions`, or `extras` inside `harness`, `runner`, or `sandbox` | Unknown selector key        | One of the three allowed keys            |
 | A `runner.permissions.default` outside the four modes                                        | Invalid permission default  | `allow`, `ask`, `deny`, or `allow_reads` |
+| A `drives` list that breaks the [drive rules](#drives)                                       | Invalid drive entry         | A list that follows the rules            |
+| A `has_session_drive` that is not a boolean                                                  | Invalid session drive       | `true` or `false`                        |
 
 ## Embed references
 

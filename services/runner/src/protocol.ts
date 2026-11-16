@@ -350,6 +350,17 @@ export interface McpServerConfig {
   };
 }
 
+/** Who may write a project drive in a run. The agent drive is always read-write. */
+export type DriveAccess = "read" | "read-write";
+
+/**
+ * One entry of the agent's `drives` list: its own drive, or a project drive by slug. Neither names
+ * a mount id: the runner finds the agent drive from `runContext.workflow.artifact.id`.
+ */
+export type AgentDrive =
+  | { kind: "agent" }
+  | { kind: "project"; slug: string; access: DriveAccess };
+
 /**
  * The sandbox security boundary an agent runs inside (Layer 2). `network` is the outbound
  * egress policy (`on` = allow all, `off` = block all, `allowlist` = only `network.allowlist`
@@ -922,6 +933,13 @@ export interface AgentRunRequest {
    * `strict` (it cannot be a hard guarantee there). `filesystem` is declared-only.
    */
   sandboxPermission?: SandboxPermission;
+  /**
+   * The agent's configured drives. Absent from an agent service older than drive sharing: the
+   * runner then mounts the agent drive whenever the run has an artifact id.
+   */
+  drives?: AgentDrive[];
+  /** Whether the session folder is a durable drive. Absent means true. */
+  hasSessionDrive?: boolean;
   /**
    * Generic harness-rendered files to drop in the session cwd before the session starts. Each
    * entry is `{ path (relative to cwd), content (UTF-8 file text) }`. Produced by the Python

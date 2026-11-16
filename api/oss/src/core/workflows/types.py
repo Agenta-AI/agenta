@@ -186,11 +186,11 @@ class InvalidAgentConnectionError(Exception):
 
 
 class AgentDriveError(Exception):
-    """The commit carries ``parameters.agent.drives`` (or ``has_session_drive``) that no run can
+    """The commit carries ``parameters.agent.drives`` or ``has_session_drive`` that no run can
     use. Kept outside :class:`WorkflowError` for the reason :class:`InvalidAgentHarnessError`
-    gives; the commit route maps it to 422."""
+    gives; the commit routes map every subclass to 422."""
 
-    code = "invalid_drive_entry"
+    code: str
 
     def __init__(self, *, field: str, value: Any, message: str, next_step: str) -> None:
         super().__init__(message)
@@ -212,16 +212,32 @@ class AgentDriveError(Exception):
         }
 
 
-class InvalidAgentDriveEntryError(AgentDriveError):
+class InvalidAgentDrivesError(AgentDriveError):
     """A drive entry breaks a rule of the SDK's ``validate_agent_drives``."""
 
     code = "invalid_drive_entry"
+
+
+class InvalidSessionDriveError(AgentDriveError):
+    """``has_session_drive`` is not a boolean."""
+
+    code = "invalid_session_drive"
 
 
 class AgentDriveNotFoundError(AgentDriveError):
     """A ``project`` entry names a slug with no active project drive in this project."""
 
     code = "drive_not_found"
+
+
+class ProjectMountLookupMissing(WorkflowError):
+    """The service was built without the project mount lookup, so it cannot check that a
+    project drive exists. A wiring fault of the server, never the caller's."""
+
+    def __init__(self, message: Optional[str] = None):
+        super().__init__(
+            message or "Project drives cannot be checked: no project mount lookup."
+        )
 
 
 class WorkflowServiceUrlMissing(WorkflowError):
