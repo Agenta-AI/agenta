@@ -396,3 +396,23 @@ async def test_hidden_session_is_not_read_from_the_turn_row_by_trace():
         can_view_session=_deny,
     )
     assert (general_fields.session_id, general_fields.turn_id) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_turn_scope_keeps_the_turn_when_the_linked_root_span_has_none():
+    root_without_turn = _span(ROOT, None, {"session": {"id": "s-40"}})
+    service = _service(
+        spans=[root_without_turn], turns=[_turn(TURN_2, 2, span_id=ROOT)]
+    )
+    general_fields = await _build(
+        service,
+        scope=AnnotationScope.TURN,
+        session_id="s-40",
+        turn_id=str(TURN_2),
+        links=[],
+    )
+    assert general_fields.links[0].span_id == ROOT
+    assert (general_fields.session_id, general_fields.turn_id) == (
+        "s-40",
+        str(TURN_2),
+    )

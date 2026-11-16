@@ -149,7 +149,11 @@ class AnnotationGeneralFieldsService:
                 span_id=subject.span_id,
             )
             if span is not None:
-                session_id, turn_id = _span_session_and_turn(span)
+                # The stored span wins where it has a value; a run's root span may
+                # carry the session and no turn.
+                span_session_id, span_turn_id = _span_session_and_turn(span)
+                session_id = span_session_id or session_id
+                turn_id = span_turn_id or turn_id
             elif not session_id and not turn_id:
                 # A running agent's spans are not stored yet; its turn row names the trace.
                 turn = await self._find_turn(
