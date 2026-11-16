@@ -1,0 +1,22 @@
+{
+    "alsoSubscribed_one": "Também inscrito em {{count}} evento que esta tela não consegue mostrar. Ele é mantido, a menos que você escolha outro evento aqui.",
+    "alsoSubscribed_many": "Também inscrito em {{count}} eventos que esta tela não consegue mostrar. Eles são mantidos, a menos que você escolha outro evento aqui.",
+    "alsoSubscribed_other": "Também inscrito em {{count}} eventos que esta tela não consegue mostrar. Eles são mantidos, a menos que você escolha outro evento aqui.",
+    "authentication": "Autenticação",
+    "authorizationHeader": "Cabeçalho Authorization",
+    "authorizationHint": "Enviado como o cabeçalho Authorization em todas as requisições.",
+    "configurationDeployed": "Configuração implantada",
+    "description": "A Agenta envia o evento ao seu endpoint e tenta de novo em caso de falha.",
+    "editTitle": "Editar inscrição",
+    "endpointUrl": "URL do endpoint",
+    "event": "Evento",
+    "headerValue": "Valor do cabeçalho",
+    "headerValueHint": "Deixe em branco para manter o valor armazenado.",
+    "nameHint": "Opcional: como a inscrição aparece na lista.",
+    "namePlaceholder": "Notificador de implantação",
+    "saveFailed": "Não foi possível salvar a inscrição",
+    "saving": "Salvando…",
+    "signatureHint": "A Agenta assina cada requisição com um segredo exibido uma única vez depois que você se inscreve.",
+    "signedPayload": "Payload assinado",
+    "subscribe": "Inscrever"
+}
