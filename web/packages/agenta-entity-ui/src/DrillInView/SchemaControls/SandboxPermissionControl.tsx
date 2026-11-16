@@ -27,6 +27,8 @@ import {
 } from "@agenta/ui/ui"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
+import {useT, type CatalogKey} from "@agenta/i18n"
+import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
 
 type NetworkMode = "on" | "off" | "allowlist"
 type FilesystemMode = "on" | "readonly" | "off"
@@ -49,30 +51,24 @@ export interface SandboxPermissionControlProps {
     disabled?: boolean
 }
 
-const NETWORK_MODE_OPTIONS: {value: NetworkMode; label: string}[] = [
-    {value: "on", label: "Allow all egress"},
-    {value: "off", label: "Block all egress"},
-    {value: "allowlist", label: "Allowlist (CIDR ranges)"},
+type PermissionsKey = CatalogKey<typeof permissionsCatalog>
+
+const NETWORK_MODE_OPTIONS: {value: NetworkMode; label: PermissionsKey}[] = [
+    {value: "on", label: "entityUi.permissions.networkAllowAll"},
+    {value: "off", label: "entityUi.permissions.networkBlockAll"},
+    {value: "allowlist", label: "entityUi.permissions.networkAllowlist"},
 ]
 
-const FILESYSTEM_OPTIONS: {value: FilesystemMode; label: string}[] = [
-    {value: "on", label: "Read / write"},
-    {value: "readonly", label: "Read-only"},
-    {value: "off", label: "No access"},
+const FILESYSTEM_OPTIONS: {value: FilesystemMode; label: PermissionsKey}[] = [
+    {value: "on", label: "entityUi.permissions.fsReadWrite"},
+    {value: "readonly", label: "entityUi.permissions.fsReadOnly"},
+    {value: "off", label: "entityUi.permissions.fsNoAccess"},
 ]
 
-const ENFORCEMENT_OPTIONS: {value: Enforcement; label: string}[] = [
-    {value: "strict", label: "Strict (fail if unenforceable)"},
-    {value: "best_effort", label: "Best effort"},
+const ENFORCEMENT_OPTIONS: {value: Enforcement; label: PermissionsKey}[] = [
+    {value: "strict", label: "entityUi.permissions.enforcementStrict"},
+    {value: "best_effort", label: "entityUi.permissions.enforcementBestEffort"},
 ]
-
-const NETWORK_EGRESS_HINT =
-    "Outbound network access for the sandbox. Declared config; enforced by the runner."
-const ALLOWLIST_HINT = "CIDR ranges allowed for outbound egress, one per line (e.g. 10.0.0.0/8)."
-const FILESYSTEM_HINT =
-    "Declared filesystem access for the sandbox. Optional; leave unset for no declared boundary."
-const ENFORCEMENT_HINT =
-    "Strict fails the run when the boundary can't be applied; best effort continues."
 
 /** Read the value with the SDK's defaults applied, so the form is never blank. */
 function readValue(value: Record<string, unknown> | null | undefined) {
@@ -91,6 +87,7 @@ export function SandboxPermissionControl({
     onChange,
     disabled,
 }: SandboxPermissionControlProps) {
+    const t = useT(permissionsCatalog)
     const current = useMemo(() => readValue(value), [value])
 
     // Compose the full object from the current state, overriding one slice. Always writes the
@@ -121,7 +118,10 @@ export function SandboxPermissionControl({
             {/* `path` = the dot-path the commit-diff classifier flattens this knob to, so a row with
                 an uncommitted change marks itself (see ChangedPathsProvider). */}
             <RailField
-                label={railInfoLabel("Network egress", NETWORK_EGRESS_HINT)}
+                label={railInfoLabel(
+                    t("entityUi.permissions.networkEgress"),
+                    t("entityUi.permissions.networkEgressHint"),
+                )}
                 align="center"
                 path="sandbox.permissions.network.mode"
             >
@@ -130,13 +130,13 @@ export function SandboxPermissionControl({
                     onValueChange={(v) => write({networkMode: v as NetworkMode})}
                     disabled={disabled}
                 >
-                    <SelectTrigger className="w-full" aria-label="Network egress">
+                    <SelectTrigger className="w-full" aria-label={t("entityUi.permissions.networkEgress")}>
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {NETWORK_MODE_OPTIONS.map((o) => (
                             <SelectItem key={o.value} value={o.value}>
-                                {o.label}
+                                {t(o.label)}
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -145,7 +145,10 @@ export function SandboxPermissionControl({
 
             {current.networkMode === "allowlist" ? (
                 <RailField
-                    label={railInfoLabel("Allowlist", ALLOWLIST_HINT)}
+                    label={railInfoLabel(
+                        t("entityUi.permissions.allowlist"),
+                        t("entityUi.permissions.allowlistHint"),
+                    )}
                     path="sandbox.permissions.network.allowlist"
                 >
                     <AutosizeTextarea
@@ -161,14 +164,17 @@ export function SandboxPermissionControl({
                         disabled={disabled}
                         placeholder={"10.0.0.0/8\n192.168.0.0/16"}
                         autoSize={{minRows: 2, maxRows: 6}}
-                        aria-label="Allowlist"
+                        aria-label={t("entityUi.permissions.allowlist")}
                         className="font-mono"
                     />
                 </RailField>
             ) : null}
 
             <RailField
-                label={railInfoLabel("Filesystem", FILESYSTEM_HINT)}
+                label={railInfoLabel(
+                    t("entityUi.permissions.filesystem"),
+                    t("entityUi.permissions.filesystemHint"),
+                )}
                 align="center"
                 path="sandbox.permissions.filesystem"
             >
@@ -177,17 +183,20 @@ export function SandboxPermissionControl({
                 <Combobox
                     value={current.filesystem ?? undefined}
                     onChange={(v) => write({filesystem: (v as FilesystemMode | undefined) ?? null})}
-                    options={FILESYSTEM_OPTIONS}
+                    options={FILESYSTEM_OPTIONS.map((o) => ({value: o.value, label: t(o.label)}))}
                     disabled={disabled}
-                    placeholder="Not declared"
+                    placeholder={t("entityUi.permissions.notDeclared")}
                     allowClear
-                    aria-label="Filesystem"
+                    aria-label={t("entityUi.permissions.filesystem")}
                     className="w-full"
                 />
             </RailField>
 
             <RailField
-                label={railInfoLabel("Enforcement", ENFORCEMENT_HINT)}
+                label={railInfoLabel(
+                    t("entityUi.permissions.enforcement"),
+                    t("entityUi.permissions.enforcementHint"),
+                )}
                 align="center"
                 path="sandbox.permissions.enforcement"
             >
@@ -196,13 +205,13 @@ export function SandboxPermissionControl({
                     onValueChange={(v) => write({enforcement: v as Enforcement})}
                     disabled={disabled}
                 >
-                    <SelectTrigger className="w-full" aria-label="Enforcement">
+                    <SelectTrigger className="w-full" aria-label={t("entityUi.permissions.enforcement")}>
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {ENFORCEMENT_OPTIONS.map((o) => (
                             <SelectItem key={o.value} value={o.value}>
-                                {o.label}
+                                {t(o.label)}
                             </SelectItem>
                         ))}
                     </SelectContent>

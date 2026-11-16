@@ -17,6 +17,10 @@ import {memo, useCallback, useMemo} from "react"
 import {Combobox, Textarea} from "@agenta/ui/ui"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
+
+const tNow = createT(permissionsCatalog)
 
 type ClaudePermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions"
 
@@ -45,12 +49,13 @@ export interface ClaudePermissionsControlProps {
 
 // FE display copy per mode value. The set of values is the schema's `default_mode` enum (passed via
 // `modeSchema`); this only supplies the friendlier label, falling back to the raw value.
-const MODE_OPTIONS: {value: ClaudePermissionMode; label: string}[] = [
-    {value: "default", label: "Default (prompt on each gated tool)"},
-    {value: "acceptEdits", label: "Accept edits (auto-accept file edits)"},
-    {value: "plan", label: "Plan (read-only planning)"},
-    {value: "bypassPermissions", label: "Bypass (skip every gate)"},
-]
+const MODE_OPTIONS: {value: ClaudePermissionMode; label: CatalogKey<typeof permissionsCatalog>}[] =
+    [
+        {value: "default", label: "entityUi.permissions.modeDefault"},
+        {value: "acceptEdits", label: "entityUi.permissions.modeAcceptEdits"},
+        {value: "plan", label: "entityUi.permissions.modePlan"},
+        {value: "bypassPermissions", label: "entityUi.permissions.modeBypass"},
+    ]
 
 /** Read the current value, defaulting the rule lists to empty arrays. */
 function readValue(value: Record<string, unknown> | null | undefined): {
@@ -82,6 +87,7 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
     disabled = false,
     modeSchema,
 }: ClaudePermissionsControlProps) {
+    const t = useT(permissionsCatalog)
     const current = useMemo(() => readValue(value), [value])
 
     // The mode option set comes from the schema's `default_mode` enum when available (FE labels by
@@ -96,21 +102,24 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
             : null
         const en = (direct ?? fromAnyOf) as unknown[] | null | undefined
         if (Array.isArray(en) && en.length) {
-            const labelOf = (v: string) => MODE_OPTIONS.find((o) => o.value === v)?.label ?? v
+            const labelOf = (v: string) => {
+                const key = MODE_OPTIONS.find((o) => o.value === v)?.label
+                return key ? tNow(key) : v
+            }
             return en
                 .filter((v): v is string => typeof v === "string")
                 .map((v) => ({value: v as ClaudePermissionMode, label: labelOf(v)}))
         }
-        return MODE_OPTIONS
+        return MODE_OPTIONS.map((option) => ({value: option.value, label: tNow(option.label)}))
     }, [modeSchema])
     const modeLabel =
         typeof modeSchema?.title === "string" && modeSchema.title
             ? modeSchema.title
-            : "Permission mode"
+            : t("entityUi.permissions.permissionMode")
     const modeDescription =
         typeof modeSchema?.description === "string" && modeSchema.description
             ? modeSchema.description
-            : "Claude Code's default permission mode for this headless run."
+            : t("entityUi.permissions.permissionModeHint")
 
     // Compose the full permissions object, overriding one slice. `default_mode` is only written
     // when set so an author who only edits rules never emits a null mode.
@@ -151,7 +160,7 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     onChange={(v) => write({defaultMode: (v as ClaudePermissionMode) ?? null})}
                     options={modeOptions}
                     disabled={disabled}
-                    placeholder="Claude default"
+                    placeholder={t("entityUi.permissions.claudeDefault")}
                     allowClear
                     aria-label={modeLabel}
                     className="w-full"
@@ -161,8 +170,8 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
             <RailField
                 path="harness.permissions.allow"
                 label={railInfoLabel(
-                    "Allow rules",
-                    'Per-tool allow rules, one per line (e.g. "Read", "Bash(npm run:*)").',
+                    t("entityUi.permissions.allowRules"),
+                    t("entityUi.permissions.allowRulesHint"),
                 )}
             >
                 <Textarea
@@ -171,7 +180,7 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     disabled={disabled}
                     placeholder={"Read\nBash(npm run:*)"}
                     rows={2}
-                    aria-label="Allow rules"
+                    aria-label={t("entityUi.permissions.allowRules")}
                     className="resize-y font-mono"
                 />
             </RailField>
@@ -179,8 +188,8 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
             <RailField
                 path="harness.permissions.ask"
                 label={railInfoLabel(
-                    "Ask rules",
-                    "Per-tool rules that prompt before use, one per line.",
+                    t("entityUi.permissions.askRules"),
+                    t("entityUi.permissions.askRulesHint"),
                 )}
             >
                 <Textarea
@@ -189,7 +198,7 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     disabled={disabled}
                     placeholder="Bash(rm:*)"
                     rows={2}
-                    aria-label="Ask rules"
+                    aria-label={t("entityUi.permissions.askRules")}
                     className="resize-y font-mono"
                 />
             </RailField>
@@ -197,8 +206,8 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
             <RailField
                 path="harness.permissions.deny"
                 label={railInfoLabel(
-                    "Deny rules",
-                    "Per-tool rules that are always blocked, one per line.",
+                    t("entityUi.permissions.denyRules"),
+                    t("entityUi.permissions.denyRulesHint"),
                 )}
             >
                 <Textarea
@@ -207,7 +216,7 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     disabled={disabled}
                     placeholder={"Write\nmcp__server__tool"}
                     rows={2}
-                    aria-label="Deny rules"
+                    aria-label={t("entityUi.permissions.denyRules")}
                     className="resize-y font-mono"
                 />
             </RailField>

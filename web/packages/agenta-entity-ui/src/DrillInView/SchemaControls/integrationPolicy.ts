@@ -16,6 +16,10 @@
  * read an agent-wide mode this module does not own and the two would drift.
  */
 import type {GatewayConnectionPermissions, GatewayPermission} from "./toolUtils"
+import {createT, type CatalogKey} from "@agenta/i18n"
+import permissionsCatalog from "@agenta/i18n/catalogs/entityUi.permissions"
+
+const t = createT(permissionsCatalog)
 
 export type IntegrationPreset =
     | "always_ask"
@@ -45,52 +49,85 @@ export interface IntegrationPresetDef {
     permission: GatewayPermission | null
 }
 
+type PermissionsKey = CatalogKey<typeof permissionsCatalog>
+
+/** A preset whose texts read the active language each time they are read. */
+const presetDef = (
+    value: IntegrationPreset,
+    keys: {label: PermissionsKey; help: PermissionsKey; rowLabel: PermissionsKey},
+    permission: GatewayPermission | null,
+): IntegrationPresetDef => ({
+    value,
+    get label() {
+        return t(keys.label)
+    },
+    get help() {
+        return t(keys.help)
+    },
+    get rowLabel() {
+        return t(keys.rowLabel)
+    },
+    permission,
+})
+
 /** Menu order, as the design board fixes it. Custom sits below a divider. */
 export const INTEGRATION_PRESETS: IntegrationPresetDef[] = [
-    {
-        value: "always_ask",
-        label: "Always ask",
-        help: "Approval before every run",
-        rowLabel: "Always asks",
-        permission: "ask",
-    },
-    {
-        value: "ask_writes",
-        label: "Ask for write and delete",
-        help: "Read-only tools run automatically",
-        rowLabel: "Allow reads",
-        // Explicit, not `inherit`: `inherit` defers to the agent-wide mode, and under the `allow`
-        // mode new agents get it ran every write with no prompt while this label promised one.
-        permission: "allow_reads",
-    },
-    {
-        value: "allow_all",
-        label: "Allow all",
-        help: "Everything runs without asking",
-        rowLabel: "Allow all",
-        permission: "allow",
-    },
-    {
-        value: "deny_all",
-        label: "Deny all",
-        help: "Tools stay listed but never run",
-        rowLabel: "Denied",
-        permission: "deny",
-    },
-    {
-        value: "follow_agent",
-        label: "Follow agent policy",
-        help: "Follows agent policy for every tool",
-        rowLabel: "Follows agent policy",
-        permission: "inherit",
-    },
-    {
-        value: "custom",
-        label: "Custom",
-        help: "Per-tool permissions below",
-        rowLabel: "Custom",
-        permission: null,
-    },
+    presetDef(
+        "always_ask",
+        {
+            label: "entityUi.permissions.presetAlwaysAsk",
+            help: "entityUi.permissions.presetAlwaysAskHelp",
+            rowLabel: "entityUi.permissions.presetAlwaysAskRow",
+        },
+        "ask",
+    ),
+    // Explicit, not `inherit`: `inherit` defers to the agent-wide mode, and under the `allow`
+    // mode new agents get it ran every write with no prompt while this label promised one.
+    presetDef(
+        "ask_writes",
+        {
+            label: "entityUi.permissions.presetAskWrites",
+            help: "entityUi.permissions.presetAskWritesHelp",
+            rowLabel: "entityUi.permissions.presetAskWritesRow",
+        },
+        "allow_reads",
+    ),
+    presetDef(
+        "allow_all",
+        {
+            label: "entityUi.permissions.presetAllowAll",
+            help: "entityUi.permissions.presetAllowAllHelp",
+            rowLabel: "entityUi.permissions.presetAllowAll",
+        },
+        "allow",
+    ),
+    presetDef(
+        "deny_all",
+        {
+            label: "entityUi.permissions.presetDenyAll",
+            help: "entityUi.permissions.presetDenyAllHelp",
+            rowLabel: "entityUi.permissions.presetDenyAllRow",
+        },
+        "deny",
+    ),
+    presetDef(
+        "follow_agent",
+        {
+            label: "entityUi.permissions.presetFollowAgent",
+            help: "entityUi.permissions.presetFollowAgentHelp",
+            rowLabel: "entityUi.permissions.presetFollowAgentRow",
+        },
+        "inherit",
+    ),
+    presetDef(
+        "custom",
+        {
+            label: "entityUi.permissions.presetCustom",
+            help: "entityUi.permissions.presetCustomHelp",
+            rowLabel: "entityUi.permissions.presetCustom",
+        },
+        null,
+    ),
 ]
 
 /** A newly added integration starts with every tool allowed. */
@@ -162,11 +199,30 @@ export interface ToolPermissionOption {
  * for every legacy tool that carried no explicit permission, so without it a migrated row would
  * hold a value the select cannot show and an author could not restore once they changed it.
  */
+/** A per-tool option whose texts read the active language each time they are read. */
+const toolOption = (
+    value: GatewayPermission,
+    label: PermissionsKey,
+    help: PermissionsKey,
+): ToolPermissionOption => ({
+    value,
+    get label() {
+        return t(label)
+    },
+    get help() {
+        return t(help)
+    },
+})
+
 export const TOOL_PERMISSION_OPTIONS: ToolPermissionOption[] = [
-    {value: "ask", label: "Always ask", help: "Approval before every run"},
-    {value: "allow", label: "Allow", help: "Runs without asking"},
-    {value: "deny", label: "Deny", help: "Never runs"},
-    {value: "inherit", label: "Follow agent policy", help: "Uses the agent's permission policy"},
+    toolOption("ask", "entityUi.permissions.presetAlwaysAsk", "entityUi.permissions.presetAlwaysAskHelp"),
+    toolOption("allow", "entityUi.permissions.allow", "entityUi.permissions.toolAllowHelp"),
+    toolOption("deny", "entityUi.permissions.deny", "entityUi.permissions.toolDenyHelp"),
+    toolOption(
+        "inherit",
+        "entityUi.permissions.presetFollowAgent",
+        "entityUi.permissions.toolInheritHelp",
+    ),
 ]
 
 /** The value saved for one tool: its own entry, else the entry's default. */
@@ -292,17 +348,17 @@ export function rollupGroupPermission(
     return {kind: "shared", permission: shared as GatewayPermission}
 }
 
-const ROLLUP_LABELS: Record<GatewayPermission, string> = {
-    inherit: "follows agent policy",
-    allow: "runs automatically",
-    ask: "asks first",
-    deny: "never runs",
+const ROLLUP_LABELS: Record<GatewayPermission, PermissionsKey> = {
+    inherit: "entityUi.permissions.rollupInherit",
+    allow: "entityUi.permissions.rollupAllow",
+    ask: "entityUi.permissions.rollupAsk",
+    deny: "entityUi.permissions.rollupDeny",
     // Only reachable through a per-tool entry saved outside the drawer: rows resolve it.
-    allow_reads: "reads run, writes ask",
+    allow_reads: "entityUi.permissions.rollupAllowReads",
 }
 
 export function rollupLabel(rollup: GroupRollup): string {
-    if (rollup.kind === "mixed") return "mixed"
+    if (rollup.kind === "mixed") return t("entityUi.permissions.rollupMixed")
     if (rollup.kind === "empty") return ""
-    return ROLLUP_LABELS[rollup.permission]
+    return t(ROLLUP_LABELS[rollup.permission])
 }
