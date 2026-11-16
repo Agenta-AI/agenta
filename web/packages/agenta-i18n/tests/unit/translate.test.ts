@@ -2,6 +2,7 @@ import {getDefaultStore} from "jotai"
 import {afterEach, describe, expect, it} from "vitest"
 
 import {createT, defineCatalog} from "../../src/catalog"
+import {byLanguage} from "./byLanguage"
 import {formatDate, formatNumber, richText} from "../../src/index"
 import {activeLanguageAtom, getActiveLanguage, type Language} from "../../src/language"
 import {catalogVersionAtom, loadLanguage} from "../../src/registry"
@@ -16,7 +17,7 @@ const membersCatalog = defineCatalog(
         count_other: "{{count}} members",
         onlyEnglish: "Only in English",
     },
-    {
+    byLanguage({
         "zh-CN": async () => ({
             default: {
                 title: "成员",
@@ -27,15 +28,15 @@ const membersCatalog = defineCatalog(
         "ja-JP": async () => ({
             default: {title: "メンバー", count_other: "{{count}} 人のメンバー"},
         }),
-    },
+    }),
 )
 const commonCatalog = defineCatalog(
     "common",
     {cancel: "Cancel"},
-    {
+    byLanguage({
         "zh-CN": async () => ({default: {cancel: "取消"}}),
         "ja-JP": async () => ({default: {cancel: "キャンセル"}}),
-    },
+    }),
 )
 const t = createT(membersCatalog, commonCatalog)
 
@@ -141,10 +142,10 @@ describe("more catalogs and languages", () => {
         const late = defineCatalog(
             "settings.late",
             {hello: "Hello"},
-            {
+            byLanguage({
                 "zh-CN": async () => ({default: {hello: "你好"}}),
                 "ja-JP": async () => ({default: {hello: "こんにちは"}}),
-            },
+            }),
         )
         const tLate = createT(late)
         await loadLanguage("ja-JP")
@@ -165,13 +166,13 @@ describe("a language still loading", () => {
         const slow = defineCatalog(
             "settings.slow",
             {title: "Slow"},
-            {
+            byLanguage({
                 "zh-CN": () =>
                     new Promise((resolve) => {
                         finish = () => resolve({default: {title: "慢"}})
                     }),
                 "ja-JP": async () => ({default: {title: "遅い"}}),
-            },
+            }),
         )
         const tSlow = createT(slow)
         getDefaultStore().set(activeLanguageAtom, "zh-CN")

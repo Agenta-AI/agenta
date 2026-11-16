@@ -2,6 +2,7 @@ import {getDefaultStore} from "jotai"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {createT, defineCatalog, loadWithText} from "../../src/catalog"
+import {byLanguage} from "./byLanguage"
 import {activeLanguageAtom, languageAtom} from "../../src/language"
 import {CATALOG_TIMEOUT_MS, catalogVersionAtom, loadLanguage} from "../../src/registry"
 
@@ -17,10 +18,10 @@ describe("a catalog that cannot load", () => {
         const broken = defineCatalog(
             "settings.broken",
             {title: "Broken"},
-            {
+            byLanguage({
                 "zh-CN": () => Promise.reject(new Error("offline")),
                 "ja-JP": () => Promise.reject(new Error("offline")),
-            },
+            }),
         )
         const t = createT(broken)
         store.set(activeLanguageAtom, "zh-CN")
@@ -35,10 +36,10 @@ describe("a catalog that cannot load", () => {
         const stuck = defineCatalog(
             "settings.stuck",
             {title: "Stuck"},
-            {
+            byLanguage({
                 "zh-CN": () => new Promise(() => undefined),
                 "ja-JP": () => new Promise(() => undefined),
-            },
+            }),
         )
         const t = createT(stuck)
         store.set(activeLanguageAtom, "zh-CN")
@@ -62,10 +63,10 @@ describe("loadWithText", () => {
             defineCatalog(
                 "settings.panelBroken",
                 {title: "Panel"},
-                {
+                byLanguage({
                     "zh-CN": () => Promise.reject(new Error("offline")),
                     "ja-JP": () => Promise.reject(new Error("offline")),
-                },
+                }),
             )
             return {Panel: "panel"}
         })
@@ -80,10 +81,10 @@ describe("loadWithText", () => {
             const panel = defineCatalog(
                 "settings.panelOk",
                 {title: "Panel"},
-                {
+                byLanguage({
                     "zh-CN": async () => ({default: {title: "面板"}}),
                     "ja-JP": async () => ({default: {title: "パネル"}}),
-                },
+                }),
             )
             t = createT(panel)
         })
@@ -91,5 +92,22 @@ describe("loadWithText", () => {
         expect(t?.("settings.panelOk.title")).toBe("面板")
         store.set(languageAtom, "en")
         vi.unstubAllGlobals()
+    })
+})
+
+describe("a language without a file", () => {
+    it("shows English for it while another language still loads", async () => {
+        const partial = defineCatalog(
+            "settings.partial",
+            {title: "Partial"},
+            byLanguage({"zh-CN": async () => ({default: {title: "部分"}})}),
+        )
+        const t = createT(partial)
+        await loadLanguage("es-ES")
+        store.set(activeLanguageAtom, "es-ES")
+        expect(t("settings.partial.title")).toBe("Partial")
+        await loadLanguage("zh-CN")
+        store.set(activeLanguageAtom, "zh-CN")
+        expect(t("settings.partial.title")).toBe("部分")
     })
 })

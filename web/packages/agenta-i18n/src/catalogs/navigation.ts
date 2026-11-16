@@ -1,7 +1,8 @@
 import en from "../../locales/en/navigation.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog("navigation", en, {
-    "zh-CN": () => import("../../locales/zh-CN/navigation.json"),
-    "ja-JP": () => import("../../locales/ja-JP/navigation.json"),
-})
+export default defineCatalog(
+    "navigation",
+    en,
+    (language) => import(`../../locales/${language}/navigation.json`),
+)

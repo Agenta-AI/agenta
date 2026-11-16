@@ -12,6 +12,7 @@ import {
     registerCatalog,
     type Catalog,
     type CatalogEntry,
+    type CatalogLoader,
 } from "./registry"
 import {translate, type TranslationValues} from "./translate"
 
@@ -29,13 +30,13 @@ export type CatalogKey<C> = C extends TypedCatalog<infer K> ? K : never
 
 /**
  * Declares one small catalog. Its English is a static import, so it ships in the same chunk as
- * the screen that uses it and renders on the first paint. The other languages load with
- * `import()` when the screen's code loads, and only for the language the user chose.
+ * the screen that uses it. `load` is one function for all other languages; the bundler makes
+ * one chunk per language file. A missing file rejects, and the screen shows English.
  */
 export const defineCatalog = <NS extends string, EN extends Catalog>(
     namespace: NS,
     en: EN,
-    load: CatalogEntry["load"],
+    load: CatalogLoader,
 ): TypedCatalog<`${NS}.${BaseKey<keyof EN & string>}`> => {
     const entry: CatalogEntry = {namespace, en, load}
     registerCatalog(entry)

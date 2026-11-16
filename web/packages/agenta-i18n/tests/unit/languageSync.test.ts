@@ -7,6 +7,7 @@ import {createRoot} from "react-dom/client"
 import {expect, it} from "vitest"
 
 import {defineCatalog} from "../../src/catalog"
+import {byLanguage} from "./byLanguage"
 import {activeLanguageAtom, languageAtom, useLanguageSync} from "../../src/language"
 
 it("keeps the newest choice when an older language finishes loading later", async () => {
@@ -14,13 +15,13 @@ it("keeps the newest choice when an older language finishes loading later", asyn
     defineCatalog(
         "settings.race",
         {title: "Race"},
-        {
+        byLanguage({
             "zh-CN": () =>
                 new Promise((resolve) => {
                     finishChinese = () => resolve({default: {title: "赛跑"}})
                 }),
             "ja-JP": async () => ({default: {title: "レース"}}),
-        },
+        }),
     )
     const store = getDefaultStore()
     const Sync = () => {

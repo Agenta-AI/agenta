@@ -3,13 +3,15 @@ import {atom, getDefaultStore} from "jotai"
 import type {Language} from "./language"
 
 export type Catalog = Record<string, string>
-export type CatalogLoader = () => Promise<{default: Catalog}>
+export type TranslatedLanguage = Exclude<Language, "en">
+/** Loads one language file of a catalog; it rejects when the file does not exist. */
+export type CatalogLoader = (language: TranslatedLanguage) => Promise<{default: Catalog}>
 
 /** One small catalog: its namespace, its English (bundled with the screen), other loaders. */
 export interface CatalogEntry {
     namespace: string
     en: Catalog
-    load: Record<Exclude<Language, "en">, CatalogLoader>
+    load: CatalogLoader
 }
 
 const registered: CatalogEntry[] = []
@@ -46,7 +48,7 @@ export const loadCatalog = (entry: CatalogEntry, language: Language): Promise<vo
     if (loaded.has(id)) return Promise.resolve()
     let promise = pending.get(id)
     if (!promise) {
-        const load = entry.load[language]().then((module) => {
+        const load = entry.load(language).then((module) => {
             loaded.set(id, module.default)
             bump()
         })

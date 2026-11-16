@@ -5,12 +5,29 @@ import {atomWithStorage} from "jotai/utils"
 
 import {loadLanguage} from "./registry"
 
-export const SUPPORTED_LANGUAGES = ["en", "zh-CN", "ja-JP"] as const
+/** The one list of languages: the cookie, the atom, `<html lang>`, `Intl` and the picker follow it. */
+export const SUPPORTED_LANGUAGES = [
+    "en",
+    "zh-CN",
+    "ja-JP",
+    "es-ES",
+    "pt-BR",
+    "de-DE",
+    "fr-FR",
+] as const
 export type Language = (typeof SUPPORTED_LANGUAGES)[number]
 export const DEFAULT_LANGUAGE: Language = "en"
 
 /** The `<html lang>` value of each language. */
-export const HTML_LANG: Record<Language, string> = {en: "en", "zh-CN": "zh-CN", "ja-JP": "ja"}
+export const HTML_LANG: Record<Language, string> = {
+    en: "en",
+    "zh-CN": "zh-CN",
+    "ja-JP": "ja",
+    "es-ES": "es",
+    "pt-BR": "pt-BR",
+    "de-DE": "de",
+    "fr-FR": "fr",
+}
 
 /** Cookie, not localStorage, so a server can render `<html lang>` too. */
 export const LANGUAGE_COOKIE = "agenta-language"
@@ -42,9 +59,13 @@ export const detectBrowserLanguage = (
 ): Language => {
     for (const tag of languages) {
         const lower = tag.toLowerCase()
-        if (lower === "en" || lower.startsWith("en-")) return "en"
-        if (/^zh(-cn|-sg|-hans.*)?$/.test(lower)) return "zh-CN"
-        if (lower === "ja" || lower.startsWith("ja-")) return "ja-JP"
+        const primary = lower.split("-")[0]
+        if (primary === "zh") {
+            if (/^zh(-cn|-sg|-hans.*)?$/.test(lower)) return "zh-CN"
+            continue
+        }
+        const match = SUPPORTED_LANGUAGES.find((l) => l.toLowerCase().split("-")[0] === primary)
+        if (match) return match
     }
     return DEFAULT_LANGUAGE
 }
