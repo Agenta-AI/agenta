@@ -1723,13 +1723,28 @@ async def test_a_broken_execution_chain_sends_no_session_turn_id():
 
 
 @pytest.mark.asyncio
-async def test_a_chain_longer_than_the_bound_sends_no_session_turn_id():
+async def test_a_cycle_in_the_execution_chain_sends_no_session_turn_id():
     project_id = uuid4()
-    looping = _execution(project_id, "resume-1", parent="resume-1")
+    first = _execution(project_id, "resume-1", parent="resume-2")
+    paused = _execution(project_id, "resume-2", parent="resume-1")
 
-    command = await _answer_paused(source=looping, earlier=[looping])
+    command = await _answer_paused(source=paused, earlier=[first, paused])
 
     assert "session_turn_id" not in command.data
+
+
+@pytest.mark.asyncio
+async def test_a_long_approval_chain_keeps_the_first_execution_as_turn():
+    project_id = uuid4()
+    chain = [_execution(project_id, "turn-start")]
+    for index in range(1, 41):
+        chain.append(
+            _execution(project_id, f"resume-{index}", parent=chain[-1].execution_id)
+        )
+
+    command = await _answer_paused(source=chain[-1], earlier=chain[:-1])
+
+    assert command.data["session_turn_id"] == "turn-start"
 
 
 @pytest.mark.asyncio

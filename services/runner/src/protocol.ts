@@ -1189,6 +1189,11 @@ export function resolvePromptText(request: AgentRunRequest): string {
   return "";
 }
 
+/** The session turn this run belongs to, written as `ag.turn.id` on every span. */
+export function spanTurnId(request: AgentRunRequest): string | undefined {
+  return (request.sessionTurnId ?? request.turnId)?.trim() || undefined;
+}
+
 /** Prefer the platform conversation id, falling back to the harness's ephemeral id. */
 export function resolveRunSessionId(
   request: AgentRunRequest,

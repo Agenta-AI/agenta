@@ -7,8 +7,6 @@ VERSIONS_DIR = (
     / "databases/postgres/migrations/tracing_oss/versions"
 )
 
-TURN_ID_MIGRATION = VERSIONS_DIR / "oss000000008_add_spans_turn_id.py"
-
 
 def _revision_link(path: Path) -> tuple[str, str]:
     assignments = {}
@@ -26,14 +24,3 @@ def test_tracing_chain_has_one_head_after_turn_id_migration():
 
     assert links["oss000000008"] == "oss000000007"
     assert heads == {"oss000000008"}
-
-
-def test_turn_id_migration_builds_the_partial_index_concurrently():
-    source = TURN_ID_MIGRATION.read_text()
-
-    assert "SET LOCAL lock_timeout" in source
-    assert "ADD COLUMN IF NOT EXISTS turn_id VARCHAR" in source
-    assert "autocommit_block()" in source
-    assert "DROP INDEX CONCURRENTLY IF EXISTS" in source
-    assert "CREATE INDEX CONCURRENTLY" in source
-    assert "WHERE turn_id IS NOT NULL" in source

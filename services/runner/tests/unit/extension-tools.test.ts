@@ -566,7 +566,7 @@ describe("readPiTurnTraceControl", () => {
     assert.deepEqual(readPiTurnTraceControl(path), {
       ...control,
       skillsDropped: [],
-      turnId: undefined,
+      sessionTurnId: undefined,
       sessionId: undefined,
       propagation: undefined,
     });

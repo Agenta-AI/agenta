@@ -971,8 +971,8 @@ export interface RunConfig {
   traceparent?: string;
   /** W3C baggage from the caller (carried for future use). */
   baggage?: string;
-  /** Durable turn id stamped as runner metadata when supplied. */
-  turnId?: string;
+  /** The session turn id, written as `ag.turn.id` on every span of the run. */
+  sessionTurnId?: string;
   /** Drop prompt/completion/tool I/O from spans when false. */
   captureContent: boolean;
   /** Pi session id, set after createAgentSession so spans carry session.id. */
@@ -1302,10 +1302,10 @@ function applyAssistant(
 function setRunIdentity(
   span: Span,
   sessionId: string | undefined,
-  turnId: string | undefined,
+  sessionTurnId: string | undefined,
 ): void {
   if (sessionId) span.setAttribute("ag.session.id", sessionId);
-  if (turnId) span.setAttribute("ag.turn.id", turnId);
+  if (sessionTurnId) span.setAttribute("ag.turn.id", sessionTurnId);
 }
 
 // ---------------------------------------------------------------------------
@@ -1344,7 +1344,7 @@ export function createAgentaOtel(
     baggage: init.baggage,
     captureContent: init.captureContent !== false,
     sessionId: init.sessionId,
-    turnId: init.turnId,
+    sessionTurnId: init.sessionTurnId,
     provider: init.provider,
     requestModel: init.requestModel,
     skills: init.skills,
@@ -1358,7 +1358,7 @@ export function createAgentaOtel(
 
   function startRunSpan(name: string, parent: Context): Span {
     const span = tracer.startSpan(name, undefined, parent);
-    setRunIdentity(span, config.sessionId, config.turnId);
+    setRunIdentity(span, config.sessionId, config.sessionTurnId);
     return span;
   }
 
@@ -1428,7 +1428,7 @@ export function createAgentaOtel(
     config.baggage = next.baggage;
     config.captureContent = next.captureContent !== false;
     config.sessionId = next.sessionId;
-    config.turnId = next.turnId;
+    config.sessionTurnId = next.sessionTurnId;
     config.provider = next.provider;
     config.requestModel = next.requestModel;
     config.skills = next.skills;
@@ -2025,7 +2025,7 @@ export function createSandboxAgentOtel(
 
   function startRunSpan(name: string, parent: Context): Span {
     const span = tracer.startSpan(name, undefined, parent);
-    setRunIdentity(span, sessionId, init.turnId);
+    setRunIdentity(span, sessionId, init.sessionTurnId);
     return span;
   }
 

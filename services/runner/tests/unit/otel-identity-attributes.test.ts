@@ -67,7 +67,7 @@ afterEach(() => {
 /** Drive one full Pi run (agent, turn, model call, tool call) and flush it. */
 async function runPi(ids: {
   sessionId?: string;
-  turnId?: string;
+  sessionTurnId?: string;
 }): Promise<void> {
   const otel = createAgentaOtel({
     captureContent: true,
@@ -107,7 +107,7 @@ async function runPi(ids: {
 /** Drive one full sandbox-agent run (agent, turn, model, tool call) and flush it. */
 async function runSandboxAgent(init: {
   sessionId?: string;
-  turnId?: string;
+  sessionTurnId?: string;
 }): Promise<void> {
   const run = createSandboxAgentOtel({
     harness: "claude",
@@ -115,7 +115,7 @@ async function runSandboxAgent(init: {
     emitSpans: true,
     endpoint: ENDPOINT,
     traceparent: TRACEPARENT,
-    turnId: init.turnId,
+    sessionTurnId: init.sessionTurnId,
   });
   run.start({ prompt: "hi", sessionId: init.sessionId });
   run.handleUpdate({
@@ -150,7 +150,7 @@ function expectIds(
 
 describe("Pi tracer identity attributes", () => {
   it("writes the session id and turn id on every exported span", async () => {
-    await runPi({ sessionId: "sess-1", turnId: "turn-1" });
+    await runPi({ sessionId: "sess-1", sessionTurnId: "turn-1" });
 
     const names = exported.map((span) => span.name);
     expect(names).toEqual(
@@ -181,7 +181,7 @@ describe("Pi tracer identity attributes", () => {
 
 describe("sandbox-agent tracer identity attributes", () => {
   it("writes the session id and turn id on every exported span", async () => {
-    await runSandboxAgent({ sessionId: "sess-1", turnId: "turn-1" });
+    await runSandboxAgent({ sessionId: "sess-1", sessionTurnId: "turn-1" });
 
     const names = exported.map((span) => span.name);
     expect(names).toEqual(
@@ -206,10 +206,10 @@ describe("sandbox-agent tracer identity attributes", () => {
   });
 
   it("keeps each run's own turn id when two runs share one trace", async () => {
-    await runSandboxAgent({ sessionId: "sess-1", turnId: "turn-1" });
+    await runSandboxAgent({ sessionId: "sess-1", sessionTurnId: "turn-1" });
     const first = [...exported];
     exported.length = 0;
-    await runSandboxAgent({ sessionId: "sess-1", turnId: "turn-2" });
+    await runSandboxAgent({ sessionId: "sess-1", sessionTurnId: "turn-2" });
     const second = [...exported];
 
     expect(first.every((span) => span.traceId === TRACE_ID)).toBe(true);
@@ -225,7 +225,7 @@ describe("sandbox-agent tracer identity attributes", () => {
       emitSpans: false,
       endpoint: ENDPOINT,
       traceparent: TRACEPARENT,
-      turnId: "turn-1",
+      sessionTurnId: "turn-1",
     });
     run.start({ prompt: "hi", sessionId: "sess-1" });
     run.recordError("pi_core: no trace batch", "openai");

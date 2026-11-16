@@ -294,12 +294,12 @@ describe("Pi turn control file", () => {
       turnId: "execution-2",
       sessionTurnId: "turn-1",
     });
-    expect(control.turnId).toBe("turn-1");
+    expect(control.sessionTurnId).toBe("turn-1");
     expect(control.sessionId).toBe("sess-1");
   });
 
   it("carries the execution's turn id on a fresh turn", async () => {
     const control = await publishedControl({ turnId: "turn-1" });
-    expect(control.turnId).toBe("turn-1");
+    expect(control.sessionTurnId).toBe("turn-1");
   });
 });
