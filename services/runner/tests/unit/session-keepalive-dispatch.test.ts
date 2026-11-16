@@ -1279,7 +1279,7 @@ describe("runWithKeepalive: the warm entry is checked against the turn log", () 
 
     await runWithKeepalive(streamed(), undefined, undefined, {
       ...ctx,
-      credential: () => "Secret leased",
+      credentialLease: { credential: () => "Secret leased", seed: "Secret leased" },
     });
 
     assert.equal(reads[0]?.authorization, "Secret leased");

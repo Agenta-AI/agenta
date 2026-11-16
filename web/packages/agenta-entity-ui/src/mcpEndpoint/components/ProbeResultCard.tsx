@@ -6,8 +6,9 @@
  * about, and a flow that showed the address on one step and the key field on the next made
  * people close the dialog to check what they had typed.
  */
-import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
-import {CheckCircle, Plugs} from "@phosphor-icons/react"
+import {McpServerMark} from "@agenta/ui/agent-icon"
+import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
+import {CheckCircle} from "@phosphor-icons/react"
 
 /** How the server said it authorizes. `none` is a server that asked for nothing. */
 export type ProbeResultMode = "oauth" | "api_key" | "none"
@@ -36,11 +37,9 @@ export const ProbeResultCard = ({url, mode, onChange}: ProbeResultCardProps) => 
         data-testid="mcp-probe-result"
         className="flex items-center gap-3 rounded-control border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2.5"
     >
-        <IconTile size={32} tone="info">
-            <Plugs size={18} />
-        </IconTile>
+        <McpServerMark size={32} />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate font-mono text-[13px] text-colorText" title={url}>
+            <span className="truncate text-[13px] text-colorText" title={url}>
                 {url}
             </span>
             <span className="flex items-center gap-1 text-xs text-colorTextSecondary">
