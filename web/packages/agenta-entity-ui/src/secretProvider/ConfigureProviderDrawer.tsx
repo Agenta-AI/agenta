@@ -13,6 +13,8 @@ import {Button, Spinner} from "@agenta/ui/ui"
 import {LinkSimple} from "@phosphor-icons/react"
 
 import type {CustomProviderFormHandle} from "./CustomProviderForm"
+import {useT} from "@agenta/i18n"
+import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 
 // Code-split: the form pulls the whole vault-secret editor, and the drawer is opened rarely.
 const CustomProviderForm = lazy(() => import("./CustomProviderForm"))
@@ -28,17 +30,20 @@ export interface ConfigureProviderDrawerProps {
     initialProviderKind?: string
 }
 
-const ConfigureProviderDrawerTitle = () => (
+const ConfigureProviderDrawerTitle = () => {
+    const t = useT(customProviderFormCatalog)
+    return (
     <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Configure provider</span>
+        <span className="text-sm font-medium">{t("entityUi.customProviderForm.configureProvider")}</span>
         <Button variant="link" size="sm" asChild>
             <a href={HOW_TO_USE_URL} target="_blank" rel="noreferrer" className="no-underline">
                 <LinkSimple size={14} />
-                How to use
+                {t("entityUi.customProviderForm.howToUse")}
             </a>
         </Button>
     </div>
-)
+    )
+}
 
 export const ConfigureProviderDrawer = ({
     open,
@@ -46,6 +51,7 @@ export const ConfigureProviderDrawer = ({
     selectedProvider,
     initialProviderKind,
 }: ConfigureProviderDrawerProps) => {
+    const t = useT(customProviderFormCatalog)
     const formRef = useRef<CustomProviderFormHandle | null>(null)
 
     const handleClose = () => {
@@ -62,10 +68,10 @@ export const ConfigureProviderDrawer = ({
             footer={
                 <div className="flex justify-end items-center gap-2 py-2 px-3">
                     <Button variant="outline" onClick={handleClose}>
-                        Cancel
+                        {t("entityUi.customProviderForm.cancel")}
                     </Button>
                     <Button variant="default" onClick={() => formRef.current?.submit()}>
-                        Submit
+                        {t("entityUi.customProviderForm.submit")}
                     </Button>
                 </div>
             }

@@ -34,6 +34,8 @@ import {harnessMetaFor} from "../DrillInView/SchemaControls/harnessMeta"
 
 import {harnessMarkNode} from "./harnessMark"
 import {providerIconFor} from "./providerIcon"
+import {useT} from "@agenta/i18n"
+import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 
 /** The capability map is global; the key only records which surface asked for it. */
 const HARNESS_CATALOG_KEY = "agenta:providers-drawer:connected"
@@ -109,7 +111,9 @@ const SubscriptionRow = ({pair, onSelect}: {pair: SubscriptionPair; onSelect: ()
  * An organization connection on a surface that cannot use it: shown so the user knows it exists,
  * and disabled, because a prompt, an app or an evaluator runs on the project's connections only.
  */
-const AgentsOnlyRow = ({connection}: {connection: ProviderConnection}) => (
+const AgentsOnlyRow = ({connection}: {connection: ProviderConnection}) => {
+    const t = useT(providerDrawerCatalog)
+    return (
     <div
         aria-disabled
         className="box-border flex w-full cursor-not-allowed items-center gap-3 px-6 py-2 opacity-60"
@@ -118,12 +122,15 @@ const AgentsOnlyRow = ({connection}: {connection: ProviderConnection}) => (
         <span className="flex min-w-0 flex-1 items-center gap-2">
             <span className="truncate text-xs text-colorText">{connection.name}</span>
             <span className="shrink-0 rounded-control-sm bg-colorFillTertiary px-1.5 py-0.5 text-[11px] text-colorTextSecondary">
-                Organization
+                {t("entityUi.providerDrawer.organization")}
             </span>
         </span>
-        <span className="shrink-0 text-[11px] text-colorTextTertiary">Agents only</span>
+        <span className="shrink-0 text-[11px] text-colorTextTertiary">
+            {t("entityUi.providerDrawer.agentsOnly")}
+        </span>
     </div>
-)
+    )
+}
 
 export interface PlaygroundConnectedSectionProps {
     connections: ProviderConnection[]
@@ -138,6 +145,7 @@ export const PlaygroundConnectedSection = ({
     onSelect,
     organizationConnections = [],
 }: PlaygroundConnectedSectionProps) => {
+    const t = useT(providerDrawerCatalog)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
 
     const subtitles = useMemo(
@@ -161,7 +169,7 @@ export const PlaygroundConnectedSection = ({
 
     return (
         <div className="shrink-0">
-            <SectionLabel>Connected</SectionLabel>
+            <SectionLabel>{t("entityUi.providerDrawer.connected")}</SectionLabel>
             {connections.map((connection) => (
                 <ConnectedRow
                     key={connection.id}
@@ -176,8 +184,7 @@ export const PlaygroundConnectedSection = ({
                         <AgentsOnlyRow key={connection.id} connection={connection} />
                     ))}
                     <p className="m-0 px-6 pb-2 pt-1 text-[11px] text-colorTextTertiary">
-                        Organization connections work in agents only. Here, use a connection of this
-                        project.
+                        {t("entityUi.providerDrawer.orgConnectionsAgentsOnly")}
                     </p>
                 </>
             ) : null}

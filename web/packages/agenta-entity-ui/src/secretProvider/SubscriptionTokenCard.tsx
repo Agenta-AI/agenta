@@ -6,6 +6,8 @@ import {Button, Spinner} from "@agenta/ui/ui"
 
 import {SubscriptionTokenSteps} from "./SubscriptionTokenSteps"
 import {useSubscriptionToken} from "./useSubscriptionToken"
+import {useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 
 export interface SubscriptionTokenCardProps {
     provider?: string
@@ -17,6 +19,7 @@ const SubscriptionTokenCard = ({
     provider = "claude",
     connection = null,
 }: SubscriptionTokenCardProps) => {
+    const t = useT(subscriptionSignInCatalog)
     const token = useSubscriptionToken({provider, connection})
     const {name, connected} = token
     const [open, setOpen] = useState(false)
@@ -39,11 +42,11 @@ const SubscriptionTokenCard = ({
                                 aria-hidden
                                 className="size-1.5 shrink-0 rounded-full bg-colorSuccess"
                             />
-                            Connected
+                            {t("entityUi.subscriptionSignIn.connectedStatus")}
                         </span>
                     ) : (
                         <span className="text-colorTextSecondary">
-                            Paste a token to run agents on your Pro or Max plan.
+                            {t("entityUi.subscriptionSignIn.pasteToken")}
                         </span>
                     )}
                 </div>
@@ -58,11 +61,11 @@ const SubscriptionTokenCard = ({
                             setOpen(true)
                         }}
                     >
-                        Replace token
+                        {t("entityUi.subscriptionSignIn.replaceToken")}
                     </Button>
                 ) : (
                     <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
-                        Connect {name}
+                        {t("entityUi.subscriptionSignIn.connectName", {name})}
                     </Button>
                 )}
             </div>
@@ -79,10 +82,10 @@ const SubscriptionTokenCard = ({
                             {token.checking ? (
                                 <>
                                     <Spinner className="size-3" />
-                                    Checking…
+                                    {t("entityUi.subscriptionSignIn.checking")}
                                 </>
                             ) : (
-                                "Connect"
+                                t("entityUi.subscriptionSignIn.connect")
                             )}
                         </Button>
                         <Button
@@ -95,7 +98,7 @@ const SubscriptionTokenCard = ({
                                 setOpen(false)
                             }}
                         >
-                            Cancel
+                            {t("entityUi.subscriptionSignIn.cancel")}
                         </Button>
                     </div>
                 </div>

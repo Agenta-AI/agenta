@@ -2,6 +2,8 @@
 import {useRef, useState} from "react"
 
 import {harnessSummary} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
 import {cn} from "@agenta/ui/styles"
 import {Checkbox, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
@@ -31,6 +33,7 @@ const HarnessesSection = ({
     onToggle,
     unrestricted = false,
 }: HarnessesSectionProps) => {
+    const t = useT(providerConnectionCatalog)
     const [expanded, setExpanded] = useState(false)
     const sectionRef = useRef<HTMLElement>(null)
 
@@ -48,7 +51,9 @@ const HarnessesSection = ({
                 className="flex w-fit cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
                 aria-expanded={expanded}
             >
-                <span className="font-medium text-colorText">Harnesses</span>
+                <span className="font-medium text-colorText">
+                    {t("entityUi.providerConnection.harnesses")}
+                </span>
                 {enabled.length ? (
                     <TooltipProvider delayDuration={300}>
                         <span className="flex items-center gap-1" aria-label={summary}>
@@ -99,7 +104,9 @@ const HarnessesSection = ({
                 )}
             >
                 <div className="flex min-h-0 flex-col gap-2 overflow-hidden pt-2">
-                    <span className="text-colorTextSecondary">Enable this connection in</span>
+                    <span className="text-colorTextSecondary">
+                        {t("entityUi.providerConnection.enableIn")}
+                    </span>
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2">
                         {choices.map((choice) => {
                             const Mark = harnessMarkFor(choice.id)
@@ -139,14 +146,14 @@ const HarnessesSection = ({
                                     <span className="text-[11px] leading-4 text-colorTextTertiary">
                                         {choice.supported
                                             ? (choice.domain ?? " ")
-                                            : "Incompatible with this provider"}
+                                            : t("entityUi.providerConnection.incompatible")}
                                     </span>
                                 </label>
                             )
                         })}
                     </div>
                     <span className="text-[11px] text-colorTextTertiary">
-                        Each enabled harness adds this connection&apos;s models to the model picker.
+                        {t("entityUi.providerConnection.harnessAddsModels")}
                     </span>
                 </div>
             </div>

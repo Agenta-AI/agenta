@@ -23,6 +23,8 @@ import {
     RadioGroupItem,
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, CaretUpDown, Check, WarningCircle, X} from "@phosphor-icons/react"
+import {useT} from "@agenta/i18n"
+import organizationProjectsCatalog from "@agenta/i18n/catalogs/entityUi.organizationProjects"
 
 /**
  * What the admin may do about projects in this deployment. `pending` is EE while the plan's
@@ -84,6 +86,7 @@ const ProjectPicker = ({
     selected: string[]
     onToggle: (id: string) => void
 }) => {
+    const t = useT(organizationProjectsCatalog)
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState("")
     return (
@@ -102,19 +105,21 @@ const ProjectPicker = ({
                     aria-expanded={open}
                     className="w-full justify-between font-normal text-colorTextSecondary"
                 >
-                    Pick projects
+                    {t("entityUi.organizationProjects.pickProjects")}
                     <CaretUpDown size={12} className="shrink-0" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
                 <Command>
                     <CommandInput
-                        placeholder="Search projects"
+                        placeholder={t("entityUi.organizationProjects.searchProjects")}
                         value={search}
                         onValueChange={setSearch}
                     />
                     <CommandList className="max-h-[212px]">
-                        <CommandEmpty>No projects match &quot;{search}&quot;.</CommandEmpty>
+                        <CommandEmpty>
+                            {t("entityUi.organizationProjects.noProjectsMatch", {search})}
+                        </CommandEmpty>
                         <CommandGroup>
                             {projects.map((project) => {
                                 const checked = selected.includes(project.id)
@@ -146,6 +151,7 @@ const OrganizationProjectsSection = ({
     onChange,
     saved,
 }: OrganizationProjectsSectionProps) => {
+    const t = useT(organizationProjectsCatalog)
     const names = useMemo(
         () => new Map(scope.projects.map((project) => [project.id, project.name])),
         [scope.projects],
@@ -158,8 +164,12 @@ const OrganizationProjectsSection = ({
     if (scope.projectChoice === "all") {
         return (
             <section className="flex shrink-0 flex-col gap-1">
-                <span className={HEADING}>Projects that can use it</span>
-                <span className="text-colorTextSecondary">Every project in {scope.name}.</span>
+                <span className={HEADING}>
+                    {t("entityUi.organizationProjects.projectsThatCanUse")}
+                </span>
+                <span className="text-colorTextSecondary">
+                    {t("entityUi.organizationProjects.everyProjectIn", {organization: scope.name})}
+                </span>
             </section>
         )
     }
@@ -175,7 +185,7 @@ const OrganizationProjectsSection = ({
 
     return (
         <section className="flex shrink-0 flex-col gap-2">
-            <span className={HEADING}>Projects that can use it</span>
+            <span className={HEADING}>{t("entityUi.organizationProjects.projectsThatCanUse")}</span>
             <RadioGroup
                 value={value.availability}
                 onValueChange={(next) =>
@@ -189,9 +199,13 @@ const OrganizationProjectsSection = ({
                 <label className="flex cursor-pointer items-start gap-2.5">
                     <RadioGroupItem value="all_projects" className="mt-0.5" />
                     <span className="flex flex-col gap-0.5">
-                        <span className="text-colorText">All projects</span>
+                        <span className="text-colorText">
+                            {t("entityUi.organizationProjects.allProjects")}
+                        </span>
                         <span className={NOTE}>
-                            Every project in {scope.name}, including new ones.
+                            {t("entityUi.organizationProjects.everyProjectInIncludingNew", {
+                                organization: scope.name,
+                            })}
                         </span>
                     </span>
                 </label>
@@ -208,21 +222,25 @@ const OrganizationProjectsSection = ({
                         className="mt-0.5"
                     />
                     <span className="flex flex-col gap-0.5">
-                        <span className="text-colorText">Selected projects</span>
-                        <span className={NOTE}>Only the projects you pick.</span>
+                        <span className="text-colorText">
+                            {t("entityUi.organizationProjects.selectedProjects")}
+                        </span>
+                        <span className={NOTE}>
+                            {t("entityUi.organizationProjects.onlyProjectsYouPick")}
+                        </span>
                     </span>
                 </label>
             </RadioGroup>
 
             {scope.projectChoice === "plan" ? (
                 <span className="flex flex-wrap items-center gap-1 text-colorTextSecondary">
-                    Choosing projects is available on Business and Enterprise plans.
+                    {t("entityUi.organizationProjects.choosingProjectsPlan")}
                     {scope.plansHref ? (
                         <a
                             href={scope.plansHref}
                             className="flex items-center gap-1 text-btn-link hover:text-btn-link-hover"
                         >
-                            See plans
+                            {t("entityUi.organizationProjects.seePlans")}
                             <ArrowSquareOut size={12} />
                         </a>
                     ) : null}
@@ -241,7 +259,9 @@ const OrganizationProjectsSection = ({
                                     {names.get(id) ?? id}
                                     <button
                                         type="button"
-                                        aria-label={`Remove ${names.get(id) ?? id}`}
+                                        aria-label={t("entityUi.organizationProjects.removeProject", {
+                                            project: names.get(id) ?? id,
+                                        })}
                                         onClick={() => toggle(id)}
                                         className="flex cursor-pointer items-center border-0 bg-transparent p-0.5 text-colorTextTertiary hover:text-colorText"
                                     >
@@ -259,7 +279,7 @@ const OrganizationProjectsSection = ({
                     {value.projectIds.length === 0 ? (
                         <span className="flex items-start gap-1 text-colorWarning">
                             <WarningCircle size={14} className="mt-0.5 shrink-0" />
-                            No project can use this connection until you pick one.
+                            {t("entityUi.organizationProjects.noProjectUntilPick")}
                         </span>
                     ) : null}
                 </div>
@@ -268,8 +288,7 @@ const OrganizationProjectsSection = ({
             {removed.map((project) => (
                 <span key={project.id} className="flex items-start gap-1 text-colorWarning">
                     <WarningCircle size={14} className="mt-0.5 shrink-0" />
-                    {project.name} can no longer use this connection after you save. Agents in{" "}
-                    {project.name} that use it will need configuration.
+                    {t("entityUi.organizationProjects.projectLosesAccess", {project: project.name})}
                 </span>
             ))}
         </section>

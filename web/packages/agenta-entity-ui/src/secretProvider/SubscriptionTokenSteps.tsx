@@ -5,11 +5,14 @@ import {Check, Copy, WarningCircle} from "@phosphor-icons/react"
 
 import {SignInStep} from "./SignInStep"
 import type {SubscriptionTokenState} from "./useSubscriptionToken"
+import {richText, useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 
 const SETUP_COMMAND = "claude setup-token"
 const CLAUDE_CODE_SETUP_URL = "https://docs.anthropic.com/en/docs/claude-code/setup"
 
 const CopyCommand = () => {
+    const t = useT(subscriptionSignInCatalog)
     const [copied, setCopied] = useState(false)
     useEffect(() => {
         if (!copied) return
@@ -24,13 +27,15 @@ const CopyCommand = () => {
             <Button
                 size="sm"
                 variant="ghost"
-                aria-label="Copy the command"
+                aria-label={t("entityUi.subscriptionSignIn.copyCommand")}
                 onClick={() =>
                     void navigator.clipboard?.writeText(SETUP_COMMAND).then(() => setCopied(true))
                 }
             >
                 {copied ? <Check size={14} /> : <Copy size={14} />}
-                {copied ? "Copied" : "Copy"}
+                {copied
+                    ? t("entityUi.subscriptionSignIn.copied")
+                    : t("entityUi.subscriptionSignIn.copy")}
             </Button>
         </div>
     )
@@ -53,33 +58,40 @@ const WithCode = ({text}: {text: string}) => (
 
 /** The three steps that turn `claude setup-token` into a stored token. The host draws the verbs. */
 export const SubscriptionTokenSteps = ({token}: {token: SubscriptionTokenState}) => {
+    const t = useT(subscriptionSignInCatalog)
     const fieldId = useId()
     return (
         <ol className="m-0 flex list-none flex-col p-0">
-            <SignInStep index={1} title="Run this command on your computer">
+            <SignInStep index={1} title={t("entityUi.subscriptionSignIn.runCommand")}>
                 <CopyCommand />
                 <span className="text-xs text-muted-foreground">
-                    You need{" "}
-                    <a
-                        href={CLAUDE_CODE_SETUP_URL}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-btn-link no-underline hover:text-btn-link-hover"
-                    >
-                        Claude Code
-                    </a>{" "}
-                    installed.
+                    {richText(t("entityUi.subscriptionSignIn.youNeedInstalled"), {
+                        link: (text) => (
+                            <a
+                                href={CLAUDE_CODE_SETUP_URL}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-btn-link no-underline hover:text-btn-link-hover"
+                            >
+                                {text}
+                            </a>
+                        ),
+                    })}
                 </span>
             </SignInStep>
-            <SignInStep index={2} title="Sign in to Claude">
+            <SignInStep index={2} title={t("entityUi.subscriptionSignIn.signInToClaude")}>
                 <span className="text-xs text-muted-foreground">
-                    A browser window opens. Sign in with your Pro or Max account and approve access.
+                    {t("entityUi.subscriptionSignIn.browserOpens")}
                 </span>
             </SignInStep>
             <SignInStep
                 index={3}
                 last
-                title={<label htmlFor={fieldId}>Paste the token the command prints</label>}
+                title={
+                    <label htmlFor={fieldId}>
+                        {t("entityUi.subscriptionSignIn.pasteTokenPrints")}
+                    </label>
+                }
             >
                 <Input
                     id={fieldId}
@@ -107,8 +119,7 @@ export const SubscriptionTokenSteps = ({token}: {token: SubscriptionTokenState})
                     </span>
                 ) : (
                     <span className="text-xs text-muted-foreground">
-                        The token works for one year. Agenta stores it encrypted and never shows it
-                        again.
+                        {t("entityUi.subscriptionSignIn.tokenWorksOneYear")}
                     </span>
                 )}
             </SignInStep>

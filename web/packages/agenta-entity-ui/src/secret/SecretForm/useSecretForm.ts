@@ -15,9 +15,13 @@ import {
 } from "@agenta/entities/secret"
 import {extractApiErrorMessage, slugifyBase} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
+import {createT} from "@agenta/i18n"
+import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 
 import {buildSecretContent, parseFlatJson} from "./content"
 import {objectToRows, rowsToObject, type KvRow} from "./primitives"
+
+const t = createT(secretFormCatalog)
 
 export type JsonView = "grid" | "json"
 
@@ -169,7 +173,7 @@ export function useSecretForm({
         const hasText = format === CustomSecretFormat.Text && textValue.trim().length > 0
         const hasKv = format === CustomSecretFormat.Json && kvRows.some((r) => r.key.trim())
         if (hasText || hasKv) {
-            message.warning("Switching format clears the current value — re-enter it below.")
+            message.warning(t("entityUi.secretForm.switchFormatClears"))
         }
         setFormat(next)
         setTextValue("")
@@ -227,7 +231,7 @@ export function useSecretForm({
     const submit = async () => {
         const trimmedName = name.trim()
         if (!trimmedName) {
-            message.error("Name is required.")
+            message.error(t("entityUi.secretForm.nameRequired"))
             return
         }
         const result = buildSecretContent({
@@ -254,7 +258,7 @@ export function useSecretForm({
                 ? !content.trim()
                 : !content || Object.keys(content).length === 0)
         ) {
-            message.error("Content is required.")
+            message.error(t("entityUi.secretForm.contentRequired"))
             return
         }
 
@@ -279,7 +283,7 @@ export function useSecretForm({
             setKvRows([{key: "", value: ""}])
             setJsonText("{}")
             setReplacementSupplied(false)
-            message.success("The secret is saved")
+            message.success(t("entityUi.secretForm.saved"))
             onSaved?.({
                 id: savedId,
                 name: trimmedName,
@@ -293,7 +297,9 @@ export function useSecretForm({
             // A taken slug is the one refusal the person can fix in this form, so the API's
             // reason is shown rather than a bare failure (#6928).
             message.error(
-                status === 409 ? extractApiErrorMessage(error) : "Failed to save the secret",
+                status === 409
+                    ? extractApiErrorMessage(error)
+                    : t("entityUi.secretForm.saveFailed"),
             )
         } finally {
             setSaving(false)

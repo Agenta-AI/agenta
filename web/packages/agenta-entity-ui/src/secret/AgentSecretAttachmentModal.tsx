@@ -10,6 +10,8 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {richText, useT} from "@agenta/i18n"
+import secretAttachmentCatalog from "@agenta/i18n/catalogs/entityUi.secretAttachment"
 import type {OwnerKind} from "@agenta/shared/types"
 import {isValidUUID, slugifyBase, toEnvVarName} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
@@ -163,6 +165,7 @@ export function AgentSecretAttachmentModal({
     zIndex = 1000,
     container,
 }: AgentSecretAttachmentModalProps) {
+    const t = useT(secretAttachmentCatalog)
     const {namedSecrets, loading, mutate: refetchVault} = useVaultSecret()
     // The modal stacks above the Advanced dialog, and the shared Select portals its list to
     // <body> at z-50. Without this the options paint UNDER the modal and the picker looks
@@ -307,10 +310,12 @@ export function AgentSecretAttachmentModal({
             onAttached?.({credential, revisionId: result.revisionId})
             onClose()
         } catch (cause) {
+            const reason =
+                cause instanceof Error
+                    ? cause.message
+                    : t("entityUi.secretAttachment.couldNotAttach")
             setError(
-                `${saved ? "Saved in vault; not attached. " : ""}${
-                    cause instanceof Error ? cause.message : "The secret could not be attached."
-                }`,
+                saved ? t("entityUi.secretAttachment.savedNotAttached", {reason}) : reason,
             )
         } finally {
             setAttaching(false)
@@ -367,7 +372,9 @@ export function AgentSecretAttachmentModal({
 
     const submit = () => (creating ? createController.submit() : attach(selectedSlug))
 
-    const title = editingBinding ? "Edit secret attachment" : "Attach a secret"
+    const title = editingBinding
+        ? t("entityUi.secretAttachment.editTitle")
+        : t("entityUi.secretAttachment.attachTitle")
 
     return (
         <EnhancedModal
@@ -386,7 +393,13 @@ export function AgentSecretAttachmentModal({
                     </span>
                 </span>
             }
-            okText={creating ? "Save & attach" : editingBinding ? "Save" : "Attach"}
+            okText={
+                creating
+                    ? t("entityUi.secretAttachment.saveAndAttach")
+                    : editingBinding
+                      ? t("entityUi.secretAttachment.save")
+                      : t("entityUi.secretAttachment.attach")
+            }
             onOk={() => void submit()}
             confirmLoading={createController.saving || attaching}
             okButtonProps={{disabled: !canSubmit}}
@@ -394,20 +407,32 @@ export function AgentSecretAttachmentModal({
             <div className="flex flex-col gap-4">
                 {request ? (
                     <p className="m-0 text-xs text-colorTextSecondary">
-                        The agent asked for{" "}
-                        <span className="font-medium text-colorText">{request.name}</span>
+                        {richText(
+                            t("entityUi.secretAttachment.agentAskedFor", {name: request.name}),
+                            {
+                                name: (text) => (
+                                    <span className="font-medium text-colorText">{text}</span>
+                                ),
+                            },
+                        )}
                         {request.reason ? ` · ${request.reason}` : ""}
                     </p>
                 ) : null}
 
                 <div className="flex flex-col gap-1">
                     <label htmlFor={SECRET_FIELD_ID} className="font-medium text-colorText">
-                        {personalOption ? ACCOUNT_COPY.label : "Secret"}
+                        {personalOption
+                            ? ACCOUNT_COPY.label
+                            : t("entityUi.secretAttachment.secret")}
                     </label>
                     <Select value={selectedSlug} onValueChange={selectSecret} disabled={loading}>
                         <SelectTrigger id={SECRET_FIELD_ID}>
                             <SelectValue
-                                placeholder={loading ? "Loading secrets..." : "Select a secret"}
+                                placeholder={
+                                    loading
+                                        ? t("entityUi.secretAttachment.loadingSecrets")
+                                        : t("entityUi.secretAttachment.selectSecret")
+                                }
                             />
                         </SelectTrigger>
                         <SelectContent
@@ -467,7 +492,11 @@ export function AgentSecretAttachmentModal({
                         <SecretCreateFields
                             controller={createController}
                             focusValue={!!request?.name?.trim()}
-                            hint={owner === "user" ? undefined : "Stored in the project vault."}
+                            hint={
+                                owner === "user"
+                                    ? undefined
+                                    : t("entityUi.secretAttachment.storedInVault")
+                            }
                             nameRef={nameRef}
                             valueRef={valueRef}
                             onNameChange={(name) => {
@@ -502,13 +531,13 @@ export function AgentSecretAttachmentModal({
 
                 <div className="flex flex-col gap-1">
                     <label htmlFor={ENV_FIELD_ID} className="font-medium text-colorText">
-                        Environment variable
+                        {t("entityUi.secretAttachment.environmentVariable")}
                     </label>
                     <Input
                         id={ENV_FIELD_ID}
                         className="font-mono"
                         value={envVar}
-                        placeholder="For example, GITHUB_TOKEN"
+                        placeholder={t("entityUi.secretAttachment.envPlaceholder")}
                         onChange={(event) => {
                             setEnvTouched(true)
                             setEnvVar(event.target.value)
@@ -522,16 +551,16 @@ export function AgentSecretAttachmentModal({
                         className={`text-xs ${envError || duplicate ? "text-error" : "text-colorTextSecondary"}`}
                     >
                         {envError
-                            ? "Use letters, digits, and underscores; do not start with a digit."
+                            ? t("entityUi.secretAttachment.envInvalid")
                             : duplicate
-                              ? "This secret or environment variable is already attached."
-                              : "The agent receives this secret through the named variable."}
+                              ? t("entityUi.secretAttachment.alreadyAttached")
+                              : t("entityUi.secretAttachment.receivesThrough")}
                     </span>
                 </div>
 
                 {dirty ? (
                     <div className="rounded-lg border border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] p-3 text-xs text-colorText">
-                        Save or discard the current agent changes before attaching a secret.
+                        {t("entityUi.secretAttachment.saveOrDiscard")}
                     </div>
                 ) : null}
                 {error ? (

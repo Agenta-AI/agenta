@@ -4,7 +4,12 @@ import {
     type CustomSecretFormat as CustomSecretFormatType,
 } from "@agenta/entities/secret"
 
+import {createT} from "@agenta/i18n"
+import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
+
 import {isFlatPrimitiveObject, rowsToObject, type KvRow} from "./primitives"
+
+const t = createT(secretFormCatalog)
 
 interface BuildSecretContentParams {
     format: CustomSecretFormatType
@@ -26,11 +31,11 @@ export const parseFlatJson = (
     try {
         parsed = JSON.parse(jsonText || "{}")
     } catch {
-        return {error: "Invalid JSON."}
+        return {error: t("entityUi.secretForm.invalidJson")}
     }
 
     if (!isFlatPrimitiveObject(parsed)) {
-        return {error: "Must be a flat object of primitives; nesting and arrays are not allowed."}
+        return {error: t("entityUi.secretForm.flatObjectOnly")}
     }
 
     return {value: parsed}
@@ -49,7 +54,7 @@ export const buildSecretContent = ({
 }: BuildSecretContentParams): SecretContentResult => {
     if (valueHidden && !replacementSupplied) {
         if (format !== originalFormat) {
-            return {error: "Enter replacement content before changing the secret format."}
+            return {error: t("entityUi.secretForm.replacementBeforeFormat")}
         }
         return {content: undefined}
     }
@@ -66,7 +71,7 @@ export const buildSecretContent = ({
     const namedRows = kvRows.filter((row) => row.key.trim())
     const keys = namedRows.map((row) => row.key.trim())
     if (new Set(keys).size !== keys.length) {
-        return {error: "Duplicate keys are not allowed."}
+        return {error: t("entityUi.secretForm.duplicateKeys")}
     }
 
     return {content: rowsToObject(namedRows)}

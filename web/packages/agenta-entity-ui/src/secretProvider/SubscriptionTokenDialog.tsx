@@ -15,6 +15,8 @@ import type {SubscriptionSignInDialogProps} from "./SubscriptionSignInDialog"
 import {SubscriptionTokenSteps} from "./SubscriptionTokenSteps"
 import {useOrganizationProjectsDraft} from "./useOrganizationProjectsDraft"
 import {useSubscriptionToken} from "./useSubscriptionToken"
+import {useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 
 /** A subscription connected by a pasted token. Opening it starts nothing. */
 export const SubscriptionTokenDialog = ({
@@ -26,6 +28,7 @@ export const SubscriptionTokenDialog = ({
     onRemove,
     organization,
 }: SubscriptionSignInDialogProps) => {
+    const t = useT(subscriptionSignInCatalog)
     const draft = useOrganizationProjectsDraft({
         open,
         connection,
@@ -60,12 +63,14 @@ export const SubscriptionTokenDialog = ({
                     ) : null}
                     <div className="flex flex-col gap-1">
                         <DialogTitle className="text-base font-medium leading-snug">
-                            {connected ? `${name} connected` : `Connect ${name}`}
+                            {connected
+                                ? t("entityUi.subscriptionSignIn.nameConnected", {name})
+                                : t("entityUi.subscriptionSignIn.connectName", {name})}
                         </DialogTitle>
                         <DialogDescription className="text-sm text-colorTextDescription">
                             {connected
-                                ? "Agents can run on this subscription."
-                                : `Run agents on your ${name} Pro or Max plan. Agents use it through Claude Code.`}
+                                ? t("entityUi.subscriptionSignIn.agentsCanRun")
+                                : t("entityUi.subscriptionSignIn.runAgentsOnPlan", {name})}
                         </DialogDescription>
                     </div>
                 </DialogHeader>
@@ -73,7 +78,7 @@ export const SubscriptionTokenDialog = ({
                 {connected ? (
                     <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-3 text-sm text-colorSuccess">
                         <CheckCircle size={18} weight="fill" />
-                        Ready. Pick a {name} model in any agent.
+                        {t("entityUi.subscriptionSignIn.readyPickModel", {name})}
                     </div>
                 ) : (
                     <SubscriptionTokenSteps token={token} />
@@ -111,20 +116,20 @@ export const SubscriptionTokenDialog = ({
                                         close()
                                     }}
                                 >
-                                    Remove
+                                    {t("entityUi.subscriptionSignIn.remove")}
                                 </Button>
                             ) : null}
                             <Button variant="outline" onClick={token.replace}>
-                                Replace token
+                                {t("entityUi.subscriptionSignIn.replaceToken")}
                             </Button>
                             <Button disabled={draft.saving} onClick={() => void draft.apply(close)}>
-                                Done
+                                {t("entityUi.subscriptionSignIn.done")}
                             </Button>
                         </>
                     ) : (
                         <>
                             <Button variant="outline" disabled={token.checking} onClick={close}>
-                                Cancel
+                                {t("entityUi.subscriptionSignIn.cancel")}
                             </Button>
                             {/* The projects of an existing connection save without a new token. */}
                             {draft.changed ? (
@@ -133,17 +138,17 @@ export const SubscriptionTokenDialog = ({
                                     disabled={draft.saving || token.checking}
                                     onClick={() => void draft.apply(close)}
                                 >
-                                    Done
+                                    {t("entityUi.subscriptionSignIn.done")}
                                 </Button>
                             ) : null}
                             <Button disabled={!token.canSubmit} onClick={() => void token.submit()}>
                                 {token.checking ? (
                                     <>
                                         <Spinner className="size-3.5" />
-                                        Checking…
+                                        {t("entityUi.subscriptionSignIn.checking")}
                                     </>
                                 ) : (
-                                    "Connect"
+                                    t("entityUi.subscriptionSignIn.connect")
                                 )}
                             </Button>
                         </>
