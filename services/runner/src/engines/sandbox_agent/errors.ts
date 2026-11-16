@@ -108,6 +108,12 @@ export const SESSION_RECORDS_INCOMPLETE_CODE: RunErrorCode = "session_records_in
 export const SESSION_RECORDS_INCOMPLETE_MESSAGE =
   "Part of this session's history could not be saved, so the agent cannot continue it. Start a new session.";
 
+export const SESSION_DRIVE_REQUIRED_CODE: RunErrorCode = "session_drive_required";
+
+/** The line the person reads when an agent without a session drive runs on `inprocess`. */
+export const SESSION_DRIVE_REQUIRED_MESSAGE =
+  "The inprocess sandbox needs the session drive, and this agent has it turned off. Turn the session drive on, or run the agent on the 'local' or 'daytona' sandbox.";
+
 export const ACCESS_DENIED_CODE: RunErrorCode = "access_denied";
 
 /**
@@ -154,6 +160,9 @@ export function accessDeniedClassified(): ClassifiedRunError {
 
 export type RunErrorCode =
   | "runner_error"
+  // The agent turns its session drive off, and the `inprocess` sandbox cannot run without it.
+  // Refused before anything ran; a retry fails the same way.
+  | "session_drive_required"
   // The sandbox provider (or this runner's own sandbox admission) is at capacity; retryable later.
   | "sandbox_capacity"
   // This runner is at its session or memory limit and refused a new session; retryable later.

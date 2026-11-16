@@ -356,6 +356,8 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
       "reSignAndRemountLocalAgentMount",
       "reSignAndRemountLocalCwd",
       "remountLocalCwdAfterRuntimeEnotconn",
+      "mountLocalProjectDrive",
+      "reSignAndRemountLocalProjectDrive",
       // The prompt writer both guidance helpers share; it reads the run's dirs off the context
       // like everything else here.
       "writeRunSystemPromptLocal",
@@ -367,8 +369,8 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
     }
     assert.equal(
       source.split("ctx: AcquireContext").length - 1,
-      8,
-      "all eight helpers take ctx; a captured variable would defeat the split",
+      10,
+      "all ten helpers take ctx; a captured variable would defeat the split",
     );
   });
 

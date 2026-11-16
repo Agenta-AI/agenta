@@ -25,6 +25,7 @@
 import type { DaytonaSandbox } from "./daytona-api.ts";
 import type { SandboxUse } from "./command-sandbox.ts";
 import { linkAgentFilesRemote } from "../../sandbox_agent/agent-mount.ts";
+import { linkProjectDriveRemote } from "../../sandbox_agent/project-mount.ts";
 import { withPublicCode } from "../../sandbox_agent/errors.ts";
 import { REFRESH_ROOTS_SCRIPT } from "../../sandbox_agent/turn-start-refresh.ts";
 import {
@@ -43,12 +44,21 @@ type Log = (message: string) => void;
 export interface DriveRoot {
   root: string;
   credentials: () => MountCredentials | null;
+  /** Mounted read-only (`-o ro`). */
+  readOnly?: boolean;
+  /** Which link in the session folder names this root: `agent-files` or `drives/<slug>`. */
+  link?: { kind: "agent" } | { kind: "project"; slug: string };
+}
+
+/** What a set of roots mounts: a change needs a new sandbox, since a mount cannot be removed in place. */
+function rootsShape(roots: DriveRoot[]): string {
+  return JSON.stringify(roots.map((r) => JSON.stringify([r.root, !!r.readOnly, r.link ?? null])).sort());
 }
 
 /** Makes one root serve I/O in the sandbox. Production mounts geesefs; tests link a folder. */
 export interface DriveMounter {
   /** Mount `creds` at `path` in `sandbox`; true once the path serves I/O. */
-  mount(sandbox: DaytonaSandbox, path: string, creds: MountCredentials, signal?: AbortSignal): Promise<boolean>;
+  mount(sandbox: DaytonaSandbox, path: string, creds: MountCredentials, signal?: AbortSignal, options?: { readOnly?: boolean }): Promise<boolean>;
   /** A shell condition, true while `path` (quoted) is mounted and serves I/O. */
   mountedCheck(quotedPath: string): string;
   /** A command that drops the mounts' cached view of the store, so the next access sees it; exits non-zero on failure. */
@@ -98,14 +108,14 @@ export function geesefsMounter(log: Log, discoverTunnel: (storeEndpoint: string 
     // Bounded: an access to a dead geesefs node can hang.
     mountedCheck: (path) => `mountpoint -q ${path} && timeout 5 ls ${path} >/dev/null 2>&1`,
     refreshCommand: (paths) => `python3 -c ${shellQuote(REFRESH_ROOTS_SCRIPT)} ${paths.join(" ")}`,
-    async mount(sandbox, path, creds, signal) {
+    async mount(sandbox, path, creds, signal, options) {
       const endpoint = storeReachableFromSandbox(creds.endpoint) ? undefined : await discoverTunnel(creds.endpoint);
       if (!storeReachableFromSandbox(creds.endpoint) && !endpoint) {
         throw new DriveUnreachableError("the store is not public and no tunnel forwards to it");
       }
       return mountStorageRemote(sandboxExec(sandbox, signal), path, creds, {
         ...(endpoint ? { endpoint } : {}),
-        geesefs: { enablePerms: true, readRetryAttempts: BOUNDED_READ_RETRY_ATTEMPTS },
+        geesefs: { enablePerms: true, readRetryAttempts: BOUNDED_READ_RETRY_ATTEMPTS, ...(options?.readOnly ? { readOnly: true } : {}) },
         log,
         ...(signal ? { signal } : {}),
       });
@@ -130,6 +140,8 @@ export class SandboxDrive {
   private roots: DriveRoot[];
   /** `<sandbox id>:<boot>` the mounts were made for; undefined when they must be made. */
   private mountedFor: string | undefined;
+  /** What the current mounts hold (`rootsShape`). */
+  private mountedShape: string | undefined;
   private mountedExpiry: number | undefined;
   /** Executable files of the run's skills, by runner path, and their modes. */
   private readonly modes = new Map<string, number>();
@@ -142,8 +154,8 @@ export class SandboxDrive {
     roots: DriveRoot[],
     private readonly mounter: DriveMounter,
     private readonly options: {
-      /** The session folder whose managed `agent-files` link names the agent folder. */
-      agentLink?: { cwd: string; agentRoot: string };
+      /** The session folder, which holds each root's `link`. */
+      cwd?: string;
       /** Where the runner's "/" sits in the sandbox: empty in production, a folder in tests. */
       sandboxPrefix?: string;
       log: Log;
@@ -210,7 +222,7 @@ export class SandboxDrive {
   detachCredentials(): void {
     this.roots = this.roots.map((r) => {
       const credentials = r.credentials();
-      return { root: r.root, credentials: () => credentials };
+      return { ...r, credentials: () => credentials };
     });
   }
 
@@ -243,6 +255,10 @@ export class SandboxDrive {
     for (;;) {
       const key = `${use.sandbox.id}:${use.boot}`;
       if (this.mountedFor === key) {
+        if (this.mountedShape !== rootsShape(this.roots)) {
+          this.mountedFor = undefined;
+          throw new MountLostError("does not match the run's drives");
+        }
         // Replaced only for fresher credentials (a newer environment's); without them, a new mount
         // would expire just as soon.
         if (this.mountedExpiry !== undefined && this.mountedExpiry - Date.now() < REPLACE_BEFORE_EXPIRY_MS && this.freshestExpiry() > this.mountedExpiry + REPLACE_BEFORE_EXPIRY_MS) {
@@ -263,13 +279,16 @@ export class SandboxDrive {
 
   private async mount(use: SandboxUse, key: string, signal?: AbortSignal): Promise<void> {
     const t0 = Date.now();
-    const credentials = this.roots.map((r) => ({ root: r.root, creds: r.credentials() }));
+    const roots = this.roots;
+    const credentials = roots.map((r) => ({ root: r.root, creds: r.credentials(), readOnly: r.readOnly }));
     const missing = credentials.find((c) => !c.creds);
     if (missing) throw withPublicCode(new DriveUnreachableError(`no credentials for ${missing.root}`), "runner_error");
     let results: boolean[];
     try {
       // In parallel: each mount is about 0.6 s of calls, mostly geesefs coming up (measured).
-      results = await Promise.all(credentials.map((c) => this.mounter.mount(use.sandbox, this.inSandbox(c.root), c.creds!, signal)));
+      results = await Promise.all(
+        credentials.map((c) => this.mounter.mount(use.sandbox, this.inSandbox(c.root), c.creds!, signal, c.readOnly ? { readOnly: true } : undefined)),
+      );
     } catch (err) {
       if (signal?.aborted) throw err;
       throw withPublicCode(err instanceof DriveUnreachableError ? err : new DriveUnreachableError(String(err).slice(0, 160)), "runner_error");
@@ -277,13 +296,20 @@ export class SandboxDrive {
     if (results.some((ok) => !ok)) {
       throw withPublicCode(new DriveUnreachableError(`mounted ${results.filter(Boolean).length} of ${results.length} roots`), "runner_error");
     }
-    const link = this.options.agentLink;
-    if (link) await linkAgentFilesRemote(sandboxExec(use.sandbox, signal), this.inSandbox(link.cwd), this.inSandbox(link.agentRoot), { log: this.options.log });
+    const cwd = this.options.cwd;
+    if (cwd) {
+      const exec = sandboxExec(use.sandbox, signal);
+      for (const r of roots) {
+        if (r.link?.kind === "agent") await linkAgentFilesRemote(exec, this.inSandbox(cwd), this.inSandbox(r.root), { log: this.options.log });
+        else if (r.link?.kind === "project") await linkProjectDriveRemote(exec, this.inSandbox(cwd), r.link.slug, this.inSandbox(r.root), { log: this.options.log });
+      }
+    }
     this.modesApplied.clear();
     await this.applyModes(use.sandbox, signal);
     const expiries = credentials.map((c) => Date.parse(c.creds!.expiresAt ?? "")).filter((n) => Number.isFinite(n));
     this.mountedExpiry = expiries.length ? Math.min(...expiries) : undefined;
     this.mountedFor = key;
+    this.mountedShape = rootsShape(roots);
     this.options.log(`[inprocess] drive mounted in sandbox ${use.sandbox.id} boot ${use.boot} ms=${Date.now() - t0}`);
   }
 

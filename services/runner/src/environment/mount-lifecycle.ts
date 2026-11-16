@@ -37,7 +37,7 @@
  * would swallow the violation and log it as an ordinary mount failure — which is exactly what the
  * external review caught in revision 1 of the contract.
  */
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmdirSync, rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
 import {
@@ -57,6 +57,12 @@ import {
 } from "../engines/sandbox_agent/codex-assets.ts";
 import { conciseError } from "../engines/sandbox_agent/errors.ts";
 import { mountStorage } from "../engines/sandbox_agent/mount.ts";
+import {
+  linkProjectDrive,
+  projectMountPath,
+} from "../engines/sandbox_agent/project-mount.ts";
+import type { ProjectRunDrive } from "../engines/sandbox_agent/run-drives.ts";
+import type { DriveAccess } from "../protocol.ts";
 import {
   agentToolsLocalDir,
   localAgentToolsExec,
@@ -81,6 +87,13 @@ export interface MountDeps {
   >;
   signAgentMount: (
     artifactId: string,
+    opts: { apiBase: string; authorization: string; log: (m: string) => void },
+  ) => Promise<
+    import("../engines/sandbox_agent/mount.ts").MountCredentials | null
+  >;
+  signProjectMount: (
+    slug: string,
+    access: DriveAccess,
     opts: { apiBase: string; authorization: string; log: (m: string) => void },
   ) => Promise<
     import("../engines/sandbox_agent/mount.ts").MountCredentials | null
@@ -319,6 +332,80 @@ export async function mountLocalAgentCwd(
 }
 
 /**
+ * Mount one project drive on the local host and link it as `drives/<slug>`. Returns whether it is
+ * live. A failure leaves the run without the drive, as a failed agent mount does.
+ */
+export async function mountLocalProjectDrive(
+  ctx: AcquireContext,
+  deps: MountDeps,
+  drive: ProjectRunDrive,
+  opts: MountLocalAgentCwdOptions = {},
+): Promise<boolean> {
+  const plan = ctx.plan;
+  const creds = drive.credentials;
+  if (!creds || !plan.driveOnRunner) return false;
+  const mountPath = projectMountPath(plan.workspace.cwd, drive.slug);
+  if (drive.mountedPath === mountPath) return true;
+  try {
+    mkdirSync(mountPath, { recursive: true });
+    if (
+      !(await (deps.mountStorage ?? mountStorage)(mountPath, creds, {
+        log: ctx.log,
+        signal: deps.signal,
+        geesefs: { readOnly: drive.access === "read" },
+      }))
+    ) {
+      // Detach confirmed; the mount point is the empty folder made above.
+      rmdirSync(mountPath);
+      return false;
+    }
+    ctx.commitProjectMount(drive, mountPath, creds);
+    if (opts.cwdReady && !(await opts.cwdReady.then(() => true, () => false)))
+      return true;
+    throwIfAcquireAborted(deps.signal);
+    await linkProjectDrive(plan.workspace.cwd, drive.slug, mountPath, {
+      log: ctx.log,
+    });
+    return true;
+  } catch (err) {
+    rethrowIfInvariant(err);
+    ctx.log(
+      `local project mount failed slug=${drive.slug}: ${conciseError(err, plan.harness)}`,
+    );
+    return false;
+  }
+}
+
+/** Re-sign one project drive and remount it, from the same per-acquire budget as the others. */
+export async function reSignAndRemountLocalProjectDrive(
+  ctx: AcquireContext,
+  deps: MountDeps,
+  drive: ProjectRunDrive,
+): Promise<boolean> {
+  const plan = ctx.plan;
+  if (!ctx.runCred || !plan.driveOnRunner) return false;
+  if (!ctx.takeRemountBudget(`project:${drive.slug}`)) {
+    ctx.log(
+      `local project mount ENOTCONN remount limit reached slug=${drive.slug}`,
+    );
+    return false;
+  }
+  ctx.log(`local project mount ENOTCONN slug=${drive.slug}; re-signing and remounting`);
+  const fresh = await deps.signProjectMount(drive.slug, drive.access, {
+    apiBase: apiBase(),
+    authorization: ctx.runCred,
+    log: ctx.log,
+  });
+  if (!fresh) {
+    ctx.log(`local project mount re-sign returned no credentials slug=${drive.slug}`);
+    return false;
+  }
+  ctx.recordResignedProjectCredential(drive, fresh);
+  ctx.commitProjectMount(drive, undefined, fresh);
+  return mountLocalProjectDrive(ctx, deps, drive);
+}
+
+/**
  * Re-sign the agent mount credential and remount.
  *
  * INVARIANT 2: the fresh credential is committed BEFORE the remount is known to have succeeded.
@@ -413,7 +500,10 @@ export function remountLocalCwdAfterRuntimeEnotconn(
   // The event cannot say which mount broke; remount every eligible one (alive mounts no-op).
   const cwdEligible = !!ctx.env.mountCreds && !!ctx.env.mountedCwd;
   const agentEligible = !!ctx.env.agentMountCreds && !!ctx.env.agentMountedPath;
-  if (!cwdEligible && !agentEligible) return;
+  const projectsEligible = ctx.env.drives.filter(
+    (d): d is ProjectRunDrive => d.kind === "project" && !!d.mountedPath,
+  );
+  if (!cwdEligible && !agentEligible && projectsEligible.length === 0) return;
   if (ctx.env.runtimeRemount || !containsTransportEndpointDisconnected(event))
     return;
   ctx.log(
@@ -427,7 +517,12 @@ export function remountLocalCwdAfterRuntimeEnotconn(
       const agentOk = agentEligible
         ? await reSignAndRemountLocalAgentMount(ctx, deps)
         : true;
-      return cwdOk && agentOk;
+      let projectsOk = true;
+      for (const drive of projectsEligible) {
+        if (!(await reSignAndRemountLocalProjectDrive(ctx, deps, drive)))
+          projectsOk = false;
+      }
+      return cwdOk && agentOk && projectsOk;
     })().catch((err) => {
       // No `rethrowIfInvariant` here: this is a detached promise, so a rethrow would become an
       // unhandled rejection rather than failing the acquisition. An ordering violation cannot

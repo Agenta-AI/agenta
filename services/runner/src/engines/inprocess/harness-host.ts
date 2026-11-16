@@ -22,7 +22,6 @@ import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { InMemoryCredentialStore, type CredentialStore } from "pi-coding-agent-pi-ai";
 import type { InMemorySessionPersistDriver, SessionRecord } from "sandbox-agent";
 import type { AttachmentFiles } from "../sandbox_agent/attachments.ts";
-import { agentMountPath } from "../sandbox_agent/agent-mount.ts";
 import type { InRunnerRunFacts } from "../sandbox_agent/runtime-contracts.ts";
 import type { ConversationRegistry } from "./conversation-registry.ts";
 import type { ConversationWorkspace, SandboxPreparation } from "./conversation-workspace.ts";
@@ -134,11 +133,10 @@ export class InProcessHarnessHost {
   private workspaceFor(cwd: string): Promise<ConversationWorkspace> {
     if (this.workspace) return Promise.resolve(this.workspace);
     this.leasing ??= (async () => {
-      const session = this.facts.drives.find((d) => d.root === cwd);
+      const session = this.facts.roots.find((d) => d.root === cwd);
       if (!session || !this.facts.conversationId || !this.facts.signTranscriptMount) {
         throw withPublicCode(new Error(INPROCESS_NEEDS_DRIVE_MESSAGE), "runner_error");
       }
-      const agent = this.facts.drives.find((d) => d.root === agentMountPath(cwd));
       const skillDir = this.facts.harnessEnv.PI_CODING_AGENT_SKILL_DIR;
       const { conversationId, projectId } = this.facts;
       const workspace = this.runtime.registry.hold({
@@ -146,8 +144,7 @@ export class InProcessHarnessHost {
         conversationId,
         projectId,
         cwd,
-        drive: agent ? [session, agent] : [session],
-        ...(agent ? { agentRoot: agent.root } : {}),
+        drive: this.facts.roots,
         skillModes: await skillModes(skillDir, this.facts.skillSources),
         signTranscriptMount: this.facts.signTranscriptMount,
         ...(this.facts.usage ? { usage: this.facts.usage } : {}),

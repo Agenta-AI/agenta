@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { lstatSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "vitest";
@@ -8,8 +8,11 @@ import type { AcquireContext } from "../../src/environment/acquire-context.ts";
 import {
   mountLocalAgentCwd,
   mountLocalDurableCwd,
+  mountLocalProjectDrive,
+  reSignAndRemountLocalProjectDrive,
   type MountDeps,
 } from "../../src/environment/mount-lifecycle.ts";
+import type { ProjectRunDrive } from "../../src/engines/sandbox_agent/run-drives.ts";
 
 const credentials = {
   endpoint: "http://store",
@@ -27,6 +30,7 @@ const depsFor = (
   mountStorage,
   signMount: async () => null,
   signAgentMount: async () => null,
+  signProjectMount: async () => null,
   daytonaPiDir: "/tmp/pi",
   signal,
 });
@@ -160,6 +164,142 @@ describe("agent mount alongside the cwd mount", () => {
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-agent`, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("project drive mounts", () => {
+  const projectContext = (cwd: string, commits: string[]): AcquireContext =>
+    ({
+      ...contextFor(cwd, commits),
+      runCred: "ApiKey run",
+      commitProjectMount: (drive: ProjectRunDrive, path: string | undefined) => {
+        drive.mountedPath = path;
+        commits.push(`project:${drive.slug}:${path ?? "-"}`);
+      },
+      recordResignedProjectCredential: (drive: ProjectRunDrive, credential: typeof credentials) => {
+        drive.credentials = credential;
+      },
+      takeRemountBudget: () => true,
+    }) as unknown as AcquireContext;
+
+  it("mounts a read drive read-only beside the cwd and links drives/<slug> after the cwd mount", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-"));
+    const commits: string[] = [];
+    const seen: Array<{ path: string; readOnly: boolean | undefined }> = [];
+    let releaseCwd!: () => void;
+    const cwdReady = new Promise<void>((resolve) => {
+      releaseCwd = resolve;
+    });
+    const drive: ProjectRunDrive = { kind: "project", slug: "price-lists", access: "read", credentials };
+    try {
+      const mounted = mountLocalProjectDrive(
+        projectContext(cwd, commits),
+        depsFor(new AbortController().signal, async (path, _creds, opts) => {
+          seen.push({ path, readOnly: opts?.geesefs?.readOnly });
+          return true;
+        }),
+        drive,
+        { cwdReady },
+      );
+      for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+      assert.deepEqual(seen, [{ path: `${cwd}-project-price-lists`, readOnly: true }]);
+      assert.equal(existsSync(join(cwd, "drives")), false, "no link before the cwd mount");
+      releaseCwd();
+      assert.equal(await mounted, true);
+      assert.equal(drive.mountedPath, `${cwd}-project-price-lists`);
+      assert.equal(readlinkSync(join(cwd, "drives", "price-lists")), `${cwd}-project-price-lists`);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-project-price-lists`, { recursive: true, force: true });
+    }
+  });
+
+  it("mounts a read-write drive writable", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-rw-"));
+    let readOnly: boolean | undefined;
+    const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read-write", credentials };
+    try {
+      await mountLocalProjectDrive(
+        projectContext(cwd, []),
+        depsFor(new AbortController().signal, async (_path, _creds, opts) => {
+          readOnly = opts?.geesefs?.readOnly;
+          return true;
+        }),
+        drive,
+      );
+      assert.equal(readOnly, false);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+    }
+  });
+
+  it("goes on without a drive whose mount fails, leaving no mount point", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-fail-"));
+    const commits: string[] = [];
+    const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read-write", credentials };
+    try {
+      const mounted = await mountLocalProjectDrive(
+        projectContext(cwd, commits),
+        depsFor(new AbortController().signal, async () => false),
+        drive,
+      );
+      assert.equal(mounted, false);
+      assert.equal(drive.mountedPath, undefined);
+      assert.deepEqual(commits, []);
+      assert.equal(existsSync(`${cwd}-project-notes`), false);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("does not mount a drive that could not be signed", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-unsigned-"));
+    let calls = 0;
+    try {
+      const mounted = await mountLocalProjectDrive(
+        projectContext(cwd, []),
+        depsFor(new AbortController().signal, async () => {
+          calls += 1;
+          return true;
+        }),
+        { kind: "project", slug: "notes", access: "read", credentials: null },
+      );
+      assert.equal(mounted, false);
+      assert.equal(calls, 0);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("re-signs with the drive's slug and access and remounts after ENOTCONN", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-remount-"));
+    const commits: string[] = [];
+    const signed: string[] = [];
+    const fresh = { ...credentials, accessKey: "fresh" };
+    const drive: ProjectRunDrive = {
+      kind: "project",
+      slug: "notes",
+      access: "read",
+      credentials,
+      mountedPath: `${cwd}-project-notes`,
+    };
+    try {
+      const deps: MountDeps = {
+        ...depsFor(new AbortController().signal, async (_path, creds) => creds.accessKey === "fresh"),
+        signProjectMount: async (slug, access) => {
+          signed.push(`${slug}:${access}`);
+          return fresh;
+        },
+      };
+      assert.equal(await reSignAndRemountLocalProjectDrive(projectContext(cwd, commits), deps, drive), true);
+      assert.deepEqual(signed, ["notes:read"]);
+      assert.equal(drive.credentials, fresh);
+      assert.equal(drive.mountedPath, `${cwd}-project-notes`);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
     }
   });
 });

@@ -515,12 +515,25 @@ export interface SandboxVisibleSecretSource {
     secretKey?: string | null;
     sessionToken?: string | null;
   } | null;
+  /** Project drives hold their own credentials. */
+  drives?: ReadonlyArray<{
+    kind: string;
+    credentials?: {
+      accessKey?: string | null;
+      secretKey?: string | null;
+      sessionToken?: string | null;
+    } | null;
+  }>;
 }
 
 export function sandboxVisibleSecretValues(
   source: SandboxVisibleSecretSource,
 ): Array<string | null | undefined> {
-  return [source.mountCreds, source.agentMountCreds].flatMap((credential) => [
+  return [
+    source.mountCreds,
+    source.agentMountCreds,
+    ...(source.drives ?? []).map((drive) => drive.credentials),
+  ].flatMap((credential) => [
     credential?.accessKey,
     credential?.secretKey,
     credential?.sessionToken,

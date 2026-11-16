@@ -25,6 +25,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { InRunnerSandboxHandle } from "./runtime-contracts.ts";
+import { projectDrives, type RunDrive } from "./run-drives.ts";
 
 type Log = (message: string) => void;
 
@@ -51,6 +52,8 @@ export interface TurnStartViews {
   agentMountedPath?: string | undefined;
   /** Daytona: set when the cwd mount in the sandbox succeeded. */
   installedMountExpiries: { cwd?: number };
+  /** The run's drives; each mounted project drive is refreshed too. */
+  drives?: readonly RunDrive[];
   /** Set by an acquire that mounted the drives fresh; the first turn clears it and skips the refresh. */
   driveViewsFresh?: boolean;
 }
@@ -59,6 +62,10 @@ export interface TurnStartPlan {
   isDaytona: boolean;
   harnessInRunner: boolean;
   workspace: { cwd: string };
+}
+
+function projectRoots(env: TurnStartViews): Array<string | undefined> {
+  return projectDrives(env.drives).map((d) => d.mountedPath);
 }
 
 /** Refresh the durable folders' views for this turn. Never throws. */
@@ -75,7 +82,7 @@ export async function refreshDriveViewsAtTurnStart(env: TurnStartViews, plan: Tu
   const t0 = Date.now();
   try {
     if (plan.isDaytona) {
-      const roots = [env.installedMountExpiries.cwd !== undefined ? plan.workspace.cwd : undefined, env.agentMountedPath].filter((p): p is string => !!p);
+      const roots = [env.installedMountExpiries.cwd !== undefined ? plan.workspace.cwd : undefined, env.agentMountedPath, ...projectRoots(env)].filter((p): p is string => !!p);
       const sandbox = env.sandbox as { runProcess?: (opts: { command: string; args: string[]; timeoutMs: number }) => Promise<unknown> } | undefined;
       if (roots.length === 0 || typeof sandbox?.runProcess !== "function") return;
       const result = await Promise.race([
@@ -85,7 +92,7 @@ export async function refreshDriveViewsAtTurnStart(env: TurnStartViews, plan: Tu
       const exitCode = (result as { exitCode?: unknown } | undefined)?.exitCode;
       if (typeof exitCode === "number" && exitCode !== 0) throw new Error(`a root was not refreshed (exit code ${exitCode})`);
     } else {
-      const roots = [env.mountedCwd, env.agentMountedPath].filter((p): p is string => !!p);
+      const roots = [env.mountedCwd, env.agentMountedPath, ...projectRoots(env)].filter((p): p is string => !!p);
       if (roots.length === 0) return;
       await execFileAsync("python3", ["-c", REFRESH_ROOTS_SCRIPT, ...roots], { timeout: REFRESH_TIMEOUT_MS });
     }

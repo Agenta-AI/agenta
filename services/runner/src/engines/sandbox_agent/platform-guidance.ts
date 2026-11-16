@@ -38,6 +38,8 @@ import {
   composeSystemPromptAppendix,
   type SystemPromptAppendix,
 } from "./system-prompt-appendix.ts";
+import type { DriveAccess } from "../../protocol.ts";
+import { PROJECT_DRIVES_DIR_NAME } from "./project-mount.ts";
 
 /**
  * The READ side of the skills folder: its real absolute path.
@@ -125,6 +127,50 @@ export function codexBundledSkillsAppendix(): SystemPromptAppendix {
   };
 }
 
+/** One project drive of the run, as the prompt describes it. */
+export interface ProjectDriveGuidance {
+  readonly slug: string;
+  readonly access: DriveAccess;
+  /** The absolute path where the drive serves files; undefined when it is not available. */
+  readonly mountedPath: string | undefined;
+}
+
+/**
+ * One paragraph per project drive. A shared drive states the only rules the platform promises
+ * for two writers: a write replaces the whole file and the last write wins.
+ */
+export function projectDriveAppendix(
+  drive: ProjectDriveGuidance,
+): SystemPromptAppendix {
+  const folder = `\`${PROJECT_DRIVES_DIR_NAME}/${drive.slug}/\``;
+  const where = `${folder} in your working directory (absolute path \`${drive.mountedPath}\`)`;
+  return {
+    id: `project-drive:${drive.slug}`,
+    text: !drive.mountedPath
+      ? `The project drive ${folder} is not available in this run. Do not look for its files, ` +
+        "and do not tell the user that they are missing or were deleted."
+      : drive.access === "read"
+        ? `${where} is a project drive shared with other agents of this project. It is ` +
+          "read-only for you."
+        : `${where} is a project drive shared with other agents of this project, and they can ` +
+          "write it at the same time. A write replaces the whole file, and the last write wins. " +
+          "Prefer adding new files to editing shared ones. Never delete a folder you did not create.",
+  };
+}
+
+/** For an agent whose `drives` list is empty: nothing persists beyond the working directory. */
+export function noDrivesAppendix(sessionDurable: boolean): SystemPromptAppendix {
+  return {
+    id: "no-drives",
+    text:
+      "No agent drive and no project drive are attached to you, so you have no `agent-files/` " +
+      "folder. " +
+      (sessionDurable
+        ? "Your working directory persists for this session only."
+        : "Your working directory lasts only until this sandbox is removed."),
+  };
+}
+
 /** What the caller knows about this run's durable agent folder and its tools. */
 export interface PlatformGuidanceInput {
   /** The harness's ACP agent id: `pi`, `claude` or `codex`. */
@@ -139,6 +185,10 @@ export interface PlatformGuidanceInput {
   readonly agentMountSkipped: boolean;
   /** The names of the tools this run offers the model. */
   readonly toolNames: readonly string[];
+  /** The run's project drives. */
+  readonly projectDrives?: readonly ProjectDriveGuidance[];
+  /** Set when the agent's `drives` list is empty; says whether the working directory persists. */
+  readonly noDrives?: { readonly sessionDurable: boolean };
 }
 
 /**
@@ -206,10 +256,13 @@ export function platformGuidanceAppendix(
     hasCommitTool && input.acpAgent === "codex"
       ? codexBundledSkillsAppendix()
       : undefined;
+  // The drive paragraphs ride this channel on every harness: no other channel carries them.
   return composeSystemPromptAppendix([
     skillsReadPath,
     codexSkills,
     fileCitations,
     mount,
+    ...(input.projectDrives ?? []).map(projectDriveAppendix),
+    input.noDrives ? noDrivesAppendix(input.noDrives.sessionDurable) : undefined,
   ]);
 }

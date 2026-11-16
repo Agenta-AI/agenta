@@ -119,9 +119,8 @@ export function createTestWorkspace(options: {
     cwd,
     drive: [
       { root: cwd, credentials: () => TEST_CREDENTIALS },
-      { root: agent, credentials: () => TEST_CREDENTIALS },
+      { root: agent, credentials: () => TEST_CREDENTIALS, link: { kind: "agent" } },
     ],
-    agentRoot: agent,
     skillModes: options.skillModes ?? new Map(),
     signTranscriptMount: async () => TEST_TRANSCRIPT_CREDENTIALS,
   });

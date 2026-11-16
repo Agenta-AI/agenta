@@ -18,7 +18,12 @@ import {
   configureDaytonaCodexEnv,
 } from "./codex-assets.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
-import { classifyRunError, conciseError } from "./errors.ts";
+import {
+  classifyRunError,
+  conciseError,
+  SESSION_DRIVE_REQUIRED_CODE,
+  SESSION_DRIVE_REQUIRED_MESSAGE,
+} from "./errors.ts";
 import { signSessionMountCredentials, type MountCredentials } from "./mount.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
@@ -48,6 +53,12 @@ import {
 } from "./subscription-login/files.ts";
 import { subscriptionPublishState } from "./subscription-login/publisher.ts";
 import { configFingerprint } from "./session-identity.ts";
+import { signProjectMountCredentials } from "./project-mount.ts";
+import {
+  projectDrives,
+  selectRunDrives,
+  type RunDrive,
+} from "./run-drives.ts";
 import type {
   SandboxAgentDeps,
   SessionEnvironment,
@@ -81,50 +92,84 @@ export async function prepareEnvironmentSetup(
     sessionId: () => environment?.sessionId ?? request.sessionId?.trim(),
   });
 
+  // The drives this run mounts, decided once from the request (`run-drives.ts`).
+  const selection = selectRunDrives(request, logger);
+  // `inprocess` opens the session and publishes skill files on the session drive, so it has no
+  // throwaway working folder to fall back to.
+  if (
+    request.hasSessionDrive === false &&
+    sandboxProviderTraits(resolveSandboxProviderId(request, deps.sandboxProvider)).harnessInRunner
+  ) {
+    return {
+      ok: false as const,
+      error: SESSION_DRIVE_REQUIRED_MESSAGE,
+      errorCode: SESSION_DRIVE_REQUIRED_CODE,
+    };
+  }
+
   // Sign BEFORE buildRunPlan so the prefix is available for the durable cwd derivation.
   // Inputs (sessionId, apiBase, credential) are independent of the plan. Best-effort: null on
   // failure leaves durableCwd undefined and buildRunPlan falls back to the ephemeral path.
+  // Every sign starts at the same time; each signer answers null for a drive it cannot sign.
   const sessionForMount = request.sessionId?.trim();
   const runCred = runCredential(request);
   const signMount =
     deps.signSessionMountCredentials ?? signSessionMountCredentials;
-  let mountCreds: MountCredentials | null =
+  const artifactId = request.runContext?.workflow?.artifact?.id?.trim();
+  const signAgentMount =
+    deps.signAgentMountCredentials ?? signAgentMountCredentials;
+  const signProjectMount =
+    deps.signProjectMountCredentials ?? signProjectMountCredentials;
+  const signDeps = () => ({
+    apiBase: apiBase(),
+    authorization: runCred!,
+    log: logger,
+    signal,
+  });
+  const [signedSession, agentMountCreds, ...projectCreds] = await Promise.all([
     presignedMount !== undefined
       ? presignedMount
-      : sessionForMount && runCred
-        ? await signMount(sessionForMount, {
-            apiBase: apiBase(),
-            authorization: runCred,
-            log: logger,
-            signal,
-          })
-        : null;
+      : selection.session && runCred
+        ? signMount(sessionForMount!, signDeps())
+        : null,
+    selection.agent && runCred
+      ? signAgentMount(artifactId!, signDeps())
+      : null,
+    ...selection.projects.map((p) =>
+      runCred ? signProjectMount(p.slug, p.access, signDeps()) : null,
+    ),
+  ]);
+  // A presigned mount was signed before the request's drive list was read.
+  const mountCreds: MountCredentials | null = selection.session ? signedSession : null;
   // A session-owned run expects a durable session cwd mount. When signing returns nothing the run
   // still proceeds on an ephemeral cwd (behavior unchanged, RSH-11); emit one structured warning
   // keyed by mount kind so durable-to-ephemeral degradation is measurable, not silent.
-  if (sessionForMount && !mountCreds) {
+  if (selection.session && !mountCreds) {
     logger(
       `mount degraded kind=session_cwd cause=sign_returned_no_mount session=${sessionForMount}`,
     );
   }
-
-  const artifactId = request.runContext?.workflow?.artifact?.id?.trim();
-  const signAgentMount =
-    deps.signAgentMountCredentials ?? signAgentMountCredentials;
-  const agentMountCreds: MountCredentials | null =
-    artifactId && runCred
-      ? await signAgentMount(artifactId, {
-          apiBase: apiBase(),
-          authorization: runCred,
-          log: logger,
-          signal,
-        })
-      : null;
-  // A workflow-artifact run expects an agent mount; same structured degrade signal when unsigned.
-  if (artifactId && !agentMountCreds) {
+  // A listed agent drive expects an agent mount; same structured degrade signal when unsigned.
+  if (selection.agent && !agentMountCreds) {
     logger(
       `mount degraded kind=agent_mount cause=sign_returned_no_mount artifact=${artifactId}`,
     );
+  }
+  const drives: RunDrive[] = [
+    ...(selection.agent ? [{ kind: "agent" as const, access: "read-write" as const }] : []),
+    ...selection.projects.map((p, i) => ({
+      kind: "project" as const,
+      slug: p.slug,
+      access: p.access,
+      credentials: projectCreds[i] ?? null,
+    })),
+  ];
+  for (const drive of projectDrives(drives)) {
+    if (!drive.credentials) {
+      logger(
+        `mount degraded kind=project_mount cause=sign_returned_no_mount slug=${drive.slug}`,
+      );
+    }
   }
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
   // <prefix> is already the mount's stored prefix ("mounts/<scope_id>/<mount_id>"), so no extra
@@ -434,6 +479,7 @@ export async function prepareEnvironmentSetup(
       : undefined,
     mountCreds,
     agentMountCreds,
+    drives,
     mountProjectId: mountCreds?.projectId,
     projectScopeId: projectScopeFor(request, mountCreds?.projectId)?.id,
     loadedFromContinuity: false,
@@ -501,6 +547,7 @@ export async function prepareEnvironmentSetup(
     sessionForMount,
     signAgentMount,
     signMount,
+    signProjectMount,
     strictModel,
     timingLog,
   };

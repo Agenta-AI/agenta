@@ -98,11 +98,18 @@
  */
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
 import type { RunPlan } from "../engines/sandbox_agent/run-plan.ts";
+import type {
+  ProjectRunDrive,
+  RunDrive,
+} from "../engines/sandbox_agent/run-drives.ts";
 import type { SessionEnvironment } from "../engines/sandbox_agent/runtime-contracts.ts";
 import type { Log, TimingLog } from "./timing.ts";
 
 /** Which of the two durable mounts a call is about. */
 export type MountKind = "cwd" | "agent";
+
+/** A remount budget: one per durable mount, a project drive's by its slug. */
+export type RemountBudgetKey = MountKind | `project:${string}`;
 
 /**
  * A violation of an acquire ORDERING rule. It means the code called things in the wrong order,
@@ -150,6 +157,8 @@ export interface EnvironmentView {
   readonly agentMountCreds: MountCredentials | null | undefined;
   readonly mountedCwd: string | undefined;
   readonly agentMountedPath: string | undefined;
+  /** The run's configured drives (`run-drives.ts`). */
+  readonly drives: readonly RunDrive[];
   readonly runAgentDir: string | undefined;
   readonly piPromptDir: string | undefined;
   readonly durableCwdSafeToDelete: boolean;
@@ -279,6 +288,23 @@ export interface AcquireContext {
    */
   clearMountPath(kind: MountKind): void;
 
+  /**
+   * Record a project drive that now serves I/O: its path (local and Daytona alike, so the turn
+   * refresh and the prompt can name it) and its credential's expiry. `path` undefined clears the
+   * path before a remount.
+   */
+  commitProjectMount(
+    drive: ProjectRunDrive,
+    path: string | undefined,
+    credential: MountCredentials,
+  ): void;
+
+  /** Record a re-signed project drive credential, before its remount. */
+  recordResignedProjectCredential(
+    drive: ProjectRunDrive,
+    credential: MountCredentials,
+  ): void;
+
   // ---------------------------------------------------------------------------------------
   // `durableCwdSafeToDelete`. Writer: the mount unit and teardown.
   //
@@ -340,7 +366,7 @@ export interface AcquireContext {
   // ---------------------------------------------------------------------------------------
 
   /** Consume one retry for `kind`. False when the budget is spent; the caller then gives up. */
-  takeRemountBudget(kind: MountKind): boolean;
+  takeRemountBudget(kind: RemountBudgetKey): boolean;
 
   /**
    * True once the agent-mount guidance has run. The guidance is idempotent by this flag rather

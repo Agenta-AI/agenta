@@ -293,6 +293,12 @@ function configShape(request: AgentRunRequest) {
     // wrong (or no) agent mount attached. The REST of `runContext` stays out: revision ids,
     // variant identity, and trace identity are per-turn metadata (the step-1 rule).
     agentArtifactId: request.runContext?.workflow?.artifact?.id?.trim() || null,
+    // The drives are mounted at acquire, so a changed list or session setting needs a new
+    // environment. Only when present, so a request without them keeps the identity it had.
+    ...(request.drives !== undefined ? { drives: request.drives } : {}),
+    ...(request.hasSessionDrive !== undefined
+      ? { hasSessionDrive: request.hasSessionDrive }
+      : {}),
     model: request.model ?? null,
     // Harness mode is applied once, at session acquire (codex-mode.ts). The SHARED normalizer
     // (audit findings 3 and 6) resolves Codex defaults and ignores the field elsewhere, and the
@@ -778,15 +784,19 @@ export function sandboxCredentialsRotated(
 export interface InstalledMountExpiries {
   cwd?: number;
   agent?: number;
+  /** Per project drive, by slug. */
+  projects?: Record<string, number | undefined>;
 }
 
 /** The environment's credential lease: the earliest expiry among its installed mounts. */
 export function installedMountLease(
   expiries: InstalledMountExpiries,
 ): number | undefined {
-  const values = Object.values(expiries).filter(
-    (v): v is number => typeof v === "number",
-  );
+  const values = [
+    expiries.cwd,
+    expiries.agent,
+    ...Object.values(expiries.projects ?? {}),
+  ].filter((v): v is number => typeof v === "number");
   return values.length ? Math.min(...values) : undefined;
 }
 

@@ -18,7 +18,7 @@ import {
   type AcquireContext,
   type AcquireContextHandle,
   type EnvironmentView,
-  type MountKind,
+  type RemountBudgetKey,
 } from "./acquire-context.ts";
 import type { Log, TimingLog } from "./timing.ts";
 
@@ -55,7 +55,7 @@ export function createAcquireContext(
 
   let envFrozen = false;
   let guidanceActive = false;
-  const remountsTaken: Record<MountKind, number> = { cwd: 0, agent: 0 };
+  const remountsTaken = new Map<RemountBudgetKey, number>();
 
   // The read-only projection. Getters, not a snapshot: a unit that reads `mountedCwd` after
   // another unit committed a mount must see the new value, exactly as the closure did.
@@ -80,6 +80,9 @@ export function createAcquireContext(
     },
     get agentMountedPath() {
       return environment.agentMountedPath;
+    },
+    get drives() {
+      return environment.drives;
     },
     get runAgentDir() {
       return environment.runAgentDir;
@@ -170,6 +173,17 @@ export function createAcquireContext(
       if (kind === "cwd") environment.mountedCwd = undefined;
       else environment.agentMountedPath = undefined;
     },
+    commitProjectMount(drive, path, credential) {
+      drive.mountedPath = path;
+      if (path === undefined) return;
+      environment.installedMountExpiries.projects = {
+        ...environment.installedMountExpiries.projects,
+        [drive.slug]: mountExpiryMs(credential.expiresAt),
+      };
+    },
+    recordResignedProjectCredential(drive, credential) {
+      drive.credentials = credential;
+    },
 
     // --- durableCwdSafeToDelete: three named transitions ------------------------------ //
     beginCwdMount() {
@@ -198,8 +212,9 @@ export function createAcquireContext(
 
     // --- retry budgets and one-shot flags --------------------------------------------- //
     takeRemountBudget(kind) {
-      if (remountsTaken[kind] >= input.remountLimit) return false;
-      remountsTaken[kind] += 1;
+      const taken = remountsTaken.get(kind) ?? 0;
+      if (taken >= input.remountLimit) return false;
+      remountsTaken.set(kind, taken + 1);
       return true;
     },
     get guidanceActive() {

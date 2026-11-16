@@ -34,10 +34,8 @@ export interface ConversationSpec {
   projectId: string | undefined;
   /** The session folder. */
   cwd: string;
-  /** The drive's roots (the session folder, the agent folder) with the runner mounts' credentials. */
+  /** The drive's roots (the session folder, the agent folder, project drives) with the runner mounts' credentials. */
   drive: DriveRoot[];
-  /** The agent folder the session folder's `agent-files` link names, when the link is managed. */
-  agentRoot?: string;
   /** Executable skill files (runner path) and their modes. */
   skillModes: Map<string, number>;
   /** Signs the conversation-file prefix. */
@@ -75,7 +73,7 @@ export class ConversationRegistry {
       const labels = sessionSandboxLabels(spec.projectId, spec.conversationId);
       const sandbox = new CommandSandbox(spec.key, this.settings, this.api, this.owner, labels, this.log);
       const drive = new SandboxDrive(spec.drive, this.options.mounter, {
-        ...(spec.agentRoot ? { agentLink: { cwd: spec.cwd, agentRoot: spec.agentRoot } } : {}),
+        cwd: spec.cwd,
         ...(this.options.sandboxPrefix ? { sandboxPrefix: this.options.sandboxPrefix } : {}),
         log: this.log,
       });

@@ -73,6 +73,8 @@ import {
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import { linkAgentFiles } from "./agent-mount.ts";
+import { linkProjectDrive } from "./project-mount.ts";
+import { projectDrives } from "./run-drives.ts";
 import { refreshDriveViewsAtTurnStart } from "./turn-start-refresh.ts";
 import {
   recoverSubscriptionAuthFailure,
@@ -1463,6 +1465,14 @@ export async function runTurn(
       });
       if (!agentFilesReady) {
         throw new Error("agent-files could not be linked to the durable agent mount");
+      }
+    }
+    // Same repair for each project drive's `drives/<slug>` link; a failed one is logged by the helper.
+    if (plan.driveOnRunner) {
+      for (const drive of projectDrives(env.drives)) {
+        if (drive.mountedPath) {
+          await linkProjectDrive(plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger });
+        }
       }
     }
 
