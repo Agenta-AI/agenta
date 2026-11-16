@@ -46,9 +46,18 @@ export const formatNumber = (value: number, options?: Intl.NumberFormatOptions):
 export const richText = (
     text: string,
     elements: Record<string, (children: string) => ReactNode>,
-): ReactNode[] =>
-    text.split(/(<\w+>.*?<\/\w+>)/).map((part, index) => {
-        const match = part.match(/^<(\w+)>(.*?)<\/\1>$/)
-        const render = match && elements[match[1]]
-        return createElement(Fragment, {key: index}, render ? render(match[2]) : part)
-    })
+): ReactNode[] => {
+    const parts: ReactNode[] = []
+    let last = 0
+    for (const match of text.matchAll(/<(\w+)>([^<]*)<\/\1>/g)) {
+        const render = elements[match[1]]
+        if (match.index > last)
+            parts.push(createElement(Fragment, {key: last}, text.slice(last, match.index)))
+        parts.push(
+            createElement(Fragment, {key: match.index}, render ? render(match[2]) : match[0]),
+        )
+        last = match.index + match[0].length
+    }
+    if (last < text.length) parts.push(createElement(Fragment, {key: last}, text.slice(last)))
+    return parts
+}
