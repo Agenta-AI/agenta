@@ -58,5 +58,6 @@
     "outputs": "Outputs",
     "detailedConfiguration": "Detailed configuration",
     "minLength": "Min: {{value}}",
-    "maxLength": "Max: {{value}}"
+    "maxLength": "Max: {{value}}",
+    "selectPlaceholder": "Select..."
 }

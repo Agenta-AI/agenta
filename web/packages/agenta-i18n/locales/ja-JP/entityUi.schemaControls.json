@@ -56,5 +56,6 @@
     "outputs": "出力",
     "detailedConfiguration": "詳細な設定",
     "minLength": "最小: {{value}}",
-    "maxLength": "最大: {{value}}"
+    "maxLength": "最大: {{value}}",
+    "selectPlaceholder": "選択..."
 }

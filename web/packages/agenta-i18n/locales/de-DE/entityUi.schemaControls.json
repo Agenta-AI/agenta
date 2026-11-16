@@ -58,5 +58,6 @@
     "outputs": "Ausgaben",
     "detailedConfiguration": "Detaillierte Konfiguration",
     "minLength": "Min.: {{value}}",
-    "maxLength": "Max.: {{value}}"
+    "maxLength": "Max.: {{value}}",
+    "selectPlaceholder": "Auswählen..."
 }

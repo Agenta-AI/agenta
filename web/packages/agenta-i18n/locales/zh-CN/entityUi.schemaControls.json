@@ -56,5 +56,6 @@
     "outputs": "输出",
     "detailedConfiguration": "详细配置",
     "minLength": "最小：{{value}}",
-    "maxLength": "最大：{{value}}"
+    "maxLength": "最大：{{value}}",
+    "selectPlaceholder": "请选择..."
 }

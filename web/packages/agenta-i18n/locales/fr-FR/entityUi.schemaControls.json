@@ -60,5 +60,6 @@
     "outputs": "Sorties",
     "detailedConfiguration": "Configuration détaillée",
     "minLength": "Min : {{value}}",
-    "maxLength": "Max : {{value}}"
+    "maxLength": "Max : {{value}}",
+    "selectPlaceholder": "Sélectionner..."
 }
