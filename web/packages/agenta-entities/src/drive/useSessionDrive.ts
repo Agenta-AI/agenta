@@ -345,8 +345,7 @@ export function useSessionDrive(
                     (listing === null || filesQuery.isError)))
         const agentErrored =
             Boolean(artifactId) &&
-            ((!agentMountQuery.isPending &&
-                (agentMountQuery.data === null || agentMountQuery.isError)) ||
+            (agentMountQuery.isError ||
                 (Boolean(agentMount) &&
                     !agentFilesQuery.isPending &&
                     (agentListing === null || agentFilesQuery.isError)))
@@ -768,8 +767,7 @@ export function useSessionDriveSummary(
                     (cwdCount.data === null || cwdCount.isError)))
         const agentErrored =
             Boolean(artifactId) &&
-            ((!agentMountQuery.isPending &&
-                (agentMountQuery.data === null || agentMountQuery.isError)) ||
+            (agentMountQuery.isError ||
                 (Boolean(agentMount) &&
                     !agentCount.isPending &&
                     (agentCount.data === null || agentCount.isError)))

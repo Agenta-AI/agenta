@@ -15,9 +15,14 @@ export const agentMountQueryFamily = atomFamily((artifactId: string) =>
         const projectId = get(projectIdAtom) ?? ""
         return {
             queryKey: ["mounts", "agent", projectId, artifactId],
-            // At most one mount comes back; every consumer wants it or null.
-            queryFn: async () =>
-                (await queryAgentMounts({artifactId, projectId, lowPriority: true}))?.[0] ?? null,
+            // At most one mount comes back; every consumer wants it or null. A failed lookup is an
+            // error, not "no drive": an agent whose `drives` list omits its own drive has none.
+            queryFn: async () => {
+                const mounts = await queryAgentMounts({artifactId, projectId, lowPriority: true})
+                if (mounts === null) throw new Error("The agent drive lookup failed")
+                return mounts[0] ?? null
+            },
+            retry: false,
             enabled: Boolean(artifactId && projectId),
             staleTime: 60_000,
             refetchOnWindowFocus: false,
