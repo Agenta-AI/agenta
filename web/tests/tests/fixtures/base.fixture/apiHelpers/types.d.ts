@@ -1,4 +1,4 @@
-import {testset} from "../../../../../oss/src/lib/Types"
+import type {testset} from "./sharedTypes"
 
 export type APP_TYPE = "completion" | "chat" | "custom"
 

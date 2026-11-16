@@ -16,7 +16,7 @@ export function getTestLayer(): TestLayer {
 }
 
 export function getTestDir(): string {
-    return `../${getLicense()}/tests/playwright/${getTestLayer()}`
+    return `./specs/${getTestLayer()}`
 }
 
 function getBaseURL(): string {
