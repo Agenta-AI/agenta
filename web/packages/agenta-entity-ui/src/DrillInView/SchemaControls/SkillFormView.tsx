@@ -22,6 +22,8 @@ import {
     type ReactNode,
 } from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillForm"
 import {message} from "@agenta/ui/app-message"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {cn} from "@agenta/ui/styles"
@@ -51,7 +53,7 @@ import {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
 import {MarkdownEditor} from "./MarkdownEditor"
 import {downloadSkill, skillDownloadKind} from "./skillDownload"
 import {
-    NOT_TEXT,
+    notTextMessage,
     SKILL_BODY_MAX,
     SKILL_DESCRIPTION_MAX,
     SKILL_NAME_MAX,
@@ -60,6 +62,8 @@ import {
 } from "./skillName"
 import {mergePastedSkill, type ParsedSkill, type SkillFileEntry} from "./skillUpload"
 import {SkillUploadZone} from "./SkillUploadZone"
+
+const tNow = createT(skillFormCatalog)
 
 export interface SkillFormViewProps {
     value: Record<string, unknown>
@@ -142,6 +146,7 @@ function FileRow({
     onRemove?: () => void
     disabled?: boolean
 }) {
+    const t = useT(skillFormCatalog)
     return (
         // Row stays clickable but is not the role=button node — it holds the remove button
         // (nested-interactive). The button role lives on the label span below.
@@ -173,7 +178,7 @@ function FileRow({
             {onRemove && !disabled ? (
                 <button
                     type="button"
-                    aria-label="Remove file"
+                    aria-label={t("entityUi.skillForm.removeFile")}
                     onClick={(e) => {
                         e.stopPropagation()
                         onRemove()
@@ -211,6 +216,7 @@ export function SkillFormView({
     showMissing = false,
     downloadable = false,
 }: SkillFormViewProps) {
+    const t = useT(skillFormCatalog)
     const skill = (value ?? {}) as Record<string, unknown>
     const nameInput = useRef<HTMLInputElement>(null)
     useEffect(() => {
@@ -258,16 +264,16 @@ export function SkillFormView({
     const showNameSuggestion = Boolean(nameSuggestion) && nameSuggestion !== name
     const descriptionMissing = missing(skill.description, description)
     const descriptionError = notText(skill.description)
-        ? NOT_TEXT
+        ? notTextMessage()
         : [...description].length > SKILL_DESCRIPTION_MAX
-          ? `Max ${SKILL_DESCRIPTION_MAX} characters.`
+          ? t("entityUi.skillForm.maxCharacters", {max: SKILL_DESCRIPTION_MAX})
           : undefined
     // Body gets the same treatment: without it an empty SKILL.md disables Create with no cue.
     const bodyMissing = missing(skill.body, body)
     const bodyError = notText(skill.body)
-        ? NOT_TEXT
+        ? notTextMessage()
         : [...body].length > SKILL_BODY_MAX
-          ? `Max ${SKILL_BODY_MAX} characters.`
+          ? t("entityUi.skillForm.maxCharacters", {max: SKILL_BODY_MAX})
           : undefined
 
     const set = (key: string, fieldValue: unknown) => {
@@ -350,7 +356,7 @@ export function SkillFormView({
             e.preventDefault()
             onChangeRef.current(mergePastedSkill(skillRef.current, text))
             openEntry("skill")
-            message.success("Filled from the pasted skill")
+            message.success(tNow("entityUi.skillForm.filledFromPaste"))
         }
         document.addEventListener("paste", onPaste)
         return () => document.removeEventListener("paste", onPaste)
@@ -420,7 +426,7 @@ export function SkillFormView({
                 )}
             >
                 <div className="flex shrink-0 items-center justify-between gap-1">
-                    <span className="text-xs font-medium">Files</span>
+                    <span className="text-xs font-medium">{t("entityUi.skillForm.files")}</span>
                     <div className="flex items-center gap-2">
                         {downloadable ? (
                             <TooltipProvider>
@@ -428,7 +434,7 @@ export function SkillFormView({
                                     <TooltipTrigger asChild>
                                         <button
                                             type="button"
-                                            aria-label="Download skill"
+                                            aria-label={t("entityUi.skillForm.downloadSkill")}
                                             onClick={() => downloadSkill(skill)}
                                             disabled={!downloadKind}
                                             className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-586673)] hover:text-[var(--ag-c-1C2C3D)] disabled:cursor-not-allowed disabled:opacity-50"
@@ -438,8 +444,8 @@ export function SkillFormView({
                                     </TooltipTrigger>
                                     <TooltipContent>
                                         {downloadKind === "zip"
-                                            ? "Download as .zip"
-                                            : "Download SKILL.md"}
+                                            ? t("entityUi.skillForm.downloadZip")
+                                            : t("entityUi.skillForm.downloadSkillMd")}
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -450,14 +456,16 @@ export function SkillFormView({
                                     <TooltipTrigger asChild>
                                         <button
                                             type="button"
-                                            aria-label="Add file"
+                                            aria-label={t("entityUi.skillForm.addFile")}
                                             onClick={addFile}
                                             className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-586673)] hover:text-[var(--ag-c-1C2C3D)]"
                                         >
                                             <Plus size={14} />
                                         </button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Add a file</TooltipContent>
+                                    <TooltipContent>
+                                        {t("entityUi.skillForm.addAFile")}
+                                    </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
                         ) : null}
@@ -476,7 +484,7 @@ export function SkillFormView({
                     {files.map((file, index) => (
                         <FileRow
                             key={index}
-                            label={file.path || "untitled"}
+                            label={file.path || t("entityUi.skillForm.untitled")}
                             active={selected === index}
                             onSelect={() => openEntry(index)}
                             onRemove={() => removeFile(index)}
@@ -499,7 +507,7 @@ export function SkillFormView({
             <div
                 role="separator"
                 aria-orientation="vertical"
-                aria-label="Resize file rail"
+                aria-label={t("entityUi.skillForm.resizeFileRail")}
                 onPointerDown={onRailHandleDown}
                 onPointerMove={onRailHandleMove}
                 onPointerUp={onRailHandleUp}
@@ -523,13 +531,13 @@ export function SkillFormView({
                     className="flex shrink-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-colorTextSecondary sm:hidden"
                 >
                     <ArrowLeft />
-                    Files
+                    {t("entityUi.skillForm.files")}
                 </button>
                 <Field
                     className="shrink-0"
                     invalid={nameMissing}
-                    label="Name"
-                    tooltip="A short name like weather-report. Lowercase letters, numbers and hyphens only."
+                    label={t("entityUi.skillForm.name")}
+                    tooltip={t("entityUi.skillForm.nameTooltip")}
                     error={
                         nameError ? (
                             <span>
@@ -546,7 +554,9 @@ export function SkillFormView({
                                             disabled={disabled}
                                             className="cursor-pointer rounded-sm border-0 bg-transparent p-0 font-[inherit] text-xs text-error underline underline-offset-2 outline-none hover:no-underline hover:opacity-80 focus-visible:ring-2 focus-visible:ring-error/50 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50"
                                         >
-                                            Use &quot;{nameSuggestion}&quot;
+                                            {t("entityUi.skillForm.useSuggestion", {
+                                                name: nameSuggestion,
+                                            })}
                                         </button>
                                     </>
                                 ) : null}
@@ -571,8 +581,8 @@ export function SkillFormView({
                 <Field
                     className="shrink-0"
                     invalid={descriptionMissing}
-                    label="Description"
-                    tooltip="Tells the agent when to use this skill."
+                    label={t("entityUi.skillForm.description")}
+                    tooltip={t("entityUi.skillForm.descriptionTooltip")}
                     error={descriptionError}
                 >
                     <AutosizeTextarea
@@ -580,7 +590,7 @@ export function SkillFormView({
                         onChange={(e) => set("description", e.target.value)}
                         autoSize={{minRows: 2, maxRows: 4}}
                         aria-invalid={descriptionMissing || descriptionError ? true : undefined}
-                        placeholder="When the agent should reach for this skill"
+                        placeholder={t("entityUi.skillForm.descriptionPlaceholder")}
                         disabled={disabled}
                     />
                 </Field>
@@ -590,15 +600,13 @@ export function SkillFormView({
                         className="min-h-0 flex-1"
                         invalid={bodyMissing}
                         label="SKILL.md"
-                        tooltip="The instructions the agent follows when it uses this skill."
+                        tooltip={t("entityUi.skillForm.skillMdTooltip")}
                         error={bodyError}
                     >
                         <MarkdownEditor
                             value={body}
                             onChange={(v) => set("body", v)}
-                            placeholder={
-                                "# My skill\n\nStep-by-step instructions the agent follows…"
-                            }
+                            placeholder={t("entityUi.skillForm.skillMdPlaceholder")}
                             disabled={disabled}
                             showToolbar
                             defaultView="rendered"
@@ -616,7 +624,7 @@ export function SkillFormView({
                                     updateFile(selected as number, {path: e.target.value})
                                 }
                                 placeholder="scripts/foo.py"
-                                aria-label="File path"
+                                aria-label={t("entityUi.skillForm.filePath")}
                                 disabled={disabled}
                                 className="font-mono"
                             />
@@ -634,14 +642,13 @@ export function SkillFormView({
                                                         executable: v || undefined,
                                                     })
                                                 }
-                                                aria-label="Mark executable"
+                                                aria-label={t("entityUi.skillForm.markExecutable")}
                                                 disabled={disabled}
                                             />
                                         </span>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        Let this file run as a program. Your sandbox settings must
-                                        allow it too.
+                                        {t("entityUi.skillForm.markExecutableHint")}
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -652,7 +659,7 @@ export function SkillFormView({
                             value={activeFile?.content ?? ""}
                             onChange={(v) => updateFile(selected as number, {content: v})}
                             language={codeLanguageFromPath(activeFile?.path)}
-                            placeholder="File content"
+                            placeholder={t("entityUi.skillForm.fileContent")}
                             disabled={disabled}
                             disableDebounce
                             grow
@@ -676,7 +683,7 @@ export function SkillFormView({
                                 className="text-[var(--ag-colorTextSecondary)]"
                             />
                             <span className="text-xs font-medium text-[var(--ag-colorText)]">
-                                Advanced
+                                {t("entityUi.skillForm.advanced")}
                             </span>
                         </span>
                         <CaretDown
@@ -689,16 +696,16 @@ export function SkillFormView({
                     <HeightCollapse open={advancedOpen}>
                         <div className="flex flex-col gap-3 pb-2 pt-1">
                             <ToggleRow
-                                label="Hide from prompt"
-                                description="The agent won't pick this skill on its own. You run it yourself with /skill:name."
+                                label={t("entityUi.skillForm.hideFromPrompt")}
+                                description={t("entityUi.skillForm.hideFromPromptHint")}
                                 checked={Boolean(skill.disable_model_invocation)}
                                 onChange={(v) => set("disable_model_invocation", v)}
                                 disabled={disabled}
                             />
 
                             <ToggleRow
-                                label="Allow executable files"
-                                description="Let the files in this skill run as programs. Your sandbox settings must allow it too."
+                                label={t("entityUi.skillForm.allowExecutable")}
+                                description={t("entityUi.skillForm.allowExecutableHint")}
                                 checked={Boolean(skill.allow_executable_files)}
                                 onChange={(v) => set("allow_executable_files", v)}
                                 disabled={disabled}
