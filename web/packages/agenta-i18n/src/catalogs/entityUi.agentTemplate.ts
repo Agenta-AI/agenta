@@ -1,8 +1,4 @@
 import en from "../../locales/en/entityUi.agentTemplate.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "entityUi.agentTemplate",
-    en,
-    (language) => import(`../../locales/${language}/entityUi.agentTemplate.json`),
-)
+export default defineCatalog("entityUi.agentTemplate", en)

@@ -1,8 +1,4 @@
 import en from "../../locales/en/auth.regionSelector.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "auth.regionSelector",
-    en,
-    (language) => import(`../../locales/${language}/auth.regionSelector.json`),
-)
+export default defineCatalog("auth.regionSelector", en)

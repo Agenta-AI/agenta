@@ -1,8 +1,4 @@
 import en from "../../locales/en/ui.drillIn.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "ui.drillIn",
-    en,
-    (language) => import(`../../locales/${language}/ui.drillIn.json`),
-)
+export default defineCatalog("ui.drillIn", en)

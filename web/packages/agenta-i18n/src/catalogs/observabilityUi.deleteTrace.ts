@@ -1,8 +1,4 @@
 import en from "../../locales/en/observabilityUi.deleteTrace.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "observabilityUi.deleteTrace",
-    en,
-    (language) => import(`../../locales/${language}/observabilityUi.deleteTrace.json`),
-)
+export default defineCatalog("observabilityUi.deleteTrace", en)

@@ -1,8 +1,4 @@
 import en from "../../locales/en/agents.firstRun.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "agents.firstRun",
-    en,
-    (language) => import(`../../locales/${language}/agents.firstRun.json`),
-)
+export default defineCatalog("agents.firstRun", en)

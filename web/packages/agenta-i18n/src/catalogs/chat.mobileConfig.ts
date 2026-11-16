@@ -1,8 +1,4 @@
 import en from "../../locales/en/chat.mobileConfig.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "chat.mobileConfig",
-    en,
-    (language) => import(`../../locales/${language}/chat.mobileConfig.json`),
-)
+export default defineCatalog("chat.mobileConfig", en)

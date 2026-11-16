@@ -1,8 +1,4 @@
 import en from "../../locales/en/playground.panels.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "playground.panels",
-    en,
-    (language) => import(`../../locales/${language}/playground.panels.json`),
-)
+export default defineCatalog("playground.panels", en)

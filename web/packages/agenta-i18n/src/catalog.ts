@@ -7,6 +7,7 @@ import {
     catalogVersionAtom,
     loadCatalog,
     loadCatalogs,
+    namespaceLoader,
     registeredCount,
     registeredSince,
     registerCatalog,
@@ -30,13 +31,14 @@ export type CatalogKey<C> = C extends TypedCatalog<infer K> ? K : never
 
 /**
  * Declares one small catalog. Its English is a static import, so it ships in the same chunk as
- * the screen that uses it. `load` is one function for all other languages; the bundler makes
- * one chunk per language file. A missing file rejects, and the screen shows English.
+ * the screen that uses it. Other languages load from `locales/<language>/<namespace>.json`, one
+ * chunk per file; `load` replaces that loader in tests. A missing file rejects, and the screen
+ * shows English.
  */
 export const defineCatalog = <NS extends string, EN extends Catalog>(
     namespace: NS,
     en: EN,
-    load: CatalogLoader,
+    load: CatalogLoader = namespaceLoader(namespace),
 ): TypedCatalog<`${NS}.${BaseKey<keyof EN & string>}`> => {
     const entry: CatalogEntry = {namespace, en, load}
     registerCatalog(entry)

@@ -19,15 +19,13 @@ picker follow it. An unknown cookie value means English.
 import en from "../../locales/en/settings.access.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "settings.access",
-    en,
-    (language) => import(`../../locales/${language}/settings.access.json`),
-)
+export default defineCatalog("settings.access", en)
 ```
 
-English is bundled with the screen. The bundler makes one chunk per other-language file. A
-language file that does not exist shows English.
+English is bundled with the screen. Other languages load from
+`locales/<language>/<namespace>.json` through one loader module per language
+(`src/languages/<language>.ts`), so a catalog adds no loader code to the page. The bundler
+makes one chunk per other-language file. A language file that does not exist shows English.
 
 - Import it as `@agenta/i18n/catalogs/<namespace>`.
 

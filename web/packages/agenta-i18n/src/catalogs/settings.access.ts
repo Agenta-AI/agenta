@@ -1,8 +1,4 @@
 import en from "../../locales/en/settings.access.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "settings.access",
-    en,
-    (language) => import(`../../locales/${language}/settings.access.json`),
-)
+export default defineCatalog("settings.access", en)

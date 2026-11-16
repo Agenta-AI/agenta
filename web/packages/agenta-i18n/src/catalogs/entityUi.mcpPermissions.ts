@@ -1,8 +1,4 @@
 import en from "../../locales/en/entityUi.mcpPermissions.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "entityUi.mcpPermissions",
-    en,
-    (language) => import(`../../locales/${language}/entityUi.mcpPermissions.json`),
-)
+export default defineCatalog("entityUi.mcpPermissions", en)

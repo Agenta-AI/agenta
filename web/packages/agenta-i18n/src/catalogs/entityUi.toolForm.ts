@@ -1,8 +1,4 @@
 import en from "../../locales/en/entityUi.toolForm.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "entityUi.toolForm",
-    en,
-    (language) => import(`../../locales/${language}/entityUi.toolForm.json`),
-)
+export default defineCatalog("entityUi.toolForm", en)

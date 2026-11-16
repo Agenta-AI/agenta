@@ -4,7 +4,12 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 import {createT, defineCatalog, loadWithText} from "../../src/catalog"
 import {byLanguage} from "./byLanguage"
 import {activeLanguageAtom, languageAtom} from "../../src/language"
-import {CATALOG_TIMEOUT_MS, catalogVersionAtom, loadLanguage} from "../../src/registry"
+import {
+    CATALOG_TIMEOUT_MS,
+    catalogVersionAtom,
+    loadLanguage,
+    namespaceLoader,
+} from "../../src/registry"
 
 const store = getDefaultStore()
 
@@ -109,5 +114,16 @@ describe("a language without a file", () => {
         await loadLanguage("zh-CN")
         store.set(activeLanguageAtom, "zh-CN")
         expect(t("settings.partial.title")).toBe("部分")
+    })
+})
+
+describe("the default loader", () => {
+    it("loads a catalog file of a language by its namespace", async () => {
+        const zh = await namespaceLoader("common")("zh-CN")
+        expect(Object.keys(zh.default).length).toBeGreaterThan(0)
+    })
+
+    it("rejects for a namespace without a file", async () => {
+        await expect(namespaceLoader("no.such.namespace")("de-DE")).rejects.toThrow()
     })
 })
