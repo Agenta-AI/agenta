@@ -80,7 +80,17 @@ const CONFIG_COMMIT_TOOL = "commit_revision";
  * link gate (`chatFileRefs.tsx`) resolves a path RELATIVE to the working directory, with
  * `agent-files/` for the durable folder (#7715).
  */
-export function fileCitationAppendix(): SystemPromptAppendix {
+export function fileCitationAppendix(hasAgentDrive = true): SystemPromptAppendix {
+  if (!hasAgentDrive) {
+    return {
+      id: "file-citations",
+      text:
+        "When you mention a local file in your response, use a Markdown link whose target is the " +
+        "file's path relative to your working directory, with no leading slash: " +
+        "`[notes.md](drafts/notes.md)`. Link only files in your working directory; nothing else, " +
+        "such as `/tmp`, can open. A bare basename such as `README.md` does not open for a nested file.",
+    };
+  }
   return {
     id: "file-citations",
     text:
@@ -185,6 +195,8 @@ export interface PlatformGuidanceInput {
   readonly agentMountSkipped: boolean;
   /** The names of the tools this run offers the model. */
   readonly toolNames: readonly string[];
+  /** False when the run's `drives` list leaves out the agent drive; absent means true. */
+  readonly hasAgentDrive?: boolean;
   /** The run's project drives. */
   readonly projectDrives?: readonly ProjectDriveGuidance[];
   /** Set when the agent's `drives` list is empty; says whether the working directory persists. */
@@ -241,7 +253,7 @@ export function platformGuidanceAppendix(
   const skillsReadPath = input.skillsPath
     ? skillsReadPathAppendix(input.skillsPath)
     : undefined;
-  const fileCitations = fileCitationAppendix();
+  const fileCitations = fileCitationAppendix(input.hasAgentDrive ?? true);
   const mount = mountGuidanceServedElsewhere(input)
     ? undefined
     : input.agentMountedPath

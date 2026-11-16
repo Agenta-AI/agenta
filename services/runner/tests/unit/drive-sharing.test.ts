@@ -31,6 +31,7 @@ import {
 } from "../../src/engines/sandbox_agent/session-identity.ts";
 import { normalizeDesiredState } from "../../src/lifecycle/desired-state.ts";
 import {
+  fileCitationAppendix,
   noDrivesAppendix,
   platformGuidanceAppendix,
   projectDriveAppendix,
@@ -391,6 +392,17 @@ describe("prompt guidance for drives", () => {
     assert.match(noDrivesAppendix(false).text, /only until this sandbox is removed/);
   });
 
+  it("names agent-files/ in the file-citation sentence only when the agent drive is listed", () => {
+    const base = { acpAgent: "codex", isPi: false, agentMountedPath: undefined, agentMountSkipped: false, toolNames: [] };
+    assert.equal(fileCitationAppendix(true).text, fileCitationAppendix().text);
+    assert.match(fileCitationAppendix().text, /agent-files\//);
+    assert.doesNotMatch(fileCitationAppendix(false).text, /agent-files/);
+    assert.match(fileCitationAppendix(false).text, /Link only files in your working directory;/);
+    assert.ok(platformGuidanceAppendix(base)?.includes(fileCitationAppendix().text));
+    assert.ok(platformGuidanceAppendix({ ...base, hasAgentDrive: true })?.includes(fileCitationAppendix().text));
+    assert.doesNotMatch(platformGuidanceAppendix({ ...base, hasAgentDrive: false }) ?? "", /agent-files/);
+  });
+
   it("delivers the drive paragraphs on every harness", () => {
     for (const acpAgent of ["pi", "claude", "codex"]) {
       const text = platformGuidanceAppendix({
@@ -531,6 +543,8 @@ describe("local runs with drives (engine composition)", () => {
       assert.equal(existsSync(join(cwd, "agent-files")), false);
       assert.match(calls.workspacePlan.prompt.agentsMd ?? "", /No agent drive and no project drive/);
       assert.match(calls.workspacePlan.prompt.agentsMd ?? "", /only until this sandbox is removed/);
+      assert.ok(calls.workspacePlan.prompt.agentsMd.includes(fileCitationAppendix(false).text));
+      assert.ok(!calls.workspacePlan.prompt.agentsMd.includes(fileCitationAppendix().text));
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
