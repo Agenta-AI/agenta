@@ -1,0 +1,9 @@
+{
+    "addEmail": "Please add your email.",
+    "checking": "Checking…",
+    "continue": "Continue",
+    "emailAddress": "Email address",
+    "emailPlaceholder": "Enter your email address",
+    "somethingWentWrong": "Something went wrong. Please try again.",
+    "validEmail": "Please enter a valid email address."
+}

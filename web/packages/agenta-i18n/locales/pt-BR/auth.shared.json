@@ -1,0 +1,9 @@
+{
+    "change": "Alterar",
+    "completeSecurityCheck": "Conclua a verificação de segurança.",
+    "continueWith": "Continuar com {{provider}}",
+    "lastUsed": "Usado por último",
+    "noMethodsConfigured": "Nenhum método de autenticação está configurado",
+    "redirectingTo": "Redirecionando para {{provider}}…",
+    "securityCheckFailed": "A verificação de segurança falhou. Tente novamente."
+}

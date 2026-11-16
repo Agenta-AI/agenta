@@ -35,8 +35,12 @@ import {
     type QueryBag,
     firstQueryValue,
 } from "@agenta/auth"
+import {createT} from "@agenta/i18n"
+import sharedCatalog from "@agenta/i18n/catalogs/auth.shared"
 
 import type {AuthMessage} from "./types"
+
+const tNow = createT(sharedCatalog)
 
 /** Which step the screen is on. */
 export type SignInStage = "entry" | "methods" | "code"
@@ -196,7 +200,7 @@ export function useSignInFlow({
             setEmail(value)
             setMessage(EMPTY_MESSAGE)
             if (!resolved.emailEnabled && !resolved.oidcEnabled) {
-                setMessage({message: "No authentication methods are configured", type: "error"})
+                setMessage({message: tNow("auth.shared.noMethodsConfigured"), type: "error"})
                 return
             }
 

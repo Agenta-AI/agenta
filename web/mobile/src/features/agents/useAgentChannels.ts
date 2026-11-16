@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {getChannelsClient} from "@agenta/sdk/resources"
 import {
     EMPTY_CONNECTIONS,
@@ -55,6 +57,8 @@ const withAgentNames = (
  * An agent's channel connections and the real actions on them, wired to the channels API.
  * Every reload lands in this hook's state, so the entry point and its open panel agree.
  */
+const tNow = createT(agentsOverview)
+
 export const useAgentChannels = (
     appId: string,
     {
@@ -96,7 +100,7 @@ export const useAgentChannels = (
                     return next
                 } catch (error) {
                     if (seq === reloadSeq.current) {
-                        setLoadError("Could not load Channels. Try again.")
+                        setLoadError(tNow("agents.overview.channelsPanelLoadError"))
                     }
                     throw error
                 }

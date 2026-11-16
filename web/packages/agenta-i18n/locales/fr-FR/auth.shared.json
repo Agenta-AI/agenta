@@ -1,0 +1,9 @@
+{
+    "change": "Modifier",
+    "completeSecurityCheck": "Veuillez effectuer la vérification de sécurité.",
+    "continueWith": "Continuer avec {{provider}}",
+    "lastUsed": "Dernier utilisé",
+    "noMethodsConfigured": "Aucune méthode d’authentification n’est configurée",
+    "redirectingTo": "Redirection vers {{provider}}…",
+    "securityCheckFailed": "La vérification de sécurité a échoué. Veuillez réessayer."
+}

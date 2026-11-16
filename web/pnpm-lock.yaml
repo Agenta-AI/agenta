@@ -1155,6 +1155,9 @@ importers:
       '@agenta/auth':
         specifier: workspace:../agenta-auth
         version: link:../agenta-auth
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/ui':
         specifier: workspace:../agenta-ui
         version: link:../agenta-ui
@@ -1652,6 +1655,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/observability':
         specifier: workspace:../agenta-observability
         version: link:../agenta-observability

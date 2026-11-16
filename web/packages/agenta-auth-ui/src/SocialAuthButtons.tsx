@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import authSharedCatalog from "@agenta/i18n/catalogs/auth.shared"
 import {LoadingButton, cn} from "@agenta/ui/ui"
 
 import {KEYCAP_CLASS, SURFACE_CLASS} from "./classes"
@@ -37,6 +39,7 @@ export const SocialAuthButtons = ({
     lastUsedProviderId,
     pendingProviderId,
 }: SocialAuthButtonsProps) => {
+    const t = useT(authSharedCatalog)
     if (providers.length === 0) return null
 
     return (
@@ -61,8 +64,8 @@ export const SocialAuthButtons = ({
                         <span key={pending ? "busy" : "idle"} className="auth-swap">
                             {pending ? null : provider.icon}
                             {pending
-                                ? `Redirecting to ${provider.label}…`
-                                : `Continue with ${provider.label}`}
+                                ? t("auth.shared.redirectingTo", {provider: provider.label})
+                                : t("auth.shared.continueWith", {provider: provider.label})}
                         </span>
                         {provider.id === lastUsedProviderId && !pending && (
                             <LastUsedBadge className="absolute right-3" />

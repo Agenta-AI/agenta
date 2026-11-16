@@ -1,0 +1,17 @@
+{
+    "title": "Your API key",
+    "hint": "OpenAI, Anthropic, Gemini and {{more}} more.",
+    "saved": "Saved securely. You can use it on any agent.",
+    "using": "Using {{name}}.",
+    "usingMore": "Using {{name}} and {{more}} more.",
+    "cancel": "Cancel",
+    "add": "Add key",
+    "save": "Save",
+    "keyLabel": "API key",
+    "provider": "Provider",
+    "providerCount": "{{total}} providers",
+    "search": "Search providers",
+    "noMatch": "No providers match",
+    "invalid": "That doesn’t look like a valid key.",
+    "saveFailed": "Couldn’t save this key. Try again."
+}

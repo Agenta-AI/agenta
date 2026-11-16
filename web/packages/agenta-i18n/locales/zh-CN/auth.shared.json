@@ -1,0 +1,9 @@
+{
+    "change": "更改",
+    "completeSecurityCheck": "请完成安全检查。",
+    "continueWith": "使用 {{provider}} 继续",
+    "lastUsed": "上次使用",
+    "noMethodsConfigured": "未配置任何身份验证方式",
+    "redirectingTo": "正在跳转到 {{provider}}…",
+    "securityCheckFailed": "安全检查失败。请重试。"
+}

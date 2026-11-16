@@ -11,6 +11,8 @@ import {
     skillsSummaryDetail,
     toolsCopyFor,
 } from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {LogoMarks} from "@agenta/ui/components/presentational"
 import {Cpu, FileText, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
@@ -42,6 +44,7 @@ export const AgentConfigCard = ({
     onEdit: () => void
 }) => {
     // Configuration lives on a revision, not on the artifact.
+    const t = useT(agentsOverview)
     const revisionAtom = useMemo(() => agentLatestRevisionAtomFamily(agentId), [agentId])
     const revision = useAtomValue(revisionAtom)
     const summary = useMemo(
@@ -67,12 +70,16 @@ export const AgentConfigCard = ({
             : skillsSummaryDetail(summary.skills, {canEdit: true})
 
     return (
-        <AgentOverviewCard title="Configuration" action="Edit" onAction={onEdit}>
+        <AgentOverviewCard
+            title={t("agents.overview.configTitle")}
+            action={t("agents.overview.edit")}
+            onAction={onEdit}
+        >
             {revision.isPending ? (
                 <AgentOverviewCardSkeleton rows={6} />
             ) : revision.isError ? (
                 <AgentOverviewCardError
-                    message="Couldn't load this agent's configuration."
+                    message={t("agents.overview.configLoadError")}
                     onRetry={() => void revision.refetch()}
                 />
             ) : (
@@ -80,7 +87,11 @@ export const AgentConfigCard = ({
                     <AgentOverviewCardRow
                         icon={<Cpu size={ICON} />}
                         label={AGENT_CONFIG_ROW_TITLES.model}
-                        detail={summary.model ? modelName(summary.model) : "Choose a model"}
+                        detail={
+                            summary.model
+                                ? modelName(summary.model)
+                                : t("agents.overview.chooseModel")
+                        }
                         title={summary.model ?? undefined}
                         onClick={onEdit}
                     />

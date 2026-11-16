@@ -1,0 +1,9 @@
+{
+    "change": "Change",
+    "completeSecurityCheck": "Please complete the security check.",
+    "continueWith": "Continue with {{provider}}",
+    "lastUsed": "Last used",
+    "noMethodsConfigured": "No authentication methods are configured",
+    "redirectingTo": "Redirecting to {{provider}}…",
+    "securityCheckFailed": "Security check failed. Please try again."
+}

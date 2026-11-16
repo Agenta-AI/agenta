@@ -5,6 +5,8 @@ import {
     type AgentTemplateRepositoryScan,
     type AgentTemplateSource,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
 import {projectIdAtom} from "@agenta/shared/state"
 import {RepoImportDrawer} from "@agenta/ui/create-menu"
 import {useAtomValue} from "jotai"
@@ -36,6 +38,7 @@ export const AgentTemplateImportDrawer = ({
         [projectId],
     )
 
+    const t = useT(agentsFirstRun)
     const confirm = useCallback(
         async (_repoUrl: string, [path]: string[]) => {
             const {repo_url, commit} = scanned.current ?? {}
@@ -50,11 +53,11 @@ export const AgentTemplateImportDrawer = ({
         <RepoImportDrawer
             open={open}
             onClose={onClose}
-            title="Import an agent from a repo"
-            hint="Scan a public GitHub repository for agent templates."
+            title={t("agents.firstRun.importTitle")}
+            hint={t("agents.firstRun.importHint")}
             noun="agent templates"
             scan={scan}
-            confirmLabel={() => "Create agent"}
+            confirmLabel={() => t("agents.firstRun.create")}
             onConfirm={confirm}
         />
     )
