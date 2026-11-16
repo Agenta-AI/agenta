@@ -15,7 +15,7 @@
 - **THEN** the response is 307 to `/m/auth/callback/sso:acme:okta?code=c&state=s`
 
 ### Requirement: Auth links keep their payload
-`web-mobile` SHALL send every `/auth` link to the matching `/m/auth` page with its query unchanged.
+`web-mobile` SHALL send `/auth/callback/*` and `/auth/reset-password` links to the same path under `/m`, and every other `/auth` path to `/m/auth`. Each redirect SHALL keep the query unchanged.
 
 #### Scenario: Password reset link
 - **WHEN** a browser opens `/auth/reset-password?token=t&tenantId=public`

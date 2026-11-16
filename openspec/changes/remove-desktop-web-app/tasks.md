@@ -5,7 +5,7 @@ Rules for every task: never edit or run `web/oss` or `web/ee` before PR 4 delete
 Commit A: theme source.
 
 - [ ] 1.1 Copy `palette.ts`, `controlScale.ts`, `legacy-shim.ts` from `web/oss/src/styles/theme/` to `web/packages/agenta-ui/src/styles/theme/`; add a subpath export in `agenta-ui/package.json`.
-- [ ] 1.2 Repoint `web/scripts/generate-tailwind-tokens.ts`: import from the new path, delete the `createRequire(oss/package.json)` antd resolution and the `antd-overrides.generated.ts` output. If any CSS value still derives from antd, resolve `antd` from `@agenta/ui` and move `antd-themeConfig.json` with it.
+- [ ] 1.2 Repoint `web/scripts/generate-tailwind-tokens.ts`: import from the new path, delete the `createRequire(oss/package.json)` antd resolution and the `antd-overrides.generated.ts` output. Drop the antd runtime: freeze the dark values antd derived as literals, so the generator needs no `antd`.
 - [ ] 1.3 Repoint `web/mobile/scripts/generate-shadcn-tokens.ts:18-19` to the new subpath.
 - [ ] 1.4 Give `web/website` its own tailwind demo config (no `../oss/tailwind.config`); fix `web/packages/agenta-ui/components.json:7-8`.
 - [ ] 1.5 Update the theme instructions: root `AGENTS.md` "Theme color changes", `web/AGENTS.md` theme lines and Styling section, `web/mobile/AGENTS.md:47`, `.agents/skills/agenta-package-practices/SKILL.md:17`, `.agents/skills/mobile-shadcn-conventions/SKILL.md:40-43`, generated CSS header comments. Drop the instruction to commit `antd-overrides.generated.ts`.
@@ -20,7 +20,7 @@ Commit B: dependencies hidden by oss hoisting.
 
 Commit A: legacy URL handler.
 
-- [ ] 2.1 In `mapDesktopToMobile`: keep `trace` on observability links; keep the full query on `/auth` links (invite, `auth_error`); add unit tests for the SDK trace link, the SDK evaluation link, the org settings link from `organization_service.py:609`, `/settings`, `/workspaces/accept`, `/post-signup`, `/:workspace_id/apps/:app_id`, and an unknown path.
+- [ ] 2.1 In `mapDesktopToMobile`: keep `trace` on observability links; keep the full query on `/auth` links (invite, `auth_error`), and send `/auth` paths other than callbacks and reset to `/m/auth`; send `/workspaces/accept` with a `token` to `/m/auth` with the full query, else to `/m/invite`; add unit tests for the SDK trace link, the SDK evaluation link, the org settings link from `organization_service.py:609`, `/settings`, `/workspaces/accept`, `/post-signup`, `/:workspace_id/apps/:app_id`, and an unknown path.
 - [ ] 2.2 In `web/mobile/next.config.ts` add `basePath: false` 307 redirects: `/` → `/m`; `/auth/callback/:rest*` → `/m/auth/callback/:rest*` (replace the rule at line 86); `/auth/reset-password` → `/m/auth/reset-password`; `/favicon.ico`, `/assets/:path*`, `/robots.txt` → `/m/...`; a final catch-all for root paths not starting with `m/`, `api/`, `services/`, `_next/` → `/m/legacy/:path*`.
 - [ ] 2.3 Add `/legacy/:path*` to the `proxy.ts` matcher; answer it with `mapDesktopToMobile(path, search, {developerViews: true})` → 307; log the path (no query) when it falls back to the `/m` root.
 - [ ] 2.4 Add `web/mobile/public/robots.txt`. Change `api/oss/src/apis/fastapi/tools/router.py:2223` to `/m/assets/favicon.ico`.
@@ -92,5 +92,5 @@ Commit B: unused files and exports.
 Commit C: antd out of the packages.
 
 - [ ] 6.9 Replace the antd type imports in `agenta-ui/src/InfiniteVirtualTable/{antdColumns.ts,types.ts,components/InfiniteVirtualTableInner.tsx,hooks/useExpandableRows.tsx}` with local types, and the antd import in `storybook/stories/entity-ui/ObjectSchemaControl.stories.tsx`.
-- [ ] 6.10 Remove `antd` and `@ant-design/icons` from `agenta-ui`, `agenta-entities`, `agenta-entity-ui`, `agenta-playground-ui` and `storybook`; regenerate the lockfile. Add `antd` and `@ant-design/*` to the `web/packages` lint bans so they cannot come back.
+- [ ] 6.10 Remove `antd` and `@ant-design/icons` from `agenta-ui`, `agenta-entities`, `agenta-entity-ui`, `agenta-playground-ui` and `storybook`; regenerate the lockfile. The token generator needs no `antd` after task 1.2. Add `antd` and `@ant-design/*` to the `web/packages` lint bans so they cannot come back.
 - [ ] 6.11 Proof: `git grep -E "from ['\"](antd|@ant-design/)"` in `web/` returns nothing; the unused-code report after the PR lists no file; CI green (lint, types, unit, mobile build and `speed:check`, storybook and website builds); `/m` screenshots of evaluations, annotations, testsets, prompts, playground, observability trace drawer (add-to-queue), agent chat and settings, before and after.
