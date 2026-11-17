@@ -17,5 +17,6 @@
     "ssoSubheading": "Tu organización gestiona el inicio de sesión de este correo.",
     "subheadingNew": "Inicia sesión o crea una cuenta.",
     "subheadingReturning": "Inicia sesión para continuar en tu espacio de trabajo.",
-    "termsNotice": "Al continuar, aceptas los <terms>Términos del servicio</terms> y la <privacy>Política de privacidad</privacy> de Agenta."
+    "termsNotice": "Al continuar, aceptas los <terms>Términos del servicio</terms> y la <privacy>Política de privacidad</privacy> de Agenta.",
+    "or": "o"
 }
