@@ -49,7 +49,6 @@ import {platformLogo} from "./icons"
 import {PanelFooter} from "./PanelFooter"
 import {QrCode} from "./qr"
 import {TeamsAppSetup} from "./TeamsAppSetup"
-import {ENTRA_ADMIN_CENTER_URL, TEAMS_DEVELOPER_PORTAL_URL} from "./teamsSetupCopy"
 import type {
     ChannelConnection,
     ChannelInstallMode,
@@ -63,6 +62,10 @@ import {ViewTransition} from "./ViewTransition"
 import {WhatsAppWebhook, copyText} from "./WhatsAppWebhook"
 
 const tNow = createT(channelsConnectCatalog, commonCatalog)
+
+/** Teams setup links for the Developer Portal path; the docs cover the Azure portal path. */
+const TEAMS_DEVELOPER_PORTAL_URL = "https://dev.teams.microsoft.com/bots"
+const ENTRA_ADMIN_CENTER_URL = "https://entra.microsoft.com"
 
 /**
  * The connect flow for one platform, shared by the desktop drawer and the /m sheet.
