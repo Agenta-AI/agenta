@@ -54,14 +54,13 @@ const RecordingBar = ({
     // Esc discards the take (standard for a modal capture).
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") return
             // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
             // Escape for a dialog, menu or popover but still lets it reach us, and an antd modal
             // cancels nothing, so only the overlay check sees that one.
             if (e.defaultPrevented || isOverlayOpen()) return
-            if (e.key === "Escape") {
-                e.preventDefault()
-                cancel()
-            }
+            e.preventDefault()
+            cancel()
         }
         window.addEventListener("keydown", onKey)
         return () => window.removeEventListener("keydown", onKey)

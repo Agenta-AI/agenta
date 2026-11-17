@@ -2,7 +2,7 @@ import {
     ChatCircle,
     Chats,
     Clock,
-    GraduationCap,
+    Compass,
     Lightning,
     MagnifyingGlass,
     NotePencil,
@@ -71,7 +71,7 @@ export const FEATURE_GUIDES: Record<FeatureGuideKey, FeatureGuide> = {
         headline: "Teach your agents how your team works",
         body: "Define your agent with AGENTS.md, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.",
         docsUrl: "https://agenta.ai/docs/concepts/skills",
-        icons: {main: GraduationCap, left: NotePencil, right: TerminalWindow},
+        icons: {main: Compass, left: NotePencil, right: TerminalWindow},
         templateKeys: [],
     },
     sessions: {

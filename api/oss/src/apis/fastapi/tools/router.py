@@ -1,5 +1,6 @@
 import html as html_lib
 from inspect import isawaitable
+import asyncio
 import json
 import re
 from datetime import datetime, timezone
@@ -12,6 +13,8 @@ import httpx
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
+
+from agenta.sdk.agents.platform.workflow import REFERENCE_TOOL_TIMEOUT_MS
 
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.secrets.dtos import SecretOwner
@@ -2059,12 +2062,35 @@ class ToolsRouter:
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=child, refusal=refusal)
 
+        limit_s = REFERENCE_TOOL_TIMEOUT_MS / 1000
         try:
-            response = await self.workflows_service.invoke_workflow(
-                project_id=project_id,
-                user_id=UUID(request.state.user_id),
-                request=invoke_request,
-                envelope=child,
+            # httpx applies `timeout` to each phase (connect, write, each read), so a slow
+            # child that sends bytes now and then could run past it. The outer limit caps the
+            # whole call, so this answer reaches the runner before its own fetch gives up.
+            async with asyncio.timeout(limit_s):
+                response = await self.workflows_service.invoke_workflow(
+                    project_id=project_id,
+                    user_id=UUID(request.state.user_id),
+                    request=invoke_request,
+                    envelope=child,
+                    timeout=limit_s,
+                )
+        except (httpx.TimeoutException, TimeoutError):
+            # A tool result, not an HTTP error: the runner shows the model only the status code
+            # of a non-2xx answer, and this message is what tells it the child was too slow.
+            log.warning("Workflow tool '%s' timed out", slug)
+            # Not retryable: the child may still be running, and a replay can repeat its
+            # side effects.
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="workflow_tool_timeout",
+                    message=(
+                        f"Workflow tool '{slug}' did not answer within "
+                        f"{REFERENCE_TOOL_TIMEOUT_MS // 60_000} minutes."
+                    ),
+                    retryable=False,
+                ),
             )
         except Exception as e:
             log.error("Workflow tool invocation failed", exc_info=True)

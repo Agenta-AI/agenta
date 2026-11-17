@@ -1,9 +1,8 @@
 import {Fragment} from "react"
 import type {KeyboardEvent} from "react"
 
-import {ChevronDown} from "lucide-react"
-
 import {Checkbox} from "../components/ui/checkbox"
+import {CollapseCaret} from "../components/ui/collapse-caret"
 import {SkeletonBlock} from "../components/ui/skeleton"
 import {cn} from "../components/ui/utils"
 
@@ -348,14 +347,7 @@ export const ListTable = <Row,>({
                                                     long repository truncates so the group's
                                                     action keeps its place on the right. */}
                                                 <span className="truncate">{group.label}</span>
-                                                <ChevronDown
-                                                    size={12}
-                                                    aria-hidden
-                                                    className={cn(
-                                                        "shrink-0 transition-transform",
-                                                        collapsed && "-rotate-90",
-                                                    )}
-                                                />
+                                                <CollapseCaret open={!collapsed} size={12} />
                                             </button>
                                         ) : (
                                             <p className="m-0 min-w-0 truncate text-[13px] text-muted-foreground">

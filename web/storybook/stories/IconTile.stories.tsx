@@ -1,5 +1,6 @@
+import {McpServerMark, SkillMark} from "@agenta/ui/agent-icon"
 import {Button, IconTile} from "@agenta/ui/ui"
-import {Plugs, Plus} from "@phosphor-icons/react"
+import {HardDrives, Plugs, Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // No antd counterpart: the tile is new, so this is a one-column showcase rather than a parity grid.
@@ -11,7 +12,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The rounded square that leads a server row, a sheet header and the empty states. Four sizes, each paired with its own radius and glyph size, and two tones: `info` for identity, `muted` for an empty state.\n\n**Used in:** the MCP agent rail, the add-server drawer, the connect sheet, the permission drawer and the Settings registry.",
+                    "The rounded square that leads a server row, a sheet header and the empty states. Four sizes, each paired with its own radius and glyph size, and three tones: `info` for identity, `muted` for an empty state, `neutral` for the MCP server and skill marks.\n\n**Used in:** `SkillMark`, on every skill surface, and `McpServerMark`, which every MCP surface draws: the add-server drawer, the connect sheet, the permission drawer and the Settings registry.",
             },
         },
     },
@@ -61,6 +62,32 @@ export const Showcase: Story = {
                     <Plugs />
                 </IconTile>
             </Row>
+            <Row label="neutral · 24 / 28 / 32 / 44">
+                <IconTile size={24} tone="neutral">
+                    <HardDrives weight="light" />
+                </IconTile>
+                <IconTile size={28} tone="neutral">
+                    <HardDrives weight="light" />
+                </IconTile>
+                <IconTile size={32} tone="neutral">
+                    <HardDrives weight="light" />
+                </IconTile>
+                <IconTile size={44} tone="neutral">
+                    <HardDrives weight="light" />
+                </IconTile>
+            </Row>
+            <Row label="McpServerMark · 24 / 28 / 32 / 44">
+                <McpServerMark size={24} />
+                <McpServerMark />
+                <McpServerMark size={32} />
+                <McpServerMark size={44} />
+            </Row>
+            <Row label="SkillMark · 24 / 28 / 32 / 44">
+                <SkillMark size={24} />
+                <SkillMark />
+                <SkillMark size={32} />
+                <SkillMark size={44} />
+            </Row>
             <Row label="any glyph, inheriting the tone">
                 <IconTile size={28}>
                     <Plus />
@@ -83,23 +110,17 @@ export const InContext: Story = {
                 className="flex w-full cursor-pointer items-center gap-3 rounded-control border border-solid border-colorBorderSecondary bg-colorBgElevated px-3.5 py-3 text-left hover:bg-colorFillTertiary"
                 data-vrt-subject
             >
-                <IconTile size={28}>
-                    <Plugs />
-                </IconTile>
+                <McpServerMark />
                 <span className="flex min-w-0 flex-col">
                     <span className="truncate text-sm font-medium text-colorText">Linear</span>
-                    <span className="truncate font-mono text-xs text-colorTextTertiary">
-                        mcp.linear.app
-                    </span>
+                    <span className="truncate text-xs text-colorTextTertiary">mcp.linear.app</span>
                 </span>
             </button>
             <div
                 className="flex flex-col items-center gap-3 rounded-control border border-dashed border-colorBorder px-6 py-12 text-center"
                 data-vrt-subject
             >
-                <IconTile size={44} tone="muted">
-                    <Plugs />
-                </IconTile>
+                <McpServerMark size={44} />
                 <span className="text-[15px] font-medium text-colorText">No MCP servers yet</span>
                 <span className="max-w-[320px] text-[13px] leading-relaxed text-colorTextSecondary">
                     Connect a server to give your agents its tools.

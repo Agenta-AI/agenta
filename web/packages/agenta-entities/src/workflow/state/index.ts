@@ -121,6 +121,7 @@ export {
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateAgentCommittedRevisionCache,
+    revalidateAgentRevisionReads,
     seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,

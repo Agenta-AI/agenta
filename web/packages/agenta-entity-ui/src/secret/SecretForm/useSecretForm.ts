@@ -16,6 +16,8 @@ import {
 import {extractApiErrorMessage, slugifyBase} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 
+import {ENV_NAME} from "../agentSecretRules"
+
 import {buildSecretContent, parseFlatJson} from "./content"
 import {objectToRows, rowsToObject, type KvRow} from "./primitives"
 
@@ -320,7 +322,7 @@ export function useSecretForm({
     const defaultEnvError =
         format === CustomSecretFormat.Text &&
         defaultEnvVar.length > 0 &&
-        !/^[A-Za-z_][A-Za-z0-9_]*$/.test(defaultEnvVar)
+        !ENV_NAME.test(defaultEnvVar)
     const okDisabled = duplicateKeyError || defaultEnvError
 
     return {

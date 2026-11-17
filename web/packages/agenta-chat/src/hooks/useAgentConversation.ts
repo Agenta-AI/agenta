@@ -118,11 +118,11 @@ import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
 import type {ComposerAttachment} from "./useComposerAttachments"
-import {useFileActivityDetector} from "./useFileActivityDetector"
 import {useMountGeneration} from "./useMountGeneration"
 import {useServerSessionInputs} from "./useServerSessionInputs"
 import {useSessionChat} from "./useSessionChat"
 import {useSessionLivePreview} from "./useSessionLivePreview"
+import {useSettledToolEffects} from "./useSettledToolEffects"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the stamped in-chat
  * error; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to a
@@ -581,8 +581,9 @@ export const useAgentConversation = ({
     // Mid-stream drive signals: a settled write-ish tool call records file activity, which
     // throttle-revalidates this session's mounts. It lives HERE, not in a host, because a host that
     // forgets it gets a drive that never learns about the cwd mount its own run just created —
-    // every file then resolves against the agent mount and 404s (#6535 follow-up).
-    useFileActivityDetector({sessionId, messages})
+    // every file then resolves against the agent mount and 404s (#6535 follow-up). A settled
+    // trigger op also refreshes the automation lists, which a server-side op never signals (#5781).
+    useSettledToolEffects({sessionId, messages})
 
     // A run streamed elsewhere (Home, another device) has no `onFinish` here to re-read mounts.
     const sharedRunWasLiveRef = useRef(sharedReaderRunning)

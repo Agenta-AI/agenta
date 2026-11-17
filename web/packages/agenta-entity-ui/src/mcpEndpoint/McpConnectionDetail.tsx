@@ -214,7 +214,7 @@ export default function McpConnectionDetail({
                                 ·
                             </span>
                             <span
-                                className="truncate font-mono text-xs text-colorTextDescription"
+                                className="truncate text-xs text-colorTextDescription"
                                 title={endpoint.data.route.base_url ?? undefined}
                             >
                                 {endpoint.data.route.base_url}

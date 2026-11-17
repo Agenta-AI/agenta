@@ -61,9 +61,12 @@ export const useAgentChannels = (
     appId: string,
     {
         resolveAgentName,
+        enabled = true,
     }: {
         /** Resolve an agent id to its display name; null when the roster does not hold it. */
         resolveAgentName?: (id: string) => string | null
+        /** False holds the first read back; `loading` stays true until it runs. */
+        enabled?: boolean
     } = {},
 ) => {
     const [connections, setConnections] = useState<ChannelConnections>(EMPTY_CONNECTIONS)
@@ -107,6 +110,7 @@ export const useAgentChannels = (
     }, [appId])
 
     useEffect(() => {
+        if (!enabled) return
         let alive = true
         setLoading(true)
         actions
@@ -119,7 +123,7 @@ export const useAgentChannels = (
             alive = false
             reloadSeq.current++
         }
-    }, [actions])
+    }, [actions, enabled])
 
     // A roster that lands after the read still names the answering agents.
     const named = useMemo(() => withAgentNames(connections, resolve), [connections, resolve])
