@@ -193,8 +193,12 @@ class _Unfaithful(ValueError):
 
 
 def _float(text: str) -> float:
-    value = float(text)
-    if not math.isfinite(value) or Decimal(repr(value)) != Decimal(text):
+    try:
+        value = float(text)
+        faithful = math.isfinite(value) and Decimal(repr(value)) == Decimal(text)
+    except Exception as error:  # a number the check cannot judge is not kept as is
+        raise _Unfaithful(text) from error
+    if not faithful:
         raise _Unfaithful(text)
     return value
 

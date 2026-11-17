@@ -518,7 +518,13 @@ async def _run_stored_numbers():
                 None,
                 raw='{"parameters": {"agent": {}, "threshold": %s}}' % number,
             )
-            for number in ("1e400", "1e-400", "1.00000000000000000001")
+            for number in (
+                "1e400",
+                "1e-400",
+                "1.00000000000000000001",
+                # Decimal cannot read this exponent
+                "1e-9999999999999999999",
+            )
         }
         kept_before = {number: await db.text(r) for number, r in kept.items()}
         # these keep their value through the round trip, so the revision is written
@@ -546,7 +552,7 @@ async def _run_stored_numbers():
                 "zero": -0.0,
             }
         }
-        assert (counts["revisions"], counts["skipped"]) == (1, 3)
+        assert (counts["revisions"], counts["skipped"]) == (1, 4)
     finally:
         await connection.close()
         await _drop()
