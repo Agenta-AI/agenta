@@ -1,16 +1,18 @@
-/** The demo content of the sign-in preview: six automation templates and the run loop's clock. */
+/** The demo content of the sign-in preview: six agency and team automations and the run loop's clock. */
 import type {ComponentType} from "react"
 
-import {FileText, Globe, ListChecks, NotePencil, Tag, type IconProps} from "@phosphor-icons/react"
+import {ListChecks, NotePencil, Tag, type IconProps} from "@phosphor-icons/react"
 
 export type Icon = ComponentType<IconProps>
 export type AppId =
     | "slack"
-    | "zendesk"
     | "notion"
-    | "hubspot"
     | "gmail"
-    | "googlecalendar"
+    | "google_analytics"
+    | "googleads"
+    | "facebook"
+    | "linkedin"
+    | "twitter"
     | "google_search_console"
     | "composio_search"
 
@@ -53,71 +55,79 @@ export const AUTOMATIONS: Automation[] = [
         sessions: ["Refund not received", "Login loop on mobile"],
     },
     {
-        name: "Support reply drafter",
-        apps: ["zendesk", "notion"],
+        name: "Client report agent",
+        apps: ["google_analytics", "googleads", "gmail"],
         lastRunMinutes: 9,
-        event: "New ticket: “How do I export my data?”",
+        event: "Weekly report for Northwind Dental",
         steps: [
-            {icon: "zendesk", running: "Reading the ticket", done: "Read ticket #4821"},
             {
-                icon: "notion",
-                running: "Searching your docs",
-                done: "Found the export guide in Notion",
+                icon: "google_analytics",
+                running: "Reading site traffic",
+                done: "Pulled 12.4K visits, up 8%",
             },
-            {icon: NotePencil, running: "Drafting a reply", done: "Drafted a reply for review"},
+            {
+                icon: "googleads",
+                running: "Reading ad results",
+                done: "Pulled 64 leads at $31 each",
+            },
+            {icon: "gmail", running: "Emailing the client", done: "Sent the report to the client"},
         ],
-        result: "Reply draft ready for review",
-        sessions: ["How do I export my data?", "Change billing email"],
+        result: "Report sent to Northwind Dental",
+        sessions: ["Northwind Dental", "Harbor & Co."],
     },
     {
-        name: "Lead qualifier",
-        apps: ["hubspot", "gmail"],
-        lastRunMinutes: 12,
-        event: "New lead: Dana Ortiz, Brightline Clinics",
+        name: "Ad spend watcher",
+        apps: ["googleads", "facebook", "slack"],
+        lastRunMinutes: 22,
+        event: "Hourly check over 14 campaigns",
         steps: [
+            {icon: "facebook", running: "Checking Meta Ads", done: "Checked 9 Meta campaigns"},
             {
-                icon: Globe,
-                running: "Researching the company",
-                done: "Researched Brightline Clinics",
+                icon: "googleads",
+                running: "Checking Google Ads",
+                done: "Found one campaign 40% over budget",
             },
-            {icon: ListChecks, running: "Scoring the lead", done: "Scored the lead 82 of 100"},
-            {
-                icon: "hubspot",
-                running: "Updating HubSpot",
-                done: "Marked the lead qualified in HubSpot",
-            },
+            {icon: "slack", running: "Alerting the team", done: "Flagged it in #client-ads"},
         ],
-        result: "Qualified with a score of 82",
-        sessions: ["Brightline Clinics"],
+        result: "1 campaign flagged in #client-ads",
+        sessions: ["Spring promo overspend"],
     },
     {
-        name: "CRM updater",
-        apps: ["gmail", "hubspot"],
-        lastRunMinutes: 180,
-        event: "Daily run over 24 new email threads",
+        name: "Social post agent",
+        apps: ["linkedin", "twitter", "notion"],
+        lastRunMinutes: 95,
+        event: "New blog post: “5 intake form mistakes”",
         steps: [
-            {icon: "gmail", running: "Reading email threads", done: "Read 24 new email threads"},
-            {icon: FileText, running: "Matching contacts", done: "Matched 9 threads to open deals"},
-            {icon: "hubspot", running: "Updating records", done: "Updated 9 deals in HubSpot"},
+            {icon: "notion", running: "Reading the post", done: "Read the new post in Notion"},
+            {
+                icon: NotePencil,
+                running: "Writing the posts",
+                done: "Wrote a LinkedIn post and an X thread",
+            },
+            {icon: "linkedin", running: "Scheduling", done: "Scheduled both for Tuesday 9:00"},
         ],
-        result: "9 deals updated",
+        result: "2 posts scheduled for Tuesday",
         sessions: [],
     },
     {
-        name: "Meeting follow-up",
-        apps: ["gmail", "googlecalendar", "hubspot"],
-        lastRunMinutes: 38,
-        event: "Meeting ended: Demo with Harbor & Co.",
+        name: "Competitor watch",
+        apps: ["composio_search", "notion"],
+        lastRunMinutes: 300,
+        event: "Weekly check on 4 competitors",
         steps: [
             {
-                icon: "googlecalendar",
-                running: "Reading the meeting",
-                done: "Read the notes from the demo",
+                icon: "composio_search",
+                running: "Scanning competitor sites",
+                done: "Found 3 new pages and 2 new ads",
             },
-            {icon: "gmail", running: "Drafting the follow-up", done: "Drafted the follow-up email"},
-            {icon: "hubspot", running: "Logging notes", done: "Logged the notes in HubSpot"},
+            {
+                icon: ListChecks,
+                running: "Comparing with last week",
+                done: "Spotted a new pricing page",
+            },
+            {icon: "notion", running: "Writing the digest", done: "Saved the digest to Notion"},
         ],
-        result: "Follow-up email ready to send",
+        result: "Digest saved: 1 pricing change",
         sessions: [],
     },
     {
