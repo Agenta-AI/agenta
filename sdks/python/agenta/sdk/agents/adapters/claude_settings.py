@@ -305,8 +305,16 @@ def build_claude_settings_files(
             *tool_rules.get("deny", []),
         ]
     )
+    # Claude can run Bash commands it considers safe without raising an ACP gate. An explicit
+    # ask rule makes the runner's Ask policy observable for every Bash invocation.
+    builtin_ask = ["Bash"] if permission_default == "ask" else []
     ask = _dedupe(
-        [*author["ask"], *mcp_rules.get("ask", []), *tool_rules.get("ask", [])]
+        [
+            *author["ask"],
+            *builtin_ask,
+            *mcp_rules.get("ask", []),
+            *tool_rules.get("ask", []),
+        ]
     )
 
     permissions: Dict[str, Any] = {}
