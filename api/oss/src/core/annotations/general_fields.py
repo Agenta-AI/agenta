@@ -6,7 +6,7 @@ references. The subject span supplies the session, the turn and the application;
 annotation keeps its link to that span only as an anchor.
 """
 
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Set, Tuple
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -143,6 +143,7 @@ class AnnotationGeneralFieldsService:
 
         application_references: Dict[str, Dict[str, Any]] = {}
         if subject is not None:
+            request_turn_id = turn_id
             span = await self._fetch_span(
                 project_id=project_id,
                 trace_id=subject.trace_id,
@@ -174,15 +175,40 @@ class AnnotationGeneralFieldsService:
                     session_id = turn.session_id
                     turn_id = str(turn.turn_id) if turn.turn_id else None
 
+            if span is not None and span_turn_id and not span_session_id:
+                # A stored turn without a stored session stays only when its own
+                # turn row names a session the caller may view.
+                turn_row = await self._turn_row(
+                    project_id=project_id,
+                    trace_id=subject.trace_id,
+                    turn_id=span_turn_id,
+                )
+                if turn_row is None or not await can_view_session(turn_row.session_id):
+                    turn_id = request_turn_id
+
             if span is not None and not any(
                 getattr(references, key) for key in APPLICATION_REFERENCE_KEYS
             ):
-                root = await self._fetch_root(project_id=project_id, span=span)
+                root, session_ids = await self._fetch_root(
+                    project_id=project_id, span=span
+                )
                 root_session_id, _ = (
                     _span_session_and_turn(root) if root is not None else (None, None)
                 )
-                if root_session_id and not await can_view_session(root_session_id):
+                if (
+                    root is not None
+                    and not root_session_id
+                    and await self._turn_row(
+                        project_id=project_id, trace_id=subject.trace_id
+                    )
+                ):
+                    # The root names no session, yet a turn row names the trace: it
+                    # may hold turns of several sessions, so nothing is copied.
                     root = None
+                for path_session_id in session_ids:
+                    if not await can_view_session(path_session_id):
+                        root = None
+                        break
                 application_references = _application_references(root)
 
             scope = scope or AnnotationScope.SPAN
@@ -262,17 +288,42 @@ class AnnotationGeneralFieldsService:
         *,
         project_id: UUID,
         span: OTelFlatSpan,
-    ) -> Optional[OTelFlatSpan]:
-        """Walk up the parents by key; a trace is a few levels deep."""
+    ) -> Tuple[Optional[OTelFlatSpan], Set[str]]:
+        """Walk up the parents by key; a trace is a few levels deep. Returns the root
+        (none when a parent is missing) and every session id named on the path."""
+        session_ids: Set[str] = set()
         for _ in range(_MAX_ANCESTORS):
+            span_session_id, _turn = _span_session_and_turn(span)
+            if span_session_id:
+                session_ids.add(span_session_id)
             if span.parent_id is None:
-                return span
+                return span, session_ids
             parent = await self._fetch_span(
                 project_id=project_id,
                 trace_id=str(span.trace_id),
                 span_id=str(span.parent_id),
             )
             if parent is None:
-                return None
+                return None, session_ids
             span = parent
-        return None
+        return None, session_ids
+
+    async def _turn_row(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: str,
+        turn_id: Optional[str] = None,
+    ) -> Optional["SessionTurn"]:
+        """The turn row of the trace (and of the turn, when given), unchecked; the
+        caller checks its session."""
+        try:
+            trace_uuid = UUID(parse_trace_id_to_uuid(trace_id))
+            turn_uuid = UUID(turn_id) if turn_id else None
+        except (TypeError, ValueError):
+            return None
+        return await self.session_turns_service.find_turn(
+            project_id=project_id,
+            trace_id=trace_uuid,
+            turn_id=turn_uuid,
+        )
