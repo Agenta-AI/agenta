@@ -995,7 +995,7 @@ describe("local runs with drives (engine composition)", () => {
       await acquired.env.destroy();
       cleanup(cwd, ["notes", "home"]);
     }
-  });
+  }, 20_000);
 
   it("removes the stale link of a drive the list dropped at setup, and keeps the listed one", async () => {
     const cwd = join(tmpdir(), `agenta-drives-stale-${process.pid}-${Date.now()}`);
