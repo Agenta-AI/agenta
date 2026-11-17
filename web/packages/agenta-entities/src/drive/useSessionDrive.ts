@@ -112,15 +112,20 @@ export const resolveDriveMount = (
 }
 
 /** A tool path in a drive the session has a mount for, or in no drive: a configured drive without
- * a mount (the member cannot read it, or its lookup has not answered) holds nothing to list. */
+ * a mount (the member cannot read it, or its lookup has not answered) holds nothing to list. The
+ * home drive counts through `homeReadable`, for the older `<cwd>-agent` mount and `agent-files/`. */
 export const isReadableToolPath = (
     tool: DriveToolPath,
     linked: readonly Drive[],
     entries: DriveSlugs,
-): boolean =>
-    tool.origin === "drive"
-        ? linked.some((d) => d.slug === tool.slug)
-        : tool.origin === "agent" || resolveDriveMount(tool.path, linked, entries) !== null
+    homeReadable: boolean,
+): boolean => {
+    if (tool.origin === "drive") return linked.some((d) => d.slug === tool.slug)
+    if (tool.origin === "agent") return homeReadable
+    const rel = cleanPath(tool.path)
+    if (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)) return homeReadable
+    return resolveDriveMount(rel, linked, entries) !== null
+}
 
 /** Present a drive's mount-relative entries under its `drives/<slug>/` folder. */
 export const foldDriveFiles = (drive: Drive, files: readonly MountFile[]): MountFile[] =>
@@ -591,9 +596,9 @@ export function useSessionDriveSummary(
                             fromDriveMount: entry.resolved.origin !== "session",
                             drives: entries,
                         }) &&
-                        isReadableToolPath(entry.resolved, linked, entries),
+                        isReadableToolPath(entry.resolved, linked, entries, Boolean(homeMount)),
                 ),
-        [recordRecency, entries, linked],
+        [recordRecency, entries, linked, homeMount],
     )
     // Does the record log hold ANY change this surface would actually LIST? When it doesn't, the
     // "recent changes" list would be empty even though the drive has files — so fall back to the

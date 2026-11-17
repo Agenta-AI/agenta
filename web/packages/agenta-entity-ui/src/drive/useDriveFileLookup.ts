@@ -2,6 +2,7 @@ import {useCallback} from "react"
 
 import {
     AGENT_FILES_DIR,
+    DRIVES_DIR,
     presentToolPath,
     useSessionDrive,
     type ResolvedMountPath,
@@ -22,9 +23,9 @@ export interface DriveFileLookup {
 }
 
 /**
- * The listing's entry for a path. `exact` takes a drive path as is. A tool path under a drive's own
- * mount (`<cwd>-drive-<slug>`, `<cwd>-agent`) names that drive's presented path, never a session
- * file that shares its tail. Any other tool path matches on its tail, and the longest matching path
+ * The listing's entry for a path. `exact` takes a drive path as is. A tool path in a drive (under
+ * its own mount, or through the session folder's `drives/<slug>/` link) names that drive's
+ * presented path, never a session file that shares its tail. Any other tool path matches on its tail, and the longest matching path
  * wins, so `drives/prices/a.md` never resolves to a shorter `a.md` that only shares its tail.
  */
 export const findDriveEntry = <F extends {path: string}>(
@@ -36,9 +37,17 @@ export const findDriveEntry = <F extends {path: string}>(
 ): F | null => {
     const byPath = (p: string) => files.find((file) => file.path === p) ?? null
     if (exact) return byPath(path)
-    const tool = path.startsWith("/") ? drivePathFromToolPath(path) : null
-    if (tool && tool.origin !== "session")
-        return byPath(presentToolPath(tool, homeSlug, homePrefix))
+    // A drive's file, by its own mount or through the session folder's link, is looked up exactly.
+    const tool = drivePathFromToolPath(path)
+    if (tool) {
+        const presented = presentToolPath(tool, homeSlug, homePrefix)
+        if (
+            tool.origin !== "session" ||
+            presented !== tool.path ||
+            presented.startsWith(`${DRIVES_DIR}/`)
+        )
+            return byPath(presented)
+    }
     let best: F | null = null
     for (const file of files)
         if (

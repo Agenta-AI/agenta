@@ -36,6 +36,20 @@ describe("findDriveEntry", () => {
         expect(findDriveEntry(both, tool, false, null, "")).toEqual({path: "a.md"})
     })
 
+    it("maps the home drive reached through its drives/<slug>/ link to agent-files/", () => {
+        const both = [{path: "report.md"}, {path: "agent-files/report.md"}]
+        for (const path of [
+            "drives/home/report.md",
+            "/var/lib/agenta/mounts/s/m/drives/home/report.md",
+        ])
+            expect(findDriveEntry(both, path, false, "home")).toEqual({
+                path: "agent-files/report.md",
+            })
+        expect(
+            findDriveEntry([{path: "report.md"}], "drives/home/report.md", false, "home"),
+        ).toBeNull()
+    })
+
     it("takes a drive path as is when exact", () => {
         expect(findDriveEntry(files, "a.md", true)).toEqual({path: "a.md"})
         expect(findDriveEntry(files, "b.md", true)).toBeNull()

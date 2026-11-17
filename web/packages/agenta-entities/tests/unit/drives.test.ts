@@ -412,23 +412,53 @@ describe("isReadableToolPath", () => {
 
     it("drops a write into a configured drive that has no mount", () => {
         expect(
-            isReadableToolPath({origin: "drive", slug: "prices", path: "a.md"}, [team], entries),
+            isReadableToolPath(
+                {origin: "drive", slug: "prices", path: "a.md"},
+                [team],
+                entries,
+                true,
+            ),
         ).toBe(false)
         expect(
-            isReadableToolPath({origin: "session", path: "drives/prices/a.md"}, [team], entries),
+            isReadableToolPath(
+                {origin: "session", path: "drives/prices/a.md"},
+                [team],
+                entries,
+                true,
+            ),
         ).toBe(false)
     })
 
     it("keeps a write into a mounted drive, the session or the older agent mount", () => {
         expect(
-            isReadableToolPath({origin: "drive", slug: "team", path: "a.md"}, [team], entries),
+            isReadableToolPath(
+                {origin: "drive", slug: "team", path: "a.md"},
+                [team],
+                entries,
+                true,
+            ),
         ).toBe(true)
         expect(
-            isReadableToolPath({origin: "session", path: "drives/team/a.md"}, [team], entries),
+            isReadableToolPath(
+                {origin: "session", path: "drives/team/a.md"},
+                [team],
+                entries,
+                true,
+            ),
         ).toBe(true)
-        expect(isReadableToolPath({origin: "session", path: "notes/a.md"}, [team], entries)).toBe(
-            true,
-        )
-        expect(isReadableToolPath({origin: "agent", path: "a.md"}, [], entries)).toBe(true)
+        expect(
+            isReadableToolPath({origin: "session", path: "notes/a.md"}, [team], entries, true),
+        ).toBe(true)
+        expect(isReadableToolPath({origin: "agent", path: "a.md"}, [], entries, true)).toBe(true)
+    })
+
+    it("drops a write into the home drive when it has no readable mount", () => {
+        expect(isReadableToolPath({origin: "agent", path: "a.md"}, [], entries, false)).toBe(false)
+        expect(
+            isReadableToolPath({origin: "session", path: "agent-files/a.md"}, [], entries, false),
+        ).toBe(false)
+        expect(
+            isReadableToolPath({origin: "session", path: "agent-files/a.md"}, [], entries, true),
+        ).toBe(true)
     })
 })
