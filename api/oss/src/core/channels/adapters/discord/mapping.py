@@ -330,6 +330,31 @@ def escape_markdown(text: str) -> str:
     return _MARKDOWN_LINE_START.sub(r"\1\\\2", _MARKDOWN_INLINE.sub(r"\\\1", text))
 
 
+# Code (a fenced block, unclosed to the end, or an inline span) is skipped;
+# outside it, a Markdown link `[text](target)`.
+_CODE_OR_LINK = re.compile(
+    r"(?P<code>^[ \t]*```[^\n]*(?:\n.*?(?:^[ \t]*```[^\n]*$|\Z)|\Z)|`[^`\n]+`)"
+    r"|\[(?P<text>[^\]\n]+)\]\((?P<target>[^)\s]+)\)",
+    re.MULTILINE | re.DOTALL,
+)
+_ABSOLUTE_URL = re.compile(r"https?://", re.IGNORECASE)
+
+
+def plain_relative_links(text: str) -> str:
+    """Discord renders `[text](url)` only for an absolute http(s) url and
+    shows any other link as raw Markdown, so `[note.txt](note.txt)` becomes
+    `note.txt`. Absolute links and code stay as written."""
+
+    def replace(match: "re.Match[str]") -> str:
+        if match.group("code") is not None:
+            return match.group(0)
+        if _ABSOLUTE_URL.match(match.group("target")):
+            return match.group(0)
+        return match.group("text")
+
+    return _CODE_OR_LINK.sub(replace, text)
+
+
 def _card_text(card: Dict[str, Any]) -> str:
     """The card's words are the recorded tool call, not the agent's Markdown,
     so they are shown literally. `answered_heading` (set by
@@ -374,7 +399,7 @@ def render_content(
     segments: List[str] = []
     for part in content:
         if part.get("type") == "text" and part.get("text"):
-            segments.append(part["text"])
+            segments.append(plain_relative_links(part["text"]))
         elif part.get("type") == "card":
             segments.append(_card_text(part))
     text = "\n".join(segments)

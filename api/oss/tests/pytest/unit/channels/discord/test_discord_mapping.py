@@ -260,3 +260,35 @@ def test_an_approval_card_shows_markdown_in_the_call_literally():
     content = build_messages([card])[0]["content"]
     assert "false \\|\\| rm -rf backups \\|\\| true" in content
     assert "Approval needed: Bash" in content
+
+
+def test_a_relative_link_shows_as_its_text():
+    """Live QA: Discord shows `[note.txt](note.txt)` as raw Markdown, because
+    it renders a link only for an absolute http(s) url."""
+
+    from oss.src.core.channels.adapters.discord.mapping import build_messages
+
+    content = [
+        {
+            "type": "text",
+            "text": 'Done. I created [note.txt](note.txt) with the content "hi".',
+        }
+    ]
+    assert build_messages(content)[0]["content"] == (
+        'Done. I created note.txt with the content "hi".'
+    )
+
+
+def test_absolute_links_and_code_keep_their_markdown():
+    from oss.src.core.channels.adapters.discord.mapping import plain_relative_links
+
+    assert plain_relative_links("[docs](https://example.com/a)") == (
+        "[docs](https://example.com/a)"
+    )
+    assert plain_relative_links("[a](HTTP://example.com)") == "[a](HTTP://example.com)"
+    assert plain_relative_links("`[c](c.md)` and [b](./b.md)") == "`[c](c.md)` and b"
+    fenced = "```md\n[d](d.md)\n```\n[e](notes/e.md)"
+    assert plain_relative_links(fenced) == "```md\n[d](d.md)\n```\ne"
+    # an unclosed fence runs to the end, as Discord shows it
+    assert plain_relative_links("```\n[o](o.md)") == "```\n[o](o.md)"
+    assert plain_relative_links("[mail](mailto:a@example.com)") == "mail"
