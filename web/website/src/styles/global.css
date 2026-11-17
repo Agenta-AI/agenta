@@ -1029,8 +1029,7 @@ html,
     padding-right: 18px;
   }
 
-  /* Pinned to the viewport so the menu stays reachable when the landing nav floats.
-     Same attached panel as the desktop menus: square top, side lines, round bottom. */
+  /* Fixed so it stays reachable when the nav floats; same attached panel as desktop. */
   .ag-mobile-menu.is-open {
     position: fixed;
     top: 54px;
