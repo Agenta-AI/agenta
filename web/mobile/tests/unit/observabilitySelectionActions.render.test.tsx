@@ -8,6 +8,7 @@
  */
 import {act, type ReactNode} from "react"
 
+import {configureTraceDrawerReferences} from "@agenta/observability-ui/traceDrawer"
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClientProvider} from "@tanstack/react-query"
@@ -130,8 +131,6 @@ vi.mock("@/features/observability/TracesTable", () => ({
         </div>
     ),
 }))
-
-import {configureTraceDrawerReferences} from "@agenta/observability-ui/traceDrawer"
 
 import AddToQueuePicker from "@/features/annotations/AddToQueuePicker"
 import {ObservabilityScreen} from "@/features/observability/ObservabilityScreen"
