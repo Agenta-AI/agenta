@@ -48,6 +48,7 @@ import {
     chatTypeOf,
     connectionsForAgent,
     groupKindsOf,
+    mapSpaceRow,
     type ChannelsClientLike,
 } from "../../src/channels/actions"
 import {ChannelConnectFlow} from "../../src/channels/ChannelConnectFlow"
@@ -311,6 +312,19 @@ describe("Teams connect flow", () => {
 })
 
 describe("Teams actions", () => {
+    it("tells two unnamed group chats apart by their conversation id", () => {
+        const row = (id: string, conversationId: string) =>
+            mapSpaceRow({
+                id,
+                kind: "group",
+                data: {external_locator: {conversation_id: conversationId, thread_id: ""}},
+            })
+        const first = row("s1", "19:aaa@thread.v2")
+        const second = row("s2", "19:bbb@thread.v2")
+        expect(first?.unnamed).toBe(true)
+        expect(first?.name).not.toBe(second?.name)
+    })
+
     const fixture = (agentName: string | null = null) => {
         const client = {
             fetchChannelSetup: vi.fn().mockResolvedValue({

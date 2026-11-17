@@ -155,7 +155,8 @@ export const toolSettingsOf = (agent: Row): ChannelToolSettings => {
 /** The platform id in a space locator: a Slack `channel`, a Telegram `chat_id`, a Discord
  * `channel_id`. */
 export const locatorId = (locator: Row): string | null => {
-    const value = locator.channel ?? locator.chat_id ?? locator.channel_id
+    const value =
+        locator.channel ?? locator.chat_id ?? locator.channel_id ?? locator.conversation_id
     if (typeof value === "number" && Number.isFinite(value)) return String(value)
     return asString(value)
 }
