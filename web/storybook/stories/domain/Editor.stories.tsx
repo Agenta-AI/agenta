@@ -1,4 +1,10 @@
-import {Editor} from "@agenta/ui/editor"
+import {
+    Editor,
+    EditorProvider,
+    TOGGLE_FORM_VIEW,
+    useLexicalComposerContext,
+} from "@agenta/ui/editor"
+import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
@@ -155,6 +161,50 @@ export const RichTextWithTokens: Story = {
                 boundWidth
                 dimensions={{width: "100%", height: "auto"}}
             />
+        </Frame>
+    ),
+}
+
+/** Flips the editor into its form view; it must sit inside the editor's provider. */
+const FormViewToggle = () => {
+    const [editor] = useLexicalComposerContext()
+    return (
+        <Button
+            size="sm"
+            variant="outline"
+            className="m-2"
+            onClick={() => editor.dispatchCommand(TOGGLE_FORM_VIEW, undefined)}
+        >
+            Toggle form view
+        </Button>
+    )
+}
+
+/** Form view nodes and the code fold gutter, both with the shared collapse caret. */
+export const FormViewNodes: Story = {
+    render: () => (
+        <Frame label="language=json · form view nodes (NodeHeader) and code fold gutter">
+            <EditorProvider
+                id="story-editor-form-view"
+                initialValue={MOCK_JSON}
+                language="json"
+                codeOnly
+                showToolbar={false}
+            >
+                <FormViewToggle />
+                <Editor
+                    noProvider
+                    id="story-editor-form-view"
+                    initialValue={MOCK_JSON}
+                    language="json"
+                    codeOnly
+                    showToolbar={false}
+                    showLineNumbers
+                    enableResize={false}
+                    boundWidth
+                    dimensions={{width: "100%", height: "auto"}}
+                />
+            </EditorProvider>
         </Frame>
     ),
 }

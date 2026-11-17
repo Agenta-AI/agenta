@@ -123,9 +123,18 @@ Agenta SHALL render a tool approval as a message with Approve and Deny buttons w
 - **WHEN** a person clicks a button from a choice that was already answered or replaced
 - **THEN** Agenta SHALL ignore the click and SHALL NOT start a turn
 
-#### Scenario: Buttons removed after the answer
-- **WHEN** the choice is resolved
-- **THEN** Agenta SHALL remove the buttons from that message and SHALL keep its text
+#### Scenario: Decision shown after the answer
+- **WHEN** a person's click resolves the choice and is admitted
+- **THEN** Agenta SHALL edit that message to remove the buttons and the scope line, and SHALL replace "Approval needed" in its title with "Approved by @person" or "Denied by @person", where @person is a Discord user mention sent with no allowed mentions so it pings nobody
+- **AND** the edit SHALL happen after the answer is admitted, never in the click acknowledgement, so a stale or refused click never shows a decision
+
+#### Scenario: Card too long to edit
+- **WHEN** the card took more than one Discord message, or the answered card would not fit in one
+- **THEN** Agenta SHALL remove the buttons from the receipt's message and SHALL keep its text
+
+#### Scenario: Card in plain words
+- **WHEN** the card shows the tool call's arguments
+- **THEN** each argument SHALL be one plain line such as `File path: note.txt`, never a JSON dump, and a path under the session's mount SHALL show relative to the mount, never as the server path. An argument set to nothing SHALL show as `(empty)`, and a card that leaves anything out SHALL end with the truncation note. This rendering is shared, so every channel shows the same lines
 
 ### Requirement: Commands in conversation
 Discord SHALL support the in-conversation commands with the `!` sigil, `!new`, `!sessions` and `!use`. Agenta SHALL NOT register Discord slash commands in v1.

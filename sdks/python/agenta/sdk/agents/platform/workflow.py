@@ -40,6 +40,9 @@ REQUEST_CONNECTION_WORKFLOW_SLUG = "__ag__request_connection"
 REQUEST_CONNECTION_TOOL_NAME = "request_connection"
 REQUEST_SECRET_WORKFLOW_SLUG = "__ag__request_secret"
 REQUEST_SECRET_TOOL_NAME = "request_secret"
+# A called workflow is often a whole agent turn, which takes minutes. Same as the runner's
+# per-tool-call watchdog (`DEFAULT_TOOL_CALL_TIMEOUT_MS` in the runner's `run-limits.ts`).
+REFERENCE_TOOL_TIMEOUT_MS = 30 * 60_000
 
 
 class AgentaWorkflowToolResolver:
@@ -114,6 +117,7 @@ class AgentaWorkflowToolResolver:
                     call_ref=call_ref,
                     render=tool_config.render,
                     permission=tool_config.permission,
+                    timeout_ms=REFERENCE_TOOL_TIMEOUT_MS,
                 )
             )
 

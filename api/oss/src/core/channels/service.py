@@ -2986,6 +2986,8 @@ class ChannelsService:
         connection_id: UUID,
         thread: ChannelThread,
         interaction_id: str,
+        approved: Optional[bool] = None,
+        answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
         pending = thread.data.pending_choice
         if (
@@ -3023,6 +3025,8 @@ class ChannelsService:
             connection=connection,
             external_locator=event.data.external_locator,
             content=content,
+            approved=approved,
+            answered_by=answered_by,
         )
 
     async def enqueue_output(self, *, project_id, thread_id, turn_id, items):

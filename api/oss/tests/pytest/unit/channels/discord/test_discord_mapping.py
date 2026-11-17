@@ -178,6 +178,15 @@ def test_oversize_content_is_still_cut_to_the_limit():
     assert all(body["allowed_mentions"] == {"parse": []} for body in bodies)
 
 
+def test_an_oversize_message_keeps_its_code_block_readable():
+    text = ("word " * 300).strip() + "\n\n```python\n" + "x = 1\n" * 300 + "```"
+    bodies = mapping.build_messages([{"type": "text", "text": text}])
+
+    assert len(bodies) > 1
+    assert all(len(body["content"]) <= 2000 for body in bodies)
+    assert all(body["content"].count("```") % 2 == 0 for body in bodies)
+
+
 # --- buttons ------------------------------------------------------------- #
 
 
@@ -234,3 +243,20 @@ def test_the_invite_url_has_the_exact_permissions():
         "https://discord.com/oauth2/authorize"
         "?client_id=123&scope=bot&permissions=309237763136"
     )
+
+
+def test_an_approval_card_shows_markdown_in_the_call_literally():
+    """`||...||` is a Discord spoiler: unescaped, the destructive part of the
+    command would be hidden on the card until clicked."""
+
+    from oss.src.core.channels.adapters.discord.mapping import build_messages
+
+    card = {
+        "type": "card",
+        "title": "Approval needed: Bash",
+        "tool": "Bash",
+        "arguments": {"command": "false || rm -rf backups || true"},
+    }
+    content = build_messages([card])[0]["content"]
+    assert "false \\|\\| rm -rf backups \\|\\| true" in content
+    assert "Approval needed: Bash" in content

@@ -48,6 +48,7 @@ import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
+import {SessionWorkspaceDrawers} from "./SessionWorkspaceDrawers"
 import {ConfigPaneLoading} from "./states/ConfigPaneLoading"
 import {useDriveUrlSync} from "./useDriveUrlSync"
 import {useLeaveSession} from "./useLeaveSession"
@@ -63,28 +64,6 @@ const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane
     ssr: false,
     loading: ConfigPaneLoading,
 })
-
-// The tool catalog is opened by setting an atom, so whoever opens it needs this mounted or the
-// action does nothing. It sits at the workspace rather than inside the config pane, because the
-// agent's own connect widget opens it from the transcript and in chat mode the config pane does
-// not render. One mount, always present, as the desktop playground keeps one beside its panels.
-const CatalogDrawer = dynamic(
-    () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
-    {ssr: false},
-)
-
-// Mounted here, not in the config pane, so a linked drawer opens while that pane is collapsed.
-const AutomationDrawer = dynamic(
-    () => import("@agenta/automation-ui").then((m) => m.AutomationDrawer),
-    {ssr: false},
-)
-const AutomationRunHistoryDrawerHost = dynamic(
-    () =>
-        import("../automations/AutomationRunHistoryDrawerHost").then(
-            (m) => m.AutomationRunHistoryDrawerHost,
-        ),
-    {ssr: false},
-)
 
 /**
  * The playground's two-pane frame, on the SAME kit `SplitPane` the desktop drives it with and the
@@ -106,6 +85,7 @@ export const SessionWorkspace = ({
     agentResolving = false,
     linkEntityId = entityId,
     linkAgentId = agentId,
+    autoUpdateRevision = false,
     agentHidden = false,
     canSend = true,
     sessionId,
@@ -128,6 +108,8 @@ export const SessionWorkspace = ({
      */
     linkEntityId?: string | null
     linkAgentId?: string | null
+    /** The top bar moves to a newer version with no click. Default: it offers the version pill. */
+    autoUpdateRevision?: boolean
     /** The session's agent is one the reader cannot see (a private agent). */
     agentHidden?: boolean
     /** False when the reader may not send here: the top bar drops what only a sender uses. */
@@ -416,6 +398,7 @@ export const SessionWorkspace = ({
                         entityId={entityId}
                         sessionId={sessionId}
                         onUpdate={pinRevision}
+                        autoUpdate={autoUpdateRevision}
                         agentId={agentId}
                         agentHidden={agentHidden}
                         canSend={canSend}
@@ -540,9 +523,7 @@ export const SessionWorkspace = ({
                         />
                     </div>
                 </div>
-                <CatalogDrawer />
-                <AutomationDrawer />
-                <AutomationRunHistoryDrawerHost workspaceId={workspaceId} projectId={projectId} />
+                <SessionWorkspaceDrawers workspaceId={workspaceId} projectId={projectId} />
             </DriveSessionProvider>
         </>
     )

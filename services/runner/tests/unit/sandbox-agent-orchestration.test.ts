@@ -453,7 +453,7 @@ describe("runSandboxAgent orchestration", () => {
       undefined,
       undefined,
       deps,
-      { credential },
+      { credentialLease: { credential, seed: "" } },
     );
 
     assert.equal(result.ok, true);

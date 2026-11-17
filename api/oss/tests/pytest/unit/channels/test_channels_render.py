@@ -1,7 +1,13 @@
 """render module: fold-result -> capability-degraded vocabulary. Pure, no DB."""
 
+import pytest
+
 from oss.src.core.channels.dtos import ChannelCapabilities
-from oss.src.core.channels.render.render import render_indicator, render_turn_result
+from oss.src.core.channels.render.render import (
+    extract_final_answer,
+    render_indicator,
+    render_turn_result,
+)
 
 
 BUTTONS_OK = ChannelCapabilities(
@@ -253,7 +259,7 @@ def test_split_closes_and_reopens_a_code_fence_across_chunks():
     assert len(chunks) > 1
     assert all(len(chunk) <= 1000 for chunk in chunks)
     assert all(chunk.count("```") % 2 == 0 for chunk in chunks)
-    assert chunks[1].startswith("```\n")
+    assert chunks[1].startswith("```python\n")
 
 
 def test_split_of_one_unbroken_word_still_respects_the_limit():
@@ -289,6 +295,69 @@ def test_split_keeps_a_code_block_that_starts_the_chunk_whole():
     assert all(len(chunk) <= 2000 for chunk in chunks)
 
 
+def test_split_reopens_every_part_with_the_language_tag():
+    from oss.src.core.channels.render.render import _split_text
+
+    block = "```python\n" + "x = 1\n" * 1500 + "```"
+    chunks = _split_text("Here is the script:\n\n" + block, 2000)
+
+    assert len(chunks) == 5
+    assert all(len(chunk) <= 2000 for chunk in chunks)
+    assert all(chunk.startswith("```python\n") for chunk in chunks[1:])
+    assert all(chunk.count("```") % 2 == 0 for chunk in chunks)
+
+
+def test_split_keeps_a_block_of_the_full_limit_whole():
+    from oss.src.core.channels.render.render import _split_text
+
+    block = "```\n" + "x" * 1991 + "\n```"  # 1,999 characters
+    chunks = _split_text("intro " * 10 + "\n\n" + block + "\n\nafter", 2000)
+
+    assert block in chunks
+    assert all(len(chunk) <= 2000 for chunk in chunks)
+
+
+def test_split_ignores_backticks_inside_a_code_line():
+    from oss.src.core.channels.render.render import _split_text
+
+    line = 'print("``` and ```")\n'
+    block = "```python\n" + line * 200 + "```"
+    chunks = _split_text("intro\n\n" + block, 2000)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 2000 for chunk in chunks)
+    assert all(chunk.startswith("```python\n") for chunk in chunks[1:])
+    assert all(chunk.rstrip().endswith("```") for chunk in chunks)
+
+
+@pytest.mark.parametrize("limit", [2000, 3000, 4096])
+def test_split_never_reopens_with_the_content_of_a_long_fence_line(limit):
+    from oss.src.core.channels.render.render import _split_text
+
+    chunks = _split_text("```" + "x" * 5000 + "```", limit)
+
+    assert all(len(chunk) <= limit for chunk in chunks)
+    assert all(chunk.startswith("```\n") for chunk in chunks[1:])
+
+
+def test_split_keeps_the_indentation_of_code_lines():
+    from oss.src.core.channels.render.render import _split_text
+
+    lines = ["if True:"] + [f"    value_{i} = {i}" for i in range(300)]
+    text = "```python\n" + "\n".join(lines) + "\n```"
+
+    chunks = _split_text(text, 2000)
+
+    assert len(chunks) > 1
+    code = [
+        line
+        for chunk in chunks
+        for line in chunk.split("\n")
+        if line and not line.startswith("```")
+    ]
+    assert code == lines
+
+
 def test_split_still_reopens_a_code_block_longer_than_one_chunk():
     from oss.src.core.channels.render.render import _split_text
 
@@ -298,3 +367,119 @@ def test_split_still_reopens_a_code_block_longer_than_one_chunk():
     assert len(chunks) > 1
     assert all(len(chunk) <= 2000 for chunk in chunks)
     assert all(chunk.count("```") % 2 == 0 for chunk in chunks)
+
+
+def _said(text):
+    return {"role": "assistant", "content": text}
+
+
+def _called(tool_name, call_id):
+    return {
+        "role": "tool",
+        "content": "",
+        "tool_call_id": call_id,
+        "tool_name": tool_name,
+        "input": {},
+    }
+
+
+def _returned(call_id):
+    return {"role": "tool", "content": "ok", "tool_call_id": call_id}
+
+
+def test_the_reply_holds_only_what_the_agent_said_after_its_last_tool():
+    folded = {
+        "messages": [
+            _said("Reading the thread for context."),
+            _called("Read", "c1"),
+            _returned("c1"),
+            _said("Checking PostHog next."),
+            _called("Bash", "c2"),
+            _returned("c2"),
+            _said("The invite failed because the email casing differs."),
+        ],
+        "stop_reason": "ended",
+        "pending_interaction": None,
+    }
+
+    items = render_turn_result(capabilities=BUTTONS_OK, folded=folded)
+
+    assert [part.text for item in items for part in item.parts] == [
+        "The invite failed because the email casing differs."
+    ]
+
+
+def test_every_message_after_the_last_tool_stays_in_the_reply():
+    messages = [
+        _said("Looking."),
+        _called("Read", "c1"),
+        _returned("c1"),
+        _said("First part."),
+        _said("Second part."),
+    ]
+
+    assert extract_final_answer(messages) == "First part.\nSecond part."
+
+
+def test_naming_the_session_does_not_cut_off_the_answer():
+    for tool_name in ("rename_session", "mcp__agenta-tools__rename_session"):
+        messages = [
+            _said("Checking."),
+            _called("Read", "c1"),
+            _returned("c1"),
+            _said("Fresh pasta cooks in about two minutes."),
+            _called(tool_name, "c2"),
+            _returned("c2"),
+            _said("Session named."),
+        ]
+
+        assert extract_final_answer(messages) == (
+            "Fresh pasta cooks in about two minutes.\nSession named."
+        )
+
+
+def test_an_answer_before_a_closing_rename_is_the_answer():
+    messages = [
+        _said("You have two triggers."),
+        _called("rename_agent", "c1"),
+        _returned("c1"),
+    ]
+
+    assert extract_final_answer(messages) == "You have two triggers."
+
+
+def test_a_turn_that_stops_on_a_tool_keeps_all_its_text():
+    messages = [
+        _said("Reading the logs."),
+        _called("Read", "c1"),
+        _returned("c1"),
+        _said("Found two errors, checking the second."),
+        _called("Bash", "c2"),
+    ]
+
+    assert extract_final_answer(messages) == (
+        "Reading the logs.\nFound two errors, checking the second."
+    )
+
+
+def test_a_blank_message_after_the_last_tool_is_not_the_answer():
+    messages = [
+        _said("The invite failed on email casing."),
+        _called("Read", "c1"),
+        _returned("c1"),
+        _said("\n\n"),
+    ]
+
+    assert extract_final_answer(messages) == "The invite failed on email casing."
+
+
+def test_a_turn_with_no_text_has_no_answer():
+    assert extract_final_answer([_called("Read", "c1"), _returned("c1")]) == ""
+
+
+def test_blank_space_before_a_moved_code_block_is_not_its_own_chunk():
+    from oss.src.core.channels.render.render import _split_text
+
+    chunks = _split_text("\n```\n" + "a" * 50 + "\n```" + " tail" * 10, 60)
+    assert all(chunk.strip() for chunk in chunks)
+    assert chunks[0].startswith("```")

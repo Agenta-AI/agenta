@@ -16,7 +16,12 @@ from oss.src.core.channels.dtos import (
     ChannelInboxEventProcessed,
     ChannelSpaceKind,
 )
-from oss.src.core.channels.render.approval import approval_details
+from oss.src.core.channels.render.approval import (
+    approval_details,
+    approval_label,
+    approval_outcome,
+)
+from oss.src.core.channels.render.render import _split_text
 
 # Application flags that let the bot read message content.
 GATEWAY_MESSAGE_CONTENT = 1 << 18
@@ -306,18 +311,41 @@ def parse_interaction(interaction: Dict[str, Any]) -> Optional[ChannelInboundEve
 
 
 def split_text(text: str, *, max_chars: int = TEXT_MAX_CHARS) -> List[str]:
-    """The safety net: core already splits answers at the declared limit,
-    keeping code blocks whole. This only catches oversize content that
-    reached the adapter anyway, such as a long approval card."""
+    """Core already splits answers at the declared limit. Text that reaches
+    the adapter oversize anyway (a channel tool's message, a long approval
+    card) goes through the same Markdown split, so code blocks stay
+    readable."""
 
-    if len(text) <= max_chars:
-        return [text]
-    return [text[i : i + max_chars] for i in range(0, len(text), max_chars)]
+    return _split_text(text, max_chars)
+
+
+# Markdown that could hide or restyle a tool call's words on the card: a
+# spoiler (`||rm -rf x||`) hides them until clicked. Escaped with a backslash,
+# Discord shows the character itself.
+_MARKDOWN_INLINE = re.compile(r"([\\*_~`|<\[])")
+_MARKDOWN_LINE_START = re.compile(r"^(\s*)([#>-])", re.MULTILINE)
+
+
+def escape_markdown(text: str) -> str:
+    return _MARKDOWN_LINE_START.sub(r"\1\\\2", _MARKDOWN_INLINE.sub(r"\\\1", text))
 
 
 def _card_text(card: Dict[str, Any]) -> str:
-    lines = [card[key] for key in ("title", "text") if card.get(key)]
-    lines.append(approval_details(card.get("arguments")))
+    """The card's words are the recorded tool call, not the agent's Markdown,
+    so they are shown literally. `answered_heading` (set by
+    `answered_message`) replaces "Approval needed" and the scope line."""
+
+    heading = card.get("answered_heading")
+    if heading:
+        label = approval_label(card.get("tool"))
+        lines = [f"{heading}: {escape_markdown(label)}" if label else heading]
+    else:
+        lines = [
+            escape_markdown(card[key]) for key in ("title", "text") if card.get(key)
+        ]
+    details = approval_details(card.get("arguments"))
+    if details:
+        lines.append(escape_markdown(details))
     return "\n".join(lines)
 
 
@@ -383,3 +411,45 @@ def build_messages(content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if components:
         bodies[-1]["components"] = components
     return bodies
+
+
+def _mention(sender: Optional[Dict[str, Any]]) -> Optional[str]:
+    """The person as Discord shows them: a user mention renders as their
+    name. Falls back to the name the click carried."""
+
+    sender = sender or {}
+    user_id = str(sender.get("id") or "")
+    if user_id.isdigit():
+        return f"<@{user_id}>"
+    name = sender.get("name") or sender.get("username")
+    return escape_markdown(str(name)) if name else None
+
+
+def answered_message(
+    content: List[Dict[str, Any]],
+    *,
+    approved: bool,
+    answered_by: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """The edit that turns an answered approval card into its outcome:
+    "Approved by @name: Write note.txt" in place of "Approval needed: ...",
+    no scope line, no buttons. None when the card took more than one message
+    or the outcome would not fit in one: the receipt names only the last
+    message, so the caller then removes the buttons alone."""
+
+    heading = approval_outcome(approved=approved, by=_mention(answered_by))
+    posted: List[Dict[str, Any]] = []
+    answered: List[Dict[str, Any]] = []
+    for part in content:
+        if part.get("type") == "button":
+            continue
+        posted.append(part)
+        if part.get("type") == "card":
+            part = {**part, "answered_heading": heading}
+        answered.append(part)
+
+    posted_text, _ = render_content(posted)
+    text, _ = render_content(answered)
+    if not text or len(split_text(posted_text)) > 1 or len(split_text(text)) > 1:
+        return None
+    return {"content": text, "components": [], "allowed_mentions": {"parse": []}}

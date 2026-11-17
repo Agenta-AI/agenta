@@ -2,11 +2,21 @@ import {useState} from "react"
 
 import {Button} from "@agenta/ui/ui"
 import {ArrowSquareOut, type Icon} from "@phosphor-icons/react"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {RunErrorBuyCreditsDialog} from "./RunErrorBuyCreditsDialog"
-import {RunErrorPlansDialog} from "./RunErrorPlansDialog"
-import {RunErrorProviderDrawer} from "./RunErrorProviderDrawer"
+const RunErrorBuyCreditsDialog = dynamic(
+    () => import("./RunErrorBuyCreditsDialog").then((m) => m.RunErrorBuyCreditsDialog),
+    {ssr: false},
+)
+const RunErrorPlansDialog = dynamic(
+    () => import("./RunErrorPlansDialog").then((m) => m.RunErrorPlansDialog),
+    {ssr: false},
+)
+const RunErrorProviderDrawer = dynamic(
+    () => import("./RunErrorProviderDrawer").then((m) => m.RunErrorProviderDrawer),
+    {ssr: false},
+)
 
 /** Where a way out leads: a surface opened over the chat, the provider's own site, or a route. */
 export type RunErrorRecoveryTarget =

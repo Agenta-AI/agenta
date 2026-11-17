@@ -59,7 +59,9 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
     const [cwd, setCwd] = useState("")
 
     // The summary drive: record-log recents plus a count, no whole-tree listing to open a menu.
-    const drive = useSessionDriveSummary(active ? sessionId : "", active ? artifactId : undefined)
+    // Read once `@` opens: every session mounts this composer, and most never type it.
+    const opened = active && query !== null
+    const drive = useSessionDriveSummary(opened ? sessionId : "", opened ? artifactId : undefined)
 
     const deferredQuery = useDeferredValue(query ?? "")
     const searchActive = useDelayedTrue(deferredQuery.trim() !== "", SEARCH_DELAY_MS)

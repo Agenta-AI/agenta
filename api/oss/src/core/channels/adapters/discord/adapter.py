@@ -388,16 +388,26 @@ class DiscordAdapter(ChannelAdapterInterface):
         connection: ChannelConnection,
         external_locator: Dict[str, Any],
         content: Optional[List[Dict[str, Any]]] = None,
+        approved: Optional[bool] = None,
+        answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """Show the decision and who made it on the card, and remove the
+        buttons. Without the decision, only the buttons go."""
+
         channel_id = external_locator.get("source_channel_id")
         message_id = external_locator.get("message_id")
         if not channel_id or not message_id:
             return
+        body = None
+        if content and approved is not None:
+            body = mapping.answered_message(
+                content, approved=approved, answered_by=answered_by
+            )
         await self._request(
             _bot_token(connection),
             "PATCH",
             f"/channels/{channel_id}/messages/{message_id}",
-            json={"components": []},
+            json=body or {"components": []},
         )
 
     async def signal_activity(
@@ -474,15 +484,26 @@ class DiscordAdapter(ChannelAdapterInterface):
                 "limit": max(1, min(limit or _HISTORY_PAGE_MAX, _HISTORY_PAGE_MAX))
             },
         )
+        messages = messages if isinstance(messages, list) else []
+        guild_id = locator.get("guild_id")
+        bot_role_id = None
+        if guild_id and any(m.get("mention_roles") for m in messages):
+            # Without the role, a role mention stays as Discord wrote it; the
+            # page is still context worth keeping.
+            try:
+                bot_role_id = await self._bot_role(connection, str(guild_id))
+            except (_DiscordApiError, httpx.HTTPError) as exc:
+                log.warning("[DISCORD] role read failed: %s", type(exc).__name__)
         events: List[ChannelInboundEvent] = []
         # Discord answers newest first; the inbox keeps context in insert order.
-        for message in reversed(messages) if isinstance(messages, list) else []:
+        for message in reversed(messages):
             event = mapping.parse_message(
                 message,
-                guild_id=locator.get("guild_id"),
+                guild_id=guild_id,
                 parent_id=None,
                 bot_user_id=_bot_user_id(connection),
                 bot_username=_data(connection).get("bot_username"),
+                bot_role_id=bot_role_id,
             )
             if event is not None:
                 events.append(event)
