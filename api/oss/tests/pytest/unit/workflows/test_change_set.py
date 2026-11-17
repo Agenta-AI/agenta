@@ -3673,6 +3673,19 @@ class TestTheAgentaToolsEntryIsAddressable:
         )
         assert replaced["parameters"]["agent"]["tools"][3]["tools"] == {}
 
+    def test_a_tool_type_that_is_not_text_has_no_key(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["tools"],
+                    "value": {"type": []},
+                }
+            ),
+            with_agenta_tools(),
+        )
+        assert error.reason == Reason.ITEM_KEY_UNDEFINED
+
     def test_a_second_entry_is_a_duplicate_key(self):
         error = failure(
             ops(

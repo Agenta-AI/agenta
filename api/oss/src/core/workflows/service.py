@@ -489,8 +489,10 @@ def _reject_unrunnable_agent(data: Any) -> None:
         )
     except InvalidHarnessKindError as e:
         raise InvalidAgentHarnessError(value=e.value, message=e.message) from e
-    # The parse's refusals. Anything else is a defect in the parser, not in the
-    # configuration, and must not reach the caller as "correct your fields".
+    # The parse's refusals: the entry errors, the template shape error, and the
+    # `ValueError` the parse raises for a field it cannot read (a secret reference without
+    # a slug, an unknown permission default). Any other type is a defect in the parser, not
+    # in the configuration, and must not reach the caller as "correct your fields".
     except (ConfigEntryError, AgentTemplateShapeError, ValueError) as e:
         issues = [str(e)]
         for name, error_type in _AGENT_TEMPLATE_LISTS:

@@ -18,6 +18,7 @@ from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
 from oss.src.core.workflows.types import (
     InvalidAgentConfigurationError,
+    InvalidAgentConnectionError,
     InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
 )
@@ -68,6 +69,7 @@ def template_load_error_response(
         exc,
         (
             InvalidAgentConfigurationError,
+            InvalidAgentConnectionError,
             InvalidAgentHarnessError,
             InvalidAgentInstructionsError,
         ),

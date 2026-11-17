@@ -475,7 +475,7 @@ def _tool_name(entry: Dict[str, Any], *, allow_legacy_fallback: bool) -> Optiona
         return entry.get("name") or entry.get("slug")
     if kind == "platform":
         return entry.get("op")
-    if kind in SINGLE_ENTRY_TOOL_TYPES:
+    if isinstance(kind, str) and kind in SINGLE_ENTRY_TOOL_TYPES:
         # A type the runtime allows once per list has no name, so its type is its key, and
         # an operation can reach inside the entry instead of replacing the whole list around
         # it. A legacy list holding two is a duplicate key, which the engine already reports.
