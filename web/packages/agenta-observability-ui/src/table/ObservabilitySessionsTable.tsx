@@ -1,8 +1,6 @@
 import type {ReactNode} from "react"
 import {useMemo} from "react"
 
-import {useT} from "@agenta/i18n"
-import columnsCatalog from "@agenta/i18n/catalogs/observabilityUi.columns"
 import {useSessions} from "@agenta/observability"
 import {
     InfiniteVirtualTableFeatureShell,
@@ -12,7 +10,7 @@ import {
 } from "@agenta/ui/table"
 import {useStore} from "jotai"
 
-import {getSessionColumns, type SessionRow} from "../columns/getSessionColumns"
+import {useSessionColumns, type SessionRow} from "../columns/getSessionColumns"
 
 /**
  * The sessions table both surfaces render.
@@ -57,8 +55,7 @@ export const ObservabilitySessionsTable = ({
     // The cells read page-level atoms; an isolated store leaves them empty.
     const ambientStore = useStore()
 
-    const t = useT(columnsCatalog)
-    const columns = useMemo(() => getSessionColumns(t), [t])
+    const columns = useSessionColumns()
 
     // The cells read their own data from atoms keyed by session id, so a row only carries the id.
     const rows = useMemo<SessionRow[]>(

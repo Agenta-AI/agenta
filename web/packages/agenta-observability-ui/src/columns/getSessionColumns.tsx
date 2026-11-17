@@ -1,6 +1,6 @@
-import {Key} from "react"
+import {Key, useMemo} from "react"
 
-import type {CatalogKey} from "@agenta/i18n"
+import {useT, type CatalogKey} from "@agenta/i18n"
 import columnsCatalog from "@agenta/i18n/catalogs/observabilityUi.columns"
 import {ColumnVisibilityMenuTrigger, type ExtendedColumn} from "@agenta/ui/table"
 
@@ -150,3 +150,9 @@ export const getSessionColumns = (
         render: () => null,
     },
 ]
+
+/** The session columns in the active language; they change when the language does. */
+export const useSessionColumns = (): SessionColumn[] => {
+    const t = useT(columnsCatalog)
+    return useMemo(() => getSessionColumns(t), [t])
+}
