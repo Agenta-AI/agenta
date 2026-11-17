@@ -10,7 +10,7 @@ import {
     useVaultSecret,
     type ProviderFieldConfig,
 } from "@agenta/entities/secret"
-import {createT, useT} from "@agenta/i18n"
+import {createT, useT, type CatalogKey} from "@agenta/i18n"
 import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 import type {LlmProvider} from "@agenta/shared/types"
 import {isSlugInputValid} from "@agenta/shared/utils"
@@ -55,6 +55,97 @@ const INITIAL_VALUES: FormValues = {
 
 /** Error line under a control — replaces antd `Form.Item`'s validation message. */
 const tNow = createT(customProviderFormCatalog)
+type FormKey = CatalogKey<typeof customProviderFormCatalog>
+
+/** Display text per field key. The field config in @agenta/entities keeps English only as data. */
+const FIELD_TEXT: Record<string, {label: FormKey; placeholder: FormKey}> = {
+    name: {
+        label: "entityUi.customProviderForm.nameLabel",
+        placeholder: "entityUi.customProviderForm.namePlaceholder",
+    },
+    apiKey: {
+        label: "entityUi.customProviderForm.apiKeyLabel",
+        placeholder: "entityUi.customProviderForm.apiKeyPlaceholder",
+    },
+    apiBaseUrl: {
+        label: "entityUi.customProviderForm.apiBaseUrlLabel",
+        placeholder: "entityUi.customProviderForm.apiBaseUrlPlaceholder",
+    },
+    version: {
+        label: "entityUi.customProviderForm.versionLabel",
+        placeholder: "entityUi.customProviderForm.versionPlaceholder",
+    },
+    region: {
+        label: "entityUi.customProviderForm.regionLabel",
+        placeholder: "entityUi.customProviderForm.regionPlaceholder",
+    },
+    vertexProject: {
+        label: "entityUi.customProviderForm.vertexProjectLabel",
+        placeholder: "entityUi.customProviderForm.vertexProjectPlaceholder",
+    },
+    vertexLocation: {
+        label: "entityUi.customProviderForm.vertexLocationLabel",
+        placeholder: "entityUi.customProviderForm.vertexLocationPlaceholder",
+    },
+    vertexCredentials: {
+        label: "entityUi.customProviderForm.vertexCredentialsLabel",
+        placeholder: "entityUi.customProviderForm.vertexCredentialsPlaceholder",
+    },
+    bearerToken: {
+        label: "entityUi.customProviderForm.bearerTokenLabel",
+        placeholder: "entityUi.customProviderForm.bearerTokenPlaceholder",
+    },
+    accessKeyId: {
+        label: "entityUi.customProviderForm.accessKeyIdLabel",
+        placeholder: "entityUi.customProviderForm.accessKeyIdPlaceholder",
+    },
+    accessKey: {
+        label: "entityUi.customProviderForm.accessKeyLabel",
+        placeholder: "entityUi.customProviderForm.accessKeyPlaceholder",
+    },
+    sessionToken: {
+        label: "entityUi.customProviderForm.sessionTokenLabel",
+        placeholder: "entityUi.customProviderForm.sessionTokenPlaceholder",
+    },
+}
+
+/** A field's hint, by `<field>/<provider kind>` first, then by field. */
+const NOTE_TEXT: Record<string, FormKey> = {
+    "apiBaseUrl/custom": "entityUi.customProviderForm.apiBaseUrlNoteCustom",
+    "apiBaseUrl/azure": "entityUi.customProviderForm.apiBaseUrlNoteAzure",
+    bearerToken: "entityUi.customProviderForm.bearerTokenNote",
+    apiKey: "entityUi.customProviderForm.secretNote",
+    vertexCredentials: "entityUi.customProviderForm.secretNote",
+    accessKeyId: "entityUi.customProviderForm.secretNote",
+    accessKey: "entityUi.customProviderForm.secretNote",
+    sessionToken: "entityUi.customProviderForm.secretNote",
+}
+
+/** The either/or credential message, by provider kind. */
+const AUTH_MESSAGE_TEXT: Record<string, FormKey> = {
+    bedrock: "entityUi.customProviderForm.bedrockAuthRequired",
+}
+
+/** A provider kind's name in the picker; the custom endpoint is the one that is not a brand. */
+const providerLabel = (kind: string): string =>
+    kind === "custom"
+        ? tNow("entityUi.customProviderForm.openaiCompatibleEndpoint")
+        : Object.hasOwn(PROVIDER_LABELS, kind)
+          ? PROVIDER_LABELS[kind]
+          : capitalize(kind)
+
+/** The field in the active language; a field this form has no text for keeps its own. */
+const translateField = (field: ProviderFieldConfig, kind: string): ProviderFieldConfig => {
+    const text = Object.hasOwn(FIELD_TEXT, field.key) ? FIELD_TEXT[field.key] : undefined
+    const note = fieldNoteForKind(field, kind)
+    const noteKey = [`${field.key}/${kind}`, field.key].find((key) => Object.hasOwn(NOTE_TEXT, key))
+    return {
+        ...field,
+        label: text ? tNow(text.label) : field.label,
+        placeholder: text ? tNow(text.placeholder) : field.placeholder,
+        note: note && noteKey ? tNow(NOTE_TEXT[noteKey]) : note,
+    }
+}
 
 const FieldError = ({error}: {error?: string}) =>
     error ? <span className="text-xs text-colorError">{error}</span> : null
@@ -149,7 +240,7 @@ const CustomProviderForm = ({
     const providerOptions = useMemo<ProviderGroup[]>(() => {
         const allProviders = [...new Set([...standardProviders, ...customProviders])]
         return allProviders.map((key) => {
-            const label = PROVIDER_LABELS[key] ?? capitalize(key)
+            const label = providerLabel(key)
             return {
                 label,
                 options: [{label, value: key, key}],
@@ -177,7 +268,10 @@ const CustomProviderForm = ({
     const eitherOrAuthKeys = useMemo(
         () =>
             new Set<string>(
-                (PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]?.alternatives ?? []).flat(),
+                (Object.hasOwn(PROVIDER_AUTH_REQUIREMENTS, normalizedProviderKind)
+                    ? PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind].alternatives
+                    : []
+                ).flat(),
             ),
         [normalizedProviderKind],
     )
@@ -213,7 +307,7 @@ const CustomProviderForm = ({
                     return !field.model || field.model.includes(normalizedProviderKind)
                 }
                 return true
-            }).map((field) => ({...field, note: fieldNoteForKind(field, normalizedProviderKind)})),
+            }).map((field) => translateField(field, normalizedProviderKind)),
         [shouldFilter, normalizedProviderKind],
     )
 
@@ -294,13 +388,19 @@ const CustomProviderForm = ({
                 return
             }
 
-            const authReq = PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]
+            const authReq = Object.hasOwn(PROVIDER_AUTH_REQUIREMENTS, normalizedProviderKind)
+                ? PROVIDER_AUTH_REQUIREMENTS[normalizedProviderKind]
+                : undefined
             if (authReq) {
                 const filled = (key: keyof LlmProvider) =>
                     !!(values[key] as string | undefined)?.trim()
                 const satisfied = authReq.alternatives.some((set) => set.every(filled))
                 if (!satisfied) {
-                    setErrorMessage(authReq.message)
+                    setErrorMessage(
+                        Object.hasOwn(AUTH_MESSAGE_TEXT, normalizedProviderKind)
+                            ? tNow(AUTH_MESSAGE_TEXT[normalizedProviderKind])
+                            : authReq.message,
+                    )
                     return
                 }
             }

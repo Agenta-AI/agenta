@@ -1,7 +1,7 @@
 {
     "composerViewer": "Vous pouvez consulter ce chat, mais pas y envoyer de messages. Demandez l’accès « Peut envoyer » à {{owner}}.",
     "composerPrivateAgent": "L’agent de ce chat est privé. Vous pouvez lire l’historique, mais pas envoyer de messages.",
-    "composerNoOwner": "Une clé d’API ou une automatisation a démarré ce chat. Vous pouvez le lire, mais pas y envoyer de messages ici.",
+    "composerNoOwner": "Une clé API ou une automatisation a démarré ce chat. Vous pouvez le lire, mais pas y envoyer de messages ici.",
     "composerOwnerLeft": "{{owner}} a quitté ce projet, donc personne ne peut envoyer de messages dans ce chat.",
     "ownerFallback": "la personne propriétaire",
     "privateAgent": "Agent privé",
