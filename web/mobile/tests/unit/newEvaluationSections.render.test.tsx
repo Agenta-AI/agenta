@@ -205,12 +205,12 @@ describe("revision step", () => {
         expect(byLabel("Select default v2")?.getAttribute("data-state")).toBe("unchecked")
     })
 
-    it("The empty v0 a variant starts with is not offered", async () => {
+    // `useAppRevisions` drops empty v0 seeds (see `isEmptySeed`); a v0 it returns is configured.
+    it("A configured v0 the revisions list returns can be picked", async () => {
         wizardData.revisions = [...wizardData.revisions, revisionRow("rev-d0", "default", 0)]
         await mountRevisions("auto")
         await act(async () => byLabel("Show older revisions of default")?.click())
-        expect(rowByText("default v2")).toBeDefined()
-        expect(byLabel("Select default v0")).toBeNull()
+        expect(byLabel("Select default v0")).not.toBeNull()
     })
 
     it("An auto evaluation picks several revisions with checkboxes", async () => {

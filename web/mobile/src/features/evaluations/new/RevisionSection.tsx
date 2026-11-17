@@ -77,8 +77,8 @@ export const RevisionSection = ({
     const tree = useMemo(
         () =>
             flattenTree(
-                // A v0 is the empty revision a new variant starts with: nothing to evaluate.
-                rows.filter((row) => row.version > 0),
+                // `useAppRevisions` already drops empty v0 seeds; a configured v0 stays.
+                rows,
                 (row) => row.variantId || row.variantName,
                 expanded,
             ),

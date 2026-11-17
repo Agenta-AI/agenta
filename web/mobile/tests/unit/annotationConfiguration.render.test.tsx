@@ -208,7 +208,7 @@ describe("the Configuration tab", () => {
     it("An evaluator card switches between Details and JSON", async () => {
         await render()
         expect(host.textContent).toContain("Tone review")
-        expect(host.textContent).toContain("V3")
+        expect(host.textContent).toContain("v3")
         expect(host.textContent).toContain("Output metrics")
         expect(host.textContent).toContain("friendly: boolean")
         await act(async () => button(host, "JSON")!.click())

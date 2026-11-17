@@ -22,6 +22,14 @@ import {WithQueryClient} from "../support/queryClient"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
+// The trace tabs measure their bar; jsdom has no ResizeObserver.
+const noop = () => undefined
+globalThis.ResizeObserver ??= class {
+    observe = noop
+    unobserve = noop
+    disconnect = noop
+} as unknown as typeof ResizeObserver
+
 const loaded = vi.hoisted(() => ({spanPanel: false}))
 
 const span = vi.hoisted(() => ({

@@ -54,7 +54,7 @@ describe("SDK evaluation sheet", () => {
         expect(text).toContain("pip install -U agenta")
         expect(text).toContain("aevaluate")
         const hrefs = [...document.querySelectorAll("a")].map((a) => a.getAttribute("href"))
-        expect(hrefs).toContain("https://agenta.ai/docs/evaluation/evaluation-from-sdk/quick-start")
+        expect(hrefs).toContain("https://docs.agenta.ai/evaluation/evaluation-from-sdk/quick-start")
         expect(hrefs.some((href) => href?.startsWith("https://colab.research.google.com/"))).toBe(
             true,
         )

@@ -89,3 +89,12 @@ it("Cancel drops the draft, so the next open shows the applied filters again", (
     click("Filter")
     expect(document.body.textContent).toContain("Span Name")
 })
+
+it("Clear then Apply removes the applied filters", () => {
+    const {onApplyFilter} = render()
+    click("Filter")
+    click("Clear")
+    expect(button("Apply").disabled).toBe(false)
+    click("Apply")
+    expect(onApplyFilter).toHaveBeenCalledWith([])
+})

@@ -33,6 +33,8 @@ export interface FilterDialogProps {
     /** Field menu tree — build it with `getFilterColumns(attributeKeyOptions, icons)`. */
     columns: FilterMenuNode[]
     onApplyFilter: (filters: Filter[]) => void
+    /** @deprecated Unused; Clear resets the draft and Apply sends it. Kept for web/oss callers. */
+    onClearFilter?: (filters: Filter[]) => void
     /** Filter keys the count badge skips, e.g. one a separate control already shows. */
     uncountedKeys?: string[]
     /**
@@ -283,7 +285,7 @@ export function FilterDialog({
     const clearFilter = () => {
         const kept = filter.filter((f) => f.isPermanent)
         setActiveFieldDropdown(null)
-        setFilter(kept.length ? kept : [createEmptyFilter()])
+        setFilter(kept)
     }
 
     const applyFilter = () => {
