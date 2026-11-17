@@ -464,7 +464,8 @@ def _reject_unrunnable_agent(data: Any) -> None:
 
     wrapped = isinstance(parameters.get("agent"), dict)
     template = parameters["agent"] if wrapped else parameters
-    if AG_EMBED_KEY in template:
+    # Only an embed with a body resolves; an empty one replaces nothing.
+    if template.get(AG_EMBED_KEY):
         return
     root = "parameters.agent" if wrapped else "parameters"
 

@@ -132,7 +132,12 @@ def coerce_tool_config(value: Any) -> ToolConfig:
             if action:
                 data["action"] = action
 
-    if isinstance(data.get("type"), str) and data.get("type") in {
+    if "type" in data and not isinstance(data["type"], str):
+        raise ToolConfigurationError(
+            "Unsupported tool configuration shape", value=value
+        )
+
+    if data.get("type") in {
         "builtin",
         "gateway",
         "gateway_connection",

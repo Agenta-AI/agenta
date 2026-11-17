@@ -87,6 +87,17 @@ class TestTheRuleNamesTheField:
             "parameters.agent.tools[0] is invalid: Unsupported tool configuration shape"
         ]
 
+    def test_a_tool_type_that_is_not_text_is_not_read_as_a_gateway_slug(self):
+        tool = {"type": [], "name": "tools.composio.github.GET_ISSUE.default"}
+        assert _issues(_agent(tools=[tool])) == [
+            "parameters.agent.tools[0] is invalid: Unsupported tool configuration shape"
+        ]
+
+    def test_an_empty_embed_does_not_skip_the_check(self):
+        data = _agent(skills=[NO_BODY])
+        data["parameters"]["agent"]["@ag.embed"] = {}
+        assert _issues(data) == [NO_BODY_ISSUE]
+
     def test_a_problem_outside_the_lists_carries_the_parsers_reason(self):
         (issue,) = _issues(_agent(model="gpt-5.5"))
         assert "pre-migration flat key 'model'" in issue
