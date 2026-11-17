@@ -6,6 +6,7 @@
     "botTokenRevoked": "ボットトークンが取り消されました",
     "botTokenRevokedUpdate": "ボットトークンが取り消されました · 更新してください",
     "connectedTo": "{{agent}} に接続済み",
+    "discordIdle": "Discord サーバーでエージェントとチャット",
     "pending": "未連携 · 接続を完了してください",
     "placesAndDms": "{{places}} + DM",
     "slackIdle": "チームのワークスペースでエージェントとチャット",

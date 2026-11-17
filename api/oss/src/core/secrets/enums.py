@@ -101,6 +101,7 @@ class ChannelSecretKind(str, Enum):
     TELEGRAM = "telegram"
     WHATSAPP = "whatsapp"
     TEAMS = "teams"
+    DISCORD = "discord"
     AGENTA = "agenta"
     BRIDGE = "bridge"
 

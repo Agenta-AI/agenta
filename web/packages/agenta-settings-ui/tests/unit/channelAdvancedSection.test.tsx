@@ -168,6 +168,11 @@ it("explains the Telegram limits", async () => {
     expect(byId("channels-advanced-checklist").textContent).toContain("The bot is in no group yet")
 })
 
+it("shows the Telegram history note only on Telegram", async () => {
+    await open({}, "whatsapp")
+    expect(byId("channels-advanced-telegram-help")).toBeNull()
+})
+
 it("keeps an unsaved channel checklist when the posting switch is saved", async () => {
     const writeToolSettings = vi.fn(async () => {})
     await open({writeToolSettings, listReadableChannels: async () => CHANNELS})
