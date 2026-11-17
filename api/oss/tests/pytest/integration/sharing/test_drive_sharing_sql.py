@@ -6,12 +6,14 @@ Every test seeds its own organization; the organization delete in `finally` casc
 every row written here.
 """
 
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from typing import Optional
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import text
 
 import oss.src.models.db_models  # noqa: F401  (the ORM tables the DAOs join)
 from oss.src.core.sharing.dtos import AccessPolicy, AgentReadScope, Visibility
@@ -325,3 +327,47 @@ async def test_sharing_refuses_a_drive_whose_agent_changed_owner():
         assert await _sharing().fetch_agent_policy(
             project_id=project_id, artifact_id=agent
         ) == _private(alice)
+
+
+async def test_sharing_waits_for_a_transfer_and_reads_the_new_owner():
+    """A transfer of the drive's agent holds its lock when the share write starts. The
+    write waits, then reads the owner after the transfer committed, and conflicts."""
+    async with seeded("alice", "bob") as org:
+        project_id = org.project_ids[0]
+        alice, bob = org.user_ids["alice"], org.user_ids["bob"]
+        other = await _agent(project_id, name="Other", policy=_private(alice))
+        agent = await _agent(project_id, name="Quote", policy=_private(alice))
+        legacy = await _drive(project_id, slug="other-files", agent_id=other)
+
+        params = {"p": project_id, "a": other, "o": bob}
+        async with get_transactions_engine().transaction() as transfer:
+            await transfer.execute(
+                text(
+                    "SELECT id FROM workflow_artifacts "
+                    "WHERE project_id = :p AND id = :a FOR UPDATE"
+                ),
+                params,
+            )
+            await transfer.execute(
+                text(
+                    "UPDATE agent_access SET owner_user_id = :o "
+                    "WHERE project_id = :p AND artifact_id = :a"
+                ),
+                params,
+            )
+            share = asyncio.create_task(
+                _sharing().set_agent_policy(
+                    project_id=project_id,
+                    artifact_id=agent,
+                    expected=_private(alice),
+                    policy=_shared(alice),
+                    user_id=alice,
+                    share_mount_ids=[legacy],
+                )
+            )
+            await asyncio.sleep(1.0)
+            assert not share.done()
+
+        with pytest.raises(SharingConflict):
+            await share
+        assert await _visibility(project_id, legacy) is None

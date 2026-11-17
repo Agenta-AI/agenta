@@ -110,9 +110,30 @@ WHERE m.project_id = :project_id
   AND m.deleted_at IS NULL
 """
 
-# The agents whose drives (without their own row) the share write gives a row: locked
-# like `transfer_agent` locks them, so the owner checked here is the owner at commit.
-_LOCK_DRIVE_AGENTS_SQL = """
+# The share write locks the agent it changes and the agents whose drives (without their
+# own row) it gives a row, in one statement and in id order, so two share writes lock in
+# the same order. `transfer_agent` takes the same lock.
+_LOCK_SHARING_AGENTS_SQL = """
+SELECT a.id
+FROM workflow_artifacts a
+WHERE a.project_id = :project_id
+  AND (
+    a.id = :artifact_id
+    OR a.id::text IN (
+        SELECT m.agent_id
+        FROM mounts m
+        WHERE m.project_id = :project_id
+          AND m.id = ANY(CAST(:mount_ids AS uuid[]))
+          AND m.agent_id IS NOT NULL
+    )
+  )
+ORDER BY a.id
+FOR UPDATE OF a
+"""
+
+# Read after the lock, in its own statement, so it sees a transfer that committed while
+# the lock waited.
+_FETCH_DRIVE_AGENT_POLICIES_SQL = """
 SELECT x.visibility, x.owner_user_id
 FROM mounts m
 JOIN workflow_artifacts a
@@ -125,8 +146,6 @@ WHERE m.project_id = :project_id
       SELECT 1 FROM mount_visibility v
       WHERE v.project_id = m.project_id AND v.mount_id = m.id
   )
-ORDER BY a.id
-FOR UPDATE OF a
 """
 
 # The owner stays: a shared drive keeps the person who owns it. A drive without its row
@@ -367,7 +386,10 @@ class SharingDAO(SharingDAOInterface):
     ) -> AgentPolicyWriteResult:
         params = {"project_id": project_id, "artifact_id": artifact_id}
         drives_made_shared: List[str] = []
+        share_params = {**params, "mount_ids": list(share_mount_ids)}
         async with self.engine.transaction() as connection:
+            if share_mount_ids:
+                await connection.execute(text(_LOCK_SHARING_AGENTS_SQL), share_params)
             locked = (
                 await connection.execute(text(_LOCK_AGENT_ARTIFACT_SQL), params)
             ).first()
@@ -401,12 +423,10 @@ class SharingDAO(SharingDAOInterface):
                 },
             )
             if share_mount_ids:
-                share_params = {
-                    "project_id": project_id,
-                    "mount_ids": list(share_mount_ids),
-                }
                 for drive_agent in (
-                    await connection.execute(text(_LOCK_DRIVE_AGENTS_SQL), share_params)
+                    await connection.execute(
+                        text(_FETCH_DRIVE_AGENT_POLICIES_SQL), share_params
+                    )
                 ).all():
                     if (
                         drive_agent.visibility != Visibility.PRIVATE.value
