@@ -1,4 +1,4 @@
-<!-- review-loop: design=117d4a51d556 lenses=simplify,naming -->
+<!-- review-loop: design=a07648f8ff2f lenses=simplify,naming -->
 
 **Review loop result** for the unified drive design (repo commit `81804cc34d`), 3 rounds. A security lens ran next to the two design lenses in each round.
 
@@ -21,3 +21,5 @@
 - Old API pods decide the file routes by agent until they drain. The window is short and stated in the rollout table.
 - The assumption that child runs, triggers and evaluations all mint their credential in the same place is not verified. Task 1.2a checks it.
 - No fourth round ran. The round 3 fixes were checked by validation only.
+
+**Later changes** (not reviewed as a design): during the code review of PR 8315, the design took the code's decisions on the read shape of an agent without a drive row, the two run credential mints of `run_agent_id`, the reserved slug lookup by agent id, the disclosure field names, a known limit for an interrupted first commit, and the tasks for after release 2.
