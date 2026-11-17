@@ -190,8 +190,14 @@ describe("mapDesktopToMobile — legacy desktop URLs", () => {
             "/m/auth?token=t&email=a%40b.c&organization_id=o&workspace_id=w&project_id=p",
         ],
         ["/auth?auth_error=sso_required", "/m/auth?auth_error=sso_required"],
-        ["/auth/reset-password?token=t&tenantId=public", "/m/auth/reset-password?token=t&tenantId=public"],
-        ["/auth/callback/sso:acme:okta?code=c&state=s", "/m/auth/callback/sso:acme:okta?code=c&state=s"],
+        [
+            "/auth/reset-password?token=t&tenantId=public",
+            "/m/auth/reset-password?token=t&tenantId=public",
+        ],
+        [
+            "/auth/callback/sso:acme:okta?code=c&state=s",
+            "/m/auth/callback/sso:acme:okta?code=c&state=s",
+        ],
         ["/auth/verify-email?x=1", "/m/auth?x=1"],
     ]
 
@@ -201,9 +207,9 @@ describe("mapDesktopToMobile — legacy desktop URLs", () => {
 
     it("names no /m page for a path it sends to the root, so the proxy can log it", () => {
         expect(mobileRouteFor("/no/such/page", "", {developerViews: true})).toBeNull()
-        expect(mobileRouteFor("/w/ws1/p/pr1/evaluations/results/run1", "", {developerViews: true})).toBe(
-            "/m/w/ws1/p/pr1/evaluations/results/run1",
-        )
+        expect(
+            mobileRouteFor("/w/ws1/p/pr1/evaluations/results/run1", "", {developerViews: true}),
+        ).toBe("/m/w/ws1/p/pr1/evaluations/results/run1")
     })
 })
 
