@@ -85,6 +85,8 @@ class InMemorySharingDAO(SharingDAOInterface):
         self.tombstones: Dict[Tuple[UUID, str], Optional[UUID]] = {}
         # (project_id, mount_id) -> the drive's scope and `mount_visibility` row.
         self.mounts: Dict[Tuple[UUID, UUID], MountVisibility] = {}
+        # (project_id, artifact_id) -> the drive slugs the agent lists.
+        self.listed_drives: Dict[Tuple[UUID, UUID], Set[str]] = {}
         # Runs once, at the start of the next `set_agent_policy` (a concurrent writer).
         self.before_agent_write = None
         self.reads: List[str] = []
@@ -169,6 +171,12 @@ class InMemorySharingDAO(SharingDAOInterface):
     ) -> Optional[MountVisibility]:
         self.reads.append("fetch_mount_visibility")
         return self.mounts.get((project_id, mount_id))
+
+    async def agent_lists_drive(
+        self, *, project_id: UUID, artifact_id: UUID, mount: MountVisibility
+    ) -> bool:
+        self.reads.append("agent_lists_drive")
+        return mount.slug in self.listed_drives.get((project_id, artifact_id), set())
 
     # -- agents -------------------------------------------------------------------------
 
