@@ -174,3 +174,38 @@ async def test_inactive_principal_gets_no_token(prelude, monkeypatch):
     monkeypatch.setattr(access_module, "_access_service", _Inactive())
     with pytest.raises(MissingPrincipal):
         await _prepare(prelude, envelope=_scoped(prelude), user_id=uuid4())
+
+
+async def test_prepare_invoke_writes_the_resolved_agent_never_the_callers(prelude):
+    agent_id = uuid4()
+    prelude.service._ensure_request_revision = AsyncMock(
+        return_value=SimpleNamespace(workflow_id=agent_id)
+    )
+    envelope = make_envelope(
+        project_id=prelude.project_id, organization_id=prelude.organization_id
+    )
+    credentials, _ = await prelude.service._prepare_invoke(
+        project_id=prelude.project_id,
+        user_id=envelope.authority.principal.id,
+        request=SimpleNamespace(
+            meta={"run_agent_id": str(uuid4())},
+            references={"workflow": {"id": str(uuid4())}},
+        ),
+        envelope=envelope,
+    )
+    assert _claims(credentials)["run_agent_id"] == str(agent_id)
+
+
+async def test_prepare_invoke_without_a_resolved_revision_names_no_agent(prelude):
+    envelope = make_envelope(
+        project_id=prelude.project_id, organization_id=prelude.organization_id
+    )
+    credentials, _ = await prelude.service._prepare_invoke(
+        project_id=prelude.project_id,
+        user_id=envelope.authority.principal.id,
+        request=SimpleNamespace(
+            meta=None, references={"workflow": {"id": str(uuid4())}}
+        ),
+        envelope=envelope,
+    )
+    assert "run_agent_id" not in _claims(credentials)

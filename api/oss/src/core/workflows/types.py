@@ -186,8 +186,8 @@ class InvalidAgentConnectionError(Exception):
 
 
 class AgentDriveError(Exception):
-    """The commit carries ``parameters.agent.drives`` or ``has_session_drive`` that no run can
-    use. Kept outside :class:`WorkflowError` for the reason :class:`InvalidAgentHarnessError`
+    """The commit carries ``parameters.agent.drives``, ``home_drive`` or ``has_session_drive``
+    that no run can use. Kept outside :class:`WorkflowError` for the reason :class:`InvalidAgentHarnessError`
     gives; the commit routes map every subclass to 422."""
 
     code: str
@@ -224,20 +224,37 @@ class InvalidSessionDriveError(AgentDriveError):
     code = "invalid_session_drive"
 
 
+class InvalidHomeDriveError(AgentDriveError):
+    """``home_drive`` names no entry of ``drives``, or a read entry."""
+
+    code = "invalid_home_drive"
+
+
 class AgentDriveNotFoundError(AgentDriveError):
-    """A ``project`` entry names a slug with no active project drive in this project."""
+    """An entry names no active drive in this project, or a private drive the saver may
+    not use."""
 
     code = "drive_not_found"
 
 
-class ProjectMountLookupMissing(WorkflowError):
-    """The service was built without the project mount lookup, so it cannot check that a
-    project drive exists. A wiring fault of the server, never the caller's."""
+class AgentDriveNotSharedError(AgentDriveError):
+    """A shared agent lists a private drive of the saver."""
+
+    code = "drive_not_shared"
+
+
+class HomeDriveNotAllowedError(AgentDriveError):
+    """A private agent's home drive is not a private drive of the agent's owner."""
+
+    code = "home_drive_not_allowed"
+
+
+class MountLookupMissing(WorkflowError):
+    """The service was built without the mount lookup, so it cannot check the drives of
+    an agent. A wiring fault of the server, never the caller's."""
 
     def __init__(self, message: Optional[str] = None):
-        super().__init__(
-            message or "Project drives cannot be checked: no project mount lookup."
-        )
+        super().__init__(message or "Drives cannot be checked: no mount lookup.")
 
 
 class WorkflowServiceUrlMissing(WorkflowError):

@@ -31,7 +31,12 @@ from oss.src.apis.fastapi.sharing.utils import (
     allow_resource,
     not_found_exception,
 )
-from oss.src.core.mounts.dtos import MountArchiveSource, MountCreate, MountScope
+from oss.src.core.mounts.dtos import Mount, MountArchiveSource, MountCreate, MountScope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.src.core.sharing.service import HOME_DRIVE_NOT_ALLOWED, get_sharing_service
+from oss.src.core.shared.dtos import Reference
+from oss.src.core.tools.dtos import AgentError
+from oss.src.middlewares.auth import run_agent_id_of_request
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
@@ -211,21 +216,21 @@ class MountsRouter:
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
-        # Fixed agent sub-paths must be registered before "/{mount_id}" so they win.
+        # Fixed sub-paths must be registered before "/{mount_id}" so they win.
         self.router.add_api_route(
-            "/agents/sign",
-            self.sign_agent_mount_credentials,
+            "/sign",
+            self.sign_mount_credentials_by_slug,
             methods=["POST"],
-            operation_id="sign_agent_mount_credentials",
+            operation_id="sign_mount_credentials_by_slug",
             response_model=MountCredentialsResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
-            "/projects/sign",
-            self.sign_project_mount_credentials,
+            "/agents/sign",
+            self.sign_agent_mount_credentials,
             methods=["POST"],
-            operation_id="sign_project_mount_credentials",
+            operation_id="sign_agent_mount_credentials",
             response_model=MountCredentialsResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
@@ -393,12 +398,10 @@ class MountsRouter:
     async def _require_mount(
         self, request: Request, *, mount_id: UUID, permission: Permission
     ) -> None:
-        """A mount of a session or agent the caller may not see answers as an unknown
-        mount. The mount's scope is cached: it never changes after creation."""
-        scope = await self.mounts_service.fetch_mount_scope(
-            project_id=UUID(request.state.project_id), mount_id=mount_id
-        )
-        if not await allow_mount(request, scope=scope, permission=permission):
+        """A drive the caller may not open answers as an unknown mount."""
+        if not await allow_mount(
+            request, scope=MountScope(id=mount_id), permission=permission
+        ):
             raise MountNotFound()
 
     async def _allow_agent(
@@ -410,6 +413,27 @@ class MountsRouter:
             resource=agent_resource(artifact_id),
         )
 
+    async def _home_drive_refusal(
+        self, *, project_id: UUID, artifact_id: Optional[UUID], mount: Mount
+    ) -> Optional[str]:
+        """`check_home_drive` for the run's agent and this drive. A run with no agent
+        claim is refused."""
+        if artifact_id is None:
+            return HOME_DRIVE_NOT_ALLOWED
+        sharing = get_sharing_service()
+        agent_policy = (
+            await sharing.fetch_agent_policy_cached(
+                project_id=project_id, artifact_id=artifact_id
+            )
+        ).policy
+        access = await sharing.fetch_mount_access_cached(
+            project_id=project_id, mount_id=mount.id
+        )
+        if access is None:
+            return HOME_DRIVE_NOT_ALLOWED
+        mount_policy = await sharing.mount_policy(project_id=project_id, access=access)
+        return sharing.check_home_drive(agent_policy, mount_policy)
+
     @intercept_exceptions()
     @handle_mount_exceptions()
     async def create_mount(
@@ -419,13 +443,11 @@ class MountsRouter:
         body: MountCreateRequest,
     ) -> MountResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
-        # A mount bound to an unknown session or agent is created, so a hidden one
-        # answers the one canonical not-found body.
+        # A mount bound to an unknown session is created, so a hidden one answers the
+        # one canonical not-found body. A caller never binds a drive to an agent.
         if not await allow_mount(
             request,
-            scope=MountScope(
-                session_id=body.mount.session_id, agent_id=body.mount.agent_id
-            ),
+            scope=MountScope(session_id=body.mount.session_id),
             permission=Permission.EDIT_MOUNTS,
         ):
             raise not_found_exception()
@@ -463,21 +485,57 @@ class MountsRouter:
             mount_query=mount_query,
             windowing=body.windowing,
         )
-        # Drop the mounts of sessions and agents the caller may not see (one cached
-        # check per distinct session or agent).
-        visible: dict = {}
-        kept = []
-        for mount in mounts:
-            scope = MountScope(session_id=mount.session_id, agent_id=mount.agent_id)
-            key = (scope.session_id, scope.agent_id)
-            if key not in visible:
-                visible[key] = await allow_mount(
-                    request, scope=scope, permission=Permission.VIEW_MOUNTS
-                )
-            if visible[key]:
-                kept.append(mount)
+        # Drop the drives the caller may not open (the drive rule, one cached check each).
+        kept = [
+            mount
+            for mount in mounts
+            if await allow_mount(
+                request,
+                scope=MountScope(id=mount.id),
+                permission=Permission.VIEW_MOUNTS,
+            )
+        ]
 
         return MountsResponse(count=len(kept), mounts=kept)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def sign_mount_credentials_by_slug(
+        self,
+        request: Request,
+        *,
+        slug: str = Query(...),
+        access: Literal["read-write", "read"] = Query(default="read-write"),
+        is_home: bool = Query(default=False),
+    ) -> MountCredentialsResponse:
+        """Sign credentials for an existing drive by its slug, read-only for
+        `access=read`. Never creates a drive. A missing drive, an archived one, a session
+        drive and a drive the caller may not use all answer 404. With `is_home=true` the
+        drive must pass the home rule for the run's agent, or the answer is 403
+        `home_drive_not_allowed`."""
+        await self._check(request, Permission.USE_MOUNTS)
+        project_id = UUID(request.state.project_id)
+        mount = await self.mounts_service.fetch_mount_by_slug(
+            project_id=project_id,
+            slug=slug,
+        )
+        if mount is None or not await allow_mount(
+            request, scope=MountScope(id=mount.id), permission=Permission.USE_MOUNTS
+        ):
+            raise MountNotFound()
+        if is_home and await self._home_drive_refusal(
+            project_id=project_id,
+            artifact_id=run_agent_id_of_request(request),
+            mount=mount,
+        ):
+            raise _home_drive_not_allowed()
+        credentials = await sign_mount_credentials(
+            mounts_service=self.mounts_service,
+            project_id=project_id,
+            mount_id=mount.id,
+            read_only=access == "read",
+        )
+        return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
 
     @intercept_exceptions()
     @handle_mount_exceptions()
@@ -486,56 +544,68 @@ class MountsRouter:
         request: Request,
         *,
         artifact_id: str = Query(...),
-        name: str = Query(default="default"),
     ) -> MountCredentialsResponse:
+        """For runners older than `POST /mounts/sign`: sign the drive created with the
+        run's own agent, only while no stored revision of that agent states `drives`.
+        Creates the drive when the agent has none. Every other case answers 404."""
         await self._check(request, Permission.USE_MOUNTS)
+        project_id = UUID(request.state.project_id)
+        run_agent_id = run_agent_id_of_request(request)
+        try:
+            artifact_uuid = UUID(str(artifact_id))
+        except ValueError as e:
+            raise MountArtifactIdInvalid(str(artifact_id)) from e
+        if run_agent_id is None or run_agent_id != artifact_uuid:
+            raise MountArtifactNotFound(str(artifact_id))
         if not await self._allow_agent(
             request, artifact_id=artifact_id, permission=Permission.USE_MOUNTS
         ):
             raise MountArtifactNotFound(str(artifact_id))
+        workflows_service = self.mounts_service.workflows_service
+        if workflows_service is None or await workflows_service.agent_states_drives(
+            project_id=project_id, artifact_id=artifact_uuid
+        ):
+            raise MountArtifactNotFound(str(artifact_id))
 
-        mount = await self.mounts_service.get_or_create_agent_mount(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(str(request.state.user_id)),
-            artifact_id=artifact_id,
-            name=name,
+        mount = await self.mounts_service.fetch_agent_drive(
+            project_id=project_id, artifact_id=artifact_id
         )
-        credentials = await sign_mount_credentials(
-            mounts_service=self.mounts_service,
-            project_id=UUID(request.state.project_id),
-            mount_id=mount.id,
-        )
-        return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
-
-    @intercept_exceptions()
-    @handle_mount_exceptions()
-    async def sign_project_mount_credentials(
-        self,
-        request: Request,
-        *,
-        slug: str = Query(...),
-        access: Literal["read-write", "read"] = Query(default="read-write"),
-    ) -> MountCredentialsResponse:
-        """Sign credentials for an existing project drive, read-only for `access=read`.
-
-        Never creates a drive: a missing or archived one answers 404.
-        """
-        await self._check(request, Permission.USE_MOUNTS)
-        project_id = UUID(request.state.project_id)
-        mount = await self.mounts_service.fetch_project_mount(
-            project_id=project_id,
-            slug=slug,
-        )
-        if not mount:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Mount not found.",
+        if mount is None:
+            await self.mounts_service._verify_agent_artifact(
+                project_id=project_id, artifact_id=artifact_id
             )
+            workflow = await workflows_service.fetch_workflow(
+                project_id=project_id,
+                workflow_ref=Reference(id=artifact_uuid),
+                include_archived=False,
+            )
+            agent_policy = (
+                await get_sharing_service().fetch_agent_policy_cached(
+                    project_id=project_id, artifact_id=artifact_uuid
+                )
+            ).policy
+            mount = await self.mounts_service.create_agent_drive(
+                project_id=project_id,
+                user_id=UUID(str(request.state.user_id)),
+                artifact_id=artifact_id,
+                agent_slug=getattr(workflow, "slug", None),
+                agent_name=getattr(workflow, "name", None),
+                visibility=agent_policy or OWNERLESS_PROJECT_POLICY,
+            )
+            if mount.deleted_at is not None:
+                raise MountNotFound()
+        if not await allow_mount(
+            request, scope=MountScope(id=mount.id), permission=Permission.USE_MOUNTS
+        ):
+            raise MountNotFound()
+        if await self._home_drive_refusal(
+            project_id=project_id, artifact_id=artifact_uuid, mount=mount
+        ):
+            raise _home_drive_not_allowed()
         credentials = await sign_mount_credentials(
             mounts_service=self.mounts_service,
             project_id=project_id,
             mount_id=mount.id,
-            read_only=access == "read",
         )
         return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
 
@@ -547,17 +617,21 @@ class MountsRouter:
         *,
         body: AgentMountQueryRequest,
     ) -> MountsResponse:
+        """The drive created with the agent, when the caller may open both."""
         await self._check(request, Permission.VIEW_MOUNTS)
         if not await self._allow_agent(
             request, artifact_id=body.artifact_id, permission=Permission.VIEW_MOUNTS
         ):
             return MountsResponse(count=0, mounts=[])
 
-        mount = await self.mounts_service.fetch_agent_mount(
+        mount = await self.mounts_service.fetch_agent_drive(
             project_id=UUID(request.state.project_id),
             artifact_id=body.artifact_id,
-            name=body.name,
         )
+        if mount is not None and not await allow_mount(
+            request, scope=MountScope(id=mount.id), permission=Permission.VIEW_MOUNTS
+        ):
+            mount = None
         mounts = [mount] if mount else []
         return MountsResponse(count=len(mounts), mounts=mounts)
 
@@ -575,7 +649,7 @@ class MountsRouter:
         )
         if mount and not await allow_mount(
             request,
-            scope=MountScope(session_id=mount.session_id, agent_id=mount.agent_id),
+            scope=MountScope(id=mount.id),
             permission=Permission.VIEW_MOUNTS,
         ):
             mount = None
@@ -684,7 +758,7 @@ class MountsRouter:
         # Signed credentials can write: a session mount needs rule S2.
         if mount and not await allow_mount(
             request,
-            scope=MountScope(session_id=mount.session_id, agent_id=mount.agent_id),
+            scope=MountScope(id=mount.id),
             permission=Permission.USE_MOUNTS,
         ):
             mount = None
@@ -992,3 +1066,17 @@ class MountsRouter:
             if_match=if_match,
         )
         return MountFileDeletedResponse(deleted=deleted.deleted, count=deleted.count)
+
+
+def _home_drive_not_allowed() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=AgentError(
+            code=HOME_DRIVE_NOT_ALLOWED,
+            message=(
+                "This drive cannot be the home drive of this run: a private agent's "
+                "home drive must be a private drive of the agent's owner."
+            ),
+            retryable=False,
+        ).model_dump(exclude_none=True),
+    )

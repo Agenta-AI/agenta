@@ -1,8 +1,10 @@
-"""A commit must not store an agent drive list that no run can use.
+"""A commit stores no agent revision without its drive keys, and none that no run can use.
 
-The entry rules are the SDK's `validate_agent_drives` (code `invalid_drive_entry`). A
-`project` entry must also name an active project drive of the same project
-(code `drive_not_found`). Both answer 422 with the agent-facing envelope.
+The entry rules are the SDK's (`invalid_drive_entry`, `invalid_home_drive`,
+`invalid_session_drive`). Each slug must name a drive the saver may use
+(`drive_not_found`); a shared agent lists no private drive (`drive_not_shared`); a
+private agent's home passes the home rule (`home_drive_not_allowed`). The first agent
+revision creates the agent's drive unless `home_drive` opts out. All answer 422.
 """
 
 from types import SimpleNamespace
@@ -12,32 +14,110 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
+import oss.src.core.sharing.service as sharing_module
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.applications.dtos import ApplicationRevision, SimpleApplicationEdit
 from oss.src.core.applications.service import SimpleApplicationsService
+from oss.src.core.mounts.dtos import Mount
+from oss.src.core.sharing.dtos import AccessPolicy, MountAccess, Visibility
 from oss.src.core.workflows.dtos import (
     SimpleWorkflowCreate,
     SimpleWorkflowEdit,
     WorkflowRevision,
-    WorkflowVariant,
     WorkflowRevisionCommit,
+    WorkflowVariant,
 )
 from oss.src.core.workflows.service import SimpleWorkflowsService, WorkflowsService
 from oss.src.core.workflows.types import (
     AgentDriveError,
     AgentDriveNotFoundError,
+    AgentDriveNotSharedError,
+    HomeDriveNotAllowedError,
     InvalidAgentDrivesError,
+    InvalidHomeDriveError,
     InvalidSessionDriveError,
-    ProjectMountLookupMissing,
+    MountLookupMissing,
 )
-from oss.src.core.mounts.service import project_mount_lookup
-from oss.src.core.mounts.types import MountSlugReserved
+from oss.tests.pytest.utils.sharing import SharingWorld
+
+AGENT_ID = uuid4()
+
+
+def _private(owner) -> AccessPolicy:
+    return AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=owner)
+
+
+class _Drives:
+    """The mounts service calls the commit makes, over the sharing world's rows."""
+
+    def __init__(self, world: SharingWorld):
+        self.world = world
+        self.by_slug = {}
+        self.own = None
+        self.created = []
+        self.looked_up = []
+
+    def add(self, slug, policy=None, agent_id=None) -> Mount:
+        mount = Mount(
+            id=uuid4(),
+            project_id=self.world.project_id,
+            storage_prefix="p",
+            slug=slug,
+            name=slug,
+            agent_id=str(agent_id) if agent_id else None,
+        )
+        self.by_slug[slug] = mount
+        self.world.dao.mounts[(self.world.project_id, mount.id)] = MountAccess(
+            mount_id=mount.id, slug=slug, agent_id=mount.agent_id, policy=policy
+        )
+        return mount
+
+    async def fetch_mount_by_slug(self, *, project_id, slug):
+        self.looked_up.append((project_id, slug))
+        return self.by_slug.get(slug)
+
+    async def fetch_agent_drive(self, *, project_id, artifact_id):
+        return self.own
+
+    async def create_agent_drive(
+        self, *, project_id, user_id, artifact_id, agent_slug, agent_name, visibility
+    ):
+        self.created.append({"slug": agent_slug, "visibility": visibility})
+        self.own = self.add(f"{agent_slug}-files", visibility, agent_id=artifact_id)
+        return self.own
+
+
+@pytest.fixture
+def world(monkeypatch) -> SharingWorld:
+    world = SharingWorld()
+    monkeypatch.setattr(sharing_module, "_sharing_service", world.service)
+    return world
+
+
+@pytest.fixture
+def drives(world) -> _Drives:
+    drives = _Drives(world)
+    drives.add("price-lists")
+    return drives
+
+
+def _service(drives):
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_revision.return_value = None
+    workflows_dao.fetch_variant.return_value = None
+    workflows_dao.commit_revision.return_value = None
+    service = WorkflowsService(workflows_dao=workflows_dao)
+    service.fetch_workflow = AsyncMock(
+        return_value=SimpleNamespace(slug="quote", name="Quote")
+    )
+    service.set_mount_lookup(drives)
+    return service, workflows_dao
 
 
 def _commit(**agent):
     return WorkflowRevisionCommit(
         slug="drive-check",
-        workflow_id=uuid4(),
+        workflow_id=AGENT_ID,
         workflow_variant_id=uuid4(),
         data={
             "uri": "agenta:builtin:agent:v0",
@@ -46,79 +126,113 @@ def _commit(**agent):
     )
 
 
-def _service(existing=("price-lists",)):
-    workflows_dao = AsyncMock()
-    workflows_dao.fetch_revision.return_value = None
-    workflows_dao.fetch_variant.return_value = None
-    workflows_dao.commit_revision.return_value = None
-    service = WorkflowsService(workflows_dao=workflows_dao)
-    looked_up = []
-
-    async def lookup(*, project_id, slug):
-        looked_up.append((project_id, slug))
-        return object() if slug in existing else None
-
-    service.set_project_mount_lookup(lookup)
-    return service, workflows_dao, looked_up
+def _stored_agent(dao) -> dict:
+    commit = dao.commit_revision.await_args.kwargs["revision_commit"]
+    return commit.data["parameters"]["agent"]
 
 
-async def _refusal(service, commit) -> AgentDriveError:
+async def _refusal(service, world, commit) -> AgentDriveError:
     with pytest.raises(AgentDriveError) as caught:
         await service.commit_workflow_revision(
-            project_id=uuid4(), user_id=uuid4(), workflow_revision_commit=commit
+            project_id=world.project_id,
+            user_id=uuid4(),
+            workflow_revision_commit=commit,
         )
     return caught.value
 
 
-@pytest.mark.asyncio
+async def _commit_ok(service, world, commit):
+    await service.commit_workflow_revision(
+        project_id=world.project_id,
+        user_id=uuid4(),
+        workflow_revision_commit=commit,
+    )
+
+
+# -- the entry rules ----------------------------------------------------------------------
+
+
 @pytest.mark.parametrize(
-    "agent, field",
+    "agent, error_type, field",
     [
-        ({"drives": "agent"}, "parameters.agent.drives"),
+        ({"drives": "x"}, InvalidAgentDrivesError, "parameters.agent.drives"),
         (
-            {"drives": [{"kind": "project", "slug": f"d{i}"} for i in range(9)]},
+            {"drives": [{"slug": f"d{i}"} for i in range(9)]},
+            InvalidAgentDrivesError,
             "parameters.agent.drives",
         ),
-        ({"drives": [{"kind": "project"}]}, "parameters.agent.drives[0].slug"),
+        ({"drives": [{}]}, InvalidAgentDrivesError, "parameters.agent.drives[0].slug"),
         (
-            {"drives": [{"kind": "agent"}, {"kind": "agent"}]},
-            "parameters.agent.drives[1].kind",
+            {"drives": [{"kind": "agent"}]},
+            InvalidAgentDrivesError,
+            "parameters.agent.drives[0].kind",
         ),
         (
-            {"drives": [{"kind": "agent", "access": "read"}]},
+            {"drives": [{"slug": "a"}, {"slug": "a"}]},
+            InvalidAgentDrivesError,
+            "parameters.agent.drives[1].slug",
+        ),
+        (
+            {"drives": [{"slug": "a", "access": "write"}]},
+            InvalidAgentDrivesError,
             "parameters.agent.drives[0].access",
         ),
         (
-            {"drives": [{"kind": "project", "slug": "a", "access": "write"}]},
-            "parameters.agent.drives[0].access",
+            {"drives": [{"slug": "price-lists"}], "home_drive": "missing"},
+            InvalidHomeDriveError,
+            "parameters.agent.home_drive",
         ),
-        ({"drives": [{"kind": "session"}]}, "parameters.agent.drives[0].kind"),
+        (
+            {
+                "drives": [{"slug": "price-lists", "access": "read"}],
+                "home_drive": "price-lists",
+            },
+            InvalidHomeDriveError,
+            "parameters.agent.home_drive",
+        ),
+        (
+            {"has_session_drive": "yes"},
+            InvalidSessionDriveError,
+            "parameters.agent.has_session_drive",
+        ),
     ],
 )
-async def test_a_broken_entry_is_refused_before_the_dao(agent, field):
-    service, dao, looked_up = _service()
-    error = await _refusal(service, _commit(**agent))
-    assert isinstance(error, InvalidAgentDrivesError)
+async def test_a_broken_configuration_is_refused_before_any_write(
+    world, drives, agent, error_type, field
+):
+    service, dao = _service(drives)
+    error = await _refusal(service, world, _commit(**agent))
+    assert isinstance(error, error_type)
     detail = error.to_detail()
-    assert detail["code"] == "invalid_drive_entry"
     assert detail["retryable"] is False
     assert detail["next_step"]
     assert detail["details"]["field"] == field
     dao.commit_revision.assert_not_awaited()
-    assert looked_up == []
+    assert drives.created == []
 
 
-@pytest.mark.asyncio
-async def test_a_missing_project_drive_is_refused_with_its_slug():
-    service, dao, looked_up = _service()
+async def test_invalid_home_drive_names_its_next_step(world, drives):
+    service, _ = _service(drives)
+    error = await _refusal(
+        service, world, _commit(drives=[{"slug": "price-lists"}], home_drive="x")
+    )
+    assert error.to_detail()["code"] == "invalid_home_drive"
+    assert error.next_step == (
+        "Set home_drive to the slug of a read-write entry of drives, or to null."
+    )
+
+
+# -- the drive lookups --------------------------------------------------------------------
+
+
+async def test_a_missing_drive_is_refused_with_its_slug(world, drives):
+    service, dao = _service(drives)
     error = await _refusal(
         service,
+        world,
         _commit(
-            drives=[
-                {"kind": "agent"},
-                {"kind": "project", "slug": "price-lists", "access": "read"},
-                {"kind": "project", "slug": "missing"},
-            ]
+            drives=[{"slug": "price-lists", "access": "read"}, {"slug": "missing"}],
+            home_drive=None,
         ),
     )
     assert isinstance(error, AgentDriveNotFoundError)
@@ -127,68 +241,251 @@ async def test_a_missing_project_drive_is_refused_with_its_slug():
         "message": "The drive 'missing' does not exist in this project.",
         "retryable": False,
         "next_step": "Create the drive with POST /mounts/, then commit again.",
-        "details": {"field": "parameters.agent.drives[2].slug", "value": "missing"},
+        "details": {"field": "parameters.agent.drives[1].slug", "value": "missing"},
     }
-    assert [slug for _, slug in looked_up] == ["price-lists", "missing"]
+    assert [slug for _, slug in drives.looked_up] == ["price-lists", "missing"]
+    assert {project for project, _ in drives.looked_up} == {world.project_id}
     dao.commit_revision.assert_not_awaited()
 
 
-@pytest.mark.asyncio
-async def test_the_lookup_is_scoped_to_the_commit_project():
-    service, _, looked_up = _service()
-    project_id = uuid4()
-    await service.commit_workflow_revision(
-        project_id=project_id,
-        user_id=uuid4(),
-        workflow_revision_commit=_commit(
-            drives=[{"kind": "project", "slug": "price-lists"}]
-        ),
+async def test_a_private_drive_the_saver_may_not_use_reads_as_missing(world, drives):
+    drives.add("bobs-notes", _private(uuid4()))
+    service, _ = _service(drives)
+    error = await _refusal(
+        service, world, _commit(drives=[{"slug": "bobs-notes"}], home_drive=None)
     )
-    assert looked_up == [(project_id, "price-lists")]
+    assert isinstance(error, AgentDriveNotFoundError)
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "agent",
-    [
-        {},
-        {"drives": None, "has_session_drive": None},
-        {"drives": [], "has_session_drive": False},
-        {"drives": [{"kind": "agent"}], "has_session_drive": True},
-        {"drives": [{"kind": "project", "slug": "price-lists", "access": "read"}]},
-    ],
-)
-async def test_a_usable_list_reaches_the_dao(agent):
-    service, dao, _ = _service()
-    await service.commit_workflow_revision(
-        project_id=uuid4(), user_id=uuid4(), workflow_revision_commit=_commit(**agent)
+async def test_a_shared_agent_lists_no_private_drive(world, drives, monkeypatch):
+    owner = world.add_member(uuid4())
+    drives.add("my-notes", _private(owner))
+    service, _ = _service(drives)
+
+    async def saver_may_use(*, project_id, mount_id):
+        return True
+
+    monkeypatch.setattr(service, "_saver_may_use", saver_may_use)
+    error = await _refusal(
+        service, world, _commit(drives=[{"slug": "my-notes"}], home_drive=None)
+    )
+    assert isinstance(error, AgentDriveNotSharedError)
+    assert error.next_step == "Make the agent private, or attach a shared drive."
+
+
+async def test_a_private_agents_home_must_be_its_owners_private_drive(
+    world, drives, monkeypatch
+):
+    owner = uuid4()
+    world.dao.add_agent(
+        project_id=world.project_id, artifact_id=AGENT_ID, policy=_private(owner)
+    )
+    service, dao = _service(drives)
+    error = await _refusal(
+        service,
+        world,
+        _commit(drives=[{"slug": "price-lists"}], home_drive="price-lists"),
+    )
+    assert isinstance(error, HomeDriveNotAllowedError)
+    assert error.to_detail()["code"] == "home_drive_not_allowed"
+    assert error.next_step == (
+        "Set home_drive to a private drive you own, or to null. Attach shared "
+        "drives without making them home."
+    )
+    # The same shared drive, not as home, is allowed.
+    await _commit_ok(
+        service, world, _commit(drives=[{"slug": "price-lists"}], home_drive=None)
     )
     dao.commit_revision.assert_awaited_once()
 
 
-@pytest.mark.asyncio
-async def test_a_workflow_that_is_not_an_agent_is_left_alone():
-    service, dao, looked_up = _service()
+async def test_without_a_lookup_an_agent_commit_fails_closed(world):
+    workflows_dao = AsyncMock()
+    workflows_dao.fetch_revision.return_value = None
+    service = WorkflowsService(workflows_dao=workflows_dao)
+    with pytest.raises(MountLookupMissing):
+        await service.commit_workflow_revision(
+            project_id=world.project_id,
+            user_id=uuid4(),
+            workflow_revision_commit=_commit(
+                drives=[{"slug": "price-lists"}], home_drive=None
+            ),
+        )
+    workflows_dao.commit_revision.assert_not_awaited()
+
+
+async def test_a_workflow_that_is_not_an_agent_is_left_alone(world, drives):
+    service, dao = _service(drives)
     commit = WorkflowRevisionCommit(
         slug="plain",
         workflow_id=uuid4(),
         workflow_variant_id=uuid4(),
         data={"parameters": {"prompt": {"drives": "anything"}}},
     )
-    await service.commit_workflow_revision(
-        project_id=uuid4(), user_id=uuid4(), workflow_revision_commit=commit
-    )
+    await _commit_ok(service, world, commit)
     dao.commit_revision.assert_awaited_once()
-    assert looked_up == []
+    assert drives.looked_up == []
 
 
-@pytest.mark.asyncio
+# -- creation and the fill ----------------------------------------------------------------
+
+
+async def test_the_first_agent_revision_creates_the_agents_drive(world, drives):
+    service, dao = _service(drives)
+    await _commit_ok(service, world, _commit())
+    assert drives.created == [
+        {"slug": "quote", "visibility": AccessPolicy(visibility=Visibility.PROJECT)}
+    ]
+    agent = _stored_agent(dao)
+    assert agent["drives"] == [{"slug": "quote-files"}]
+    assert agent["home_drive"] == "quote-files"
+
+
+async def test_a_new_drive_is_appended_to_a_stated_list(world, drives):
+    service, dao = _service(drives)
+    await _commit_ok(
+        service, world, _commit(drives=[{"slug": "price-lists", "access": "read"}])
+    )
+    agent = _stored_agent(dao)
+    assert agent["drives"] == [
+        {"slug": "price-lists", "access": "read"},
+        {"slug": "quote-files"},
+    ]
+    assert agent["home_drive"] == "quote-files"
+
+
+async def test_the_new_drive_gets_the_visibility_the_agent_will_have(world, drives):
+    owner = uuid4()
+    service, _ = _service(drives)
+    await service.commit_workflow_revision(
+        project_id=world.project_id,
+        user_id=uuid4(),
+        workflow_revision_commit=_commit(),
+        first_agent_owner_user_id=owner,
+    )
+    assert drives.created[0]["visibility"] == AccessPolicy(
+        visibility=Visibility.PROJECT, owner_user_id=owner
+    )
+
+    drives.own = None
+    world.dao.add_agent(
+        project_id=world.project_id, artifact_id=AGENT_ID, policy=_private(owner)
+    )
+    await world.service.fetch_agent_policy_cached(
+        project_id=world.project_id, artifact_id=AGENT_ID
+    )
+    service, _ = _service(drives)
+
+    async def owner_may_use(*, project_id, mount_id):
+        return True
+
+    service._saver_may_use = owner_may_use
+    # A private agent's new drive is private to its owner, so it passes the home rule.
+    await service.commit_workflow_revision(
+        project_id=world.project_id,
+        user_id=uuid4(),
+        workflow_revision_commit=_commit(),
+    )
+    assert drives.created[1]["visibility"] == _private(owner)
+
+
+@pytest.mark.parametrize("home", [None, "price-lists"])
+async def test_a_stated_home_drive_creates_no_drive(world, drives, home):
+    service, dao = _service(drives)
+    await _commit_ok(
+        service, world, _commit(drives=[{"slug": "price-lists"}], home_drive=home)
+    )
+    assert drives.created == []
+    assert _stored_agent(dao)["home_drive"] == home
+
+
+async def test_a_retried_commit_creates_one_drive(world, drives):
+    service, _ = _service(drives)
+    await _commit_ok(service, world, _commit())
+    await _commit_ok(service, world, _commit())
+    assert len(drives.created) == 1
+
+
+async def test_a_commit_without_drives_fills_the_own_drive(world, drives):
+    drives.own = drives.add("__ag__agent__x__default", agent_id=AGENT_ID)
+    service, dao = _service(drives)
+    await _commit_ok(service, world, _commit())
+    agent = _stored_agent(dao)
+    assert agent["drives"] == [{"slug": "__ag__agent__x__default"}]
+    assert agent["home_drive"] == "__ag__agent__x__default"
+    assert agent["has_session_drive"] is True
+    assert drives.created == []
+
+
+async def test_the_fill_gives_no_drive_when_the_home_rule_refuses(world, drives):
+    owner = uuid4()
+    world.dao.add_agent(
+        project_id=world.project_id, artifact_id=AGENT_ID, policy=_private(owner)
+    )
+    drives.own = drives.add("quote-files", AccessPolicy(visibility=Visibility.PROJECT))
+    service, dao = _service(drives)
+    await _commit_ok(service, world, _commit(home_drive=None))
+    agent = _stored_agent(dao)
+    assert agent["drives"] == []
+    assert agent["home_drive"] is None
+
+
+async def test_reading_an_older_revision_fills_its_keys(world, drives):
+    drives.own = drives.add("quote-files", agent_id=AGENT_ID)
+    service, _ = _service(drives)
+    revision = WorkflowRevision(
+        id=uuid4(),
+        slug="old",
+        version="1",
+        workflow_id=AGENT_ID,
+        flags={"is_agent": True},
+        data={"parameters": {"agent": {"llm": {"model": "m"}}}},
+    )
+    read = await service._normalize_revision_for_read(
+        project_id=world.project_id,
+        revision=revision,
+        workflow=SimpleNamespace(flags=None),
+    )
+    agent = read.data.parameters["agent"]
+    assert agent["drives"] == [{"slug": "quote-files"}]
+    assert agent["home_drive"] == "quote-files"
+
+
+async def test_reading_an_older_revision_without_a_drive_keeps_it_legacy(world, drives):
+    service, _ = _service(drives)
+    revision = WorkflowRevision(
+        id=uuid4(),
+        slug="old",
+        version="1",
+        workflow_id=AGENT_ID,
+        flags={"is_agent": True},
+        data={"parameters": {"agent": {"llm": {"model": "m"}}}},
+    )
+    read = await service._normalize_revision_for_read(
+        project_id=world.project_id,
+        revision=revision,
+        workflow=SimpleNamespace(flags=None),
+    )
+    assert "drives" not in read.data.parameters["agent"]
+    assert drives.created == []
+
+
+# -- the routes and the early checks ------------------------------------------------------
+
+
 @pytest.mark.parametrize(
     "error",
     [
         InvalidAgentDrivesError(field="drives", value=1, message="m", next_step="n"),
+        InvalidHomeDriveError(field="home_drive", value=1, message="m", next_step="n"),
         AgentDriveNotFoundError(
             field="drives[0].slug", value="x", message="m", next_step="n"
+        ),
+        AgentDriveNotSharedError(
+            field="drives[0].slug", value="x", message="m", next_step="n"
+        ),
+        HomeDriveNotAllowedError(
+            field="home_drive", value="x", message="m", next_step="n"
         ),
     ],
 )
@@ -203,65 +500,14 @@ async def test_the_routes_answer_422_with_the_envelope(error):
     assert caught.value.detail["code"] == error.code
 
 
-@pytest.mark.asyncio
-async def test_a_project_entry_without_a_lookup_fails_closed():
-    workflows_dao = AsyncMock()
-    workflows_dao.fetch_revision.return_value = None
-    service = WorkflowsService(workflows_dao=workflows_dao)
-    with pytest.raises(ProjectMountLookupMissing):
-        await service.commit_workflow_revision(
-            project_id=uuid4(),
-            user_id=uuid4(),
-            workflow_revision_commit=_commit(
-                drives=[{"kind": "project", "slug": "price-lists"}]
-            ),
-        )
-    workflows_dao.commit_revision.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_without_a_project_entry_no_lookup_is_needed():
-    workflows_dao = AsyncMock()
-    workflows_dao.fetch_revision.return_value = None
-    workflows_dao.commit_revision.return_value = None
-    service = WorkflowsService(workflows_dao=workflows_dao)
-    await service.commit_workflow_revision(
-        project_id=uuid4(),
-        user_id=uuid4(),
-        workflow_revision_commit=_commit(drives=[{"kind": "agent"}]),
-    )
-    workflows_dao.commit_revision.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_the_shared_lookup_reads_a_reserved_slug_as_missing():
-    mounts_service = AsyncMock()
-    mounts_service.fetch_project_mount.side_effect = MountSlugReserved("__ag__x")
-    lookup = project_mount_lookup(mounts_service)
-    assert await lookup(project_id=uuid4(), slug="__ag__x") is None
-
-
-@pytest.mark.asyncio
-async def test_a_broken_session_drive_has_its_own_code():
-    service, dao, _ = _service()
-    error = await _refusal(service, _commit(has_session_drive="yes"))
-    assert isinstance(error, InvalidSessionDriveError)
-    detail = error.to_detail()
-    assert detail["code"] == "invalid_session_drive"
-    assert detail["details"]["field"] == "parameters.agent.has_session_drive"
-    assert "has_session_drive" in detail["message"]
-    assert "parameters.agent.has_session_drive" in detail["next_step"]
-    dao.commit_revision.assert_not_awaited()
-
-
 _MISSING_DRIVE = {
     "uri": "agenta:builtin:agent:v0",
-    "parameters": {"agent": {"drives": [{"kind": "project", "slug": "missing"}]}},
+    "parameters": {"agent": {"drives": [{"slug": "missing"}], "home_drive": None}},
 }
 
 
-def _simple_service():
-    service, dao, _ = _service()
+def _simple_service(drives):
+    service, _ = _service(drives)
     workflows_service = AsyncMock()
     workflows_service.reject_unusable_agent_drives = (
         service.reject_unusable_agent_drives
@@ -271,12 +517,11 @@ def _simple_service():
     ), workflows_service
 
 
-@pytest.mark.asyncio
-async def test_simple_create_refuses_before_any_write():
-    simple, workflows_service = _simple_service()
+async def test_simple_create_refuses_before_any_write(world, drives):
+    simple, workflows_service = _simple_service(drives)
     with pytest.raises(AgentDriveNotFoundError):
         await simple.create(
-            project_id=uuid4(),
+            project_id=world.project_id,
             user_id=uuid4(),
             simple_workflow_create=SimpleWorkflowCreate(
                 slug="drive-check", data=_MISSING_DRIVE
@@ -285,13 +530,12 @@ async def test_simple_create_refuses_before_any_write():
     workflows_service.create_workflow.assert_not_awaited()
 
 
-@pytest.mark.asyncio
-async def test_idempotent_create_refuses_before_any_write():
-    simple, workflows_service = _simple_service()
+async def test_idempotent_create_refuses_before_any_write(world, drives):
+    simple, workflows_service = _simple_service(drives)
     workflows_service.fetch_workflow = AsyncMock(return_value=None)
     with pytest.raises(AgentDriveNotFoundError):
         await simple.create_idempotent(
-            project_id=uuid4(),
+            project_id=world.project_id,
             user_id=uuid4(),
             namespace="ns",
             request_key="key",
@@ -304,21 +548,19 @@ async def test_idempotent_create_refuses_before_any_write():
     workflows_service.create_workflow.assert_not_awaited()
 
 
-@pytest.mark.asyncio
-async def test_simple_edit_refuses_before_any_write():
-    simple, workflows_service = _simple_service()
+async def test_simple_edit_refuses_before_any_write(world, drives):
+    simple, workflows_service = _simple_service(drives)
     with pytest.raises(AgentDriveNotFoundError):
         await simple.edit(
-            project_id=uuid4(),
+            project_id=world.project_id,
             user_id=uuid4(),
             simple_workflow_edit=SimpleWorkflowEdit(id=uuid4(), data=_MISSING_DRIVE),
         )
     workflows_service.edit_workflow.assert_not_awaited()
 
 
-@pytest.mark.asyncio
-async def test_simple_edit_without_data_reads_the_current_revision_once():
-    simple, workflows_service = _simple_service()
+async def test_simple_edit_without_data_reads_the_current_revision_once(world, drives):
+    simple, workflows_service = _simple_service(drives)
     variant_id = uuid4()
     workflows_service.fetch_workflow_variant = AsyncMock(
         return_value=WorkflowVariant(id=variant_id, slug="default")
@@ -328,7 +570,7 @@ async def test_simple_edit_without_data_reads_the_current_revision_once():
     )
     with pytest.raises(AgentDriveNotFoundError):
         await simple.edit(
-            project_id=uuid4(),
+            project_id=world.project_id,
             user_id=uuid4(),
             simple_workflow_edit=SimpleWorkflowEdit(id=uuid4(), name="Renamed"),
         )
@@ -343,9 +585,10 @@ async def test_simple_edit_without_data_reads_the_current_revision_once():
     workflows_service.commit_workflow_revision.assert_not_awaited()
 
 
-@pytest.mark.asyncio
-async def test_application_rename_without_data_is_refused_before_the_rename():
-    service, _, _ = _service()
+async def test_application_rename_without_data_is_refused_before_the_rename(
+    world, drives
+):
+    service, _ = _service(drives)
     applications_service = AsyncMock()
     applications_service.workflows_service = service
     applications_service.fetch_application = AsyncMock(
@@ -360,7 +603,7 @@ async def test_application_rename_without_data_is_refused_before_the_rename():
     simple = SimpleApplicationsService(applications_service=applications_service)
     with pytest.raises(AgentDriveNotFoundError):
         await simple.edit(
-            project_id=uuid4(),
+            project_id=world.project_id,
             user_id=uuid4(),
             simple_application_edit=SimpleApplicationEdit(id=uuid4(), name="Renamed"),
         )

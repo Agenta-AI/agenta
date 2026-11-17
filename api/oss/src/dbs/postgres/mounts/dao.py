@@ -10,6 +10,7 @@ from sqlalchemy.sql.elements import ColumnElement
 import uuid_utils.compat as uuid_utils
 
 from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
+from oss.src.core.sharing.dtos import AccessPolicy
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_PURPOSE,
@@ -25,7 +26,7 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
 from oss.src.dbs.postgres.shared.utils import apply_windowing
-from oss.src.dbs.postgres.mounts.dbes import MountDBE
+from oss.src.dbs.postgres.mounts.dbes import MountDBE, MountVisibilityDBE
 from oss.src.dbs.postgres.mounts.mappings import (
     map_mount_dbe_to_dto,
     map_mount_dto_to_dbe_create,
@@ -76,6 +77,8 @@ class MountsDAO(MountsDAOInterface):
         user_id: UUID,
         #
         mount_create: MountCreate,
+        #
+        visibility: Optional[AccessPolicy] = None,
     ) -> Mount:
         # The id is minted here so the same insert can write the prefix built from it.
         mount_id = uuid_utils.uuid7()
@@ -93,6 +96,16 @@ class MountsDAO(MountsDAOInterface):
         try:
             async with self.engine.session() as session:
                 session.add(mount_dbe)
+                if visibility is not None:
+                    await session.flush()
+                    session.add(
+                        _visibility_dbe(
+                            project_id=project_id,
+                            mount_id=mount_id,
+                            user_id=user_id,
+                            visibility=visibility,
+                        )
+                    )
                 await session.commit()
                 await session.refresh(mount_dbe)
         except IntegrityError as e:
@@ -101,6 +114,99 @@ class MountsDAO(MountsDAOInterface):
             raise
 
         return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
+
+    async def create_agent_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        mount_create: MountCreate,
+        visibility: AccessPolicy,
+    ) -> Mount:
+        now = datetime.now(timezone.utc)
+        mount_id = uuid_utils.uuid7()
+        values = map_mount_dto_to_dbe_upsert(
+            project_id=project_id,
+            user_id=user_id,
+            now=now,
+            mount_id=mount_id,
+            storage_prefix=_organization_storage_prefix_sql(
+                project_id=project_id,
+                mount_id=mount_id,
+            ),
+            mount_create=mount_create,
+        )
+        # A retried create finds the agent's row through `uq_mounts_project_id_agent_id`.
+        stmt = (
+            insert(MountDBE)
+            .values(**values)
+            .on_conflict_do_nothing(
+                index_elements=["project_id", "agent_id"],
+                index_where=MountDBE.agent_id.is_not(None),
+            )
+            .returning(MountDBE)
+        )
+        try:
+            async with self.engine.session() as session:
+                mount_dbe = (await session.execute(stmt)).scalars().first()
+                if mount_dbe is not None:
+                    session.add(
+                        _visibility_dbe(
+                            project_id=project_id,
+                            mount_id=mount_dbe.id,
+                            user_id=user_id,
+                            visibility=visibility,
+                        )
+                    )
+                await session.commit()
+        except IntegrityError as e:
+            if "uq_mounts_project_id_slug" in str(e.orig):
+                raise MountSlugConflict() from e
+            raise
+
+        if mount_dbe is None:
+            return await self.fetch_mount_by_agent_id(
+                project_id=project_id,
+                agent_id=mount_create.agent_id,
+                include_archived=True,
+            )
+        return map_mount_dbe_to_dto(mount_dbe=mount_dbe)
+
+    async def fetch_mount_by_agent_id(
+        self,
+        *,
+        project_id: UUID,
+        #
+        agent_id: str,
+        include_archived: bool = False,
+    ) -> Optional[Mount]:
+        async with self.engine.session() as session:
+            stmt = select(MountDBE).where(
+                MountDBE.project_id == project_id,
+                MountDBE.agent_id == agent_id,
+            )
+            if not include_archived:
+                stmt = stmt.where(MountDBE.deleted_at.is_(None))
+            mount_dbe = (await session.execute(stmt)).scalars().first()
+            return map_mount_dbe_to_dto(mount_dbe=mount_dbe) if mount_dbe else None
+
+    async def list_slugs_with_prefix(
+        self,
+        *,
+        project_id: UUID,
+        #
+        prefix: str,
+    ) -> List[str]:
+        escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(MountDBE.slug).where(
+                    MountDBE.project_id == project_id,
+                    MountDBE.slug.like(f"{escaped}%", escape="\\"),
+                )
+            )
+            return list(result.scalars().all())
 
     async def upsert_mount(
         self,
@@ -369,3 +475,19 @@ class MountsDAO(MountsDAOInterface):
             return [
                 map_mount_dbe_to_dto(mount_dbe=dbe) for dbe in result.scalars().all()
             ]
+
+
+def _visibility_dbe(
+    *,
+    project_id: UUID,
+    mount_id: UUID,
+    user_id: UUID,
+    visibility: AccessPolicy,
+) -> MountVisibilityDBE:
+    return MountVisibilityDBE(
+        project_id=project_id,
+        mount_id=mount_id,
+        visibility=visibility.visibility.value,
+        owner_user_id=visibility.owner_user_id,
+        created_by_id=user_id,
+    )

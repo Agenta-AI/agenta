@@ -6,8 +6,6 @@ from posixpath import basename
 from re import sub
 from typing import (
     AsyncIterator,
-    Awaitable,
-    Callable,
     TYPE_CHECKING,
     List,
     Optional,
@@ -36,9 +34,10 @@ from oss.src.core.mounts.dtos import (
     MountFileWritten,
     MountFolderCreated,
     MountQuery,
-    MountScope,
 )
+from oss.src.core.mounts.agent_drives import agent_drive_slug
 from oss.src.core.mounts.interfaces import MountsDAOInterface
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY, AccessPolicy
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.store.types import StoreObjectTooLarge, StorePreconditionFailed
@@ -57,12 +56,12 @@ from oss.src.core.mounts.types import (
     MountPathInvalid,
     MountPreconditionFailed,
     MountProtected,
+    MountSlugConflict,
     MountSlugReserved,
     MountStorageUnavailable,
     organization_storage_prefix,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -135,45 +134,12 @@ def is_organization_keyed(*, mount: Mount, organization_id: UUID) -> bool:
 
 
 def mint_agent_id(*, artifact_id: str) -> str:
-    """Canonicalize an artifact id: UUID-parsed, rendered lowercase.
-
-    Shared by `mint_agent_slug` (the slug's id segment) and the mount's queryable
-    `agent_id` column, so both derive byte-identically from the same artifact id.
-    """
+    """Canonicalize an artifact id: UUID-parsed, rendered lowercase, as the `agent_id`
+    column stores it."""
     try:
         return str(UUID(str(artifact_id)))
     except (ValueError, TypeError, AttributeError) as e:
         raise MountArtifactIdInvalid(str(artifact_id)) from e
-
-
-def mint_agent_slug(*, artifact_id: str, name: str) -> str:
-    """Mint the deterministic reserved slug for an artifact mount.
-
-    Artifact IDs are UUID-parsed and rendered lowercase. Sign and query must use
-    this same derivation byte-identically so they address the same mount.
-    """
-    canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
-    slug_name = slugify_mount_name(name)
-    return f"{RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
-
-
-def project_mount_lookup(
-    mounts_service: "MountsService",
-) -> Callable[..., Awaitable[Optional[Mount]]]:
-    """The lookup the workflows service checks project drives with at commit.
-
-    A reserved slug is never a project drive, so it reads as missing.
-    """
-
-    async def lookup(*, project_id: UUID, slug: str) -> Optional[Mount]:
-        try:
-            return await mounts_service.fetch_project_mount(
-                project_id=project_id, slug=slug
-            )
-        except MountSlugReserved:
-            return None
-
-    return lookup
 
 
 def reject_reserved_slug(slug: str) -> None:
@@ -538,6 +504,12 @@ class MountsService:
             user_id=user_id,
             #
             mount_create=mount_create,
+            #
+            visibility=(
+                None
+                if mount_create.session_id is not None
+                else OWNERLESS_PROJECT_POLICY
+            ),
         )
 
     async def get_or_create_session_mount(
@@ -601,33 +573,6 @@ class MountsService:
         if workflow is None:
             raise MountArtifactNotFound(str(artifact_id))
 
-    async def get_or_create_agent_mount(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        artifact_id: str,
-        name: str = "default",
-    ) -> Mount:
-        """Bind idempotently one durable mount for an artifact, keyed by name."""
-        await self._verify_agent_artifact(
-            project_id=project_id,
-            artifact_id=artifact_id,
-        )
-
-        slug_name = slugify_mount_name(name)
-        canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
-        mount_create = MountCreate(
-            slug=mint_agent_slug(artifact_id=artifact_id, name=name),
-            name=slug_name,
-            agent_id=canonical_artifact_id,
-        )
-        return await self.mounts_dao.upsert_mount(
-            project_id=project_id,
-            user_id=user_id,
-            mount_create=mount_create,
-        )
-
     @asynccontextmanager
     async def _materialize_lock(
         self,
@@ -680,10 +625,11 @@ class MountsService:
         project_id: UUID,
         user_id: UUID,
         workflow_id: UUID,
+        mount: Mount,
         directories: List[str],
         files: List[MountFileSeed],
     ) -> MaterializeEntriesResult:
-        """Create declared agent files once without replacing any existing path.
+        """Create declared agent files once in `mount` without replacing any existing path.
 
         A retry re-lists the mount under the same distributed lock. Objects from
         a partial prior attempt and files edited by the user are preserved.
@@ -729,11 +675,6 @@ class MountsService:
             project_id=project_id,
             workflow_id=workflow_id,
         ):
-            mount = await self.get_or_create_agent_mount(
-                project_id=project_id,
-                user_id=user_id,
-                artifact_id=str(workflow_id),
-            )
             base = self._storage_key(mount=mount)
             objects = await self.mounts_store.list_objects_v2(
                 bucket=self._bucket(),
@@ -907,76 +848,68 @@ class MountsService:
             return None
         return mount
 
-    async def fetch_mount_scope(
-        self,
-        *,
-        project_id: UUID,
-        #
-        mount_id: UUID,
-    ) -> Optional[MountScope]:
-        """The session and agent the mount belongs to, for the sharing check of a route
-        that names a mount by id. Both are set at creation and never change, so the
-        `mount_scope` cache needs no invalidation; a deleted mount is answered by the
-        route's own not-found path. None: no such mount (never cached)."""
-
-        key = {"m": str(mount_id)}
-        cached = await get_cache(
-            namespace="mount_scope",
-            project_id=str(project_id),
-            key=key,
-            model=MountScope,
-        )
-        if cached is not None:
-            return cached
-
-        mount = await self.mounts_dao.fetch_mount(
-            project_id=project_id,
-            mount_id=mount_id,
-        )
-        if mount is None:
-            return None
-        scope = MountScope(session_id=mount.session_id, agent_id=mount.agent_id)
-        await set_cache(
-            namespace="mount_scope",
-            project_id=str(project_id),
-            key=key,
-            value=scope,
-        )
-        return scope
-
-    async def fetch_agent_mount(
-        self,
-        *,
-        project_id: UUID,
-        artifact_id: str,
-        name: str = "default",
-    ) -> Optional[Mount]:
-        """Fetch the active artifact mount keyed by name without creating it."""
-        slug = mint_agent_slug(artifact_id=artifact_id, name=name)
-        mount = await self.mounts_dao.fetch_mount_by_slug(
-            project_id=project_id,
-            slug=slug,
-        )
-        return mount
-
-    async def fetch_project_mount(
+    async def fetch_mount_by_slug(
         self,
         *,
         project_id: UUID,
         slug: str,
     ) -> Optional[Mount]:
-        """Fetch the active project mount with this slug, or None. Never creates one.
-
-        A reserved slug is refused, so this can never reach a session or an agent mount.
-        """
-        reject_reserved_slug(slug)
+        """The active drive with this slug, or None. Never a session drive (by its
+        `session_id`, not its slug). An agent's drive is found, reserved slug included."""
         mount = await self.mounts_dao.fetch_mount_by_slug(
             project_id=project_id,
             slug=slug,
         )
-        if mount is None or mount.session_id or mount.agent_id:
+        if mount is None or mount.session_id or is_protected_mount(mount):
             return None
         return mount
+
+    async def fetch_agent_drive(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: str,
+    ) -> Optional[Mount]:
+        """The active drive created with this agent (`agent_id`), or None."""
+        return await self.mounts_dao.fetch_mount_by_agent_id(
+            project_id=project_id,
+            agent_id=mint_agent_id(artifact_id=artifact_id),
+        )
+
+    async def create_agent_drive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        artifact_id: str,
+        agent_slug: Optional[str],
+        agent_name: Optional[str],
+        visibility: AccessPolicy,
+    ) -> Mount:
+        """Create the agent's drive with its visibility row, or return the agent's row.
+        The one owner of creating an agent's drive."""
+        agent_id = mint_agent_id(artifact_id=artifact_id)
+        for attempt in range(2):
+            base = agent_drive_slug(agent_slug, ())
+            taken = await self.mounts_dao.list_slugs_with_prefix(
+                project_id=project_id, prefix=base
+            )
+            try:
+                return await self.mounts_dao.create_agent_mount(
+                    project_id=project_id,
+                    user_id=user_id,
+                    mount_create=MountCreate(
+                        slug=agent_drive_slug(agent_slug, set(taken)),
+                        name=agent_name or agent_slug or "Agent files",
+                        agent_id=agent_id,
+                    ),
+                    visibility=visibility,
+                )
+            except MountSlugConflict:
+                # Another drive took the slug between the read and the insert.
+                if attempt == 1:
+                    raise
+        raise MountSlugConflict()
 
     async def edit_mount(
         self,
