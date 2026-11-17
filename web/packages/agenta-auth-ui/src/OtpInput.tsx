@@ -47,7 +47,7 @@ export const OtpInput = forwardRef<
 
     const handleKeyDown = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
         // Six fields and no submit button: the browser does not submit on Enter by itself.
-        if (event.key === "Enter") {
+        if (event.key === "Enter" && !event.nativeEvent.isComposing) {
             event.preventDefault()
             event.currentTarget.form?.requestSubmit()
             return
