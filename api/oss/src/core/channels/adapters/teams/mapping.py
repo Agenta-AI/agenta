@@ -381,18 +381,28 @@ def _card_body(content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def card_attachment(
-    content: List[Dict[str, Any]], *, thread_id: str = "", with_actions: bool = True
+    content: List[Dict[str, Any]],
+    *,
+    thread_id: str = "",
+    with_actions: bool = True,
+    outcome: Optional[str] = None,
 ) -> Dict[str, Any]:
     """An Adaptive Card with the content's text and one `Action.Submit` per
     button. A click comes back as a message whose `value` is the button's
     `data`. The data carries the thread root too, because a click in a
-    channel thread may arrive without `;messageid=` in its conversation id."""
+    channel thread may arrive without `;messageid=` in its conversation id.
+    `outcome` ends the card with a status line, for an answered card."""
 
+    body = _card_body(content)
+    if outcome:
+        body.append(
+            {"type": "TextBlock", "text": outcome, "weight": "Bolder", "wrap": True}
+        )
     card: Dict[str, Any] = {
         "type": "AdaptiveCard",
         "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
         "version": _CARD_VERSION,
-        "body": _card_body(content),
+        "body": body,
     }
     if with_actions:
         card["actions"] = [

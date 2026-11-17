@@ -306,9 +306,13 @@ class TeamsAdapter(ChannelAdapterInterface):
         connection: ChannelConnection,
         external_locator: Dict[str, Any],
         content: Optional[List[Dict[str, Any]]] = None,
+        approved: Optional[bool] = None,
+        answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Replace the card with the same card without its buttons. Teams
-        cannot change a card in answer to an `Action.Submit` click."""
+        """Replace the card with the same card without its buttons, and with
+        "Approved" or "Denied" when the decision is known. Teams cannot change
+        a card in answer to an `Action.Submit` click. `answered_by` is accepted
+        for the shared interface; the card does not name the person."""
 
         message_id = external_locator.get("message_id")
         if not message_id or not content:
@@ -317,7 +321,15 @@ class TeamsAdapter(ChannelAdapterInterface):
         activity = {
             "type": "message",
             "id": message_id,
-            "attachments": [mapping.card_attachment(content, with_actions=False)],
+            "attachments": [
+                mapping.card_attachment(
+                    content,
+                    with_actions=False,
+                    outcome=None
+                    if approved is None
+                    else ("Approved" if approved else "Denied"),
+                )
+            ],
         }
         await self._send(connection, "PUT", url, _outbound(activity, connection))
 

@@ -372,6 +372,30 @@ async def test_dismiss_puts_the_same_card_without_buttons(adapter, fake, connect
     assert card["body"] == posted["body"]
 
 
+@pytest.mark.parametrize("approved, status", [(True, "Approved"), (False, "Denied")])
+async def test_dismiss_with_the_decision_shows_it_in_place_of_the_buttons(
+    adapter, fake, connection, approved, status
+):
+    receipt = await adapter.post_message(
+        connection=connection, locator=CHAT, content=APPROVAL, idempotency_key=uuid4()
+    )
+
+    await adapter.dismiss_choices(
+        connection=connection,
+        external_locator=receipt,
+        content=APPROVAL,
+        approved=approved,
+        answered_by={"name": "Ada"},
+    )
+
+    posted = fake.calls[0]["body"]["attachments"][0]["content"]
+    (update,) = fake.updates()
+    card = update["body"]["attachments"][0]["content"]
+    assert "actions" not in card
+    assert card["body"][:-1] == posted["body"]
+    assert card["body"][-1]["text"] == status
+
+
 async def test_dismiss_without_a_receipt_does_nothing(adapter, fake, connection):
     await adapter.dismiss_choices(
         connection=connection,
