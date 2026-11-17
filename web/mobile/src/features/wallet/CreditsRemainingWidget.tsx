@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import walletCreditsCatalog from "@agenta/i18n/catalogs/wallet.credits"
 import {isWalletsEnabled} from "@agenta/shared/api"
 import {AlertTriangle, XCircle, type LucideIcon} from "lucide-react"
 import Link from "next/link"
@@ -40,6 +42,7 @@ const METER_TONES: Partial<Record<CreditAlert["kind"], MeterTone>> = {
 }
 
 const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL: string}) => {
+    const t = useT(walletCreditsCatalog)
     // The docked rail stays mounted under `display: none` on narrow screens; poll only on screen.
     const ref = useRef<HTMLDivElement>(null)
     const [onScreen, setOnScreen] = useState(false)
@@ -72,10 +75,15 @@ const CreditsMeter = ({projectId, settingsURL}: {projectId: string; settingsURL:
                     className="hover:bg-accent/50 mx-2 mb-1 flex flex-col gap-1.5 rounded-md px-2 py-2 text-xs no-underline"
                 >
                     <span className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">Credits remaining</span>
+                        <span className="text-muted-foreground">
+                            {t("wallet.credits.remainingTitle")}
+                        </span>
                         <span className={`flex items-center gap-1 tabular-nums ${tone.text}`}>
                             {tone.Icon ? <tone.Icon className="size-3" /> : null}
-                            {formatCredits(remaining)} of {formatCredits(total)}
+                            {t("wallet.credits.remainingOfTotal", {
+                                remaining: formatCredits(remaining),
+                                total: formatCredits(total),
+                            })}
                         </span>
                     </span>
                     <span className="bg-muted block h-1 overflow-hidden rounded-full">

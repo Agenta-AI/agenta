@@ -1,0 +1,13 @@
+{
+    "pageTitle": "Commencer",
+    "preparing": "Préparation de votre espace de travail",
+    "mintError": "Impossible de configurer votre Agent.",
+    "stepCounter": "Étape {{current}} sur {{total}}",
+    "skip": "Passer pour l'instant",
+    "dotCredits": "Crédits",
+    "dotTemplates": "Premier Agent",
+    "keyHint": "Appuyez sur {{key}}",
+    "continue": "Continuer",
+    "writeIn": "Dites-nous-en plus",
+    "writeInPlaceholder": "Une ligne suffit"
+}

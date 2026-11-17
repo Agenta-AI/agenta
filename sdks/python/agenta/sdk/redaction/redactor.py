@@ -1,6 +1,6 @@
 """The known-value redaction pass, mirrored TS-side in ``services/runner/src/redaction.ts``.
 
-Slice 1 (docs/designs/online-redaction): exact-match against a per-request/run deny-set of
+Slice 1 (docs/design/online-redaction): exact-match against a per-request/run deny-set of
 known live secrets, wired at every sink (errors, records, spans, logs). Shape/entropy passes
 (Slice 2) are declared as no-op extension points (`_shape_pass` / `_entropy_pass`) so activating
 them later is a wiring change, not a redesign.

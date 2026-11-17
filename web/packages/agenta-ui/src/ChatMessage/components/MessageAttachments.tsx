@@ -8,6 +8,8 @@
 
 import React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import type {MessageContent} from "@agenta/shared/types"
 import {getAttachments} from "@agenta/shared/utils"
 
@@ -32,6 +34,7 @@ export const MessageAttachments: React.FC<MessageAttachmentsProps> = ({
     onRemove,
     disabled,
 }) => {
+    const t = useT(uiChatCatalog)
     const attachments = getAttachments(content)
     if (attachments.length === 0) return null
 
@@ -44,14 +47,15 @@ export const MessageAttachments: React.FC<MessageAttachmentsProps> = ({
                         <ImageAttachment
                             key={`img-${index}`}
                             src={url}
-                            alt={`Attachment ${index + 1}`}
+                            alt={t("ui.chat.attachmentN", {n: index + 1})}
                             onRemove={() => onRemove(index)}
                             disabled={disabled}
                         />
                     )
                 }
                 if (attachment.type === "file") {
-                    const filename = attachment.file.filename || attachment.file.name || "Document"
+                    const filename =
+                        attachment.file.filename || attachment.file.name || t("ui.chat.document")
                     return (
                         <FileAttachment
                             key={`file-${index}`}

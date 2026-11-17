@@ -1,6 +1,8 @@
 /** A description that clamps, and toggles open on click only when clamping really hid something. */
 import {useId, useLayoutEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {touchTargetExpansion} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
 
@@ -31,6 +33,7 @@ export function ExpandableDescription({
     onExpandedChange,
     label,
 }: ExpandableDescriptionProps) {
+    const t = useT(configItemsCatalog)
     const textId = useId()
     const [expanded, setExpandedState] = useState(false)
     const [preview, setPreview] = useState<HTMLSpanElement | null>(null)
@@ -86,7 +89,11 @@ export function ExpandableDescription({
             aria-expanded={expanded}
             aria-controls={textId}
             aria-label={
-                label ? `${expanded ? "Show less" : "Show more"} about ${label}` : undefined
+                label
+                    ? expanded
+                        ? t("entityUi.configItems.showLessAbout", {label})
+                        : t("entityUi.configItems.showMoreAbout", {label})
+                    : undefined
             }
             onClick={(event) => {
                 // Rows whose whole surface is clickable must not also toggle on this.

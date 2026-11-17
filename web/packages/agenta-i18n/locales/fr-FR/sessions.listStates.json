@@ -1,0 +1,10 @@
+{
+    "clearFilters": "Effacer les filtres",
+    "loadFailed": "Impossible de charger les sessions",
+    "loadMore": "Charger plus",
+    "loading": "Chargement des sessions",
+    "loadingMore": "Chargement…",
+    "noMatch": "Aucune session ne correspond à ces filtres.",
+    "noSessions": "Aucune session pour l’instant.",
+    "startConversation": "Démarrez une conversation avec un agent et elle apparaîtra ici."
+}

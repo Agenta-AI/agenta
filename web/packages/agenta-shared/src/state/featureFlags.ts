@@ -73,3 +73,6 @@ export const agentaChannelSurfaceEnabledAtom = userScopedFlagAtom("agenta-channe
 
 /** Debug switch for the log and diagnostic sections of the Channels settings tab. */
 export const channelDebugEnabledAtom = userScopedFlagAtom("channel-debug")
+
+/** Hidden until the main screens are translated: shows the language picker in Preferences. */
+export const languagePickerEnabledAtom = userScopedFlagAtom("language-picker")

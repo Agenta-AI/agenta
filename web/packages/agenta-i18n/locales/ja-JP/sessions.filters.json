@@ -1,0 +1,19 @@
+{
+    "agent": "エージェント",
+    "all": "すべて",
+    "allAgents": "すべてのエージェント",
+    "allSessions": "すべてのセッション",
+    "archived": "アーカイブ済み",
+    "archivedTooltip": "アーカイブ済みのセッションは非表示ですが、復元できます",
+    "automationRuns": "自動化の実行",
+    "automationRunsTooltip": "自動化によって開始された実行（あなたが開始したセッションの代わり）",
+    "filterByStatus": "ステータスでセッションを絞り込む",
+    "filters": "フィルター",
+    "include": "含める",
+    "live": "実行中",
+    "searchSessions": "セッションを検索",
+    "show": "表示",
+    "waiting": "待機中",
+    "waitingCount": "待機中 {{count}}",
+    "waitingOnYou": "あなたの対応待ち"
+}

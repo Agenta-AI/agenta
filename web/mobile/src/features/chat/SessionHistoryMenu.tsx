@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {Button, Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
@@ -29,6 +31,7 @@ export const SessionHistoryMenu = ({
     base: string
     activeSessionId: string
 }) => {
+    const t = useT(chatMobileSessionsCatalog)
     const router = useRouter()
     const menu = useSessionRowMenu(base)
     const [open, setOpen] = useState(false)
@@ -41,12 +44,12 @@ export const SessionHistoryMenu = ({
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            <SimpleTooltip title="Session history">
+            <SimpleTooltip title={t("chat.mobileSessions.sessionHistory")}>
                 <PopoverTrigger asChild>
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label="Session history"
+                        aria-label={t("chat.mobileSessions.sessionHistory")}
                         className="h-7 w-7 shrink-0 p-0"
                     >
                         {/* The rail's own Sessions glyph, so the button reads as that list. */}
@@ -55,7 +58,9 @@ export const SessionHistoryMenu = ({
                 </PopoverTrigger>
             </SimpleTooltip>
             <PopoverContent align="end" className="flex w-[320px] flex-col gap-1 p-2">
-                <span className="px-3 pt-1 text-xs font-medium">Session history</span>
+                <span className="px-3 pt-1 text-xs font-medium">
+                    {t("chat.mobileSessions.sessionHistory")}
+                </span>
                 {/* Capped and scrolled: the strip already shows the recent ones, so this is the
                     tail, and an agent with a hundred sessions must not grow the popover. */}
                 {/* The surface is restated here, not left to PopoverContent, because the sticky
@@ -71,7 +76,7 @@ export const SessionHistoryMenu = ({
                         // the time kept, the subtitle dropped, the pin on hover beside the name.
                         density="compact"
                         activeRowId={activeSessionId}
-                        emptyText="No sessions with this agent yet."
+                        emptyText={t("chat.mobileSessions.noSessions")}
                         onOpenRow={openRow}
                         menuFor={menu.menuFor}
                         onMenuSelect={menu.onMenuSelect}

@@ -1,6 +1,8 @@
 import {type ReactNode} from "react"
 
 import {agentIconAtomFamily} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentActionsCatalog from "@agenta/i18n/catalogs/entityUi.agentActions"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -31,6 +33,7 @@ export const AgentIconPopover = ({
     /** The chip drawn by the caller; it becomes the popover's trigger and its anchor. */
     children: ReactNode
 }) => {
+    const t = useT(agentActionsCatalog)
     const [record, setRecord] = useAtom(agentIconAtomFamily(workflowId))
 
     return (
@@ -38,7 +41,7 @@ export const AgentIconPopover = ({
             <PopoverTrigger asChild>
                 <button
                     type="button"
-                    aria-label="Change agent icon"
+                    aria-label={t("entityUi.agentActions.changeAgentIcon")}
                     className={`flex shrink-0 cursor-pointer items-center rounded-lg border-0 bg-transparent p-0 ${AGENT_FOCUS_RING}`}
                 >
                     {children}

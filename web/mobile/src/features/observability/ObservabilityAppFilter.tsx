@@ -2,6 +2,8 @@ import {useEffect, type ReactNode} from "react"
 
 import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
 import {projectIdAtom} from "@agenta/shared/state"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
@@ -38,40 +40,46 @@ export const AppFilterSelect = ({
     value: string | null
     disabled?: boolean
     onChange: (appId: string | null) => void
-}) => (
-    <Select
-        value={value ?? ALL_APPS}
-        disabled={disabled}
-        onValueChange={(next) => onChange(next === ALL_APPS ? null : next)}
-    >
-        <SelectTrigger
-            size="sm"
-            className="w-full min-w-44 max-w-full sm:w-64"
-            aria-label="Filter by app"
+}) => {
+    const t = useT(screenCatalog)
+    return (
+        <Select
+            value={value ?? ALL_APPS}
+            disabled={disabled}
+            onValueChange={(next) => onChange(next === ALL_APPS ? null : next)}
         >
-            <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-            <SelectItem value={ALL_APPS}>
-                <Option icon={<Robot size={ICON} aria-hidden />} name="All apps" />
-            </SelectItem>
-            {apps.map((app) => (
-                <SelectItem key={app.id} value={app.id}>
+            <SelectTrigger
+                size="sm"
+                className="w-full min-w-44 max-w-full sm:w-64"
+                aria-label={t("observability.screen.filterByApp")}
+            >
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value={ALL_APPS}>
                     <Option
-                        icon={
-                            <AgentGlyph
-                                workflowId={app.id}
-                                size={ICON}
-                                fallback={<Robot size={ICON} aria-hidden />}
-                            />
-                        }
-                        name={app.name}
+                        icon={<Robot size={ICON} aria-hidden />}
+                        name={t("observability.screen.allApps")}
                     />
                 </SelectItem>
-            ))}
-        </SelectContent>
-    </Select>
-)
+                {apps.map((app) => (
+                    <SelectItem key={app.id} value={app.id}>
+                        <Option
+                            icon={
+                                <AgentGlyph
+                                    workflowId={app.id}
+                                    size={ICON}
+                                    fallback={<Robot size={ICON} aria-hidden />}
+                                />
+                            }
+                            name={app.name}
+                        />
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    )
+}
 
 /**
  * Narrows the observability screen to one app, over the apps list the nav already loads.

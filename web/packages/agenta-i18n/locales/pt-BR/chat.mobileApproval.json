@@ -1,0 +1,8 @@
+{
+    "failed": "A aprovação falhou.",
+    "failedStatus": "A aprovação falhou (HTTP {{status}}).",
+    "noLongerPending": "Esta aprovação não está mais pendente: atualize e tente de novo.",
+    "noneFound": "Nenhuma aprovação pendente encontrada: o turno pode ter seguido em frente.",
+    "oneExecutionOnly": "“Aprovar tudo” só pode responder a aprovações de uma única execução.",
+    "resumeFailed": "A retomada falhou."
+}

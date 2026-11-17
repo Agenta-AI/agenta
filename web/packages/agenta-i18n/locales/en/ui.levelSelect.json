@@ -1,0 +1,10 @@
+{
+    "loadError": "Error loading items",
+    "loading": "Loading...",
+    "noItems": "No items found",
+    "otherGroup": "Other",
+    "selectItem": "Select item...",
+    "selectLabel": "Select {{label}}...",
+    "selectLabelFirst": "Select {{label}} first",
+    "selectPreviousFirst": "Select previous level first"
+}

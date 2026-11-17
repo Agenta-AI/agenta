@@ -1,0 +1,13 @@
+{
+    "agentIcon": "エージェントのアイコン",
+    "backToPalette": "パレットに戻る",
+    "couldNotLoad": "アイコンを読み込めませんでした",
+    "customColour": "カスタムカラー",
+    "hex": "16進数",
+    "hexColour": "16進数カラー",
+    "noIconsFound": "アイコンが見つかりません",
+    "nothingMatches": "「{{search}}」に一致するものはありません",
+    "reset": "リセット",
+    "savesAsYouPick": "選ぶと自動で保存されます",
+    "searchIcons": "アイコンを検索"
+}

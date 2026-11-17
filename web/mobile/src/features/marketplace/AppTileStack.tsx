@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {motion} from "motion/react"
 
 import {useMotionPresets} from "@/lib/motion/presets"
@@ -41,6 +43,7 @@ export const AppTileStack = ({
     className?: string
 }) => {
     const presets = useMotionPresets()
+    const t = useT(marketplaceCatalog)
     const fans = !presets.reduced
     const [fanned, setFanned] = useState(false)
     const [lifted, setLifted] = useState<number | null>(null)
@@ -49,7 +52,7 @@ export const AppTileStack = ({
     return (
         <motion.div
             role={decorative ? undefined : "list"}
-            aria-label={decorative ? undefined : "Apps"}
+            aria-label={decorative ? undefined : t("marketplace.page.apps")}
             aria-hidden={decorative || undefined}
             onHoverStart={() => fans && setFanned(true)}
             onHoverEnd={() => setFanned(false)}

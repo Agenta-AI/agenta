@@ -158,7 +158,7 @@ const EmptyTable = () => {
 }
 
 /**
- * Read-only render with a mocked data source: 60 fixed rows, plain antd column defs,
+ * Read-only render with a mocked data source: 60 fixed rows, plain column defs,
  * and a no-op `loadMore`. Resizable columns + row selection are enabled to show the
  * grid features work purely off props, with no store or network.
  */

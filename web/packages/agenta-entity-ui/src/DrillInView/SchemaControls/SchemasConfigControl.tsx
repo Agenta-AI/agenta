@@ -2,6 +2,8 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -12,11 +14,11 @@ import clsx from "clsx"
 const SCHEMA_FIELDS = ["parameters", "inputs", "outputs"] as const
 type SchemaField = (typeof SCHEMA_FIELDS)[number]
 
-const FIELD_LABELS: Record<SchemaField, string> = {
-    parameters: "Parameters",
-    inputs: "Inputs",
-    outputs: "Outputs",
-}
+const FIELD_LABELS = {
+    parameters: "entityUi.schemaControls.parameters",
+    inputs: "entityUi.schemaControls.inputs",
+    outputs: "entityUi.schemaControls.outputs",
+} as const satisfies Record<SchemaField, CatalogKey<typeof schemaControlsCatalog>>
 
 function toJsonText(value: unknown): string {
     if (value === undefined || value === null) return "{}"
@@ -41,6 +43,7 @@ const SchemaEditor = memo(function SchemaEditor({
     onChange,
     disabled,
 }: SchemaEditorProps) {
+    const t = useT(schemaControlsCatalog)
     const [minimized, setMinimized] = useState(true)
     const text = useMemo(() => toJsonText(value), [value])
 
@@ -57,7 +60,9 @@ const SchemaEditor = memo(function SchemaEditor({
 
     const header = (
         <div className="w-full flex items-start justify-between py-1">
-            <span className="text-sm font-semibold pl-2 text-colorText">{FIELD_LABELS[field]}</span>
+            <span className="text-sm font-semibold pl-2 text-colorText">
+                {t(FIELD_LABELS[field])}
+            </span>
             <div className="flex items-center gap-1 shrink-0">
                 <TooltipProvider>
                     <Tooltip>
@@ -65,14 +70,14 @@ const SchemaEditor = memo(function SchemaEditor({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Copy"
+                                aria-label={t("entityUi.schemaControls.copy")}
                                 className="invisible group-hover/schema:visible"
                                 onClick={() => navigator.clipboard.writeText(text)}
                             >
                                 <CopySimple size={14} />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Copy</TooltipContent>
+                        <TooltipContent>{t("entityUi.schemaControls.copy")}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
                 <CollapseToggleButton

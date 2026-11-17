@@ -56,6 +56,8 @@ import {
     type McpReconnectTarget,
 } from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
+import {createT, richText, useT, type CatalogKey} from "@agenta/i18n"
+import mcpJourneyCatalog from "@agenta/i18n/catalogs/entityUi.mcpJourney"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {
     Alert,
@@ -103,12 +105,9 @@ export interface McpConnectJourneyProps {
     container?: HTMLElement | null
 }
 
-/** The header, which says what is being done rather than where in it we are. */
-const CONNECT_TITLE = "Connect MCP server"
-const RECONNECT_TITLE = "Reconnect MCP server"
-
-const URL_HELP =
-    "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing."
+// The helpers below run during render; they read the language when called.
+const tNow = createT(mcpJourneyCatalog)
+type JourneyKey = CatalogKey<typeof mcpJourneyCatalog>
 
 /** The box the address field is described by once the check has failed. */
 const URL_PROBLEM_ID = "mcp-url-problem"
@@ -126,49 +125,30 @@ const KEY_PROBLEM_ID = "mcp-key-problem"
  * The prefix help text the server form already carries, reused rather than rewritten: it is
  * the same rule being explained, and two wordings for one rule is how they drift.
  */
-const NAME_HELP =
-    "What the model sees on this server's tools. Frozen when the connection was chosen, so renaming the connection does not rename tools here."
-
-const SECRET_HELP_DELIVERY: Record<MCPCredentialBinding["kind"], string> = {
-    header: "is sent as this header",
-    query: "is sent as this query parameter",
-    url: "is put into the address",
+const SECRET_HELP: Record<MCPCredentialBinding["kind"], JourneyKey> = {
+    header: "entityUi.mcpJourney.secretHelpHeader",
+    query: "entityUi.mcpJourney.secretHelpQuery",
+    url: "entityUi.mcpJourney.secretHelpUrl",
 }
-const secretHelpFor = (kind: MCPCredentialBinding["kind"]): string =>
-    `Pick a project secret or create one. The value ${SECRET_HELP_DELIVERY[kind]} when the agent runs and is never shown again.`
+const secretHelpFor = (kind: MCPCredentialBinding["kind"]): string => tNow(SECRET_HELP[kind])
 
 /** Under the address on the key screen, by whether the binding fills its `{secret}`. */
-const urlSecretHint = (binding: MCPCredentialBinding) => {
-    const placeholder = <span className="font-mono">{MCP_URL_SECRET_PLACEHOLDER}</span>
-    return binding.kind === "url" ? (
-        <>
-            The secret replaces {placeholder} when Agenta calls the server. It is never stored in
-            the URL.
-        </>
-    ) : (
-        <>This URL contains {placeholder}. Set Send as to In the URL so the secret replaces it.</>
+const urlSecretHint = (binding: MCPCredentialBinding) =>
+    richText(
+        tNow(
+            binding.kind === "url"
+                ? "entityUi.mcpJourney.urlSecretReplaces"
+                : "entityUi.mcpJourney.urlSecretSetSendAs",
+            {placeholder: MCP_URL_SECRET_PLACEHOLDER},
+        ),
+        {code: (text) => <span className="font-mono">{text}</span>},
     )
-}
 
 /** What a failed check is told, by what the probe found rather than by what it returned. */
-const UNREACHABLE_HEADLINE = "Couldn't reach this server."
-const NOT_AN_MCP_SERVER_HEADLINE = "Reached the address, but it isn't an MCP server."
-const FAILURE_HEADLINES: Record<string, string> = {
-    not_an_mcp_server: NOT_AN_MCP_SERVER_HEADLINE,
-    unsupported_transport:
-        "This address uses the older SSE transport, which Agenta does not support.",
+const FAILURE_HEADLINES: Record<string, JourneyKey> = {
+    not_an_mcp_server: "entityUi.mcpJourney.notAnMcpServer",
+    unsupported_transport: "entityUi.mcpJourney.unsupportedTransport",
 }
-/**
- * Where to look instead of a computed address. A rewrite of the path was right for some
- * providers and wrong for others, and only the provider knows its newer address.
- */
-const NEWER_TRANSPORT_ADVICE =
-    "Many providers serve the newer transport at an address ending in /mcp. Check the provider's docs."
-const LEGACY_TRANSPORT_WARNING = `This address may use the older SSE transport, which Agenta does not support. ${NEWER_TRANSPORT_ADVICE}`
-const UNREACHABLE_ADVICE =
-    "Check the address and that the server speaks HTTP transport. Private-network servers must be reachable from Agenta."
-
-const KEY_REJECTED_HEADLINE = "The server rejected this key."
 
 /**
  * The same sentence, naming the status the spec's C6 copy names.
@@ -187,11 +167,9 @@ const KEY_REJECTED_HEADLINE = "The server rejected this key."
  * reaches this screen now, so the clause is never a guess and never absent when it is owed.
  */
 const keyRejectedHeadlineFor = (status: number | null): string =>
-    status ? `The server rejected this key (${status}).` : KEY_REJECTED_HEADLINE
-const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
-const URL_KEY_REJECTED_ADVICE = "Check where {secret} sits in the URL, or pick another secret."
-const QUERY_KEY_REJECTED_ADVICE =
-    "Check the query parameter the server expects, or pick another secret."
+    status
+        ? tNow("entityUi.mcpJourney.keyRejectedStatus", {status})
+        : tNow("entityUi.mcpJourney.keyRejected")
 /**
  * The same advice, preceded by what the server asked for where it said so.
  *
@@ -206,28 +184,19 @@ const QUERY_KEY_REJECTED_ADVICE =
  */
 const keyRejectedAdviceFor = (scheme: string | null, binding: MCPCredentialBinding): string => {
     // A key in the address has no header to check and no scheme to name.
-    if (binding.kind === "url") return URL_KEY_REJECTED_ADVICE
+    if (binding.kind === "url") return tNow("entityUi.mcpJourney.urlKeyRejectedAdvice")
     // A key in the query has no header and no scheme either; naming the header sent the
     // reader to a field this binding does not have.
-    if (binding.kind === "query") return QUERY_KEY_REJECTED_ADVICE
-    return scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
+    if (binding.kind === "query") return tNow("entityUi.mcpJourney.queryKeyRejectedAdvice")
+    const advice = tNow("entityUi.mcpJourney.keyRejectedAdvice")
+    return scheme ? `${headerSchemeHint(scheme)} ${advice}` : advice
 }
 
 /** None was chosen over what the server or the saved row suggested, and the server refused. */
 const keyRefusedWithoutKeyFor = (status: number | null): string =>
     status
-        ? `The server refused a connection without a key (${status}).`
-        : "The server refused a connection without a key."
-const NO_KEY_REFUSED_ADVICE = "Pick another authentication mode above."
-
-const WAITING_BODY =
-    "Finish in the window that opened. Sign in to the provider if it asks, then approve Agenta. This closes on its own when you're done."
-
-/** A reconnect could not read back the OAuth settings its connection is saved with. */
-const SAVED_OAUTH_UNREADABLE = "The saved OAuth settings could not be read. Try again."
-
-/** The existing sentence for the window between a granted consent and a refreshed list. */
-const SAVING_BODY = "Setting up the connection…"
+        ? tNow("entityUi.mcpJourney.refusedWithoutKeyStatus", {status})
+        : tNow("entityUi.mcpJourney.refusedWithoutKey")
 
 /** The six screens the statuses render as. */
 type Screen = "url" | "url_failed" | "oauth" | "api_key" | "no_auth" | "waiting"
@@ -361,6 +330,7 @@ export function McpConnectSheet({
     reconnect = null,
     container = null,
 }: McpConnectSheetProps) {
+    const t = useT(mcpJourneyCatalog)
     const {state} = journey
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
 
@@ -504,7 +474,7 @@ export function McpConnectSheet({
         const popup = window.open("", journey.popupName, consentPopupFeatures(window))
         try {
             const body = popup?.document.body
-            if (body) body.textContent = `Opening ${state.name}…`
+            if (body) body.textContent = tNow("entityUi.mcpJourney.openingName", {name: state.name})
         } catch {
             // A window reused from an earlier attempt can already be on the provider's
             // origin, and reading a cross-origin document throws.
@@ -693,17 +663,19 @@ export function McpConnectSheet({
     const secretChosen = screen === "api_key" && !!selectedSecretId()
     const probeResponse = readMcpProbeResponse(state.probe?.problem)
     const failureCause = state.probe?.problem?.cause
-    const failureHeadline =
-        (failureCause && FAILURE_HEADLINES[failureCause]) || UNREACHABLE_HEADLINE
+    const failureHeadlineKey = failureCause ? FAILURE_HEADLINES[failureCause] : undefined
+    const failureHeadline = t(failureHeadlineKey ?? "entityUi.mcpJourney.unreachable")
     // The probe's sentence repeats the SSE headline, so only the advice goes under it.
     // Reachability advice is wrong wherever the address answered.
     const failureBody =
         failureCause === "unsupported_transport" ? (
-            NEWER_TRANSPORT_ADVICE
+            t("entityUi.mcpJourney.newerTransportAdvice")
         ) : (
             <>
                 {state.error || null}{" "}
-                {failureCause === "not_an_mcp_server" ? null : UNREACHABLE_ADVICE}
+                {failureCause === "not_an_mcp_server"
+                    ? null
+                    : t("entityUi.mcpJourney.unreachableAdvice")}
             </>
         )
     // What the server named when it refused the anonymous handshake. Named on a refusal even
@@ -721,7 +693,9 @@ export function McpConnectSheet({
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
 
-    const title = reconnect ? RECONNECT_TITLE : CONNECT_TITLE
+    const title = reconnect
+        ? t("entityUi.mcpJourney.reconnectTitle")
+        : t("entityUi.mcpJourney.connectTitle")
 
     return (
         <EnhancedModal
@@ -739,7 +713,7 @@ export function McpConnectSheet({
                 screen === "waiting" ? null : (
                     <>
                         <Button variant="outline" onClick={handleClose} disabled={busy}>
-                            Cancel
+                            {t("entityUi.mcpJourney.cancel")}
                         </Button>
                         <LoadingButton
                             loading={busy}
@@ -762,7 +736,7 @@ export function McpConnectSheet({
                             }
                             onClick={confirm}
                         >
-                            {confirmLabel(screen, state)}
+                            {t(confirmLabel(screen, state))}
                             {screen === "oauth" && !isConsentRefusal(state.status) ? (
                                 <ArrowSquareOut size={14} data-icon="inline-end" />
                             ) : null}
@@ -780,11 +754,11 @@ export function McpConnectSheet({
                 <div className="flex flex-col gap-4" data-testid="mcp-connect-journey">
                     {screen === "url" || screen === "url_failed" ? (
                         <HintedField
-                            label="Server URL"
+                            label={t("entityUi.mcpJourney.serverUrl")}
                             // Dropped once the check has failed: the box below says what is
                             // wrong with this address, and the line explaining what the
                             // field is for is no longer the thing to read.
-                            hint={screen === "url" ? URL_HELP : null}
+                            hint={screen === "url" ? t("entityUi.mcpJourney.urlHelp") : null}
                         >
                             <Input
                                 autoFocus
@@ -792,7 +766,7 @@ export function McpConnectSheet({
                                 placeholder="https://mcp.example.com/mcp"
                                 value={state.url}
                                 disabled={busy}
-                                aria-label="Server URL"
+                                aria-label={t("entityUi.mcpJourney.serverUrl")}
                                 // The failure box, when the check has failed. The help line
                                 // is `HintedField`'s to name, and it names it only while it
                                 // is rendered, so the refused field describes the box that
@@ -864,7 +838,7 @@ export function McpConnectSheet({
                             className="items-start border-colorWarningBorder bg-colorWarningBg px-3 py-2.5"
                             message={
                                 <span className="text-xs font-normal leading-normal text-colorText">
-                                    {LEGACY_TRANSPORT_WARNING}
+                                    {t("entityUi.mcpJourney.legacyTransportWarning")}
                                 </span>
                             }
                         />
@@ -872,13 +846,17 @@ export function McpConnectSheet({
 
                     {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
                         <HintedField
-                            label="Name"
-                            tooltip={screen === "oauth" ? NAME_HELP : undefined}
+                            label={t("entityUi.mcpJourney.name")}
+                            tooltip={
+                                screen === "oauth" ? t("entityUi.mcpJourney.nameHelp") : undefined
+                            }
                             error={nameError ?? undefined}
                             hint={
-                                screen === "oauth" && prefix ? (
-                                    <>Shown across this project. Tools are prefixed {prefix}_</>
-                                ) : null
+                                screen === "oauth" && prefix
+                                    ? richText(t("entityUi.mcpJourney.namePrefixHint", {prefix}), {
+                                          code: (text) => <span className="font-mono">{text}</span>,
+                                      })
+                                    : null
                             }
                         >
                             <Input
@@ -887,7 +865,7 @@ export function McpConnectSheet({
                                 // A reconnect repairs a credential. The label is what agents
                                 // and people already call this connection.
                                 disabled={!!reconnect || busy}
-                                aria-label="Name"
+                                aria-label={t("entityUi.mcpJourney.name")}
                                 onChange={(event) => journey.setName(event.target.value)}
                             />
                         </HintedField>
@@ -899,10 +877,9 @@ export function McpConnectSheet({
 
                     {screen === "oauth" ? (
                         <NoticeBox>
-                            Connect opens {state.name || "the server"}&apos;s authorization page in
-                            a new window; {state.name || "the server"} asks which permissions to
-                            grant (usually read and write). The login is stored for this project
-                            only.
+                            {t("entityUi.mcpJourney.oauthNotice", {
+                                name: state.name || t("entityUi.mcpJourney.theServer"),
+                            })}
                         </NoticeBox>
                     ) : null}
 
@@ -912,7 +889,7 @@ export function McpConnectSheet({
                             onClientIdChange={(clientId) => journey.setOauthClient({clientId})}
                             clientSecret={
                                 <SecretSelect
-                                    label="Client secret"
+                                    label={t("entityUi.mcpJourney.clientSecret")}
                                     value={
                                         namedSecrets.find(
                                             (secret) => secret.id === state.oauthClientSecretId,
@@ -965,7 +942,7 @@ export function McpConnectSheet({
                                 />
                                 {binding.kind === "url" || hasUrlSecretPlaceholder(state.url) ? (
                                     <HintedField
-                                        label="Server URL"
+                                        label={t("entityUi.mcpJourney.serverUrl")}
                                         hint={urlSecretHint(binding)}
                                         error={urlProblem ?? undefined}
                                     >
@@ -975,7 +952,7 @@ export function McpConnectSheet({
                                             // A reconnect repairs one address and never
                                             // points a saved connection somewhere else.
                                             disabled={!!reconnect || busy}
-                                            aria-label="Server URL"
+                                            aria-label={t("entityUi.mcpJourney.serverUrl")}
                                             onChange={(event) =>
                                                 journey.editUrl(event.target.value)
                                             }
@@ -989,7 +966,7 @@ export function McpConnectSheet({
                                     />
                                 ) : null}
                                 <Field
-                                    label="Project secret"
+                                    label={t("entityUi.mcpJourney.projectSecret")}
                                     invalid={state.status === "verify_failed"}
                                 >
                                     <SecretSelect
@@ -1032,14 +1009,22 @@ export function McpConnectSheet({
 
                     {screen === "no_auth" && state.status === "verify_failed" ? (
                         <InlineError headline={keyRefusedWithoutKeyFor(refusedStatus)}>
-                            {state.error} {NO_KEY_REFUSED_ADVICE}
+                            {state.error} {t("entityUi.mcpJourney.noKeyRefusedAdvice")}
                         </InlineError>
                     ) : null}
 
                     {screen === "waiting" ? (
                         <WaitingCard
-                            title={sealed ? null : `Waiting for ${state.name}…`}
-                            body={sealed ? SAVING_BODY : WAITING_BODY}
+                            title={
+                                sealed
+                                    ? null
+                                    : t("entityUi.mcpJourney.waitingFor", {name: state.name})
+                            }
+                            body={
+                                sealed
+                                    ? t("entityUi.mcpJourney.savingBody")
+                                    : t("entityUi.mcpJourney.waitingBody")
+                            }
                         >
                             {sealed ? null : (
                                 <div className="flex items-center gap-4 text-xs">
@@ -1053,7 +1038,7 @@ export function McpConnectSheet({
                                         className={cn("px-0 text-xs", touchTargetExpansion(24))}
                                         onClick={() => consentPopupRef.current?.focus()}
                                     >
-                                        Open the window again
+                                        {t("entityUi.mcpJourney.openWindowAgain")}
                                     </Button>
                                     <Button
                                         variant="link"
@@ -1070,7 +1055,7 @@ export function McpConnectSheet({
                                             else handleClose()
                                         }}
                                     >
-                                        Cancel
+                                        {t("entityUi.mcpJourney.cancel")}
                                     </Button>
                                 </div>
                             )}
@@ -1078,13 +1063,15 @@ export function McpConnectSheet({
                     ) : null}
 
                     {screen === "oauth" && state.savedOauthConfig === "failed" ? (
-                        <InlineError headline={null}>{SAVED_OAUTH_UNREADABLE}</InlineError>
+                        <InlineError headline={null}>
+                            {t("entityUi.mcpJourney.savedOauthUnreadable")}
+                        </InlineError>
                     ) : null}
 
                     {screen === "oauth" && isConsentRefusal(state.status) ? (
                         <InlineError headline={null}>
                             {state.status === "consent_cancelled"
-                                ? `${state.name} didn't authorize Agenta. The sign-in was cancelled or denied. Nothing was saved.`
+                                ? t("entityUi.mcpJourney.consentCancelled", {name: state.name})
                                 : state.error}
                         </InlineError>
                     ) : null}
@@ -1125,13 +1112,15 @@ const isConsentRefusal = (status: McpJourneyState["status"]) =>
     status === "consent_cancelled" || status === "consent_failed" || status === "scopes_failed"
 
 /** What the trailing button says, by screen and by whether it is a second attempt. */
-const confirmLabel = (screen: Screen, state: McpJourneyState): string => {
-    if (screen === "url") return "Continue"
-    if (screen === "oauth" && state.savedOauthConfig === "failed") return "Try again"
-    if (screen === "url_failed") return "Try again"
-    if (isConsentRefusal(state.status)) return "Try again"
-    if (state.status === "verify_failed" || state.status === "create_failed") return "Try again"
-    return "Connect"
+const confirmLabel = (screen: Screen, state: McpJourneyState): JourneyKey => {
+    if (screen === "url") return "entityUi.mcpJourney.continue"
+    if (screen === "oauth" && state.savedOauthConfig === "failed")
+        return "entityUi.mcpJourney.tryAgain"
+    if (screen === "url_failed") return "entityUi.mcpJourney.tryAgain"
+    if (isConsentRefusal(state.status)) return "entityUi.mcpJourney.tryAgain"
+    if (state.status === "verify_failed" || state.status === "create_failed")
+        return "entityUi.mcpJourney.tryAgain"
+    return "entityUi.mcpJourney.connect"
 }
 
 const canConfirm = ({
@@ -1242,7 +1231,7 @@ const WaitingCard = ({
  * finish this screen.
  */
 const SecretSelect = ({
-    label = "Project secret",
+    label,
     value,
     onChange,
     secrets,
@@ -1272,6 +1261,7 @@ const SecretSelect = ({
     /** Injected the same way, and by the screens that name an error box of their own. */
     "aria-describedby"?: string
 }) => {
+    const t = useT(mcpJourneyCatalog)
     const [selectOpen, setSelectOpen] = useState(false)
     const options = secrets.filter((secret) => !!secret.slug)
 
@@ -1286,21 +1276,21 @@ const SecretSelect = ({
                 id={id}
                 className="w-full"
                 disabled={disabled}
-                aria-label={label}
+                aria-label={label ?? t("entityUi.mcpJourney.projectSecret")}
                 aria-describedby={describedBy}
                 aria-invalid={invalid || undefined}
             >
-                <SelectValue placeholder="Select a project secret" />
+                <SelectValue placeholder={t("entityUi.mcpJourney.selectProjectSecret")} />
             </SelectTrigger>
             <SelectContent>
                 {options.length === 0 ? (
                     <div className="px-3 py-input-y-ghost text-field-md text-colorTextSecondary">
-                        No project secrets found
+                        {t("entityUi.mcpJourney.noProjectSecrets")}
                     </div>
                 ) : (
                     options.map((secret) => (
                         <SelectItem key={secret.slug} value={secret.slug as string}>
-                            {secret.name || "Unnamed secret"}
+                            {secret.name || t("entityUi.mcpJourney.unnamedSecret")}
                         </SelectItem>
                     ))
                 )}
@@ -1315,7 +1305,7 @@ const SecretSelect = ({
                     className="min-h-control w-full justify-start gap-2 rounded-control-sm px-3 py-1 text-field-md font-normal"
                 >
                     <Plus size={13} className="shrink-0" />
-                    Create secret
+                    {t("entityUi.mcpJourney.createSecret")}
                 </Button>
             </SelectContent>
         </Select>

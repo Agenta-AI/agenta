@@ -2,6 +2,8 @@
 import {useCallback} from "react"
 
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import triggerSharedCatalog from "@agenta/i18n/catalogs/entityUi.triggerShared"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Lightning} from "@phosphor-icons/react"
@@ -28,6 +30,7 @@ export function RunSubscriptionButton({
     disabled?: boolean
     onClose: () => void
 }) {
+    const t = useT(triggerSharedCatalog)
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId))
 
     const run = useCallback(
@@ -51,11 +54,13 @@ export function RunSubscriptionButton({
                         <span>
                             <Button variant="outline" disabled>
                                 <Lightning size={14} />
-                                Run in playground
+                                {t("entityUi.triggerShared.runInPlayground")}
                             </Button>
                         </span>
                     </TooltipTrigger>
-                    <TooltipContent>Create the trigger first to run it</TooltipContent>
+                    <TooltipContent>
+                        {t("entityUi.triggerShared.createTriggerFirst")}
+                    </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         )
@@ -67,7 +72,7 @@ export function RunSubscriptionButton({
             trigger={
                 <Button variant="outline">
                     <Lightning size={14} />
-                    Run in playground
+                    {t("entityUi.triggerShared.runInPlayground")}
                 </Button>
             }
             recentEvents={[]}

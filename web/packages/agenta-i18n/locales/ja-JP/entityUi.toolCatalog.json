@@ -1,0 +1,15 @@
+{
+    "seeLess": "折りたたむ",
+    "seeMore": "もっと見る",
+    "browseActions": "アクションを参照",
+    "browseIntegrations": "インテグレーションを参照",
+    "searchIntegrations": "インテグレーションを検索…",
+    "integrationsCount_other": "{{count}} 件のインテグレーション",
+    "noIntegrationsFound": "インテグレーションが見つかりません",
+    "goBack": "戻る",
+    "connect": "接続",
+    "openConnections": "接続を開く",
+    "searchActions": "アクションを検索…",
+    "actionsCount_other": "{{count}} 件のアクション",
+    "noActionsFound": "アクションが見つかりません"
+}

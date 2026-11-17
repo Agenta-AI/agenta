@@ -191,7 +191,7 @@ counted). Minor.
 - The wire contract is pinned from Python only (`test_wire_contract.py` + golden fixtures);
   the TS `protocol.ts` has no test asserting it.
 - The repo already standardizes vitest for TS units (`web/packages/*`), with a written
-  folder spec (`docs/designs/testing/testing.structure.specs.md`).
+  folder spec (`docs/design/testing/testing.structure.specs.md`).
 
 ## Open decisions
 

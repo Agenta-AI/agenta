@@ -6,6 +6,7 @@
  */
 import {getScheduleMessagePreview, queryTriggerDeliveries} from "@agenta/entities/gatewayTrigger"
 import type {TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {formatDate, formatLocale} from "@agenta/i18n"
 import {dayjs} from "@agenta/shared/utils"
 
 import type {SampledEvent} from "./EventSourcePicker"
@@ -31,15 +32,25 @@ export function recentWithInputs(deliveries: TriggerDelivery[]): TriggerDelivery
         .slice(0, 3)
 }
 
+/** English keeps its exact format; other languages name the month in their own words. */
+function sampleTime(createdAt: string): string {
+    if (!formatLocale()) return dayjs(createdAt).format("MMM D, HH:mm")
+    return formatDate(new Date(createdAt), {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+    })
+}
+
 export function deliveryToSample(delivery: TriggerDelivery, label: string): SampledEvent {
     const payload = deliveryInputs(delivery)
     return {
         id: delivery.id ?? "delivery",
         label,
         preview: getScheduleMessagePreview(payload) || undefined,
-        timeAgo: delivery.created_at
-            ? dayjs(delivery.created_at).format("MMM D, HH:mm")
-            : undefined,
+        timeAgo: delivery.created_at ? sampleTime(delivery.created_at) : undefined,
         payload,
     }
 }

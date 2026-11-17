@@ -1,0 +1,14 @@
+{
+    "cannotBeUndone": "此操作无法撤销。",
+    "dangerZone": "危险区域",
+    "deleteAccount": "删除账号",
+    "deleteAccountDescription": "删除你的账号、你拥有的每个组织，以及它们的所有工作区、项目、应用和数据。你将立即退出登录。",
+    "deleteCallout": "永久删除你的账号和你拥有的每个组织，包括所有工作区、项目、应用和数据。",
+    "email": "邮箱",
+    "emailHint": "用于登录和接收组织邀请。",
+    "profile": "个人资料",
+    "typeToConfirm": "输入 <code>{{email}}</code> 以确认：",
+    "username": "用户名",
+    "usernameHint": "你在成员列表和审计记录中显示的名称。",
+    "yourEmail": "你的邮箱"
+}

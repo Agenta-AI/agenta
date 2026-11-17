@@ -1,0 +1,11 @@
+{
+    "aboutHarnesses": "À propos des harness",
+    "harnessExplainer": "Un harness est l’environnement d’exécution du modèle : un même modèle peut être disponible via plusieurs harness.",
+    "inputLabel": "Entrée :",
+    "manageProviders": "Gérer les fournisseurs de modèles",
+    "models": "Modèles",
+    "outputLabel": "Sortie :",
+    "providers": "Fournisseurs",
+    "selectProvider": "Sélectionnez un fournisseur",
+    "via": "via"
+}

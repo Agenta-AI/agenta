@@ -1,0 +1,13 @@
+{
+    "attachComingSoon": "Dateianhänge folgen in Kürze",
+    "attachFiles": "Dateien anhängen",
+    "attachUpTo": "Bis zu {{count}} Dateien",
+    "listening": "Hört zu …",
+    "placeholderFirst": "Woran sollen wir arbeiten?",
+    "placeholderKeyboard": "Fragen Sie den Agent … (Enter zum Senden, ⌘/Strg+Enter für neue Zeile)",
+    "placeholderQuoted": "Was soll an der zitierten Stelle geändert werden?",
+    "placeholderTouch": "Fragen Sie den Agent …",
+    "placeholderWaiting": "Antworten Sie oben oder geben Sie stattdessen eine Nachricht ein",
+    "quotesAttached_one": "{{count}} Zitat angehängt",
+    "quotesAttached_other": "{{count}} Zitate angehängt"
+}

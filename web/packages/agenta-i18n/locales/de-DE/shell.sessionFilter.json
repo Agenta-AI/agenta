@@ -1,0 +1,21 @@
+{
+    "agent": "Agent",
+    "agentCount": "{{count}} Agents",
+    "allAgents": "Alle Agents",
+    "automation": "Automatisierung",
+    "awaitingInput": "Wartet auf Eingabe",
+    "chat": "Chat",
+    "date": "Datum",
+    "filterSessions": "Sitzungen filtern",
+    "groupBy": "Gruppieren nach",
+    "idle": "Inaktiv",
+    "last30Days": "Letzte 30 Tage",
+    "last7Days": "Letzte 7 Tage",
+    "lastActivity": "Letzte Aktivität",
+    "loadingAgents": "Agents werden geladen…",
+    "noAgentsYet": "Noch keine Agents",
+    "running": "Läuft",
+    "searchSessions": "Sitzungen durchsuchen",
+    "today": "Heute",
+    "type": "Typ"
+}

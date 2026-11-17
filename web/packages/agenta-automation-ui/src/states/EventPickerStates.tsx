@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {Lightning, MagnifyingGlass, Plug} from "@phosphor-icons/react"
 
@@ -44,26 +46,29 @@ export const EventListEmpty = ({
     /** The app's own mark, so the frame names the app the way the rail does. */
     logo?: string | null
     logoLoading?: boolean
-}) => (
-    <EventPickerEmptyFrame
-        icon={
-            logo ? (
-                <img
-                    src={logo}
-                    alt=""
-                    aria-hidden
-                    className="size-5 rounded-[4px] object-contain"
-                />
-            ) : logoLoading ? (
-                <SkeletonBlock active className="size-5 rounded-[4px]" />
-            ) : (
-                <Lightning aria-hidden size={19} className="text-muted-foreground" />
-            )
-        }
-        title="No events to watch"
-        body={`${appLabel} is connected, but it publishes nothing this automation can run on. Pick another app from the list.`}
-    />
-)
+}) => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        <EventPickerEmptyFrame
+            icon={
+                logo ? (
+                    <img
+                        src={logo}
+                        alt=""
+                        aria-hidden
+                        className="size-5 rounded-[4px] object-contain"
+                    />
+                ) : logoLoading ? (
+                    <SkeletonBlock active className="size-5 rounded-[4px]" />
+                ) : (
+                    <Lightning aria-hidden size={19} className="text-muted-foreground" />
+                )
+            }
+            title={t("automations.editor.noEventsTitle")}
+            body={t("automations.editor.noEventsBody", {app: appLabel})}
+        />
+    )
+}
 
 /** The search narrowed this app's events to none. The query is the cause, so it is quotable. */
 export const EventSearchEmpty = ({
@@ -81,58 +86,70 @@ export const EventSearchEmpty = ({
     loadingMore?: boolean
     onLoadMore?: () => void
     onClear: () => void
-}) => (
-    <EventPickerEmptyFrame
-        icon={<MagnifyingGlass aria-hidden size={19} className="text-muted-foreground" />}
-        title={hasMore ? `Nothing yet for “${query}”` : `No ${appLabel} events match “${query}”`}
-        body={
-            hasMore
-                ? `More of ${appLabel}'s catalog has not loaded. Look further, or clear the search.`
-                : "The search covers this app only. Clear it to see everything it publishes, or pick another app."
-        }
-        action={
-            <span className="mt-1 flex items-center gap-2">
-                {hasMore ? (
+}) => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        <EventPickerEmptyFrame
+            icon={<MagnifyingGlass aria-hidden size={19} className="text-muted-foreground" />}
+            title={
+                hasMore
+                    ? t("automations.editor.nothingYetFor", {query})
+                    : t("automations.editor.noAppEventsMatch", {app: appLabel, query})
+            }
+            body={
+                hasMore
+                    ? t("automations.editor.moreNotLoaded", {app: appLabel})
+                    : t("automations.editor.searchCoversApp")
+            }
+            action={
+                <span className="mt-1 flex items-center gap-2">
+                    {hasMore ? (
+                        <Button
+                            type="button"
+                            size="sm"
+                            className="text-xs font-normal"
+                            disabled={loadingMore}
+                            onClick={onLoadMore}
+                        >
+                            {loadingMore
+                                ? t("automations.editor.looking")
+                                : t("automations.editor.lookFurther")}
+                        </Button>
+                    ) : null}
                     <Button
                         type="button"
+                        variant="outline"
                         size="sm"
                         className="text-xs font-normal"
-                        disabled={loadingMore}
-                        onClick={onLoadMore}
+                        onClick={onClear}
                     >
-                        {loadingMore ? "Looking…" : "Look further"}
+                        {t("automations.editor.clearSearch")}
                     </Button>
-                ) : null}
+                </span>
+            }
+        />
+    )
+}
+
+/** Nothing is connected yet, so there is no catalog to search in the first place. */
+export const EventPickerNoApps = ({onConnect}: {onConnect: () => void}) => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        <EventPickerEmptyFrame
+            icon={<Plug aria-hidden size={19} className="text-muted-foreground" />}
+            title={t("automations.editor.noAppsConnected")}
+            body={t("automations.editor.noAppsConnectedBody")}
+            action={
                 <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="text-xs font-normal"
-                    onClick={onClear}
+                    className="mt-1 text-xs font-normal"
+                    onClick={onConnect}
                 >
-                    Clear search
+                    {t("automations.editor.connectApp")}
                 </Button>
-            </span>
-        }
-    />
-)
-
-/** Nothing is connected yet, so there is no catalog to search in the first place. */
-export const EventPickerNoApps = ({onConnect}: {onConnect: () => void}) => (
-    <EventPickerEmptyFrame
-        icon={<Plug aria-hidden size={19} className="text-muted-foreground" />}
-        title="No apps connected"
-        body="Connect an app and this automation can run whenever something happens in it."
-        action={
-            <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-1 text-xs font-normal"
-                onClick={onConnect}
-            >
-                Connect an app
-            </Button>
-        }
-    />
-)
+            }
+        />
+    )
+}
