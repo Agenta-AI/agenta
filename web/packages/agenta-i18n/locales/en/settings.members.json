@@ -1,0 +1,13 @@
+{
+    "added": "Added",
+    "emptyDescription": "Invite people to collaborate in this organization. Invitations appear here until they are accepted or expire.",
+    "emptyTitle": "No members yet",
+    "expired": "Expired",
+    "inviteMembers": "Invite members",
+    "member": "Member",
+    "memberActions": "Member actions",
+    "resendInvitation": "Resend invitation",
+    "resetPassword": "Reset password",
+    "username": "Username",
+    "you": "You"
+}

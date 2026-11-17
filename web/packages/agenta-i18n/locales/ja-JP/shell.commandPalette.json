@@ -1,0 +1,12 @@
+{
+    "agentFallback": "エージェント",
+    "browseTemplates": "テンプレートを見る",
+    "description": "セッション、エージェント、ページを検索するか、アクションを実行します。",
+    "groupEvaluators": "評価器",
+    "groupPages": "ページ",
+    "groupPrompts": "プロンプト",
+    "newAgent": "新しいエージェント",
+    "nothingMatches": "一致するものはありません",
+    "placeholder": "セッション、エージェント、ページを検索…",
+    "searching": "検索中…"
+}

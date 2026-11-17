@@ -10,6 +10,8 @@
 
 import React, {useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
@@ -134,11 +136,13 @@ export function DropdownButton({
     dropdownDisabled = false,
     placement = "bottomRight",
     dropdownIcon,
-    dropdownAriaLabel = "More actions",
+    dropdownAriaLabel: dropdownAriaLabelProp,
     storageKey,
     defaultSelectedKey,
     loading = false,
 }: DropdownButtonProps) {
+    const t = useT(uiControlsCatalog)
+    const dropdownAriaLabel = dropdownAriaLabelProp ?? t("ui.controls.moreActions")
     // Use atomWithStorage for persistence when storageKey is provided
     const defaultKey = defaultSelectedKey ?? options[0]?.key ?? ""
     const [selectedKey, setSelectedKey] = useDropdownSelection(storageKey, defaultKey)

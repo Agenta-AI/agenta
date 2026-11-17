@@ -1,0 +1,11 @@
+{
+    "aboutHarnesses": "关于运行框架",
+    "harnessExplainer": "运行框架是执行模型的运行环境，同一个模型可以通过多个运行框架使用。",
+    "inputLabel": "输入：",
+    "manageProviders": "管理模型供应商",
+    "models": "模型",
+    "outputLabel": "输出：",
+    "providers": "供应商",
+    "selectProvider": "选择供应商",
+    "via": "通过"
+}

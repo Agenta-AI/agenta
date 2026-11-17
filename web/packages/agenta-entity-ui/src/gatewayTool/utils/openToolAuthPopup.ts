@@ -1,7 +1,11 @@
+import {createT} from "@agenta/i18n"
+import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {message} from "@agenta/ui"
 
 import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
+
+const tNow = createT(connectFormCatalog)
 
 const trustedOrigins = () => {
     const origins = new Set<string>([window.location.origin])
@@ -20,7 +24,7 @@ const trustedOrigins = () => {
 export const openToolAuthPopup = (redirectUrl: string, onDone: () => void) => {
     const popup = window.open(redirectUrl, "tools_oauth", consentPopupFeatures(window))
     if (!popup) {
-        message.warning("Popup blocked. Redirecting in this tab.")
+        message.warning(tNow("entityUi.connectForm.popupBlocked"))
         window.location.assign(redirectUrl)
         return null
     }

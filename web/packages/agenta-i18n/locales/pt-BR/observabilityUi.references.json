@@ -1,0 +1,14 @@
+{
+    "application": "Aplicativo",
+    "variant": "Variante",
+    "testSet": "Conjunto de testes",
+    "evaluator": "Avaliador",
+    "environment": "Ambiente",
+    "slug": "Slug",
+    "id": "ID",
+    "version": "Versão",
+    "revisionId": "ID da revisão",
+    "copyName": "Copiar nome",
+    "copyField": "Copiar {{name}}",
+    "deleted": "Excluído"
+}

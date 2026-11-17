@@ -1,6 +1,9 @@
 // Import-from-repo flow: paste a GitHub URL, scan it, pick what was found, confirm.
 import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import repoImportCatalog from "@agenta/i18n/catalogs/ui.repoImport"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {GitBranch} from "@phosphor-icons/react"
 
@@ -31,8 +34,10 @@ export interface RepoImportDrawerProps {
     title: string
     /** The line under the URL field. */
     hint: string
-    /** Plural, e.g. "skills". */
-    noun: string
+    /** The error shown when the scan finds nothing, as a full sentence. */
+    noneFoundText: string
+    /** The heading over the found list, e.g. "Skills found"; the count follows it. */
+    foundLabel: string
     scan: (repoUrl: string) => Promise<RepoScanResult>
     /** Pick several rows, all available ones preselected; otherwise exactly one. */
     multiple?: boolean
@@ -50,6 +55,8 @@ const failureMessage = (err: unknown): string | null => {
     return err instanceof Error && err.message ? err.message : null
 }
 
+const tNow = createT(repoImportCatalog)
+
 const ROW = "box-border flex items-start gap-2.5 rounded-md border border-solid p-2.5"
 
 export function RepoImportDrawer({
@@ -57,12 +64,14 @@ export function RepoImportDrawer({
     onClose,
     title,
     hint,
-    noun,
+    noneFoundText,
+    foundLabel,
     scan,
     multiple = false,
     confirmLabel,
     onConfirm,
 }: RepoImportDrawerProps) {
+    const t = useT(commonCatalog, repoImportCatalog)
     const [step, setStep] = useState<"url" | "select" | "done">("url")
     // Focus a frame after opening: the sheet's own focus lands first and beats `autoFocus`.
     const urlInput = useRef<HTMLInputElement>(null)
@@ -103,7 +112,7 @@ export function RepoImportDrawer({
             const response = await scan(repoUrl.trim())
             if (id !== requestId.current) return
             if (response.candidates.length === 0) {
-                setError(`No ${noun} found in this repository.`)
+                setError(noneFoundText)
                 return
             }
             setFound(response)
@@ -118,14 +127,11 @@ export function RepoImportDrawer({
             setStep("select")
         } catch (err) {
             if (id !== requestId.current) return
-            setError(
-                failureMessage(err) ??
-                    "Scan failed. Check the URL and that the repository is public.",
-            )
+            setError(failureMessage(err) ?? tNow("ui.repoImport.scanFailed"))
         } finally {
             if (id === requestId.current) setBusy(false)
         }
-    }, [multiple, noun, repoUrl, scan])
+    }, [multiple, noneFoundText, repoUrl, scan])
 
     const confirm = useCallback(async () => {
         const id = ++requestId.current
@@ -181,17 +187,17 @@ export function RepoImportDrawer({
             footer={
                 step === "done" ? (
                     <div className="flex items-center justify-end">
-                        <Button onClick={close}>Done</Button>
+                        <Button onClick={close}>{t("common.done")}</Button>
                     </div>
                 ) : (
                     <div className="flex items-center justify-end gap-2">
                         <Button variant="outline" onClick={close} disabled={busy}>
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         {step === "url" ? (
                             <Button onClick={runScan} disabled={busy || !repoUrl.trim()}>
                                 {busy ? <Spinner size="small" /> : <GitBranch size={14} />}
-                                Scan repository
+                                {t("ui.repoImport.scanRepository")}
                             </Button>
                         ) : (
                             <Button onClick={confirm} disabled={busy || selected.size === 0}>
@@ -207,7 +213,7 @@ export function RepoImportDrawer({
                 {/* The field stays on top once scanned; editing the URL is how you scan another. */}
                 {step !== "done" ? (
                     <label className="flex flex-col gap-1.5 text-xs">
-                        <span className="font-medium">Repository URL</span>
+                        <span className="font-medium">{t("ui.repoImport.repositoryUrl")}</span>
                         <Input
                             ref={urlInput}
                             value={repoUrl}
@@ -250,14 +256,13 @@ export function RepoImportDrawer({
                     <>
                         <div className="flex flex-col gap-1.5 text-xs">
                             <span className="font-medium">
-                                {noun[0].toUpperCase() + noun.slice(1)} found ·{" "}
-                                {found.candidates.length}
+                                {foundLabel} · {found.candidates.length}
                             </span>
                             {found.candidates.length > 5 ? (
                                 <Input
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
-                                    placeholder="Search"
+                                    placeholder={t("common.search")}
                                     disabled={busy}
                                 />
                             ) : null}
@@ -284,7 +289,7 @@ export function RepoImportDrawer({
                                                 </span>
                                                 {candidate.version ? (
                                                     <span className="shrink-0 text-[var(--ag-colorTextTertiary)]">
-                                                        v{candidate.version}
+                                                        {`v${candidate.version}`}
                                                     </span>
                                                 ) : null}
                                                 {candidate.badge ? (

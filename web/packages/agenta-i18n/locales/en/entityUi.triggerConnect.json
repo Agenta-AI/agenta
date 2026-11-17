@@ -1,0 +1,17 @@
+{
+    "chooseAnEvent": "Choose an event",
+    "addAppTrigger": "Add an app trigger",
+    "searchIntegrations": "Search integrations…",
+    "searchEvents": "Search events…",
+    "connectionsHint": "Pick an event to create a trigger — no setup needed.",
+    "noTriggers": "This app has no triggers",
+    "popupBlocked": "Popup blocked. Redirecting in this tab.",
+    "connectTo": "Connect to {{name}}",
+    "name": "Name",
+    "nameTip": "Display name for this connection",
+    "required": "Required",
+    "namePlaceholder": "e.g. My {{name}} Account",
+    "authMethod": "Auth Method",
+    "apiKey": "API Key",
+    "connect": "Connect"
+}

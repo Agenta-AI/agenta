@@ -17,6 +17,8 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {cn} from "@agenta/ui/styles"
 import {Combobox, Field} from "@agenta/ui/ui"
 
@@ -92,6 +94,7 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
     disabled = false,
     className,
 }: HarnessSelectControlProps) {
+    const t = useT(configItemsCatalog)
     // Canonical labels from the schema `oneOf` titles (`Pi` / `Pi (Agenta)` / `Claude Code`);
     // the avatar (and any label the schema omits) still comes from `metaFor`.
     const titles = useMemo(() => titlesFromSchema(schema), [schema])
@@ -130,10 +133,10 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
                 value={value ?? undefined}
                 onChange={(val) => onChange(val ?? null)}
                 disabled={disabled}
-                placeholder="Select harness"
+                placeholder={t("entityUi.configItems.selectHarness")}
                 className="w-full"
                 options={options}
-                aria-label={label ? undefined : "Harness"}
+                aria-label={label ? undefined : t("entityUi.configItems.harness")}
             />
         </Field>
     )

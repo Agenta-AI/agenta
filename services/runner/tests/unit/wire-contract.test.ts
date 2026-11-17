@@ -63,6 +63,7 @@ const KNOWN_REQUEST_KEYS = [
   "homeDrive",
   "hasSessionDrive",
   "turnId",
+  "sessionTurnId",
   "detached",
   "projectId",
   "controlCommandId",

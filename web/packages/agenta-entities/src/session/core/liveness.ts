@@ -77,7 +77,7 @@ export interface SandboxLiveness {
  *
  * FOLLOWUP(sessions,#5197): no caller passes `sandbox` yet — wire a sandbox-liveness signal
  * through the dot (`sessionDotStatusAtomFamily`) when #5197 exposes it. See
- * docs/designs/sessions/frontend-integration.md.
+ * docs/design/sessions/frontend-integration.md.
  */
 export function refineLifecycleWithSandbox(
     lifecycle: SessionLifecycle,

@@ -1,4 +1,6 @@
 import type {StatusCode} from "@agenta/entities/trace"
+import {useT} from "@agenta/i18n"
+import cellsCatalog from "@agenta/i18n/catalogs/observabilityUi.cells"
 import {CheckCircleIcon, InfoIcon, XCircleIcon} from "@phosphor-icons/react"
 
 import {Chip, type ChipTone} from "../primitives/Chip"
@@ -36,7 +38,9 @@ export const StatusRenderer = ({
     bordered = true,
     className,
 }: Props) => {
+    const t = useT(cellsCatalog)
     const {label, tone, icon} = statusMapper(status || "STATUS_CODE_UNSET")
+    // `label` is the stored word ("failure"); only the chip shows it in the active language.
     const errorMsg = status === "STATUS_CODE_ERROR" ? message : null
 
     return (
@@ -46,7 +50,9 @@ export const StatusRenderer = ({
                 icon={icon}
                 className={`font-mono ${bordered ? "" : "border-transparent"} ${className ?? ""}`}
             >
-                {label}
+                {label === "failure"
+                    ? t("observabilityUi.cells.statusFailure")
+                    : t("observabilityUi.cells.statusSuccess")}
             </Chip>
             {showMore && errorMsg ? (
                 <span title={errorMsg} className="inline-grid place-items-center">

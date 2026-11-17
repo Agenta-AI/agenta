@@ -1,5 +1,7 @@
 import {useCallback, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import triggerSharedCatalog from "@agenta/i18n/catalogs/entityUi.triggerShared"
 import {message} from "@agenta/ui"
 import {
     LoadingButton,
@@ -19,6 +21,9 @@ import {Pause, Play} from "@phosphor-icons/react"
 // in-flight spinner + error surfacing so each list/drawer reuses it verbatim.
 // ---------------------------------------------------------------------------
 
+// The toasts fire from a callback, so their default text translates at call time.
+const tNow = createT(triggerSharedCatalog)
+
 export interface ActiveToggleProps {
     active: boolean
     onToggle: (next: boolean) => Promise<void>
@@ -35,10 +40,11 @@ export default function ActiveToggle({
     onToggle,
     disabled,
     size = "icon-sm",
-    activatedMessage = "Activated",
-    pausedMessage = "Paused",
-    errorMessage = "Failed to update state",
+    activatedMessage,
+    pausedMessage,
+    errorMessage,
 }: ActiveToggleProps) {
+    const t = useT(triggerSharedCatalog)
     const [loading, setLoading] = useState(false)
 
     const handleClick = useCallback(
@@ -48,9 +54,13 @@ export default function ActiveToggle({
             setLoading(true)
             try {
                 await onToggle(next)
-                message.success(next ? activatedMessage : pausedMessage)
+                message.success(
+                    next
+                        ? (activatedMessage ?? tNow("entityUi.triggerShared.activated"))
+                        : (pausedMessage ?? tNow("entityUi.triggerShared.paused")),
+                )
             } catch {
-                message.error(errorMessage)
+                message.error(errorMessage ?? tNow("entityUi.triggerShared.failedToUpdateState"))
             } finally {
                 setLoading(false)
             }
@@ -67,14 +77,22 @@ export default function ActiveToggle({
                         size={size}
                         loading={loading}
                         disabled={disabled}
-                        aria-label={active ? "Pause" : "Resume"}
+                        aria-label={
+                            active
+                                ? t("entityUi.triggerShared.pause")
+                                : t("entityUi.triggerShared.resume")
+                        }
                         aria-pressed={active}
                         onClick={handleClick}
                     >
                         {loading ? null : active ? <Pause size={14} /> : <Play size={14} />}
                     </LoadingButton>
                 </TooltipTrigger>
-                <TooltipContent>{active ? "Pause" : "Resume"}</TooltipContent>
+                <TooltipContent>
+                    {active
+                        ? t("entityUi.triggerShared.pause")
+                        : t("entityUi.triggerShared.resume")}
+                </TooltipContent>
             </Tooltip>
         </TooltipProvider>
     )

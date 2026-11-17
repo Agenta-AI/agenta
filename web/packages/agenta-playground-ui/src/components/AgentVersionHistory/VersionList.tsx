@@ -4,6 +4,8 @@
  * Three states: loading, load error (retryable), and the list. Every version is selectable —
  * each one is diffed against its predecessor, so the newest has something to show too.
  */
+import {useT} from "@agenta/i18n"
+import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import type {AgentVersionRow} from "@agenta/playground/state"
 import {timeAgo} from "@agenta/shared/utils"
 import {cn, textColors} from "@agenta/ui/styles"
@@ -55,83 +57,86 @@ export const VersionList = ({
     onRetry,
     onSelect,
     disabled,
-}: VersionListProps) => (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {isLoading ? (
-            <>
-                {SKELETON_ROWS.map((row, i) => (
-                    <div key={i} className="flex flex-col gap-1.5 px-2.5 py-2.5">
-                        <Pulse width={row.title} tone="strong" />
-                        <Pulse width={row.body} tone="faint" />
-                    </div>
-                ))}
-            </>
-        ) : isError ? (
-            <Notice
-                title="Couldn't load versions"
-                body="The request failed. Nothing was changed."
-                action={
-                    <Button variant="outline" size="sm" onClick={onRetry}>
-                        Retry
-                    </Button>
-                }
-            />
-        ) : rows.length === 0 ? (
-            <Notice
-                title="No versions yet"
-                body="This agent has nothing committed to compare or restore."
-            />
-        ) : (
-            rows.map((row) => (
-                <div
-                    key={row.id}
-                    className={cn(
-                        "mb-px flex items-center gap-1 rounded-md",
-                        row.id === selectedId
-                            ? "bg-[var(--ag-colorFillSecondary)]"
-                            : "hover:bg-[var(--ag-colorFillQuaternary)]",
-                    )}
-                >
-                    <button
-                        type="button"
-                        disabled={!!disabled}
-                        aria-current={row.id === selectedId}
-                        onClick={() => onSelect(row.id)}
+}: VersionListProps) => {
+    const t = useT(versionCatalog)
+    return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            {isLoading ? (
+                <>
+                    {SKELETON_ROWS.map((row, i) => (
+                        <div key={i} className="flex flex-col gap-1.5 px-2.5 py-2.5">
+                            <Pulse width={row.title} tone="strong" />
+                            <Pulse width={row.body} tone="faint" />
+                        </div>
+                    ))}
+                </>
+            ) : isError ? (
+                <Notice
+                    title={t("playground.versionHistory.couldNotLoadVersions")}
+                    body={t("playground.versionHistory.requestFailed")}
+                    action={
+                        <Button variant="outline" size="sm" onClick={onRetry}>
+                            {t("playground.versionHistory.retry")}
+                        </Button>
+                    }
+                />
+            ) : rows.length === 0 ? (
+                <Notice
+                    title={t("playground.versionHistory.noVersions")}
+                    body={t("playground.versionHistory.noVersionsBody")}
+                />
+            ) : (
+                rows.map((row) => (
+                    <div
+                        key={row.id}
                         className={cn(
-                            "flex min-w-0 flex-1 flex-col gap-1 rounded-md border-0 bg-transparent px-2.5 py-2 text-left font-[inherit]",
-                            disabled ? "cursor-default" : "cursor-pointer",
+                            "mb-px flex items-center gap-1 rounded-md",
+                            row.id === selectedId
+                                ? "bg-[var(--ag-colorFillSecondary)]"
+                                : "hover:bg-[var(--ag-colorFillQuaternary)]",
                         )}
                     >
-                        <span className="flex items-center gap-1.5">
-                            <span className="text-xs font-medium text-colorText">
-                                v{row.version}
-                            </span>
-                            {/* One tag, one meaning: the newest revision. */}
-                            {row.isLatest ? (
-                                <span className="rounded bg-[var(--ag-colorInfoBg)] px-1.5 py-px text-[10px] font-medium text-[var(--ag-colorInfo)]">
-                                    Latest
-                                </span>
-                            ) : null}
-                            <span
-                                className={cn(
-                                    "ml-auto whitespace-nowrap text-[10.5px]",
-                                    textColors.tertiary,
-                                )}
-                            >
-                                {row.createdAt ? timeAgo(Date.parse(row.createdAt)) : ""}
-                            </span>
-                        </span>
-                        <span
+                        <button
+                            type="button"
+                            disabled={!!disabled}
+                            aria-current={row.id === selectedId}
+                            onClick={() => onSelect(row.id)}
                             className={cn(
-                                "line-clamp-2 text-xs leading-snug",
-                                textColors.secondary,
+                                "flex min-w-0 flex-1 flex-col gap-1 rounded-md border-0 bg-transparent px-2.5 py-2 text-left font-[inherit]",
+                                disabled ? "cursor-default" : "cursor-pointer",
                             )}
                         >
-                            {row.message || "No commit message"}
-                        </span>
-                    </button>
-                </div>
-            ))
-        )}
-    </div>
-)
+                            <span className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium text-colorText">
+                                    v{row.version}
+                                </span>
+                                {/* One tag, one meaning: the newest revision. */}
+                                {row.isLatest ? (
+                                    <span className="rounded bg-[var(--ag-colorInfoBg)] px-1.5 py-px text-[10px] font-medium text-[var(--ag-colorInfo)]">
+                                        {t("playground.versionHistory.latest")}
+                                    </span>
+                                ) : null}
+                                <span
+                                    className={cn(
+                                        "ml-auto whitespace-nowrap text-[10.5px]",
+                                        textColors.tertiary,
+                                    )}
+                                >
+                                    {row.createdAt ? timeAgo(Date.parse(row.createdAt)) : ""}
+                                </span>
+                            </span>
+                            <span
+                                className={cn(
+                                    "line-clamp-2 text-xs leading-snug",
+                                    textColors.secondary,
+                                )}
+                            >
+                                {row.message || t("playground.versionHistory.noCommitMessage")}
+                            </span>
+                        </button>
+                    </div>
+                ))
+            )}
+        </div>
+    )
+}

@@ -1,0 +1,8 @@
+{
+    "backToCommands": "返回命令",
+    "changesDraft": "会更改此 Agent 的草稿配置。",
+    "editRules": "在配置中编辑规则 →",
+    "policyLabel": "权限策略",
+    "subtitle": "Agent 在必须询问之前可以做什么",
+    "title": "权限"
+}

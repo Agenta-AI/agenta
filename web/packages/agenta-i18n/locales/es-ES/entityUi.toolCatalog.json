@@ -1,0 +1,19 @@
+{
+    "seeLess": "ver menos",
+    "seeMore": "ver más",
+    "browseActions": "Explorar acciones",
+    "browseIntegrations": "Explorar integraciones",
+    "searchIntegrations": "Buscar integraciones…",
+    "integrationsCount_one": "{{count}} integración",
+    "integrationsCount_many": "{{count}} integraciones",
+    "integrationsCount_other": "{{count}} integraciones",
+    "noIntegrationsFound": "No se han encontrado integraciones",
+    "goBack": "Volver",
+    "connect": "Conectar",
+    "openConnections": "Abrir conexiones",
+    "searchActions": "Buscar acciones…",
+    "actionsCount_one": "{{count}} acción",
+    "actionsCount_many": "{{count}} acciones",
+    "actionsCount_other": "{{count}} acciones",
+    "noActionsFound": "No se han encontrado acciones"
+}

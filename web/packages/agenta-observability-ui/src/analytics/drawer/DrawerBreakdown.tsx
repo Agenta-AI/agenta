@@ -1,5 +1,7 @@
 import {useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {
     formatCompact,
     formatCount,
@@ -17,6 +19,7 @@ import {Segmented, cn} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {SERIES_COLORS, analyticsColor} from "../colors"
+import {unitLabel} from "../labels"
 import {
     SPLIT_KEYS,
     useAnalyticsSplit,
@@ -44,13 +47,13 @@ interface RunRow {
     tokens: number
 }
 
-const RUN_COLUMNS: {key: AnalyticsMetric; label: string}[] = [
-    {key: "runs", label: "Runs"},
-    {key: "success", label: "Success"},
-    {key: "tokens", label: "Tokens"},
-    {key: "cost", label: "Cost"},
-    {key: "avgcost", label: "Avg / run"},
-]
+const RUN_COLUMNS = [
+    {key: "runs", label: "observabilityUi.analytics.colRuns"},
+    {key: "success", label: "observabilityUi.analytics.colSuccess"},
+    {key: "tokens", label: "observabilityUi.analytics.colTokens"},
+    {key: "cost", label: "observabilityUi.analytics.colCost"},
+    {key: "avgcost", label: "observabilityUi.analytics.colAvgRun"},
+] as const satisfies readonly {key: AnalyticsMetric; label: string}[]
 
 const rowValue = (row: RunRow, metric: AnalyticsMetric): number | null => {
     switch (metric) {
@@ -69,12 +72,6 @@ const rowValue = (row: RunRow, metric: AnalyticsMetric): number | null => {
     }
 }
 
-const DIM_OPTIONS = [
-    {value: "agent", label: "Agent"},
-    {value: "model", label: "Model"},
-    {value: "tool", label: "Tool"},
-]
-
 export interface DrawerBreakdownProps {
     data: AnalyticsWindowData
     window: AnalyticsWindow
@@ -90,22 +87,36 @@ export interface DrawerBreakdownProps {
     onDrill: (focus: AnalyticsFocus, dim: AnalyticsDimension) => void
 }
 
-export const DrawerBreakdown = (props: DrawerBreakdownProps) => (
-    <section className="rounded-xl bg-muted px-4 py-3">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Breakdown</span>
-                <Segmented
-                    size="sm"
-                    options={DIM_OPTIONS}
-                    value={props.dim}
-                    onChange={(value) => props.onDim(value as AnalyticsDimension)}
-                />
+export const DrawerBreakdown = (props: DrawerBreakdownProps) => {
+    const t = useT(analyticsCatalog)
+    const dimOptions = [
+        {value: "agent", label: t("observabilityUi.analytics.dimAgent")},
+        {value: "model", label: t("observabilityUi.analytics.dimModel")},
+        {value: "tool", label: t("observabilityUi.analytics.dimTool")},
+    ]
+    return (
+        <section className="rounded-xl bg-muted px-4 py-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                        {t("observabilityUi.analytics.breakdown")}
+                    </span>
+                    <Segmented
+                        size="sm"
+                        options={dimOptions}
+                        value={props.dim}
+                        onChange={(value) => props.onDim(value as AnalyticsDimension)}
+                    />
+                </div>
             </div>
-        </div>
-        {props.dim === "tool" ? <ToolTable {...props} /> : <RunTable {...props} dim={props.dim} />}
-    </section>
-)
+            {props.dim === "tool" ? (
+                <ToolTable {...props} />
+            ) : (
+                <RunTable {...props} dim={props.dim} />
+            )}
+        </section>
+    )
+}
 
 const RunTable = ({
     data,
@@ -118,6 +129,7 @@ const RunTable = ({
     keyColor,
     onDrill,
 }: DrawerBreakdownProps & {dim: "agent" | "model"}) => {
+    const t = useT(analyticsCatalog)
     const runs = dim === "agent" ? data.agentRuns : data.modelRuns
     const failed = dim === "agent" ? data.agentFailed : data.modelFailed
     const order = dim === "agent" ? data.agentOrder : data.modelOrder
@@ -138,7 +150,10 @@ const RunTable = ({
         }))
         const rest = {
             key: OTHER,
-            label: order.length > limit ? `Other (${order.length - limit})` : "Unattributed",
+            label:
+                order.length > limit
+                    ? t("observabilityUi.analytics.otherN", {count: order.length - limit})
+                    : t("observabilityUi.analytics.unattributed"),
             runs: totals.runs - sum(out.map((r) => r.runs)),
             failed: totals.failed - sum(out.map((r) => r.failed)),
             cost: Math.max(0, totals.cost - sum(out.map((r) => r.cost))),
@@ -146,7 +161,19 @@ const RunTable = ({
         }
         if (rest.runs > 0) out.push(rest)
         return out
-    }, [top, limit, order.length, runs, failed, split.cost, split.tokens, totals, dim, agentName])
+    }, [
+        top,
+        limit,
+        order.length,
+        runs,
+        failed,
+        split.cost,
+        split.tokens,
+        totals,
+        dim,
+        agentName,
+        t,
+    ])
 
     const sortKey = RUN_COLUMNS.some((c) => c.key === metric) ? metric : "cost"
     const shareKey: AnalyticsMetric = metric === "runs" || metric === "tokens" ? metric : "cost"
@@ -165,7 +192,9 @@ const RunTable = ({
     if (!rows.length) {
         return (
             <div className="py-6 text-center text-sm text-muted-foreground">
-                {pending ? "Loading…" : "No runs in this window"}
+                {pending
+                    ? t("observabilityUi.analytics.loading")
+                    : t("observabilityUi.analytics.noRunsInWindow")}
             </div>
         )
     }
@@ -175,7 +204,11 @@ const RunTable = ({
         <div className="-mx-1 overflow-x-auto">
             <div className="min-w-[480px] px-1">
                 <div className={cn(grid, "h-7 items-center text-[11px] text-muted-foreground")}>
-                    <span>{dim === "agent" ? "Agent" : "Configured model"}</span>
+                    <span>
+                        {dim === "agent"
+                            ? t("observabilityUi.analytics.colAgent")
+                            : t("observabilityUi.analytics.colConfiguredModel")}
+                    </span>
                     {RUN_COLUMNS.map((c) => (
                         <span
                             key={c.key}
@@ -184,11 +217,11 @@ const RunTable = ({
                                 c.key === sortKey && "text-foreground",
                             )}
                         >
-                            {c.label}
+                            {t(c.label)}
                             {c.key === sortKey ? " ↓" : ""}
                         </span>
                     ))}
-                    <span className="text-right">Share</span>
+                    <span className="text-right">{t("observabilityUi.analytics.colShare")}</span>
                     <span />
                 </div>
                 {sorted.map((row, i) => {
@@ -257,10 +290,10 @@ const RunTable = ({
                     className="mt-2 cursor-pointer border-0 bg-transparent p-0 text-xs text-muted-foreground hover:text-foreground"
                 >
                     {showAll
-                        ? `Show top ${LIMIT}`
+                        ? t("observabilityUi.analytics.showTop", {count: LIMIT})
                         : order.length > SPLIT_KEYS
-                          ? `Show top ${SPLIT_KEYS}`
-                          : `Show all ${order.length}`}
+                          ? t("observabilityUi.analytics.showTop", {count: SPLIT_KEYS})
+                          : t("observabilityUi.analytics.showAll", {count: order.length})}
                 </button>
             ) : null}
         </div>
@@ -268,6 +301,7 @@ const RunTable = ({
 }
 
 const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) => {
+    const t = useT(analyticsCatalog)
     const rows = useMemo(
         () => tools.order.map((key) => ({key, calls: sum(tools.calls[key])})),
         [tools],
@@ -279,7 +313,9 @@ const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) =>
     if (!rows.length) {
         return (
             <div className="py-6 text-center text-sm text-muted-foreground">
-                {tools.status.pending ? "Loading…" : "No tool calls in this window"}
+                {tools.status.pending
+                    ? t("observabilityUi.analytics.loading")
+                    : t("observabilityUi.analytics.noToolCallsInWindow")}
             </div>
         )
     }
@@ -288,14 +324,23 @@ const ToolTable = ({data, tools, focus, filters, unit}: DrawerBreakdownProps) =>
         <div className="flex flex-col">
             {narrowed ? (
                 <span className="mb-1 text-[11px] text-muted-foreground">
-                    Tool calls are not narrowed by agent or model yet.
+                    {t("observabilityUi.analytics.toolsNotNarrowed")}
                 </span>
             ) : null}
             <div className={cn(grid, "h-7 items-center text-[11px] text-muted-foreground")}>
-                <span>Tool</span>
-                <span className="text-right text-foreground">Calls ↓</span>
-                <span className="text-right">Per {unit === "5 minutes" ? "slot" : unit}</span>
-                <span className="text-right">Share</span>
+                <span>{t("observabilityUi.analytics.colTool")}</span>
+                <span className="text-right text-foreground">
+                    {t("observabilityUi.analytics.colCallsSorted")}
+                </span>
+                <span className="text-right">
+                    {t("observabilityUi.analytics.colPerUnit", {
+                        unit:
+                            unit === "5 minutes"
+                                ? t("observabilityUi.analytics.unitSlot")
+                                : unitLabel(unit),
+                    })}
+                </span>
+                <span className="text-right">{t("observabilityUi.analytics.colShare")}</span>
             </div>
             {rows.map((row, i) => (
                 <div

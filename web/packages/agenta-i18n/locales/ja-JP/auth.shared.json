@@ -1,0 +1,14 @@
+{
+    "change": "変更",
+    "completeSecurityCheck": "セキュリティチェックを完了してください。",
+    "continueWith": "{{provider}} で続行",
+    "failureRateLimited": "試行回数が多すぎます。1 分ほど待ってから、もう一度お試しください。",
+    "failureServer": "当社側でサインインに問題が発生しています。しばらくしてからもう一度お試しください。",
+    "failureUnavailable": "ここではパスワードでのサインインは利用できません。別のサインイン方法をご利用ください。",
+    "failureUnknown": "問題が発生しました。もう一度お試しください。",
+    "failureUnreachable": "現在 Agenta に接続できません。接続を確認して、もう一度お試しください。",
+    "lastUsed": "前回使用",
+    "noMethodsConfigured": "認証方法が設定されていません",
+    "redirectingTo": "{{provider}} にリダイレクトしています…",
+    "securityCheckFailed": "セキュリティチェックに失敗しました。もう一度お試しください。"
+}

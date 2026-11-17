@@ -1,0 +1,21 @@
+{
+    "atTimesUtc": "{{cadence}} {{times}} UTC",
+    "cronDaysAt": "{{days}} {{time}}",
+    "cronEveryDayAt": "毎日 {{time}}",
+    "cronEveryHour": "毎時 (UTC)",
+    "cronEveryHourAt": "毎時 :{{minute}} (UTC)",
+    "cronEveryHoursAt": "{{hours}} 時間ごと :{{minute}} (UTC)",
+    "cronEveryMinute": "毎分 (UTC)",
+    "cronEveryMinutes": "{{minutes}} 分ごと (UTC)",
+    "cronEveryWeekdayAt": "毎週{{day}} {{time}}",
+    "cronRaw": "{{expression}} (UTC)",
+    "daily": "毎日",
+    "dayOfMonth": "{{day}}日",
+    "everyDay": "毎日",
+    "everyHours": "{{hours}} 時間ごと :{{minute}}",
+    "monthlyOn": "毎月 {{days}}",
+    "nextRun": "次回実行：{{date}} {{time}} UTC · {{relative}}",
+    "runsPerDay_other": "{{line}} · 1日 {{count}} 回",
+    "utc": "{{cadence}} UTC",
+    "weekdays": "平日"
+}

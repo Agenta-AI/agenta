@@ -48,7 +48,7 @@ Order of operations: merge/deploy the code first (stops new user updates and sto
 - `ruff format` + `ruff check` clean on the changed file.
 - Verified by import: `DEFAULT_ENTITLEMENTS` (enforced) and `DEFAULT_CATALOG` (displayed) agree per plan on retention; `Gauge.USERS` is absent from `REPORTS`; base amounts are $0 / $29 / $299; the Pro `users` price block is gone.
 - The frontend pricing modal renders from the backend catalog (`plan.price.base.amount`, `plan.features`), so these edits flow to the UI with no frontend change. The unused `PRICING_PLANS_INFO` constant in `web/ee` is dead code and is intentionally left out of scope.
-- Base branch is `big-agents`. This PR is the base of the metering stack; the two design docs (`docs/designs/sandbox-metering/{specs,tasks}.md`) land here so they're committed once.
+- Base branch is `big-agents`. This PR is the base of the metering stack; the two design docs (`docs/design/sandbox-metering/{specs,tasks}.md`) land here so they're committed once.
 
 ## What to QA
 
@@ -85,7 +85,7 @@ SANDBOX_SSD_GIBI_SECONDS   (GiB-seconds)
 SANDBOX_GPU_CORE_SECONDS   (core-seconds)
 ```
 
-The full scheme is `SANDBOX_<RESOURCE>_<UNIT>_SECONDS` (see `docs/designs/sandbox-metering/NAMING.md`).
+The full scheme is `SANDBOX_<RESOURCE>_<UNIT>_SECONDS` (see `docs/design/sandbox-metering/NAMING.md`).
 
 Storage is a gauge, `Gauge.STORAGE_BYTES`, with per-plan caps. Its reconcile job reads the object store through the existing `env.store` config (the SeaweedFS `ObjectStore` the mounts already use), not a new storage config.
 
@@ -147,7 +147,7 @@ url: https://github.com/Agenta-AI/agenta/pull/4783
 
 We pay Daytona by the minute for the ephemeral VM that runs an agent, but that runtime never reaches our pricing surface — no meter, no per-plan limit, nothing reported to Stripe. This design adds sandbox wall-time as a first-class billable dimension, modeled as a **configurable, scoped resource** so it also lays the first rail for "limit usage per project / agent / user."
 
-Documentation only. Adds a design under `docs/designs/sandbox-runtime-metering/` (proposal, research, tasks). No code or schema changes.
+Documentation only. Adds a design under `docs/design/sandbox-runtime-metering/` (proposal, research, tasks). No code or schema changes.
 
 ## The model
 

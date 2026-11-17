@@ -4,6 +4,8 @@ import {
     useTriggerCatalogEvents,
     useTriggerCatalogIntegrations,
 } from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Button, Input, SkeletonBlock} from "@agenta/ui/ui"
 import {Search} from "lucide-react"
 
@@ -27,6 +29,7 @@ export const EventList = ({
     onSearchChange: (next: string) => void
     onPick: (connectionId: string, eventKey: string) => void
 }) => {
+    const t = useT(automationsEditorCatalog)
     const {
         events: fetched,
         isLoading,
@@ -69,8 +72,8 @@ export const EventList = ({
                     <Input
                         value={search}
                         onChange={(changed) => onSearchChange(changed.target.value)}
-                        aria-label={`Search ${app.label} events`}
-                        placeholder={`Search ${app.label} events`}
+                        aria-label={t("automations.editor.searchAppEvents", {app: app.label})}
+                        placeholder={t("automations.editor.searchAppEvents", {app: app.label})}
                         className="h-8 pl-8 text-[13px]"
                     />
                 </div>
@@ -123,7 +126,9 @@ export const EventList = ({
                                 disabled={isFetchingNextPage}
                                 onClick={requestMore}
                             >
-                                {isFetchingNextPage ? "Loading…" : "Show more events"}
+                                {isFetchingNextPage
+                                    ? t("automations.editor.loading")
+                                    : t("automations.editor.showMoreEvents")}
                             </Button>
                         ) : null}
                     </>

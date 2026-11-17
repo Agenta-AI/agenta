@@ -1,0 +1,21 @@
+{
+    "agentsBody": "Sie beschreiben die Arbeit, verbinden die nötigen Apps und verbessern ihn durch Feedback. Wenn er funktioniert, teilen Sie ihn mit Ihrem Team.",
+    "agentsHeadline": "Erstellen Sie einen Agent, indem Sie mit ihm chatten",
+    "agentsHowItWorks": "So funktionieren Agents",
+    "automationsBody": "Eine Automatisierung führt einen Ihrer Agents aus, ohne dass Sie fragen müssen: nach Zeitplan oder wenn in einer verbundenen App etwas passiert.",
+    "automationsHeadline": "Lassen Sie Ihre Agents im Hintergrund arbeiten",
+    "automationsHowItWorks": "So funktionieren Automatisierungen",
+    "loadTemplatesError": "Vorlagen konnten nicht geladen werden",
+    "readDocs": "Dokumentation lesen",
+    "sessionsBody": "Jeder Chat mit einem Agent ist eine Sitzung. Machen Sie dort weiter, wo Sie aufgehört haben, durchsuchen Sie alle Sitzungen und prüfen Sie jeden Modell- und Werkzeugaufruf.",
+    "sessionsHeadline": "Jedes Gespräch mit einem Agent an einem Ort",
+    "sessionsHowItWorks": "So funktionieren Sitzungen",
+    "skillsBody": "Definieren Sie Ihren Agent mit AGENTS.md, Skills und MCP-Servern. Skills und MCP-Server aus dem Agent-Ökosystem können Sie in Agenta übernehmen.",
+    "skillsHeadline": "Bringen Sie Ihren Agents bei, wie Ihr Team arbeitet",
+    "skillsHowItWorks": "So funktionieren Skills",
+    "startFromTemplate": "Mit einer Vorlage beginnen",
+    "viewAllTemplates": "Alle Vorlagen anzeigen",
+    "walkthrough": "{{title}}: Rundgang",
+    "watch": "{{title}} ansehen",
+    "watchVideo": "Video ansehen"
+}

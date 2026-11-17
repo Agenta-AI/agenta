@@ -1,5 +1,7 @@
 import {memo, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {pendingGateLabel, type SessionRowVm} from "@agenta/sessions/row"
 import {timeAgo} from "@agenta/shared/utils"
 import {
@@ -57,6 +59,7 @@ const SessionRowImpl = ({
     onOpen,
     onTogglePin,
 }: SessionRowProps) => {
+    const t = useT(sessionsRowsCatalog)
     const openable = Boolean(row.agentId && onOpen)
     const menuHasPin = Boolean(menuItems?.some((entry) => "key" in entry && entry.key === "pin"))
     const handleOpen = () => {
@@ -178,7 +181,7 @@ const SessionRowImpl = ({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Session actions"
+                                aria-label={t("sessions.rows.sessionActions")}
                                 // The pin's hit extender: 24px is under the touch guideline.
                                 className="relative shrink-0 after:absolute after:inset-[-10px] after:content-[''] [@media(hover:hover)]:after:inset-[-4px]"
                                 onClick={(event) => event.stopPropagation()}

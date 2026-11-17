@@ -10,6 +10,7 @@
 import {useCallback, useEffect, useId, useMemo, useRef} from "react"
 
 import {resolveAdapter} from "../adapters/createAdapter"
+import {labelInSentence, levelLabelText, tSelection} from "../text"
 import type {
     EntitySelectionAdapter,
     EntitySelectionResult,
@@ -295,10 +296,10 @@ export function useSelectionCallbackTrigger<TSelection = EntitySelectionResult>(
  */
 export function getLevelLabel(levelConfig: HierarchyLevel<unknown>): string {
     if (levelConfig.label) {
-        return levelConfig.label
+        return levelLabelText(levelConfig.label)
     }
     // Capitalize type as fallback
-    return levelConfig.type.charAt(0).toUpperCase() + levelConfig.type.slice(1)
+    return levelLabelText(levelConfig.type.charAt(0).toUpperCase() + levelConfig.type.slice(1))
 }
 
 // ============================================================================
@@ -322,8 +323,10 @@ export function getLevelPlaceholder(
     const label = getLevelLabel(levelConfig)
 
     if (!isEnabled && previousLevelLabel) {
-        return `Select ${previousLevelLabel.toLowerCase()} first`
+        return tSelection("entityUi.selection.selectLevelFirst", {
+            label: labelInSentence(levelLabelText(previousLevelLabel)),
+        })
     }
 
-    return `Select ${label.toLowerCase()}...`
+    return tSelection("entityUi.selection.selectLevel", {label: labelInSentence(label)})
 }

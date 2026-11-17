@@ -1,18 +1,9 @@
+import {useT} from "@agenta/i18n"
+import chatSessionHistoryNoticeCatalog from "@agenta/i18n/catalogs/chat.sessionHistoryNotice"
 import {cn} from "@agenta/ui/ui"
 import {CircleNotch, WarningCircle} from "@phosphor-icons/react"
 
 export type SessionHistoryNoticeState = "reconnecting" | "incomplete"
-
-const COPY: Record<SessionHistoryNoticeState, {title: string; detail: string}> = {
-    reconnecting: {
-        title: "Reconnecting to this session",
-        detail: "Restoring the durable transcript before live updates resume.",
-    },
-    incomplete: {
-        title: "Some earlier history is unavailable",
-        detail: "New activity will keep updating, but this transcript may be missing older events.",
-    },
-}
 
 /** User-visible reconnect/history integrity states shared by desktop and mobile chat surfaces. */
 export const SessionHistoryNotice = ({
@@ -22,7 +13,17 @@ export const SessionHistoryNotice = ({
     state: SessionHistoryNoticeState
     className?: string
 }) => {
-    const copy = COPY[state]
+    const t = useT(chatSessionHistoryNoticeCatalog)
+    const copy =
+        state === "reconnecting"
+            ? {
+                  title: t("chat.sessionHistoryNotice.reconnectingTitle"),
+                  detail: t("chat.sessionHistoryNotice.reconnectingDetail"),
+              }
+            : {
+                  title: t("chat.sessionHistoryNotice.incompleteTitle"),
+                  detail: t("chat.sessionHistoryNotice.incompleteDetail"),
+              }
     const reconnecting = state === "reconnecting"
 
     return (

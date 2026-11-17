@@ -975,6 +975,12 @@ export interface AgentRunRequest {
    * non-session runs. A session sees a sequence of turnIds (send/steer each start a new one).
    */
   turnId?: string;
+  /**
+   * The id of the session turn (the `session_turns` row) that this execution belongs to. Set on
+   * an approval resume, where `turnId` is the new execution's id. Absent on a fresh turn, where
+   * the session turn is `turnId`. Written as `ag.turn.id` on every span of the run.
+   */
+  sessionTurnId?: string;
   /** True only when the shared event route, rather than this HTTP response, owns delivery. */
   detached?: boolean;
   /**
@@ -1200,6 +1206,15 @@ export function resolvePromptText(request: AgentRunRequest): string {
     }
   }
   return "";
+}
+
+/**
+ * The session turn this run belongs to, written as `ag.turn.id` on every span. A run with no
+ * session has no turn: the server still mints a `turnId` for it, but its spans carry no turn id.
+ */
+export function spanTurnId(request: AgentRunRequest): string | undefined {
+  if (!request.sessionId?.trim()) return undefined;
+  return (request.sessionTurnId ?? request.turnId)?.trim() || undefined;
 }
 
 /** Prefer the platform conversation id, falling back to the harness's ephemeral id. */

@@ -7,6 +7,9 @@
 
 import React from "react"
 
+import {useT} from "@agenta/i18n"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
+
 import {cn, flexLayouts, justifyClasses, textColors} from "../../utils/styles"
 import {EmptyState} from "../ui/empty-state"
 import {Spinner} from "../ui/spinner"
@@ -77,8 +80,8 @@ export function SearchableList<T>({
     emptyState,
     loadingState,
     errorState,
-    emptyMessage = "No items",
-    loadingMessage = "Loading...",
+    emptyMessage: emptyMessageProp,
+    loadingMessage: loadingMessageProp,
     errorMessage,
     isLoading = false,
     isError = false,
@@ -93,7 +96,11 @@ export function SearchableList<T>({
     isFetchingMore,
     getItemKey,
 }: SearchableListProps<T>) {
-    const resolvedErrorMessage = errorMessage ?? error?.message ?? "Something went wrong"
+    const t = useT(listControlsCatalog)
+    const emptyMessage = emptyMessageProp ?? t("ui.listControls.noItems")
+    const loadingMessage = loadingMessageProp ?? t("ui.listControls.loadingDots")
+    const resolvedErrorMessage =
+        errorMessage ?? error?.message ?? t("ui.listControls.somethingWentWrong")
 
     const renderLoading = () =>
         loadingState ?? (

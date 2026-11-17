@@ -78,11 +78,6 @@ const TEMPLATE_GLYPH: Record<string, string> = {
 export const templateGlyph = (template: AgentStarterTemplate) =>
     TEMPLATE_GLYPH[template.key] ?? CATEGORY_GLYPH[template.category] ?? "robot"
 
-/** The catalog's category names, as the gallery chips say them. */
-const CATEGORY_LABEL: Record<string, string> = {Ops: "Operations"}
-
-export const categoryLabel = (category: string) => CATEGORY_LABEL[category] ?? category
-
 /** The glyphs a blank agent can wear, in the design's order (catalog names). */
 export const ICON_CHOICES = [
     "robot",

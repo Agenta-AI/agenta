@@ -1,0 +1,20 @@
+{
+    "policySummary": "Policy · {{policy}}",
+    "unsavedGroupChanges": "Unsaved changes in this group.",
+    "selectModel": "Select a model…",
+    "sandboxSummary": "Sandbox: {{kind}}",
+    "sandbox": "Sandbox",
+    "policy": "Policy",
+    "attachedCount_one": "{{count}} attached",
+    "attachedCount_other": "{{count}} attached",
+    "noneAttached": "None attached",
+    "executionEnvironment": "Execution environment",
+    "executionCaptionShort": "Where the agent's tools and code run.",
+    "customSecrets": "Custom secrets",
+    "execution": "Execution",
+    "executionCaption": "Where the agent's tools and code run, and what that sandbox may touch.",
+    "secretsCaption": "Credentials this agent can use while it works. {{summary}}.",
+    "agentaTools": "Agenta tools",
+    "buildKit": "Build kit",
+    "advanced": "Advanced"
+}

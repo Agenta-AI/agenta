@@ -1,0 +1,17 @@
+{
+    "chooseAnEvent": "Choisissez un événement",
+    "addAppTrigger": "Ajouter un déclencheur d’application",
+    "searchIntegrations": "Rechercher des intégrations…",
+    "searchEvents": "Rechercher des événements…",
+    "connectionsHint": "Choisissez un événement pour créer un déclencheur, sans aucune configuration.",
+    "noTriggers": "Cette application n’a aucun déclencheur",
+    "popupBlocked": "Fenêtre contextuelle bloquée. Redirection dans cet onglet.",
+    "connectTo": "Se connecter à {{name}}",
+    "name": "Nom",
+    "nameTip": "Nom d’affichage de cette connexion",
+    "required": "Requis",
+    "namePlaceholder": "par ex. Mon compte {{name}}",
+    "authMethod": "Méthode d’authentification",
+    "apiKey": "Clé API",
+    "connect": "Connecter"
+}

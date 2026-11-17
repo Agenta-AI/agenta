@@ -1,0 +1,13 @@
+{
+    "current": "当前",
+    "currentPlan": "当前套餐",
+    "custom": "定制",
+    "freeForever": "永久免费",
+    "fromPerMonth": "/月起",
+    "moveTo": "切换到 {{plan}}",
+    "perMonth": "/月",
+    "recommended": "推荐",
+    "talkToUs": "联系我们",
+    "upgradeTo": "升级到 {{plan}}",
+    "whatYouGet": "包含内容："
+}

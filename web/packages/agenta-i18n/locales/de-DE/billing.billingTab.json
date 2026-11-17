@@ -1,0 +1,7 @@
+{
+    "dailyCredits": "Tägliche kostenlose Credits",
+    "dailyCreditsNote": "Wird um Mitternacht UTC zurückgesetzt",
+    "loadLimitsError": "Ihre Tariflimits konnten nicht geladen werden.",
+    "loadPlanAndLimitsError": "Ihr Tarif und seine Limits konnten nicht geladen werden.",
+    "loadPlanError": "Ihr Tarif konnte nicht geladen werden."
+}

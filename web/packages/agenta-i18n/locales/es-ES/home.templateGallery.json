@@ -1,0 +1,14 @@
+{
+    "title": "Plantillas",
+    "subtitle": "Empieza con un agente probado: revisa lo que hace, conecta lo que necesita y abre el playground.",
+    "searchPlaceholder": "Buscar plantillas…",
+    "all": "Todas",
+    "loadError": "No se han podido cargar las plantillas",
+    "sectionCount_one": "{{count}} plantilla",
+    "sectionCount_many": "{{count}} plantillas",
+    "sectionCount_other": "{{count}} plantillas",
+    "noMatch": "Ninguna plantilla coincide con «{{query}}».",
+    "noneInCategory": "No hay plantillas en {{category}}.",
+    "clearSearch": "Borrar búsqueda",
+    "showAll": "Mostrar todas las plantillas"
+}

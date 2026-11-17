@@ -1,6 +1,9 @@
 import type {MouseEvent, ReactNode} from "react"
 import {useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import {GearSix} from "@phosphor-icons/react"
 
 import {Button} from "../../components/ui/button"
@@ -25,6 +28,7 @@ const DefaultVisibilityContent = <Row extends object>({
     controls: ColumnVisibilityControls<Row>
     onClose: () => void
 }) => {
+    const t = useT(uiTableCatalog, commonCatalog)
     const nodes = useMemo(() => controls.columnTree, [controls.columnTree])
 
     const renderNodes = (tree: typeof nodes, depth = 0): ReactNode =>
@@ -59,15 +63,15 @@ const DefaultVisibilityContent = <Row extends object>({
 
     return (
         <div className="flex flex-col gap-3 min-w-[220px]">
-            <div className="text-xs text-colorTextSecondary">Toggle columns</div>
+            <div className="text-xs text-colorTextSecondary">{t("ui.table.toggleColumns")}</div>
             <div className="max-h-64 overflow-auto pr-1">{renderNodes(nodes)}</div>
             <div className="h-px bg-colorBorderSecondary my-1" />
             <div className="flex justify-between gap-2">
                 <Button variant="outline" size="sm" onClick={() => controls.reset()}>
-                    Reset
+                    {t("ui.table.reset")}
                 </Button>
                 <Button size="sm" variant="default" onClick={onClose}>
-                    Close
+                    {t("common.close")}
                 </Button>
             </div>
         </div>

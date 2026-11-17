@@ -6,9 +6,6 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 // ScheduleBuilderField — the schedule drawer's "Schedule" row. The collapsed control states the
 // cadence in words and the next run; the popover behind it holds the cadence chips, the day or
 // month selection, the run times, and the raw-cron escape hatch.
-//
-// The antd parity harness this file used to carry retired with the v2 redesign: the pre-migration
-// component was a two-pane rail rendered inline, which the current control no longer resembles.
 const meta = {
     title: "@agenta/entity-ui/GatewayTrigger/ScheduleBuilderField",
     component: ScheduleBuilderField,

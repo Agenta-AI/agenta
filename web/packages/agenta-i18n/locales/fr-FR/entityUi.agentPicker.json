@@ -1,0 +1,14 @@
+{
+    "untitledAgent": "Agent sans titre",
+    "noDescription": "Aucune description",
+    "searchAgents": "Rechercher des agents",
+    "newAgent": "Nouvel agent",
+    "noAgentsYet": "Aucun agent pour l’instant",
+    "noAgentsYetBody": "Un agent est ce qui fait le travail. Créez-en un et il apparaîtra ici.",
+    "noAgentsMatch": "Aucun agent ne correspond à « {{query}} »",
+    "searchCovers": "La recherche porte sur le nom de chaque agent et sur ce qu’il fait.",
+    "clearSearch": "Effacer la recherche",
+    "pickAnAgent": "Choisissez un agent",
+    "agent": "Agent",
+    "startBlank": "partir de zéro"
+}

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Button} from "@agenta/ui/ui"
 
 /**
@@ -22,25 +24,33 @@ export const AutomationSaveBar = ({
     onSave: () => void
     /** In a drawer footer the rule and the top margin belong to the footer, not to this bar. */
     bare?: boolean
-}) => (
-    <div
-        className={
-            bare
-                ? "flex items-center justify-end gap-2.5"
-                : "mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5"
-        }
-    >
-        <Button
-            type="button"
-            variant="outline"
-            className="font-normal"
-            disabled={saving || !dirty}
-            onClick={onDiscard}
+}) => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        <div
+            className={
+                bare
+                    ? "flex items-center justify-end gap-2.5"
+                    : "mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5"
+            }
         >
-            Discard
-        </Button>
-        <Button type="button" className="font-normal" disabled={saving || !dirty} onClick={onSave}>
-            {saving ? "Saving…" : "Save"}
-        </Button>
-    </div>
-)
+            <Button
+                type="button"
+                variant="outline"
+                className="font-normal"
+                disabled={saving || !dirty}
+                onClick={onDiscard}
+            >
+                {t("automations.editor.discard")}
+            </Button>
+            <Button
+                type="button"
+                className="font-normal"
+                disabled={saving || !dirty}
+                onClick={onSave}
+            >
+                {saving ? t("automations.editor.saving") : t("automations.editor.save")}
+            </Button>
+        </div>
+    )
+}

@@ -1,0 +1,6 @@
+{
+    "incompleteDetail": "Neue Aktivitäten werden weiterhin aktualisiert, aber in diesem Protokoll fehlen möglicherweise ältere Ereignisse.",
+    "incompleteTitle": "Ein Teil des früheren Verlaufs ist nicht verfügbar",
+    "reconnectingDetail": "Das gespeicherte Protokoll wird wiederhergestellt, bevor die Live-Updates fortgesetzt werden.",
+    "reconnectingTitle": "Verbindung zu dieser Sitzung wird wiederhergestellt"
+}

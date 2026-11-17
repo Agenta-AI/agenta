@@ -1,0 +1,12 @@
+{
+    "cancel": "取消",
+    "couldNotIdentifyRun": "无法识别要停止的运行。请重试。",
+    "couldNotLoadEarlier": "无法加载此会话较早的消息。",
+    "couldNotStopRun": "无法停止运行。它可能仍在运行。",
+    "noMessagesSaved": "此会话中没有保存的消息。发送失败的消息不会保留，较早的消息也可能过期。",
+    "rewindAnyway": "仍然回退",
+    "rewindBody": "{{tools}} 已执行。回退会从这里重新运行对话，但不会撤销已执行的操作。",
+    "rewindTitle": "要回退到已运行过的工具之前吗？",
+    "runAlreadyFinished": "那次运行已经结束。会话现在正在运行其他内容。",
+    "tryAgain": "重试"
+}

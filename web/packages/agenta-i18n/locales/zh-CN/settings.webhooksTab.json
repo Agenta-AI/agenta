@@ -1,0 +1,9 @@
+{
+    "copyFailed": "无法复制，请选中上方的密钥手动复制",
+    "copySecret": "复制密钥",
+    "deleteBody": "Agenta 将停止向 {{url}} 发送事件。",
+    "deleteFailed": "无法删除订阅",
+    "deleteTitle": "删除订阅",
+    "secretDescription": "仅显示一次。你需要用它来验证传入的请求是否来自 Agenta。",
+    "secretTitle": "保存你的 Webhook 密钥"
+}

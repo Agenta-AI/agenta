@@ -1,0 +1,21 @@
+{
+    "acrossDrive": "整个云盘",
+    "agent": "Agent",
+    "back": "返回",
+    "dismiss": "关闭",
+    "enterSends": "按回车将按原样发送消息。",
+    "files": "文件",
+    "items": "{{count}} 项",
+    "listing": "正在列出…",
+    "navigate": "导航",
+    "noFiles": "此云盘中还没有文件",
+    "noMatch": "没有与“{{query}}”匹配的文件或文件夹",
+    "open": "打开",
+    "openFolder": "打开文件夹",
+    "recentlyTouched": "最近操作过",
+    "reference": "引用",
+    "referenceFolder": "引用文件夹",
+    "searchingInside": "正在 <path>{{cwd}}/</path> 内搜索",
+    "send": "发送",
+    "session": "会话"
+}

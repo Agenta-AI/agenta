@@ -11,13 +11,24 @@
  * Kept beside itemDescriptors.tsx for the same reason: the table and the classifiers that read it
  * live together.
  */
+import {createT, type CatalogKey} from "@agenta/i18n"
+import buildKitCatalog from "@agenta/i18n/catalogs/entityUi.buildKit"
 import {Wrench} from "@phosphor-icons/react"
 
 import type {ItemDescriptor} from "./itemDescriptors"
 
+const t = createT(buildKitCatalog)
+
+type BuildKitKey = CatalogKey<typeof buildKitCatalog>
+
 interface BuildKitCopy {
     name: string
     description: string
+}
+
+interface BuildKitCopyKeys {
+    name: BuildKitKey
+    description: BuildKitKey
 }
 
 /** The reserved prefix on an Agenta-owned embed slug, dropped before the slug is read out. */
@@ -35,106 +46,106 @@ function humanizeKey(key: string): string {
 }
 
 /** Copy for the ops the build kit ships. A missing op falls back to a humanized `op`. */
-const BUILD_KIT_TOOL_COPY: Record<string, BuildKitCopy> = {
+const BUILD_KIT_TOOL_COPY: Record<string, BuildKitCopyKeys> = {
     list_channel_destinations: {
-        name: "List channels",
-        description: "Lists the Slack channels and Telegram groups this agent's bots can reach.",
+        name: "entityUi.buildKit.listChannelDestinationsName",
+        description: "entityUi.buildKit.listChannelDestinationsDescription",
     },
     send_channel_message: {
-        name: "Post to a channel",
-        description: "Posts a message to a Slack channel or Telegram group.",
+        name: "entityUi.buildKit.sendChannelMessageName",
+        description: "entityUi.buildKit.sendChannelMessageDescription",
     },
     read_channel_messages: {
-        name: "Read a channel",
-        description: "Reads a channel's recent messages or one Slack thread.",
+        name: "entityUi.buildKit.readChannelMessagesName",
+        description: "entityUi.buildKit.readChannelMessagesDescription",
     },
     search_channel_messages: {
-        name: "Search channels",
-        description: "Searches the messages stored from this agent's channels.",
+        name: "entityUi.buildKit.searchChannelMessagesName",
+        description: "entityUi.buildKit.searchChannelMessagesDescription",
     },
     discover_tools: {
-        name: "Find tools",
-        description: "Searches Agenta's catalog for apps and actions this agent could use.",
+        name: "entityUi.buildKit.discoverToolsName",
+        description: "entityUi.buildKit.discoverToolsDescription",
     },
     read_config: {
-        name: "Read the agent's setup",
-        description: "Reads how this agent is configured right now.",
+        name: "entityUi.buildKit.readConfigName",
+        description: "entityUi.buildKit.readConfigDescription",
     },
     commit_revision: {
-        name: "Save changes",
-        description: "Saves an edit to this agent's setup as a new version.",
+        name: "entityUi.buildKit.commitRevisionName",
+        description: "entityUi.buildKit.commitRevisionDescription",
     },
     annotate_trace: {
-        name: "Grade a run",
-        description: "Records evaluation feedback on a run of this agent.",
+        name: "entityUi.buildKit.annotateTraceName",
+        description: "entityUi.buildKit.annotateTraceDescription",
     },
     query_spans: {
-        name: "Look through runs",
-        description: "Searches past runs to check what the agent actually did.",
+        name: "entityUi.buildKit.querySpansName",
+        description: "entityUi.buildKit.querySpansDescription",
     },
     test_run: {
-        name: "Test the agent",
-        description: "Runs this agent once against test messages and reports the result.",
+        name: "entityUi.buildKit.testRunName",
+        description: "entityUi.buildKit.testRunDescription",
     },
     rename_session: {
-        name: "Rename this chat",
-        description: "Gives this chat a name and a recap so it is easy to find later.",
+        name: "entityUi.buildKit.renameSessionName",
+        description: "entityUi.buildKit.renameSessionDescription",
     },
     rename_agent: {
-        name: "Rename the agent",
-        description: "Gives this agent a name and a description.",
+        name: "entityUi.buildKit.renameAgentName",
+        description: "entityUi.buildKit.renameAgentDescription",
     },
     discover_triggers: {
-        name: "Find triggers",
-        description: "Searches connected apps for events that could run this agent.",
+        name: "entityUi.buildKit.discoverTriggersName",
+        description: "entityUi.buildKit.discoverTriggersDescription",
     },
     create_schedule: {
-        name: "Add a schedule",
-        description: "Sets this agent to run on a repeating schedule.",
+        name: "entityUi.buildKit.createScheduleName",
+        description: "entityUi.buildKit.createScheduleDescription",
     },
     create_subscription: {
-        name: "Add a trigger",
-        description: "Sets this agent to run when an event happens in a connected app.",
+        name: "entityUi.buildKit.createSubscriptionName",
+        description: "entityUi.buildKit.createSubscriptionDescription",
     },
     list_schedules: {
-        name: "Check schedules",
-        description: "Lists the schedules set up for this project.",
+        name: "entityUi.buildKit.listSchedulesName",
+        description: "entityUi.buildKit.listSchedulesDescription",
     },
     list_deliveries: {
-        name: "Check trigger history",
-        description: "Lists recent trigger runs and tests.",
+        name: "entityUi.buildKit.listDeliveriesName",
+        description: "entityUi.buildKit.listDeliveriesDescription",
     },
     test_subscription: {
-        name: "Test a trigger",
-        description: "Waits for one real event to confirm a trigger is wired up correctly.",
+        name: "entityUi.buildKit.testSubscriptionName",
+        description: "entityUi.buildKit.testSubscriptionDescription",
     },
     remove_schedule: {
-        name: "Remove a schedule",
-        description: "Deletes one of this agent's schedules.",
+        name: "entityUi.buildKit.removeScheduleName",
+        description: "entityUi.buildKit.removeScheduleDescription",
     },
     remove_subscription: {
-        name: "Remove a trigger",
-        description: "Deletes one of this agent's triggers.",
+        name: "entityUi.buildKit.removeSubscriptionName",
+        description: "entityUi.buildKit.removeSubscriptionDescription",
     },
 }
 
 /** Copy for the Agenta-owned tools and skills the kit embeds, keyed by the referenced slug. */
-const BUILD_KIT_EMBED_COPY: Record<string, BuildKitCopy> = {
+const BUILD_KIT_EMBED_COPY: Record<string, BuildKitCopyKeys> = {
     __ag__request_connection: {
-        name: "Ask you to connect an app",
-        description: "Prompts you to connect an app when the agent needs access to one.",
+        name: "entityUi.buildKit.requestConnectionName",
+        description: "entityUi.buildKit.requestConnectionDescription",
     },
     __ag__request_input: {
-        name: "Ask you a question",
-        description: "Prompts you for details the agent needs before it can continue.",
+        name: "entityUi.buildKit.requestInputName",
+        description: "entityUi.buildKit.requestInputDescription",
     },
     __ag__request_secret: {
-        name: "Ask you for a secret",
-        description: "Prompts you to set up a credential the agent needs, never pasted in chat.",
+        name: "entityUi.buildKit.requestSecretName",
+        description: "entityUi.buildKit.requestSecretDescription",
     },
     __ag__build_an_agent: {
-        name: "Guide to building agents",
-        description: "Agenta's instructions for setting up and configuring an agent.",
+        name: "entityUi.buildKit.buildAnAgentName",
+        description: "entityUi.buildKit.buildAnAgentDescription",
     },
 }
 
@@ -149,17 +160,26 @@ const buildKitDescriptor = ({name, description}: BuildKitCopy): ItemDescriptor =
     icon: <Wrench size={15} weight="fill" />,
     // No type tag: "platform" and "@ag.embed" are internal vocabulary (#6025).
     tags: [],
-    typeLabel: "playground tool",
-    subtitle: "Playground-only tool",
+    typeLabel: t("entityUi.buildKit.playgroundToolType"),
+    subtitle: t("entityUi.buildKit.playgroundOnlyTool"),
+})
+
+/** Reads a copy entry in the active language. */
+const copyText = ({name, description}: BuildKitCopyKeys): BuildKitCopy => ({
+    name: t(name),
+    description: t(description),
 })
 
 /** Row for a `{type:"platform", op}` overlay tool. */
 export function describeBuildKitPlatformTool(op: string): ItemDescriptor {
+    const copy = BUILD_KIT_TOOL_COPY[op]
     return buildKitDescriptor(
-        BUILD_KIT_TOOL_COPY[op] ?? {
-            name: humanizeKey(op),
-            description: "Playground-only tool provided by Agenta.",
-        },
+        copy
+            ? copyText(copy)
+            : {
+                  name: humanizeKey(op),
+                  description: t("entityUi.buildKit.playgroundOnlyToolByAgenta"),
+              },
     )
 }
 
@@ -171,10 +191,12 @@ export function describeBuildKitEmbed(
 ): ItemDescriptor {
     const copy = slug ? BUILD_KIT_EMBED_COPY[slug] : undefined
     return buildKitDescriptor(
-        copy ?? {
-            // A bare slug would put `__ag__future` on screen, which is the wire name again.
-            name: name ?? (slug ? humanizeKey(slug) : "Playground tool"),
-            description: "Playground-only tool provided by Agenta.",
-        },
+        copy
+            ? copyText(copy)
+            : {
+                  // A bare slug would put `__ag__future` on screen, which is the wire name again.
+                  name: name ?? (slug ? humanizeKey(slug) : t("entityUi.buildKit.playgroundTool")),
+                  description: t("entityUi.buildKit.playgroundOnlyToolByAgenta"),
+              },
     )
 }
