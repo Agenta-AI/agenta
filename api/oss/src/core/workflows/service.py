@@ -93,6 +93,7 @@ from oss.src.core.git.dtos import (
     RevisionsLog,
 )
 from oss.src.core.git.utils import build_retrieval_info
+from oss.src.core.workflows.dtos import CreatedAgent
 from oss.src.core.workflows.dtos import (
     AGENT_REFERENCE_KEYS,
     JsonSchemas,
@@ -4912,14 +4913,14 @@ class SimpleWorkflowsService:
         session_id: str,
         read_scope: AgentReadScope,
         first_agent_owner_user_id: Optional[UUID] = None,
-    ) -> tuple[SimpleWorkflow, str, List[CommitWarning], Visibility]:
+    ) -> CreatedAgent:
         """A new agent from the "New agent" template, with an agent's operations applied.
 
         The operations run in memory, under the agent's commit scope, BEFORE anything is
         written, so one that fails creates nothing. The first saved revision then holds the
         template and the operations together, and ``message`` (plus the derived clauses) is
         its commit message. Returns the agent, that message, the engine's warnings and the
-        agent's stored visibility. Without an owner the agent is project-visible, as a browser
+        agent's stored visibility, as a `CreatedAgent`. Without an owner the agent is project-visible, as a browser
         create without one is, because a private agent nobody owns would be hidden from
         everyone.
 
@@ -4995,7 +4996,12 @@ class SimpleWorkflowsService:
         # policy row is ownerless and project-visible.
         access = outcome.workflow.access
         applied = access.visibility if access is not None else Visibility.PROJECT
-        return outcome.workflow, message, warnings, applied
+        return CreatedAgent(
+            workflow=outcome.workflow,
+            message=message,
+            warnings=warnings,
+            visibility=applied,
+        )
 
     async def fetch(
         self,

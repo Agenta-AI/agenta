@@ -52,7 +52,8 @@ def new_agent_revision_data() -> Dict[str, Any]:
 
 def new_agent_slug(name: str) -> str:
     """The web's slug rule (`generateSlug`). The create adds a suffix from the agent's id, so
-    two agents may share a name."""
+    two agents may share a name. Leading underscores are dropped, so a name never makes a
+    slug with the reserved `__ag__` prefix."""
     slug = re.sub(r"[^a-z0-9_.\-\s]", "", name.lower().strip())
-    slug = re.sub(r"-+", "-", re.sub(r"\s+", "-", slug)).strip("-.")
+    slug = re.sub(r"-+", "-", re.sub(r"\s+", "-", slug)).strip("-.").lstrip("_")
     return slug or "agent"

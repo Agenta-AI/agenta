@@ -1297,10 +1297,12 @@ async def _resolve_other_agent(
     return workflow, head
 
 
-async def _may_edit_agent(*, project_id: UUID, agent_id: UUID) -> bool:
-    """The request principal's `EDIT_WORKFLOWS` decision on one agent, the decision a route
-    makes before a per-agent write. The project permission is checked before dispatch; this
-    adds the agent's own policy. Without a request principal the edit is refused."""
+async def _allowed_on_agent(
+    *, project_id: UUID, agent_id: UUID, action: Permission
+) -> bool:
+    """The request principal's decision for `action` on one agent, the decision a route
+    makes before a per-agent read or write. The project permission is checked before
+    dispatch; this adds the agent's own policy. Without a request principal it is refused."""
     from oss.src.core.access.context import get_request_access
     from oss.src.core.access.dtos import ResourceKind, ResourceRef
     from oss.src.core.access.service import get_access_service
@@ -1310,7 +1312,7 @@ async def _may_edit_agent(*, project_id: UUID, agent_id: UUID) -> bool:
         return False
     decision = await get_access_service().check_request(
         access=access,
-        action=Permission.EDIT_WORKFLOWS,
+        action=action,
         project_id=project_id,
         resource=ResourceRef(kind=ResourceKind.AGENT, id=str(agent_id)),
     )
@@ -1587,6 +1589,13 @@ async def handle_read_agent_config(
             caller_id=caller_id,
             self_step="To read your own configuration, use read_config.",
         )
+        # A read the agent's own policy refuses answers like an agent that is not there.
+        if not await _allowed_on_agent(
+            project_id=project_id,
+            agent_id=workflow.id,
+            action=Permission.VIEW_WORKFLOWS,
+        ):
+            raise _not_found(parsed["agent"].strip())
         try:
             outcome = read_revision_config(
                 head, path=parsed.get("path"), max_bytes=parsed.get("max_bytes")
@@ -1660,7 +1669,11 @@ async def handle_edit_agent_config(
             caller_id=caller_id,
             self_step="To change your own configuration, use commit_revision.",
         )
-        if not await _may_edit_agent(project_id=project_id, agent_id=workflow.id):
+        if not await _allowed_on_agent(
+            project_id=project_id,
+            agent_id=workflow.id,
+            action=Permission.EDIT_WORKFLOWS,
+        ):
             raise _agent_refusal(
                 "access_denied",
                 f"You may not change '{workflow.name or workflow.slug}'. Nothing was saved.",
@@ -1814,12 +1827,7 @@ async def handle_create_agent(
             session_id=session_id,
         )
         try:
-            (
-                created,
-                message,
-                warnings,
-                applied_visibility,
-            ) = await SimpleWorkflowsService(
+            result = await SimpleWorkflowsService(
                 workflows_service=workflows_service
             ).create_agent(
                 project_id=project_id,
@@ -1883,6 +1891,7 @@ async def handle_create_agent(
     except _Refusal as e:
         return PlatformHandlerResult.failure(e.error)
 
+    created, warnings = result.workflow, list(result.warnings)
     if not _sets_instructions(operations):
         warnings.append(_TEMPLATE_INSTRUCTIONS_WARNING)
     return PlatformHandlerResult(
@@ -1891,9 +1900,9 @@ async def handle_create_agent(
             "agent": _agent_summary(
                 created, project_id=project_id, workspace_id=workspace_id
             ),
-            "visibility": applied_visibility.value,
+            "visibility": result.visibility.value,
             "base_revision_id": str(created.revision_id),
-            "message": message,
+            "message": result.message,
             "warnings": [w.model_dump(mode="json") for w in warnings],
         },
         wrote_other_agent_revision=True,

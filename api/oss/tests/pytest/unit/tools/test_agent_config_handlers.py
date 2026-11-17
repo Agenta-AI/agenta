@@ -185,11 +185,11 @@ def _edit_args(**over):
 
 
 @pytest.fixture(autouse=True)
-def may_edit(monkeypatch):
-    """The request principal's `EDIT_WORKFLOWS` decision on the target agent. Allowed
-    unless a test says otherwise; the decision itself is the access service's."""
+def allowed(monkeypatch):
+    """The request principal's decision on the target agent. Allowed unless a test says
+    otherwise; the decision itself is the access service's."""
     decision = AsyncMock(return_value=True)
-    monkeypatch.setattr(platform_handlers, "_may_edit_agent", decision)
+    monkeypatch.setattr(platform_handlers, "_allowed_on_agent", decision)
     return decision
 
 
@@ -674,6 +674,23 @@ class TestReadAgentConfig:
         # The head the target resolution loaded is the one projected: no second read.
         service.fetch_workflow_revision.assert_awaited_once()
 
+    async def test_an_agent_its_policy_hides_answers_like_a_missing_one(
+        self, service, allowed
+    ):
+        allowed.return_value = False
+
+        result = await _call(
+            handle_read_agent_config,
+            service,
+            agent="invoice-helper-k3x9",
+            caller_agent_id=str(CALLER),
+        )
+
+        assert result.content.code == "agent_not_found"
+        allowed.assert_awaited_once_with(
+            project_id=PROJECT, agent_id=TARGET, action=Permission.VIEW_WORKFLOWS
+        )
+
     async def test_a_value_over_the_limit_lists_children(self, service):
         head = _head()
         head.data.parameters["agent"]["instructions"]["agents_md"] = "x" * 4096
@@ -721,16 +738,18 @@ class TestEditAgentConfig:
         assert result.committed_revision is None
 
     async def test_the_target_agent_decision_is_asked_for_that_agent(
-        self, service, may_edit
+        self, service, allowed
     ):
         await _call(handle_edit_agent_config, service, **_edit_args())
 
-        may_edit.assert_awaited_once_with(project_id=PROJECT, agent_id=TARGET)
+        allowed.assert_awaited_once_with(
+            project_id=PROJECT, agent_id=TARGET, action=Permission.EDIT_WORKFLOWS
+        )
 
     async def test_without_the_right_to_edit_the_target_nothing_is_saved(
-        self, service, may_edit
+        self, service, allowed
     ):
-        may_edit.return_value = False
+        allowed.return_value = False
 
         result = await _call(handle_edit_agent_config, service, **_edit_args())
 

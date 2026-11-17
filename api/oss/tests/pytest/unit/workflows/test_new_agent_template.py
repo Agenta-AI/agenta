@@ -128,6 +128,8 @@ class TestNewAgentSlug:
 
     def test_a_name_with_no_slug_characters_still_gets_one(self):
         assert new_agent_slug("???") == "agent"
+        # A name never makes a slug with the reserved `__ag__` prefix.
+        assert new_agent_slug("__ag__helper") == "ag__helper"
 
 
 class TestAttribution:
