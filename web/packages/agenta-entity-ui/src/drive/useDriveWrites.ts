@@ -6,7 +6,6 @@ import {
     moveMountFile,
     createMountFolder,
     deleteMountPath,
-    itemCountLabel,
     joinPath,
     nameOf,
     parentOf,
@@ -14,10 +13,16 @@ import {
     saveMountText,
     type SessionDriveData,
 } from "@agenta/entities/drive"
+import {createT} from "@agenta/i18n"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
+
+// Toasts and the confirm open from callbacks, outside render.
+const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
 
 export function useDriveWrites(
     drive: SessionDriveData,
@@ -39,7 +44,7 @@ export function useDriveWrites(
         ): Promise<boolean> => {
             const resolved = drive.resolveMount(presentedPath)
             if (!resolved?.mount) {
-                void message.error("This location can't be written to")
+                void message.error(tNow("entityUi.driveBrowser.cannotWriteHere"))
                 return false
             }
             setBusy(true)
@@ -49,7 +54,11 @@ export function useDriveWrites(
                 if (success) void message.success(success)
                 return true
             } catch (error) {
-                void message.error(error instanceof Error ? error.message : "Something went wrong")
+                void message.error(
+                    error instanceof Error
+                        ? error.message
+                        : tNow("entityUi.driveBrowser.somethingWentWrong"),
+                )
                 return false
             } finally {
                 setBusy(false)
@@ -101,18 +110,25 @@ export function useDriveWrites(
                 modal.confirm({
                     centered: true,
                     getContainer,
-                    title: isFolder ? "Delete folder" : "Delete file",
+                    title: isFolder
+                        ? tNow("entityUi.driveBrowser.deleteFolder")
+                        : tNow("entityUi.driveBrowser.deleteFile"),
                     content: isFolder
-                        ? `"${name}"${itemCount ? ` and its ${itemCountLabel(itemCount)}` : " and everything in it"} will be permanently deleted.`
-                        : `"${name}" will be permanently deleted.`,
-                    okText: "Delete",
+                        ? itemCount
+                            ? tNow("entityUi.driveBrowser.deleteFolderItems", {
+                                  name,
+                                  count: itemCount,
+                              })
+                            : tNow("entityUi.driveBrowser.deleteFolderAll", {name})
+                        : tNow("entityUi.driveBrowser.deleteFileConfirm", {name}),
+                    okText: tNow("entityUi.driveExplorer.delete"),
                     okButtonProps: {danger: true},
                     onOk: async () => {
                         resolve(
                             await run(
                                 presentedPath,
                                 ({mount, path}) => deleteMountPath({mount, path, projectId}),
-                                `Deleted ${name}`,
+                                tNow("entityUi.driveBrowser.deletedName", {name}),
                             ),
                         )
                     },

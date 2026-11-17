@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
+
 import {SimpleTooltip} from "../../ui"
 
 /** A run of brand logos, side by side, each naming itself on hover. */
@@ -81,6 +84,7 @@ function Mark({
 }
 
 export const LogoMarks = ({items, size = 16, max, empty, label, stacked}: LogoMarksProps) => {
+    const t = useT(uiStatusCatalog)
     if (items.length === 0) return <>{empty ?? null}</>
 
     const shown = max ? items.slice(0, max) : items
@@ -102,7 +106,10 @@ export const LogoMarks = ({items, size = 16, max, empty, label, stacked}: LogoMa
                         span is pointer-only, so "+3" alone told a screen reader nothing. */}
                     <span
                         role="listitem"
-                        aria-label={`${overflow.length} more: ${overflowNames}`}
+                        aria-label={t("ui.status.moreNames", {
+                            count: overflow.length,
+                            names: overflowNames,
+                        })}
                         className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]"
                     >
                         +{overflow.length}

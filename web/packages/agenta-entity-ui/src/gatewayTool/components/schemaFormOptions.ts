@@ -7,7 +7,12 @@
  * option value, but must NEVER survive into the form value (and from there into the accepted
  * elicitation `content`). Every transition here strips it.
  */
+import {createT} from "@agenta/i18n"
+import schemaFormCatalog from "@agenta/i18n/catalogs/entityUi.schemaForm"
 import type {FormFieldDescriptor} from "@agenta/shared/utils"
+
+// Options are built while the form renders; the label reads the current language.
+const tNow = createT(schemaFormCatalog)
 
 export const OTHER_ENUM_OPTION = "__ag_enum_other__"
 
@@ -40,7 +45,7 @@ export const wantsChoiceCards = (field: FormFieldDescriptor): boolean =>
 /** Select options with the trailing "Other…" escape-hatch entry. */
 export const selectOptionsWithOther = (options: EnumOption[]) => [
     ...options.map((o) => ({value: o.value, label: o.label ?? o.value})),
-    {value: OTHER_ENUM_OPTION, label: "Other…"},
+    {value: OTHER_ENUM_OPTION, label: tNow("entityUi.schemaForm.other")},
 ]
 
 /** True when the current value is set but not one of the options (default/replay off-menu).

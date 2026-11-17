@@ -1,0 +1,8 @@
+{
+    "emptyObject": "(empty object)",
+    "emptyArray": "(empty array)",
+    "removeRow": "Remove row {{index}}",
+    "addRow": "Add row",
+    "numberPlaceholder": "Enter number value",
+    "valuePlaceholder": "Enter a value"
+}

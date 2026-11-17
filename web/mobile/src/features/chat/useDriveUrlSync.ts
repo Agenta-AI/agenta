@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef} from "react"
 
 import {driveQuickLookAtomFamily, type DriveLinkItem, useCopyText} from "@agenta/entity-ui/drive"
+import {createT} from "@agenta/i18n"
+import chatMobileSessionsCatalog from "@agenta/i18n/catalogs/chat.mobileSessions"
 import {
     DRIVE_QUERY_PARAM,
     formatDriveParam,
@@ -10,6 +12,8 @@ import {
     shareUrlWithQueryParam,
 } from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
+
+const tNow = createT(chatMobileSessionsCatalog)
 
 const driveParam = ({path, isFolder}: DriveLinkItem) => formatDriveParam({path, folder: isFolder})
 
@@ -48,7 +52,10 @@ export const useDriveUrlSync = ({
     const copy = useCopyText()
     const copyLink = useCallback(
         (item: DriveLinkItem) =>
-            copy(shareUrlWithQueryParam(DRIVE_QUERY_PARAM, driveParam(item)), "Link copied"),
+            copy(
+                shareUrlWithQueryParam(DRIVE_QUERY_PARAM, driveParam(item)),
+                tNow("chat.mobileSessions.linkCopied"),
+            ),
         [copy],
     )
 

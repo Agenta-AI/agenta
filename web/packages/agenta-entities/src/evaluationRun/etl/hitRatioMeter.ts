@@ -3,7 +3,7 @@
  *
  * # Why this exists
  *
- * The eval-filtering RFC (docs/designs/eval-filtering.md §D2 + §C3) defines
+ * The eval-filtering RFC (docs/design/eval-filtering.md §D2 + §C3) defines
  * a two-engine strategy:
  *
  *   - **v1** evaluates filter predicates **client-side**, over already-loaded

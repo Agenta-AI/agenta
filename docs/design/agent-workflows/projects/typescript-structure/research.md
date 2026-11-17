@@ -125,7 +125,7 @@ spec:
   `publish-unit-test-result-action`. Any package that defines `test:unit` is picked up; the
   rest are skipped. A new package following the same script names slots in for free.
 
-- **There is a folder-layout spec.** `docs/designs/testing/testing.structure.specs.md`
+- **There is a folder-layout spec.** `docs/design/testing/testing.structure.specs.md`
   defines runner-first layout: `<component>/tests/<runner>/{unit,integration,acceptance,utils}`
   plus `manual/` and `legacy/`. In practice the vitest packages collapse this to
   `tests/unit/**/*.test.ts` (one runner, so no `vitest/` level). The agent runner's current

@@ -1,9 +1,13 @@
+import {createT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 
 export interface RunErrorResult {
     error?: unknown
     metadata?: {rawError?: {detail?: string}; retryAfter?: number}
 }
+
+const tNow = createT(runsCatalog)
 
 const GENERIC_ERRORS = new Set(["An unknown error occurred", "Unknown error", "Error"])
 
@@ -17,7 +21,7 @@ export const runErrorText = (result: RunErrorResult): string => {
         const detail = result.metadata?.rawError?.detail
         if (typeof detail === "string" && detail) text = detail
         const retryAfter = result.metadata?.retryAfter
-        if (retryAfter) text = `${text} Retry after ${retryAfter}s.`
+        if (retryAfter) text = tNow("playground.runs.retryAfter", {text, seconds: retryAfter})
     }
     return text
 }

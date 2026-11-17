@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import channelsReloadErrorCatalog from "@agenta/i18n/catalogs/channels.reloadError"
 import {getChannelsClient} from "@agenta/sdk/resources"
 import {
     EMPTY_CONNECTIONS,
@@ -11,6 +13,8 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
 import {getApiUrl} from "@/lib/env"
+
+const tNow = createT(channelsReloadErrorCatalog)
 
 /** The hosted Slack install URL — a browser redirect into Slack's OAuth, same route the
  * desktop host builds. `getApiUrl()` is the host `_app` pins the SDK to, so both agree. */
@@ -113,7 +117,7 @@ export const useAgentChannels = (
                 return next
             } catch (error) {
                 if (report && seq === reloadSeq.current) {
-                    setLoadError("Could not load Channels. Try again.")
+                    setLoadError(tNow("channels.reloadError.loadFailed"))
                 }
                 throw error
             }

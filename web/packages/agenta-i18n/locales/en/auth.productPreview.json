@@ -1,0 +1,19 @@
+{
+    "daysAgo": "{{count}}d ago",
+    "elapsed": "{{seconds}}s",
+    "hoursAgo": "{{count}}h ago",
+    "minutesAgo": "{{count}}m ago",
+    "navAgents": "Agents",
+    "navAutomations": "Automations",
+    "navHome": "Home",
+    "navSessions": "Sessions",
+    "navSettings": "Settings",
+    "navSkills": "Skills",
+    "navTemplates": "Templates",
+    "newAutomation": "New automation",
+    "now": "now",
+    "starting": "Starting",
+    "subtitle": "Agents that run on a schedule or when something happens in your apps.",
+    "title": "Automations",
+    "workedFor": "Worked for {{seconds}}s"
+}

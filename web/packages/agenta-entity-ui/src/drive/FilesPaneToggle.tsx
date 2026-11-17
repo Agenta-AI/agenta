@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip, type SimpleTooltipProps} from "@agenta/ui/ui"
@@ -14,14 +16,17 @@ export function FilesPaneToggle({
     disabled?: boolean
     tooltipSide?: SimpleTooltipProps["side"]
 }) {
+    const t = useT(filesPaneCatalog)
     return (
         <SimpleTooltip
             title={
                 disabled ? (
-                    "Open a conversation to browse files."
+                    t("entityUi.filesPane.openConversationToBrowse")
                 ) : (
                     <span className="flex items-center gap-1.5">
-                        {open ? "Hide files" : "Show files"}{" "}
+                        {open
+                            ? t("entityUi.filesPane.hideFiles")
+                            : t("entityUi.filesPane.showFiles")}{" "}
                         <ShortcutKeys id="panel.files" tone="inverse" />
                     </span>
                 )
@@ -32,7 +37,11 @@ export function FilesPaneToggle({
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={open ? "Hide files pane" : "Show files pane"}
+                    aria-label={
+                        open
+                            ? t("entityUi.filesPane.hideFilesPane")
+                            : t("entityUi.filesPane.showFilesPane")
+                    }
                     aria-pressed={open}
                     aria-keyshortcuts={shortcutAria("panel.files")}
                     disabled={disabled}

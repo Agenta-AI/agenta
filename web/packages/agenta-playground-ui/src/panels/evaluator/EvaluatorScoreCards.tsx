@@ -2,6 +2,8 @@ import {useMemo, type ReactNode} from "react"
 
 import type {RunnablePort} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import evalCatalog from "@agenta/i18n/catalogs/playground.evaluator"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import type {PlaygroundNode} from "@agenta/playground/state"
 import {Badge, Skeleton} from "@agenta/ui/ui"
@@ -43,6 +45,7 @@ const ScoreCard = ({
     node: PlaygroundNode
     renderTraceFooter?: (traceId: string) => ReactNode
 }) => {
+    const t = useT(evalCatalog)
     // An evaluator's result is kept per app revision: `sess:<app>:<evaluator>`.
     const scopedId = `${rootEntityId}:${node.entityId}`
     const result = useAtomValue(
@@ -68,7 +71,10 @@ const ScoreCard = ({
                             : "m-0 text-xs italic text-muted-foreground"
                     }
                 >
-                    {result?.error?.message || (status === "error" ? "Error" : "Skipped")}
+                    {result?.error?.message ||
+                        (status === "error"
+                            ? t("playground.evaluator.error")
+                            : t("playground.evaluator.skipped"))}
                 </p>
             )
         }
@@ -98,7 +104,9 @@ const ScoreCard = ({
                                     formatValue(value)
                                 ) : (
                                     <Badge variant={verdict ? "success" : "error"}>
-                                        {verdict ? "true" : "false"}
+                                        {verdict
+                                            ? t("playground.evaluator.true")
+                                            : t("playground.evaluator.false")}
                                     </Badge>
                                 )}
                             </dd>
@@ -115,7 +123,7 @@ const ScoreCard = ({
             className="flex flex-col gap-2 rounded-md border border-solid border-border px-3 py-2"
         >
             <h4 className="m-0 truncate text-xs font-medium text-foreground">
-                {name?.trim() || node.label || "Evaluator"}
+                {name?.trim() || node.label || t("playground.evaluator.evaluator")}
             </h4>
             {body}
             {/* The evaluator's own run: its status, numbers and trace, as the app's output has. */}

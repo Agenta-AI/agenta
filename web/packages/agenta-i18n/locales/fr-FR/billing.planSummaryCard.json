@@ -1,0 +1,11 @@
+{
+    "cancelSubscription": "Annuler l’abonnement",
+    "changePlan": "Changer d’offre",
+    "contactUs": "Nous contacter au sujet de votre offre",
+    "creditsAMonth": "{{credits}} crédits par mois",
+    "currentPlan": "Offre actuelle",
+    "renews": "Renouvellement le {{date}}",
+    "trialEnded": "Essai terminé le {{date}}",
+    "trialEnds": "Fin de l’essai le {{date}}",
+    "upgradePlan": "Améliorer l’offre"
+}

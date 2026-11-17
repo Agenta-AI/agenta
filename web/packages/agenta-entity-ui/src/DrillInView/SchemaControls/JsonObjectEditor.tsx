@@ -8,7 +8,11 @@
  */
 import {useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {SharedEditor} from "@agenta/ui/shared-editor"
+
+const tNow = createT(schemaControlsCatalog)
 
 export interface JsonObjectEditorProps {
     /** Current object value. Serialized to seed the editor on mount. */
@@ -39,11 +43,11 @@ export function JsonObjectEditor({
                 onValidityChange?.(true)
                 onChange(parsed as Record<string, unknown>)
             } else {
-                setError("Expected a JSON object")
+                setError(tNow("entityUi.schemaControls.expectedJsonObject"))
                 onValidityChange?.(false)
             }
         } catch {
-            setError("Invalid JSON")
+            setError(tNow("entityUi.schemaControls.invalidJson"))
             onValidityChange?.(false)
         }
     }

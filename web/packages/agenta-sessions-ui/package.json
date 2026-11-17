@@ -20,6 +20,7 @@
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/sessions": "workspace:../agenta-sessions",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",

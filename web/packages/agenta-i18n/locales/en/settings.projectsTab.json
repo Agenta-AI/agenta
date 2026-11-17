@@ -1,0 +1,8 @@
+{
+    "deleteBody": "Permanently deletes {{name}}, including all of its agents, datasets and deployments.",
+    "deleteTitle": "Delete project",
+    "deleting": "Deleting…",
+    "namePlaceholder": "Project name",
+    "newDescription": "Projects group your agents, datasets and deployments.",
+    "newTitle": "New project"
+}

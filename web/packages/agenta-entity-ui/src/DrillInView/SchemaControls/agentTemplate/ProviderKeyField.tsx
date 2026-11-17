@@ -1,6 +1,8 @@
 import {useEffect, useId, useRef, useState} from "react"
 
 import {hasStoredKey, useVaultSecret} from "@agenta/entities/secret"
+import {createT, useT} from "@agenta/i18n"
+import providerCredentialsCatalog from "@agenta/i18n/catalogs/entityUi.providerCredentials"
 import {providerKeyAddedSignalAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
@@ -8,6 +10,8 @@ import {useAccordionSectionOpen} from "@agenta/ui/components/presentational"
 import {LoadingButton, PasswordInput} from "@agenta/ui/ui"
 import {CheckCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
+
+const tNow = createT(providerCredentialsCatalog)
 
 /**
  * Right-pane "API key" form for a standard provider — the Provider credentials section's key form
@@ -31,6 +35,7 @@ const ProviderKeyField = ({
      * scoped to it. */
     revisionId?: string | null
 }) => {
+    const t = useT(providerCredentialsCatalog)
     const {handleModifyVaultSecret} = useVaultSecret()
     const raiseKeyAddedSignal = useSetAtom(providerKeyAddedSignalAtom)
     const [key, setKey] = useState("")
@@ -46,8 +51,8 @@ const ProviderKeyField = ({
     const hasKey = hasStoredKey(provider)
     useEffect(() => {
         if (!sectionOpen || hasKey || disabled) return
-        const t = window.setTimeout(() => inputRef.current?.focus(), 0)
-        return () => window.clearTimeout(t)
+        const timer = window.setTimeout(() => inputRef.current?.focus(), 0)
+        return () => window.clearTimeout(timer)
     }, [sectionOpen, hasKey, disabled])
 
     const save = async () => {
@@ -68,7 +73,7 @@ const ProviderKeyField = ({
             }
         } catch {
             // Security-sensitive write — never fail silently; keep the typed value so the user can retry.
-            message.error("Couldn't save the provider key. Please try again.")
+            message.error(tNow("entityUi.providerCredentials.couldNotSaveKey"))
         } finally {
             setSaving(false)
         }
@@ -82,23 +87,27 @@ const ProviderKeyField = ({
                         <CheckCircle size={13} weight="fill" />
                         {/* TODO(copy: owner) */}
                         {provider.keyPreview
-                            ? `Key configured (${provider.keyPreview}) · enter a new value to replace it.`
-                            : "Key configured · enter a new value to replace it."}
+                            ? t("entityUi.providerCredentials.keyConfiguredPreview", {
+                                  preview: provider.keyPreview,
+                              })
+                            : t("entityUi.providerCredentials.keyConfigured")}
                     </span>
                 ) : null
             ) : (
                 <div className="flex flex-col gap-0.5">
                     <span className="text-[13px] font-semibold">{provider.title}</span>
                     <span className="text-xs leading-snug text-colorTextDescription">
-                        Standard provider · add your key and we auto-list its models.
+                        {tNow("entityUi.providerCredentials.standardProvider")}
                     </span>
                     {hasKey ? (
                         <span className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--ag-colorSuccess)]">
                             <CheckCircle size={13} weight="fill" />
                             {/* TODO(copy: owner) */}
                             {provider.keyPreview
-                                ? `Key configured (${provider.keyPreview}) · enter a new value to replace it.`
-                                : "Key configured · enter a new value to replace it."}
+                                ? t("entityUi.providerCredentials.keyConfiguredPreview", {
+                                      preview: provider.keyPreview,
+                                  })
+                                : t("entityUi.providerCredentials.keyConfigured")}
                         </span>
                     ) : null}
                 </div>
@@ -106,7 +115,9 @@ const ProviderKeyField = ({
             <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium" htmlFor={inputId}>
                     {/* TODO(copy: owner) */}
-                    {hasKey ? "Replace key" : "API key"}{" "}
+                    {hasKey
+                        ? t("entityUi.providerCredentials.replaceKey")
+                        : t("entityUi.providerCredentials.apiKey")}{" "}
                     <span className="text-[var(--ag-colorError)]">*</span>
                 </label>
                 <div className="flex items-center gap-2">
@@ -127,11 +138,13 @@ const ProviderKeyField = ({
                         loading={saving}
                         disabled={disabled || !key.trim()}
                     >
-                        {hasKey ? "Replace" : "Save"}
+                        {hasKey
+                            ? t("entityUi.providerCredentials.replace")
+                            : t("entityUi.providerCredentials.save")}
                     </LoadingButton>
                 </div>
                 <span className="text-xs text-colorTextDescription">
-                    This secret is encrypted in transit and at rest.
+                    {tNow("entityUi.providerCredentials.encryptedNote")}
                 </span>
             </div>
         </div>

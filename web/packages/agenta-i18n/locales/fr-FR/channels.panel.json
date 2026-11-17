@@ -1,0 +1,18 @@
+{
+    "addDiscordBot": "Ajouter un bot Discord",
+    "addSlackWorkspace": "Ajouter un espace de travail Slack",
+    "addTelegramBot": "Ajouter un bot Telegram",
+    "addWhatsAppNumber": "Ajouter un numéro WhatsApp",
+    "agent": "Agent",
+    "agentLive_one": "{{name}} · {{count}} actif",
+    "agentLive_many": "{{name}} · {{count}} actifs",
+    "agentLive_other": "{{name}} · {{count}} actifs",
+    "chooseAgent": "Choisissez l’agent qui répond",
+    "connectChannel": "Connecter un canal",
+    "connectPlatform": "Connecter {{platform}}",
+    "embed": "Intégration web",
+    "noIdYet": "Cette connexion n’a pas encore d’identifiant.",
+    "publish": "Publier",
+    "yourAgent": "votre agent",
+    "yourWorkspace": "votre espace de travail"
+}

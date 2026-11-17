@@ -130,6 +130,7 @@ class FakeBackend(Backend):
         session_id=None,
         detached=False,
         turn_id=None,
+        session_turn_id=None,
         project_id=None,
         control_command_id=None,
         # Interface parity: the SDK passes this through on every session run. These tests

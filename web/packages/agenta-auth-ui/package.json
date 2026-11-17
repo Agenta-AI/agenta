@@ -16,6 +16,7 @@
         "./auth.css": "./src/auth.css"
     },
     "dependencies": {
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/auth": "workspace:../agenta-auth",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",

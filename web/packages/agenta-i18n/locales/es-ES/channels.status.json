@@ -1,0 +1,18 @@
+{
+    "accessTokenRejected": "Token de acceso rechazado",
+    "accessTokenRejectedUpdate": "Token de acceso rechazado · actualízalo",
+    "appUninstalled": "Aplicación desinstalada · vuelve a conectar",
+    "botRemoved_one": "Bot eliminado de {{count}} canal",
+    "botRemoved_many": "Bot eliminado de {{count}} de canales",
+    "botRemoved_other": "Bot eliminado de {{count}} canales",
+    "botTokenRevoked": "Token del bot revocado",
+    "botTokenRevokedUpdate": "Token del bot revocado · actualízalo",
+    "connectedTo": "Conectado a {{agent}}",
+    "discordIdle": "Chatea con el agente en tu servidor de Discord",
+    "pending": "Todavía sin vincular · termina de conectar",
+    "placesAndDms": "{{places}} + MD",
+    "slackIdle": "Chatea con el agente en el espacio de trabajo de tu equipo",
+    "telegramIdle": "Chatea con el agente desde tu teléfono",
+    "unassigned": "Todavía no responde como ningún agente · conéctalo aquí",
+    "whatsappIdle": "Responde a los mensajes de tu número de WhatsApp Business"
+}

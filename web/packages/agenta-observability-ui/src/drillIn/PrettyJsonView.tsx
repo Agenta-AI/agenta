@@ -1,5 +1,7 @@
 import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import drillInCatalog from "@agenta/i18n/catalogs/observabilityUi.drillIn"
 import {isChatMessagesArray, normalizeChatMessages} from "@agenta/ui/cell-renderers"
 import {
     Editor as EditorWrapper,
@@ -481,6 +483,9 @@ const COPY_ICON = (
     </svg>
 )
 
+// The tree has one copy button and one truncation toggle per row, so text is read with no hook.
+const tNow = createT(drillInCatalog)
+
 // ── Small components ────────────────────────────────────────────────────
 
 const ScalarValue = ({value}: {value: unknown}) => {
@@ -538,13 +543,19 @@ const CopyButton = ({value}: {value: unknown}) => {
     return (
         <button
             type="button"
-            aria-label={copied ? "Copied" : "Copy to clipboard"}
+            aria-label={
+                copied
+                    ? tNow("observabilityUi.drillIn.copied")
+                    : tNow("observabilityUi.drillIn.copyToClipboard")
+            }
             className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity inline-flex items-center justify-center h-[22px] min-w-[22px] px-1.5 ml-auto self-center border border-transparent rounded-sm text-colorTextQuaternary cursor-pointer shrink-0 hover:text-colorText hover:bg-colorBgContainer hover:border-colorBorder focus-visible:ring-1 focus-visible:ring-colorPrimary focus-visible:outline-none"
             onClick={handleCopy}
             onKeyDown={handleKeyDown}
         >
             {copied ? (
-                <span className="text-xs text-colorSuccess font-medium">Copied</span>
+                <span className="text-xs text-colorSuccess font-medium">
+                    {tNow("observabilityUi.drillIn.copied")}
+                </span>
             ) : (
                 COPY_ICON
             )}
@@ -746,7 +757,7 @@ const TruncatedMessageBody = memo(function TruncatedMessageBody({
                             aria-expanded={false}
                             className={PILL_BUTTON_CLASSES}
                         >
-                            Show more
+                            {tNow("observabilityUi.drillIn.showMore")}
                         </button>
                     </div>
                 </div>
@@ -760,7 +771,7 @@ const TruncatedMessageBody = memo(function TruncatedMessageBody({
                         aria-expanded={true}
                         className={PILL_BUTTON_CLASSES}
                     >
-                        Show less
+                        {tNow("observabilityUi.drillIn.showLess")}
                     </button>
                 </div>
             ) : null}

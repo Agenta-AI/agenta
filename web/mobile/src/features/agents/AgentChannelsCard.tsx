@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {
     CHANNEL_PLATFORMS,
     agentConnectionsOf,
@@ -34,27 +36,31 @@ export const AgentChannelsCard = ({
     onOpenHub: () => void
     onOpenConnection: (connection: ChannelConnection) => void
 }) => {
+    const t = useT(agentsOverview)
     const mine = CHANNEL_PLATFORMS.flatMap((platform) => agentConnectionsOf(connections, platform))
 
     return (
         <AgentOverviewCard
-            title="Channels"
-            action={mine.length ? "Manage" : undefined}
+            title={t("agents.overview.channelsTitle")}
+            action={mine.length ? t("agents.overview.channelsManage") : undefined}
             onAction={onOpenHub}
         >
             {loading ? (
                 <AgentOverviewCardSkeleton rows={2} />
             ) : loadError ? (
-                <AgentOverviewCardError message="Couldn't load channels." onRetry={onRetry} />
+                <AgentOverviewCardError
+                    message={t("agents.overview.channelsLoadError")}
+                    onRetry={onRetry}
+                />
             ) : mine.length === 0 ? (
                 <AgentOverviewCardRow
                     icon={<Broadcast size={ICON} />}
-                    label="Publish"
+                    label={t("agents.overview.channelsPublish")}
                     // Overlapped like the Integrations row's logos.
                     detail={
                         <span
                             className="flex items-center"
-                            aria-label="Slack, Telegram, WhatsApp and Discord"
+                            aria-label={t("agents.overview.channelsLogosLabel")}
                         >
                             {CHANNEL_PLATFORMS.map((platform, i) => (
                                 <span
@@ -81,7 +87,7 @@ export const AgentChannelsCard = ({
                                 connection.status === "revoked" ? (
                                     <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
                                         <span className="size-1.5 shrink-0 rounded-full bg-colorError" />
-                                        Needs attention
+                                        {t("agents.overview.needsAttention")}
                                     </span>
                                 ) : (
                                     detail

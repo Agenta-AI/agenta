@@ -1,3 +1,5 @@
+import type {CatalogKey} from "@agenta/i18n"
+import type bootLoaderCatalog from "@agenta/i18n/catalogs/shell.bootLoader"
 import {atom} from "jotai"
 
 /** Set by `useAuthSuccess`, cleared by `PostAuthLoader` once the first screen has its data. */
@@ -22,19 +24,34 @@ export type BootStage = 0 | 1 | 2
 export const bootStage = (projects: ProjectsAnswer, agentsSettled: boolean): BootStage =>
     projects === "pending" ? 0 : projects === "ok" && !agentsSettled ? 1 : 2
 
-export const BOOT_STATUSES: Record<AccountKind, readonly [string, string, string]> = {
-    new: ["Creating your workspace", "Setting up your first project", "Almost ready"],
-    returning: ["Loading your agents", "Restoring recent sessions", "Almost ready"],
-    pending: ["Signing you in", "Loading your workspace", "Almost ready"],
-}
+export type BootTextKey = CatalogKey<typeof bootLoaderCatalog>
 
-export const BOOT_TIPS = [
-    "You can talk to your agents in Slack, Telegram, WhatsApp and Discord.",
-    "Correct an agent once and it remembers next time.",
-    "Every session runs in its own sandbox, isolated from the others.",
-    "Agents can run on a schedule or when something happens in a connected app.",
-    "You can run agents on your Claude or ChatGPT subscription.",
-] as const
+export const BOOT_STATUSES: Record<AccountKind, readonly [BootTextKey, BootTextKey, BootTextKey]> =
+    {
+        new: [
+            "shell.bootLoader.statusNew1",
+            "shell.bootLoader.statusNew2",
+            "shell.bootLoader.statusAlmostReady",
+        ],
+        returning: [
+            "shell.bootLoader.statusReturning1",
+            "shell.bootLoader.statusReturning2",
+            "shell.bootLoader.statusAlmostReady",
+        ],
+        pending: [
+            "shell.bootLoader.statusPending1",
+            "shell.bootLoader.statusPending2",
+            "shell.bootLoader.statusAlmostReady",
+        ],
+    }
+
+export const BOOT_TIPS: readonly BootTextKey[] = [
+    "shell.bootLoader.tip1",
+    "shell.bootLoader.tip2",
+    "shell.bootLoader.tip3",
+    "shell.bootLoader.tip4",
+    "shell.bootLoader.tip5",
+]
 
 /** Shortest hold, so a fast boot does not flash. */
 export const BOOT_MIN_MS = 1200

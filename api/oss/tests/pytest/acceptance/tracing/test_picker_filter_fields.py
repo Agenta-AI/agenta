@@ -97,11 +97,19 @@ def _session(session_id: str) -> dict:
     return {"field": "attributes.ag.session.id", "operator": "is", "value": session_id}
 
 
+# Live evaluations always filter on invocation traces; an annotation carries the
+# session of the span it judges, so a session filter alone also matches annotations.
+_INVOCATIONS = {"field": "trace_type", "operator": "is", "value": "invocation"}
+
+
 def _trace_ids(authed_api, *conditions: dict) -> set:
     response = authed_api(
         "POST",
         "/tracing/spans/query",
-        json={"focus": "trace", "filter": {"conditions": list(conditions)}},
+        json={
+            "focus": "trace",
+            "filter": {"conditions": [_INVOCATIONS, *conditions]},
+        },
     )
     assert response.status_code == 200, response.text
     return {trace_id.replace("-", "") for trace_id in response.json().get("traces", {})}

@@ -1,0 +1,17 @@
+{
+    "popupBlocked": "ポップアップがブロックされました。このタブでリダイレクトします。",
+    "onlyMe": "自分のみ",
+    "onlyMeNote": "各ユーザー自身の {{name}} を使うエージェントを実行するときに使用されます。最初の {{name}} アカウントがデフォルトになります。",
+    "everyoneInProject": "{{project}} の全員",
+    "everyoneInThisProject": "このプロジェクトの全員",
+    "everyoneNote": "このプロジェクトのエージェントは、実行するすべての人に対して、これをエージェントのアカウントとして使用できます。",
+    "connectName": "{{name}} を接続",
+    "name": "名前",
+    "required": "必須",
+    "namePlaceholder": "例：自分の {{name}} アカウント",
+    "whoCanUseIt": "使用できるユーザー",
+    "authMethod": "認証方式",
+    "apiKey": "API キー",
+    "submitFailed": "接続を開始できませんでした。サーバーが拒否しました。もう一度お試しください。失敗が続く場合は、このデプロイで接続プロバイダーが設定されていません。",
+    "connect": "接続"
+}

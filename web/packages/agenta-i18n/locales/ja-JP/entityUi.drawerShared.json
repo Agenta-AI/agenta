@@ -1,0 +1,12 @@
+{
+    "remove": "削除",
+    "about": "{{label}} について",
+    "cancel": "キャンセル",
+    "sections": "セクション",
+    "add": "追加",
+    "notSet": "未設定",
+    "empty": "空",
+    "committedValue": "コミット済みの値",
+    "removeChange": "変更を削除",
+    "restore": "元に戻す"
+}

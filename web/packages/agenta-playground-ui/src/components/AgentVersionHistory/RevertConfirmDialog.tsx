@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {
     Button,
     Dialog,
@@ -26,28 +28,38 @@ export const RevertConfirmDialog = ({
     latestVersion,
     onCancel,
     onConfirm,
-}: RevertConfirmDialogProps) => (
-    // Non-modal: the drawer already traps focus; a second modal layer would fight it.
-    <Dialog modal={false} open={open} onOpenChange={(next) => !next && onCancel()}>
-        <DialogContent
-            container={container}
-            contained
-            showCloseButton={false}
-            className="max-w-[400px]"
-        >
-            <DialogHeader>
-                <DialogTitle>Revert to v{selectedVersion}?</DialogTitle>
-                <DialogDescription>
-                    This commits v{(latestVersion ?? 0) + 1} with v{selectedVersion}&apos;s
-                    configuration. Versions v1–v{latestVersion} stay exactly as they are.
-                </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-                <Button variant="outline" onClick={onCancel}>
-                    Cancel
-                </Button>
-                <Button onClick={onConfirm}>Revert</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-)
+}: RevertConfirmDialogProps) => {
+    const t = useT(versionCatalog)
+    return (
+        // Non-modal: the drawer already traps focus; a second modal layer would fight it.
+        <Dialog modal={false} open={open} onOpenChange={(next) => !next && onCancel()}>
+            <DialogContent
+                container={container}
+                contained
+                showCloseButton={false}
+                className="max-w-[400px]"
+            >
+                <DialogHeader>
+                    <DialogTitle>
+                        {t("playground.versionHistory.revertTitle", {
+                            version: selectedVersion ?? "",
+                        })}
+                    </DialogTitle>
+                    <DialogDescription>
+                        {t("playground.versionHistory.revertDescription", {
+                            next: (latestVersion ?? 0) + 1,
+                            version: selectedVersion ?? "",
+                            latest: latestVersion ?? "",
+                        })}
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onCancel}>
+                        {t("playground.versionHistory.cancel")}
+                    </Button>
+                    <Button onClick={onConfirm}>{t("playground.versionHistory.revert")}</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}

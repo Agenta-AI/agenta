@@ -1,0 +1,6 @@
+{
+    "backToSignIn": "Volver a iniciar sesión",
+    "codeUsed": "Este enlace de inicio de sesión ya se usó. Inicia sesión de nuevo.",
+    "securityCheckFailed": "Falló la comprobación de seguridad. Inténtalo de nuevo.",
+    "signedInButAppFailed": "Has iniciado sesión, pero no se pudo abrir la aplicación. Inténtalo de nuevo."
+}

@@ -1,8 +1,6 @@
 import {FieldHeader} from "@agenta/ui/components/presentational"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// FieldHeader is a right-aligned copy-to-clipboard button used above table cells and field
-// values (the legacy markdown toggle was removed). Pure presentational, no antd counterpart.
 const meta = {
     title: "@agenta/ui/Presentational/Forms/FieldHeader",
     component: FieldHeader,
@@ -22,17 +20,12 @@ type Story = StoryObj
 
 const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
     <div className="grid grid-cols-[16rem_1fr] items-center gap-4 border-b border-colorBorderSecondary py-3">
-        <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-colorTextSecondary">{label}</span>
-            <span className="text-[10px] text-colorTextSecondary">
-                no single antd counterpart (composite; uses the @agenta/ui Tooltip internally)
-            </span>
-        </div>
+        <div className="text-xs text-colorTextSecondary">{label}</div>
         <div className="flex w-[220px] items-center">{children}</div>
     </div>
 )
 
-export const AgentaOnly: Story = {
+export const Variants: Story = {
     render: () => (
         <div className="flex max-w-[560px] flex-col">
             <Row label="copy button (with value)">

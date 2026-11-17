@@ -15,6 +15,7 @@
         ".": "./src/index.ts"
     },
     "dependencies": {
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/navigation": "workspace:../agenta-navigation",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",

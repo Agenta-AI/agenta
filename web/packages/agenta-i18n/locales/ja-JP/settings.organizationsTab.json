@@ -1,0 +1,19 @@
+{
+    "chooseMember": "メンバーを選択",
+    "createFailed": "作成できませんでした",
+    "deleteBody": "{{name}} と、その中のすべてのワークスペース、プロジェクト、エージェントを完全に削除します。",
+    "deleteFailed": "この組織を削除できませんでした",
+    "deleteTitle": "組織を削除",
+    "inviteFirst": "先にこの組織に誰かを招待してください。オーナー権限はメンバーにのみ移譲できます。",
+    "namePlaceholder": "組織名",
+    "newDescription": "組織は、ワークスペース、プロジェクト、そこに属するメンバーをまとめます。",
+    "newTitle": "新しい組織",
+    "noProjectYet": "{{name}} には開けるプロジェクトがまだありません",
+    "renameFailed": "この組織の名前を変更できませんでした",
+    "thisOrganization": "この組織",
+    "thisOrganizationCapital": "この組織",
+    "transfer": "移譲",
+    "transferDescription": "新しいオーナーが {{name}} のすべての権限を持ちます。あなたはメンバーとして残ります。",
+    "transferFailed": "オーナー権限を移譲できませんでした",
+    "transferTitle": "オーナー権限を移譲"
+}

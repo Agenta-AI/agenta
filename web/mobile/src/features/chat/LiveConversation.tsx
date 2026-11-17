@@ -42,12 +42,15 @@ import {
 } from "@agenta/entities/session"
 import {
     invalidateAgentCommittedRevisionCache,
-    MODEL_SETUP_PLACEHOLDER,
     workflowBuildKitOverlayReadyAtomFamily,
 } from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
+import {modelSetupPlaceholder} from "@agenta/entity-ui/needs-setup"
 import {PersonalAccountsCard} from "@agenta/entity-ui/onboarding"
+import {createT, useT} from "@agenta/i18n"
+import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
+import chatMobileLiveCatalog from "@agenta/i18n/catalogs/chat.mobileLive"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
@@ -99,6 +102,8 @@ import {usePersonalSetupStep} from "./usePersonalSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
+
+const tNow = createT(chatMobileLiveCatalog)
 
 /**
  * The LIVE conversation screen — the same engine the desktop chat runs on
@@ -160,6 +165,7 @@ export const LiveConversation = ({
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
+    const t = useT(chatMobileLiveCatalog, chatMobileComposerCatalog)
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
@@ -610,7 +616,7 @@ export const LiveConversation = ({
                         setStoppingHere(false)
                     } else if (result.resolution.status === "timed_out") {
                         setStoppingHere(false)
-                        message.warning("Could not identify the run to stop. Please try again.")
+                        message.warning(tNow("chat.mobileLive.couldNotIdentifyRun"))
                     }
                     return
                 }
@@ -662,8 +668,8 @@ export const LiveConversation = ({
                 }
                 message.warning(
                     outcome?.conflict
-                        ? "That run had already finished. The session is running something else now."
-                        : "Could not stop the run. It may still be running.",
+                        ? tNow("chat.mobileLive.runAlreadyFinished")
+                        : tNow("chat.mobileLive.couldNotStopRun"),
                 )
             })
             .catch((error: unknown) => {
@@ -676,7 +682,7 @@ export const LiveConversation = ({
                 message.warning(
                     error instanceof Error
                         ? error.message
-                        : "Could not stop the run. It may still be running.",
+                        : tNow("chat.mobileLive.couldNotStopRun"),
                 )
             })
     }, [
@@ -825,11 +831,11 @@ export const LiveConversation = ({
                 return
             }
             modal.confirm({
-                title: "Rewind past a tool that already ran?",
-                content: `${plan.sideEffects.join(", ")} already executed. Rewinding re-runs the conversation from here but will NOT undo it.`,
-                okText: "Rewind anyway",
+                title: tNow("chat.mobileLive.rewindTitle"),
+                content: tNow("chat.mobileLive.rewindBody", {tools: plan.sideEffects.join(", ")}),
+                okText: tNow("chat.mobileLive.rewindAnyway"),
                 okButtonProps: {danger: true},
-                cancelText: "Cancel",
+                cancelText: tNow("chat.mobileLive.cancel"),
                 centered: true,
                 onOk: run,
             })
@@ -911,20 +917,19 @@ export const LiveConversation = ({
                         {conversation.historyReadFailed ? (
                             <div className="mt-3 flex flex-col items-center gap-2">
                                 <p className="text-muted-foreground m-0 text-center text-xs">
-                                    Couldn&apos;t load this session&apos;s earlier messages.
+                                    {t("chat.mobileLive.couldNotLoadEarlier")}
                                 </p>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={conversation.retryHistory}
                                 >
-                                    Try again
+                                    {t("chat.mobileLive.tryAgain")}
                                 </Button>
                             </div>
                         ) : conversation.historyUnavailable ? (
                             <p className="text-muted-foreground mt-3 text-center text-xs">
-                                No messages are saved in this session. Messages that failed to send
-                                are not kept, and old messages can expire.
+                                {t("chat.mobileLive.noMessagesSaved")}
                             </p>
                         ) : null}
                     </div>
@@ -1085,7 +1090,7 @@ export const LiveConversation = ({
                             <PendingTaskError
                                 failureReason={pendingTask?.failureReason}
                                 filenames={pendingTask?.parts?.map(
-                                    (part) => part.filename || "Attachment",
+                                    (part) => part.filename || t("chat.mobileComposer.attachment"),
                                 )}
                                 retryDisabled={
                                     locked ||
@@ -1142,9 +1147,9 @@ export const LiveConversation = ({
                                 sendDisabled={setupBlocked}
                                 placeholder={
                                     modelBlocked
-                                        ? "Connect a model to start chatting…"
+                                        ? t("chat.mobileComposer.connectModelPlaceholder")
                                         : setupBlocked
-                                          ? MODEL_SETUP_PLACEHOLDER
+                                          ? modelSetupPlaceholder()
                                           : undefined
                                 }
                                 hasTurns={!conversation.isEmpty}

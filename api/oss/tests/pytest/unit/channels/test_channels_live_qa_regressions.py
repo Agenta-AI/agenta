@@ -180,6 +180,7 @@ async def test_cleanup_targets_only_the_answered_cards_stored_receipt(wrong_card
         outbox_event_id=event_id,
     )
     event = SimpleNamespace(
+        id=event_id,
         thread_id=thread_id,
         connection_id=connection_id,
         data=SimpleNamespace(
@@ -289,3 +290,82 @@ async def test_a_failed_consumed_mark_admits_nothing():
         )
 
     respond.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "case, reason",
+    [
+        ("no_pending", "the thread has no pending choice"),
+        ("other_interaction", "the pending choice is for other"),
+        ("no_outbox_event", "the pending choice names no outbox event"),
+        ("missing_event", "not found"),
+        ("other_connection", "belongs to thread"),
+        ("no_receipt", "has no receipt"),
+        ("no_button", "has no button for it"),
+        ("dismissed", None),
+    ],
+)
+async def test_every_approval_cleanup_outcome_is_logged(monkeypatch, case, reason):
+    """Live QA 2026-11-17: an answered Discord card kept its buttons and
+    nothing in the log said which check stopped the edit."""
+
+    from oss.src.core.channels import service as service_module
+
+    interaction = str(uuid4())
+    event_id, thread_id, connection_id = uuid4(), uuid4(), uuid4()
+    pending = ChannelPendingChoice(
+        choices=[],
+        posted_at="2026-11-17T00:00:00Z",
+        interaction_id="other" if case == "other_interaction" else interaction,
+        outbox_event_id=None if case == "no_outbox_event" else event_id,
+    )
+    event = SimpleNamespace(
+        id=event_id,
+        thread_id=thread_id,
+        connection_id=uuid4() if case == "other_connection" else connection_id,
+        data=SimpleNamespace(
+            external_locator=None if case == "no_receipt" else {"message_id": "2"},
+            processed={
+                "content": []
+                if case == "no_button"
+                else [{"type": "button", "value": f"{interaction}:approve"}]
+            },
+        ),
+    )
+    adapter = SimpleNamespace(dismiss_choices=AsyncMock())
+    service = ChannelsService(channels_dao=Mock(), adapter_registry=Mock())
+    service.channels_dao.fetch_outbox_event = AsyncMock(
+        return_value=None if case == "missing_event" else event
+    )
+    service.fetch_connection = AsyncMock(
+        return_value=SimpleNamespace(channel="discord")
+    )
+    service.adapter_registry.get.return_value = adapter
+    logged = []
+    monkeypatch.setattr(
+        service_module.log, "info", lambda message, *args: logged.append(message % args)
+    )
+
+    await service.dismiss_approval_choices(
+        project_id=uuid4(),
+        connection_id=connection_id,
+        thread=SimpleNamespace(
+            id=thread_id,
+            data=SimpleNamespace(
+                pending_choice=None if case == "no_pending" else pending
+            ),
+        ),
+        interaction_id=interaction,
+        approved=True,
+    )
+
+    if reason is None:
+        adapter.dismiss_choices.assert_awaited_once()
+        assert any("approval controls dismissed" in line for line in logged)
+    else:
+        adapter.dismiss_choices.assert_not_awaited()
+        assert any(
+            "approval controls not dismissed" in line and reason in line
+            for line in logged
+        )

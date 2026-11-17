@@ -93,6 +93,10 @@ Agenta SHALL deliver an answer as new Discord messages of at most 2,000 characte
 - **WHEN** one code block is longer than 2,000 characters
 - **THEN** Agenta SHALL split it into several messages and SHALL close and reopen the fence in each part
 
+#### Scenario: Relative link
+- **WHEN** an answer has a Markdown link whose target is not an absolute http or https URL, such as `[note.txt](note.txt)`
+- **THEN** Agenta SHALL send only the link text, `note.txt`, because Discord shows such a link as raw Markdown. Absolute links, inline code and code blocks SHALL stay as written
+
 ### Requirement: Typing indicator and reaction while the agent works
 While a turn runs, Agenta SHALL show Discord's typing indicator in the reply channel and SHALL put a reaction on the user's message. It SHALL NOT post a placeholder message.
 

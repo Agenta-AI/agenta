@@ -25,6 +25,8 @@ the detail this file only summarizes.
 - A change to any `@agenta/*` package gets a smoke check on `/m` before the PR is done.
   `web/mobile` depends on 22 of the packages directly and the rest through them. Type
   checks can pass while `/m` renders nothing; this has happened before.
+- A PR that changes what a user sees (a screen, a component, a label, a state) shows before
+  and after screenshots in its body. The `write-pr-description` skill says how.
 - Theme colors have a single source of truth: `oss/src/styles/theme/palette.ts` (semantic
   roles with `{light, dark}` values). This theme folder is the one part of `web/oss` still
   in use. To change any color, edit `palette.ts`, run `pnpm generate:tailwind-tokens`, and

@@ -1,0 +1,9 @@
+{
+    "error": "Impossible de charger les membres du projet.",
+    "footer": "Vous ne pouvez ajouter que des membres de ce projet.",
+    "hasAccess": "A accès",
+    "heading": "Membres de {{project}}",
+    "noMatch": "Aucun membre de ce projet ne correspond à « {{text}} ».",
+    "placeholder": "Ajoutez des personnes par nom ou e-mail",
+    "remove": "Retirer {{name}}"
+}

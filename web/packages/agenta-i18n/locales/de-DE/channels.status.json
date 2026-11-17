@@ -1,0 +1,17 @@
+{
+    "accessTokenRejected": "Zugriffstoken abgelehnt",
+    "accessTokenRejectedUpdate": "Zugriffstoken abgelehnt · aktualisieren",
+    "appUninstalled": "App deinstalliert · erneut verbinden",
+    "botRemoved_one": "Bot aus {{count}} Kanal entfernt",
+    "botRemoved_other": "Bot aus {{count}} Kanälen entfernt",
+    "botTokenRevoked": "Bot-Token widerrufen",
+    "botTokenRevokedUpdate": "Bot-Token widerrufen · aktualisieren",
+    "connectedTo": "Verbunden mit {{agent}}",
+    "discordIdle": "Auf Ihrem Discord-Server mit dem Agenten chatten",
+    "pending": "Noch nicht verknüpft · Verbindung abschließen",
+    "placesAndDms": "{{places}} + DMs",
+    "slackIdle": "Im Workspace Ihres Teams mit dem Agenten chatten",
+    "telegramIdle": "Vom Smartphone aus mit dem Agenten chatten",
+    "unassigned": "Antwortet noch nicht als Agent · hier verbinden",
+    "whatsappIdle": "Nachrichten an Ihre WhatsApp-Business-Nummer beantworten"
+}
