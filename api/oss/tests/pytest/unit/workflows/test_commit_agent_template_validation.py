@@ -3,8 +3,8 @@
 A skill saved without `body` answered 200, and every later run of the agent failed with a
 500: `Invalid skill configuration ... 'body' Field required`. The revision build now runs the
 runtime's own `AgentTemplate.from_params` on every agent revision, whoever writes it, and
-refuses with the field to correct. The `commit_revision` tool's answer is covered in
-test_config_handlers.py.
+refuses with the field to correct. The agent tools are covered in
+test_agent_config_handlers.py.
 """
 
 from unittest.mock import AsyncMock
@@ -303,7 +303,7 @@ class TestSimpleCreateAndEditLeaveNothingBehind:
 
     @pytest.mark.asyncio
     async def test_idempotent_create(self):
-        # The agent template loader creates through this method.
+        # The agent template loader and create_agent create through this method.
         workflows_service = AsyncMock()
 
         with pytest.raises(InvalidAgentConfigurationError):

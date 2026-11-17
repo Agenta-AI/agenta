@@ -585,6 +585,8 @@ class TestEditText:
             )
         )
         assert error.reason == Reason.TARGET_TYPE_MISMATCH
+        # The refusal names the operations that do change an object.
+        assert "'set'" in str(error) and "'merge'" in str(error)
 
     def test_the_reason_carries_the_match_count(self):
         error = failure(
@@ -1584,6 +1586,14 @@ class TestChangeSetResult:
     def test_a_legacy_wholesale_list_replace_warns_too(self):
         codes = warning_codes({"set": {"parameters": {"agent": {"skills": []}}}})
         assert WarningCode.WHOLESALE_LIST_REPLACE in codes
+
+    def test_no_wholesale_warning_when_an_entry_has_no_key(self):
+        # Bench S5: the warning advised add/replace/remove for an entry those cannot reach.
+        embed = {"@ag.embed": {"@ag.references": {"workflow": {"slug": "lookup"}}}}
+        codes = warning_codes(
+            ops({"operation": "set", "target": AGENT + ["tools"], "value": [embed]})
+        )
+        assert WarningCode.WHOLESALE_LIST_REPLACE not in codes
 
     def test_an_ordinary_field_set_does_not_warn_about_lists(self):
         codes = warning_codes(
@@ -3653,12 +3663,12 @@ class TestTheAgentaToolsEntryIsAddressable:
                 {
                     "operation": "merge",
                     "target": AGENT + [AGENTA_TOOLS_ENTRY, "tools"],
-                    "value": {"read_config": "ask"},
+                    "value": {"list_agents": "ask"},
                 }
             ),
             with_agenta_tools(),
         )
-        assert merged["parameters"]["agent"]["tools"][3]["tools"]["read_config"] == (
+        assert merged["parameters"]["agent"]["tools"][3]["tools"]["list_agents"] == (
             "ask"
         )
         replaced = apply(
@@ -3698,3 +3708,10 @@ class TestTheAgentaToolsEntryIsAddressable:
             with_agenta_tools(),
         )
         assert error.reason == Reason.ITEM_ALREADY_EXISTS
+
+
+class TestSharedNextStepsNameNoTool:
+    def test_no_next_step_sends_the_model_to_read_config(self):
+        # They are shared by `commit_revision`, `edit_agent_config` and `create_agent`, so a
+        # tool name here would send two of them to the wrong agent.
+        assert not [step for step in NEXT_STEPS.values() if "read_config" in step]

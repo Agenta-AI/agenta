@@ -445,6 +445,38 @@ describe("buildAgentRequest", () => {
         expect(template.skills).toEqual([authoringSkill])
     })
 
+    it("drops a switched-off kit tool from the saved agenta_tools map of the run copy only", async () => {
+        // The resolver expands every tool the saved map lists, so a kit tool switched off
+        // would come back from it. A tool the kit does not carry stays as saved.
+        const saved = {
+            type: "agenta_tools",
+            tools: {rename_session: "allow", edit_agent_config: "ask", create_agent: "allow"},
+        }
+        const config = {agent: {tools: [saved]}}
+        seed(store, "e", {
+            config,
+            overlay: {
+                tools: [
+                    {type: "platform", op: "create_agent", permission: "allow"},
+                    {type: "platform", op: "edit_agent_config", permission: "allow"},
+                ],
+            },
+            buildKitEnabled: true,
+            buildKitDisabledOps: ["create_agent", "edit_agent_config", "rename_session"],
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+
+        expect(template.tools).toEqual([{type: "agenta_tools", tools: {rename_session: "allow"}}])
+        expect(config.agent.tools[0]).toBe(saved)
+        expect(saved.tools).toEqual({
+            rename_session: "allow",
+            edit_agent_config: "ask",
+            create_agent: "allow",
+        })
+    })
+
     it("keeps embeds and permissions when every platform tool is switched off", async () => {
         const config = {agent: {tools: [{type: "client", name: "weather"}]}}
         seed(store, "e", {

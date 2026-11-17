@@ -40,7 +40,14 @@ def test_agent_template_data_materializes_a_template_with_no_tool_entries():
     assert data["parameters"]["agent"]["tools"] == [
         {
             "type": "agenta_tools",
-            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+            "tools": {
+                "get_current_session": "allow",
+                "rename_session": "allow",
+                "list_agents": "allow",
+                "read_agent_config": "allow",
+                "create_agent": "allow",
+                "edit_agent_config": "allow",
+            },
         }
     ]
     assert "default" not in data["schemas"]["parameters"]["properties"]["agent"]

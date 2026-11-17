@@ -113,11 +113,11 @@ _RETRYABLE = frozenset(
 # An agent that reads only this line must still know what to do.
 NEXT_STEPS: Dict[str, str] = {
     Reason.TARGET_NOT_FOUND: (
-        "Call read_config for that part of the configuration and correct the target."
+        "Read that part of the configuration again and correct the target."
     ),
     Reason.TARGET_TYPE_MISMATCH: (
-        "Call read_config for that path to see what type it holds, then use the matching "
-        "operation."
+        "Read that part of the configuration again to see what type it holds, then use "
+        "the matching operation."
     ),
     Reason.INVALID_TARGET_SHAPE: (
         "The message names the segment at fault. A segment is a field name, or "
@@ -130,8 +130,8 @@ NEXT_STEPS: Dict[str, str] = {
         "different entry — one integration takes one gateway_connection entry."
     ),
     Reason.ITEM_NOT_FOUND: (
-        "Call read_config with a {list, key} selector for that list: its refusal lists "
-        "every key the list actually holds. A gateway_connection entry's key is "
+        "Read that list again with a {list, key} selector: its refusal lists every key "
+        "the list actually holds. A gateway_connection entry's key is "
         "gateway_connection:<connection.provider>:<connection.integration>; an "
         "agenta_tools entry's key is agenta_tools."
     ),
@@ -158,7 +158,7 @@ NEXT_STEPS: Dict[str, str] = {
     ),
     Reason.TEXT_NOT_FOUND: (
         "Re-anchor on one of details.nearest_lines, which holds the closest lines actually "
-        "stored, or call read_config for that field and copy old_text out of its value."
+        "stored, or read that field again and copy old_text out of its value."
     ),
     Reason.TEXT_NOT_UNIQUE: (
         "Add more surrounding lines to old_text until it appears once, then send the "
@@ -179,13 +179,13 @@ NEXT_STEPS: Dict[str, str] = {
         "That file is not readable as text. Reference a UTF-8 text file."
     ),
     Reason.PLATFORM_TOOL_NOT_COMMITTABLE: (
-        "Remove those entries from `tools` and send the commit again."
+        "Remove those entries from `tools` and send the call again."
     ),
     Reason.NON_EMBEDDABLE_REFERENCE: (
-        "Remove the embedded reference to that workflow and send the commit again."
+        "Remove the embedded reference to that workflow and send the call again."
     ),
     Reason.FINAL_VALIDATION_FAILED: (
-        "Correct the fields listed in `issues` and send the commit again."
+        "Correct the fields listed in `issues` and send the call again."
     ),
     Reason.VALUE_TOO_DEEP: (
         "Flatten the value: the configuration nests a few levels deep, not hundreds."
@@ -1444,7 +1444,8 @@ def _apply_operation(
         if not isinstance(current, str):
             raise _Fail(
                 Reason.TARGET_TYPE_MISMATCH,
-                f"'edit_text' needs a string target; {name!r} is {_type_name(current)}",
+                f"'edit_text' needs a string target; {name!r} is {_type_name(current)}. "
+                "Use 'set' to replace a value, or 'merge' to change keys of an object.",
             )
         tolerance = "code" if mode == "exact" else content_class(name)
         new_text, normalized = apply_text_edits(current, edits, tolerance=tolerance)
@@ -1544,7 +1545,13 @@ def _warn_wholesale(
     index: int,
     segments: Sequence[Segment],
 ) -> None:
-    if name in ("tools", "skills", "mcps") and isinstance(value, list):
+    # Only when every entry has a key. An entry without one (an `@ag.embed`) is out of
+    # reach of the item operations, so replacing the whole list was the only way to write it.
+    if (
+        name in ("tools", "skills", "mcps")
+        and isinstance(value, list)
+        and all(item_key(name, entry) is not None for entry in value)
+    ):
         warnings.append(
             Warning(
                 code=WarningCode.WHOLESALE_LIST_REPLACE,
@@ -1885,10 +1892,10 @@ def _scope_next_step(scope_policy: ScopePolicy) -> str:
     """
     prefix = ".".join(getattr(scope_policy, "_prefix", ()) or ())
     if not prefix:
-        return "Remove the operation on that path and send the commit again."
+        return "Remove the operation on that path and send the call again."
     return (
         f"Write only under `{prefix}`. Remove the operation on the path this refusal "
-        "names, then send the commit again."
+        "names, then send the call again."
     )
 
 
@@ -2099,7 +2106,7 @@ def _finish(
         if issues:
             raise ChangeSetError(
                 Reason.FINAL_VALIDATION_FAILED,
-                "The finished configuration is not valid.",
+                f"The finished configuration is not valid: {'; '.join(issues)}.",
                 issues=list(issues),
             )
 

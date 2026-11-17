@@ -7,7 +7,7 @@ from oss.src.core.workflows.build_kit import DEFAULT_BUILD_KIT_OPS
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 
 
-def test_the_build_kit_keeps_every_tool_it_has_today():
+def test_the_build_kit_lists_every_tool_it_ships():
     assert DEFAULT_BUILD_KIT_OPS == (
         "discover_tools",
         "search_skills",
@@ -31,6 +31,10 @@ def test_the_build_kit_keeps_every_tool_it_has_today():
         "list_starters",
         "create_app",
         "validate_template",
+        "list_agents",
+        "read_agent_config",
+        "create_agent",
+        "edit_agent_config",
     )
 
 
@@ -48,3 +52,24 @@ def test_the_agenta_tools_are_served_with_their_read_only_flag():
 
 def test_every_agenta_tool_is_also_a_build_kit_tool():
     assert set(AGENTA_TOOLS) <= set(DEFAULT_BUILD_KIT_OPS)
+
+
+def test_the_agent_tools_are_listed_for_the_settings_ui_reads_and_writes_marked():
+    revision = StaticWorkflowCatalog().retrieve_revision(slug="__ag__agenta_tools")
+    access = revision.data.parameters["op_access"]
+
+    assert access["list_agents"] == "read"
+    assert access["read_agent_config"] == "read"
+    assert access["create_agent"] == "write"
+    assert access["edit_agent_config"] == "write"
+
+
+def test_the_build_kit_marks_the_agent_tools_reads_and_writes():
+    from oss.src.core.workflows.build_kit import build_kit_op_access
+
+    access = build_kit_op_access()
+
+    assert access["list_agents"] == "read"
+    assert access["read_agent_config"] == "read"
+    assert access["create_agent"] == "write"
+    assert access["edit_agent_config"] == "write"
