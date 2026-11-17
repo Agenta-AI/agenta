@@ -308,7 +308,7 @@ const MappingPopoverContent = memo(
                             />
                         )}
                         <Button size="small" type="primary" onClick={handleCreateColumn}>
-                            Add
+                            {t("common.add")}
                         </Button>
                     </div>
                 ) : (
@@ -476,12 +476,11 @@ const DrillInFieldHeader = memo(
                     )}
                     {mappedColumn ? (
                         <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                            mapped to {mappedColumn}
+                            {t("ui.drillIn.mappedTo", {column: mappedColumn})}
                         </span>
                     ) : nestedMappingCount > 0 ? (
                         <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                            contains {nestedMappingCount} mapping
-                            {nestedMappingCount > 1 ? "s" : ""}
+                            {t("ui.drillIn.containsMappings", {count: nestedMappingCount})}
                         </span>
                     ) : null}
                     {itemCount ? (

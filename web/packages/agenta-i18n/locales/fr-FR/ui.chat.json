@@ -32,5 +32,8 @@
     "toolCalls": "Appels d’outils :",
     "unsupportedImage": "Format d’image non pris en charge. Utilisez JPEG, PNG, WebP ou GIF.",
     "unsupportedPdf": "Format non pris en charge. Téléversez un fichier PDF.",
-    "uploadImage": "Téléverser une image"
+    "uploadImage": "Téléverser une image",
+    "moreMessages_one": "+{{count}} autre message",
+    "moreMessages_many": "+{{count}} autres messages",
+    "moreMessages_other": "+{{count}} autres messages"
 }

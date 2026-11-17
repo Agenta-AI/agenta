@@ -24,5 +24,9 @@
     "totalCost": "合計コスト：{{cost}}",
     "totalTokens": "合計トークン",
     "typeLabel": "種類：{{type}}",
-    "versionTitle": "バージョン {{version}}"
+    "versionTitle": "バージョン {{version}}",
+    "versionShort": "v{{version}}",
+    "moreFields_other": "+{{count}} 個のフィールド",
+    "trueValue": "はい",
+    "falseValue": "いいえ"
 }

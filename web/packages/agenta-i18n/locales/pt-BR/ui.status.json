@@ -24,5 +24,11 @@
     "totalCost": "Custo total: {{cost}}",
     "totalTokens": "Total de tokens",
     "typeLabel": "Tipo: {{type}}",
-    "versionTitle": "Versão {{version}}"
+    "versionTitle": "Versão {{version}}",
+    "versionShort": "v{{version}}",
+    "moreFields_one": "+{{count}} campo",
+    "moreFields_many": "+{{count}} campos",
+    "moreFields_other": "+{{count}} campos",
+    "trueValue": "verdadeiro",
+    "falseValue": "falso"
 }

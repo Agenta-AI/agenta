@@ -32,5 +32,7 @@
     "toolCalls": "Tool Calls:",
     "unsupportedImage": "Unsupported image format. Use JPEG, PNG, WebP, or GIF.",
     "unsupportedPdf": "Unsupported format. Please upload a PDF file.",
-    "uploadImage": "Upload image"
+    "uploadImage": "Upload image",
+    "moreMessages_one": "+{{count}} more message",
+    "moreMessages_other": "+{{count}} more messages"
 }

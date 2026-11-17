@@ -28,5 +28,9 @@
     "typeBoolean": "Booleano",
     "typeNumber": "Número",
     "typeObject": "Objeto",
-    "typeString": "String"
+    "typeString": "String",
+    "mappedTo": "mapeado para {{column}}",
+    "containsMappings_one": "contém {{count}} mapeamento",
+    "containsMappings_many": "contém {{count}} mapeamentos",
+    "containsMappings_other": "contém {{count}} mapeamentos"
 }

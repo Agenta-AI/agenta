@@ -28,5 +28,9 @@
     "typeBoolean": "Booléen",
     "typeNumber": "Nombre",
     "typeObject": "Objet",
-    "typeString": "Chaîne"
+    "typeString": "Chaîne",
+    "mappedTo": "mappé vers {{column}}",
+    "containsMappings_one": "contient {{count}} mappage",
+    "containsMappings_many": "contient {{count}} mappages",
+    "containsMappings_other": "contient {{count}} mappages"
 }

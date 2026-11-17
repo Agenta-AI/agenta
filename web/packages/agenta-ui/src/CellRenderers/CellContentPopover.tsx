@@ -50,7 +50,7 @@ const PopoverContentWrapper = memo(({children, onCopy}: PopoverContentProps) => 
                 <div className="flex justify-end">
                     <Button variant="ghost" size="sm" onClick={onCopy}>
                         {<Copy size={14} />}
-                        Copy
+                        {tNow("common.copy")}
                     </Button>
                 </div>
             )}

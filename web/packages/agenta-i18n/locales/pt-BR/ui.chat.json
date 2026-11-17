@@ -32,5 +32,8 @@
     "toolCalls": "Chamadas de ferramentas:",
     "unsupportedImage": "Formato de imagem não suportado. Use JPEG, PNG, WebP ou GIF.",
     "unsupportedPdf": "Formato não suportado. Envie um arquivo PDF.",
-    "uploadImage": "Enviar imagem"
+    "uploadImage": "Enviar imagem",
+    "moreMessages_one": "+{{count}} mensagem",
+    "moreMessages_many": "+{{count}} mensagens",
+    "moreMessages_other": "+{{count}} mensagens"
 }

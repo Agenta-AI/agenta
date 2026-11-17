@@ -49,5 +49,7 @@
     "tableSize": "{{rows}} × {{columns}}",
     "textEditor": "文本编辑器",
     "textStyle": "文字样式",
-    "textType": "文本（{{type}}）"
+    "textType": "文本（{{type}}）",
+    "errorCount_other": "{{count}} 个错误",
+    "debugView": "调试视图"
 }

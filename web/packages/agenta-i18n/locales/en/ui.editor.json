@@ -49,5 +49,8 @@
     "tableSize": "{{rows}} by {{columns}}",
     "textEditor": "Text editor",
     "textStyle": "Text style",
-    "textType": "Text ({{type}})"
+    "textType": "Text ({{type}})",
+    "errorCount_one": "{{count}} Error",
+    "errorCount_other": "{{count}} Errors",
+    "debugView": "Debug View"
 }

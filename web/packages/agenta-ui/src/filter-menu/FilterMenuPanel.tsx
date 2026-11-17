@@ -307,7 +307,7 @@ export const FilterMenuPanel = ({
 
             {order.length === 0 ? (
                 <p className="m-0 px-3 py-8 text-center text-[12px] text-muted-foreground">
-                    Nothing matches “{query.trim()}”.
+                    {t("ui.controls.nothingMatches", {term: query.trim()})}
                 </p>
             ) : (
                 blocks.map((block) => (

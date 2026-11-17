@@ -29,5 +29,9 @@
     "scrollToTop": "Remonter en haut",
     "searchFilters": "Rechercher filtres, tri, groupes…",
     "selectAll": "Tout sélectionner",
-    "selectedCount": "{{count}} sélectionnés"
+    "selectedCount": "{{count}} sélectionnés",
+    "breadcrumb": "fil d’Ariane",
+    "autoSelected": "(automatique)",
+    "datePart": "date",
+    "timePart": "heure"
 }

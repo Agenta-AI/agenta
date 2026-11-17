@@ -28,5 +28,7 @@
     "typeBoolean": "布尔值",
     "typeNumber": "数字",
     "typeObject": "对象",
-    "typeString": "字符串"
+    "typeString": "字符串",
+    "mappedTo": "已映射到 {{column}}",
+    "containsMappings_other": "包含 {{count}} 个映射"
 }

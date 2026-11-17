@@ -87,7 +87,7 @@ export function VersionBadge({
             className={cn(sizeClasses[size], variantClasses[variant], className)}
             title={t("ui.status.versionTitle", {version})}
         >
-            v{version}
+            {t("ui.status.versionShort", {version})}
         </span>
     )
 }

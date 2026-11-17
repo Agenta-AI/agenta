@@ -79,19 +79,7 @@ export const ERROR_FOLDERS = [
     "packages/agenta-settings-ui/src/tools",
     "packages/agenta-settings-ui/src/webhooks",
     "packages/agenta-skills-ui/src",
-    "packages/agenta-ui/src/ChatMessage",
-    "packages/agenta-ui/src/CopyTooltip",
-    "packages/agenta-ui/src/InfiniteVirtualTable",
-    "packages/agenta-ui/src/QuoteSelection",
-    "packages/agenta-ui/src/RichChatInput",
-    "packages/agenta-ui/src/SelectLLMProvider",
-    "packages/agenta-ui/src/SharedEditor",
-    "packages/agenta-ui/src/agent-icon",
-    "packages/agenta-ui/src/list-table",
-    "packages/agenta-ui/src/shortcuts",
-    "packages/agenta-ui/src/theme",
-    "packages/agenta-ui/src/type-chip",
-    "packages/agenta-ui/src/utils",
+    "packages/agenta-ui/src",
 ]
 
 const TEXT_PROPS = new Set(["title", "placeholder", "label", "aria-label", "description", "alt"])

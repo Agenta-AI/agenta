@@ -28,5 +28,9 @@
     "typeBoolean": "Booleano",
     "typeNumber": "Número",
     "typeObject": "Objeto",
-    "typeString": "Cadena"
+    "typeString": "Cadena",
+    "mappedTo": "asignado a {{column}}",
+    "containsMappings_one": "contiene {{count}} asignación",
+    "containsMappings_many": "contiene {{count}} asignaciones",
+    "containsMappings_other": "contiene {{count}} asignaciones"
 }

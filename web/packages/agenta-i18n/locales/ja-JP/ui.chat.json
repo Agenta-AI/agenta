@@ -32,5 +32,6 @@
     "toolCalls": "ツールコール：",
     "unsupportedImage": "サポートされていない画像形式です。JPEG、PNG、WebP、GIF を使用してください。",
     "unsupportedPdf": "サポートされていない形式です。PDF ファイルをアップロードしてください。",
-    "uploadImage": "画像をアップロード"
+    "uploadImage": "画像をアップロード",
+    "moreMessages_other": "+{{count}} 件のメッセージ"
 }

@@ -29,5 +29,9 @@
     "scrollToTop": "回到顶部",
     "searchFilters": "搜索筛选、排序、分组…",
     "selectAll": "全选",
-    "selectedCount": "已选择 {{count}} 项"
+    "selectedCount": "已选择 {{count}} 项",
+    "breadcrumb": "面包屑导航",
+    "autoSelected": "（自动）",
+    "datePart": "日期",
+    "timePart": "时间"
 }

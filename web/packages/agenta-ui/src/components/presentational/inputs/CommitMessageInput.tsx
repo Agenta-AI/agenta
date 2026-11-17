@@ -79,7 +79,9 @@ export const CommitMessageInput = memo(function CommitMessageInput({
             {showOptional && (
                 <>
                     {" "}
-                    <span className={textColors.quaternary}>{t("ui.listControls.optionalSuffix")}</span>
+                    <span className={textColors.quaternary}>
+                        {t("ui.listControls.optionalSuffix")}
+                    </span>
                 </>
             )}
         </>

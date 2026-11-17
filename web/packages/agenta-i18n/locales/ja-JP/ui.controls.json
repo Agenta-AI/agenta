@@ -29,5 +29,9 @@
     "scrollToTop": "先頭へスクロール",
     "searchFilters": "絞り込み、並べ替え、グループ化を検索…",
     "selectAll": "すべて選択",
-    "selectedCount": "{{count}} 件を選択中"
+    "selectedCount": "{{count}} 件を選択中",
+    "breadcrumb": "パンくずリスト",
+    "autoSelected": "（自動）",
+    "datePart": "日付",
+    "timePart": "時刻"
 }

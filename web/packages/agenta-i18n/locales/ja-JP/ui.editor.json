@@ -49,5 +49,7 @@
     "tableSize": "{{rows}} × {{columns}}",
     "textEditor": "テキストエディター",
     "textStyle": "テキストスタイル",
-    "textType": "テキスト（{{type}}）"
+    "textType": "テキスト（{{type}}）",
+    "errorCount_other": "{{count}} 件のエラー",
+    "debugView": "デバッグビュー"
 }

@@ -6349,7 +6349,8 @@
         "toolCalls": "8e278e2ce12b530742e17eb1afe711bf91cc01089b1901fca4ff75fd9ff9bca1",
         "unsupportedImage": "46c1cf40380fac8adca88e9ca793a68461116368244b8a93ad2745e01e672632",
         "unsupportedPdf": "220a960301107ba5b955401c59ba559315887e498143ccefcf69ec7a20ddb0ee",
-        "uploadImage": "ffe4df6c7ca600c4761b70965d53b6217a83e5d01337d9a384734662a54103a5"
+        "uploadImage": "ffe4df6c7ca600c4761b70965d53b6217a83e5d01337d9a384734662a54103a5",
+        "moreMessages_other": "c154da6f7cecad715bc437c2dd0eaaffa47876fd1139d942df36ccf015991185"
     },
     "ui.chatActions": {
         "copiedBang": "916fa4a51e4d90e09a42289aa7961a6aff3401424f633240c630ac47f58a6d30",
@@ -6409,7 +6410,11 @@
         "scrollToTop": "0d26ae7f847f3b0bf639e7b7917e2a53a0ac228a8fdfb86d5a9540f04d7d3b1d",
         "searchFilters": "c3d950c564c7ff83954ce83767e28a3dfc8be0b004eba8b089978f8beaa12a39",
         "selectAll": "1fc9a387654d410febd202b81bddbe62d38368260b69b9f73ee6630164536bdf",
-        "selectedCount": "c7f761b38b197daa6b822be7397d8e2701c3dbb12b79b4a90eb1c37969bed5a6"
+        "selectedCount": "c7f761b38b197daa6b822be7397d8e2701c3dbb12b79b4a90eb1c37969bed5a6",
+        "breadcrumb": "d6dc6b5ebe192c2ce1c052797a0907948cf02874ef63d2b2ac40c2380ab90c95",
+        "autoSelected": "45961044b3411271a0ec0f1386e10ea0d0197b50ecb9c533defc7a7456f52092",
+        "datePart": "0e87632cd46bd4907c516317eb6d81fe0f921a23c7643018f21292894b470681",
+        "timePart": "336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e"
     },
     "ui.drillIn": {
         "addItem": "d1a0b329a72b8f16ab138cee622d18ab7ead8b870b0202439d2699cb5348711c",
@@ -6441,7 +6446,9 @@
         "typeBoolean": "a066ff921096d0f99b5f985b7e37a9c703bcc0db4d3409cdabf31cf6a22b5556",
         "typeNumber": "bd82cf16699be29ec05cbb763199c12f0dced428dde8381dbdd31c1d5dd0e8d4",
         "typeObject": "62a6da8735c18e2d66fe5de3dc5440252a1da49e3cbaa7c1d2d5068ad73ffba0",
-        "typeString": "b2ef230e7f4f315a28cdcc863028da31f7110f3209feb76e76fed0f37b3d8580"
+        "typeString": "b2ef230e7f4f315a28cdcc863028da31f7110f3209feb76e76fed0f37b3d8580",
+        "mappedTo": "fcbb5b8397422321a9fee2f7a70a79fa2f3844a0fc851d70dc7050216de3461d",
+        "containsMappings_other": "765ee275bd969faebadefe5116b1b3f03da8508fefc3405d5c1abc0f65d3c10c"
     },
     "ui.drillInButton": {
         "drillIn": "991c1a4cb58e076b512f1c6b56360b72c5447207c09ac46c5589dbe0ff397784"
@@ -6497,7 +6504,9 @@
         "tableSize": "accf11dcccf88c7d009917ca2b92c4e91c085f795bd3627a85c9685c574470af",
         "textEditor": "95642d5b26314c1242bf9d4f9e000abc14eab04fe463056933278cc01ed71b35",
         "textStyle": "8a929f3038595824a3f142cca3d72dcddacab2643743c32a6adfb49e64514d24",
-        "textType": "1ff7bc23ef5159f6541bb700ac8cca13b7d58d7fbd1009c1da70e03eda29236f"
+        "textType": "1ff7bc23ef5159f6541bb700ac8cca13b7d58d7fbd1009c1da70e03eda29236f",
+        "errorCount_other": "d6faf0627ff89b820df6589b41067a816dc3680230ae21f6ef90053a92fe7f32",
+        "debugView": "d7f53509d68344b381c8067dade4c1824e5387b8a9ec2cbaf0650573fc28fe7e"
     },
     "ui.listControls": {
         "allItemsLoaded": "8224a0b226c3747849ed4547712dbcc50d4a9ba82b2896ef7d73a008b647f174",
@@ -6596,7 +6605,11 @@
         "totalCost": "a802b27e004ddc5d2c1d302f45a08d2b96cdca84e7af40289bc7450cb9d0fcd3",
         "totalTokens": "cd41bf0d3e9a5e0f79653cb51ed62fc049c649b8a8c7953b23ec3aebe3c65429",
         "typeLabel": "1d5e5a0f368977ee1c6ca6cc38485c974120ba718fcffc3167f88da1feca5f9b",
-        "versionTitle": "c6b6b4b58937ac03375604bd0a9252f6c1926496d870272ba68f78fb3497891a"
+        "versionTitle": "c6b6b4b58937ac03375604bd0a9252f6c1926496d870272ba68f78fb3497891a",
+        "versionShort": "3ab5cefec1b666633fb137eff196b62b5c3f8e83eebd1bea4b4259e8cc719ee4",
+        "moreFields_other": "7948bd913a7ad3d3cc0f9a19f316aceac493097f55ef326360a11feb78260e7c",
+        "trueValue": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+        "falseValue": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
     },
     "ui.table": {
         "collapseAll": "25f7b3721119f1ec7fdf7c8c66e779ee9999e2049e569afc3b00a9fbdeece7db",

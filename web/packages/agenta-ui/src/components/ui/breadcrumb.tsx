@@ -32,8 +32,14 @@ import {cn} from "./utils"
  */
 
 function Breadcrumb({className, ...props}: React.ComponentProps<"nav">) {
+    const t = useT(uiControlsCatalog)
     return (
-        <nav data-slot="breadcrumb" aria-label="breadcrumb" className={cn(className)} {...props} />
+        <nav
+            data-slot="breadcrumb"
+            aria-label={t("ui.controls.breadcrumb")}
+            className={cn(className)}
+            {...props}
+        />
     )
 }
 

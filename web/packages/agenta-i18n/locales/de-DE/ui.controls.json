@@ -29,5 +29,9 @@
     "scrollToTop": "Nach oben scrollen",
     "searchFilters": "Filter, Sortierung, Gruppierung suchen…",
     "selectAll": "Alle auswählen",
-    "selectedCount": "{{count}} ausgewählt"
+    "selectedCount": "{{count}} ausgewählt",
+    "breadcrumb": "Breadcrumb-Navigation",
+    "autoSelected": "(automatisch)",
+    "datePart": "Datum",
+    "timePart": "Uhrzeit"
 }

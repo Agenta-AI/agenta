@@ -32,5 +32,7 @@
     "toolCalls": "Werkzeugaufrufe:",
     "unsupportedImage": "Nicht unterstütztes Bildformat. Verwenden Sie JPEG, PNG, WebP oder GIF.",
     "unsupportedPdf": "Nicht unterstütztes Format. Bitte laden Sie eine PDF-Datei hoch.",
-    "uploadImage": "Bild hochladen"
+    "uploadImage": "Bild hochladen",
+    "moreMessages_one": "+{{count}} weitere Nachricht",
+    "moreMessages_other": "+{{count}} weitere Nachrichten"
 }

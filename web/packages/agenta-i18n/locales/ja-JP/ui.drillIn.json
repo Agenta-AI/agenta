@@ -28,5 +28,7 @@
     "typeBoolean": "真偽値",
     "typeNumber": "数値",
     "typeObject": "オブジェクト",
-    "typeString": "文字列"
+    "typeString": "文字列",
+    "mappedTo": "{{column}} にマッピング済み",
+    "containsMappings_other": "{{count}} 件のマッピングを含む"
 }

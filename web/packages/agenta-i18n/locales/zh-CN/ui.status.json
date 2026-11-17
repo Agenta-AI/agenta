@@ -24,5 +24,9 @@
     "totalCost": "总费用：{{cost}}",
     "totalTokens": "Token 总数",
     "typeLabel": "类型：{{type}}",
-    "versionTitle": "版本 {{version}}"
+    "versionTitle": "版本 {{version}}",
+    "versionShort": "v{{version}}",
+    "moreFields_other": "+{{count}} 个更多字段",
+    "trueValue": "是",
+    "falseValue": "否"
 }

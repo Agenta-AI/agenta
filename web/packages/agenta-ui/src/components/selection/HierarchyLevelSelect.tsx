@@ -28,6 +28,9 @@
 
 import React, {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+
 import {cn, textColors} from "../../utils/styles"
 import {Combobox, type ComboboxOption, type ComboboxOptionGroup} from "../ui/combobox"
 
@@ -209,6 +212,7 @@ export function HierarchyLevelSelect<T>({
     allowClear = true,
     className,
 }: HierarchyLevelSelectProps<T>) {
+    const t = useT(uiControlsCatalog)
     // Build placeholder text
     const defaultPlaceholder = isLoading
         ? "Loading..."
@@ -290,7 +294,9 @@ export function HierarchyLevelSelect<T>({
                 <span className={cn("text-xs mb-1 block", textColors.secondary)}>
                     {label}
                     {showAutoIndicator && isAutoSelected && (
-                        <span className="ml-1 text-colorTextDescription">(auto)</span>
+                        <span className="ml-1 text-colorTextDescription">
+                            {t("ui.controls.autoSelected")}
+                        </span>
                     )}
                 </span>
             )}

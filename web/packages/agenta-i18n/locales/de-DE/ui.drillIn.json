@@ -28,5 +28,8 @@
     "typeBoolean": "Boolescher Wert",
     "typeNumber": "Zahl",
     "typeObject": "Objekt",
-    "typeString": "Zeichenfolge"
+    "typeString": "Zeichenfolge",
+    "mappedTo": "{{column}} zugeordnet",
+    "containsMappings_one": "enthält {{count}} Zuordnung",
+    "containsMappings_other": "enthält {{count}} Zuordnungen"
 }

@@ -29,5 +29,9 @@
     "scrollToTop": "Voltar ao topo",
     "searchFilters": "Pesquisar filtros, ordenação, agrupamento…",
     "selectAll": "Selecionar tudo",
-    "selectedCount": "{{count}} selecionados"
+    "selectedCount": "{{count}} selecionados",
+    "breadcrumb": "trilha de navegação",
+    "autoSelected": "(automático)",
+    "datePart": "data",
+    "timePart": "hora"
 }

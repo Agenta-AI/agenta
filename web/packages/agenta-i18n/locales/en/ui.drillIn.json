@@ -28,5 +28,8 @@
     "typeBoolean": "Boolean",
     "typeNumber": "Number",
     "typeObject": "Object",
-    "typeString": "String"
+    "typeString": "String",
+    "mappedTo": "mapped to {{column}}",
+    "containsMappings_one": "contains {{count}} mapping",
+    "containsMappings_other": "contains {{count}} mappings"
 }

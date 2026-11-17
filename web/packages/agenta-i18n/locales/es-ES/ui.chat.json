@@ -32,5 +32,8 @@
     "toolCalls": "Llamadas a herramientas:",
     "unsupportedImage": "Formato de imagen no compatible. Usa JPEG, PNG, WebP o GIF.",
     "unsupportedPdf": "Formato no compatible. Sube un archivo PDF.",
-    "uploadImage": "Subir imagen"
+    "uploadImage": "Subir imagen",
+    "moreMessages_one": "+{{count}} mensaje más",
+    "moreMessages_many": "+{{count}} mensajes más",
+    "moreMessages_other": "+{{count}} mensajes más"
 }

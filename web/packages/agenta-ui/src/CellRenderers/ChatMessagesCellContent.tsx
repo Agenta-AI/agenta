@@ -182,6 +182,7 @@ const ChatMessagesCellContent = memo(
         chatPreference,
         previewStrategy,
     }: ChatMessagesCellContentProps) => {
+        const t = useT(uiChatCatalog)
         // Memoize message extraction and smart selection together
         const {displayMessages, totalCount} = useMemo(() => {
             // Parse JSON string if needed, otherwise use value directly
@@ -223,8 +224,9 @@ const ChatMessagesCellContent = memo(
                 ))}
                 {hasMore && (
                     <span className="text-xs italic">
-                        +{totalCount - displayMessages.length} more message
-                        {totalCount - displayMessages.length > 1 ? "s" : ""}
+                        {t("ui.chat.moreMessages", {
+                            count: totalCount - displayMessages.length,
+                        })}
                     </span>
                 )}
             </div>
