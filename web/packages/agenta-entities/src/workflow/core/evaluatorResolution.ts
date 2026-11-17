@@ -74,6 +74,7 @@ const sanitizeReferenceValue = (value: unknown) =>
  * and slug separately so we can pick the best molecule access path.
  */
 export const extractEvaluatorRef = (rawRefs: Record<string, unknown>): EvaluatorRef => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic ref shapes from API
     const refs = rawRefs as Record<string, any>
     // Artifact-level ref (always present after API normalization)
     const evaluatorRef = refs.evaluator ?? refs.evaluator_ref ?? refs.evaluatorRef ?? null

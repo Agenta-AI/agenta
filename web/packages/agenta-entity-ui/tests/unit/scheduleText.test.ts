@@ -51,9 +51,9 @@ describe.each([
         expect(describeCadence(state({cadence: "monthly", daysOfMonth: [1, 15]}), text)).toBe(
             "Monthly on the 1st and 15th",
         )
-        expect(
-            describeCadence(state({cadence: "monthly", daysOfMonth: [2, 3, 22]}), text),
-        ).toBe("Monthly on the 2nd, 3rd and 22nd")
+        expect(describeCadence(state({cadence: "monthly", daysOfMonth: [2, 3, 22]}), text)).toBe(
+            "Monthly on the 2nd, 3rd and 22nd",
+        )
         expect(
             describeCadence(
                 state({cadence: "monthly", daysOfMonth: [1, 11, 13, 17, 18, 19, 31]}),
@@ -98,9 +98,7 @@ describe.each([
                 text,
             ),
         ).toBe("Every 6h at :30 UTC")
-        expect(summarizeSchedule(cronToBuilder("0 9 * * 1").state, text)).toBe(
-            "Mon at 09:00 UTC",
-        )
+        expect(summarizeSchedule(cronToBuilder("0 9 * * 1").state, text)).toBe("Mon at 09:00 UTC")
         expect(summarizeSchedule(state({cadence: "custom", cron: "0 9 * * 1-5"}), text)).toBe(
             "0 9 * * 1-5",
         )
