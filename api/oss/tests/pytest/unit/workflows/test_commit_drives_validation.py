@@ -339,6 +339,16 @@ async def test_the_first_agent_revision_creates_the_agents_drive(world, drives):
     agent = _stored_agent(dao)
     assert agent["drives"] == [{"slug": "quote-files"}]
     assert agent["home_drive"] == "quote-files"
+    assert agent["has_session_drive"] is True
+
+
+async def test_a_refused_first_commit_creates_no_drive(world, drives):
+    service, dao = _service(drives)
+    error = await _refusal(service, world, _commit(drives=[{"slug": "missing"}]))
+    assert isinstance(error, AgentDriveNotFoundError)
+    assert error.to_detail()["details"]["field"] == "parameters.agent.drives[0].slug"
+    assert drives.created == []
+    dao.commit_revision.assert_not_awaited()
 
 
 async def test_a_new_drive_is_appended_to_a_stated_list(world, drives):

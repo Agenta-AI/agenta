@@ -215,6 +215,9 @@ class SharingRouter:
         await self._require_agent(request, artifact_id=workflow_id)
 
         drives, homes = await self._listed_drives(request, artifact_id=workflow_id)
+        # Built before the change, so it names the private drives the change shares and
+        # the other agents that use them.
+        disclosure = await self._agent_disclosure(request, artifact_id=workflow_id)
         state = await self.sharing_service.set_agent_visibility(
             **await _write_scope(request),
             artifact_id=workflow_id,
@@ -222,10 +225,7 @@ class SharingRouter:
             drives=drives,
             home_drives=homes,
         )
-        return AgentSharingResponse(
-            sharing=state,
-            disclosure=await self._agent_disclosure(request, artifact_id=workflow_id),
-        )
+        return AgentSharingResponse(sharing=state, disclosure=disclosure)
 
     async def _listed_drives(
         self, request: Request, *, artifact_id: UUID
