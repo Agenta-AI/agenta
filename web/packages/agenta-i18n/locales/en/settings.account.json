@@ -1,0 +1,14 @@
+{
+    "cannotBeUndone": "This action cannot be undone.",
+    "dangerZone": "Danger zone",
+    "deleteAccount": "Delete account",
+    "deleteAccountDescription": "Deletes your account, every organization you own, and all of their workspaces, projects, applications, and data. You will be signed out immediately.",
+    "deleteCallout": "Permanently deletes your account and every organization you own, including all workspaces, projects, applications, and data.",
+    "email": "Email",
+    "emailHint": "Used for sign-in and for organization invitations.",
+    "profile": "Profile",
+    "typeToConfirm": "Type <code>{{email}}</code> to confirm:",
+    "username": "Username",
+    "usernameHint": "How you appear in member lists and audit entries.",
+    "yourEmail": "Your email"
+}

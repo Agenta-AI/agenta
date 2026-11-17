@@ -1,0 +1,10 @@
+{
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "tsBuildInfoFile": ".tsbuildinfo",
+        "moduleResolution": "bundler"
+    },
+    "include": ["src/**/*.ts", "src/**/*.tsx", "locales/**/*.json"],
+    "exclude": ["node_modules", "dist"]
+}

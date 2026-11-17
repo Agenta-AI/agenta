@@ -1,9 +1,6 @@
 import {AttachmentGrid, FileAttachment, ImageAttachment} from "@agenta/ui/components/presentational"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// AttachmentGrid is a pure-presentational flex layout container that wraps a set of
-// ImageAttachment / FileAttachment children. It is a plain <div> wrapper, not an antd
-// component, so it renders alone with no antd counterpart to diff.
 const meta = {
     title: "@agenta/ui/Presentational/Attachments/AttachmentGrid",
     component: AttachmentGrid,
@@ -12,7 +9,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A pure-presentational flex layout container that wraps ImageAttachment / FileAttachment children. A plain `<div>` wrapper with no antd counterpart.\n\n**Used in:** 1 place — the chat message attachment strip (`@agenta/ui/chat-message` `MessageAttachments`).",
+                    "A pure-presentational flex layout container that wraps ImageAttachment / FileAttachment children. A plain `<div>` wrapper.\n\n**Used in:** 1 place — the chat message attachment strip (`@agenta/ui/chat-message` `MessageAttachments`).",
             },
         },
     },
@@ -29,17 +26,12 @@ const IMG =
 
 const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
     <div className="grid grid-cols-[16rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
-        <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-colorTextSecondary">{label}</span>
-            <span className="text-[10px] text-colorTextSecondary">
-                no single antd counterpart (composite of @agenta/ui primitives / layout)
-            </span>
-        </div>
+        <span className="text-xs text-colorTextSecondary">{label}</span>
         <div className="flex items-center">{children}</div>
     </div>
 )
 
-export const AgentaOnly: Story = {
+export const Variants: Story = {
     render: () => (
         <div className="flex max-w-[720px] flex-col">
             <Row label="mixed image + file children">

@@ -984,6 +984,7 @@ class WorkflowsService:
         url: str,
         credentials: str,
         payload: dict,
+        timeout: float = 60.0,
     ) -> tuple[httpx.Response, Optional[dict]]:
         headers = inject(
             {
@@ -1001,7 +1002,7 @@ class WorkflowsService:
         # Redirects are never followed: a 3xx would re-point a credentialed request at a
         # host nothing checked.
         async with httpx.AsyncClient(
-            timeout=60.0,
+            timeout=timeout,
             follow_redirects=False,
             cookies=no_cookie_jar(),
         ) as client:
@@ -3909,6 +3910,7 @@ class WorkflowsService:
         request: WorkflowServiceRequest,
         envelope: RunEnvelope,
         #
+        timeout: float = 60.0,
         **kwargs,
     ) -> Union[
         WorkflowServiceBatchResponse,
@@ -3951,6 +3953,7 @@ class WorkflowsService:
                     mode="json",
                     exclude_none=True,
                 ),
+                timeout=timeout,
             )
         except EgressRefusedError as error:
             return WorkflowServiceBatchResponse(

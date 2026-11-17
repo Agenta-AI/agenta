@@ -1,0 +1,9 @@
+{
+    "credits": "额度",
+    "creditsLeft": "剩余额度",
+    "everyCredit": "你的组织当前可使用的全部额度。",
+    "monthlyCreditsLeft": "本月剩余额度",
+    "ofTotal": "共 {{total}}",
+    "resetsAndBalance": "{{date}} 重置 · 总余额 {{balance}} 额度",
+    "totalBalance": "总余额 {{balance}} 额度"
+}

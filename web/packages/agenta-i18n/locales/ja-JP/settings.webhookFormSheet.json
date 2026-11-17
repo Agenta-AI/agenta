@@ -1,0 +1,20 @@
+{
+    "alsoSubscribed_other": "このシートに表示できない {{count}} 件のイベントにも登録されています。ここで別のイベントを選ばない限り、それらは保持されます。",
+    "authentication": "認証",
+    "authorizationHeader": "Authorization ヘッダー",
+    "authorizationHint": "すべてのリクエストで Authorization ヘッダーとして送信されます。",
+    "configurationDeployed": "設定のデプロイ完了",
+    "description": "Agenta はイベントをエンドポイントに POST し、失敗した場合は再試行します。",
+    "editTitle": "サブスクリプションを編集",
+    "endpointUrl": "エンドポイント URL",
+    "event": "イベント",
+    "headerValue": "ヘッダーの値",
+    "headerValueHint": "保存済みの値を保持する場合は空欄のままにしてください。",
+    "nameHint": "任意。サブスクリプションの一覧に表示される名前です。",
+    "namePlaceholder": "デプロイ通知",
+    "saveFailed": "サブスクリプションを保存できませんでした",
+    "saving": "保存中…",
+    "signatureHint": "Agenta は各リクエストにシークレットで署名します。シークレットは登録後に一度だけ表示されます。",
+    "signedPayload": "署名付きペイロード",
+    "subscribe": "登録"
+}
