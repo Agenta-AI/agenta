@@ -286,7 +286,7 @@ The agent configuration SHALL hold a boolean `has_session_drive` beside `drives`
 
 ### Requirement: The API never stores an agent revision without its drives
 
-A commit through the API SHALL fill `has_session_drive`, `drives` and `home_drive` into an agent revision that lacks `drives`, and the API SHALL apply the same fill when it reads such a revision, through the one function `fill_agent_drive_keys`, which lists the agent's own drive as home only when the home rule allows it for the agent's current visibility and otherwise writes `"drives": []` and `"home_drive": null`.
+A commit through the API SHALL fill `has_session_drive`, `drives` and `home_drive` into an agent revision that lacks `drives`, and a read SHALL apply the same fill when the agent has a drive row, through one function `fill_agent_drive_keys`, which lists the own drive as home only when the home rule allows it for the agent's current visibility and otherwise writes `"drives": []` and `"home_drive": null`.
 
 #### Scenario: An older client saves without the keys
 
