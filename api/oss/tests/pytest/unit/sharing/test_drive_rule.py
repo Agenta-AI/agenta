@@ -63,6 +63,11 @@ class _World:
     def agent(self, policy=None) -> UUID:
         return self.dao.add_agent(project_id=self.project_id, policy=policy)
 
+    def lists(self, agent: UUID, drive) -> None:
+        self.dao.listed_drives.setdefault((self.project_id, agent), set()).add(
+            drive.slug
+        )
+
     async def evaluate(
         self, principal, drive, action=Permission.USE_MOUNTS, context=None
     ):
@@ -175,6 +180,7 @@ async def test_a_session_drive_follows_its_session(w):
 async def test_a_channel_turn_signs_its_owners_private_drive(w):
     agent = w.agent(_private(w.alice))
     drive = w.drive(_private(w.alice))
+    w.lists(agent, drive)
     binding = PrincipalRef(kind=PrincipalKind.INSTALLATION, id=uuid4())
     with _channel_request(binding, creator=w.alice, run_agent_id=agent):
         assert await w.evaluate(binding, drive, context=_CHANNEL_TURN) is None
@@ -189,11 +195,14 @@ async def test_a_channel_turn_signs_its_owners_private_drive(w):
         "other_drive_owner",
         "not_a_sign",
         "not_a_channel_turn",
+        "drive_not_listed",
     ],
 )
 async def test_each_channel_condition_is_needed(w, case):
     agent = w.agent(_shared(w.alice) if case == "shared_agent" else _private(w.alice))
     drive = w.drive(_private(w.bob if case == "other_drive_owner" else w.alice))
+    if case != "drive_not_listed":
+        w.lists(agent, drive)
     binding = PrincipalRef(kind=PrincipalKind.INSTALLATION, id=uuid4())
     creator = w.bob if case == "other_creator" else w.alice
     run_agent_id = None if case == "no_claim" else agent

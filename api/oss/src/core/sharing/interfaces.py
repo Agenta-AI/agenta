@@ -82,6 +82,18 @@ class SharingDAOInterface(ABC):
     ) -> Optional[MountVisibility]:
         """The drive's scope and visibility row; None when no `mounts` row exists."""
 
+    @abstractmethod
+    async def agent_lists_drive(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        mount: MountVisibility,
+    ) -> bool:
+        """True when the latest revision of one of the agent's variants lists the drive
+        (by its slug), or the drive is the agent's own and that revision states no
+        `drives` (the read fill lists it). Uncached."""
+
     # -- sessions -----------------------------------------------------------------------
 
     @abstractmethod

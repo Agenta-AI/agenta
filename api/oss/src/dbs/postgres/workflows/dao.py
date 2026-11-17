@@ -126,6 +126,7 @@ WITH latest AS (
       ON v.project_id = r.project_id AND v.id = r.variant_id
     WHERE r.project_id = :project_id
       AND r.artifact_id <> :artifact_id
+      AND r.deleted_at IS NULL
       AND v.deleted_at IS NULL
       AND r.flags @> '{"is_agent": true}'::jsonb
     ORDER BY r.variant_id, r.created_at DESC

@@ -100,6 +100,39 @@ LEFT JOIN mount_visibility v
 WHERE m.project_id = :project_id AND m.id = :mount_id
 """
 
+# The agent lists the drive: the latest revision of one of its active variants names
+# the drive's slug in `drives`, or the drive is the agent's own and that revision states
+# no `drives` (the read fill lists the own drive).
+_AGENT_LISTS_DRIVE_SQL = """
+WITH latest AS (
+    SELECT DISTINCT ON (r.variant_id)
+        json_extract_path(r.data, 'parameters', 'agent', 'drives') AS drives
+    FROM workflow_revisions r
+    JOIN workflow_variants v
+      ON v.project_id = r.project_id AND v.id = r.variant_id
+    WHERE r.project_id = :project_id
+      AND r.artifact_id = :artifact_id
+      AND r.deleted_at IS NULL
+      AND v.deleted_at IS NULL
+    ORDER BY r.variant_id, r.created_at DESC
+)
+SELECT EXISTS (
+    SELECT 1
+    FROM latest l
+    WHERE (
+        json_typeof(l.drives) = 'array'
+        AND EXISTS (
+            SELECT 1 FROM json_array_elements(l.drives) e
+            WHERE e ->> 'slug' = :slug
+        )
+    )
+    OR (
+        :is_own
+        AND json_typeof(l.drives) IS DISTINCT FROM 'array'
+    )
+)
+"""
+
 _FETCH_AGENT_DRIVE_POLICY_SQL = """
 SELECT v.visibility, v.owner_user_id
 FROM mounts m
@@ -493,6 +526,28 @@ class SharingDAO(SharingDAOInterface):
                 map_agent_access_dbe_to_dto(row) if row.visibility is not None else None
             ),
         )
+
+    async def agent_lists_drive(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        mount: MountVisibility,
+    ) -> bool:
+        async with self.engine.session() as session:
+            return bool(
+                (
+                    await session.execute(
+                        text(_AGENT_LISTS_DRIVE_SQL),
+                        {
+                            "project_id": project_id,
+                            "artifact_id": artifact_id,
+                            "slug": mount.slug,
+                            "is_own": mount.agent_id == str(artifact_id),
+                        },
+                    )
+                ).scalar()
+            )
 
     # -- sessions -----------------------------------------------------------------------
 

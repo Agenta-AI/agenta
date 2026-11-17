@@ -87,6 +87,8 @@ class _Project:
         self.user_id = uuid4()
         self.run_agent_id = None
         self.allowed = True
+        # (scope, permission) of every `allow_mount` call, in order.
+        self.mount_checks: list = []
         self.sharing.dao.fetch_mount_visibility = self._fetch_mount_visibility
 
     async def _fetch_mount_visibility(self, *, project_id, mount_id):
@@ -136,6 +138,7 @@ def project(monkeypatch):
     project = _Project()
 
     async def allow_mount(request, *, scope, permission):
+        project.mount_checks.append((scope, permission))
         return project.allowed
 
     async def allow_resource(request, *, action, resource):
@@ -174,6 +177,10 @@ async def test_sign_by_slug_signs_with_the_access(project, query, read_only):
         {"prefix": drive.storage_prefix, "read_only": read_only}
     ]
     assert project.check.await_args.kwargs["permission"] == Permission.USE_MOUNTS
+    # The drive the rule decided is the drive signed.
+    assert [(scope.id, permission) for scope, permission in project.mount_checks] == [
+        (drive.id, Permission.USE_MOUNTS)
+    ]
 
 
 async def test_sign_by_slug_signs_an_agent_drive_with_a_reserved_slug(project):

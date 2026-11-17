@@ -375,6 +375,10 @@ class InvalidSessionDriveError(AgentTemplateShapeError):
         self.value = value
 
 
+# The platform writes `drives/README.md` at every start, so no drive may take that name.
+RESERVED_DRIVES_README = "README.md"
+
+
 def _check_drive_entry(entry: Dict[str, Any], where: str) -> None:
     """The rules of one entry; :func:`validate_agent_drives` adds the rules across entries."""
     unknown = sorted(set(entry) - set(_DRIVE_ENTRY_KEYS))
@@ -395,6 +399,13 @@ def _check_drive_entry(entry: Dict[str, Any], where: str) -> None:
             field=f"{where}.slug",
             value=str(slug),
             reason="must be the slug of a drive: one folder name, without / or \\",
+        )
+    if slug.lower() == RESERVED_DRIVES_README.lower():
+        # `drives/README.md` is the file the platform writes at every start.
+        raise InvalidAgentDrivesError(
+            field=f"{where}.slug",
+            value=slug,
+            reason=f"{RESERVED_DRIVES_README!r} is reserved for the drives README",
         )
     access = entry.get("access")
     if access is not None and access not in AGENT_DRIVE_ACCESS_VALUES:
