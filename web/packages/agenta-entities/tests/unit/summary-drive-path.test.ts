@@ -20,7 +20,7 @@ describe("isSummaryDrivePath", () => {
     })
 
     it("keeps a real `agent-files` directory from the agent mount", () => {
-        expect(isSummaryDrivePath("agent-files", {fromAgentMount: true})).toBe(true)
+        expect(isSummaryDrivePath("agent-files", {fromDriveMount: true})).toBe(true)
     })
 
     it("is strictly narrower than isListableDrivePath — hidden is the only difference", () => {

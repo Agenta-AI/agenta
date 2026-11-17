@@ -77,11 +77,26 @@ describe("resolveQuickLookPath with a user folder named `agenta-*`", () => {
     })
 })
 
-describe("resolveQuickLookPath with project drives", () => {
+describe("resolveQuickLookPath with drives", () => {
     it("keeps an absolute drives/<slug>/ path as the drive's own path", () => {
         expect(
             resolveQuickLookPath(recents, "/drives/price-lists/2026.md", [{slug: "price-lists"}]),
         ).toBe("drives/price-lists/2026.md")
+    })
+
+    it("presents a drive mount's path under drives/<slug>/, and the home under agent-files/", () => {
+        const drives = [{slug: "price-lists"}]
+        expect(
+            resolveQuickLookPath([], "/var/lib/agenta/mounts/p/m-drive-price-lists/a.csv", drives),
+        ).toBe("drives/price-lists/a.csv")
+        expect(
+            resolveQuickLookPath(
+                [],
+                "/var/lib/agenta/mounts/p/m-drive-quote-files/b.md",
+                drives,
+                "quote-files",
+            ),
+        ).toBe("agent-files/b.md")
     })
 })
 
@@ -92,7 +107,7 @@ describe("resolveQuickLookPath prefers a full path over a shorter tail", () => {
         expect(resolveQuickLookPath(rows, "drives/prices/a.md")).toBe("drives/prices/a.md")
     })
 
-    it("keeps a configured project path even before it is listed", () => {
+    it("keeps a configured drive path even before it is listed", () => {
         expect(
             resolveQuickLookPath([{path: "a.md"}], "drives/prices/a.md", [{slug: "prices"}]),
         ).toBe("drives/prices/a.md")

@@ -11,7 +11,7 @@
  */
 import {type ReactElement, useCallback, useContext} from "react"
 
-import {downloadMountArchive, projectDriveDir} from "@agenta/entities/drive"
+import {downloadMountArchive, driveDir} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
@@ -65,21 +65,21 @@ export function useCopyDrivePath(): (path: string) => void {
     return useCallback((path: string) => copy(path, "Path copied"), [copy])
 }
 
-/** The archive of a presented folder: the mount that backs it, plus every project drive folded in
+/** The archive of a presented folder: the mount that backs it, plus every drive folded in
  * below it (the `drives/` folder holds them). The API keeps the source folder in each member path
- * (`drives/notes.md`), so each project drive goes under its full folder, `drives/<slug>/`. */
+ * (`drives/notes.md`), so each drive goes under its full folder, `drives/<slug>/`. */
 export const folderArchiveMounts = (
-    drive: Pick<SessionDriveData, "resolveMount" | "projectDrives">,
+    drive: Pick<SessionDriveData, "resolveMount" | "drives">,
     path: string,
 ): {mountId: string; prefix: string; path: string}[] => {
     const resolved = drive.resolveMount(path)
     const out = resolved?.mount
         ? [{mountId: resolved.mount.id, prefix: "", path: resolved.path}]
         : []
-    for (const project of drive.projectDrives ?? []) {
-        const dir = projectDriveDir(project.slug)
+    for (const other of drive.drives ?? []) {
+        const dir = driveDir(other.slug)
         if (path && dir.startsWith(`${path}/`))
-            out.push({mountId: project.mount.id, prefix: dir, path: ""})
+            out.push({mountId: other.mount.id, prefix: dir, path: ""})
     }
     return out
 }

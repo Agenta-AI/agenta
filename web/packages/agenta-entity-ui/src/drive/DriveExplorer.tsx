@@ -599,7 +599,7 @@ export function DriveExplorer({
                 mirrored={mirrored}
             />
         )
-    } else if (drive.fileCount === 0 && !drive.projectDrives?.length) {
+    } else if (drive.fileCount === 0 && !drive.drives?.length) {
         body = <DriveEmptyState scope={scope} />
     } else {
         // The folder's verbs — row 2's ⋯ and the blank-space right-click menu share them.

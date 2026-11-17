@@ -22,7 +22,7 @@ import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {ArrowClockwise, CircleNotch, FolderSimple} from "@phosphor-icons/react"
 
 import {driveFileIcon} from "./driveIcons"
-import {useDriveProjectDrives} from "./driveSessionContext"
+import {useAttachedDrives} from "./driveSessionContext"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 import {FileThumb} from "./FileThumb"
 import {AGENT_ACCENT_SOFT, OriginTag} from "./OriginTag"
@@ -172,7 +172,7 @@ export const DriveFileRow = ({
      * skeletons doesn't read as a barcode. */
     skeletonIndex?: number
 }) => {
-    const projectDrives = useDriveProjectDrives()
+    const drives = useAttachedDrives()
     if (loading) {
         const nameW = SKELETON_NAME_WIDTHS[skeletonIndex % SKELETON_NAME_WIDTHS.length]
         // ROW placeholder — reuses the real row's shell classes (minus button/hover/cursor) so the
@@ -223,7 +223,7 @@ export const DriveFileRow = ({
     // Always the basename — folders never bloat the visible name (a nested/long path would
     // truncate the important tail). The full relative path is on the `title` tooltip instead.
     const name = path.split("/").pop() ?? path
-    const origin = fileOrigin(path, projectDrives)
+    const origin = fileOrigin(path, drives)
     // Dot-prefixed (hidden) files/folders are surfaced but dimmed, like a file browser greys .git.
     const hidden = isHiddenPath(path)
     const isFolderEntry = isFolder ?? file?.is_folder ?? false
@@ -273,7 +273,7 @@ export const DriveFileRow = ({
     // it). Without the tag, keep the raw folder so the origin still reads from the path.
     const folder = hideFolder
         ? null
-        : showOrigin && origin === "agent"
+        : showOrigin && origin === "home"
           ? rawFolder === AGENT_FILES_DIR
               ? null
               : (rawFolder?.slice(AGENT_FILES_DIR.length + 1) ?? null)

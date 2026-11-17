@@ -2,16 +2,13 @@ import {useMemo} from "react"
 
 import {
     AGENT_FILES_DIR,
-    agentMountQueryFamily,
-    cleanPath,
-    humanSize,
-    itemCountLabel,
-    nameOf,
+    agentDrivesStateForParameters,
+    driveDir,
+    type Drive,
 } from "@agenta/entities/drive"
-import {latestMountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
+import {agentLatestRevisionAtomFamily} from "@agenta/entity-ui/agent"
 import {
     DriveFolderGlyph,
-    DriveTypeMark,
     driveQuickLookAtomFamily,
     sessionFilesPaneOpenAtomFamily,
 } from "@agenta/entity-ui/drive"
@@ -23,70 +20,65 @@ import {AgentOverviewCard} from "./AgentOverviewCard"
 import {AgentOverviewCardRow} from "./AgentOverviewCardRow"
 import {AgentOverviewCardSkeleton} from "./states/AgentOverviewCardSkeleton"
 
-/** Newest first; the Files pane is where the whole drive lives. */
-const LIMIT = 5
+interface DriveRow {
+    folder: string
+    readOnly: boolean
+}
 
-const fileDetail = (file: MountFile): string | null =>
-    file.is_folder
-        ? file.item_count != null
-            ? itemCountLabel(file.item_count)
-            : null
-        : humanSize(file.size) || null
+/** The home drive first, at `agent-files/`, then each other drive at `drives/<slug>/`. */
+export const agentDriveRows = (home: boolean, drives: readonly Drive[]): DriveRow[] => [
+    ...(home ? [{folder: AGENT_FILES_DIR, readOnly: false}] : []),
+    ...drives.map((d) => ({folder: driveDir(d.slug), readOnly: d.access === "read"})),
+]
 
-/** The agent's own drive. Opening a file starts a session with the docked pane on it. */
+/** The drives of the agent's configuration. Opening one starts a session with the docked pane on it. */
 export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string}) => {
     const store = useStore()
     const startBlank = useStartBlankSession(base)
 
-    const mountsAtom = useMemo(() => agentMountQueryFamily(agentId), [agentId])
-    const mounts = useAtomValue(mountsAtom)
-    const mountId = mounts.data?.id ?? ""
-
-    const filesAtom = useMemo(
-        () => latestMountFilesQueryFamily({mountId, limit: LIMIT, order: "recent"}),
-        [mountId],
+    // The drives are created with the agent, so its latest revision names them before any run.
+    const revision = useAtomValue(useMemo(() => agentLatestRevisionAtomFamily(agentId), [agentId]))
+    const parameters = revision.isPending ? undefined : (revision.data?.data?.parameters ?? null)
+    const drivesAtom = useMemo(
+        () => agentDrivesStateForParameters(parameters, agentId),
+        [parameters, agentId],
     )
-    const files = useAtomValue(filesAtom)
-
-    const rows: MountFile[] = files.data?.files ?? []
-    const isPending = mounts.isPending || (Boolean(mountId) && files.isPending)
+    const drives = useAtomValue(drivesAtom)
+    const rows = agentDriveRows(Boolean(drives.home), drives.drives)
 
     // Seed the pane's state before the route changes; both atoms are read on mount.
-    const openDrive = (path: string | null) => {
+    const openDrive = (folder: string | null) => {
         const sessionId = startBlank(agentId)
         store.set(sessionFilesPaneOpenAtomFamily(agentId), true)
-        if (path) store.set(driveQuickLookAtomFamily(sessionId), {path})
+        if (folder)
+            store.set(driveQuickLookAtomFamily(sessionId), {
+                path: folder,
+                exact: true,
+                folder: true,
+            })
     }
 
     return (
         <AgentOverviewCard
             title="Files"
-            action={mountId ? "Open files" : undefined}
+            action={rows.length ? "Open files" : undefined}
             onAction={() => openDrive(null)}
         >
-            {isPending ? (
-                <AgentOverviewCardSkeleton rows={3} />
+            {drives.isPending ? (
+                <AgentOverviewCardSkeleton rows={2} />
             ) : rows.length === 0 ? (
                 <p className="m-0 py-2 text-[13px] text-muted-foreground">
-                    {mountId
-                        ? "This agent isn't carrying any files yet."
-                        : "This agent has no drive yet."}
+                    This agent has no drive yet.
                 </p>
             ) : (
-                rows.map((file) => (
+                rows.map((row) => (
                     <AgentOverviewCardRow
-                        key={file.path}
-                        icon={
-                            file.is_folder ? (
-                                <DriveFolderGlyph size={16} />
-                            ) : (
-                                <DriveTypeMark path={file.path} size="mini" />
-                            )
-                        }
-                        label={nameOf(cleanPath(file.path)) || file.path}
-                        detail={fileDetail(file)}
-                        title={file.path}
-                        onClick={() => openDrive(`${AGENT_FILES_DIR}/${file.path}`)}
+                        key={row.folder}
+                        icon={<DriveFolderGlyph size={16} />}
+                        label={`${row.folder}/`}
+                        detail={row.readOnly ? "read only" : null}
+                        title={row.folder}
+                        onClick={() => openDrive(row.folder)}
                         className="py-1.5"
                     />
                 ))

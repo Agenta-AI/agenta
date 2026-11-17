@@ -24,11 +24,11 @@ import {queryClientAtom} from "jotai-tanstack-query"
 /** Mount roots (the root, `agent-files/`, `drives/<slug>/`) and read drives are never renamed or
  * deleted. */
 export const canMoveOrDelete = (
-    drive: Pick<SessionDriveData, "resolveMount" | "projectDrives">,
+    drive: Pick<SessionDriveData, "resolveMount" | "drives">,
     presentedPath: string,
 ): boolean => {
     if (presentedPath === "" || presentedPath === AGENT_FILES_DIR) return false
-    if (fileOrigin(presentedPath, drive.projectDrives) !== "project") return true
+    if (fileOrigin(presentedPath, drive.drives) !== "drive") return true
     const resolved = drive.resolveMount(presentedPath)
     return Boolean(resolved && resolved.path !== "" && !resolved.readOnly)
 }

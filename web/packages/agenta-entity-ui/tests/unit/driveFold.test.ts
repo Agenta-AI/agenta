@@ -1,5 +1,5 @@
 /**
- * The files pane with project drives: "Download all" spans them even when the session has no
+ * The files pane with drives: "Download all" spans them even when the session has no
  * mount of its own, and a drive that leaves the configuration leaves the tree's cached levels.
  */
 import {describe, expect, it} from "vitest"
@@ -12,13 +12,13 @@ import {dropDirs} from "../../src/drive/useLazyDriveTree"
 const prices = {slug: "price-lists", access: "read" as const, mount: {id: "m-prices"}}
 
 describe("driveArchiveMounts", () => {
-    it("zips the project drives under drives/<slug> beside the session and agent mounts", () => {
+    it("zips the drives under drives/<slug> beside the session and agent mounts", () => {
         const agent = {id: "m-agent"}
         expect(
             driveArchiveMounts({
                 mount: {id: "m-cwd"},
                 resolveMount: () => ({mount: agent, path: ""}),
-                projectDrives: [prices],
+                drives: [prices],
             }),
         ).toEqual([
             {mountId: "m-cwd", prefix: ""},
@@ -27,9 +27,9 @@ describe("driveArchiveMounts", () => {
         ])
     })
 
-    it("zips the project drives when the session has no mount of its own", () => {
+    it("zips the drives when the session has no mount of its own", () => {
         expect(
-            driveArchiveMounts({mount: null, resolveMount: () => null, projectDrives: [prices]}),
+            driveArchiveMounts({mount: null, resolveMount: () => null, drives: [prices]}),
         ).toEqual([{mountId: "m-prices", prefix: "drives/price-lists"}])
     })
 })
@@ -55,27 +55,27 @@ describe("folderArchiveMounts", () => {
             path.startsWith("drives/price-lists")
                 ? {mount: prices.mount, path: path.slice("drives/price-lists".length + 1)}
                 : {mount: cwd, path},
-        projectDrives: [prices],
+        drives: [prices],
     }
 
     // The API names a member by its mount path under the prefix: the cwd source scoped to `drives`
-    // yields `drives/notes.md`, so a project drive must sit at `drives/<slug>/` beside it.
-    it("zips the drives folder with each project drive at drives/<slug>/, beside its session files", () => {
+    // yields `drives/notes.md`, so a drive must sit at `drives/<slug>/` beside it.
+    it("zips the drives folder with each drive at drives/<slug>/, beside its session files", () => {
         expect(folderArchiveMounts(drive, "drives")).toEqual([
             {mountId: "m-cwd", prefix: "", path: "drives"},
             {mountId: "m-prices", prefix: "drives/price-lists", path: ""},
         ])
     })
 
-    it("zips a folder inside a project drive from that drive alone", () => {
+    it("zips a folder inside a drive from that drive alone", () => {
         expect(folderArchiveMounts(drive, "drives/price-lists/2026")).toEqual([
             {mountId: "m-prices", prefix: "", path: "2026"},
         ])
     })
 
-    it("zips the drives folder of a session with no mount from the project drives", () => {
+    it("zips the drives folder of a session with no mount from the drives", () => {
         expect(
-            folderArchiveMounts({resolveMount: () => null, projectDrives: [prices]}, "drives"),
+            folderArchiveMounts({resolveMount: () => null, drives: [prices]}, "drives"),
         ).toEqual([{mountId: "m-prices", prefix: "drives/price-lists", path: ""}])
     })
 })
@@ -96,7 +96,7 @@ describe("canMoveOrDelete", () => {
             }
             return {mount: {id: "m-cwd"}, path}
         },
-        projectDrives: [prices, team],
+        drives: [prices, team],
     }
 
     it("refuses mount roots and read drives, for rename as for delete", () => {

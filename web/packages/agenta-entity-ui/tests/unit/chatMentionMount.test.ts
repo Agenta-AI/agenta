@@ -60,11 +60,11 @@ describe("resolveMentionMount", () => {
     })
 })
 
-describe("resolveMentionMount with project drives", () => {
+describe("resolveMentionMount with drives", () => {
     const prices = {id: "prices"}
     const drives = [{slug: "price-lists", mount: prices}]
 
-    it("opens a drives/<slug>/ link in that project drive, written either way", () => {
+    it("opens a drives/<slug>/ link in that drive, written either way", () => {
         for (const href of ["drives/price-lists/2026.md", "/drives/price-lists/2026.md"]) {
             expect(resolveMentionMount(href, cwd, agent, drives)).toEqual({
                 mount: prices,
@@ -73,7 +73,7 @@ describe("resolveMentionMount with project drives", () => {
         }
     })
 
-    it("opens a sandbox path through the drives/<slug> link in that project drive", () => {
+    it("opens a sandbox path through the drives/<slug> link in that drive", () => {
         expect(
             resolveMentionMount(
                 "/var/lib/agenta/mounts/s/m/drives/price-lists/a/b.csv",
@@ -82,6 +82,22 @@ describe("resolveMentionMount with project drives", () => {
                 drives,
             ),
         ).toEqual({mount: prices, path: "a/b.csv"})
+    })
+
+    it("opens a path under a drive's own mount, a slug ending in -agent included", () => {
+        const support = {id: "support"}
+        const linked = [...drives, {slug: "support-agent", mount: support}]
+        expect(
+            resolveMentionMount(
+                "/var/lib/agenta/mounts/s/m-drive-support-agent/faq.md",
+                cwd,
+                agent,
+                linked,
+            ),
+        ).toEqual({mount: support, path: "faq.md"})
+        expect(
+            resolveMentionMount("/var/lib/agenta/mounts/s/m-drive-gone/x.md", cwd, agent, linked),
+        ).toBeNull()
     })
 
     it("keeps a drives/ path of an unknown slug on the session drive", () => {

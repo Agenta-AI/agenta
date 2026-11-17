@@ -9,7 +9,13 @@
  */
 import {useMemo} from "react"
 
-import {AGENT_FILES_DIR, cleanPath, fileOrigin, type DroppedFile} from "@agenta/entities/drive"
+import {
+    AGENT_FILES_DIR,
+    cleanPath,
+    fileOrigin,
+    presentToolPath,
+    type DroppedFile,
+} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {drivePathFromToolPath} from "@agenta/entities/session"
 import {atom, useAtom} from "jotai"
@@ -51,7 +57,8 @@ export const matchesTail = (filePath: string, requested: string): boolean =>
 export const resolveQuickLookPath = (
     recents: {path: string}[],
     requested: string,
-    projectDrives: readonly {slug: string}[] = [],
+    drives: readonly {slug: string}[] = [],
+    homeSlug: string | null = null,
 ): string => {
     if (requested.startsWith("/")) {
         // A presented path written absolute (`/agent-files/x`) is the drive's own, not `/etc/x`, so
@@ -59,26 +66,25 @@ export const resolveQuickLookPath = (
         const presented = cleanPath(requested)
         if (
             presented.startsWith(`${AGENT_FILES_DIR}/`) ||
-            fileOrigin(presented, projectDrives) === "project"
+            fileOrigin(presented, drives) === "drive"
         )
             return presented
         const resolved = drivePathFromToolPath(requested)
         if (!resolved) return recents.some((f) => f.path === presented) ? presented : requested
-        // The agent mount is presented folded under `agent-files/`, except on a drive that IS the
-        // agent mount, which presents it at the root. Try both spellings, then fall back to the
+        // The home drive is presented folded under `agent-files/`, except on a drive that IS the
+        // home drive, which presents it at the root. Try both spellings, then fall back to the
         // folded one — `resolveMount` unfolds it again, so it resolves either way.
-        const folded =
-            resolved.origin === "agent" ? `${AGENT_FILES_DIR}/${resolved.path}` : resolved.path
+        const folded = presentToolPath(resolved, homeSlug)
         return (
             recents.find((f) => f.path === folded)?.path ??
             recents.find((f) => f.path === resolved.path)?.path ??
             folded
         )
     }
-    // A complete drive path, or a configured project path, wins over a shorter tail match.
+    // A complete drive path, or a path in a configured drive, wins over a shorter tail match.
     const presented = cleanPath(requested)
     if (recents.some((f) => f.path === presented)) return presented
-    if (fileOrigin(presented, projectDrives) === "project") return presented
+    if (fileOrigin(presented, drives) === "drive") return presented
     return (
         recents.find((f) => matchesTail(f.path, requested))?.path ??
         drivePathFromToolPath(requested)?.path ??
@@ -106,9 +112,14 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const initialPath = useMemo(
         () =>
             quickLook
-                ? resolveQuickLookPath(drive.recents, quickLook.path, drive.projectDrives)
+                ? resolveQuickLookPath(
+                      drive.recents,
+                      quickLook.path,
+                      drive.drives,
+                      drive.homeSlug,
+                  )
                 : null,
-        [quickLook, drive.recents, drive.projectDrives],
+        [quickLook, drive.recents, drive.drives, drive.homeSlug],
     )
 
     const driveIds = useMemo(

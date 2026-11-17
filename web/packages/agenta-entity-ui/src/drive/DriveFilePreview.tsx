@@ -12,7 +12,7 @@ import {AnimatePresence, motion} from "motion/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {DriveFileContentViewer, DriveFileDownloadButton} from "./DriveFileContentViewer"
-import {useDriveProjectDrives, useDriveSessionId} from "./driveSessionContext"
+import {useAttachedDrives, useDriveSessionId} from "./driveSessionContext"
 import {DriveFileMetaList} from "./fileMeta"
 import {OriginTag} from "./OriginTag"
 
@@ -52,7 +52,7 @@ export const DriveFilePreview = ({
     /** Is this presented path in the tree already loaded? Picks between a link's readings. */
     linkExists?: (path: string) => boolean
 }) => {
-    const projectDrives = useDriveProjectDrives()
+    const drives = useAttachedDrives()
     const shown = displayPath ?? path
     const name = shown.split("/").pop() ?? shown
     // Null outside a conversation, which leaves the quote layer inert.
@@ -101,7 +101,7 @@ export const DriveFilePreview = ({
                                 {name}
                             </span>
                             {showOrigin ? (
-                                <OriginTag origin={fileOrigin(shown, projectDrives)} />
+                                <OriginTag origin={fileOrigin(shown, drives)} />
                             ) : null}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">

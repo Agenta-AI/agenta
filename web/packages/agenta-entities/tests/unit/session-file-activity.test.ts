@@ -86,18 +86,36 @@ describe("drivePathFromToolPath", () => {
         })
     })
 
-    it("routes the `<cwd>-agent` sibling mount to the agent origin", () => {
+    it("routes the older `<cwd>-agent` sibling mount of recorded sessions to the home origin", () => {
         expect(
             drivePathFromToolPath("/var/lib/agenta/mounts/proj-1/mount-1-agent/skills/SKILL.md"),
-        ).toEqual({origin: "agent", path: "skills/SKILL.md"})
+        ).toEqual({origin: "home", path: "skills/SKILL.md"})
         expect(
             drivePathFromToolPath("/tmp/agenta/mounts/proj-1/mount-1-agent/skills/SKILL.md"),
-        ).toEqual({origin: "agent", path: "skills/SKILL.md"})
-        // Reached through the symlink the runner drops in the cwd instead: still the agent mount,
+        ).toEqual({origin: "home", path: "skills/SKILL.md"})
+        // Reached through the symlink the runner drops in the cwd instead: still the home drive,
         // but named the way every drive surface already presents it.
         expect(
             drivePathFromToolPath("/tmp/agenta/mounts/proj-1/mount-1/agent-files/SKILL.md"),
         ).toEqual({origin: "session", path: "agent-files/SKILL.md"})
+    })
+
+    it("routes a `<cwd>-drive-<slug>` sibling mount to that drive", () => {
+        expect(
+            drivePathFromToolPath("/var/lib/agenta/mounts/proj-1/mount-1-drive-price-lists/a.csv"),
+        ).toEqual({origin: "drive", slug: "price-lists", path: "a.csv"})
+        expect(
+            drivePathFromToolPath("/home/sandbox/agenta/mounts/proj-1/mount-1-drive-notes/x/y.md"),
+        ).toEqual({origin: "drive", slug: "notes", path: "x/y.md"})
+    })
+
+    // `-drive-` is matched before the older `-agent` suffix, or this drive would read as the home.
+    it("maps a drive whose slug ends in -agent to that drive", () => {
+        expect(
+            drivePathFromToolPath(
+                "/var/lib/agenta/mounts/proj-1/mount-1-drive-support-agent/faq.md",
+            ),
+        ).toEqual({origin: "drive", slug: "support-agent", path: "faq.md"})
     })
 
     it("drops a throwaway run dir, which no drive holds", () => {
@@ -124,7 +142,7 @@ describe("drivePathFromToolPath", () => {
             drivePathFromToolPath(
                 "/var/lib/agenta/mounts/proj-1/mount-1-agent/agenta-x-agent/a.md",
             ),
-        ).toEqual({origin: "agent", path: "agenta-x-agent/a.md"})
+        ).toEqual({origin: "home", path: "agenta-x-agent/a.md"})
     })
 
     it("passes a cwd-relative path through, minus the `./` noise", () => {

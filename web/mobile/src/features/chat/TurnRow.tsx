@@ -21,6 +21,7 @@ import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta
 import {messageBodyKey} from "@agenta/chat/state"
 import {canViewSpansAtom} from "@agenta/entities/access"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import {useDriveHomeSlug} from "@agenta/entity-ui/drive"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
@@ -238,14 +239,16 @@ const TurnRowInner = ({
                 : [],
         [turn.isUser, turn.items],
     )
+    const homeSlug = useDriveHomeSlug()
     const writtenFiles = useMemo(
         () =>
             // Once settled, `messages` holds only the answer; an open run's text is still interim.
             turnFiles(
                 activity.steps,
                 runOpen ? [] : activity.messages.map((message) => message.part.text),
+                homeSlug,
             ),
-        [activity.steps, activity.messages, runOpen],
+        [activity.steps, activity.messages, runOpen, homeSlug],
     )
 
     // The turn's meta line sits under the answer, revealed on hover or focus like the desktop's;

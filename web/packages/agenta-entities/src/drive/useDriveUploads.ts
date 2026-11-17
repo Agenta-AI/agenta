@@ -106,8 +106,8 @@ export function useDriveUploads({
     // The single switch for every upload affordance here: header button, drop-to-upload on folders
     // and panes, and the staged-files inbox.
     const uploadInputRef = useRef<HTMLInputElement>(null)
-    // A session whose only writable drive is a project drive has no primary mount.
-    const canUpload = !explicitFiles && (!!drive.mount || Boolean(drive.projectDrives?.length))
+    // A session whose only writable drive is a drive under `drives/` has no primary mount.
+    const canUpload = !explicitFiles && (!!drive.mount || Boolean(drive.drives?.length))
     const uploadIntoFolder = useCallback(
         (picked: DroppedFile[], folder: string) => {
             if (!ensureWritable(drive, folder)) return

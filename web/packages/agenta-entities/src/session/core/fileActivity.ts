@@ -98,15 +98,28 @@ export function mountPathMatchesToolPath(mountPath: string, toolPath: string): b
 
 /** Which mount an absolute tool path names, and where inside it. */
 export interface DriveToolPath {
-    /** `"agent"` = the durable per-agent mount (the runner's `<cwd>-agent` sibling); `"session"` =
-     * the run's own cwd mount. */
-    origin: "agent" | "session"
+    /** `"session"` = the run's own cwd mount; `"drive"` = the drive `slug`, mounted as the cwd's
+     * sibling `<cwd>-drive-<slug>`; `"home"` = the agent's drive at the older sibling `<cwd>-agent`,
+     * which recorded sessions keep. */
+    origin: "session" | "home" | "drive"
+    /** The drive's slug, for the `"drive"` origin. */
+    slug?: string
     /** The path relative to that mount's root — what a drive listing can actually resolve. */
     path: string
 }
 
-/** The runner names the agent's durable mount as the cwd's sibling (`agentMountPath`). */
+/** The runner mounts each drive as the cwd's sibling `<cwd>-drive-<slug>` (`driveMountPath`). */
+const DRIVE_MOUNT_INFIX = "-drive-"
+/** The older runner mounted the agent's drive as the cwd's sibling `<cwd>-agent`. */
 const AGENT_MOUNT_SUFFIX = "-agent"
+
+/** The mount a root segment names. `-drive-` is matched first: a slug may end in `-agent`. */
+const mountOrigin = (segment: string): Pick<DriveToolPath, "origin" | "slug"> => {
+    const at = segment.indexOf(DRIVE_MOUNT_INFIX)
+    const slug = at > 0 ? segment.slice(at + DRIVE_MOUNT_INFIX.length) : ""
+    if (slug) return {origin: "drive", slug}
+    return {origin: segment.endsWith(AGENT_MOUNT_SUFFIX) ? "home" : "session"}
+}
 
 /** Index one past the last segment of the durable mount root, or -1 when these segments sit under
  * no drive. Only the durable root counts: a run without one works in a throwaway dir
@@ -151,8 +164,9 @@ function sandboxRootEnd(segments: readonly string[]): number {
  * those paths in the database forever, so the match below stays leading-directory-agnostic on
  * purpose rather than pinning either root.
  *
- * The agent's durable mount is always the SIBLING `<cwd>-agent`, so a path under it belongs to the
- * agent mount rather than the cwd — hence {@link DriveToolPath.origin} rather than a bare string.
+ * Each drive is mounted as a SIBLING of the cwd (`<cwd>-drive-<slug>`, or `<cwd>-agent` in older
+ * sessions), so a path under one belongs to that drive rather than the cwd — hence
+ * {@link DriveToolPath.origin} rather than a bare string.
  *
  * Returns null when an absolute path sits under NO such root (`/etc/hosts`, the runner's own
  * `/tmp/agenta/relay/…`, a throwaway run dir) or names the workspace root itself: those correspond
@@ -171,10 +185,7 @@ export function drivePathFromToolPath(toolPath: string): DriveToolPath | null {
     if (rootEnd === -1) return null
     const rest = segments.slice(rootEnd).filter(Boolean).join("/")
     if (!rest) return null
-    return {
-        origin: segments[rootEnd - 1].endsWith(AGENT_MOUNT_SUFFIX) ? "agent" : "session",
-        path: rest,
-    }
+    return {...mountOrigin(segments[rootEnd - 1]), path: rest}
 }
 
 /**

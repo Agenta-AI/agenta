@@ -7,7 +7,7 @@
  */
 import {createContext, useContext, useMemo, type ReactNode} from "react"
 
-import {projectDrivesAtomFamily, type ProjectDrive} from "@agenta/entities/drive"
+import {agentDrivesStateAtom, type Drive} from "@agenta/entities/drive"
 import {useAtomValue} from "jotai"
 
 interface DriveSession {
@@ -30,7 +30,7 @@ export function DriveSessionProvider({
 }: {
     sessionId: string
     artifactId?: string | null
-    /** The revision the conversation runs; its `drives` list names the project drives. */
+    /** The revision the conversation runs; its `drives` list names the drives. */
     revisionId?: string | null
     children: ReactNode
 }) {
@@ -44,15 +44,19 @@ export function DriveSessionProvider({
 /** The enclosing conversation's session id; null outside a conversation. */
 export const useDriveSessionId = (): string | null => useContext(DriveSessionContext).sessionId
 
-/** The enclosing conversation's artifact (workflow) id — for the agent's durable `agent-files`
- * mount; null outside a conversation. */
+/** The enclosing conversation's artifact (workflow) id — for the agent's drive of a configuration
+ * without a `drives` list; null outside a conversation. */
 export const useDriveArtifactId = (): string | null => useContext(DriveSessionContext).artifactId
 
-/** The enclosing conversation's revision id — for the project drives (`drives/<slug>/`) its
- * configuration names; null outside a conversation. */
+/** The enclosing conversation's revision id — for the drives its configuration names; null
+ * outside a conversation. */
 export const useDriveRevisionId = (): string | null => useContext(DriveSessionContext).revisionId
 
-/** The enclosing conversation's project drives (none outside a conversation) — which `drives/<slug>`
- * paths are project paths rather than session files. */
-export const useDriveProjectDrives = (): ProjectDrive[] =>
-    useAtomValue(projectDrivesAtomFamily(useDriveRevisionId() ?? ""))
+/** The enclosing conversation's drives under `drives/<slug>/`, the home drive aside (none outside a
+ * conversation) — which `drives/<slug>` paths are drive paths rather than session files. */
+export const useAttachedDrives = (): Drive[] =>
+    useAtomValue(agentDrivesStateAtom(useDriveRevisionId(), useDriveArtifactId())).drives
+
+/** The enclosing conversation's home drive slug: its tool paths present under `agent-files/`. */
+export const useDriveHomeSlug = (): string | null =>
+    useAtomValue(agentDrivesStateAtom(useDriveRevisionId(), useDriveArtifactId())).homeSlug

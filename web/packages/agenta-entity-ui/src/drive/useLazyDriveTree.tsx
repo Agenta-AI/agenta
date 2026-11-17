@@ -7,18 +7,19 @@
  *
  * It presents the same accumulated `files: MountFile[]` the tree builder already consumes — so the
  * explorer's `buildDriveTree`/virtualization stay unchanged; only WHERE the files come from changes.
- * The agent's durable mount is folded in under `agent-files/` and each project drive under
- * `drives/<slug>/`, exactly as {@link useSessionDrive} does, so every mount browses as one tree.
+ * The home drive is folded in under `agent-files/` and each other drive under `drives/<slug>/`,
+ * exactly as {@link useSessionDrive} does, so every mount browses as one tree.
  */
 import {useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode} from "react"
 
 import {
     cleanPath,
-    foldProjectFiles,
+    driveDir,
+    DRIVES_DIR,
+    foldDriveFiles,
+    isDriveLink,
     parentOf,
-    PROJECT_DRIVES_DIR,
-    projectDriveDir,
-    resolveProjectDrivePath,
+    resolveDrivePath,
 } from "@agenta/entities/drive"
 import {AGENT_FILES_DIR, type SessionDriveData} from "@agenta/entities/drive"
 import {mountDirQueryFamily, mountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
@@ -95,15 +96,18 @@ export function useLazyDriveTree(
         agentResolved && cwdMount && agentResolved.mount.id !== cwdMount.id
             ? agentResolved.mount
             : null
-    const projectDrives = drive.projectDrives ?? NO_PROJECTS
-    const projectDirs = useMemo(
-        () => projectDrives.map((d) => projectDriveDir(d.slug)),
-        [projectDrives],
+    const drives = drive.drives ?? NO_DRIVES
+    const configured = drive.configuredDrives ?? NO_ENTRIES
+    const driveDirs = useMemo(() => drives.map((d) => driveDir(d.slug)), [drives])
+    // The cwd's links to the home drive and to unresolved drives: never shown under `drives/`.
+    const hiddenLinks = useMemo(
+        () => configured.filter((c) => !drives.some((d) => d.slug === c.slug)),
+        [configured, drives],
     )
-    // A project drive's folder is the drive's own, never the cwd's: a cwd listing that does not
-    // name it (no turn ran yet) must not drop what the drive's own subscription loaded.
+    // A drive's folder is the drive's own, never the cwd's: a cwd listing that does not name it
+    // (no turn ran yet) must not drop what the drive's own subscription loaded.
     const pinned = useRef(new Set<string>())
-    pinned.current = new Set(projectDirs.length ? [PROJECT_DRIVES_DIR, ...projectDirs] : [])
+    pinned.current = new Set(driveDirs.length ? [DRIVES_DIR, ...driveDirs] : [])
 
     // Per-directory results, accumulated. A key insight: React reconciles the subscribers by path
     // KEY, so re-deriving the array each render never remounts a stable directory's query.
@@ -112,15 +116,15 @@ export function useLazyDriveTree(
     const [fetchingDirs, setFetching] = useSetState()
 
     // A drive that leaves the configuration leaves the tree: its cached levels and loading flags go.
-    const prevProjectDirs = useRef(projectDirs)
+    const prevDriveDirs = useRef(driveDirs)
     useEffect(() => {
-        const removed = prevProjectDirs.current.filter((d) => !projectDirs.includes(d))
-        prevProjectDirs.current = projectDirs
+        const removed = prevDriveDirs.current.filter((d) => !driveDirs.includes(d))
+        prevDriveDirs.current = driveDirs
         if (!removed.length) return
         for (const key of [...removed, ...dropDirs(dirFilesRef.map, removed)])
             setFetching(key, false)
         forceVersion()
-    }, [projectDirs, dirFilesRef, setFetching, forceVersion])
+    }, [driveDirs, dirFilesRef, setFetching, forceVersion])
 
     const onResult = useCallback(
         (path: string, files: MountFile[] | null, fetching: boolean) => {
@@ -164,10 +168,10 @@ export function useLazyDriveTree(
             includeGitignored,
         }),
     )
-    const projectFullAtom = useMemo(
+    const driveFullAtom = useMemo(
         () =>
             atom((get) =>
-                projectDrives.map((d) =>
+                drives.map((d) =>
                     get(
                         mountFilesQueryFamily({
                             mountId: searchActive ? d.mount.id : "",
@@ -176,45 +180,43 @@ export function useLazyDriveTree(
                     ),
                 ),
             ),
-        [projectDrives, searchActive, includeGitignored],
+        [drives, searchActive, includeGitignored],
     )
-    const projectFullQs = useAtomValue(projectFullAtom)
+    const driveFullQs = useAtomValue(driveFullAtom)
     const fullFiles = useMemo(() => {
         if (!searchActive) return null
         const cwd = (cwdFullQ.data ?? []).filter(
             (f) =>
-                cleanPath(f.path) !== AGENT_FILES_DIR &&
-                !resolveProjectDrivePath(f.path, projectDrives),
+                cleanPath(f.path) !== AGENT_FILES_DIR && !resolveDrivePath(f.path, configured),
         )
         const agent = (agentFullQ.data ?? []).map((f) => ({
             ...f,
             path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
         }))
-        const projects = projectDrives.flatMap((d, i) =>
-            foldProjectFiles(d, projectFullQs[i]?.data ?? []),
-        )
-        return [...cwd, ...agent, ...projects, ...projectFolders(projectDirs)]
-    }, [searchActive, cwdFullQ.data, agentFullQ.data, projectDrives, projectDirs, projectFullQs])
+        const others = drives.flatMap((d, i) => foldDriveFiles(d, driveFullQs[i]?.data ?? []))
+        return [...cwd, ...agent, ...others, ...driveFolders(driveDirs)]
+    }, [searchActive, cwdFullQ.data, agentFullQ.data, drives, configured, driveDirs, driveFullQs])
 
     const lazyFiles = useMemo(() => {
         // dirVersion in deps: the ref mutates in place, so bump a version to recompute.
         void dirVersion
         const byPath = new Map<string, MountFile>()
-        for (const list of dirFilesRef.map.values()) for (const f of list) byPath.set(f.path, f)
+        for (const list of dirFilesRef.map.values())
+            for (const f of list) if (!isDriveLink(f.path, hiddenLinks)) byPath.set(f.path, f)
         // Last, so the folder flag wins over the cwd's bare link entry of the same path.
-        for (const f of projectFolders(projectDirs)) byPath.set(f.path, f)
+        for (const f of driveFolders(driveDirs)) byPath.set(f.path, f)
         return [...byPath.values()]
-    }, [dirFilesRef, dirVersion, projectDirs])
+    }, [dirFilesRef, dirVersion, driveDirs, hiddenLinks])
 
     // Always subscribe to the folded agent mount's ROOT, even while `agent-files` is collapsed — its
     // count/children can't come from the cwd mount (which sees an empty mount-point there), so without
-    // this the fold node shows a wrong "0 items" until it's expanded. Each project drive's root too.
+    // this the fold node shows a wrong "0 items" until it's expanded. Each other drive's root too.
     const agentMountId = agentMount?.id ?? null
     const subscriberPaths = useMemo(() => {
-        const roots = [...(agentMountId ? [AGENT_FILES_DIR] : []), ...projectDirs]
+        const roots = [...(agentMountId ? [AGENT_FILES_DIR] : []), ...driveDirs]
         const missing = roots.filter((p) => !activePaths.includes(p))
         return missing.length ? [...activePaths, ...missing] : activePaths
-    }, [activePaths, agentMountId, projectDirs])
+    }, [activePaths, agentMountId, driveDirs])
 
     const subscribers = useMemo(
         () =>
@@ -236,7 +238,7 @@ export function useLazyDriveTree(
         [subscriberPaths, drive, includeGitignored, onResult],
     )
 
-    // A level no mount backs (the root of a session that has only project drives, or `drives/`
+    // A level no mount backs (the root of a session that has only other drives, or `drives/`
     // there) has nothing to fetch: its entries come from the drives folded under it.
     const loadedDirs = useMemo(() => {
         void dirVersion
@@ -254,14 +256,15 @@ export function useLazyDriveTree(
             searchActive &&
             (cwdFullQ.isFetching ||
                 agentFullQ.isFetching ||
-                projectFullQs.some((q) => q.isFetching)),
+                driveFullQs.some((q) => q.isFetching)),
         subscribers,
     }
 }
 
 // --- tiny state helpers (kept local so the hook reads top-down) --------------------------------
 
-const NO_PROJECTS: NonNullable<SessionDriveData["projectDrives"]> = []
+const NO_DRIVES: NonNullable<SessionDriveData["drives"]> = []
+const NO_ENTRIES: NonNullable<SessionDriveData["configuredDrives"]> = []
 
 /** Drop every cached level at or under `dirs`; answers the dropped keys. */
 export const dropDirs = (map: Map<string, unknown>, dirs: readonly string[]): string[] => {
@@ -272,8 +275,8 @@ export const dropDirs = (map: Map<string, unknown>, dirs: readonly string[]): st
     return dropped
 }
 
-/** Each project drive's folder, so an empty drive still shows at `drives/<slug>/`. */
-const projectFolders = (dirs: string[]): MountFile[] =>
+/** Each drive's folder, so an empty drive still shows at `drives/<slug>/`. */
+const driveFolders = (dirs: string[]): MountFile[] =>
     dirs.map((path) => ({path, is_folder: true}))
 
 /** A monotonically-bumped version, to recompute memos off an in-place-mutated ref. */

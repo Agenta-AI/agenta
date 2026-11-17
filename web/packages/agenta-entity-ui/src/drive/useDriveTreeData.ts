@@ -98,8 +98,8 @@ export function useDriveTreeData({
     }, [lazyTree.files, selectedPath])
     // Read off the loaded listing, not the recents; a single-origin drive never filters.
     const showOrigin = useMemo(
-        () => driveHasMixedOrigins(explicitFiles ?? lazyTree.files, drive.projectDrives),
-        [explicitFiles, lazyTree.files, drive.projectDrives],
+        () => driveHasMixedOrigins(explicitFiles ?? lazyTree.files, drive.drives),
+        [explicitFiles, lazyTree.files, drive.drives],
     )
     // "Show temporary files" is the origin filter: session-scoped files are the temporary ones.
     const hideTemporary = showOrigin && !showTemporary
@@ -107,10 +107,10 @@ export function useDriveTreeData({
         // Local-file mode: the explicit list is the whole tree; the mount's lazy files are ignored.
         let files = explicitFiles ?? lazyTree.files
         if (hideTemporary)
-            files = files.filter((f) => fileOrigin(f.path, drive.projectDrives) !== "session")
+            files = files.filter((f) => fileOrigin(f.path, drive.drives) !== "session")
         if (!showHidden) files = files.filter((f) => !isHiddenPath(f.path))
         return files
-    }, [explicitFiles, lazyTree.files, hideTemporary, showHidden, drive.projectDrives])
+    }, [explicitFiles, lazyTree.files, hideTemporary, showHidden, drive.drives])
     // Listed files first: an upload whose file has landed yields to the real entry (one path, one
     // node — the tile keeps its slot).
     const tree = useMemo(

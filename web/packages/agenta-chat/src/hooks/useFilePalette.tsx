@@ -122,7 +122,7 @@ export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): Fil
     const byOrigin = useCallback(
         (rows: PaletteFileRow[], keyPrefix: string): PaletteSection[] => {
             const session = rows.filter((r) => fileOrigin(r.path) === "session")
-            const agent = rows.filter((r) => fileOrigin(r.path) === "agent")
+            const agent = rows.filter((r) => fileOrigin(r.path) === "home")
             if (!session.length || !agent.length) {
                 return rows.length
                     ? [{key: keyPrefix, title: "", items: rows.map((r) => toItem(r, keyPrefix))}]

@@ -47,7 +47,7 @@ export function useDriveFileLookup(): (path: string, exact?: boolean) => DriveFi
     return useCallback(
         (path: string, exact = false) => {
             const entry = findDriveEntry(files, path, exact)
-            // The file may live in the cwd mount, the agent-files mount or a project drive.
+            // The file may live in the cwd mount, the home drive or another drive.
             return {entry, target: entry ? resolveMount(entry.path) : null}
         },
         [files, resolveMount],

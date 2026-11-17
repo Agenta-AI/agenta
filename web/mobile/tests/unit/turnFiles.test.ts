@@ -71,7 +71,19 @@ describe("turnFiles", () => {
         ])
     })
 
-    it("matches a link into a project drive to a write through its drives/<slug> link", () => {
+    it("matches a link to a write under a drive's own mount, the home under agent-files", () => {
+        const prices = write("/var/lib/agenta/mounts/s/m-drive-price-lists/2026.md")
+        const home = write("/var/lib/agenta/mounts/s/m-drive-quote-files/plan.md")
+        expect(
+            turnFiles(
+                [tool("1", [prices, home])],
+                ["[prices](drives/price-lists/2026.md) [plan](agent-files/plan.md)"],
+                "quote-files",
+            ),
+        ).toEqual([prices, home])
+    })
+
+    it("matches a link into a drive to a write through its drives/<slug> link", () => {
         const written = write("/var/lib/agenta/mounts/s/m/drives/price-lists/2026.md")
         expect(turnFiles([tool("1", [written])], ["[prices](drives/price-lists/2026.md)"])).toEqual(
             [written],

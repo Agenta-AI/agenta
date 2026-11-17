@@ -6,7 +6,7 @@ import {findDriveEntry} from "../../src/drive/useDriveFileLookup"
 const files = [{path: "a.md"}, {path: "drives/prices/a.md"}]
 
 describe("findDriveEntry", () => {
-    it("selects the project file over a session file that shares its tail", () => {
+    it("selects the drive file over a session file that shares its tail", () => {
         expect(findDriveEntry(files, "drives/prices/a.md")).toEqual({path: "drives/prices/a.md"})
         expect(findDriveEntry(files, "/var/lib/agenta/mounts/s/m/drives/prices/a.md")).toEqual({
             path: "drives/prices/a.md",
