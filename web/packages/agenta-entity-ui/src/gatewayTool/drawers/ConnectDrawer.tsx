@@ -303,6 +303,8 @@ export default function ConnectDrawer({
                                 <SelectContent>
                                     {availableModes.map((m) => (
                                         <SelectItem key={m} value={m}>
+                                            {/* "OAuth" is the protocol name, the same in every language. */}
+                                            {/* eslint-disable-next-line agenta-i18n/no-hardcoded-text */}
                                             {m === "oauth"
                                                 ? "OAuth"
                                                 : t("entityUi.connectForm.apiKey")}

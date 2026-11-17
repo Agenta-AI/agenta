@@ -31,5 +31,6 @@
     "youAnsweredQuestions_other": "你回答了 <count>{{count}} 个问题</count>",
     "youApproved": "你已审批：<action>{{action}}</action>",
     "youDeclined": "你拒绝了回答",
-    "youDenied": "你已拒绝：<action>{{action}}</action>"
+    "youDenied": "你已拒绝：<action>{{action}}</action>",
+    "fileCount_other": "{{count}} 个文件"
 }

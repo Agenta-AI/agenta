@@ -14,7 +14,11 @@ import {
     commitWorkflowRevisionAtom,
     invalidateAgentCommittedRevisionCache,
 } from "@agenta/entities/workflow"
-import {classifyAgentChanges, buildCommitSummaryMessage} from "@agenta/entities/workflow/commitDiff"
+import {
+    buildCommitSummaryMessage,
+    classifyAgentChanges,
+    NO_COMMIT_DIFF_TEXT,
+} from "@agenta/entities/workflow/commitDiff"
 import {agentSelfCommitSignalAtom, projectIdAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -97,7 +101,8 @@ const flushBlocker = (store: Store, revisionId: string): "skip" | "clean" | "bus
 const buildMessage = (store: Store, revisionId: string): string | undefined => {
     const local = store.get(workflowMolecule.selectors.configuration(revisionId))
     const server = store.get(workflowMolecule.selectors.serverConfiguration(revisionId))
-    const sections = classifyAgentChanges(local, server)
+    // Only the message is built, and it reads ids, kinds and stored values, never the words.
+    const sections = classifyAgentChanges(local, server, NO_COMMIT_DIFF_TEXT)
     return sections.length ? buildCommitSummaryMessage(sections) : undefined
 }
 

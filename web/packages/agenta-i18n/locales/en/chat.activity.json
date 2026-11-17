@@ -34,5 +34,7 @@
     "youAnsweredQuestions_other": "You answered <count>{{count}} questions</count>",
     "youApproved": "You approved <action>{{action}}</action>",
     "youDeclined": "You declined to answer",
-    "youDenied": "You denied <action>{{action}}</action>"
+    "youDenied": "You denied <action>{{action}}</action>",
+    "fileCount_one": "{{count}} file",
+    "fileCount_other": "{{count}} files"
 }

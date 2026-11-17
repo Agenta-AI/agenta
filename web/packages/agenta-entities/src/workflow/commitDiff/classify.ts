@@ -9,7 +9,8 @@ import {computeTextDiffLines} from "@agenta/ui/diff"
 
 import {PARAM_KEYS, readAgentConfig, stableStringify} from "./accessors"
 import {agentItemIdentity, type AgentItemKind} from "./identity"
-import {gatewayPermissionLabel, scalarKeyLabel, scalarValueLabel} from "./scalarLabels"
+import {scalarKeyLabel, scalarValueLabel} from "./scalarLabels"
+import type {CommitDiffText} from "./text"
 import type {
     AgentConfigView,
     ChangeItem,
@@ -56,14 +57,21 @@ const PERMISSION_DEFAULT = "permissions.default"
 const PERMISSION_TOOL_PREFIX = "permissions.tools."
 
 /** An integration's policy: its own default, plus whatever it overrides per tool. */
-function diffPolicyFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+function diffPolicyFields(
+    before: NormalizedTool,
+    after: NormalizedTool,
+    text: CommitDiffText,
+): ToolFieldChange[] {
     if (!before.policy || !after.policy) return []
     const changes: ToolFieldChange[] = []
     if (before.policy.default !== after.policy.default) {
         changes.push({
             field: PERMISSION_DEFAULT,
             kind: "changed",
-            detail: `permission ${gatewayPermissionLabel(before.policy.default)} → ${gatewayPermissionLabel(after.policy.default)}`,
+            detail: text.permissionChange(
+                text.gatewayPermission(before.policy.default),
+                text.gatewayPermission(after.policy.default),
+            ),
         })
     }
     const names = new Set([...Object.keys(before.policy.tools), ...Object.keys(after.policy.tools)])
@@ -74,7 +82,7 @@ function diffPolicyFields(before: NormalizedTool, after: NormalizedTool): ToolFi
         changes.push({
             field: `${PERMISSION_TOOL_PREFIX}${name}`,
             kind: !from ? "added" : !to ? "removed" : "changed",
-            detail: `${name}: ${gatewayPermissionLabel(from)} → ${gatewayPermissionLabel(to)}`,
+            detail: `${name}: ${text.gatewayPermission(from)} → ${text.gatewayPermission(to)}`,
         })
     }
     return changes
@@ -87,7 +95,11 @@ const COVERED_TOOL_ROOTS = new Set(["description", "function", "policy", "parame
  * Whatever moved that nothing above inspects — a builtin's option, a reference's version. Without
  * this the row falls back to a bare "changed" and the reader has no idea where to look.
  */
-function diffRawToolFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+function diffRawToolFields(
+    before: NormalizedTool,
+    after: NormalizedTool,
+    text: CommitDiffText,
+): ToolFieldChange[] {
     if (!before.raw || !after.raw) return []
     const b = flattenScalars(before.raw)
     const a = flattenScalars(after.raw)
@@ -98,16 +110,24 @@ function diffRawToolFields(before: NormalizedTool, after: NormalizedTool): ToolF
         changes.push({
             field: key,
             kind: !(key in b) ? "added" : !(key in a) ? "removed" : "changed",
-            detail: `${scalarKeyLabel(key).toLowerCase()} changed`,
+            detail: text.fieldsChanged([text.inSentence(scalarKeyLabel(key, text))]),
         })
     }
     return changes
 }
 
-function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
-    const changes: ToolFieldChange[] = [...diffPolicyFields(before, after)]
+function diffToolFields(
+    before: NormalizedTool,
+    after: NormalizedTool,
+    text: CommitDiffText,
+): ToolFieldChange[] {
+    const changes: ToolFieldChange[] = [...diffPolicyFields(before, after, text)]
     if (before.description !== after.description) {
-        changes.push({field: "description", kind: "changed", detail: "description changed"})
+        changes.push({
+            field: "description",
+            kind: "changed",
+            detail: text.fieldsChanged([text.word("description")]),
+        })
     }
     const b = toolProps(before)
     const a = toolProps(after)
@@ -118,19 +138,19 @@ function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFiel
         if (inA && !inB) {
             const type =
                 typeof (a[key] as Record<string, unknown>)?.type === "string"
-                    ? `${(a[key] as Record<string, unknown>).type}, added`
-                    : "added"
+                    ? text.typeAdded(String((a[key] as Record<string, unknown>).type))
+                    : text.word("added")
             changes.push({field: key, kind: "added", detail: type})
         } else if (inB && !inA) {
-            changes.push({field: key, kind: "removed", detail: "removed"})
+            changes.push({field: key, kind: "removed", detail: text.word("removed")})
         } else if (stableStringify(b[key]) !== stableStringify(a[key])) {
-            changes.push({field: key, kind: "changed", detail: "changed"})
+            changes.push({field: key, kind: "changed", detail: text.word("changed")})
         }
     }
-    return [...changes, ...diffRawToolFields(before, after)]
+    return [...changes, ...diffRawToolFields(before, after, text)]
 }
 
-function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
+function toolRowDetail(fields: ToolFieldChange[], text: CommitDiffText): string | undefined {
     const permissionDefault = fields.find((f) => f.field === PERMISSION_DEFAULT)
     const perTool = fields.filter((f) => f.field.startsWith(PERMISSION_TOOL_PREFIX))
     const descChanged = fields.some((f) => f.field === "description")
@@ -147,16 +167,16 @@ function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
         return permissionDefault.detail
     }
     const parts: string[] = []
-    if (permissionDefault || perTool.length) parts.push("permissions")
-    if (descChanged) parts.push("description")
+    if (permissionDefault || perTool.length) parts.push(text.word("permissions"))
+    if (descChanged) parts.push(text.word("description"))
     // One field is worth naming; several are only worth counting.
     if (paramCount === 1) parts.push(others[0].field)
-    else if (paramCount) parts.push(`${paramCount} parameters`)
+    else if (paramCount) parts.push(text.parameterCount(paramCount))
     // Fingerprint-based edit detection can flag a change in a field diffToolFields doesn't inspect
     // (or a nameless reference/builtin tool with no fields) — fall back to a generic label so the
     // "edited" badge is never left unexplained.
-    if (!parts.length) return "changed"
-    return `${parts.join(" & ")} changed`
+    if (!parts.length) return text.word("changed")
+    return text.fieldsChanged(parts)
 }
 
 /**
@@ -169,6 +189,7 @@ function toolsSection(
     noun: string,
     localTools: NormalizedTool[],
     remoteTools: NormalizedTool[],
+    text: CommitDiffText,
 ): ChangeSection | null {
     const localMap = new Map(localTools.map((t) => [t.key, t]))
     const remoteMap = new Map(remoteTools.map((t) => [t.key, t]))
@@ -183,7 +204,7 @@ function toolsSection(
             added.push(tool)
         } else if (prev.fingerprint !== tool.fingerprint) {
             // Every tool kind: a subagent has no params, but its description still diffs.
-            edited.push({tool, fields: diffToolFields(prev, tool)})
+            edited.push({tool, fields: diffToolFields(prev, tool, text)})
         }
     }
     for (const [key, tool] of remoteMap) {
@@ -206,7 +227,7 @@ function toolsSection(
         ...edited.map(({tool, fields}) => ({
             id: tool.key,
             label: tool.label,
-            detail: toolRowDetail(fields),
+            detail: toolRowDetail(fields, text),
             kind: "edited" as const,
             rawKey: tool.rawKey,
             fieldChanges: fields,
@@ -227,9 +248,13 @@ function toolsSection(
     ]
 
     const tags = []
-    if (added.length) tags.push({kind: "added" as const, label: `${added.length} added`})
-    if (edited.length) tags.push({kind: "edited" as const, label: `${edited.length} edited`})
-    if (removed.length) tags.push({kind: "removed" as const, label: `${removed.length} removed`})
+    if (added.length) tags.push({kind: "added" as const, label: text.count("added", added.length)})
+    if (edited.length) {
+        tags.push({kind: "edited" as const, label: text.count("edited", edited.length)})
+    }
+    if (removed.length) {
+        tags.push({kind: "removed" as const, label: text.count("removed", removed.length)})
+    }
 
     return {
         id,
@@ -245,14 +270,14 @@ function toolsSection(
 /** A whole-body diff has no unchanged region to fold, so cap it before it floods the pane. */
 const ITEM_DIFF_LINES = 12
 
-function capHunks(diff: TextDiff): TextDiff {
+function capHunks(diff: TextDiff, text: CommitDiffText): TextDiff {
     if (diff.hunks.length <= ITEM_DIFF_LINES) return diff
     const hidden = diff.hunks.length - ITEM_DIFF_LINES
     return {
         ...diff,
         hunks: [
             ...diff.hunks.slice(0, ITEM_DIFF_LINES),
-            {type: "fold", content: `… ${hidden} more ${hidden === 1 ? "line" : "lines"}`},
+            {type: "fold", content: text.moreLines(hidden)},
         ] as TextDiff["hunks"],
     }
 }
@@ -287,17 +312,19 @@ function buildTextDiff(before: string, after: string): TextDiff {
 function instructionsSection(
     local: AgentConfigView,
     remote: AgentConfigView,
+    text: CommitDiffText,
 ): ChangeSection | null {
     if (local.instructions === remote.instructions) return null
     const textDiff = buildTextDiff(remote.instructions, local.instructions)
     const total = textDiff.added + textDiff.removed
     return {
         id: "instructions",
-        title: "Instructions",
+        title: text.word("section.instructions"),
         tags: [
             {
                 kind: "edited",
-                label: total <= 2 ? "Edited" : `+${textDiff.added} / −${textDiff.removed}`,
+                label:
+                    total <= 2 ? text.word("edited") : `+${textDiff.added} / −${textDiff.removed}`,
             },
         ],
         totalCount: 1,
@@ -311,6 +338,7 @@ function scalarSection(
     title: string,
     localMap: Record<string, unknown>,
     remoteMap: Record<string, unknown>,
+    text: CommitDiffText,
 ): ChangeSection | null {
     const changes: ScalarChange[] = []
     for (const key of [...new Set([...Object.keys(remoteMap), ...Object.keys(localMap)])].sort()) {
@@ -319,13 +347,13 @@ function scalarSection(
         const after = fmtScalar(localMap[key])
         changes.push({
             key,
-            label: scalarKeyLabel(key),
+            label: scalarKeyLabel(key, text),
             // Stored values stay untouched: the config panel reads them back to say what a
             // property was committed as, and a display string there would be a lie.
             before,
             after,
-            beforeLabel: scalarValueLabel(key, before, remoteMap[key]),
-            afterLabel: scalarValueLabel(key, after, localMap[key]),
+            beforeLabel: scalarValueLabel(key, before, remoteMap[key], text),
+            afterLabel: scalarValueLabel(key, after, localMap[key], text),
             kind: !(key in remoteMap) ? "added" : !(key in localMap) ? "removed" : "changed",
         })
     }
@@ -333,7 +361,7 @@ function scalarSection(
     return {
         id,
         title,
-        tags: [{kind: "changed", label: `${changes.length} changed`}],
+        tags: [{kind: "changed", label: text.count("changed", changes.length)}],
         totalCount: changes.length,
         defaultCollapsed: changes.length > 12,
         scalarChanges: changes,
@@ -398,16 +426,20 @@ const entryField = (entry: unknown, field: string): string => {
 /** The prose fields an entry names itself by; everything else is reported as a plain field. */
 const NAMED_ENTRY_FIELDS = new Set(["name", "description", "body"])
 
-function entryEdit(before: unknown, after: unknown): Pick<ChangeItem, "detail" | "textDiff"> {
+function entryEdit(
+    before: unknown,
+    after: unknown,
+    text: CommitDiffText,
+): Pick<ChangeItem, "detail" | "textDiff"> {
     const parts: string[] = []
-    if (entryField(before, "name") !== entryField(after, "name")) parts.push("name")
+    if (entryField(before, "name") !== entryField(after, "name")) parts.push(text.word("name"))
     if (entryField(before, "description") !== entryField(after, "description")) {
-        parts.push("description")
+        parts.push(text.word("description"))
     }
     const beforeBody = entryField(before, "body")
     const afterBody = entryField(after, "body")
     const bodyChanged = beforeBody !== afterBody
-    if (bodyChanged) parts.push("instructions")
+    if (bodyChanged) parts.push(text.word("instructions"))
 
     // An MCP server has no prose at all — its edit is a url or a command, and naming the field is
     // the difference between "edited" and knowing what to look at.
@@ -418,25 +450,25 @@ function entryEdit(before: unknown, after: unknown): Pick<ChangeItem, "detail" |
     ].sort()) {
         if (NAMED_ENTRY_FIELDS.has(key.split(".")[0])) continue
         if (stableStringify(beforeRest[key]) === stableStringify(afterRest[key])) continue
-        parts.push(scalarKeyLabel(key).toLowerCase())
+        parts.push(text.inSentence(scalarKeyLabel(key, text)))
     }
 
     return {
-        detail: parts.length ? `${parts.join(" & ")} changed` : undefined,
-        textDiff: bodyChanged ? capHunks(buildTextDiff(beforeBody, afterBody)) : undefined,
+        detail: parts.length ? text.fieldsChanged(parts) : undefined,
+        textDiff: bodyChanged ? capHunks(buildTextDiff(beforeBody, afterBody), text) : undefined,
     }
 }
 
 /** Humanize a list entry (mcp/skill) for its summary row. */
-function entryLabel(entry: unknown): string {
-    if (!isPlainObj(entry)) return "item"
+function entryLabel(entry: unknown, text: CommitDiffText): string {
+    if (!isPlainObj(entry)) return text.word("item")
     if (typeof entry.name === "string" && entry.name) return entry.name
     if (typeof entry.slug === "string" && entry.slug) return entry.slug
     const embed = isPlainObj(entry["@ag.embed"]) ? entry["@ag.embed"] : undefined
     const refs = embed && isPlainObj(embed["@ag.references"]) ? embed["@ag.references"] : undefined
     const wf = refs && isPlainObj(refs.workflow) ? refs.workflow : undefined
     if (wf && typeof wf.slug === "string") return wf.slug
-    return "item"
+    return text.word("item")
 }
 
 /**
@@ -455,6 +487,7 @@ function listSection(
     title: string,
     local: unknown[],
     remote: unknown[],
+    text: CommitDiffText,
 ): ChangeSection | null {
     const kind: AgentItemKind = id === "mcps" ? "mcp" : "skill"
     const read = (list: unknown[]): ListEntry[] =>
@@ -498,30 +531,34 @@ function listSection(
             const description = entryField(entry, "description")
             return {
                 id: key,
-                label: entryLabel(entry),
+                label: entryLabel(entry, text),
                 kind: kindTag,
                 detail: description || undefined,
                 textDiff: body
-                    ? capHunks(wholeBodyDiff(body, kindTag === "added" ? "added" : "removed"))
+                    ? capHunks(wholeBodyDiff(body, kindTag === "added" ? "added" : "removed"), text)
                     : undefined,
             }
         })
     const editedRows = edited.map(({key, before, after}) => {
-        const beforeLabel = entryLabel(before)
-        const afterLabel = entryLabel(after)
+        const beforeLabel = entryLabel(before, text)
+        const afterLabel = entryLabel(after, text)
         return {
             id: key,
             // A rename is only legible as both names; one of them alone hides what happened.
             label: beforeLabel === afterLabel ? afterLabel : `${beforeLabel} → ${afterLabel}`,
             kind: "edited" as const,
-            ...entryEdit(before, after),
+            ...entryEdit(before, after, text),
         }
     })
     const items = [...plain(added, "added"), ...editedRows, ...plain(removed, "removed")]
     const tags = []
-    if (added.length) tags.push({kind: "added" as const, label: `${added.length} added`})
-    if (edited.length) tags.push({kind: "edited" as const, label: `${edited.length} edited`})
-    if (removed.length) tags.push({kind: "removed" as const, label: `${removed.length} removed`})
+    if (added.length) tags.push({kind: "added" as const, label: text.count("added", added.length)})
+    if (edited.length) {
+        tags.push({kind: "edited" as const, label: text.count("edited", edited.length)})
+    }
+    if (removed.length) {
+        tags.push({kind: "removed" as const, label: text.count("removed", removed.length)})
+    }
 
     return {id, title, tags, totalCount: total, defaultCollapsed: total > 20, items}
 }
@@ -530,21 +567,51 @@ function listSection(
 const tools = (v: AgentConfigView) => v.tools.filter((t) => !t.isSubagent)
 const subagents = (v: AgentConfigView) => v.tools.filter((t) => t.isSubagent)
 
-export function classifyAgentChanges(localParams: unknown, remoteParams: unknown): ChangeSection[] {
+/**
+ * `text` gives every word the sections show (see `./text`); `@agenta/entity-ui` builds it in the
+ * active language. A caller that only builds the commit message passes `NO_COMMIT_DIFF_TEXT`.
+ */
+export function classifyAgentChanges(
+    localParams: unknown,
+    remoteParams: unknown,
+    text: CommitDiffText,
+): ChangeSection[] {
     const local = readAgentConfig(localParams)
     const remote = readAgentConfig(remoteParams)
-    // The agent panel calls them Integrations; the prompt playground has plain tools.
+    // The agent panel calls them Integrations; the prompt playground has plain tools. The noun
+    // feeds the English commit message, so it is never translated.
     const asAgent = local.isAgentTemplate || remote.isAgentTemplate
-    const [toolsTitle, toolsNoun] = asAgent ? ["Integrations", "integration"] : ["Tools", "tool"]
+    const [toolsTitle, toolsNoun] = asAgent
+        ? [text.word("section.integrations"), "integration"]
+        : [text.word("section.tools"), "tool"]
     // Grouped to mirror the agent-template control sections (Model, Instructions,
     // Tools, Subagents, MCP servers, Skills, Advanced) so nothing changed is dropped or split.
     return [
-        scalarSection("model", "Model", modelHarnessBucket(local), modelHarnessBucket(remote)),
-        instructionsSection(local, remote),
-        toolsSection("tools", toolsTitle, toolsNoun, tools(local), tools(remote)),
-        toolsSection("subagents", "Subagents", "subagent", subagents(local), subagents(remote)),
-        listSection("mcps", "MCPs", local.mcps, remote.mcps),
-        listSection("skills", "Skills", local.skills, remote.skills),
-        scalarSection("params", "Advanced", advancedBucket(local), advancedBucket(remote)),
+        scalarSection(
+            "model",
+            text.word("section.model"),
+            modelHarnessBucket(local),
+            modelHarnessBucket(remote),
+            text,
+        ),
+        instructionsSection(local, remote, text),
+        toolsSection("tools", toolsTitle, toolsNoun, tools(local), tools(remote), text),
+        toolsSection(
+            "subagents",
+            text.word("section.subagents"),
+            "subagent",
+            subagents(local),
+            subagents(remote),
+            text,
+        ),
+        listSection("mcps", text.word("section.mcps"), local.mcps, remote.mcps, text),
+        listSection("skills", text.word("section.skills"), local.skills, remote.skills, text),
+        scalarSection(
+            "params",
+            text.word("section.params"),
+            advancedBucket(local),
+            advancedBucket(remote),
+            text,
+        ),
     ].filter((s): s is ChangeSection => s !== null)
 }

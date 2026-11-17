@@ -1,0 +1,12 @@
+{
+    "kicker": "Nouveautés",
+    "title": "Dernières versions",
+    "latest": "Dernière",
+    "viewAll": "Voir toutes les versions",
+    "improvements": "Améliorations",
+    "fixes": "Corrections",
+    "dontShowAgain": "Ne plus afficher",
+    "readChangelog": "Lire le journal des modifications",
+    "play": "Lire",
+    "playFeature": "Lire {{title}}"
+}

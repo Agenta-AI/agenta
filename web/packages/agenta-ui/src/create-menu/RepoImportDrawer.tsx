@@ -301,7 +301,7 @@ export function RepoImportDrawer({
                                             <span className="line-clamp-1 text-xs text-[var(--ag-colorTextSecondary)]">
                                                 {candidate.unavailable ??
                                                     candidate.description ??
-                                                    "No description."}
+                                                    t("ui.repoImport.noDescription")}
                                             </span>
                                             {/* Rows can share a name; the path tells them apart. */}
                                             {candidate.path !== candidate.name ? (
