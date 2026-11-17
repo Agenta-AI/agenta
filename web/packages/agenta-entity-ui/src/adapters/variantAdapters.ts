@@ -21,6 +21,7 @@ import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {stripAgentaMetadataDeep, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
+import {commitDiffTextNow} from "../changes/commitDiffText"
 import {
     createAndRegisterEntityAdapter,
     getEntityTypeLabel,
@@ -106,6 +107,7 @@ function buildGenericCommitContext(
         ? classifyAgentChanges(
               (localSide as Record<string, unknown>).parameters,
               (remoteSide as Record<string, unknown>).parameters,
+              commitDiffTextNow(),
           )
         : []
     const suggestedMessage = sections.length ? buildCommitSummaryMessage(sections) : undefined

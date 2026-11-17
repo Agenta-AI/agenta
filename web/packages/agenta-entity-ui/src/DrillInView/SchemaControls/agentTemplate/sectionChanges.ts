@@ -35,6 +35,8 @@ import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 
+import {commitDiffTextNow} from "../../../changes/commitDiffText"
+
 const t = createT(configItemsCatalog)
 
 /** The accordion keys the config panel renders. */
@@ -251,7 +253,7 @@ export function useAgentSectionChanges(
         if (!committed) return EMPTY_SECTION_CHANGES
         try {
             const local = stripAgentaMetadataDeep(config) as Record<string, unknown>
-            return toSectionChanges(classifyAgentChanges(local, committed))
+            return toSectionChanges(classifyAgentChanges(local, committed, commitDiffTextNow()))
         } catch {
             return EMPTY_SECTION_CHANGES
         }
@@ -271,7 +273,9 @@ export function useAgentSectionChanges(
             const local = templateOf({agent: config})
             const remote = templateOf(commitSignal.prevParameters as Record<string, unknown>)
             if (!local || !remote) return null
-            const changes = toSectionChanges(classifyAgentChanges(local, remote))
+            const changes = toSectionChanges(
+                classifyAgentChanges(local, remote, commitDiffTextNow()),
+            )
             if (!changes.panelKeys.size) return null
             frozenRef.current = {signalAt: commitSignal.at, changes}
             return changes

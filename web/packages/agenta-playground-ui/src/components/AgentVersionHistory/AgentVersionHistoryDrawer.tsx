@@ -17,6 +17,7 @@ import {
     workflowRevisionsByWorkflowQueryAtomFamily,
 } from "@agenta/entities/workflow"
 import {classifyAgentChanges, stableStringify} from "@agenta/entities/workflow/commitDiff"
+import {commitDiffTextNow} from "@agenta/entity-ui/changes"
 import {useT} from "@agenta/i18n"
 import versionCatalog from "@agenta/i18n/catalogs/playground.versionHistory"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
@@ -156,7 +157,7 @@ export const AgentVersionHistoryDrawer = ({
     const sections = useMemo(
         () =>
             selectedParams && previousParams
-                ? classifyAgentChanges(selectedParams, previousParams)
+                ? classifyAgentChanges(selectedParams, previousParams, commitDiffTextNow())
                 : [],
         [selectedParams, previousParams],
     )

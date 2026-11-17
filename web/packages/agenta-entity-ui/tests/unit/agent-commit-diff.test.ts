@@ -2,13 +2,20 @@
  * Unit tests for the agent commit-diff classifier (accessor + classify + message).
  * Covers the three overlapping `parameters` schema shapes and the change categories.
  */
+import {
+    agentItemIdentity,
+    buildCommitSummaryMessage,
+    classifyAgentChanges as classify,
+    parseGatewayToolName,
+    readAgentConfig,
+} from "@agenta/entities/workflow/commitDiff"
 import {describe, it, expect} from "vitest"
 
-import {readAgentConfig} from "../../src/workflow/commitDiff/accessors"
-import {classifyAgentChanges} from "../../src/workflow/commitDiff/classify"
-import {parseGatewayToolName} from "../../src/workflow/commitDiff/gatewayName"
-import {agentItemIdentity} from "../../src/workflow/commitDiff/identity"
-import {buildCommitSummaryMessage} from "../../src/workflow/commitDiff/summaryMessage"
+import {commitDiffTextNow} from "../../src/changes/commitDiffText"
+
+// The words live in the entityUi.commitDiff catalog; these tests pin the English byte for byte.
+const classifyAgentChanges = (local: unknown, remote: unknown) =>
+    classify(local, remote, commitDiffTextNow())
 
 const tool = (
     name: string,
