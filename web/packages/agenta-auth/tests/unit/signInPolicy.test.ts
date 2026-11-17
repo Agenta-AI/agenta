@@ -238,6 +238,7 @@ describe("classifyAuthFailure", () => {
             "Failed to fetch",
             "NetworkError when attempting to fetch resource.",
             "Load failed",
+            "The Internet connection appears to be offline.",
         ]) {
             expect(classifyAuthFailure(new TypeError(message))).toBe("unreachable")
         }

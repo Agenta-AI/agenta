@@ -29,13 +29,16 @@ export type AuthFailure = "unreachable" | "unavailable" | "rate-limited" | "serv
 
 /**
  * How browsers word the `TypeError` that `fetch` throws when no reply came back (Chrome, Firefox,
- * Safari, React Native, Node). Other `TypeError`s are code errors, for example supertokens-web-js
+ * Safari old and new, React Native, Node). Other `TypeError`s are code errors, for example supertokens-web-js
  * reading the user off a sign-up reply that has none.
  */
 const FETCH_FAILURE_MESSAGES = [
     "Failed to fetch",
     "NetworkError when attempting to fetch resource",
     "Load failed",
+    "The Internet connection appears to be offline",
+    "The network connection was lost",
+    "network error",
     "Network request failed",
     "fetch failed",
 ]
