@@ -13,6 +13,7 @@
  * Run: pnpm exec vitest run tests/unit/lifecycle-session-coordinator.test.ts
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { projectDriveSigns } from "../utils/drive-sign.ts";
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -199,6 +200,7 @@ function makeEngine() {
       return { ok: true, output: "ok", stopReason: "complete" };
     },
     readLatestTurnIndex: turnLogUnmoved,
+    signProjectDrive: projectDriveSigns,
     async runCold(): Promise<AgentRunResult> {
       calls.cold += 1;
       return { ok: true, output: "cold", stopReason: "complete" };

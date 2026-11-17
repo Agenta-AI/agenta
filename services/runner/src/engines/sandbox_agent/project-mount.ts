@@ -9,6 +9,7 @@ import { join } from "node:path";
 
 import type { DriveAccess } from "../../protocol.ts";
 import { signMountCredentialsAt } from "./agent-mount.ts";
+import { projectDrives, type RunDrive } from "./run-drives.ts";
 import {
   ensureDurableSymlink,
   type EnsureDurableSymlinkDeps,
@@ -53,6 +54,26 @@ export async function signProjectMountCredentials(
     `slug=${slug} access=${access}`,
     deps,
   );
+}
+
+/**
+ * Sign again, all at once, every project drive this environment holds credentials for, and return
+ * the slugs that no longer sign. A drive that is archived, deleted, or no longer shared with the
+ * agent fails here, while the credentials issued at acquire stay valid until they expire. A sign
+ * that throws counts as failed: the caller then replaces the environment, which costs a rebuild,
+ * never a write to a drive the agent lost.
+ *
+ * A drive that had no credentials at acquire is not mounted, so it is not signed again.
+ */
+export async function unsignableProjectDrives(
+  drives: readonly RunDrive[] | undefined,
+  sign: (slug: string, access: DriveAccess) => Promise<MountCredentials | null>,
+): Promise<string[]> {
+  const held = projectDrives(drives).filter((d) => d.credentials);
+  const signed = await Promise.all(
+    held.map((d) => sign(d.slug, d.access).catch(() => null)),
+  );
+  return held.filter((_, i) => !signed[i]).map((d) => d.slug);
 }
 
 function linkFailed(log: (msg: string) => void, slug: string, detail: string): false {

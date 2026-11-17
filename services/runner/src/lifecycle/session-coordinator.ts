@@ -30,6 +30,7 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentRunRequest,
   AgentRunResult,
+  DriveAccess,
   EmitEvent,
 } from "../protocol.ts";
 import {
@@ -42,6 +43,7 @@ import {
   type SessionEnvironment,
 } from "../engines/sandbox_agent.ts";
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
+import { unsignableProjectDrives } from "../engines/sandbox_agent/project-mount.ts";
 import { SESSION_TURN_IN_USE_MESSAGE } from "../sessions/admission.ts";
 import type { PlatformCredentialSource } from "../sessions/auth.ts";
 import {
@@ -177,6 +179,19 @@ export interface KeepaliveEngine {
     sessionId: string,
     authorization: string,
   ): Promise<LatestTurnIndexRead>;
+  /**
+   * Sign one project drive again with this turn's credential; null when it no longer signs.
+   *
+   * Required, like the turn-log read: an environment keeps the credentials it signed at acquire
+   * until they expire, so a drive archived or unshared since then stays writable through a warm
+   * reuse unless the reuse asks the API again.
+   */
+  signProjectDrive(
+    slug: string,
+    access: DriveAccess,
+    authorization: string,
+    signal: AbortSignal | undefined,
+  ): Promise<MountCredentials | null>;
   /**
    * Apply a reconciliation plan to a LIVE environment (lifecycle migration, step 6).
    *
@@ -650,6 +665,24 @@ export async function runWithKeepalive(
   };
 
   /**
+   * True when a project drive this environment mounted no longer signs. One sign per mounted
+   * drive, all at once; an environment with no mounted project drive costs nothing.
+   *
+   * Fails closed: a sign that fails for any reason (archived, deleted, access removed, or the API
+   * did not answer) replaces the environment. The cold acquire then signs again, and a drive that
+   * still cannot be signed is not mounted and the prompt says it is not available.
+   */
+  const drivesRevoked = async (env: SessionEnvironment): Promise<boolean> => {
+    const authorization = credentialLease?.credential() || runCredential(request);
+    const lost = await unsignableProjectDrives(env.drives, async (slug, access) =>
+      authorization ? engine.signProjectDrive(slug, access, authorization, signal) : null,
+    );
+    if (lost.length === 0) return false;
+    klog(`drive-revoked key=${key} slugs=[${lost.join(",")}]`);
+    return true;
+  };
+
+  /**
    * Turn a dispatch mismatch label into the teardown reason that names the FAILING LAYER.
    *
    * LIFECYCLE MIGRATION, STEP 1. Every mismatch used to tear down with one
@@ -680,6 +713,8 @@ export async function runWithKeepalive(
     // same dead mount this probe just caught, so it must delete — and deleting is what lets the
     // cold acquire below mkdir and remount the path from scratch.
     if (mismatch === "mount-lost") return "runtime-incompatible";
+    // The sandbox holds credentials for a drive the agent lost. Deleted on every backend.
+    if (mismatch === "drive-revoked") return "drive-revoked";
     // `config` covers every remaining configuration change, including a changed model connection
     // or MCP credential shape. Until the reconciliation router can say which facet moved, treat
     // it as runtime-level and delete. Delete is always sound; it only costs a rebuild.
@@ -1112,10 +1147,15 @@ export async function runWithKeepalive(
     if (!mismatch && (await mountLost(existing.environment)))
       mismatch = "mount-lost";
 
-    // Last of all, and only on a path about to reuse: the one check that costs an api round trip.
+    // Last of all, and only on a path about to reuse: the checks that cost an api round trip,
+    // run at the same time. A revoked drive wins: it must evict even when the log is unreadable.
     if (!mismatch) {
-      const turnLog = await confirmTurnLogCurrent(existing);
-      if (turnLog === "moved") mismatch = "turn-log";
+      const [revoked, turnLog] = await Promise.all([
+        drivesRevoked(existing.environment),
+        confirmTurnLogCurrent(existing),
+      ]);
+      if (revoked) mismatch = "drive-revoked";
+      else if (turnLog === "moved") mismatch = "turn-log";
       else if (turnLog !== "current") return turnLog;
     }
 
@@ -1123,7 +1163,9 @@ export async function runWithKeepalive(
       // The eviction is NAMED by the first unresolved reason and DISPOSED by all of them. The
       // backstops only fire when the list is already empty, so each stands alone.
       const allMismatches =
-        mismatch === "mount-lost" || mismatch === "turn-log"
+        mismatch === "mount-lost" ||
+        mismatch === "turn-log" ||
+        mismatch === "drive-revoked"
           ? [mismatch]
           : unresolvedMismatches();
       // A config mismatch names the changed FIELDS (names only — the digests never carry
@@ -1355,6 +1397,11 @@ export async function runWithKeepalive(
     // losing its mount while it waits for the human.
     if (!mismatch && (await mountLost(existing.environment)))
       mismatch = "mount-lost";
+
+    // Checked even when no decision resumes: the eviction below would otherwise park a sandbox
+    // that holds credentials for a drive the agent lost.
+    if (!mismatch && (await drivesRevoked(existing.environment)))
+      mismatch = "drive-revoked";
 
     if (!mismatch && resumeDecisions.length > 0) {
       const turnLog = await confirmTurnLogCurrent(existing);

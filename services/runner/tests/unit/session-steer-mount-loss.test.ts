@@ -43,6 +43,7 @@
  * failure and is deliberately absent.
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { projectDriveSigns } from "../utils/drive-sign.ts";
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
@@ -232,6 +233,8 @@ function makeEngine(host: Host, options: EngineOptions = {}) {
     },
 
     readLatestTurnIndex: turnLogUnmoved,
+
+    signProjectDrive: projectDriveSigns,
     async runCold() {
       throw new Error(
         "runCold must not be reached: every request here is session-owned",

@@ -11,6 +11,7 @@
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-approval.test.ts)
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { projectDriveSigns } from "../utils/drive-sign.ts";
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -315,6 +316,7 @@ function makeApprovalEngine(
       return applyScript(env as unknown as DispatchFakeEnv, request, opts);
     },
     readLatestTurnIndex: turnLogUnmoved,
+    signProjectDrive: projectDriveSigns,
     async runCold(_request, _emit, _signal, _presigned) {
       calls.cold += 1;
       return { ok: true, output: "cold", stopReason: "complete" };
@@ -733,6 +735,42 @@ describe("runWithKeepalive: approval park + resume", () => {
     assert.equal(calls.resumes.length, 0, "the stale park was not resumed");
     assert.equal(calls.acquire, 2, "the reply took the cold path");
     assert.deepEqual(reasons, ["continuity-invalid"]);
+  });
+
+  it("a parked approval whose project drive no longer signs is evicted and its sandbox deleted", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const parked = calls.acquiredEnvs[0];
+    (parked as unknown as { drives: unknown[] }).drives = [
+      { kind: "project", slug: "prices", access: "read-write", credentials: { accessKey: "AK" } },
+    ];
+    const signed: string[] = [];
+    engine.signProjectDrive = async (slug) => {
+      signed.push(slug);
+      return null;
+    };
+    const reasons: Array<string | undefined> = [];
+    parked.destroy = ((opts?: { reason?: string }) => {
+      reasons.push(opts?.reason);
+      return parked.destroyImpl();
+    }) as DispatchFakeEnv["destroy"];
+
+    await runWithKeepalive(approveResume(true), undefined, undefined, ctx);
+
+    assert.deepEqual(signed, ["prices"]);
+    assert.equal(calls.resumes.length, 0, "the park was not resumed");
+    assert.equal(calls.acquire, 2, "the reply took the cold path");
+    assert.deepEqual(reasons, ["drive-revoked"]);
   });
 
   it("a failed turn-log read refuses the resume and keeps the approval parked", async () => {

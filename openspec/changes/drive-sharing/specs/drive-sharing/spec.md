@@ -214,6 +214,12 @@ When the credentials of an agent drive or a project drive cannot be signed, the 
 - **WHEN** a configuration names a project drive that was archived after the save
 - **THEN** the sign answers not found, the run continues without the drive, and the model is told that `drives/<slug>/` is not available
 
+#### Scenario: A drive archived while a session is warm
+
+- **WHEN** a project drive that a warm environment mounted is archived, deleted, or no longer shared with the agent, and the session's next turn arrives
+- **THEN** the runner signs every project drive that environment mounted again, one sign per drive, all at once, before it reuses the environment
+- **AND** when one sign fails, the runner does not reuse the environment: it deletes the sandbox (on `inprocess`, the command sandbox) and acquires a fresh environment, in which the drive is not mounted and the model is told that `drives/<slug>/` is not available
+
 #### Scenario: In-process mount failure
 
 - **WHEN** a signed project drive cannot be mounted in the command sandbox
