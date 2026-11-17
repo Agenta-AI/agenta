@@ -979,7 +979,8 @@ async function acquireEnvironmentOnce(
         harness: plan.harness,
         sessionForMount,
         runCred,
-        driveIdentity: driveIdentity(request),
+        // `inprocess` keeps its command sandbox in its own registry; nothing is reconnected by id.
+        ...(plan.harnessInRunner ? {} : { driveIdentity: driveIdentity(request) }),
         unsignedDrives: projectDrives(environment.drives).some((d) => !d.credentials),
         log: logger,
         timingLog,

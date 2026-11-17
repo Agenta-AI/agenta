@@ -64,6 +64,7 @@ import {
 import {
   linkProjectDrive,
   projectMountPath,
+  unlinkProjectDrive,
 } from "../engines/sandbox_agent/project-mount.ts";
 import {
   projectDrives,
@@ -348,13 +349,13 @@ export async function mountLocalProjectMount(
   ctx: AcquireContext,
   deps: MountDeps,
   drive: ProjectRunDrive,
-  opts: MountLocalAgentCwdOptions = {},
+  opts: MountLocalAgentCwdOptions & { remount?: boolean } = {},
 ): Promise<boolean> {
   const plan = ctx.plan;
   const creds = drive.credentials;
   if (!creds || !plan.driveOnRunner) return false;
   const mountPath = projectMountPath(plan.workspace.cwd, drive.slug);
-  if (drive.mountedPath === mountPath) return true;
+  if (drive.mountedPath === mountPath && !opts.remount) return true;
   try {
     // `mountStorage` keeps a live mount as it is, and one left by an earlier environment was made
     // with that environment's access and credentials: detach it first, or do not mount at all.
@@ -368,6 +369,8 @@ export async function mountLocalProjectMount(
       !(await (deps.unmountStorage ?? unmountStorage)(mountPath, { log: ctx.log }))
     ) {
       ctx.log(`local project mount not replaced slug=${drive.slug}: the earlier mount did not detach`);
+      // Its link would still lead to the earlier mount, which may be writable.
+      await unlinkProjectDrive(plan.workspace.cwd, drive.slug, { log: ctx.log });
       return false;
     }
     mkdirSync(mountPath, { recursive: true });
@@ -379,6 +382,7 @@ export async function mountLocalProjectMount(
       }))
     ) {
       // Detach confirmed; the mount point is the empty folder made above.
+      ctx.releaseProjectMount(drive);
       rmdirSync(mountPath);
       return false;
     }
@@ -428,7 +432,7 @@ export async function reSignAndRemountLocalProjectMount(
     return false;
   }
   ctx.recordResignedProjectCredential(drive, fresh);
-  return mountLocalProjectMount(ctx, deps, drive);
+  return mountLocalProjectMount(ctx, deps, drive, { remount: true });
 }
 
 /**

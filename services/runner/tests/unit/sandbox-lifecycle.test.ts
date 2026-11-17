@@ -52,7 +52,10 @@ interface FakeOpts {
 
 function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
   // A stored id is this process's own parked sandbox unless the test says otherwise.
-  if (sandboxId && !opts.foreign) markSandboxCreated(sandboxId);
+  if (sandboxId && !opts.foreign) {
+    markSandboxCreated(sandboxId);
+    recordSandboxDrives(sandboxId, driveIdentity(daytonaRequest));
+  }
   const continuityStore = new SessionContinuityStore();
   const calls = {
     starts: [] as Array<{ sandboxId: string | undefined }>,
@@ -266,15 +269,14 @@ describe("remote sandbox reconnect ladder", () => {
   it("creates fresh when the parked sandbox was set up with other drives, and reconnects for the same ones", async () => {
     const withDrives = (drives: AgentRunRequest["drives"]) => ({ ...daytonaRequest, drives }) as AgentRunRequest;
     const both = withDrives([{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }]);
-    recordSandboxDrives("sbx-99", driveIdentity(both));
-
     const dropped = fakeSandbox("sbx-99");
+    recordSandboxDrives("sbx-99", driveIdentity(both));
     assert.equal((await runSandboxAgent(withDrives([{ kind: "agent" }]), undefined, undefined, dropped.deps)).ok, true);
     assert.deepEqual(dropped.calls.starts, [{ sandboxId: undefined }], "a removed project drive never reaches a reused sandbox");
     assert.ok(dropped.calls.logs.some((m) => m.includes("stored sandbox=sbx-99 was set up with other drives")));
 
-    recordSandboxDrives("sbx-99", driveIdentity(both));
     const same = fakeSandbox("sbx-99");
+    recordSandboxDrives("sbx-99", driveIdentity(both));
     same.deps.signProjectMountCredentials = (async () => ({
       endpoint: "https://s3.example.com",
       region: "us-east-1",
@@ -288,13 +290,21 @@ describe("remote sandbox reconnect ladder", () => {
     assert.equal(same.calls.starts[0]?.sandboxId, "sbx-99");
   });
 
+  it("creates fresh when this process does not know the drives a parked sandbox was set up with", async () => {
+    const { calls, deps } = fakeSandbox(undefined);
+    markSandboxCreated("sbx-unknown-drives");
+    deps.readStoredSandboxPointer = (async () => ({ sandboxId: "sbx-unknown-drives" })) as never;
+    assert.equal((await runSandboxAgent(daytonaRequest, undefined, undefined, deps)).ok, true);
+    assert.deepEqual(calls.starts, [{ sandboxId: undefined }]);
+  });
+
   it("creates fresh when a configured project drive could not be signed this turn", async () => {
     const both = {
       ...daytonaRequest,
       drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }],
     } as AgentRunRequest;
-    recordSandboxDrives("sbx-99", driveIdentity(both));
     const { calls, deps } = fakeSandbox("sbx-99");
+    recordSandboxDrives("sbx-99", driveIdentity(both));
     deps.signProjectMountCredentials = (async () => null) as never;
     assert.equal((await runSandboxAgent(both, undefined, undefined, deps)).ok, true);
     assert.deepEqual(calls.starts, [{ sandboxId: undefined }], "the parked sandbox may still hold the old mount");

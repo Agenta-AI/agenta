@@ -692,6 +692,13 @@ describe("local runs with drives (engine composition)", () => {
       await runTurn(acquired.env, req);
       assert.equal(calls.promptBlocks[0]?.text, `${notice}\n\n`);
       assert.equal(readFileSync(join(cwd, "drives", "notes", "kept.md"), "utf-8"), "mine");
+      // The person moves the folder away: the next turn repairs the link and says so.
+      rmSync(join(cwd, "drives", "notes"), { recursive: true, force: true });
+      await runTurn(acquired.env, req);
+      const back = projectDriveAppendix({ slug: "notes", access: "read-write", mountedPath: `${cwd}-project-notes` }).text;
+      assert.equal(calls.promptBlocks[0]?.text, `${back}\n\n`);
+      await runTurn(acquired.env, req);
+      assert.ok(!JSON.stringify(calls.promptBlocks).includes("drives/notes/"), "said once");
     } finally {
       await acquired.env.destroy();
       rmSync(cwd, { recursive: true, force: true });

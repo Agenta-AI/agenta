@@ -1477,9 +1477,15 @@ export async function runTurn(
         const linked = plan.driveOnRunner
           ? await linkProjectDrive(plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger })
           : await linkProjectDriveRemote(env.sandbox as SandboxExec, plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger });
+        // Tell the model when availability differs from what it was last told: lost, or back.
+        const wasLinked = drive.linked;
         drive.linked = linked;
-        if (!linked) {
-          const notice = projectDriveAppendix({ slug: drive.slug, access: drive.access, mountedPath: undefined }).text;
+        if (!linked || wasLinked === false) {
+          const notice = projectDriveAppendix({
+            slug: drive.slug,
+            access: drive.access,
+            mountedPath: linked ? drive.mountedPath : undefined,
+          }).text;
           promptBlocks.unshift({ type: "text", text: `${notice}\n\n` });
         }
       }

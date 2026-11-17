@@ -301,7 +301,13 @@ export interface AcquireContext {
   /** Record whether the drive's `drives/<slug>` link was made. */
   recordProjectLink(drive: ProjectRunDrive, linked: boolean): void;
 
-  /** Record a re-signed project drive credential and clear its path, so the remount runs. */
+  /**
+   * Forget a project drive's mount once its detach is confirmed. Until then the path stays, so a
+   * remount that fails part way still leaves teardown a mount to unmount.
+   */
+  releaseProjectMount(drive: ProjectRunDrive): void;
+
+  /** Record a re-signed project drive credential, before its remount. */
   recordResignedProjectCredential(
     drive: ProjectRunDrive,
     credential: MountCredentials,

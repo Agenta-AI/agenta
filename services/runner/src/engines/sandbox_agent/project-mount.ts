@@ -107,6 +107,23 @@ export async function linkProjectDrive(
   return outcome === "failed" ? linkFailed(log, slug, `${label} link failed in ${cwd}`) : true;
 }
 
+/** Remove `<cwd>/drives/<slug>` when it is a link; anything else there is left as it is. */
+export async function unlinkProjectDrive(
+  cwd: string,
+  slug: string,
+  deps: { log?: (msg: string) => void } = {},
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  const linkPath = join(cwd, projectDriveLinkName(slug));
+  try {
+    if ((await lstat(linkPath)).isSymbolicLink()) await unlink(linkPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      log(`${projectDriveLinkName(slug)} not removed: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`);
+    }
+  }
+}
+
 /** Same link, made inside a remote sandbox, with the same rule for a folder at the link path. */
 export async function linkProjectDriveRemote(
   sandbox: SandboxExec,

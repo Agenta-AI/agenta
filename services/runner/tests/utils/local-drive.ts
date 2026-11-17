@@ -41,6 +41,7 @@ export class LinkMounter implements DriveMounter {
 
   async mount(sandbox: DaytonaSandbox, path: string, _creds: MountCredentials, _signal?: AbortSignal, options?: { readOnly?: boolean }): Promise<boolean> {
     if (options?.readOnly) this.readOnlyPaths.add(path);
+    else this.readOnlyPaths.delete(path);
     if (this.unreachable) throw new DriveUnreachableError("the store is not public and no tunnel forwards to it");
     const local = this.daytona.sandboxes.get(sandbox.id);
     if (!local || local.state !== "started") throw new Error(`sandbox ${sandbox.id} is not running`);

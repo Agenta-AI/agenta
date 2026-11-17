@@ -38,7 +38,10 @@ export interface SandboxAcquireInput {
   sessionForMount: string | undefined;
   /** The run credential the pointer read needs. Undefined disables reconnect. */
   runCred: string | undefined;
-  /** This run's `driveIdentity`; a parked sandbox set up with other drives is not reconnected. */
+  /**
+   * This run's `driveIdentity`; a parked sandbox set up with other drives, or with drives this
+   * process does not know, is not reconnected.
+   */
   driveIdentity?: string;
   /**
    * A configured drive could not be signed this run (archived, deleted, access lost). A parked
@@ -96,7 +99,7 @@ export async function acquire(
   const parkedDrives = storedSandboxPointer ? sandboxDrivesOf(storedSandboxPointer.sandboxId) : undefined;
   const otherDrives =
     !!input.unsignedDrives ||
-    (input.driveIdentity !== undefined && parkedDrives !== undefined && parkedDrives !== input.driveIdentity);
+    (input.driveIdentity !== undefined && parkedDrives !== input.driveIdentity);
   const ownSandboxPointer = storedState === "live" && !otherDrives ? storedSandboxPointer : undefined;
   if (storedSandboxPointer && !ownSandboxPointer) {
     log(

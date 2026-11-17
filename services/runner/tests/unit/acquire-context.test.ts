@@ -335,6 +335,8 @@ describe("project drive committers", () => {
     const fresh = CREDS("2031-01-01T00:00:00Z");
     context.recordResignedProjectCredential(drive, fresh);
     assert.equal(drive.credentials, fresh);
+    assert.equal(drive.mountedPath, "/w-project-notes", "kept until the detach is confirmed");
+    context.releaseProjectMount(drive);
     assert.equal(drive.mountedPath, undefined);
     context.recordProjectLink(drive, false);
     assert.equal(drive.linked, false);

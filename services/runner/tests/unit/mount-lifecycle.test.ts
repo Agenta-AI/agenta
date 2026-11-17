@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
+
+const lstatExists = (path: string) => {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+};
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "vitest";
@@ -179,8 +188,10 @@ describe("project drive mounts", () => {
       },
       recordResignedProjectCredential: (drive: ProjectRunDrive, credential: typeof credentials) => {
         drive.credentials = credential;
-        drive.mountedPath = undefined;
         commits.push(`resigned:${drive.slug}`);
+      },
+      releaseProjectMount: (drive: ProjectRunDrive) => {
+        drive.mountedPath = undefined;
       },
       recordProjectLink: (drive: ProjectRunDrive, linked: boolean) => {
         drive.linked = linked;
@@ -283,9 +294,11 @@ describe("project drive mounts", () => {
       assert.equal(await mountLocalProjectMount(projectContext(cwd, []), deps(true), drive), true);
       assert.deepEqual(steps, ["unmount", "mount ro=true"]);
       steps.length = 0;
+      assert.equal(readlinkSync(join(cwd, "drives", "notes")), `${cwd}-project-notes`, "linked by the first mount");
       const again: ProjectRunDrive = { ...drive, mountedPath: undefined };
       assert.equal(await mountLocalProjectMount(projectContext(cwd, []), deps(false), again), false);
       assert.deepEqual(steps, ["unmount"], "a mount that did not detach is not reused");
+      assert.equal(existsSync(join(cwd, "drives", "notes")) || lstatExists(join(cwd, "drives", "notes")), false, "its link is removed");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
@@ -320,6 +333,26 @@ describe("project drive mounts", () => {
       assert.deepEqual(steps, []);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the path for teardown when a re-signed remount cannot confirm the old mount detached", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-project-remount-fail-"));
+    const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read", credentials, mountedPath: `${cwd}-project-notes` };
+    try {
+      const deps: MountDeps = {
+        ...depsFor(new AbortController().signal, async () => {
+          throw new Error("detach of the dead mount could not be confirmed");
+        }),
+        isMounted: async () => false,
+        signProjectMount: async () => ({ ...credentials, accessKey: "fresh" }),
+      };
+      assert.equal(await reSignAndRemountLocalProjectMount(projectContext(cwd, []), deps, drive), false);
+      assert.equal(drive.credentials?.accessKey, "fresh");
+      assert.equal(drive.mountedPath, `${cwd}-project-notes`, "teardown still unmounts it");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
     }
   });
 

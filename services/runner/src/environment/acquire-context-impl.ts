@@ -185,6 +185,8 @@ export function createAcquireContext(
     },
     recordResignedProjectCredential(drive, credential) {
       drive.credentials = credential;
+    },
+    releaseProjectMount(drive) {
       drive.mountedPath = undefined;
     },
 
