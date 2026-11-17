@@ -176,7 +176,7 @@ export class SandboxDrive {
     private readonly options: {
       /** The session folder, which holds each root's `link`. */
       cwd?: string;
-      /** False for a request without `drives`: leftovers under `drives/` are then left alone. */
+      /** True when the request lists its drives; otherwise leftovers under `drives/` are left alone. */
       drivesListed?: boolean;
       /** Where the runner's "/" sits in the sandbox: empty in production, a folder in tests. */
       sandboxPrefix?: string;
@@ -184,7 +184,7 @@ export class SandboxDrive {
     },
   ) {
     this.roots = roots;
-    this.drivesListed = options.drivesListed ?? true;
+    this.drivesListed = options.drivesListed ?? false;
   }
 
   /** The root at `path`, with its newest credentials. */

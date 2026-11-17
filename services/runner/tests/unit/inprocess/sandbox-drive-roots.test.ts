@@ -78,7 +78,7 @@ describe("SandboxDrive with drives", () => {
   it("cleans stale links at each mount, keeping the listed drives and agent-files for a home", async () => {
     const commands: string[] = [];
     const { mounter } = fakeMounter();
-    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", drivesListed: true, log: () => {} });
     await drive.ensure(use(fakeSandbox(commands)));
     const prune = commands.find((c) => c.includes("for e in"));
     expect(prune).toContain("/w'\"'\"' 2>/dev/null || exit 0");
@@ -88,7 +88,7 @@ describe("SandboxDrive with drives", () => {
   it("on the legacy path (a request without drives), prunes nothing under drives/", async () => {
     const commands: string[] = [];
     const { mounter } = fakeMounter();
-    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", drivesListed: false, log: () => {} });
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
     await drive.ensure(use(fakeSandbox(commands)));
     const prune = commands.find((c) => c.includes("for e in"));
     expect(prune).toMatch(/'sh' '1' '0'$/);
