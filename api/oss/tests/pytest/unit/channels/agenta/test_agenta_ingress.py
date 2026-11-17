@@ -22,6 +22,7 @@ from oss.src.core.channels.adapters.agenta.capabilities import (
     fetch_agenta_capabilities,
 )
 from oss.src.core.channels.dtos import ChannelConnection, ChannelKeyGrain
+from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelNotSupported
 from oss.src.core.channels.utils import compose_external_key
 
@@ -51,6 +52,11 @@ class FakeChannelsService:
     """The connection's own project ("bot" "support") vs. a foreign one --
     same shape as test_channels_ingress.py's fake, scoped to agenta's own
     locator fields."""
+
+    # The shared store-and-enqueue step runs for real over this fake's
+    # record_inbox_event.
+    inbox_dispatch_task = None
+    record_and_enqueue_inbox_event = ChannelsService.record_and_enqueue_inbox_event
 
     def __init__(self, *, project_id: UUID, connection_id: UUID):
         self.project_id = project_id

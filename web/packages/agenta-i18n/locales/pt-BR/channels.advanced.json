@@ -3,6 +3,7 @@
     "allChannels": "Todos os canais em que o bot está",
     "allGroups": "Todos os grupos em que o bot está",
     "answersInHelp": "Onde ele responde quando é mencionado. As conversas privadas seguem a chave acima.",
+    "answersInHelpChannels": "Onde ele responde quando é mencionado. As mensagens diretas seguem a chave acima.",
     "answersInHelpSlack": "Onde ele responde quando é mencionado. As mensagens diretas seguem a chave acima. Os canais incluem DMs em grupo.",
     "canPostHelpChannel": "Define se o agente pode publicar em um canal diferente da conversa em que responde. As respostas dele nessa conversa não são afetadas.",
     "canPostHelpGroup": "Define se o agente pode publicar em um grupo diferente da conversa em que responde. As respostas dele nessa conversa não são afetadas.",

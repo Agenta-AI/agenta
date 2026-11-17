@@ -111,6 +111,16 @@ export const WHATSAPP_SETUP: ChannelSetupInfo = {
     ],
 }
 
+export const DISCORD_SETUP: ChannelSetupInfo = {
+    manifest: null,
+    hostedAvailable: false,
+    fields: [{name: "bot_token", label: "Bot token", secret: true, required: true}],
+}
+
+/** The invite link the Discord setup document carries for application 123456789012345678. */
+export const DISCORD_INVITE_URL =
+    "https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot&permissions=309237763136"
+
 const SLACK_MANIFEST = `display_information:
   name: Support agent
 features:
@@ -167,6 +177,19 @@ export const whatsappHere: ChannelConnection = {
     handle: "+1 555 0100",
     webhookUrl: "https://cloud.agenta.ai/api/channels/whatsapp/events/",
     webhookVerifyToken: "1065550100.example-verify-token",
+}
+
+export const discordHere: ChannelConnection = {
+    connectionId: "cx-discord",
+    platform: "discord",
+    kind: "custom",
+    status: "connected",
+    dm: "allow",
+    group: "allow",
+    chats: [DIRECT_MESSAGES_CHAT, {name: "support", type: "channel"}],
+    agent: {id: AGENT_ID, name: AGENT_NAME},
+    connectedAt: "2026-11-07T10:12:00.000Z",
+    handle: "@SupportAgent",
 }
 
 export const telegramElsewhere: ChannelConnection = {
@@ -308,6 +331,8 @@ export interface ChannelStoryActionsOptions {
     /** How long after the install starts the Slack connection appears. Undefined = never. */
     slackConnectsAfterMs?: number
     connectCustomError?: string
+    /** What `discordInviteUrl` returns. Default: the fixture link. */
+    discordInviteUrl?: string | null
     connectHereError?: string
     disconnectError?: string
     /** The places each connection answers in, keyed by connection id. */
@@ -355,6 +380,7 @@ export const createChannelStoryActions = (
         slackInstallUrl = null,
         slackConnectsAfterMs,
         connectCustomError,
+        discordInviteUrl = DISCORD_INVITE_URL,
         connectHereError,
         disconnectError,
         spacesError,
@@ -423,13 +449,20 @@ export const createChannelStoryActions = (
             }
             return slackInstallUrl
         },
+        discordInviteUrl: async () => {
+            await delay(latencyMs)
+            return discordInviteUrl
+        },
         connectCustom: async (platform) => {
             await delay(latencyMs)
             if (connectCustomError) throw new Error(connectCustomError)
             const connection: ChannelConnection = {
-                ...{slack: slackCustomHere, telegram: telegramHere, whatsapp: whatsappHere}[
-                    platform
-                ],
+                ...{
+                    slack: slackCustomHere,
+                    telegram: telegramHere,
+                    whatsapp: whatsappHere,
+                    discord: discordHere,
+                }[platform],
                 kind: "custom",
                 agent: {id: AGENT_ID, name: AGENT_NAME},
             }

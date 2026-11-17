@@ -1,4 +1,4 @@
-import {formatDate, createT} from "@agenta/i18n"
+import {formatDate, createT, type CatalogKey} from "@agenta/i18n"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
 import channelsStatusCatalog from "@agenta/i18n/catalogs/channels.status"
 
@@ -19,15 +19,38 @@ const t = createT(channelsLabelsCatalog, channelsStatusCatalog)
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
 
 /** Every platform, in the order the Channels card lists them. */
-export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp"]
+export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp", "discord"]
 
 const PLATFORM_LABELS: Record<ChannelPlatform, string> = {
     slack: "Slack",
     telegram: "Telegram",
     whatsapp: "WhatsApp",
+    discord: "Discord",
 }
 
 export const platformLabel = (platform: ChannelPlatform): string => PLATFORM_LABELS[platform]
+
+type HelperTextKey = CatalogKey<typeof channelsLabelsCatalog | typeof channelsStatusCatalog>
+
+/** The row subtitle of a platform with no connection. */
+const NOT_CONNECTED_SUBS: Record<ChannelPlatform, HelperTextKey> = {
+    slack: "channels.status.slackIdle",
+    telegram: "channels.status.telegramIdle",
+    whatsapp: "channels.status.whatsappIdle",
+    discord: "channels.status.discordIdle",
+}
+
+/** The row subtitle of a revoked connection: what the platform did, and what to do. */
+const REVOKED_SUBS: Record<ChannelPlatform, HelperTextKey> = {
+    slack: "channels.status.appUninstalled",
+    telegram: "channels.status.botTokenRevokedUpdate",
+    whatsapp: "channels.status.accessTokenRejectedUpdate",
+    discord: "channels.status.botTokenRevokedUpdate",
+}
+
+/** Whether the platform's shared places are channels (Slack, Discord) rather than groups. */
+export const hasChannels = (platform: ChannelPlatform): boolean =>
+    platform === "slack" || platform === "discord"
 
 /** How a connection's install is described: the shared Agenta one, or the customer's own. */
 export const installKindLabel = (connection: ChannelConnection): string => {
@@ -108,9 +131,14 @@ export const connectionRowText = (
     }
     const {dm, groups: nonDm} = answeringPlaces(connection)
     const groupsText = nonDm
-        ? t(slack ? "channels.labels.channelCount" : "channels.labels.groupCount", {
-              count: nonDm,
-          })
+        ? t(
+              hasChannels(connection.platform)
+                  ? "channels.labels.channelCount"
+                  : "channels.labels.groupCount",
+              {
+                  count: nonDm,
+              },
+          )
         : ""
     const where =
         dm && nonDm
@@ -219,12 +247,7 @@ export const summarizeConnection = (
 ): ChannelRowSummary => {
     if (!connection) {
         return {
-            sub:
-                platform === "slack"
-                    ? t("channels.status.slackIdle")
-                    : platform === "whatsapp"
-                      ? t("channels.status.whatsappIdle")
-                      : t("channels.status.telegramIdle"),
+            sub: t(NOT_CONNECTED_SUBS[platform]),
             subClass: "text-colorTextTertiary",
             dotClass: "",
             connected: false,
@@ -235,12 +258,7 @@ export const summarizeConnection = (
 
     if (connection.status === "revoked") {
         return {
-            sub:
-                platform === "telegram"
-                    ? t("channels.status.botTokenRevokedUpdate")
-                    : platform === "whatsapp"
-                      ? t("channels.status.accessTokenRejectedUpdate")
-                      : t("channels.status.appUninstalled"),
+            sub: t(REVOKED_SUBS[platform]),
             subClass: "text-colorError",
             dotClass: "bg-colorError",
             connected: true,
@@ -310,7 +328,7 @@ export const summarizeConnection = (
 
     const {dm, groups: nonDm} = answeringPlaces(connection)
     const groupsText = t(
-        platform === "slack" ? "channels.labels.channelCount" : "channels.labels.groupCount",
+        hasChannels(platform) ? "channels.labels.channelCount" : "channels.labels.groupCount",
         {count: nonDm},
     )
     const where =
@@ -355,7 +373,12 @@ export const DEFAULT_TOOL_SETTINGS: ChannelToolSettings = {
 }
 
 /** Nothing connected on any platform. */
-export const EMPTY_CONNECTIONS: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
+export const EMPTY_CONNECTIONS: ChannelConnections = {
+    slack: null,
+    telegram: null,
+    whatsapp: null,
+    discord: null,
+}
 
 export const DIRECT_MESSAGES_CHAT = {name: "Direct messages", type: "dm" as const}
 
@@ -401,6 +424,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     },
     countHostedTelegramBindings: async () => 0,
     hostedSlackInstallUrl: async () => null,
+    discordInviteUrl: async () => null,
     connectCustom: async () => null,
     connectHere: async () => {},
     disconnect: async () => {},

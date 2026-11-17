@@ -278,6 +278,8 @@ class InboxDispatcher:
                 connection_id=connection_id,
                 thread=resolution.thread,
                 interaction_id=interaction_id,
+                approved=approved,
+                answered_by=event.data.processed.sender,
             )
         except Exception:  # UI cleanup must not replay an admitted decision.
             log.warning(
