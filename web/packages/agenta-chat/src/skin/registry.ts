@@ -14,6 +14,8 @@
  */
 import {PATH_KEYS} from "@agenta/entities/session"
 import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
+import {createT, getActiveLanguage} from "@agenta/i18n"
+import toolActivityCatalog from "@agenta/i18n/catalogs/chat.toolActivity"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 
 import type {
@@ -228,17 +230,112 @@ const PLATFORM_OPS = new Set([
  * a workspace cycle). See `canonicalClientToolName` for the full contract. */
 export const canonicalToolName = canonicalClientToolName
 
+const tNow = createT(toolActivityCatalog)
+
+/** Verbs for `verb noun` tool names. Closed on purpose: an unknown verb keeps its plain label
+ * rather than reading as "Getted". Each has a `<verb>Running` and a `<verb>Done` text. */
+const NAME_VERBS = [
+    "add",
+    "annotate",
+    "archive",
+    "assign",
+    "cancel",
+    "close",
+    // Plain English beats the git term for a reader who never asked about revisions: "Saved".
+    "commit",
+    "copy",
+    "create",
+    "delete",
+    "discover",
+    "download",
+    "fetch",
+    "find",
+    "get",
+    "list",
+    "move",
+    "open",
+    "pause",
+    "post",
+    "query",
+    "read",
+    "remove",
+    "rename",
+    "reply",
+    "request",
+    "resume",
+    "run",
+    "search",
+    "send",
+    "set",
+    "start",
+    "stop",
+    "test",
+    "update",
+    "upload",
+    "write",
+] as const
+
+type NameVerb = (typeof NAME_VERBS)[number]
+/** The name verbs plus the ones only the harness builtins use. */
+type VerbId = NameVerb | "edit" | "lookFor" | "listing" | "updateIts"
+
+const NAME_VERB_SET: ReadonlySet<string> = new Set(NAME_VERBS)
+const isNameVerb = (word: string): word is NameVerb => NAME_VERB_SET.has(word)
+
+/** Verbs that already carry their preposition ("Searched for"), so a query follows them bare. */
+const PREPOSITION_VERBS: ReadonlySet<VerbId> = new Set(["discover", "query"])
+
+/** A verb in both tenses, in the reader's language. */
+const verbForms = (id: VerbId): ToolActivity => ({
+    running: tNow(`chat.toolActivity.${id}Running`),
+    done: tNow(`chat.toolActivity.${id}Done`),
+})
+
+/** A verb and what it acts on; the language decides the order. */
+const withObject = (verb: ToolActivity, object: string): ToolActivity => ({
+    running: tNow("chat.toolActivity.withObjectRunning", {verb: verb.running, object}),
+    done: tNow("chat.toolActivity.withObjectDone", {verb: verb.done, object}),
+})
+
+/** A verb with nothing after it leads the row, so it starts with a capital ("Gelesen"). */
+const capitalized = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1)
+
+type SentenceId =
+    | "runCommand"
+    | "testAgent"
+    | "searchTools"
+    | "connectApp"
+    | "askAnswers"
+    | "askSecret"
+    | "editFile"
+    | "lookForFiles"
+    | "searchFiles"
+    | "listFiles"
+    | "readFile"
+    | "runSubtask"
+    | "updateTaskList"
+    | "fetchPage"
+    | "searchWeb"
+    | "writeFile"
+
+const sentence = (id: SentenceId, values?: Record<string, string>): ToolActivity => ({
+    running: tNow(`chat.toolActivity.${id}Running`, values),
+    done: tNow(`chat.toolActivity.${id}Done`, values),
+})
+
+/** A built-in entry names its sentence and verb; the text is looked up when a row resolves, so it
+ * is in the language the reader has chosen at that moment. */
+type DefaultEntry = ToolDisplayEntry & {sentence?: SentenceId; verbId?: VerbId}
+
+const inLanguage = ({sentence: id, verbId, ...entry}: DefaultEntry): ToolDisplayEntry =>
+    id ? {...entry, activity: sentence(id), verb: verbId ? verbForms(verbId) : undefined} : entry
+
 /** One shell entry for every harness's name for it. */
-const SHELL: ToolDisplayEntry = {
-    kind: "shell",
-    icon: "terminal",
-    activity: {running: "Running a command", done: "Ran a command"},
-    verb: {running: "Running", done: "Ran"},
-}
+const SHELL: DefaultEntry = {kind: "shell", icon: "terminal", sentence: "runCommand", verbId: "run"}
 
 /** Special cases, keyed by lowercased canonical wire name. Platform ops are `verb_noun`, so the
  * verb table and glossary derive them — only the few whose derived text would be wrong are here. */
-const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
+const DEFAULT_TOOL_DISPLAY: Record<string, DefaultEntry> = {
     // `commit_revision` derives fine; it is here only for the commit-message summary.
     commit_revision: {
         summary: (input) => {
@@ -250,10 +347,7 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
         },
     },
     // "Tested a run" misses the point — the run IS the agent under test.
-    test_run: {
-        activity: {running: "Testing the agent", done: "Tested the agent"},
-        verb: {running: "Testing", done: "Tested"},
-    },
+    test_run: {sentence: "testAgent", verbId: "test"},
     // A tool search reports which tool it landed on. That name is worth far more than the keywords
     // it searched with, which are model-written and shapeless.
     discover_tools: {app: (_input, output) => matchedTool(output)},
@@ -261,8 +355,7 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
     search_tools: {
         icon: "tool-search",
         app: (_input, output) => firstResult(output),
-        activity: (app) =>
-            app ? undefined : {running: "Searching for tools", done: "Searched for tools"},
+        activity: (app) => (app ? undefined : sentence("searchTools")),
     },
     run_tool: {
         kind: "gateway",
@@ -276,87 +369,27 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
     request_connection: {
         icon: "connect",
         app: (input) => ({slug: isRecord(input) ? stringAt(input.integration) : undefined}),
-        activity: (app) => ({
-            running: `Waiting for you to connect ${app ?? "an app"}`,
-            done: `Asked you to connect ${app ?? "an app"}`,
-        }),
+        activity: (app) => sentence("connectApp", {app: app ?? tNow("chat.toolActivity.anApp")}),
     },
-    request_input: {
-        activity: {running: "Waiting for your answers", done: "Asked you some questions"},
-        icon: "ask",
-    },
-    request_secret: {
-        activity: {running: "Waiting for you to add a secret", done: "Asked you for a secret"},
-        icon: "secret",
-    },
+    request_input: {sentence: "askAnswers", icon: "ask"},
+    request_secret: {sentence: "askSecret", icon: "secret"},
 
     // Harness builtins. Claude title-cases them, Pi lowercases them; the key is lowercased.
     bash: SHELL,
     // The sandbox agent's shell goes by "Terminal".
     terminal: SHELL,
     shell: SHELL,
-    edit: {
-        kind: "file",
-        icon: "file-write",
-        activity: {running: "Editing a file", done: "Edited a file"},
-        verb: {running: "Editing", done: "Edited"},
-    },
-    find: {
-        kind: "file",
-        icon: "file-list",
-        activity: {running: "Looking for files", done: "Looked for files"},
-        verb: {running: "Looking for", done: "Looked for"},
-    },
-    glob: {
-        kind: "file",
-        icon: "file-list",
-        activity: {running: "Looking for files", done: "Looked for files"},
-        verb: {running: "Looking for", done: "Looked for"},
-    },
-    grep: {
-        kind: "file",
-        icon: "file-search",
-        activity: {running: "Searching files", done: "Searched files"},
-        verb: {running: "Searching for", done: "Searched for"},
-    },
-    ls: {
-        kind: "file",
-        icon: "file-list",
-        activity: {running: "Listing files", done: "Listed files"},
-        verb: {running: "Listing", done: "Listed"},
-    },
-    read: {
-        kind: "file",
-        icon: "file-read",
-        activity: {running: "Reading a file", done: "Read a file"},
-        verb: {running: "Reading", done: "Read"},
-    },
-    task: {
-        icon: "subtask",
-        activity: {running: "Running a sub-task", done: "Ran a sub-task"},
-        verb: {running: "Running", done: "Ran"},
-    },
-    todowrite: {
-        icon: "task-list",
-        activity: {running: "Updating its task list", done: "Updated its task list"},
-        verb: {running: "Updating its", done: "Updated its"},
-    },
-    webfetch: {
-        icon: "web-fetch",
-        activity: {running: "Fetching a web page", done: "Fetched a web page"},
-        verb: {running: "Fetching", done: "Fetched"},
-    },
-    websearch: {
-        icon: "web-search",
-        activity: {running: "Searching the web", done: "Searched the web"},
-        verb: {running: "Searching", done: "Searched"},
-    },
-    write: {
-        kind: "file",
-        icon: "file-write",
-        activity: {running: "Writing a file", done: "Wrote a file"},
-        verb: {running: "Writing", done: "Wrote"},
-    },
+    edit: {kind: "file", icon: "file-write", sentence: "editFile", verbId: "edit"},
+    find: {kind: "file", icon: "file-list", sentence: "lookForFiles", verbId: "lookFor"},
+    glob: {kind: "file", icon: "file-list", sentence: "lookForFiles", verbId: "lookFor"},
+    grep: {kind: "file", icon: "file-search", sentence: "searchFiles", verbId: "discover"},
+    ls: {kind: "file", icon: "file-list", sentence: "listFiles", verbId: "listing"},
+    read: {kind: "file", icon: "file-read", sentence: "readFile", verbId: "read"},
+    task: {icon: "subtask", sentence: "runSubtask", verbId: "run"},
+    todowrite: {icon: "task-list", sentence: "updateTaskList", verbId: "updateIts"},
+    webfetch: {icon: "web-fetch", sentence: "fetchPage", verbId: "fetch"},
+    websearch: {icon: "web-search", sentence: "searchWeb", verbId: "search"},
+    write: {kind: "file", icon: "file-write", sentence: "writeFile", verbId: "write"},
 }
 
 /** Platform-op glyphs by canonical name; a family (`*_schedule`) shares one. Closed set. */
@@ -397,67 +430,34 @@ export const resolveActivityIcon = (kind: ToolKind, canonical: string): Activity
     return named ?? KIND_ICONS[kind]
 }
 
-/** Verb forms for `verb noun` tool names. Closed on purpose: an unknown verb keeps its plain
- * label rather than reading as "Getted". */
-const VERB_FORMS: Record<string, ToolActivity> = {
-    add: {running: "Adding", done: "Added"},
-    annotate: {running: "Annotating", done: "Annotated"},
-    archive: {running: "Archiving", done: "Archived"},
-    assign: {running: "Assigning", done: "Assigned"},
-    cancel: {running: "Cancelling", done: "Cancelled"},
-    close: {running: "Closing", done: "Closed"},
-    // Plain English beats the git term for a reader who never asked about revisions.
-    commit: {running: "Saving", done: "Saved"},
-    copy: {running: "Copying", done: "Copied"},
-    create: {running: "Creating", done: "Created"},
-    delete: {running: "Deleting", done: "Deleted"},
-    discover: {running: "Searching for", done: "Searched for"},
-    download: {running: "Downloading", done: "Downloaded"},
-    fetch: {running: "Fetching", done: "Fetched"},
-    find: {running: "Finding", done: "Found"},
-    get: {running: "Getting", done: "Got"},
-    list: {running: "Checking", done: "Checked"},
-    move: {running: "Moving", done: "Moved"},
-    open: {running: "Opening", done: "Opened"},
-    pause: {running: "Pausing", done: "Paused"},
-    post: {running: "Posting", done: "Posted"},
-    query: {running: "Looking through", done: "Looked through"},
-    read: {running: "Reading", done: "Read"},
-    remove: {running: "Removing", done: "Removed"},
-    rename: {running: "Renaming", done: "Renamed"},
-    reply: {running: "Replying", done: "Replied"},
-    request: {running: "Requesting", done: "Requested"},
-    resume: {running: "Resuming", done: "Resumed"},
-    run: {running: "Running", done: "Ran"},
-    search: {running: "Searching", done: "Searched"},
-    send: {running: "Sending", done: "Sent"},
-    set: {running: "Setting", done: "Set"},
-    start: {running: "Starting", done: "Started"},
-    stop: {running: "Stopping", done: "Stopped"},
-    test: {running: "Testing", done: "Tested"},
-    update: {running: "Updating", done: "Updated"},
-    upload: {running: "Uploading", done: "Uploaded"},
-    write: {running: "Writing", done: "Wrote"},
-}
+/** Our internal nouns in the product's words, article included ("the agent", "changes"). Ours
+ * only: a Stripe subscription is a subscription, not a trigger. A session has exactly one agent,
+ * so `agent` is "the agent", never "an agent". */
+const PLATFORM_TERMS = {
+    agent: "chat.toolActivity.termAgent",
+    config: "chat.toolActivity.termConfig",
+    revision: "chat.toolActivity.termRevision",
+    session: "chat.toolActivity.termSession",
+    span: "chat.toolActivity.termSpan",
+    spans: "chat.toolActivity.termSpans",
+    subscription: "chat.toolActivity.termSubscription",
+    subscriptions: "chat.toolActivity.termSubscriptions",
+    workflow: "chat.toolActivity.termWorkflow",
+    workflows: "chat.toolActivity.termWorkflows",
+} as const
 
-/** Our internal nouns in the product's words, article included. Ours only: a Stripe subscription
- * is a subscription, not a trigger. */
-const PLATFORM_TERMS: Record<string, string> = {
-    // A session has exactly one agent, so it is "the agent", never "an agent".
-    agent: "the agent",
-    config: "the agent's setup",
-    revision: "changes",
-    session: "this chat",
-    span: "a run",
-    spans: "runs",
-    subscription: "a trigger",
-    subscriptions: "triggers",
-    workflow: "an agent",
-    workflows: "agents",
-}
+/** The glossary term for an object word, or undefined. The word is data, so own keys only. */
+const platformTerm = (word: string): string | undefined =>
+    Object.hasOwn(PLATFORM_TERMS, word)
+        ? tNow(PLATFORM_TERMS[word as keyof typeof PLATFORM_TERMS])
+        : undefined
 
-/** "an" before a vowel sound, near enough for a one-word object. */
-const article = (word: string): string => ("aeiou".includes(word[0]?.toLowerCase()) ? "an" : "a")
+/** "a issue" → "an issue": English picks the article by the first word's vowel sound, near
+ * enough for a one-word object. Other languages show the noun alone. */
+const withArticle = (firstWord: string, noun: string): string =>
+    "aeiou".includes(firstWord[0]?.toLowerCase())
+        ? tNow("chat.toolActivity.nounWithAn", {noun})
+        : tNow("chat.toolActivity.nounWithA", {noun})
 
 /** Keeps "file" out of "googledrive" while letting "calendar" out of "googlecalendar". */
 const SLUG_ECHO_MIN_LENGTH = 5
@@ -485,36 +485,41 @@ const ARTICLES = new Set(["a", "an", "the"])
 
 /** The verb in an action name and its object. Catalog actions are often noun-first
  * ("Events list"), and those read with no tense at all unless the tail is checked too. */
-const splitVerb = (
-    label: string,
-    appName?: string,
-): {verb: string; forms: ToolActivity; rest: string[]} | null => {
+const splitVerb = (label: string, appName?: string): {verb: NameVerb; rest: string[]} | null => {
     const words = label.split(" ").filter(Boolean)
     if (!words.length) return null
     const first = words[0].toLowerCase()
-    if (VERB_FORMS[first]) return {verb: first, forms: VERB_FORMS[first], rest: words.slice(1)}
+    if (isNameVerb(first)) return {verb: first, rest: words.slice(1)}
     if (words.length < 2) return null
     const last = words[words.length - 1].toLowerCase()
-    if (!VERB_FORMS[last]) return null
+    if (!isNameVerb(last)) return null
     // Title case gave the first word a capital only for leading the phrase, and mid-sentence that
     // is wrong. An app's own name is the exception, and it takes the catalog's spelling.
     const head = appName && appWordTest(appName)(first) ? appName : first
-    return {verb: last, forms: VERB_FORMS[last], rest: [head, ...words.slice(1, -1)]}
+    return {verb: last, rest: [head, ...words.slice(1, -1)]}
 }
 
 /** Verbs a query may lend, so a run of searches is not eight identical rows. Read-only on
  * purpose: a query is what the agent looked for, so "send" would claim a send that never happened. */
-const QUERY_VERBS = new Set(["discover", "fetch", "find", "get", "list", "query", "read", "search"])
+const QUERY_VERBS: ReadonlySet<NameVerb> = new Set([
+    "discover",
+    "fetch",
+    "find",
+    "get",
+    "list",
+    "query",
+    "read",
+    "search",
+])
 
 /** The query's own verb and what follows it, when it leads with one we are willing to borrow. */
-const lendVerb = (query: string): {forms: ToolActivity; object: string} | null => {
+const lendVerb = (query: string): {verb: NameVerb; object: string} | null => {
     const [head, ...rest] = query.split(" ")
     const key = head?.toLowerCase() ?? ""
-    if (!QUERY_VERBS.has(key)) return null
-    const forms = VERB_FORMS[key]
+    if (!isNameVerb(key) || !QUERY_VERBS.has(key)) return null
     const object = rest.join(" ").trim()
-    if (!forms || !object) return null
-    return {forms, object}
+    if (!object) return null
+    return {verb: key, object}
 }
 
 /** How much of a query survives beside a named app: it is keyword salad, worse the longer it runs. */
@@ -559,36 +564,33 @@ const conjugate = (
 ): BuiltActivity | null => {
     const split = splitVerb(label, appName)
     if (!split) return null
-    const {forms, rest} = split
-    const object = rest.join(" ").trim()
-    const say = (phrase: string): ToolActivity => ({
-        running: `${forms.running} ${phrase}`,
-        done: `${forms.done} ${phrase}`,
-    })
+    const forms = verbForms(split.verb)
+    const object = split.rest.join(" ").trim()
+    const say = (phrase: string): ToolActivity => withObject(forms, phrase)
     // A search says what it looked for, so the query replaces the object entirely.
     if (query) {
         const lent = lendVerb(query)
-        const verb = lent?.forms ?? forms
+        const verbId = lent?.verb ?? split.verb
+        const verb = verbForms(verbId)
         const asked = lent?.object ?? query
         // Known app becomes the subject; until then the query is all the row has.
         const phrase = appName
             ? [appName, qualifierFor(asked, appName)].filter(Boolean).join(" ")
-            : lent || / (for|through)$/.test(verb.done)
+            : lent || PREPOSITION_VERBS.has(verbId)
               ? asked
-              : `for ${asked}`
-        return {
-            activity: {running: `${verb.running} ${phrase}`, done: `${verb.done} ${phrase}`},
-            namedApp: Boolean(appName),
-            verb,
-        }
+              : tNow("chat.toolActivity.forQuery", {query: asked})
+        return {activity: withObject(verb, phrase), namedApp: Boolean(appName), verb}
     }
     if (!object) {
         return appName
             ? {activity: say(appName), namedApp: true, verb: forms}
-            : {activity: forms, namedApp: false}
+            : {
+                  activity: {running: capitalized(forms.running), done: capitalized(forms.done)},
+                  namedApp: false,
+              }
     }
     // A glossary term brings its own article and never takes an app name: it is ours.
-    const term = ours ? PLATFORM_TERMS[object.toLowerCase()] : undefined
+    const term = ours ? platformTerm(object.toLowerCase()) : undefined
     if (term) return {activity: say(term), namedApp: false, verb: forms}
     // An article the action name already carries ("Create an issue") has to come off before the app
     // goes in front of the noun, or it lands mid-phrase ("Created GitHub an issue").
@@ -601,7 +603,7 @@ const conjugate = (
     const phrase = app ? `${app} ${noun}` : noun
     const single = carried || (words.length === 1 && !noun.endsWith("s"))
     return {
-        activity: say(single ? `${article(app ?? noun)} ${phrase}` : phrase),
+        activity: say(single ? withArticle(app ?? noun, phrase) : phrase),
         namedApp: Boolean(app),
         verb: forms,
     }
@@ -686,34 +688,26 @@ const parseShape = (raw: string, input: unknown, ours: boolean, appName?: string
     const command = isRecord(input) && typeof input.command === "string" ? input.command : ""
     if (command && (!token || command.split(/\s+/)[0] === raw)) {
         return {
-            label: "Command",
+            label: tNow("chat.toolActivity.labelCommand"),
             kind: "shell",
-            activity: {
-                activity: {running: "Running a command", done: "Ran a command"},
-                namedApp: false,
-                verb: {running: "Running", done: "Ran"},
-            },
+            activity: {activity: sentence("runCommand"), namedApp: false, verb: verbForms("run")},
         }
     }
     if (CODEX_READ_TITLE.test(raw)) {
         return {
-            label: "File",
+            label: tNow("chat.toolActivity.labelFile"),
             kind: "file",
-            activity: {
-                activity: {running: "Reading a file", done: "Read a file"},
-                namedApp: false,
-                verb: {running: "Reading", done: "Read"},
-            },
+            activity: {activity: sentence("readFile"), namedApp: false, verb: verbForms("read")},
         }
     }
     if (CODEX_LIST_TITLE.test(raw)) {
         return {
-            label: "Files",
+            label: tNow("chat.toolActivity.labelFiles"),
             kind: "file",
             activity: {
-                activity: {running: "Listing files", done: "Listed files"},
+                activity: sentence("listFiles"),
                 namedApp: false,
-                verb: {running: "Listing", done: "Listed"},
+                verb: verbForms("listing"),
             },
         }
     }
@@ -769,12 +763,13 @@ const fileLabel = (path: string, output?: unknown): string => {
     const parts = path.split("/").filter(Boolean)
     const name = parts.pop() ?? path
     const folder = parts.pop()
-    if (name === "SKILL.md" && folder) return `${folder} skill`
+    if (name === "SKILL.md" && folder) return tNow("chat.toolActivity.skillFile", {name: folder})
     if (folder === "attachments" && ID_SEGMENT.test(name))
-        return singleEntry(output) ?? "an attachment"
+        return singleEntry(output) ?? tNow("chat.toolActivity.anAttachment")
     // The mount roots are named by id too: the session's workspace and the agent's own files.
-    if (ID_SEGMENT.test(name)) return "the workspace"
-    if (name.endsWith("-agent") && ID_SEGMENT.test(name.slice(0, -6))) return "the agent's files"
+    if (ID_SEGMENT.test(name)) return tNow("chat.toolActivity.theWorkspace")
+    if (name.endsWith("-agent") && ID_SEGMENT.test(name.slice(0, -6)))
+        return tNow("chat.toolActivity.agentFiles")
     return name
 }
 
@@ -843,8 +838,11 @@ const reportedActivity = (action: string, appName: string, ran: boolean): BuiltA
  * summary keeps the default's wording rather than falling back to the parsed name. */
 const lookupToolDisplay = (canonical: string): ToolDisplayEntry | undefined => {
     const key = canonical.toLowerCase()
-    const base = DEFAULT_TOOL_DISPLAY[key]
-    const registered = store.toolDisplay[key]
+    // The name is data ("constructor" is a valid tool name), so own keys only.
+    const base = Object.hasOwn(DEFAULT_TOOL_DISPLAY, key)
+        ? inLanguage(DEFAULT_TOOL_DISPLAY[key])
+        : undefined
+    const registered = Object.hasOwn(store.toolDisplay, key) ? store.toolDisplay[key] : undefined
     if (!base) return registered
     if (!registered) return base
     return {...base, ...registered}
@@ -905,6 +903,9 @@ export const resolveToolDisplay = (
     }
 }
 
-/** A tool sentence dropped into prose ("…before running a command"): a gerund, so decapitalise. */
+/** A tool sentence dropped into prose ("…before running a command"): a gerund, so decapitalise.
+ * German keeps the capital: its rows can open with a noun ("Datei gelesen"). */
 export const inSentence = (phrase: string): string =>
-    phrase ? phrase.charAt(0).toLowerCase() + phrase.slice(1) : phrase
+    phrase && getActiveLanguage() !== "de-DE"
+        ? phrase.charAt(0).toLowerCase() + phrase.slice(1)
+        : phrase
