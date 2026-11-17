@@ -19,7 +19,7 @@ from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.applications.dtos import ApplicationRevision, SimpleApplicationEdit
 from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.mounts.dtos import Mount
-from oss.src.core.sharing.dtos import AccessPolicy, MountAccess, Visibility
+from oss.src.core.sharing.dtos import AccessPolicy, MountVisibility, Visibility
 from oss.src.core.workflows.dtos import (
     SimpleWorkflowCreate,
     SimpleWorkflowEdit,
@@ -67,7 +67,7 @@ class _Drives:
             agent_id=str(agent_id) if agent_id else None,
         )
         self.by_slug[slug] = mount
-        self.world.dao.mounts[(self.world.project_id, mount.id)] = MountAccess(
+        self.world.dao.mounts[(self.world.project_id, mount.id)] = MountVisibility(
             mount_id=mount.id, slug=slug, agent_id=mount.agent_id, policy=policy
         )
         return mount
@@ -262,10 +262,10 @@ async def test_a_shared_agent_lists_no_private_drive(world, drives, monkeypatch)
     drives.add("my-notes", _private(owner))
     service, _ = _service(drives)
 
-    async def saver_may_use(*, project_id, mount_id):
+    async def saver_may_use(*, project_id, mount_id, context=None):
         return True
 
-    monkeypatch.setattr(service, "_saver_may_use", saver_may_use)
+    monkeypatch.setattr(world.service, "may_use_mount", saver_may_use)
     error = await _refusal(
         service, world, _commit(drives=[{"slug": "my-notes"}], home_drive=None)
     )
@@ -376,10 +376,10 @@ async def test_the_new_drive_gets_the_visibility_the_agent_will_have(world, driv
     )
     service, _ = _service(drives)
 
-    async def owner_may_use(*, project_id, mount_id):
+    async def owner_may_use(*, project_id, mount_id, context=None):
         return True
 
-    service._saver_may_use = owner_may_use
+    world.service.may_use_mount = owner_may_use
     # A private agent's new drive is private to its owner, so it passes the home rule.
     await service.commit_workflow_revision(
         project_id=world.project_id,
@@ -583,6 +583,40 @@ async def test_simple_edit_without_data_reads_the_current_revision_once(world, d
     )
     workflows_service.edit_workflow.assert_not_awaited()
     workflows_service.commit_workflow_revision.assert_not_awaited()
+
+
+async def test_simple_edit_applies_the_agents_rules_before_any_write(
+    world, drives, monkeypatch
+):
+    """A rename of a shared agent with a private drive attached is refused before the
+    rename is stored: the early check knows the agent."""
+    owner = world.add_member(uuid4())
+    drives.add("my-notes", _private(owner))
+
+    async def saver_may_use(*, project_id, mount_id, context=None):
+        return True
+
+    monkeypatch.setattr(world.service, "may_use_mount", saver_may_use)
+    simple, workflows_service = _simple_service(drives)
+    workflows_service.fetch_workflow = AsyncMock(
+        return_value=SimpleNamespace(id=AGENT_ID, flags=None, meta=None, tags=None)
+    )
+    with pytest.raises(AgentDriveNotSharedError):
+        await simple.edit(
+            project_id=world.project_id,
+            user_id=uuid4(),
+            simple_workflow_edit=SimpleWorkflowEdit(
+                id=AGENT_ID,
+                name="Renamed",
+                data={
+                    "uri": "agenta:builtin:agent:v0",
+                    "parameters": {
+                        "agent": {"drives": [{"slug": "my-notes"}], "home_drive": None}
+                    },
+                },
+            ),
+        )
+    workflows_service.edit_workflow.assert_not_awaited()
 
 
 async def test_application_rename_without_data_is_refused_before_the_rename(

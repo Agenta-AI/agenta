@@ -31,10 +31,9 @@ from oss.src.apis.fastapi.sharing.utils import (
     allow_resource,
     not_found_exception,
 )
-from oss.src.core.mounts.dtos import Mount, MountArchiveSource, MountCreate, MountScope
-from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
-from oss.src.core.sharing.service import HOME_DRIVE_NOT_ALLOWED, get_sharing_service
-from oss.src.core.shared.dtos import Reference
+from oss.src.core.mounts.dtos import MountArchiveSource, MountCreate, MountScope
+from oss.src.core.sharing.service import get_sharing_service
+from oss.src.core.sharing.types import HOME_DRIVE_NOT_ALLOWED
 from oss.src.core.tools.dtos import AgentError
 from oss.src.middlewares.auth import run_agent_id_of_request
 from oss.src.core.mounts.service import MountsService
@@ -413,27 +412,6 @@ class MountsRouter:
             resource=agent_resource(artifact_id),
         )
 
-    async def _home_drive_refusal(
-        self, *, project_id: UUID, artifact_id: Optional[UUID], mount: Mount
-    ) -> Optional[str]:
-        """`check_home_drive` for the run's agent and this drive. A run with no agent
-        claim is refused."""
-        if artifact_id is None:
-            return HOME_DRIVE_NOT_ALLOWED
-        sharing = get_sharing_service()
-        agent_policy = (
-            await sharing.fetch_agent_policy_cached(
-                project_id=project_id, artifact_id=artifact_id
-            )
-        ).policy
-        access = await sharing.fetch_mount_access_cached(
-            project_id=project_id, mount_id=mount.id
-        )
-        if access is None:
-            return HOME_DRIVE_NOT_ALLOWED
-        mount_policy = await sharing.mount_policy(project_id=project_id, access=access)
-        return sharing.check_home_drive(agent_policy, mount_policy)
-
     @intercept_exceptions()
     @handle_mount_exceptions()
     async def create_mount(
@@ -523,10 +501,10 @@ class MountsRouter:
             request, scope=MountScope(id=mount.id), permission=Permission.USE_MOUNTS
         ):
             raise MountNotFound()
-        if is_home and await self._home_drive_refusal(
+        if is_home and await get_sharing_service().home_drive_refusal(
             project_id=project_id,
             artifact_id=run_agent_id_of_request(request),
-            mount=mount,
+            mount_id=mount.id,
         ):
             raise _home_drive_not_allowed()
         credentials = await sign_mount_credentials(
@@ -562,44 +540,30 @@ class MountsRouter:
         ):
             raise MountArtifactNotFound(str(artifact_id))
         workflows_service = self.mounts_service.workflows_service
-        if workflows_service is None or await workflows_service.agent_states_drives(
-            project_id=project_id, artifact_id=artifact_uuid
+        if (
+            workflows_service is None
+            or await workflows_service.has_revision_with_drives(
+                project_id=project_id, artifact_id=artifact_uuid
+            )
         ):
             raise MountArtifactNotFound(str(artifact_id))
 
-        mount = await self.mounts_service.fetch_agent_drive(
-            project_id=project_id, artifact_id=artifact_id
+        mount = await workflows_service.ensure_agent_drive(
+            project_id=project_id,
+            user_id=UUID(str(request.state.user_id)),
+            artifact_id=artifact_uuid,
+            include_archived=False,
         )
         if mount is None:
-            await self.mounts_service._verify_agent_artifact(
-                project_id=project_id, artifact_id=artifact_id
-            )
-            workflow = await workflows_service.fetch_workflow(
-                project_id=project_id,
-                workflow_ref=Reference(id=artifact_uuid),
-                include_archived=False,
-            )
-            agent_policy = (
-                await get_sharing_service().fetch_agent_policy_cached(
-                    project_id=project_id, artifact_id=artifact_uuid
-                )
-            ).policy
-            mount = await self.mounts_service.create_agent_drive(
-                project_id=project_id,
-                user_id=UUID(str(request.state.user_id)),
-                artifact_id=artifact_id,
-                agent_slug=getattr(workflow, "slug", None),
-                agent_name=getattr(workflow, "name", None),
-                visibility=agent_policy or OWNERLESS_PROJECT_POLICY,
-            )
-            if mount.deleted_at is not None:
-                raise MountNotFound()
+            raise MountArtifactNotFound(str(artifact_id))
+        if mount.deleted_at is not None:
+            raise MountNotFound()
         if not await allow_mount(
             request, scope=MountScope(id=mount.id), permission=Permission.USE_MOUNTS
         ):
             raise MountNotFound()
-        if await self._home_drive_refusal(
-            project_id=project_id, artifact_id=artifact_uuid, mount=mount
+        if await get_sharing_service().home_drive_refusal(
+            project_id=project_id, artifact_id=artifact_uuid, mount_id=mount.id
         ):
             raise _home_drive_not_allowed()
         credentials = await sign_mount_credentials(

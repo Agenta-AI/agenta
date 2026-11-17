@@ -11,6 +11,9 @@ from uuid import UUID
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.sharing.dtos import AccessPolicy
 
+# The code of a refused home drive, at sign (403), save (422) and visibility change (409).
+HOME_DRIVE_NOT_ALLOWED = "home_drive_not_allowed"
+
 
 class SharingError(Exception):
     """Base for the sharing domain."""
@@ -96,7 +99,7 @@ class DriveNotOwned(SharingError):
 class HomeDriveNotAllowed(SharingError):
     """Making the agent private would leave it a home drive the home rule refuses."""
 
-    code = "home_drive_not_allowed"
+    code = HOME_DRIVE_NOT_ALLOWED
 
     def __init__(self, *, slug: str):
         super().__init__(

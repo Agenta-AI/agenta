@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from oss.src.core.sharing.dtos import (
     AccessPolicy,
     AgentPolicyWriteResult,
-    MountAccess,
+    MountVisibility,
     SessionGrant,
     SessionGrantInput,
     SessionPolicyState,
@@ -91,7 +91,7 @@ SET visibility = EXCLUDED.visibility,
 
 # -- drives -----------------------------------------------------------------------------
 
-_FETCH_MOUNT_ACCESS_SQL = """
+_FETCH_MOUNT_VISIBILITY_SQL = """
 SELECT m.id AS mount_id, m.slug, m.session_id, m.agent_id,
        v.visibility, v.owner_user_id
 FROM mounts m
@@ -100,16 +100,35 @@ LEFT JOIN mount_visibility v
 WHERE m.project_id = :project_id AND m.id = :mount_id
 """
 
-# The owner stays: a shared drive keeps the person who owns it.
-_SHARE_MOUNTS_SQL = """
-UPDATE mount_visibility v
-SET visibility = 'project', updated_at = now(), updated_by_id = :user_id
+_FETCH_OWN_DRIVE_POLICY_SQL = """
+SELECT v.visibility, v.owner_user_id
 FROM mounts m
-WHERE v.project_id = :project_id
-  AND v.mount_id = ANY(CAST(:mount_ids AS uuid[]))
-  AND v.visibility = 'private'
-  AND m.project_id = v.project_id AND m.id = v.mount_id
-RETURNING m.slug
+JOIN mount_visibility v
+    ON v.project_id = m.project_id AND v.mount_id = m.id
+WHERE m.project_id = :project_id
+  AND m.agent_id = :agent_id
+  AND m.deleted_at IS NULL
+"""
+
+# The owner stays: a shared drive keeps the person who owns it. A drive without its row
+# (an agent's drive before release 2, which follows its agent) gets one, owned by the
+# acting owner, whom the service checked is the drive's owner.
+_SHARE_MOUNTS_SQL = """
+WITH shared AS (
+    INSERT INTO mount_visibility AS v
+        (project_id, mount_id, visibility, owner_user_id, created_by_id)
+    SELECT m.project_id, m.id, 'project', :owner_user_id, :user_id
+    FROM mounts m
+    WHERE m.project_id = :project_id
+      AND m.id = ANY(CAST(:mount_ids AS uuid[]))
+    ON CONFLICT (project_id, mount_id) DO UPDATE
+    SET visibility = 'project', updated_at = now(), updated_by_id = :user_id
+    WHERE v.visibility = 'private'
+    RETURNING v.mount_id
+)
+SELECT m.slug
+FROM shared s
+JOIN mounts m ON m.project_id = :project_id AND m.id = s.mount_id
 """
 
 
@@ -324,6 +343,8 @@ class SharingDAO(SharingDAOInterface):
         user_id: UUID,
         #
         share_mount_ids: Sequence[UUID] = (),
+        check_own_drive: bool = False,
+        expected_own_drive: Optional[AccessPolicy] = None,
     ) -> AgentPolicyWriteResult:
         params = {"project_id": project_id, "artifact_id": artifact_id}
         drives_made_shared: List[str] = []
@@ -340,6 +361,16 @@ class SharingDAO(SharingDAOInterface):
             current = map_agent_access_dbe_to_dto(row) if row is not None else None
             if current != expected:
                 raise SharingConflict(current=current)
+            if check_own_drive:
+                own_row = (
+                    await connection.execute(
+                        text(_FETCH_OWN_DRIVE_POLICY_SQL),
+                        {"project_id": project_id, "agent_id": str(artifact_id)},
+                    )
+                ).first()
+                own = map_agent_access_dbe_to_dto(own_row) if own_row else None
+                if own != expected_own_drive:
+                    raise SharingConflict(current=current)
 
             await connection.execute(
                 text(_UPSERT_AGENT_POLICY_SQL),
@@ -358,6 +389,7 @@ class SharingDAO(SharingDAOInterface):
                             {
                                 "project_id": project_id,
                                 "mount_ids": list(share_mount_ids),
+                                "owner_user_id": policy.owner_user_id,
                                 "user_id": user_id,
                             },
                         )
@@ -370,22 +402,37 @@ class SharingDAO(SharingDAOInterface):
 
     # -- drives -------------------------------------------------------------------------
 
-    async def fetch_mount_access(
+    async def fetch_own_drive_policy(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> Optional[AccessPolicy]:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    text(_FETCH_OWN_DRIVE_POLICY_SQL),
+                    {"project_id": project_id, "agent_id": str(artifact_id)},
+                )
+            ).first()
+        return map_agent_access_dbe_to_dto(row) if row is not None else None
+
+    async def fetch_mount_visibility(
         self,
         *,
         project_id: UUID,
         mount_id: UUID,
-    ) -> Optional[MountAccess]:
+    ) -> Optional[MountVisibility]:
         async with self.engine.session() as session:
             row = (
                 await session.execute(
-                    text(_FETCH_MOUNT_ACCESS_SQL),
+                    text(_FETCH_MOUNT_VISIBILITY_SQL),
                     {"project_id": project_id, "mount_id": mount_id},
                 )
             ).first()
         if row is None:
             return None
-        return MountAccess(
+        return MountVisibility(
             mount_id=row.mount_id,
             slug=row.slug,
             session_id=row.session_id,

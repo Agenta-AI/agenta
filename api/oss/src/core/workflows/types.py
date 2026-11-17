@@ -22,6 +22,8 @@ from agenta.sdk.engines.running.utils import (  # noqa: F401
 )
 from agenta.sdk.agents import HarnessKind
 
+from oss.src.core.sharing.types import HOME_DRIVE_NOT_ALLOWED
+
 
 class WorkflowError(Exception):
     """Base exception for workflow-domain errors."""
@@ -246,7 +248,7 @@ class AgentDriveNotSharedError(AgentDriveError):
 class HomeDriveNotAllowedError(AgentDriveError):
     """A private agent's home drive is not a private drive of the agent's owner."""
 
-    code = "home_drive_not_allowed"
+    code = HOME_DRIVE_NOT_ALLOWED
 
 
 class MountLookupMissing(WorkflowError):
