@@ -10,6 +10,7 @@
     "discoverSpacesFailed": "No se han podido listar los canales que esta aplicación puede ver.",
     "hostedTelegramUnavailable": "El bot de Telegram alojado no está disponible en este despliegue.",
     "loadConnectionsFailed": "No se han podido cargar las conexiones de canales.",
+    "loadInviteFailed": "No se ha podido cargar el enlace de invitación.",
     "loadSetupFailed": "No se ha podido cargar la configuración de {{platform}}.",
     "loadSpacesFailed": "No se ha podido cargar dónde responde esta conexión.",
     "noAgentYet": "Esta conexión todavía no responde como ningún agente.",

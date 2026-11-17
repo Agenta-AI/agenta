@@ -6,7 +6,7 @@
     "automationsLoadError": "无法加载自动化。",
     "automationsTitle": "自动化",
     "channelsLoadError": "无法加载渠道。",
-    "channelsLogosLabel": "Slack、Telegram 和 WhatsApp",
+    "channelsLogosLabel": "Slack、Telegram、WhatsApp 和 Discord",
     "channelsManage": "管理",
     "channelsPanelLoadError": "无法加载渠道，请重试。",
     "channelsPublish": "发布",
