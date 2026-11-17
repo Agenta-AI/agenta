@@ -1,10 +1,10 @@
 import type {ComponentType, ReactNode} from "react"
 
 import {IntegrationTile} from "@agenta/entity-ui/clientTools"
+import {CollapseCaret} from "@agenta/ui/ui"
 import {
     Brain,
     Browser,
-    CaretDown,
     ChartLine,
     CheckCircle,
     CircleNotch,
@@ -16,6 +16,7 @@ import {
     FolderOpen,
     GitCommit,
     Globe,
+    HardDrives,
     Info,
     Key,
     Lightning,
@@ -27,7 +28,6 @@ import {
     Package,
     PencilSimple,
     PlayCircle,
-    Plug,
     Plugs,
     PlugsConnected,
     Prohibit,
@@ -71,7 +71,7 @@ const KIND_GLYPHS: Record<ActivityIcon, Icon> = {
     "tool-search": MagicWand,
     connections: Plugs,
     gateway: Plugs,
-    mcp: Plug,
+    mcp: HardDrives,
     platform: Cube,
     ask: Question,
     connect: PlugsConnected,
@@ -184,15 +184,7 @@ export const StepRow = ({
     )
 
 /** The caret at the end of an expandable row. */
-export const StepCaret = ({open}: {open: boolean}) => (
-    <CaretDown
-        size={9}
-        weight="bold"
-        className={`shrink-0 text-colorTextDisabled opacity-50 transition-transform ${
-            open ? "rotate-180" : ""
-        }`}
-    />
-)
+export const StepCaret = ({open}: {open: boolean}) => <CollapseCaret open={open} size={10} />
 
 /** What the run is parked on: an approval, or one of the asks a client tool makes. */
 export type WaitingKind = "approval" | ActivityIcon

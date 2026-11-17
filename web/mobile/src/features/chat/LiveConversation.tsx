@@ -71,7 +71,8 @@ import {
 } from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
-import {useWalletSummary} from "../wallet/useWalletSummary"
+import {CreditAlertStrip} from "../wallet/CreditAlertStrip"
+import {useWalletSummary, walletSummaryKey} from "../wallet/useWalletSummary"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
@@ -167,6 +168,7 @@ export const LiveConversation = ({
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
     const composerRef = useRef<RichChatInputHandle | null>(null)
+    const modelPickerRef = useRef<(() => void) | null>(null)
     // Quote-to-reply anchors its pill and note box inside the transcript rail.
     const quoteRootRef = useRef<HTMLDivElement>(null)
     // The composer's tray, owned here for the same reason: a refusal that arrives after the send
@@ -252,7 +254,7 @@ export const LiveConversation = ({
     // it replaced. A durable send learns it from the records reader; a `useChat` stream carries a
     // `data-committed-revision` part. The follower acts once per commit, and holds a commit that
     // lands while the tab is hidden until the tab is visible again. Commits made elsewhere (another
-    // user, another session) never come through here: the version pill offers those.
+    // user, another session) never come through here: the top bar applies those.
     const applyCommitRef = useRef<(revisionId: string) => void>(() => undefined)
     applyCommitRef.current = (revisionId: string) => {
         invalidateAgentCommittedRevisionCache(agentId)
@@ -457,9 +459,19 @@ export const LiveConversation = ({
     useEffect(() => {
         if (conversation.sharedSettledAt) {
             void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
+            // A turn from another device can settle between polls without `inputBusy` flipping.
+            void queryClient.invalidateQueries({queryKey: walletSummaryKey(projectId)})
         }
     }, [conversation.sharedSettledAt, projectId, queryClient])
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    // The chat reads the wallet unpolled, so a finished turn is what refreshes its balance.
+    const turnRunning = streamingHere || conversation.inputBusy
+    const turnWasRunningRef = useRef(turnRunning)
+    useEffect(() => {
+        if (turnWasRunningRef.current && !turnRunning)
+            void queryClient.invalidateQueries({queryKey: walletSummaryKey(projectId)})
+        turnWasRunningRef.current = turnRunning
+    }, [turnRunning, projectId, queryClient])
     const remoteTurn = deriveMobileRemoteTurnPresentation({
         livenessRunning: running,
         livenessUpdatedAt,
@@ -833,11 +845,14 @@ export const LiveConversation = ({
     shortcutRef.current = {streamingHere, pendingApprovals, approvalActions, stopHere, locked}
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
+            const stopKey = e.key === "Escape" && !e.isComposing
+            const approveKey = isAltChord(e) && e.code === "KeyG"
+            if (!stopKey && !approveKey) return
             // Radix lets a cancelled Escape through and never touches Alt+G; the pane can hide us.
             if (e.defaultPrevented || isOverlayOpen()) return
             if (!isOnScreen(scrollerRef.current)) return
             const current = shortcutRef.current
-            if (e.key === "Escape" && !e.isComposing && current.streamingHere) {
+            if (stopKey && current.streamingHere) {
                 e.preventDefault()
                 // `stopHere`, not the local abort: Escape must cancel the run on the server too.
                 current.stopHere()
@@ -845,12 +860,7 @@ export const LiveConversation = ({
             }
             // ONE gate, never "Approve all" — a mis-press must not grant a tool nobody read.
             // Someone who cannot send cannot approve either, by key no more than by tap.
-            if (
-                isAltChord(e) &&
-                e.code === "KeyG" &&
-                !current.locked &&
-                current.pendingApprovals.length > 0
-            ) {
+            if (approveKey && !current.locked && current.pendingApprovals.length > 0) {
                 e.preventDefault()
                 current.approvalActions.respond({
                     approved: true,
@@ -921,6 +931,7 @@ export const LiveConversation = ({
                 ) : null}
                 <TranscriptTurns
                     turns={visibleTurns}
+                    scrollerRef={autoScroll.ref}
                     sessionId={sessionId}
                     remoteRunning={showingTurnActivity && !streamingHere}
                     waitingOnUser={parkedOnUser}
@@ -989,16 +1000,18 @@ export const LiveConversation = ({
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
                         {secrets.front ? (
-                            <ContentRail>
-                                <SecretRequestDock
-                                    key={secrets.front.toolCallId}
-                                    meta={secrets.front}
-                                    revisionId={entityId}
-                                    onAdoptRevision={adoptSecretRevision}
-                                    canEditSecrets={canEditSecrets}
-                                    onOutput={secrets.settle}
-                                />
-                            </ContentRail>
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <SecretRequestDock
+                                        key={secrets.front.toolCallId}
+                                        meta={secrets.front}
+                                        revisionId={entityId}
+                                        onAdoptRevision={adoptSecretRevision}
+                                        canEditSecrets={canEditSecrets}
+                                        onOutput={secrets.settle}
+                                    />
+                                </ContentRail>
+                            </div>
                         ) : null}
                         {elicits.open ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
@@ -1048,6 +1061,25 @@ export const LiveConversation = ({
                                 <ModelSetupBanner revisionId={entityId} onSetUp={openModelSetup} />
                             )}
                         </ContentRail>
+                        {readOnly ? null : (
+                            <div className="bg-background shrink-0 px-3">
+                                <ContentRail>
+                                    <CreditAlertStrip
+                                        projectId={projectId}
+                                        entityId={entityId}
+                                        hidden={modelBlocked || setupBlocked}
+                                        dockOpen={
+                                            approvalsOpen ||
+                                            Boolean(secrets.front) ||
+                                            elicits.open ||
+                                            connects.open ||
+                                            (personalSetup.open && !readOnly && !accessPending)
+                                        }
+                                        onSwitchModel={() => modelPickerRef.current?.()}
+                                    />
+                                </ContentRail>
+                            </div>
+                        )}
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
                             <PendingTaskError
@@ -1125,6 +1157,7 @@ export const LiveConversation = ({
                                 onStop={stopHere}
                                 inputBusy={conversation.inputBusy}
                                 inputRef={composerRef}
+                                modelPickerRef={modelPickerRef}
                                 // Same gate the rail's `+` uses: starting one needs an agent.
                                 onNewSession={
                                     agentId ? () => startBlankSession(agentId) : undefined

@@ -71,6 +71,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {harnessMetaFor, selectableHarnesses} from "../DrillInView/SchemaControls/harnessMeta"
 import {OwnerRadioGroup} from "../secret/OwnerRadioGroup"
+import {PASSWORD_MANAGER_OPT_OUT} from "../secret/passwordManagerOptOut"
 
 import ActiveModelsSection from "./ActiveModelsSection"
 import HarnessesSection, {type HarnessChoice} from "./HarnessesSection"
@@ -95,17 +96,6 @@ const HARNESS_DOMAINS: Record<string, string> = {pi_core: "pi.dev"}
  * `<input>` from its own size variant, so a class on the wrapper never lands on the text.
  */
 const FIELD_TYPE_SCALE = "[&_input]:!text-xs"
-
-/**
- * A name field beside a secret field and a primary button reads as a login form, so Bitwarden and
- * friends offer to save or update a login over the drawer. Every field opts out explicitly.
- */
-const PASSWORD_MANAGER_OPT_OUT = {
-    "data-1p-ignore": true,
-    "data-lpignore": "true",
-    "data-bwignore": "true",
-    "data-form-type": "other",
-} as const
 
 /** What the drawer's footer needs from the card to render Cancel/Done for it. */
 export interface ProviderCardSaveState {

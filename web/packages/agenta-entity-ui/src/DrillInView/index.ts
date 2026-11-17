@@ -251,7 +251,6 @@ export {
     TOOL_SPECS,
     // Composite controls
     ObjectSchemaControl,
-    CollapsibleObjectControl,
     SchemaPropertyRenderer,
     // Context providers
     FieldsDetectionProvider,
@@ -421,11 +420,7 @@ export {SectionDrawer} from "./SchemaControls/SectionDrawer"
 export type {SectionDrawerProps} from "./SchemaControls/SectionDrawer"
 export {SectionQuickAction} from "./SchemaControls/SectionQuickAction"
 export type {SectionQuickActionProps} from "./SchemaControls/SectionQuickAction"
-export {
-    ProviderLogo,
-    SubSectionHeader,
-    CollapsibleProviderGroup,
-} from "./SchemaControls/sectionGroups"
+export {ProviderLogo, SubSectionHeader} from "./SchemaControls/sectionGroups"
 
 // Tool / skill / MCP item + form views. Presentational and prop-driven (the drawer owns the
 // value); surfaced so the Storybook component inventory can render each one.
