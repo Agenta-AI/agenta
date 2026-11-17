@@ -30,6 +30,7 @@ import httpx
 if TYPE_CHECKING:
     from oss.src.core.environments.service import EnvironmentsService
     from oss.src.core.embeds.service import EmbedsService
+    from oss.src.core.mounts.dtos import Mount
     from oss.src.core.mounts.service import MountsService
     from oss.src.core.triggers.interfaces import TriggersDAOInterface
 
@@ -606,7 +607,7 @@ class WorkflowsService:
         artifact_id: UUID,
         include_archived: bool,
         first_agent_owner_user_id: Optional[UUID] = None,
-    ) -> Optional[Any]:
+    ) -> Optional["Mount"]:
         """The drive created with the agent, created now when the agent has none. The
         new drive's visibility is the agent's; an agent with no access row gets a shared
         drive, owned by ``first_agent_owner_user_id`` when given. None when the agent
@@ -743,17 +744,14 @@ class WorkflowsService:
             mount = await lookup.fetch_mount_by_slug(
                 project_id=project_id, slug=drive.slug
             )
+            policy = None
             # No channel exception at save: `context` stays None.
-            policy = (
-                await sharing.fetch_mount_policy(
+            if mount is not None and await sharing.may_use_mount(
+                project_id=project_id, mount_id=mount.id
+            ):
+                policy = await sharing.fetch_mount_policy(
                     project_id=project_id, mount_id=mount.id
                 )
-                if mount is not None
-                and await sharing.may_use_mount(
-                    project_id=project_id, mount_id=mount.id
-                )
-                else None
-            )
             if policy is None:
                 raise AgentDriveNotFoundError(
                     field=f"drives[{index}].slug",
@@ -1145,13 +1143,11 @@ class WorkflowsService:
             and merged_flags.is_agent
             and revision.data is not None
         ):
-            agent = _agent_config(revision.data)
-            if agent is not None and "drives" not in agent:
-                update["data"] = await self.fill_agent_revision_drives(
-                    project_id=project_id,
-                    artifact_id=revision.workflow_id,
-                    data=revision.data,
-                )
+            update["data"] = await self.fill_agent_revision_drives(
+                project_id=project_id,
+                artifact_id=revision.workflow_id,
+                data=revision.data,
+            )
         return revision.model_copy(update=update)
 
     @staticmethod

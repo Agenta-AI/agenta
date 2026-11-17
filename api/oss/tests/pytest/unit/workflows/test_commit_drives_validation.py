@@ -430,7 +430,8 @@ async def test_the_fill_gives_no_drive_when_the_home_rule_refuses(world, drives)
     assert agent["home_drive"] is None
 
 
-async def test_reading_an_older_revision_fills_its_keys(world, drives):
+@pytest.mark.parametrize("stated", [{}, {"drives": None}])
+async def test_reading_an_older_revision_fills_its_keys(world, drives, stated):
     drives.own = drives.add("quote-files", agent_id=AGENT_ID)
     service, _ = _service(drives)
     revision = WorkflowRevision(
@@ -439,7 +440,7 @@ async def test_reading_an_older_revision_fills_its_keys(world, drives):
         version="1",
         workflow_id=AGENT_ID,
         flags={"is_agent": True},
-        data={"parameters": {"agent": {"llm": {"model": "m"}}}},
+        data={"parameters": {"agent": {"llm": {"model": "m"}, **stated}}},
     )
     read = await service._normalize_revision_for_read(
         project_id=world.project_id,

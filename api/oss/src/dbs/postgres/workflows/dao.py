@@ -110,20 +110,11 @@ SELECT EXISTS (
 """
 
 
-# The agent read scope (`_agent_read_filter`) on artifact `a`.
-_AGENT_READ_SCOPE_SQL = """
-NOT EXISTS (
-    SELECT 1 FROM agent_access x
-    WHERE x.project_id = a.project_id
-      AND x.artifact_id = a.id
-      AND x.visibility = 'private'
-      AND x.owner_user_id IS DISTINCT FROM :owner_user_id
-)
-"""
-
 # The other agents that use one of the drives: the latest revision of one of their
-# variants lists it, or it is their own drive and no revision of theirs states `drives`.
-_AGENTS_USING_DRIVES_SQL = f"""
+# variants lists it (by its slug, or by the reserved slug of its agent, which
+# `fetch_mount_by_slug` resolves by agent id), or it is their own drive and the latest
+# revision of one of their variants states no `drives` (the read fill lists it). The read scope is applied by `query_artifacts`.
+_AGENTS_USING_DRIVES_SQL = """
 WITH latest AS (
     SELECT DISTINCT ON (r.variant_id)
         r.artifact_id,
@@ -134,15 +125,21 @@ WITH latest AS (
     WHERE r.project_id = :project_id
       AND r.artifact_id <> :artifact_id
       AND v.deleted_at IS NULL
-      AND r.flags @> '{{"is_agent": true}}'::jsonb
+      AND r.flags @> '{"is_agent": true}'::jsonb
     ORDER BY r.variant_id, r.created_at DESC
+),
+used AS (
+    SELECT m.slug, m.agent_id
+    FROM mounts m
+    WHERE m.project_id = :project_id
+      AND m.slug = ANY(CAST(:slugs AS text[]))
+      AND m.deleted_at IS NULL
 )
-SELECT a.name, a.slug
+SELECT a.id
 FROM workflow_artifacts a
 WHERE a.project_id = :project_id
   AND a.id <> :artifact_id
   AND a.deleted_at IS NULL
-  AND {_AGENT_READ_SCOPE_SQL}
   AND (
     EXISTS (
         SELECT 1
@@ -150,28 +147,26 @@ WHERE a.project_id = :project_id
              json_array_elements(
                  CASE WHEN json_typeof(l.drives) = 'array' THEN l.drives
                       ELSE '[]'::json END
-             ) e
+             ) e,
+             used u
         WHERE l.artifact_id = a.id
-          AND e ->> 'slug' = ANY(CAST(:slugs AS text[]))
+          AND (
+            e ->> 'slug' = u.slug
+            OR (
+                u.agent_id IS NOT NULL
+                AND starts_with(e ->> 'slug', '__ag__agent__' || u.agent_id || '__')
+            )
+          )
     )
     OR (
-        EXISTS (
-            SELECT 1 FROM mounts m
-            WHERE m.project_id = a.project_id
-              AND m.agent_id = a.id::text
-              AND m.deleted_at IS NULL
-              AND m.slug = ANY(CAST(:slugs AS text[]))
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM workflow_revisions r
-            WHERE r.project_id = a.project_id
-              AND r.artifact_id = a.id
-              AND json_typeof(json_extract_path(r.data, 'parameters', 'agent', 'drives'))
-                  = 'array'
+        EXISTS (SELECT 1 FROM used u WHERE u.agent_id = a.id::text)
+        AND EXISTS (
+            SELECT 1 FROM latest l
+            WHERE l.artifact_id = a.id
+              AND json_typeof(l.drives) IS DISTINCT FROM 'array'
         )
     )
   )
-ORDER BY a.name, a.slug
 """
 
 
@@ -442,18 +437,26 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
         if not slugs:
             return []
         async with self.engine.session() as session:
-            rows = (
+            ids = (
                 await session.execute(
                     text(_AGENTS_USING_DRIVES_SQL),
                     {
                         "project_id": project_id,
                         "artifact_id": artifact_id,
                         "slugs": list(slugs),
-                        "owner_user_id": read_scope.owner_user_id,
                     },
                 )
-            ).all()
-        return [row.name or row.slug for row in rows]
+            ).scalars()
+            refs = [Reference(id=agent_id) for agent_id in ids]
+        if not refs:
+            return []
+        agents = await self.query_artifacts(
+            project_id=project_id,
+            artifact_query=ArtifactQuery(),
+            artifact_refs=refs,
+            read_scope=read_scope,
+        )
+        return sorted(agent.name or agent.slug for agent in agents)
 
     # -- agent access writes ------------------------------------------------------------
 
