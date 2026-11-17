@@ -635,8 +635,7 @@ a.ag-mega__head:focus-visible svg {
 .ag-mm-link::-webkit-details-marker {
   display: none;
 }
-.ag-mm-link:hover,
-.ag-mm-group[open] > .ag-mm-link {
+.ag-mm-link:hover {
   background: var(--th-hover);
 }
 .ag-mm-cta {
@@ -662,7 +661,7 @@ a.ag-mega__head:focus-visible svg {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 10px 12px 18px;
+  padding: 4px 12px 14px;
   color: var(--lp-text);
 }
 .ag-mm-cols {

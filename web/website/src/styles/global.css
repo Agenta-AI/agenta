@@ -1032,24 +1032,22 @@ html,
   /* Pinned to the viewport so the menu stays reachable when the landing nav floats. */
   .ag-mobile-menu.is-open {
     position: fixed;
-    top: 54px;
-    left: 8px;
-    right: 8px;
+    top: 62px;
+    left: 12px;
+    right: 12px;
     z-index: 55;
-    max-height: calc(100dvh - 66px);
+    max-height: calc(100dvh - 74px);
     overflow-y: auto;
-    border-radius: 0 0 18px 18px;
-    box-shadow:
-      1px 0 0 var(--lp-line-2),
-      -1px 0 0 var(--lp-line-2),
-      0 1px 0 var(--lp-line-2),
-      0 1px 1px rgba(24, 16, 16, 0.03);
-    animation: agMmIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  .nav-scrolled .ag-mobile-menu.is-open {
-    top: 70px;
     border-radius: 18px;
     box-shadow: var(--th-menu-shadow);
+    animation: agMmIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* Under the floating pill: same width as the pill, 8px below it. */
+  .nav-scrolled .ag-mobile-menu.is-open {
+    top: 86px;
+    left: 17px;
+    right: 17px;
+    max-height: calc(100dvh - 98px);
   }
 
   /* Authors grids never collapsed (inline repeat(3,1fr)); 3-up -> 2-up on tablet.
