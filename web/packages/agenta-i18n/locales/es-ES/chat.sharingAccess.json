@@ -1,0 +1,20 @@
+{
+    "composerViewer": "Puedes ver este chat, pero no puedes enviarle mensajes. Pide a {{owner}} el acceso «Puede enviar».",
+    "composerPrivateAgent": "El agente de este chat es privado. Puedes leer el historial, pero no puedes enviar mensajes.",
+    "composerNoOwner": "Una clave de API o una automatización inició este chat. Puedes leerlo, pero no puedes enviarle mensajes aquí.",
+    "composerOwnerLeft": "{{owner}} salió de este proyecto, así que nadie puede enviar mensajes a este chat.",
+    "ownerFallback": "la persona propietaria",
+    "privateAgent": "Agente privado",
+    "refusedSubject": "Este mensaje",
+    "refusedNoAgentAccess": "no se ejecutó. Ya no tienes acceso al agente de este chat.",
+    "accessRemovedTitle": "Ya no tienes acceso a este chat",
+    "accessRemovedBody": "La persona propietaria cambió quién puede verlo.",
+    "backToSessions": "Volver a las sesiones",
+    "backToAgents": "Volver a los agentes",
+    "chatNotFound": "Este chat no existe o no tienes acceso a él.",
+    "chatNotFoundAskOwner": "Si alguien te envió este enlace, pídele que te añada desde «Compartir».",
+    "agentNotFound": "Este agente no existe o no tienes acceso a él.",
+    "approvalWaiting": "Esperando a {{owner}} o a alguien que pueda enviar mensajes en este chat.",
+    "rowMenuNotOwner": "Solo {{owner}} puede cambiar el nombre, compartir, archivar o eliminar este chat.",
+    "agentPrivateMarker": "Solo tú puedes verlo y usarlo en Agenta."
+}

@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react"
 
-import {getDefaultStore, useAtomValue} from "jotai"
+import {atom, getDefaultStore, useAtomValue} from "jotai"
 
 import {activeLanguageAtom, DEFAULT_LANGUAGE, getActiveLanguage, languageAtom} from "./language"
 import {
@@ -78,6 +78,14 @@ export const createEnglishT =
     <C extends CatalogEntry[]>(...catalogs: C): Translator<C> =>
     (key, values) =>
         translate(DEFAULT_LANGUAGE, key, values, catalogs)
+
+/**
+ * Changes when displayed text can change: the language switches or a catalog finishes loading.
+ * Put it in the dependencies of a memo or an atom that keeps text built with `createT`.
+ */
+export const textVersionAtom = atom(
+    (get) => `${get(activeLanguageAtom)}:${get(catalogVersionAtom)}`,
+)
 
 /** A `t` for components; it changes, and the component re-renders, when the language does. */
 export const useT = <C extends CatalogEntry[]>(...catalogs: C): Translator<C> => {

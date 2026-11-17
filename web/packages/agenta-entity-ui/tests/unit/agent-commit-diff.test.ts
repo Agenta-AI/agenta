@@ -2,13 +2,21 @@
  * Unit tests for the agent commit-diff classifier (accessor + classify + message).
  * Covers the three overlapping `parameters` schema shapes and the change categories.
  */
+import {
+    agentItemIdentity,
+    buildCommitSummaryMessage,
+    classifyAgentChanges as classify,
+    NO_COMMIT_DIFF_TEXT,
+    parseGatewayToolName,
+    readAgentConfig,
+} from "@agenta/entities/workflow/commitDiff"
 import {describe, it, expect} from "vitest"
 
-import {readAgentConfig} from "../../src/workflow/commitDiff/accessors"
-import {classifyAgentChanges} from "../../src/workflow/commitDiff/classify"
-import {parseGatewayToolName} from "../../src/workflow/commitDiff/gatewayName"
-import {agentItemIdentity} from "../../src/workflow/commitDiff/identity"
-import {buildCommitSummaryMessage} from "../../src/workflow/commitDiff/summaryMessage"
+import {commitDiffTextNow} from "../../src/changes/commitDiffText"
+
+// The words live in the entityUi.commitDiff catalog; these tests pin the English byte for byte.
+const classifyAgentChanges = (local: unknown, remote: unknown) =>
+    classify(local, remote, commitDiffTextNow())
 
 const tool = (
     name: string,
@@ -581,6 +589,19 @@ describe("classifyAgentChanges", () => {
 
     it("no-op returns []", () => {
         expect(classifyAgentChanges(base, base)).toEqual([])
+    })
+
+    it("builds the same commit message without any words", () => {
+        // The auto-commit passes NO_COMMIT_DIFF_TEXT; the message must not depend on the words.
+        const local = {
+            prompt: {
+                messages: [{role: "system", content: "You are a careful assistant."}],
+                llm_config: {model: "gpt-4.1", temperature: 0.2, tools: [tool("gmail_send")]},
+            },
+        }
+        const message = buildCommitSummaryMessage(classifyAgentChanges(local, base))
+        expect(message).not.toBe("")
+        expect(buildCommitSummaryMessage(classify(local, base, NO_COMMIT_DIFF_TEXT))).toBe(message)
     })
 
     it("added tool", () => {

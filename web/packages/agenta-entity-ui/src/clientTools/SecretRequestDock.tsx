@@ -65,7 +65,6 @@ type Retry =
     | {kind: "attach"; secret: Secret}
     | {kind: "settle"; secret: Secret; envName: string; revisionId: string}
 
-const VALUE_FIELD_LABEL = "Secret value"
 const READ_TIMEOUT_MS = 3000
 const PERSONAL_SECRET: Secret = {account_source: "user"} as Secret
 
@@ -418,10 +417,14 @@ export const SecretRequestDock = ({
                         <Textarea
                             ref={valueRef}
                             {...PASSWORD_MANAGER_OPT_OUT}
-                            aria-label={VALUE_FIELD_LABEL}
+                            aria-label={t("entityUi.clientTools.secretValue")}
                             rows={1}
                             className="max-h-24 min-h-8 flex-1 resize-none font-mono [-webkit-text-security:disc] [field-sizing:content]"
-                            placeholder={replacing ? "Paste a new value" : "Paste the value"}
+                            placeholder={
+                                replacing
+                                    ? t("entityUi.clientTools.pasteNewValue")
+                                    : t("entityUi.clientTools.pasteValue")
+                            }
                             value={form.textValue}
                             onChange={(event) => changeValue(event.target.value)}
                             onKeyDown={submitOnEnter}
@@ -437,7 +440,7 @@ export const SecretRequestDock = ({
                             disabled={!canSubmit}
                             onClick={() => void form.submit()}
                         >
-                            Save
+                            {t("entityUi.clientTools.save")}
                         </LoadingButton>
                     </div>
                 ) : null}
@@ -447,7 +450,7 @@ export const SecretRequestDock = ({
                         {request ? (
                             editingEnv ? (
                                 <Input
-                                    aria-label="Environment variable"
+                                    aria-label={t("entityUi.clientTools.environmentVariable")}
                                     autoFocus
                                     size="sm"
                                     className="h-6 w-full max-w-72 font-mono text-xs"
@@ -492,13 +495,13 @@ export const SecretRequestDock = ({
                             )
                         ) : null}
                         {entry && !replacing && savesPersonal && !editingEnv ? (
-                            <span className="shrink-0">· only you</span>
+                            <span className="shrink-0">{t("entityUi.clientTools.onlyYou")}</span>
                         ) : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         {!ready && request ? (
                             <span className="px-2 text-xs text-colorTextSecondary">
-                                Checking...
+                                {t("entityUi.clientTools.checking")}
                             </span>
                         ) : null}
                         {canToggleEntry || hasOptions ? (
@@ -507,7 +510,7 @@ export const SecretRequestDock = ({
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        aria-label="Secret options"
+                                        aria-label={t("entityUi.clientTools.secretOptions")}
                                         disabled={busy}
                                     >
                                         <DotsThree size={16} />
@@ -516,7 +519,9 @@ export const SecretRequestDock = ({
                                 <DropdownMenuContent align="end">
                                     {canToggleEntry ? (
                                         <DropdownMenuItem onSelect={toggleEntry}>
-                                            {entry ? "Keep saved value" : "Change value"}
+                                            {entry
+                                                ? t("entityUi.clientTools.keepSavedValue")
+                                                : t("entityUi.clientTools.changeValue")}
                                         </DropdownMenuItem>
                                     ) : null}
                                     {hasOptions ? (
@@ -524,7 +529,9 @@ export const SecretRequestDock = ({
                                             disabled={dirty}
                                             onSelect={() => setModalOpen(true)}
                                         >
-                                            {changeInDialog ? "Change value" : "More options"}
+                                            {changeInDialog
+                                                ? t("entityUi.clientTools.changeValue")
+                                                : t("entityUi.clientTools.moreOptions")}
                                         </DropdownMenuItem>
                                     ) : null}
                                 </DropdownMenuContent>
@@ -553,7 +560,7 @@ export const SecretRequestDock = ({
                                 disabled={busy || dirty}
                                 onClick={() => setModalOpen(true)}
                             >
-                                Change value
+                                {t("entityUi.clientTools.changeValue")}
                             </Button>
                         ) : null}
                     </div>
