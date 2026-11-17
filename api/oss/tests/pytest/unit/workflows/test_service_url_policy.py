@@ -194,6 +194,24 @@ async def test_a_platform_call_does_not_follow_a_redirect():
     assert hops == [f"{_SERVICES_URL}/agent/v0/invoke"]
 
 
+async def test_a_platform_call_uses_the_caller_timeout():
+    seen = []
+
+    def handle(request):
+        seen.append(request.extensions["timeout"]["read"])
+        return httpx.Response(200, json={})
+
+    with _through(httpx.MockTransport(handle)):
+        await WorkflowsService._post_service_json(
+            url=f"{_SERVICES_URL}/agent/v0/invoke",
+            credentials="Secret tok",
+            payload={},
+            timeout=1800.0,
+        )
+
+    assert seen == [1800.0]
+
+
 async def test_a_refused_detached_start_is_never_sent(monkeypatch):
     """A refused URL sends nothing, so a caller holding a dispatch claim may release it."""
     monkeypatch.setattr(

@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     agentWorkflowsListQueryStateAtom,
@@ -58,6 +58,8 @@ export const ShareMenu = ({
     )
 
     const agentName = agent?.name || agent?.slug || "Agent"
+    // Channels show only inside Publish and the privacy panel, and this menu mounts per session.
+    const [channelsEngaged, setChannelsEngaged] = useState(false)
     const publish = useAgentPublishPanel({
         agentId,
         agentName: agent?.name || agent?.slug || undefined,
@@ -66,6 +68,7 @@ export const ShareMenu = ({
         projectId,
         workspaceId,
         side: "right",
+        channelsEnabled: channelsEngaged,
     })
     const {reload} = publish
     // A privacy write can change the agent's channel connections: read them again after it.
@@ -137,11 +140,15 @@ export const ShareMenu = ({
                 connections={publish.connections}
                 onOpenChannels={publish.openHub}
                 onChanged={reloadChannels}
+                onEngage={() => setChannelsEngaged(true)}
             />
             <Button
                 variant="ghost"
                 size="sm"
-                onClick={publish.openHub}
+                onClick={() => {
+                    setChannelsEngaged(true)
+                    publish.openHub()
+                }}
                 data-testid="share-menu-publish"
             >
                 <Broadcast data-icon="inline-start" />

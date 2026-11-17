@@ -7,7 +7,10 @@ import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it} from "vitest"
 
-import {invalidateAgentCommittedRevisionCache} from "../../src/workflow/state/store"
+import {
+    invalidateAgentCommittedRevisionCache,
+    revalidateAgentRevisionReads,
+} from "../../src/workflow/state/store"
 
 const seeded: [unknown[], unknown][] = [
     [["workflows", "latestRevision", "A", "p"], {id: "a1", workflow_id: "A"}],
@@ -89,6 +92,21 @@ describe("invalidateAgentCommittedRevisionCache", () => {
             "workflows/latestRevision/B/p",
             "workflows/latestRevision/C/p",
             "workflows/latestRevision/mobile/p/B",
+            "workflows/latestRevision/mobile/p/variant-of-A",
+            "workflows/revisions/variant-of-B/p",
+            "workflows/revisionsByWorkflow/A/p",
+            "workflows/revisionsByWorkflow/B/p",
+        ])
+    })
+})
+
+describe("revalidateAgentRevisionReads", () => {
+    it("re-reads the revisions a commit would, and leaves the agent/prompt split cached", () => {
+        revalidateAgentRevisionReads("A")
+
+        expect(invalidatedKeys()).toEqual([
+            "workflows/inspect/agenta:builtin:agent/svc/p",
+            "workflows/latestRevision/A/p",
             "workflows/latestRevision/mobile/p/variant-of-A",
             "workflows/revisions/variant-of-B/p",
             "workflows/revisionsByWorkflow/A/p",

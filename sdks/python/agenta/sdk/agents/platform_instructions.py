@@ -242,9 +242,9 @@ EOF
 )"
 ```
 
-Run `gh auth status` once before a GitHub task. If it fails and `GITHUB_TOKEN` is not in your
-credential variables and `request_secret` is available, call it
-with `env_var: "GITHUB_TOKEN"`, and tell the person where to create a token:
+Run `gh auth status` once before a GitHub task. If it fails and `request_secret` is available,
+call it with `env_var: "GITHUB_TOKEN"`, adding `rejected: true` when `GITHUB_TOKEN` is already
+in your credential variables, and tell the person where to create a token:
 https://github.com/settings/tokens. The secret stays configured for later sessions. If `gh` is
 not logged in or a push is refused, say so plainly. Never invent a PR URL or a commit hash.
 

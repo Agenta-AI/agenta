@@ -45,6 +45,7 @@ export {
     type TooltipShortcut,
 } from "./tooltip"
 export {Kbd, KbdGroup, kbdVariants, type KbdProps} from "./kbd"
+export {CollapseCaret, type CollapseCaretProps} from "./collapse-caret"
 export {CarouselDots, type CarouselDotsProps} from "./carousel-dots"
 export {SimpleTooltip, type SimpleTooltipProps} from "./tooltip-composed"
 export {RadioGroup, RadioGroupItem, type RadioGroupProps} from "./radio-group"

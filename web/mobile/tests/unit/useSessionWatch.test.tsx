@@ -44,12 +44,13 @@ let recordsCalls: number[]
 let interactionPayloads: string[]
 let invalidatedKeys: unknown[]
 
-const Probe = () => {
+const Probe = ({sharedReaderAdvertised}: {sharedReaderAdvertised?: boolean}) => {
     useSessionWatch({
         sessionId: "session-1",
         projectId: PROJECT,
         onRecordsChanged: () => recordsCalls.push(Date.now()),
         onInteractionChanged: (event) => interactionPayloads.push(event.data),
+        sharedReaderAdvertised,
     })
     return null
 }
@@ -93,6 +94,52 @@ afterEach(() => {
     act(() => root.unmount())
     vi.unstubAllGlobals()
     vi.useRealTimers()
+})
+
+describe("useSessionWatch on connect", () => {
+    const railKey = ["sidebar-sessions", PROJECT, [], "all", "7d", "chat", null]
+    const railInvalidated = () => client.getQueryState(railKey)?.isInvalidated
+
+    it("leaves a rail read moments ago alone, as the second stream of a switch does", async () => {
+        client.setQueryData(railKey, [])
+        await act(async () => vi.advanceTimersByTime(1_000))
+
+        FakeEventSource.last?.emit("ready")
+
+        expect(railInvalidated()).toBe(false)
+    })
+
+    it("re-reads an older rail, which the gap in the stream may have outdated", async () => {
+        client.setQueryData(railKey, [])
+        await act(async () => vi.advanceTimersByTime(3_000))
+
+        FakeEventSource.last?.emit("ready")
+
+        expect(railInvalidated()).toBe(true)
+    })
+
+    it("still re-reads a rail read moments ago when a lifecycle event says it moved", async () => {
+        client.setQueryData(railKey, [])
+        await act(async () => vi.advanceTimersByTime(1_000))
+
+        FakeEventSource.last?.emit("lifecycle")
+
+        expect(railInvalidated()).toBe(true)
+    })
+
+    it("keeps one stream when the shared-reader prop lands after the session row", async () => {
+        const stream = FakeEventSource.last
+
+        await act(async () =>
+            root.render(
+                <QueryClientProvider client={client}>
+                    <Probe sharedReaderAdvertised={false} />
+                </QueryClientProvider>,
+            ),
+        )
+
+        expect(FakeEventSource.last).toBe(stream)
+    })
 })
 
 describe("useSessionWatch coalescing", () => {
