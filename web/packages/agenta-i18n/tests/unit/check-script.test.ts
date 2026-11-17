@@ -149,6 +149,13 @@ describe("checkNamespace", () => {
             "ja-JP value is not a string: a",
         ])
     })
+
+    it("rejects empty and blank values, which would hide the English text", () => {
+        expect(checkNamespace({a: "A", b: "B"}, {a: "", b: "  "}, "ja-JP")).toEqual([
+            "ja-JP value is empty: a",
+            "ja-JP value is empty: b",
+        ])
+    })
 })
 
 describe("languages", () => {
