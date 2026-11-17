@@ -1,0 +1,17 @@
+{
+    "appearance": "外観",
+    "betaDeveloperMode": "新しいベータ版の開発者モードを使用",
+    "betaDeveloperModeDescription": "開発者モードをクラシックアプリで開かずに新しいアプリのまま使い、開発者セクションを表示します。",
+    "channelDebug": "チャネルのデバッグ",
+    "channelDebugDescription": "チャネル設定に、チャネルのスペース、スレッド、生のイベントを表示します。",
+    "channelProbe": "Agenta チャネルプローブ",
+    "channelProbeDescription": "ブラウザー内の一時的なチャネルプローブを表示します。",
+    "debugging": "デバッグ",
+    "debuggingDescription": "実行とチャネルを調べるためのツールです。",
+    "developerMode": "開発者モード",
+    "developerModeDescription": "ナビゲーションに評価、プロンプト管理、トレースを表示します。",
+    "featureFlags": "機能フラグ",
+    "language": "言語",
+    "playgroundInspector": "プレイグラウンドインスペクター",
+    "playgroundInspectorDescription": "プレイグラウンドのセッションとターンを調べるためのコントロールを表示します。"
+}

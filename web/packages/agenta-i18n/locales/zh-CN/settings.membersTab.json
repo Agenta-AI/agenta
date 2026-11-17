@@ -1,0 +1,15 @@
+{
+    "invalidEmail": "请输入有效的邮箱地址",
+    "inviteDescription": "对方接受邀请后即可加入此组织。",
+    "inviteError": "无法发送邀请",
+    "inviteTitle": "邀请成员",
+    "loadError": "无法加载该组织的成员",
+    "removeConfirm": "移除 {{name}}？",
+    "removeDescription": "对方将失去对此组织的访问权限。",
+    "removeError": "无法移除该成员",
+    "removeTitle": "移除成员",
+    "removing": "正在移除…",
+    "roleError": "无法更改角色",
+    "sendInvitation": "发送邀请",
+    "sending": "正在发送…"
+}

@@ -89,6 +89,24 @@ specifics), `vercel:shadcn`, `vercel:react-best-practices`.
 - Lint / types: `pnpm --filter @agenta/mobile lint` / `pnpm --filter @agenta/mobile types:check`
 - Token bridge: `pnpm --filter @agenta/mobile generate:tokens`
 
+## Translations (i18n)
+
+All user-visible text in `web/mobile` and the `@agenta/*` packages comes from `@agenta/i18n`.
+Languages: `en` and the languages listed in `SUPPORTED_LANGUAGES`. Detail, file layout and
+commands: `web/packages/agenta-i18n/README.md`.
+
+- Put each screen's text in its own catalog `locales/<lang>/<area>.<screen>.json` plus an entry
+  file in `src/catalogs/`. English is a static import. Do not edit another screen's catalog.
+- Use `const t = useT(catalog)` in components and `createT(catalog)` outside React. Use one key
+  per full sentence with `{{placeholders}}`. Never build a sentence from pieces.
+- Keep English text exactly as it was when you move it.
+- Never put `t` in a `useEffect`, `useCallback` or `useMemo` dependency list. Never use a `t()`
+  result as a check, id, key or boolean.
+- Never translate text that is saved to the API or sent to a third party.
+- Format dates and numbers with `formatDate` and `formatNumber`.
+- Never make English lazy. Run `speed:check` and keep first-load JS flat.
+- Add the text of every supported language, or leave the file out: a missing file shows English.
+
 ## Speed budget
 
 /m must never get slower. Three things count: the JavaScript users download, the `next dev`
