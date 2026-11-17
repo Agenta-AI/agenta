@@ -570,6 +570,17 @@ async def test_create_applies_the_new_agents_visibility_before_any_write(
             simple_workflow_create=SimpleWorkflowCreate(slug="shared", data=data),
         )
     workflows_service.create_workflow.assert_not_awaited()
+    # Private access on a create that is not marked as an agent writes no private
+    # row, so the agent ends shared: refused too.
+    simple, workflows_service = _simple_service(drives)
+    with pytest.raises(AgentDriveNotSharedError):
+        await simple.create(
+            project_id=world.project_id,
+            user_id=owner,
+            simple_workflow_create=SimpleWorkflowCreate(slug="unmarked", data=data),
+            access=_private(owner),
+        )
+    workflows_service.create_workflow.assert_not_awaited()
     # A private agent of the drive's owner passes the check and reaches the create.
     simple, workflows_service = _simple_service(drives)
     workflows_service.create_workflow.side_effect = _ReachedCreate()
@@ -577,7 +588,9 @@ async def test_create_applies_the_new_agents_visibility_before_any_write(
         await simple.create(
             project_id=world.project_id,
             user_id=owner,
-            simple_workflow_create=SimpleWorkflowCreate(slug="private", data=data),
+            simple_workflow_create=SimpleWorkflowCreate(
+                slug="private", data=data, flags={"is_agent": True}
+            ),
             access=_private(owner),
         )
 

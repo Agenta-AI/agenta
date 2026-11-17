@@ -1101,7 +1101,7 @@ class SimpleApplicationsService:
         await self.applications_service.workflows_service.reject_unusable_agent_drives(
             project_id=project_id,
             data=simple_application_create.data,
-            new_agent_policy=new_agent_policy(None),
+            new_agent_policy=new_agent_policy(None, is_agent=False),
         )
 
         simple_application_flags = (
