@@ -96,10 +96,13 @@ export function useDriveTreeData({
             return name === ".gitignore" && ancestors.has(dir)
         })
     }, [lazyTree.files, selectedPath])
-    // Read off the loaded listing, not the recents; a single-origin drive never filters.
+    // Read off the loaded listing, not the recents; a single-origin drive never filters. A home
+    // drive shown at the root (no session folder) holds no session file at all.
     const showOrigin = useMemo(
-        () => driveHasMixedOrigins(explicitFiles ?? lazyTree.files, drive.otherDrives),
-        [explicitFiles, lazyTree.files, drive.otherDrives],
+        () =>
+            !drive.homeAtRoot &&
+            driveHasMixedOrigins(explicitFiles ?? lazyTree.files, drive.otherDrives),
+        [explicitFiles, lazyTree.files, drive.otherDrives, drive.homeAtRoot],
     )
     // "Show temporary files" is the origin filter: session-scoped files are the temporary ones.
     const hideTemporary = showOrigin && !showTemporary

@@ -59,6 +59,8 @@ export const resolveQuickLookPath = (
     requested: string,
     drives: readonly {slug: string}[] = [],
     homeSlug: string | null = null,
+    /** The home drive is presented at the root, not under `agent-files/` (no session folder). */
+    homeAtRoot = false,
 ): string => {
     if (requested.startsWith("/")) {
         // A presented path written absolute (`/agent-files/x`) is the drive's own, not `/etc/x`, so
@@ -71,17 +73,9 @@ export const resolveQuickLookPath = (
             return presented
         const resolved = drivePathFromToolPath(requested)
         if (!resolved) return recents.some((f) => f.path === presented) ? presented : requested
-        // The home drive is presented folded under `agent-files/`, except on a drive that IS the
-        // home drive, which presents it at the root. Try both spellings, then fall back to the
-        // folded one — `resolveMount` unfolds it again, so it resolves either way.
-        // Only the home drive has a second spelling: another drive's file is never a session file.
-        const folded = presentToolPath(resolved, homeSlug)
-        const home = folded.startsWith(`${AGENT_FILES_DIR}/`)
-        return (
-            recents.find((f) => f.path === folded)?.path ??
-            (home ? recents.find((f) => f.path === resolved.path)?.path : undefined) ??
-            folded
-        )
+        // The home drive is presented under `agent-files/`, or at the root when it is the whole
+        // drive. Another drive's file is never a session file.
+        return presentToolPath(resolved, homeSlug, homeAtRoot ? "" : `${AGENT_FILES_DIR}/`)
     }
     // A complete drive path, or a path in a configured drive, wins over a shorter tail match.
     const presented = cleanPath(requested)
@@ -117,11 +111,12 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
                 ? resolveQuickLookPath(
                       drive.recents,
                       quickLook.path,
-                      drive.otherDrives,
+                      drive.driveEntries,
                       drive.homeSlug,
+                      drive.homeAtRoot,
                   )
                 : null,
-        [quickLook, drive.recents, drive.otherDrives, drive.homeSlug],
+        [quickLook, drive.recents, drive.driveEntries, drive.homeSlug, drive.homeAtRoot],
     )
 
     const driveIds = useMemo(

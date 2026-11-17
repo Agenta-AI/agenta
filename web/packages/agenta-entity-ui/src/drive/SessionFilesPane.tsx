@@ -119,12 +119,13 @@ export function SessionFilesPane({
                     ? resolveQuickLookPath(
                           drive.recents,
                           quickLook.path,
-                          drive.otherDrives,
+                          drive.driveEntries,
                           drive.homeSlug,
+                          drive.homeAtRoot,
                       )
                     : quickLook.path
                 : null,
-        [quickLook, drive.recents, drive.otherDrives, drive.homeSlug],
+        [quickLook, drive.recents, drive.driveEntries, drive.homeSlug, drive.homeAtRoot],
     )
 
     // Raw ids are a DEBUGGING affordance (wiring an SDK call, filing a bug), so they ride the same

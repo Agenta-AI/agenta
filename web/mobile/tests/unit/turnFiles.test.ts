@@ -83,6 +83,13 @@ describe("turnFiles", () => {
         ).toEqual([prices, home])
     })
 
+    it("matches a link to the home drive's drives/<slug>/ alias to its agent-files/ write", () => {
+        const home = write("/var/lib/agenta/mounts/s/m-drive-quote-files/plan.md")
+        expect(
+            turnFiles([tool("1", [home])], ["[plan](drives/quote-files/plan.md)"], "quote-files"),
+        ).toEqual([home])
+    })
+
     it("matches a link into a drive to a write through its drives/<slug> link", () => {
         const written = write("/var/lib/agenta/mounts/s/m/drives/price-lists/2026.md")
         expect(turnFiles([tool("1", [written])], ["[prices](drives/price-lists/2026.md)"])).toEqual(

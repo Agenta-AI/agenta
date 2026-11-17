@@ -1,5 +1,5 @@
 /** The Files pane's write verbs bound to one drive: resolve the mount, run, refresh; a failure toasts. */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {
     AGENT_FILES_DIR,
@@ -42,6 +42,9 @@ export function useDriveWrites(
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const queryClient = useAtomValue(queryClientAtom)
     const [busy, setBusy] = useState(false)
+    // A delete confirmed later writes through the drive as it is then (a drive set to read).
+    const driveRef = useRef(drive)
+    driveRef.current = drive
 
     const run = useCallback(
         async (
@@ -52,7 +55,7 @@ export function useDriveWrites(
             }) => Promise<void>,
             success?: string,
         ): Promise<boolean> => {
-            const resolved = drive.resolveMount(presentedPath)
+            const resolved = driveRef.current.resolveMount(presentedPath)
             if (!resolved?.mount || resolved.readOnly) {
                 void message.error(DRIVE_NOT_WRITABLE)
                 return false
@@ -70,7 +73,7 @@ export function useDriveWrites(
                 setBusy(false)
             }
         },
-        [drive, projectId, queryClient],
+        [projectId, queryClient],
     )
 
     const createFolder = useCallback(

@@ -78,7 +78,8 @@ export const fileOrigin = (path: string, drives: DriveSlugs = []): FileOrigin =>
 
 /**
  * The presented path of a tool path's file: a home drive file under `agent-files/` (or `homePrefix`),
- * another drive's under `drives/<slug>/`, a session file as it is.
+ * also when the tool reached it through the session folder's `drives/<home slug>/` link; another
+ * drive's under `drives/<slug>/`; a session file as it is.
  */
 export const presentToolPath = (
     tool: DriveToolPath,
@@ -88,6 +89,9 @@ export const presentToolPath = (
     if (tool.origin === "agent" || (tool.origin === "drive" && tool.slug === homeSlug))
         return `${homePrefix}${tool.path}`
     if (tool.origin === "drive" && tool.slug) return `${driveDir(tool.slug)}/${tool.path}`
+    const homeLink = homeSlug ? `${driveDir(homeSlug)}/` : null
+    if (homeLink && tool.path.startsWith(homeLink))
+        return `${homePrefix}${tool.path.slice(homeLink.length)}`
     return tool.path
 }
 
@@ -233,6 +237,9 @@ export interface SessionDriveData {
     driveEntries?: DriveEntry[]
     /** The configured home drive's slug: a tool path under it presents under `agent-files/`. */
     homeSlug?: string | null
+    /** The home drive is the whole drive (no session folder), so its files sit at the root and not
+     * under `agent-files/`. */
+    homeAtRoot?: boolean
 }
 
 const NO_DRIVES: Drive[] = []
@@ -347,8 +354,11 @@ export function useSessionDrive(
                 return homeMount
                     ? {mount: homeMount, path: unfoldHomePath(rel, homeOwnsFold)}
                     : null
-            if (homeMount && (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`))) {
-                return {mount: homeMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+            if (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)) {
+                if (homeMount)
+                    return {mount: homeMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+                // A configured home drive without a mount has no target, never the session folder.
+                if (drivesState.homeSlug) return null
             }
             return mount ? {mount, path: rel} : null
         }
@@ -430,6 +440,7 @@ export function useSessionDrive(
         // Newest signal wins per file; matching is tail-based (tool paths are sandbox-absolute or
         // cwd-relative). A tool path matches a file when the file's cleaned path equals the tool
         // path or is a `/`-boundary suffix of it — so we look up exactly those suffixes.
+        const homePrefix = homeOnly ? "" : `${AGENT_FILES_DIR}/`
         const stamp = (toolPath: string, at: number) => {
             const tool = cleanPath(toolPath)
             if (!tool) return
@@ -439,6 +450,12 @@ export function useSessionDrive(
                 for (const f of bucket) {
                     touchedAt.set(f.path, Math.max(touchedAt.get(f.path) ?? 0, at))
                 }
+            }
+            // A path under a drive's own mount names that drive's file, never a tail match.
+            const resolved = toolPath.startsWith("/") ? drivePathFromToolPath(toolPath) : null
+            if (resolved && resolved.origin !== "session") {
+                apply(presentToolPath(resolved, drivesState.homeSlug, homePrefix))
+                return
             }
             apply(tool)
             for (let i = tool.indexOf("/"); i !== -1; i = tool.indexOf("/", i + 1)) {
@@ -458,7 +475,7 @@ export function useSessionDrive(
             recents: ordered,
             lastTouchedAt: ordered.length ? (ordered[0].touchedAt ?? null) : null,
         }
-    }, [structural, activity, recordRecency])
+    }, [structural, activity, recordRecency, homeOnly, drivesState.homeSlug])
 
     return useMemo(() => {
         const {mount: primaryMount, files, totalSize, resolveMount, isLoading, errored} = structural
@@ -486,6 +503,7 @@ export function useSessionDrive(
             otherDrives: otherDrives.length ? otherDrives : NO_DRIVES,
             driveEntries: entries.length ? entries : NO_ENTRIES,
             homeSlug: drivesState.homeSlug,
+            homeAtRoot: homeOnly,
         }
     }, [structural, recents, lastTouchedAt, otherDrives, entries, drivesState.homeSlug])
 }
@@ -725,8 +743,11 @@ export function useSessionDriveSummary(
                 return homeMount
                     ? {mount: homeMount, path: unfoldHomePath(rel, homeOwnsFold)}
                     : null
-            if (homeMount && (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`))) {
-                return {mount: homeMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+            if (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)) {
+                if (homeMount)
+                    return {mount: homeMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+                // A configured home drive without a mount has no target, never the session folder.
+                if (drivesState.homeSlug) return null
             }
             return mount ? {mount, path: rel} : null
         }
@@ -795,7 +816,12 @@ export function useSessionDriveSummary(
         // PARTIAL failure: a mount failed but we're NOT in the terminal card (there's content, or only
         // the agent side broke). The inline list stays clean; instead the drawer-trigger shows a quiet
         // warning indicator and the drawer itself offers the retry (see the drawer's partial banner).
-        const partialErrored = (sessionErrored || homeErrored || others.errored) && !errored
+        // A drive's root listing runs only without visible records; a failed one hides its entries.
+        const rootsErrored =
+            !hasVisibleRecords &&
+            driveSummary.some(({root}) => !root.isPending && (root.data === null || root.isError))
+        const partialErrored =
+            (sessionErrored || homeErrored || others.errored || rootsErrored) && !errored
 
         const summary = isLoading
             ? "…"
@@ -825,6 +851,7 @@ export function useSessionDriveSummary(
             otherDrives: otherDrives.length ? otherDrives : NO_DRIVES,
             driveEntries: entries.length ? entries : NO_ENTRIES,
             homeSlug: drivesState.homeSlug,
+            homeAtRoot: homeOnly,
         }
     }, [
         sessionId,

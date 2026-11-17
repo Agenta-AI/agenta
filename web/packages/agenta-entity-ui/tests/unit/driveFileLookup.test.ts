@@ -22,12 +22,18 @@ describe("findDriveEntry", () => {
         expect(findDriveEntry(files, drive)).toEqual({path: "drives/prices/a.md"})
         expect(findDriveEntry([{path: "a.md"}], drive)).toBeNull()
         const home = [{path: "a.md"}, {path: "agent-files/a.md"}]
-        expect(findDriveEntry(home, "/var/lib/agenta/mounts/s/m-drive-own/a.md", false, "own")).toEqual(
-            {path: "agent-files/a.md"},
-        )
+        expect(
+            findDriveEntry(home, "/var/lib/agenta/mounts/s/m-drive-own/a.md", false, "own"),
+        ).toEqual({path: "agent-files/a.md"})
         expect(findDriveEntry(home, "/var/lib/agenta/mounts/s/m-agent/a.md")).toEqual({
             path: "agent-files/a.md",
         })
+    })
+
+    it("keeps a home drive shown at the root at the root, a real agent-files folder aside", () => {
+        const both = [{path: "a.md"}, {path: "agent-files/a.md"}]
+        const tool = "/var/lib/agenta/mounts/s/m-agent/a.md"
+        expect(findDriveEntry(both, tool, false, null, "")).toEqual({path: "a.md"})
     })
 
     it("takes a drive path as is when exact", () => {

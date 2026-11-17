@@ -2,7 +2,7 @@
  * Text helpers shared by the approval describers and the generic preview. A leaf module so the
  * describers and `approvalPreview` can both use it without importing each other.
  */
-import {AGENT_FILES_DIR, driveDir, DRIVES_DIR, presentToolPath} from "@agenta/entities/drive"
+import {AGENT_FILES_DIR, DRIVES_DIR, presentToolPath} from "@agenta/entities/drive"
 import {drivePathFromToolPath, PATH_KEYS} from "@agenta/entities/session"
 
 // Collapsed rows truncate to one line with CSS; expanded rows show the full string. This cap is
@@ -48,24 +48,13 @@ const isOpaqueId = (segment: string): boolean =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment) ||
     /^[0-9a-f]{32,}$/i.test(segment)
 
-/** A tool path as the files pane presents it: the home drive under `agent-files/`, another drive
- * under `drives/<slug>/` (also when the tool reached it through the session folder's link). */
-const presentedPath = (value: string, homeSlug: string | null): string | null => {
-    const tool = drivePathFromToolPath(value)
-    if (!tool) return null
-    const path = presentToolPath(tool, homeSlug)
-    const homeDir = homeSlug ? `${driveDir(homeSlug)}/` : null
-    return homeDir && path.startsWith(homeDir)
-        ? `${AGENT_FILES_DIR}/${path.slice(homeDir.length)}`
-        : path
-}
-
 /** A sandbox path a person can read: run root dropped, id segments elided (#6349), a drive's file
  * under its drive folder. A path under no sandbox root (`/etc/hosts`) stays verbatim; an approval
  * must not soften that. */
 export const displayPath = (value: string, homeSlug: string | null = null): string => {
-    const path = presentedPath(value, homeSlug)
-    if (path === null) return value
+    const tool = drivePathFromToolPath(value)
+    if (!tool) return value
+    const path = presentToolPath(tool, homeSlug)
     const kept: string[] = []
     for (const segment of path.split("/")) {
         if (!isOpaqueId(segment)) kept.push(segment)

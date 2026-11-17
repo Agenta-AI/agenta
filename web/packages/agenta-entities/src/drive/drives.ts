@@ -123,9 +123,11 @@ const NOTHING: ResolvedDrives = {
 }
 const noop = () => {}
 
-/** `pending` (the revision is loading), `legacy:<artifact id>`, or `listed:<entries and home>`. */
+/** `pending` (the revision is loading), `failed:<revision id>` (it did not load),
+ * `legacy:<artifact id>`, or `listed:<entries and home>`. */
 type ConfigKey = string
 const PENDING_KEY = "pending"
+const FAILED_PREFIX = "failed:"
 
 const configKeyOf = (config: AgentDriveConfig | null, artifactId: string): ConfigKey =>
     config ? `listed:${JSON.stringify(config)}` : `legacy:${artifactId}`
@@ -160,7 +162,7 @@ const legacyHomeDataFamily = atomFamily((artifactId: string) =>
 
 const resolvedDrivesFamily = atomFamily((key: ConfigKey) =>
     atom((get): ResolvedDrives => {
-        if (key === PENDING_KEY) return NOTHING
+        if (key === PENDING_KEY || key.startsWith(FAILED_PREFIX)) return NOTHING
         const config = configOfKey(key)
         if (!config) {
             const artifactId = key.slice("legacy:".length)
@@ -191,6 +193,18 @@ const IDLE: AgentDrivesState = {
 const drivesStateFamily = atomFamily((key: ConfigKey) =>
     atom((get): AgentDrivesState => {
         if (key === PENDING_KEY) return {...IDLE, isPending: true}
+        // The revision did not load, so its drives are unknown: an error with a retry of the
+        // revision, never the lookup of a configuration without a `drives` list.
+        if (key.startsWith(FAILED_PREFIX)) {
+            const query = get(workflowMolecule.atoms.query(key.slice(FAILED_PREFIX.length)))
+            return {
+                ...IDLE,
+                isPending: query.isPending,
+                isFetching: query.isFetching,
+                isError: true,
+                refetch: () => void query.refetch(),
+            }
+        }
         const resolved = get(resolvedDrivesFamily(key))
         const config = configOfKey(key)
         if (!config) {
@@ -237,7 +251,8 @@ const revisionConfigKeyFamily = atomFamily((key: string) =>
         const parameters = get(workflowMolecule.selectors.parameters(revisionId))
         if (parameters == null) {
             const query = get(workflowMolecule.selectors.query(revisionId))
-            return query.isPending ? PENDING_KEY : configKeyOf(null, artifactId)
+            if (query.isPending) return PENDING_KEY
+            return query.isError ? `${FAILED_PREFIX}${revisionId}` : configKeyOf(null, artifactId)
         }
         return configKeyOf(agentDriveConfig(parameters), artifactId)
     }),

@@ -98,6 +98,23 @@ describe("resolveQuickLookPath with drives", () => {
             ),
         ).toBe("agent-files/b.md")
     })
+
+    it("presents the home drive at the root only when it is the whole drive", () => {
+        const request = "/var/lib/agenta/mounts/p/m-drive-quote-files/b.md"
+        // A session file with the same name is not the home drive's file.
+        expect(resolveQuickLookPath([{path: "b.md"}], request, [], "quote-files")).toBe(
+            "agent-files/b.md",
+        )
+        expect(resolveQuickLookPath([{path: "b.md"}], request, [], "quote-files", true)).toBe(
+            "b.md",
+        )
+    })
+
+    it("keeps a path in a configured drive that has no mount yet off the session files", () => {
+        expect(
+            resolveQuickLookPath([{path: "a.md"}], "drives/prices/a.md", [{slug: "prices"}]),
+        ).toBe("drives/prices/a.md")
+    })
 })
 
 describe("resolveQuickLookPath prefers a full path over a shorter tail", () => {
@@ -115,11 +132,9 @@ describe("resolveQuickLookPath prefers a full path over a shorter tail", () => {
 
     it("never opens a session file for a path under a drive's own mount", () => {
         expect(
-            resolveQuickLookPath(
-                [{path: "a.md"}],
-                "/var/lib/agenta/mounts/s/m-drive-prices/a.md",
-                [{slug: "prices"}],
-            ),
+            resolveQuickLookPath([{path: "a.md"}], "/var/lib/agenta/mounts/s/m-drive-prices/a.md", [
+                {slug: "prices"},
+            ]),
         ).toBe("drives/prices/a.md")
     })
 })

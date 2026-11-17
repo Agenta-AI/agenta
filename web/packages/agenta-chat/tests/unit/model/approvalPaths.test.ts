@@ -161,4 +161,3 @@ describe("a drive's file on the approval card", () => {
         expect(preview.sentence).toContain("drives/team-notes/ui-note.md")
     })
 })
-

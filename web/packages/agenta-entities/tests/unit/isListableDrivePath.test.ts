@@ -1,10 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {
-    AGENT_FILES_DIR,
-    isListableDrivePath,
-    isDriveLink,
-} from "../../src/drive/useSessionDrive"
+import {AGENT_FILES_DIR, isListableDrivePath, isDriveLink} from "../../src/drive/useSessionDrive"
 
 describe("isListableDrivePath", () => {
     it("keeps ordinary files and folders", () => {
@@ -57,9 +53,7 @@ describe("isListableDrivePath with drive links", () => {
     })
 
     it("keeps a real top-level entry inside a drive mount", () => {
-        expect(
-            isListableDrivePath("drives/price-lists", {fromDriveMount: true, drives}),
-        ).toBe(true)
+        expect(isListableDrivePath("drives/price-lists", {fromDriveMount: true, drives})).toBe(true)
     })
 
     it("names only the link of a configured slug", () => {

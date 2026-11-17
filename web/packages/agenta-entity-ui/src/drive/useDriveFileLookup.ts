@@ -54,16 +54,14 @@ export function useDriveFileLookup(): (path: string, exact?: boolean) => DriveFi
     const sessionId = useDriveSessionId()
     const artifactId = useDriveArtifactId()
     const revisionId = useDriveRevisionId()
-    const {files, mount, homeSlug, resolveMount} = useSessionDrive(
+    const {files, homeSlug, homeAtRoot, resolveMount} = useSessionDrive(
         sessionId ?? "",
         artifactId ?? undefined,
         false,
         revisionId ?? undefined,
     )
     // A drive that is the home drive alone presents it at the root, not under `agent-files/`.
-    const home = resolveMount(AGENT_FILES_DIR)
-    const homePrefix =
-        home && home.path === "" && home.mount.id === mount?.id ? "" : `${AGENT_FILES_DIR}/`
+    const homePrefix = homeAtRoot ? "" : `${AGENT_FILES_DIR}/`
     return useCallback(
         (path: string, exact = false) => {
             const entry = findDriveEntry(files, path, exact, homeSlug ?? null, homePrefix)
