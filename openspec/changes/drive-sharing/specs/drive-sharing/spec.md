@@ -2,7 +2,7 @@
 
 ### Requirement: An agent configuration lists its drives by slug
 
-The agent configuration at `parameters.agent` SHALL hold a list `drives` of at most 8 entries, each `{ "slug": ..., "access": ... }` with a non-empty slug that is one path segment, each slug at most once, and an `access` of `"read-write"` (default) or `"read"`, and an entry with any other key SHALL be refused.
+The agent configuration at `parameters.agent` SHALL hold a list `drives` of at most 8 entries, each `{ "slug": ..., "access": ... }` with a non-empty slug that is one path segment and not `README.md` (any case; `drives/README.md` is the platform's file), each slug at most once, and an `access` of `"read-write"` (default) or `"read"`, and an entry with any other key SHALL be refused.
 
 #### Scenario: A drive entry
 
@@ -286,7 +286,7 @@ The agent configuration SHALL hold a boolean `has_session_drive` beside `drives`
 
 ### Requirement: The API never stores an agent revision without its drives
 
-A commit through the API SHALL fill `has_session_drive`, `drives` and `home_drive` into an agent revision that lacks `drives`, and the API SHALL apply the same fill when it reads such a revision, through the one function `fill_agent_drive_keys`, which lists the agent's own drive as home only when the home rule allows it for the agent's current visibility and otherwise writes `"drives": []` and `"home_drive": null`.
+A commit through the API SHALL fill `has_session_drive`, `drives` and `home_drive` into an agent revision that lacks `drives`, and a read SHALL apply the same fill when the agent has a drive row, through one function `fill_agent_drive_keys`, which lists the own drive as home only when the home rule allows it for the agent's current visibility and otherwise writes `"drives": []` and `"home_drive": null`.
 
 #### Scenario: An older client saves without the keys
 
@@ -297,6 +297,11 @@ A commit through the API SHALL fill `has_session_drive`, `drives` and `home_driv
 
 - **WHEN** the agent service reads an agent revision stored before release 1, and the agent has a drive row
 - **THEN** the revision it receives holds `drives` and `home_drive` naming that drive
+
+#### Scenario: An older revision of an agent with no drive is read
+
+- **WHEN** the agent service reads an agent revision stored before release 1, and the agent has no drive row
+- **THEN** the revision it receives has no `drives` key, so the run uses the legacy route
 
 #### Scenario: The fill obeys the home rule
 

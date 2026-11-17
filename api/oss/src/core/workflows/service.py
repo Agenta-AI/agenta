@@ -516,6 +516,19 @@ def _artifact_id_of_references(references: Optional[dict]) -> Optional[UUID]:
     return None
 
 
+def new_agent_policy(access: Optional[AccessPolicy]) -> AccessPolicy:
+    """The visibility a created agent ends with, for the drive checks before the create
+    writes anything: the asked access when it is a private agent with an owner, else
+    shared (the first agent commit writes a shared row for an agent without one)."""
+    if (
+        access is not None
+        and access.visibility == Visibility.PRIVATE
+        and access.owner_user_id is not None
+    ):
+        return access
+    return AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=None)
+
+
 class WorkflowsService:
     WORKFLOW_ARTIFACT_CACHE_TTL = 60
     WORKFLOW_ARTIFACT_FLAG_KEYS = frozenset(
@@ -725,10 +738,13 @@ class WorkflowsService:
         project_id: UUID,
         data: Any,
         artifact_id: Optional[UUID] = None,
+        new_agent_policy: Optional[AccessPolicy] = None,
     ) -> None:
         """Refuse an agent commit whose drive list breaks a rule, names a drive the saver
-        may not use, or breaks the visibility rules of its agent. Without ``artifact_id``
-        (before the agent exists) only the entry rules and the drive lookups run."""
+        may not use, or breaks the visibility rules of its agent. Before the agent
+        exists, ``new_agent_policy`` is the visibility the create gives it (see
+        ``new_agent_policy``); without it and without ``artifact_id`` only the entry
+        rules and the drive lookups run."""
         agent = _agent_config(data)
         if agent is None:
             return
@@ -737,9 +753,14 @@ class WorkflowsService:
             return
         lookup = self._require_mount_lookup()
         sharing = get_sharing_service()
-        agent_policy = await self._agent_policy(
-            project_id=project_id, artifact_id=artifact_id
+        agent_policy = (
+            new_agent_policy
+            if artifact_id is None
+            else await self._agent_policy(
+                project_id=project_id, artifact_id=artifact_id
+            )
         )
+        check_visibility = artifact_id is not None or new_agent_policy is not None
         agent_is_private = (
             agent_policy is not None and agent_policy.visibility == Visibility.PRIVATE
         )
@@ -762,7 +783,7 @@ class WorkflowsService:
                     message=f"The drive '{drive.slug}' does not exist in this project.",
                     next_step="Create the drive with POST /mounts/, then commit again.",
                 )
-            if artifact_id is None:
+            if not check_visibility:
                 continue
             if not agent_is_private and policy.visibility == Visibility.PRIVATE:
                 raise AgentDriveNotSharedError(
@@ -1689,15 +1710,19 @@ class WorkflowsService:
         envelope: RunEnvelope,
         references: Any,
         resolved_revision: Optional[WorkflowRevision] = None,
+        admitted_agent_id: Optional[UUID] = None,
     ) -> Optional[UUID]:
         """The `run_agent_id` claim of a run credential: the agent the API resolved
-        itself (the revision it resolved, else the agent `references` name, resolved in
-        this project) and that the run's principal may run. None for a run with no
-        stored agent (an inline configuration), a reference that resolves to nothing, or
-        an agent the principal may not run. Never a raw id from the caller."""
+        itself (the revision it resolved, else the agent `RunAdmission.admit_request`
+        resolved for this request, else the agent `references` name, resolved in this
+        project) and that the run's principal may run. None for a run with no stored
+        agent (an inline configuration), a reference that resolves to nothing, or an
+        agent the principal may not run. Never a raw id from the caller."""
 
         if resolved_revision is not None:
             artifact_id = resolved_revision.workflow_id
+        elif admitted_agent_id is not None:
+            artifact_id = admitted_agent_id
         else:
             elements = [
                 SessionReference.model_validate(
@@ -3741,6 +3766,10 @@ class WorkflowsService:
                     user_id=user_id,
                     first_agent_owner_user_id=first_agent_owner_user_id,
                 )
+                # The no-change comparison runs on what is stored: the filled data, so
+                # a commit whose fill attached a drive is never answered `no_change`.
+                if no_change_check is not None:
+                    no_change_check = self._no_change_check(candidate=_revision_commit)
 
         revision = await self.workflows_dao.commit_revision(
             project_id=project_id,
@@ -4180,6 +4209,7 @@ class WorkflowsService:
         #
         request: WorkflowServiceRequest,
         envelope: RunEnvelope,
+        admitted_agent_id: Optional[UUID] = None,
     ) -> tuple[str, Optional[str]]:
         """Shared invoke prelude for batch + detached: auth + ref-resolution + service URL.
 
@@ -4187,6 +4217,8 @@ class WorkflowsService:
         ref→revision resolution, service_url derivation) so the batch and detached paths can
         never drift on auth or resolution. Returns ``(credentials, service_url)``; the missing
         service_url case is left to the caller (batch returns a 400 body; detached raises).
+        `admitted_agent_id` is the agent `RunAdmission.admit_request` resolved for this
+        request, so the `run_agent_id` claim costs no second read of the references.
         """
         project = await get_project_by_id(
             project_id=str(project_id),
@@ -4255,6 +4287,7 @@ class WorkflowsService:
                 envelope=envelope,
                 references=getattr(request, "references", None),
                 resolved_revision=resolved_revision,
+                admitted_agent_id=admitted_agent_id,
             ),
         )
 
@@ -4390,6 +4423,7 @@ class WorkflowsService:
         envelope: RunEnvelope,
         #
         timeout: float = 60.0,
+        admitted_agent_id: Optional[UUID] = None,
         **kwargs,
     ) -> Union[
         WorkflowServiceBatchResponse,
@@ -4413,6 +4447,7 @@ class WorkflowsService:
             user_id=user_id,
             request=request,
             envelope=envelope,
+            admitted_agent_id=admitted_agent_id,
         )
 
         if not service_url:
@@ -4460,6 +4495,7 @@ class WorkflowsService:
         run_id: Optional[str] = None,
         control_command_id: Optional[UUID] = None,
         strict_start: bool = False,
+        admitted_agent_id: Optional[UUID] = None,
     ) -> WorkflowServiceDetachedResponse:
         """Fire-and-forget invoke: stream the service and return on the started handshake.
 
@@ -4486,6 +4522,7 @@ class WorkflowsService:
             user_id=user_id,
             request=request,
             envelope=envelope,
+            admitted_agent_id=admitted_agent_id,
         )
 
         if not service_url:
@@ -4869,7 +4906,9 @@ class SimpleWorkflowsService:
             nonlocal drives_checked
             if not drives_checked:
                 await self.workflows_service.reject_unusable_agent_drives(
-                    project_id=project_id, data=simple_workflow_create.data
+                    project_id=project_id,
+                    data=simple_workflow_create.data,
+                    new_agent_policy=new_agent_policy(access),
                 )
                 drives_checked = True
 
@@ -5115,7 +5154,9 @@ class SimpleWorkflowsService:
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
         _reject_unrunnable_agent_connection(simple_workflow_create.data)
         await self.workflows_service.reject_unusable_agent_drives(
-            project_id=project_id, data=simple_workflow_create.data
+            project_id=project_id,
+            data=simple_workflow_create.data,
+            new_agent_policy=new_agent_policy(access),
         )
 
         simple_workflow_flags = SimpleWorkflowFlags(

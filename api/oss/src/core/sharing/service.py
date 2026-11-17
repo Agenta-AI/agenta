@@ -228,30 +228,35 @@ class SharingService(ResourcePolicyInterface):
         if policy.visibility == Visibility.PROJECT:
             return None
         # D2: private, only the human owner, and the owner's channel binding signing it
-        # on its own channel turn of the owner's private agent.
+        # on its own channel turn of the owner's private agent, which lists the drive.
         if _is_human(principal, policy.owner_user_id):
             return None
         if (
             action == Permission.USE_MOUNTS
             and _is_channel_turn(principal, context)
             and _binding_creator(principal) == policy.owner_user_id
-            and await self._runs_private_agent_of(
+            and await self._runs_private_agent_listing(
                 principal=principal,
                 project_id=project_id,
                 owner_user_id=policy.owner_user_id,
+                mount=mount,
             )
         ):
             return None
         return DecisionReason.RESOURCE_DENIED
 
-    async def _runs_private_agent_of(
+    async def _runs_private_agent_listing(
         self,
         *,
         principal: PrincipalRef,
         project_id: UUID,
         owner_user_id: Optional[UUID],
+        mount: MountVisibility,
     ) -> bool:
-        """The request runs (its `run_agent_id` claim) a private agent of this owner."""
+        """The request runs (its `run_agent_id` claim) a private agent of this owner,
+        and the agent lists the drive. The credential names the agent, not the
+        revision, so a drive counts as listed when the latest revision of one of the
+        agent's variants lists it."""
 
         access = get_request_access()
         if access is None or access.principal != principal:
@@ -263,10 +268,14 @@ class SharingService(ResourcePolicyInterface):
                 project_id=project_id, artifact_id=access.run_agent_id
             )
         ).policy
-        return (
-            agent_policy is not None
-            and agent_policy.visibility == Visibility.PRIVATE
-            and agent_policy.owner_user_id == owner_user_id
+        if (
+            agent_policy is None
+            or agent_policy.visibility != Visibility.PRIVATE
+            or agent_policy.owner_user_id != owner_user_id
+        ):
+            return False
+        return await self._dao.agent_lists_drive(
+            project_id=project_id, artifact_id=access.run_agent_id, mount=mount
         )
 
     async def mount_policy(

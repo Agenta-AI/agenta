@@ -29,7 +29,7 @@ async def deliver_continue_input(
     envelope = await deliverable_envelope(access=get_access_service(), command=command)
     request = WorkflowServiceRequest.model_validate(command.data["request"])
     # Resolves the target once and leaves it on the request: the invoke runs it.
-    await run_admission.admit_request(
+    agent_artifact_id = await run_admission.admit_request(
         envelope=envelope,
         session_id=command.session_id,
         project_id=command.project_id,
@@ -43,6 +43,7 @@ async def deliver_continue_input(
         envelope=envelope,
         run_id=command.target_turn_id,
         control_command_id=command.id,
+        admitted_agent_id=agent_artifact_id,
     )
 
 
