@@ -2,8 +2,10 @@ import base64
 import io
 import json
 import zipfile
+from pathlib import Path
 from uuid import UUID, uuid5
 
+import jsonschema
 import pytest
 
 from oss.src.core.channels.adapters.teams import package
@@ -234,6 +236,40 @@ async def test_a_long_name_is_cut_to_thirty_characters(adapter):
     assert len(manifest["name"]["short"]) <= 30
     assert manifest["name"]["full"] == name.strip()
     assert manifest["description"]["short"] == "Line one line two"
+
+
+# Microsoft's published 1.20 manifest schema, copied from the MIT licensed
+# microsoft/json-schemas repository (teams/v1.20); see schemas/LICENSE.
+_MANIFEST_SCHEMA = (
+    Path(__file__).parent / "schemas" / "MicrosoftTeams.v1.20.schema.json"
+)
+
+
+@pytest.mark.parametrize(
+    "identity",
+    [
+        None,
+        ChannelSetupIdentity(
+            name="  Support desk agent for the whole EMEA team  " * 5,
+            description="Answers questions.\n" * 400,
+        ),
+    ],
+)
+async def test_the_manifest_is_valid_against_the_1_20_schema(adapter, identity):
+    document = await adapter.build_setup_document(
+        request_url="https://unused/", identity=identity, locator={"app_id": p.APP_ID}
+    )
+
+    manifest = json.loads(_unzip(document)["manifest.json"])
+    assert manifest["manifestVersion"] == "1.20"
+    assert manifest["$schema"] == (
+        "https://developer.microsoft.com/json-schemas/teams/v1.20/"
+        "MicrosoftTeams.schema.json"
+    )
+    jsonschema.Draft4Validator(
+        json.loads(_MANIFEST_SCHEMA.read_text()),
+        format_checker=jsonschema.FormatChecker(),
+    ).validate(manifest)
 
 
 async def test_no_app_id_gives_no_document(adapter):
