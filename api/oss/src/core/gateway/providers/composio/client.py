@@ -19,15 +19,13 @@ def composio_timeout(seconds: float = 30.0) -> httpx.Timeout:
     return httpx.Timeout(seconds, connect=COMPOSIO_CONNECT_TIMEOUT_SECONDS)
 
 
-def _retrying_transport(proxy: Optional[str] = None) -> httpx.AsyncHTTPTransport:
-    return httpx.AsyncHTTPTransport(retries=COMPOSIO_CONNECT_RETRIES, proxy=proxy)
-
-
 def _environment_proxy_mounts() -> Dict[str, Optional[httpx.AsyncBaseTransport]]:
     # Passing ``transport=`` turns off httpx's own HTTP(S)_PROXY / NO_PROXY handling,
     # so rebuild the same mounts here. A None mount falls back to the default transport.
+    # httpx does not pass ``retries`` to a proxy pool, so a proxied call keeps the
+    # behaviour it had before: no connect retry.
     return {
-        pattern: _retrying_transport(proxy) if proxy else None
+        pattern: httpx.AsyncHTTPTransport(proxy=proxy) if proxy else None
         for pattern, proxy in get_environment_proxies().items()
     }
 
@@ -36,6 +34,6 @@ def composio_http_client() -> httpx.AsyncClient:
     """The pooled client every Composio adapter holds for its lifetime."""
     return httpx.AsyncClient(
         timeout=composio_timeout(),
-        transport=_retrying_transport(),
+        transport=httpx.AsyncHTTPTransport(retries=COMPOSIO_CONNECT_RETRIES),
         mounts=_environment_proxy_mounts(),
     )

@@ -50,8 +50,14 @@ class _Handler(BaseHTTPRequestHandler):
         pass
 
 
+_PROXY_ENV = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")
+
+
 @pytest.fixture
-def composio_url() -> Iterator[str]:
+def composio_url(monkeypatch) -> Iterator[str]:
+    for name in _PROXY_ENV:
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(name.lower(), raising=False)
     _Handler.paths = []
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -127,8 +133,6 @@ async def test_every_composio_client_survives_one_dns_failure(
 async def test_composio_client_goes_through_the_env_proxy(composio_url, monkeypatch):
     port = composio_url.split(":")[2].split("/")[0]
     monkeypatch.setenv("HTTP_PROXY", f"http://127.0.0.1:{port}")
-    monkeypatch.delenv("NO_PROXY", raising=False)
-    monkeypatch.delenv("no_proxy", raising=False)
     adapter = ComposioConnectionsAdapter(api_key="k", api_url=composio_url)
     try:
         resp = await adapter._client.get(f"{adapter.api_url}/toolkits/facebook")
