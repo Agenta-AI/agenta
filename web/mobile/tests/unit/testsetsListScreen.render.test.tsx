@@ -100,10 +100,10 @@ describe("Testsets list screen", () => {
         vi.useRealTimers()
     })
 
-    it("Testsets route shows not found while the view is hidden", async () => {
+    it("Testsets route sends the user to the project home while the view is hidden", async () => {
         expect(DEVELOPER_VIEWS.find((view) => view.id === "testsets")?.stage).toBe("hidden")
         await mount(<TestsetsPage />)
-        expect(host.querySelector('[data-testid="not-found"]')).not.toBeNull()
+        expect(state.replace).toHaveBeenCalledWith("/w/ws/p/pr/apps")
         expect(host.textContent).not.toContain("Testsets")
     })
 
