@@ -1,7 +1,7 @@
 """`list_agents`, `read_agent_config`, `create_agent` and `edit_agent_config`.
 
 An agent lists, reads, creates and edits the OTHER agents in its project. These cells hold
-the four properties that make that safe to turn on by default:
+the four properties that make that safe:
 
 - the project comes from the credential and the caller from run context, so nothing the
   model sends can reach another project, retarget itself, or forge the attribution;
@@ -182,6 +182,15 @@ def _edit_args(**over):
         "caller_session_id": SESSION,
         **over,
     }
+
+
+@pytest.fixture(autouse=True)
+def may_edit(monkeypatch):
+    """The request principal's `EDIT_WORKFLOWS` decision on the target agent. Allowed
+    unless a test says otherwise; the decision itself is the access service's."""
+    decision = AsyncMock(return_value=True)
+    monkeypatch.setattr(platform_handlers, "_may_edit_agent", decision)
+    return decision
 
 
 def _committed(service):
@@ -711,6 +720,25 @@ class TestEditAgentConfig:
         assert result.wrote_other_agent_revision is True
         assert result.committed_revision is None
 
+    async def test_the_target_agent_decision_is_asked_for_that_agent(
+        self, service, may_edit
+    ):
+        await _call(handle_edit_agent_config, service, **_edit_args())
+
+        may_edit.assert_awaited_once_with(project_id=PROJECT, agent_id=TARGET)
+
+    async def test_without_the_right_to_edit_the_target_nothing_is_saved(
+        self, service, may_edit
+    ):
+        may_edit.return_value = False
+
+        result = await _call(handle_edit_agent_config, service, **_edit_args())
+
+        assert not result.ok
+        assert result.content.code == "access_denied"
+        assert "Invoice helper" in result.content.message
+        service.commit_workflow_revision.assert_not_awaited()
+
     async def test_never_deploys(self, service):
         service.environments_service = AsyncMock()
 
@@ -1152,110 +1180,39 @@ class TestCreateAgent:
         assert request.name == name.strip()
         assert request.description == description
 
+    @pytest.mark.parametrize("visibility", ["public", "", 3])
+    async def test_a_visibility_other_than_private_or_project_is_refused(
+        self, service, create, visibility
+    ):
+        result = await _call(
+            handle_create_agent, service, **self._args(visibility=visibility)
+        )
+
+        assert result.content.code == "invalid_arguments"
+        assert "`visibility`" in result.content.message
+        create.assert_not_awaited()
+
+    async def test_the_visibility_is_part_of_the_retry_key(self, service, create):
+        await _call(handle_create_agent, service, **self._args())
+        private_key = create.await_args.kwargs["request_key"]
+        await _call(handle_create_agent, service, **self._args(visibility="project"))
+
+        assert create.await_args.kwargs["request_key"] != private_key
+
+    async def test_a_run_without_an_owner_makes_a_project_agent(self, service, create):
+        # A private agent nobody owns would be hidden from everyone.
+        result = await _call(
+            handle_create_agent, service, **self._args(visibility="private")
+        )
+
+        assert create.await_args.kwargs["access"] is None
+        assert result.content["visibility"] == "project"
+
     async def test_a_name_is_required(self, service, create):
         result = await _call(handle_create_agent, service, **self._args(name="  "))
 
         assert result.content.code == "invalid_arguments"
         create.assert_not_awaited()
-
-
-class TestTheCreateAnswerOffersAFirstMessage:
-    """After a create, the model offers to send the new agent a first message. The answer
-    carries the operation that adds the agent to the caller's own tools as a subagent, and the
-    step names the tool that operation gives it."""
-
-    SLUG = "invoice-helper-0a1b2c3d"
-
-    @pytest.fixture
-    def created(self, monkeypatch):
-        created = SimpleWorkflow(
-            id=TARGET,
-            slug=self.SLUG,
-            name="Invoice helper",
-            description="Answers questions about invoices.",
-            revision_id=HEAD,
-        )
-        monkeypatch.setattr(
-            SimpleWorkflowsService,
-            "create_idempotent",
-            AsyncMock(
-                return_value=SimpleWorkflowCreateResult(
-                    workflow=created, replayed=False
-                )
-            ),
-        )
-        return created
-
-    async def _create(self, service):
-        return await _call(
-            handle_create_agent,
-            service,
-            name="Invoice helper",
-            description="Answers questions about invoices.",
-            caller_agent_id=str(CALLER),
-            caller_session_id=SESSION,
-        )
-
-    async def test_the_step_is_conditional_and_names_the_tool(self, service, created):
-        content = (await self._create(service)).content
-
-        assert content["next_step"] == (
-            "Offer to send Invoice helper a first message to try it. Only if they agree and you have "
-            "commit_revision, commit `subagent_operation` to your own configuration. "
-            f"Invoice helper is then reachable only as your tool `{self.SLUG}`, not "
-            "through any other messaging tool, and that tool appears from your next "
-            "turn: ask the person to send one more message, then call it with "
-            '{"messages": [{"role": "user", "content": "..."}]}.'
-        )
-        assert content["subagent_operation"] == {
-            "operation": "add_item",
-            "target": ["parameters", "agent", "tools"],
-            "value": {
-                "type": "reference",
-                "ref_by": "variant",
-                "slug": self.SLUG,
-                "description": "Answers questions about invoices.",
-                # The inputs the template declares, as the web copies a target's.
-                "input_schema": new_agent_revision_data()["schemas"]["inputs"],
-            },
-        }
-
-    async def test_the_operation_commits_and_becomes_that_tool(self, service, created):
-        """The operation runs through the self-edit commit engine on a new agent, and the
-        saved entry resolves to a callable tool with the name the step gives and a
-        `messages` input a model can fill."""
-        import jsonschema
-
-        from agenta.sdk.agents.platform.connection import PlatformConnection
-        from agenta.sdk.agents.platform.workflow import AgentaWorkflowToolResolver
-        from agenta.sdk.agents.tools import parse_tool_config
-        from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
-        from oss.src.core.workflows.dtos import WorkflowRevisionCommit
-
-        operation = (await self._create(service)).content["subagent_operation"]
-
-        data, message, _ = service._apply_delta(
-            base=new_agent_revision_data(),
-            workflow_revision_commit=WorkflowRevisionCommit(
-                delta={"operations": [operation]}
-            ),
-            scope_policy=AGENT_COMMIT_SCOPE,
-            agent_context=True,
-        )
-        tools = data["parameters"]["agent"]["tools"]
-        assert tools[0]["type"] == "agenta_tools"
-        resolution = await AgentaWorkflowToolResolver(
-            PlatformConnection(base_url="https://api.x/api", authorization="Access t")
-        ).resolve([parse_tool_config(tools[-1])])
-
-        spec = next(spec for spec in resolution.tool_specs if spec.name == self.SLUG)
-        assert spec.call_ref == f"workflow.variant.{self.SLUG}"
-        assert spec.description == "Answers questions about invoices."
-        jsonschema.validate(
-            {"messages": [{"role": "user", "content": "Hi, who are you?"}]},
-            spec.input_schema,
-        )
-        assert message
 
 
 class TestEveryAgentCarriesALinkToItsPage:
@@ -1429,14 +1386,44 @@ class TestCreateAgentRetry:
         result = await create()
 
         assert result.ok, result.content
-        # The owner was saved with the artifact, before the write that failed.
+        # The owner was saved with the artifact, before the write that failed. Without
+        # `visibility`, the agent is private to that owner.
         assert service.create_workflow.await_args.kwargs["access"] == AccessPolicy(
-            visibility=Visibility.PROJECT, owner_user_id=owner
+            visibility=Visibility.PRIVATE, owner_user_id=owner
         )
+        assert result.content["visibility"] == "private"
         service.create_workflow.assert_awaited_once()
         assert workflows[UUID(result.content["agent"]["id"])].access.owner_user_id == (
             owner
         )
+
+    async def test_a_project_agent_is_owned_by_the_run_owner(self, service, store):
+        owner = uuid4()
+
+        async def create():
+            return await handle_create_agent(
+                arguments={
+                    "name": "Invoice helper",
+                    "visibility": "project",
+                    "caller_agent_id": str(CALLER),
+                    "caller_session_id": SESSION,
+                },
+                project_id=PROJECT,
+                user_id=USER,
+                workflows_service=service,
+                first_agent_owner_user_id=owner,
+            )
+
+        # The store fails the first configured write once; the retry finishes the agent.
+        with pytest.raises(RuntimeError):
+            await create()
+        result = await create()
+
+        assert result.ok, result.content
+        assert service.create_workflow.await_args.kwargs["access"] == AccessPolicy(
+            visibility=Visibility.PROJECT, owner_user_id=owner
+        )
+        assert result.content["visibility"] == "project"
 
     async def test_the_same_call_after_a_partial_failure_finishes_the_same_agent(
         self, service, store
@@ -1508,6 +1495,8 @@ class TestCreateAgentRetry:
         assert "Private payroll agent" not in answer
         assert str(created_id) not in answer
         assert service.query_workflows.await_args.kwargs["read_scope"] == scope
+        # An archived agent is never handed back as the result of a create.
+        assert service.query_workflows.await_args.kwargs["include_archived"] is False
         assert service.commit_workflow_revision.await_count == commits
         service.create_workflow.assert_awaited_once()
         service.create_workflow_variant.assert_awaited_once()

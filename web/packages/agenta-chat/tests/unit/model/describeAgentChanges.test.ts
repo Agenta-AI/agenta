@@ -58,14 +58,26 @@ describe("describeEditAgentConfig", () => {
 describe("describeCreateAgent", () => {
     it("names the new agent, with or without operations", () => {
         expect(describeCreateAgent({name: "Invoice helper"})).toEqual({
-            sentence: "Create the agent Invoice helper from the default setup.",
+            sentence:
+                "Create the agent Invoice helper from the default setup. Only you will see it.",
             items: [],
         })
         const preview = describeCreateAgent({name: "Invoice helper", operations})
         expect(preview?.sentence).toBe(
-            "Create the agent Invoice helper from the default setup, with 2 changes.",
+            "Create the agent Invoice helper from the default setup, with 2 changes. Only you will see it.",
         )
         expect(preview?.items).toHaveLength(2)
+    })
+
+    it("says who will see the new agent", () => {
+        expect(
+            describeCreateAgent({name: "Invoice helper", visibility: "project"})?.sentence,
+        ).toBe(
+            "Create the agent Invoice helper from the default setup. Everyone in this project will see it.",
+        )
+        expect(
+            describeCreateAgent({name: "Invoice helper", visibility: "private"})?.sentence,
+        ).toBe("Create the agent Invoice helper from the default setup. Only you will see it.")
     })
 })
 

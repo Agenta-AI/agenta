@@ -24,7 +24,6 @@ vi.mock("../../src/workflow/state/store", async () => {
         invalidateWorkflowRevisionsByVariantCache: vi.fn(),
     }
 })
-import {DEFAULT_AGENTA_TOOLS} from "../../src/workflow/agentaTools"
 import {
     AGENT_CREDENTIALS_CONFLICT_MESSAGE,
     commitAgentCredentialsAtom,
@@ -122,7 +121,7 @@ describe("secret attachment transaction", () => {
         expect(payload.workflow_revision.data.parameters.agent.tools).toEqual([
             {
                 type: "agenta_tools",
-                tools: DEFAULT_AGENTA_TOOLS,
+                tools: {get_current_session: "allow", rename_session: "allow"},
             },
         ])
     })
@@ -256,7 +255,7 @@ describe("secret attachment transaction", () => {
                         tools: [
                             {
                                 type: "agenta_tools",
-                                tools: DEFAULT_AGENTA_TOOLS,
+                                tools: {get_current_session: "allow", rename_session: "allow"},
                             },
                         ],
                     },

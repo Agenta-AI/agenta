@@ -73,18 +73,20 @@ class TestTemplateParity:
         rest = {k: v for k, v in agent.items() if k != "sandbox"}
         assert rest == {k: v for k, v in web.items() if k != "sandbox"}
 
-    def test_a_new_agent_gets_the_four_agent_tools_on_allow(self):
+    def test_a_new_agent_has_none_of_the_four_agent_tools(self):
+        # Only the builder agent holds them.
         tools = new_agent_revision_data()["parameters"]["agent"]["tools"]
 
         entry = next(tool for tool in tools if tool["type"] == "agenta_tools")
         assert entry["tools"] == dict(DEFAULT_AGENTA_TOOLS)
+        assert all(tool["type"] != "platform" for tool in tools)
         for op in (
             "list_agents",
             "read_agent_config",
             "create_agent",
             "edit_agent_config",
         ):
-            assert entry["tools"][op] == "allow"
+            assert op not in entry["tools"]
 
     def test_a_new_agent_has_an_empty_skills_list_so_the_first_skill_is_an_add(self):
         agent = new_agent_revision_data()["parameters"]["agent"]

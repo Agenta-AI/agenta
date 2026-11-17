@@ -46,12 +46,15 @@ export const describeCreateAgent = (input: unknown): ApprovalPreview | null => {
     const name = stringField(input, "name")
     if (!name) return null
     const items = describeOperationItems(asRecord(input)?.operations)
-    return {
-        sentence: items.length
-            ? `Create the agent ${name} from the default setup, with ${changes(items.length)}.`
-            : `Create the agent ${name} from the default setup.`,
-        items,
-    }
+    const create = items.length
+        ? `Create the agent ${name} from the default setup, with ${changes(items.length)}.`
+        : `Create the agent ${name} from the default setup.`
+    // `visibility` defaults to private on the server too.
+    const audience =
+        stringField(input, "visibility") === "project"
+            ? "Everyone in this project will see it."
+            : "Only you will see it."
+    return {sentence: `${create} ${audience}`, items}
 }
 
 /** The settled row's one-liner: the agent's name, then what changed. */

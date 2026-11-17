@@ -44,7 +44,12 @@ def test_the_model_sees_flat_small_schemas_with_the_caller_stripped():
     assert read["required"] == ["agent"]
 
     create = _schema("create_agent")
-    assert set(create["properties"]) == {"name", "description", "operations"}
+    assert set(create["properties"]) == {
+        "name",
+        "description",
+        "visibility",
+        "operations",
+    }
     assert create["required"] == ["name"]
 
     edit = _schema("edit_agent_config")
@@ -147,30 +152,29 @@ def test_the_shapes_the_models_went_hunting_for_are_in_the_edit_description():
     assert '{"list":"tools","key":"agenta_tools"}' in description
 
 
-def test_answers_name_an_agent_by_its_name_and_give_its_link():
+def test_answers_name_an_agent_by_its_name_and_give_its_link_when_there_is_one():
     description = " ".join(get_platform_op("list_agents").description.split())
-    assert "Each agent has `name`, `id`, `slug`, `url`," in description
+    assert "and a `url` when Agenta can build a link to it" in description
     assert "name an agent by its `name`, never its slug or id" in description
-    assert "link it: [Invoice helper](url)." in description
+    assert "When it has a `url`, link it: [Invoice helper](url)." in description
 
 
-def test_a_request_for_an_agent_means_a_fresh_agent_and_asks_a_configured_one():
-    # A fresh agent sets itself up; one that already has a job asks first; an explicit
-    # request for a separate agent never asks.
+def test_no_tool_tells_an_agent_to_ask_before_it_changes_itself():
+    # Only the builder agent holds the agent tools; nothing teaches self-repurposing.
     create = " ".join(get_platform_op("create_agent").description.split())
-    assert (
-        'While your instructions are the hello-world placeholder, "an agent that ..." '
-        "means you: set yourself up with `commit_revision`. Once you have a job, first "
-        "ask whether to change yourself or create a new agent, unless the person asked "
-        "for a separate one." in create
-    )
-    # A fresh default agent reads it in its own instructions, and does not ask.
+    commit = " ".join(get_platform_op("commit_revision").description.split())
     persona = " ".join(build_agent_v0_default()["instructions"]["agents_md"].split())
-    assert (
-        "If the user asks for an agent that does something and you can change your own "
-        "configuration, they mean you: set yourself up for that job. Create a separate "
-        "agent only when they ask for a separate one." in persona
-    )
+    for text in (create, commit, persona):
+        assert "an agent that" not in text
+        assert "separate agent" not in text
+
+
+def test_create_takes_a_visibility_that_defaults_to_private():
+    visibility = _schema("create_agent")["properties"]["visibility"]
+    assert visibility["enum"] == ["private", "project"]
+    assert "visibility" not in _schema("create_agent").get("required", [])
+    create = " ".join(get_platform_op("create_agent").description.split())
+    assert "`visibility` is `private` (the default" in create
 
 
 def test_the_descriptions_stay_small():
@@ -190,12 +194,6 @@ def test_commit_revision_keeps_its_measured_size_plus_the_agenta_tools_key():
     commit = get_platform_op("commit_revision").description
     assert "the agenta_tools entry is keyed agenta_tools" in commit
     assert "Agenta tools (value" not in commit
-    # Plus one sentence: a configured agent asks before it repurposes itself (bench S10c).
-    assert (
-        'If you already have a job and the person asks for "an agent that ..." something '
-        "else, ask first: change yourself, or create a separate agent?"
-        in " ".join(commit.split())
-    )
     assert len(commit) < 2550
 
 

@@ -936,9 +936,6 @@ never retype it from memory."""
 _COMMIT_REVISION_DESCRIPTION_ORDERED = (
     """Commit a change to this agent's own configuration.
 
-If you already have a job and the person asks for "an agent that ..." something else, ask
-first: change yourself, or create a separate agent?
-
 Editing files in your workspace does not change your configuration. That copy is rebuilt,
 and the edits are lost. Change your instructions and configuration only through this tool.
 
@@ -1839,10 +1836,10 @@ CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
 # the model's. Self-edits keep their own tools (`read_config`, `commit_revision`).
 _LIST_AGENTS_DESCRIPTION = """List the agents in this project.
 
-Each agent has `name`, `id`, `slug`, `url`, `description`, `version` and `updated_at`. The
-list includes you. Pass an agent's `slug` or `id` to `read_agent_config` or
-`edit_agent_config`. To the person, name an agent by its `name`, never its slug or id, and
-link it: [Invoice helper](url).
+Each agent has `name`, `id`, `slug`, `description`, `version` and `updated_at`, and a `url`
+when Agenta can build a link to it. Pass an agent's `slug` or `id` to `read_agent_config` or
+`edit_agent_config`. To the person, name an agent by its `name`, never its slug or id. When
+it has a `url`, link it: [Invoice helper](url).
 
 When the answer has a `cursor`, call again with that `cursor` for the next page."""
 
@@ -1991,14 +1988,14 @@ _EDIT_AGENT_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
 
 _CREATE_AGENT_DESCRIPTION = """Create a new agent in this project.
 
-While your instructions are the hello-world placeholder, "an agent that ..." means you: set
-yourself up with `commit_revision`. Once you have a job, first ask whether to change yourself
-or create a new agent, unless the person asked for a separate one.
-
 The new agent starts from the "New agent" template: its default tools and model, and
-placeholder instructions. Send `name`, an optional `description`, and `operations` to change
-that configuration in the same call; set the instructions there to give the agent its job. These are the only fields: every change, instructions included, goes in
-`operations`, at the top level. An operation has the same shape as in `edit_agent_config`,
+placeholder instructions. Send `name`, an optional `description`, `visibility`, and
+`operations` to change that configuration in the same call; set the instructions there to
+give the agent its job. These are the only fields: every change, instructions included,
+goes in `operations`, at the top level.
+
+`visibility` is `private` (the default: only the person you work for sees the agent) or
+`project` (everyone in the project sees it). The person owns the new agent either way. An operation has the same shape as in `edit_agent_config`,
 and targets sit under `["parameters","agent", ...]`:
 
     {"name": "Invoice helper",
@@ -2028,6 +2025,14 @@ _CREATE_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
         "description": {
             "type": "string",
             "description": "Optional. One sentence on what the agent is for.",
+        },
+        "visibility": {
+            "type": "string",
+            "enum": ["private", "project"],
+            "description": (
+                "Who sees the new agent: `private`, only the person (default), or "
+                "`project`, everyone in the project."
+            ),
         },
         "operations": {
             **_AGENT_OPERATIONS_SCHEMA,

@@ -4479,9 +4479,9 @@ class SimpleWorkflowsService:
         ``message`` is the commit message of the revision that holds ``data``: the first
         revision a person sees in history.
 
-        With ``read_scope``, a retry that finds a workflow this scope does not show raises
-        ``AgentReferenceUnresolved`` before any write, so a retry never reads or changes a
-        workflow its caller cannot see.
+        With ``read_scope``, a retry that finds a workflow this scope does not show, or an
+        archived one, raises ``AgentReferenceUnresolved`` before any write, so a retry never
+        reads or changes a workflow its caller cannot see.
         """
         if not namespace.strip() or not request_key.strip() or not component.strip():
             raise ValueError("namespace, request_key, and component must not be empty")
@@ -4563,7 +4563,8 @@ class SimpleWorkflowsService:
                     project_id=project_id,
                     read_scope=read_scope,
                     workflow_refs=[Reference(id=workflow_id)],
-                    include_archived=True,
+                    # An archived agent is not handed back as the result of a create.
+                    include_archived=False,
                 )
             ):
                 raise AgentReferenceUnresolved()
@@ -4904,6 +4905,7 @@ class SimpleWorkflowsService:
         #
         name: str,
         description: Optional[str] = None,
+        visibility: Visibility = Visibility.PRIVATE,
         operations: Optional[list] = None,
         #
         message: str,
@@ -4942,7 +4944,12 @@ class SimpleWorkflowsService:
             message = f"{message}; {derived}"
 
         fingerprint = fingerprint_of(
-            {"name": name, "description": description, "operations": operations or []}
+            {
+                "name": name,
+                "description": description,
+                "visibility": visibility.value,
+                "operations": operations or [],
+            }
         )
         outcome = await self.create_idempotent(
             project_id=project_id,
@@ -4960,10 +4967,12 @@ class SimpleWorkflowsService:
             ),
             message=message,
             # The owner is saved with the artifact, in its transaction, so a create that
-            # stops after the artifact never leaves an ownerless agent for the retry.
+            # stops after the artifact never leaves an ownerless agent for the retry. Without
+            # an owner the agent is project-visible, as a browser create without one is:
+            # a private agent nobody owns would be hidden from everyone.
             access=(
                 AccessPolicy(
-                    visibility=Visibility.PROJECT,
+                    visibility=visibility,
                     owner_user_id=first_agent_owner_user_id,
                 )
                 if first_agent_owner_user_id is not None

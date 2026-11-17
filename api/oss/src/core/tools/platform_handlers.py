@@ -32,14 +32,13 @@ from agenta.sdk.agents.platform.op_catalog import (
     LIST_AGENTS_DEFAULT_LIMIT,
     LIST_AGENTS_MAX_LIMIT,
 )
-from agenta.sdk.agents.tools import sanitize_tool_name
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
-from oss.src.core.sharing.dtos import AgentReadScope
+from oss.src.core.sharing.dtos import AgentReadScope, Visibility
 from oss.src.core.apps.handlers import (
     CREATE_APP_CALL_REF,
     CREATE_APP_DEFAULT_TIMEOUT_MS,
@@ -1298,6 +1297,26 @@ async def _resolve_other_agent(
     return workflow, head
 
 
+async def _may_edit_agent(*, project_id: UUID, agent_id: UUID) -> bool:
+    """The request principal's `EDIT_WORKFLOWS` decision on one agent, the decision a route
+    makes before a per-agent write. The project permission is checked before dispatch; this
+    adds the agent's own policy. Without a request principal the edit is refused."""
+    from oss.src.core.access.context import get_request_access
+    from oss.src.core.access.dtos import ResourceKind, ResourceRef
+    from oss.src.core.access.service import get_access_service
+
+    access = get_request_access()
+    if access is None:
+        return False
+    decision = await get_access_service().check_request(
+        access=access,
+        action=Permission.EDIT_WORKFLOWS,
+        project_id=project_id,
+        resource=ResourceRef(kind=ResourceKind.AGENT, id=str(agent_id)),
+    )
+    return decision.allowed
+
+
 def _agent_summary(
     workflow: Any, *, project_id: UUID, workspace_id: Optional[UUID]
 ) -> Dict[str, Any]:
@@ -1641,6 +1660,13 @@ async def handle_edit_agent_config(
             caller_id=caller_id,
             self_step="To change your own configuration, use commit_revision.",
         )
+        if not await _may_edit_agent(project_id=project_id, agent_id=workflow.id):
+            raise _agent_refusal(
+                "access_denied",
+                f"You may not change '{workflow.name or workflow.slug}'. Nothing was saved.",
+                "Tell the person that they need the right to edit this agent. Do not "
+                "retry.",
+            )
         try:
             commit = WorkflowRevisionCommit(
                 workflow_variant_id=head.workflow_variant_id,
@@ -1681,29 +1707,6 @@ async def handle_edit_agent_config(
         # itself, and this is another agent.
         wrote_other_agent_revision=outcome.status == "committed",
     )
-
-
-def _subagent_operation(agent: Any) -> Dict[str, Any]:
-    """The operation that adds `agent` to the caller's own tools, so the caller can talk to
-    it: a `reference` tool that runs the agent's latest version, the shape the web writes
-    when a person adds a subagent (`normalizeSubagentReference`). Its `input_schema` is the
-    inputs schema the "New agent" template declares, which the web copies from the target
-    the same way (`handleAddWorkflowReference`)."""
-    from oss.src.core.workflows.new_agent import new_agent_revision_data
-
-    return {
-        "operation": "add_item",
-        "target": ["parameters", "agent", "tools"],
-        "value": {
-            "type": "reference",
-            "ref_by": "variant",
-            "slug": agent.slug,
-            "description": agent.description or agent.name,
-            "input_schema": (new_agent_revision_data().get("schemas") or {}).get(
-                "inputs"
-            ),
-        },
-    }
 
 
 # The engine's next steps for these reasons send the model to read the stored configuration
@@ -1768,7 +1771,9 @@ async def handle_create_agent(
         caller_id = _bound_caller(parsed)
         session_id = _bound_session(parsed)
         _reject_unknown_fields(
-            parsed, ("name", "description", "operations"), tool="create_agent"
+            parsed,
+            ("name", "description", "visibility", "operations"),
+            tool="create_agent",
         )
         name = parsed.get("name")
         if not isinstance(name, str) or not name.strip():
@@ -1782,6 +1787,21 @@ async def handle_create_agent(
                 "`description` must be text.",
                 next_step="Send one short sentence, or omit `description`.",
             )
+        raw_visibility = parsed.get("visibility")
+        try:
+            visibility = (
+                Visibility.PRIVATE
+                if raw_visibility is None
+                else Visibility(raw_visibility)
+            )
+        except ValueError as e:
+            raise _ArgumentsRefused(
+                "`visibility` must be `private` or `project`.",
+                next_step=(
+                    "Send `private` for an agent only the person sees, or `project` for "
+                    "an agent the whole project sees."
+                ),
+            ) from e
         operations = _operations(parsed, required=False)
         attribution = await _attribution(
             workflows_service=workflows_service,
@@ -1798,6 +1818,7 @@ async def handle_create_agent(
                 user_id=user_id,
                 name=name.strip(),
                 description=description,
+                visibility=visibility,
                 operations=operations,
                 message=f"Created {attribution}",
                 idempotency_scope=session_id,
@@ -1848,26 +1869,22 @@ async def handle_create_agent(
 
     if not _sets_instructions(operations):
         warnings.append(_TEMPLATE_INSTRUCTIONS_WARNING)
-    tool_name = sanitize_tool_name(created.slug)
     return PlatformHandlerResult(
         content={
             "status": "created",
             "agent": _agent_summary(
                 created, project_id=project_id, workspace_id=workspace_id
             ),
+            # A run without a person cannot own an agent, so its agent is project-visible
+            # whatever it asked for.
+            "visibility": (
+                visibility
+                if first_agent_owner_user_id is not None
+                else Visibility.PROJECT
+            ).value,
             "base_revision_id": str(created.revision_id),
             "message": message,
             "warnings": [w.model_dump(mode="json") for w in warnings],
-            # Conditional: the caller may not have `commit_revision` in this run.
-            "next_step": (
-                f"Offer to send {created.name} a first message to try it. Only if they agree and you have "
-                "commit_revision, commit `subagent_operation` to your own configuration. "
-                f"{created.name} is then reachable only as your tool `{tool_name}`, not "
-                "through any other messaging tool, and that tool appears from your next "
-                "turn: ask the person to send one more message, then call it with "
-                '{"messages": [{"role": "user", "content": "..."}]}.'
-            ),
-            "subagent_operation": _subagent_operation(created),
         },
         wrote_other_agent_revision=True,
     )

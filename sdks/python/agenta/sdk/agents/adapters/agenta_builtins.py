@@ -826,48 +826,6 @@ File tools, or raw HTTP only when your wired tools cannot do the job, and say so
   against `references/config-schema.md`.
 """
 
-_BUILD_OTHER_AGENTS = """\
-
-## Other agents
-
-When the person asks for a new agent, or for a change to an agent other than you, use the
-agent tools: `list_agents` to find it, `read_agent_config` to read it, `edit_agent_config` to
-change it, and `create_agent` for a new one. They take the same operations as
-`commit_revision`, with the agent's `slug` or `id` from `list_agents`. `read_config` and
-`commit_revision` only ever read and change you, and the agent tools refuse you. A change to
-another agent becomes its latest version, names you in the version message, and is not
-deployed.
-
-"I want an agent that ..." sent to you while your instructions are still the hello-world
-placeholder means you: set yourself up without asking. `set` your `instructions.agents_md`
-with `commit_revision`, then call `rename_agent`. Once you have a job, do not silently
-rewrite yourself: ask one short question first, change yourself or create a new agent? When
-the person asks for a separate agent, create it without asking.
-
-Tell the person about an agent by its `name` and give its `url`. The `slug` and `id` are for
-tool arguments only.
-
-After `create_agent`, offer to send the new agent a first message to try it. Only if the
-person agrees, and you have `commit_revision`, add the agent to your own `tools` as a
-`reference` entry. The
-`create_agent` answer carries this operation, filled in, as `subagent_operation`:
-
-```json
-{"operation": "add_item", "target": ["parameters", "agent", "tools"],
- "value": {"type": "reference", "ref_by": "variant", "slug": "<its slug>",
-           "description": "<what it does>",
-           "input_schema": {"type": "object",
-                            "properties": {"messages": {"x-ag-type-ref": "messages",
-                                                        "type": "array"}},
-                            "required": ["messages"]}}}
-```
-
-The tool is named after the slug and runs the agent's latest version. It is in your tools
-from your next turn, not this one. Call it with
-`{"messages": [{"role": "user", "content": "<the message>"}]}`; it answers with the agent's
-reply.
-"""
-
 _BUILD_FOOTGUNS = """\
 
 ## Footguns
@@ -887,7 +845,6 @@ _BUILD_AN_AGENT_BODY = (
     + _BUILD_LOOP_ORDERED
     + _BUILD_INSTRUCTIONS_WRITING
     + _BUILD_TOOLS_AND_FAILURES_ORDERED
-    + _BUILD_OTHER_AGENTS
     + _BUILD_FOOTGUNS
 )
 
@@ -895,9 +852,8 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
     name="build-an-agent",
     description=(
         "How to change this agent's own configuration: instructions, memory, skills, "
-        "integrations, and triggers, and which tools change another agent instead. Read "
-        "it when the request is a change to you or to another agent rather than a task: "
-        "a role, a recurring job, or an integration to connect. A default "
+        "integrations, and triggers. Read it when the request is a change to you rather "
+        "than a task: a role, a recurring job, or an integration to connect. A default "
         "name and default instructions do not make a request a change. Do not read it "
         "for a task."
     ),

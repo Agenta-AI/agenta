@@ -11,7 +11,8 @@ from uuid import uuid4
 
 import pytest
 
-SESSION = "acceptance-session"
+# One session per test run: the create is keyed by the session and its arguments.
+SESSION = f"acceptance-session-{uuid4().hex[:12]}"
 INSTRUCTIONS = ["parameters", "agent", "instructions", "agents_md"]
 
 
