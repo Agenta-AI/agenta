@@ -477,7 +477,7 @@ class ChannelsIngressRouter:
 
         stream = live_event_stream(
             channel=live_events_channel(str(project_id), session_id),
-            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            pubsub_factory=lambda: get_streams_engine().get_subscriber_redis().pubsub(),
             authorization_check=authorized,
             authorization_recheck_seconds=env.sessions.live_auth_recheck_seconds,
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
