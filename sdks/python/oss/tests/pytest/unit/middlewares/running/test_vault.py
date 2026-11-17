@@ -82,7 +82,8 @@ async def test_a_workflow_with_its_own_agent_parameter_still_gets_the_vault(
         {"runner": {}},
         {"sandbox": {}},
         {"has_session_drive": True},
-        {"drives": [{"kind": "agent"}]},
+        {"drives": [{"slug": "notes"}]},
+        {"home_drive": None},
     ],
 )
 async def test_any_agent_template_key_is_enough_to_recognise_an_agent(
