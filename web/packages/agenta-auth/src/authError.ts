@@ -27,9 +27,25 @@ const isSuperTokensGeneralError = (error: unknown): error is {message: string} =
 /** Why an auth request failed, read off what the client already has: the HTTP status or a network error. */
 export type AuthFailure = "unreachable" | "unavailable" | "rate-limited" | "server" | "unknown"
 
+/**
+ * How browsers word the `TypeError` that `fetch` throws when no reply came back (Chrome, Firefox,
+ * Safari, React Native, Node). Other `TypeError`s are code errors, for example supertokens-web-js
+ * reading the user off a sign-up reply that has none.
+ */
+const FETCH_FAILURE_MESSAGES = [
+    "Failed to fetch",
+    "NetworkError when attempting to fetch resource",
+    "Load failed",
+    "Network request failed",
+    "fetch failed",
+]
+
 /** SuperTokens throws the raw `Response` for a non-2xx reply, and `fetch` throws a `TypeError` offline. */
 export function classifyAuthFailure(error: unknown): AuthFailure {
-    if (error instanceof TypeError) return "unreachable"
+    if (error instanceof TypeError)
+        return FETCH_FAILURE_MESSAGES.some((text) => error.message.startsWith(text))
+            ? "unreachable"
+            : "unknown"
     if (!(error instanceof Response)) return "unknown"
     if (error.status === 404) return "unavailable"
     if (error.status === 429) return "rate-limited"

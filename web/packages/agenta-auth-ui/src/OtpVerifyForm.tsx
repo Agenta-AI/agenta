@@ -18,6 +18,7 @@ import {STATUS_TEXT_CLASS} from "./classes"
 import {OtpInput, type OtpInputHandle} from "./OtpInput"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSuccessPayload} from "./types"
+import {useAuthFailureText} from "./useAuthFailureText"
 import {useShake} from "./useShake"
 
 const CODE_LENGTH = 6
@@ -70,6 +71,7 @@ export const OtpVerifyForm = ({
     onFail,
 }: OtpVerifyFormProps) => {
     const t = useT(otpVerifyCatalog)
+    const failureText = useAuthFailureText()
     const [code, setCode] = useState("")
     const [status, setStatus] = useState<"idle" | "verifying" | "verified">("idle")
     const [resendIn, setResendIn] = useState(RESEND_COOLDOWN_S)
@@ -111,6 +113,13 @@ export const OtpVerifyForm = ({
                 return
             }
             setStatus("idle")
+            if (outcome.kind === "failed") {
+                // The code was never checked, so keep it for a retry and do not shake.
+                setMessage({message: failureText(outcome.failure), type: "error"})
+                onFail?.()
+                inputRef.current?.focus()
+                return
+            }
             setCode("")
             shake()
             inputRef.current?.focus()
