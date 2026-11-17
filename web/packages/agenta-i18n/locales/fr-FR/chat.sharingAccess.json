@@ -1,0 +1,20 @@
+{
+    "composerViewer": "Vous pouvez consulter ce chat, mais pas y envoyer de messages. Demandez l’accès « Peut envoyer » à {{owner}}.",
+    "composerPrivateAgent": "L’agent de ce chat est privé. Vous pouvez lire l’historique, mais pas envoyer de messages.",
+    "composerNoOwner": "Une clé d’API ou une automatisation a démarré ce chat. Vous pouvez le lire, mais pas y envoyer de messages ici.",
+    "composerOwnerLeft": "{{owner}} a quitté ce projet, donc personne ne peut envoyer de messages dans ce chat.",
+    "ownerFallback": "la personne propriétaire",
+    "privateAgent": "Agent privé",
+    "refusedSubject": "Ce message",
+    "refusedNoAgentAccess": "n’a pas été exécuté. Vous n’avez plus accès à l’agent de ce chat.",
+    "accessRemovedTitle": "Vous n’avez plus accès à ce chat",
+    "accessRemovedBody": "La personne propriétaire a modifié qui peut le voir.",
+    "backToSessions": "Retour aux sessions",
+    "backToAgents": "Retour aux agents",
+    "chatNotFound": "Ce chat n’existe pas, ou vous n’y avez pas accès.",
+    "chatNotFoundAskOwner": "Si quelqu’un vous a envoyé ce lien, demandez-lui de vous ajouter depuis « Partager ».",
+    "agentNotFound": "Cet agent n’existe pas, ou vous n’y avez pas accès.",
+    "approvalWaiting": "En attente de {{owner}} ou d’une personne qui peut envoyer des messages dans ce chat.",
+    "rowMenuNotOwner": "{{owner}} est la seule personne à pouvoir renommer, partager, archiver ou supprimer ce chat.",
+    "agentPrivateMarker": "Vous seul pouvez le voir et l’utiliser dans Agenta."
+}

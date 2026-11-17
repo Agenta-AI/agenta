@@ -1592,6 +1592,26 @@
         "shareInMarketplace": "26f3e42dbedc",
         "templates": "56b564b75c7f"
     },
+    "chat.sharingAccess": {
+        "composerViewer": "e88ec3edccf6",
+        "composerPrivateAgent": "c0407da42402",
+        "composerNoOwner": "9f0f59651be6",
+        "composerOwnerLeft": "eb7931309eb3",
+        "ownerFallback": "60d707583c55",
+        "privateAgent": "b124c6f7a495",
+        "refusedSubject": "2f2e7b466ce8",
+        "refusedNoAgentAccess": "771d803a37e9",
+        "accessRemovedTitle": "4c8750abd5fe",
+        "accessRemovedBody": "500bbc8e6951",
+        "backToSessions": "3740d2ced942",
+        "backToAgents": "7da2164b2679",
+        "chatNotFound": "3a114431a840",
+        "chatNotFoundAskOwner": "2e5f4fe2a9d1",
+        "agentNotFound": "9459d83ee7d8",
+        "approvalWaiting": "64f4b0e0bfc5",
+        "rowMenuNotOwner": "1a688517a95d",
+        "agentPrivateMarker": "307e1a891d90"
+    },
     "chat.slashCommands": {
         "allowReads": "a86c1d50bd14",
         "alwaysAllowMany": "31df27eec1fa",
