@@ -35,6 +35,7 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.sharing.interfaces import SharingDAOInterface
+from oss.src.core.mounts.types import RESERVED_AGENT_SLUG_PREFIX
 from oss.src.core.sharing.types import SharedItemNotFound, SharingConflict
 from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
 from oss.src.dbs.postgres.sharing.mappings import (
@@ -102,7 +103,8 @@ WHERE m.project_id = :project_id AND m.id = :mount_id
 
 # The agent lists the drive: the latest revision of one of its active variants names
 # the drive's slug in `drives`, or the drive is the agent's own and that revision states
-# no `drives` (the read fill lists the own drive).
+# no `drives` (the read fill lists the own drive). An entry may name an agent's drive by
+# its reserved slug (`fetch_mount_by_slug` resolves it by agent id).
 _AGENT_LISTS_DRIVE_SQL = """
 WITH latest AS (
     SELECT DISTINCT ON (r.variant_id)
@@ -124,6 +126,13 @@ SELECT EXISTS (
         AND EXISTS (
             SELECT 1 FROM json_array_elements(l.drives) e
             WHERE e ->> 'slug' = :slug
+               OR (
+                   CAST(:mount_agent_id AS text) IS NOT NULL
+                   AND starts_with(
+                       e ->> 'slug',
+                       :reserved_prefix || CAST(:mount_agent_id AS text) || '__'
+                   )
+               )
         )
     )
     OR (
@@ -543,6 +552,8 @@ class SharingDAO(SharingDAOInterface):
                             "project_id": project_id,
                             "artifact_id": artifact_id,
                             "slug": mount.slug,
+                            "mount_agent_id": mount.agent_id,
+                            "reserved_prefix": RESERVED_AGENT_SLUG_PREFIX,
                             "is_own": mount.agent_id == str(artifact_id),
                         },
                     )
