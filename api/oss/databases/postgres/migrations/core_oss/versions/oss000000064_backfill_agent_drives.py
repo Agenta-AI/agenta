@@ -9,7 +9,7 @@ service runs release 1. Data only, no schema change.
 | 2 | An agent that has no drive row and is not archived gets one, with the same slug rule. |
 | 3 | Every agent drive without a `mount_visibility` row gets one copied from `agent_access` (`project` with no owner when the agent has no row). |
 | 4 | Every other drive with no session and no visibility row gets `project` with no owner. |
-| 5 | In every agent revision, a reserved agent slug in `drives` or `home_drive` becomes the drive's slug, and missing keys are added: `has_session_drive: true`, and when `drives` is absent, the agent's own drive as the only entry and as home if the home rule allows it, else `drives: []` and `home_drive: null`. |
+| 5 | In every agent revision, a reserved agent slug in `drives` or `home_drive` becomes the drive's slug, and missing keys are added: `has_session_drive: true`, and when `drives` is absent, the agent's own drive as the only entry and as home if it is not archived and the home rule allows it, else `drives: []` and `home_drive: null`. |
 
 A static catalog agent has no artifact in the database: its drive keeps its reserved slug
 and gets no visibility row. A stated JSON null counts as absent, except in `home_drive`,
@@ -111,7 +111,8 @@ ON CONFLICT (project_id, mount_id) DO NOTHING
 """
 
 _AGENT_DRIVES_SQL = """
-SELECT m.project_id, m.agent_id, m.slug, mv.visibility, mv.owner_user_id
+SELECT m.project_id, m.agent_id, m.slug, mv.visibility, mv.owner_user_id,
+       m.deleted_at IS NULL
 FROM mounts m
 LEFT JOIN mount_visibility mv ON mv.project_id = m.project_id AND mv.mount_id = m.id
 WHERE m.agent_id IS NOT NULL AND m.session_id IS NULL
@@ -140,8 +141,8 @@ WHERE project_id = :project_id AND id = :id
 
 # (visibility, owner_user_id)
 Policy = Tuple[str, Optional[UUID]]
-# (slug, visibility row or None)
-Drive = Tuple[str, Optional[Policy]]
+# (slug, visibility row or None, not archived)
+Drive = Tuple[str, Optional[Policy], bool]
 Key = Tuple[UUID, str]
 
 
@@ -206,6 +207,7 @@ def _merged(
         policy = agents.get((project_id, artifact_id), ("project", None))
         if (
             own is not None
+            and own[2]
             and not _RESERVED_AGENT_SLUG.match(own[0])
             and _home_allowed(policy, own[1])
         ):
@@ -272,8 +274,9 @@ def _state_drives(connection, *, batch_size: int) -> int:
         (project_id, agent_id): (
             slug,
             (visibility, owner) if visibility is not None else None,
+            active,
         )
-        for project_id, agent_id, slug, visibility, owner in connection.execute(
+        for project_id, agent_id, slug, visibility, owner, active in connection.execute(
             sa.text(_AGENT_DRIVES_SQL)
         ).all()
     }

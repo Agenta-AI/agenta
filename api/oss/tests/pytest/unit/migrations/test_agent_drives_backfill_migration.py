@@ -145,17 +145,21 @@ class _Db:
             )
         return artifact_id
 
-    async def drive(self, slug, *, agent_id=None, session_id=None, visibility=None):
+    async def drive(
+        self, slug, *, agent_id=None, session_id=None, visibility=None, archived=False
+    ):
         mount_id = uuid4()
         await self.connection.execute(
             "INSERT INTO mounts (project_id, id, slug, agent_id, session_id, "
-            "storage_prefix) VALUES ($1, $2, $3, $4, $5, $6)",
+            "storage_prefix, deleted_at) "
+            "VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $7 THEN now() END)",
             self.project,
             mount_id,
             slug,
             None if agent_id is None else str(agent_id),
             session_id,
             f"mounts/{self.organization}/{mount_id}",
+            archived,
         )
         if visibility is not None:
             await self.connection.execute(
@@ -250,6 +254,11 @@ async def _run():
         crossed_mount = await db.drive(
             "crossed-agent-files", agent_id=crossed, visibility=("private", owner)
         )
+        # an active agent whose drive is archived: renamed, never filled as home
+        shelved = await db.agent("shelved-agent")
+        shelved_mount = await db.drive(
+            _reserved(shelved), agent_id=shelved, archived=True
+        )
 
         bare = await db.revision(quote, _data({"harness": HARNESS}, prompt="p"))
         null_keys = await db.revision(
@@ -291,6 +300,7 @@ async def _run():
         fresh_bare = await db.revision(fresh, _data({}))
         archived_bare = await db.revision(archived, _data({}))
         crossed_bare = await db.revision(crossed, _data({}))
+        shelved_bare = await db.revision(shelved, _data({}))
         stated_empty = await db.revision(
             quote, _data({"has_session_drive": True, "drives": []})
         )
@@ -307,13 +317,6 @@ async def _run():
         stated_before = await db.data(stated_empty)
 
         counts = await _backfill(revision)
-        assert counts == {
-            "renamed": 3,
-            "created": 1,
-            "agent_visibility": 4,
-            "project_visibility": 1,
-            "revisions": 12,
-        }
 
         # renamed in creation order, past the project drive that holds the slug
         assert await db.mount(quote_mount) == {
@@ -405,6 +408,17 @@ async def _run():
         }
         for name, revision_id in untouched.items():
             assert await db.data(revision_id) == untouched_before[name], name
+
+        assert (await db.data(shelved_bare))["parameters"]["agent"] == no_drive
+        assert (await db.mount(shelved_mount))["slug"] == "shelved-agent-files"
+        # last, so a broken case fails on its own assertion first
+        assert counts == {
+            "renamed": 4,
+            "created": 1,
+            "agent_visibility": 5,
+            "project_visibility": 1,
+            "revisions": 13,
+        }
 
         after = await db.snapshot()
         assert await _backfill(revision) == {
