@@ -524,6 +524,9 @@ importers:
       jotai:
         specifier: ^2.15.0
         version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      next:
+        specifier: 15.5.28
+        version: 15.5.28(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(@types/node@20.19.39)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react:
         specifier: ^19.0.0
         version: 19.2.6
@@ -1258,6 +1261,9 @@ importers:
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0
+      next:
+        specifier: 15.5.28
+        version: 15.5.28(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(@types/node@20.19.39)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react:
         specifier: ^19.0.0
         version: 19.2.6
@@ -2049,6 +2055,9 @@ importers:
       lodash:
         specifier: ^4.17.23
         version: 4.18.1
+      next:
+        specifier: 15.5.28
+        version: 15.5.28(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(@types/node@20.19.39)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
