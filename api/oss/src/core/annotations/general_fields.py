@@ -159,7 +159,7 @@ class AnnotationGeneralFieldsService:
                 # The stored span wins where it has a value; a run's root span may
                 # carry the session and no turn. A request turn of another session
                 # does not stay.
-                if span_session_id and span_session_id != session_id:
+                if span_session_id and session_id and span_session_id != session_id:
                     turn_id = None
                 session_id = span_session_id or session_id
                 turn_id = span_turn_id or turn_id

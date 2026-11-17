@@ -445,6 +445,19 @@ async def test_request_turn_of_another_session_does_not_stay():
 
 
 @pytest.mark.asyncio
+async def test_request_turn_stays_when_the_request_names_no_session():
+    root_without_turn = _span(ROOT, None, {"session": {"id": "s-40"}})
+    service = _service(spans=[root_without_turn])
+    general_fields = await _build(
+        service,
+        scope=AnnotationScope.TURN,
+        turn_id="t-2",
+        links={"invocation": Link(trace_id=TRACE, span_id=ROOT)},
+    )
+    assert (general_fields.session_id, general_fields.turn_id) == ("s-40", "t-2")
+
+
+@pytest.mark.asyncio
 async def test_hidden_session_of_the_root_span_gives_no_application_references():
     child_without_session = _span(CHILD, ROOT, {})
     service = _service(spans=[AGENT_ROOT, child_without_session])
