@@ -1,0 +1,22 @@
+{
+    "configureProvider": "Configure provider",
+    "howToUse": "How to use",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "selectProvider": "Please select a provider",
+    "enterName": "Please enter name",
+    "nameInvalid": "Name must contain only letters, numbers, underscore, or dash without any spaces.",
+    "nameMatchesDefault": "Name cannot match a default provider. Please choose a different name.",
+    "enterField": "Please enter {{field}}",
+    "invalidJson": "Must be valid JSON",
+    "addModelName": "Please add a model name",
+    "addModelBeforeSubmit": "Please add a model name before submitting",
+    "validationError": "Validation error",
+    "somethingWrong": "Something went wrong! Please try again with the right credential.",
+    "provider": "Provider",
+    "models": "Models",
+    "add": "Add",
+    "noCustomModels": "No custom models configured",
+    "enterModelName": "Enter model name",
+    "removeModel": "Remove model"
+}

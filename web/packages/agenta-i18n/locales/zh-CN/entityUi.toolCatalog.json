@@ -1,0 +1,15 @@
+{
+    "seeLess": "收起",
+    "seeMore": "展开",
+    "browseActions": "浏览操作",
+    "browseIntegrations": "浏览集成",
+    "searchIntegrations": "搜索集成…",
+    "integrationsCount_other": "{{count}} 个集成",
+    "noIntegrationsFound": "未找到集成",
+    "goBack": "返回",
+    "connect": "连接",
+    "openConnections": "打开连接",
+    "searchActions": "搜索操作…",
+    "actionsCount_other": "{{count}} 个操作",
+    "noActionsFound": "未找到操作"
+}

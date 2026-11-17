@@ -210,7 +210,10 @@ def _request_secret_revision() -> WorkflowRevision:
                         "for the value. Never ask the user to paste a credential into "
                         "chat, and never inspect or print the value of a configured "
                         "credential. Choose `name` and `env_var` yourself: the user can "
-                        "change both in the setup, so do not ask for them first. If the "
+                        "change both in the setup, so do not ask for them first. If a "
+                        "service refuses a saved value (expired, revoked, or wrong), call "
+                        "this tool with the same `env_var` and `rejected: true` so the user "
+                        "can enter a new value. If the "
                         "user cancels the setup, stop the affected "
                         "operation and do not ask for that secret again unless the user "
                         "asks to retry."
@@ -229,6 +232,12 @@ def _request_secret_revision() -> WorkflowRevision:
                             "reason": {
                                 "type": "string",
                                 "description": "Why the credential is required.",
+                            },
+                            "rejected": {
+                                "type": "boolean",
+                                "description": (
+                                    "True when a service refused the saved value."
+                                ),
                             },
                         },
                         "required": ["name", "env_var", "reason"],

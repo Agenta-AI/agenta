@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import channelsReloadErrorCatalog from "@agenta/i18n/catalogs/channels.reloadError"
 import {getChannelsClient} from "@agenta/sdk/resources"
 import {
     EMPTY_CONNECTIONS,
@@ -11,6 +13,8 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
 import {getApiUrl} from "@/lib/env"
+
+const tNow = createT(channelsReloadErrorCatalog)
 
 /** The hosted Slack install URL — a browser redirect into Slack's OAuth, same route the
  * desktop host builds. `getApiUrl()` is the host `_app` pins the SDK to, so both agree. */
@@ -59,9 +63,12 @@ export const useAgentChannels = (
     appId: string,
     {
         resolveAgentName,
+        enabled = true,
     }: {
         /** Resolve an agent id to its display name; null when the roster does not hold it. */
         resolveAgentName?: (id: string) => string | null
+        /** False holds the first read back; `loading` stays true until it runs. */
+        enabled?: boolean
     } = {},
 ) => {
     const [connections, setConnections] = useState<ChannelConnections>(EMPTY_CONNECTIONS)
@@ -96,7 +103,7 @@ export const useAgentChannels = (
                     return next
                 } catch (error) {
                     if (seq === reloadSeq.current) {
-                        setLoadError("Could not load Channels. Try again.")
+                        setLoadError(tNow("channels.reloadError.loadFailed"))
                     }
                     throw error
                 }
@@ -105,6 +112,7 @@ export const useAgentChannels = (
     }, [appId])
 
     useEffect(() => {
+        if (!enabled) return
         let alive = true
         setLoading(true)
         actions
@@ -117,7 +125,7 @@ export const useAgentChannels = (
             alive = false
             reloadSeq.current++
         }
-    }, [actions])
+    }, [actions, enabled])
 
     // A roster that lands after the read still names the answering agents.
     const named = useMemo(() => withAgentNames(connections, resolve), [connections, resolve])

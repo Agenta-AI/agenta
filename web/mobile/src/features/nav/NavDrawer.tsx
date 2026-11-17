@@ -1,5 +1,7 @@
 import {useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {SidebarShell} from "@agenta/navigation-ui"
@@ -34,6 +36,7 @@ export const NavDrawer = ({
     /** Replaces the main nav where a screen takes the rail over (settings). */
     scope?: SidebarScope
 }) => {
+    const t = useT(navigationCatalog)
     const [open, setOpen] = useState(false)
     // The search palette is a dialog of its own, mounted outside this sheet: opening it from the
     // rail inside the sheet closes the sheet, or the pick would land under it.
@@ -60,7 +63,7 @@ export const NavDrawer = ({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label="Open navigation"
+                    aria-label={t("navigation.chrome.openNavigation")}
                     // 20px glyph, not the button's 16: the hamburger is the header's only mark.
                     className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] lg:hidden [&_svg:not([class*='size-'])]:size-5"
                 >
@@ -76,7 +79,7 @@ export const NavDrawer = ({
                 {/* The sheet's own X is off: the rail's header already has the button, and
                     `onDismiss` turns it into this sheet's close. */}
                 <SheetHeader className="sr-only" showCloseButton={false}>
-                    <SheetTitle>Navigation</SheetTitle>
+                    <SheetTitle>{t("navigation.chrome.navigationTitle")}</SheetTitle>
                 </SheetHeader>
                 <SidebarShell
                     key={scope.id}

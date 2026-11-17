@@ -1,0 +1,7 @@
+{
+    "dailyCredits": "毎日の無料クレジット",
+    "dailyCreditsNote": "毎日 0 時 (UTC) にリセットされます",
+    "loadLimitsError": "プランの上限を読み込めませんでした。",
+    "loadPlanAndLimitsError": "プランとその上限を読み込めませんでした。",
+    "loadPlanError": "プランを読み込めませんでした。"
+}

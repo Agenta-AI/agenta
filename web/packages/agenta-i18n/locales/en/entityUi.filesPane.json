@@ -1,0 +1,9 @@
+{
+    "showFiles": "Show files",
+    "hideFiles": "Hide files",
+    "showFilesPane": "Show files pane",
+    "hideFilesPane": "Hide files pane",
+    "openConversationToBrowse": "Open a conversation to browse files.",
+    "driveId": "Drive ID",
+    "sessionId": "Session ID"
+}

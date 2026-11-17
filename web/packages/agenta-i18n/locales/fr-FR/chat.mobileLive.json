@@ -1,0 +1,12 @@
+{
+    "cancel": "Annuler",
+    "couldNotIdentifyRun": "Impossible d’identifier l’exécution à arrêter. Veuillez réessayer.",
+    "couldNotLoadEarlier": "Impossible de charger les messages précédents de cette session.",
+    "couldNotStopRun": "Impossible d’arrêter l’exécution. Elle est peut-être encore en cours.",
+    "noMessagesSaved": "Aucun message n’est enregistré dans cette session. Les messages dont l’envoi a échoué ne sont pas conservés, et les anciens messages peuvent expirer.",
+    "rewindAnyway": "Revenir quand même",
+    "rewindBody": "{{tools}} a déjà été exécuté. Revenir en arrière relance la conversation à partir d’ici, mais n’annule PAS cette exécution.",
+    "rewindTitle": "Revenir avant un outil déjà exécuté ?",
+    "runAlreadyFinished": "Cette exécution était déjà terminée. La session exécute autre chose maintenant.",
+    "tryAgain": "Réessayer"
+}

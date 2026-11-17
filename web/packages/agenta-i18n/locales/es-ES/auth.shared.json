@@ -1,0 +1,14 @@
+{
+    "change": "Cambiar",
+    "completeSecurityCheck": "Completa la comprobación de seguridad.",
+    "continueWith": "Continuar con {{provider}}",
+    "failureRateLimited": "Demasiados intentos. Espera un minuto e inténtalo de nuevo.",
+    "failureServer": "El inicio de sesión tiene problemas por nuestra parte. Inténtalo de nuevo en un momento.",
+    "failureUnavailable": "El inicio de sesión con contraseña no está disponible aquí. Usa otro método de inicio de sesión.",
+    "failureUnknown": "Algo salió mal. Inténtalo de nuevo.",
+    "failureUnreachable": "No podemos conectar con Agenta en este momento. Comprueba tu conexión e inténtalo de nuevo.",
+    "lastUsed": "Último usado",
+    "noMethodsConfigured": "No hay métodos de autenticación configurados",
+    "redirectingTo": "Redirigiendo a {{provider}}…",
+    "securityCheckFailed": "Falló la comprobación de seguridad. Inténtalo de nuevo."
+}

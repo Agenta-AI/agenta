@@ -1,0 +1,10 @@
+{
+    "clearFilters": "Filter zurücksetzen",
+    "loadFailed": "Sitzungen konnten nicht geladen werden",
+    "loadMore": "Mehr laden",
+    "loading": "Sitzungen werden geladen",
+    "loadingMore": "Wird geladen …",
+    "noMatch": "Keine Sitzungen entsprechen diesen Filtern.",
+    "noSessions": "Noch keine Sitzungen.",
+    "startConversation": "Starten Sie eine Unterhaltung mit einem Agent, dann erscheint sie hier."
+}

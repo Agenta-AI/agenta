@@ -1,0 +1,9 @@
+{
+    "attachTooltip": "Adjuntar al mensaje",
+    "delete": "Eliminar grabación",
+    "deleteTooltip": "Eliminar grabación (Esc)",
+    "sendTooltip": "Enviar mensaje de voz",
+    "stopAndAttach": "Detener la grabación y adjuntarla al mensaje",
+    "stopAndSend": "Detener la grabación y enviar el mensaje de voz",
+    "timeLeft": "Quedan {{time}}"
+}

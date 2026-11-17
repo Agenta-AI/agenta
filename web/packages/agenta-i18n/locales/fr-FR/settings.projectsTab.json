@@ -1,0 +1,8 @@
+{
+    "deleteBody": "Supprime définitivement {{name}}, y compris tous ses agents, jeux de données et déploiements.",
+    "deleteTitle": "Supprimer le projet",
+    "deleting": "Suppression…",
+    "namePlaceholder": "Nom du projet",
+    "newDescription": "Les projets regroupent vos agents, vos jeux de données et vos déploiements.",
+    "newTitle": "Nouveau projet"
+}

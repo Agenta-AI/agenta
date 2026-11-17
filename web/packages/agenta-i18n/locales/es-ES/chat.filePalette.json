@@ -1,0 +1,21 @@
+{
+    "acrossDrive": "en todo el disco",
+    "agent": "Agente",
+    "back": "atrás",
+    "dismiss": "descartar",
+    "enterSends": "Intro envía el mensaje tal como está escrito.",
+    "files": "Archivos",
+    "items": "{{count}} elementos",
+    "listing": "listando…",
+    "navigate": "navegar",
+    "noFiles": "Aún no hay archivos en este disco",
+    "noMatch": "Ningún archivo ni carpeta coincide con «{{query}}»",
+    "open": "abrir",
+    "openFolder": "abrir carpeta",
+    "recentlyTouched": "Tocados recientemente",
+    "reference": "referenciar",
+    "referenceFolder": "referenciar carpeta",
+    "searchingInside": "buscando en <path>{{cwd}}/</path>",
+    "send": "enviar",
+    "session": "Sesión"
+}

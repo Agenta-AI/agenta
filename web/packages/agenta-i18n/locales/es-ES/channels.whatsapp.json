@@ -1,0 +1,6 @@
+{
+    "callbackUrl": "URL de devolución de llamada",
+    "copyField": "Copiar {{label}}",
+    "verifyToken": "Token de verificación",
+    "webhookHint": "En tu aplicación de Meta, abre WhatsApp > Configuración, pega estos dos valores y suscríbete al campo <code>messages</code>."
+}

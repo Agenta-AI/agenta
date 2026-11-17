@@ -1,6 +1,8 @@
 /** The Triggers section's standalone trigger row (used for schedules). */
 import {type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 
 import {TriggerActionsMenu} from "./TriggerActionsMenu"
@@ -32,6 +34,7 @@ export function TriggerRow({
     /** Portal target for the "⋯" menu; defaults to document.body. */
     menuContainer?: HTMLElement | null
 }) {
+    const t = useT(triggersCatalog)
     // Read-only mode opens nothing: the row's target is an editable drawer.
     const open = disabled ? undefined : onOpen
     return (
@@ -70,7 +73,9 @@ export function TriggerRow({
                                 />
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent>{active ? "Active" : "Paused"}</TooltipContent>
+                        <TooltipContent>
+                            {active ? t("entityUi.triggers.active") : t("entityUi.triggers.paused")}
+                        </TooltipContent>
                     </Tooltip>
                     <div className="min-w-0 flex-1">
                         <div

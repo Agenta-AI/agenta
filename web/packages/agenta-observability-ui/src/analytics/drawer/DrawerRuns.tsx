@@ -1,5 +1,7 @@
 import {useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {
     categorizeFailure,
     formatCompact,
@@ -26,7 +28,8 @@ import {ArrowSquareOut, CaretDown, CaretRight, Check} from "@phosphor-icons/reac
 import {useAtomValue} from "jotai"
 
 import {analyticsColor} from "../colors"
-import {UNKNOWN_AGENT, clock, monthDay} from "../labels"
+import {failureFix, failureLabel} from "../failureText"
+import {clock, monthDay, unknownAgentLabel} from "../labels"
 import {FAILURE_SAMPLE} from "../useAnalyticsData"
 
 const SHOWN = 20
@@ -71,6 +74,7 @@ export const DrawerRuns = ({
     showDate,
     onOpenTrace,
 }: DrawerRunsProps) => {
+    const t = useT(analyticsCatalog)
     const [reason, setReason] = useState<string | null>(null)
     const [open, setOpen] = useState<string | null>(null)
     const base = {window, filters, focus}
@@ -143,22 +147,31 @@ export const DrawerRuns = ({
     // Segmented re-measures on every new options array, so it must stay stable.
     const runFilterOptions = useMemo(
         () => [
-            {value: "cost", label: "Most expensive"},
-            {value: "failed", label: `Failed ${formatCount(failed)}`},
+            {value: "cost", label: t("observabilityUi.analytics.mostExpensive")},
+            {
+                value: "failed",
+                label: t("observabilityUi.analytics.failedN", {count: formatCount(failed)}),
+            },
         ],
-        [total, failed],
+        [total, failed, t],
     )
 
     return (
         <section className="rounded-xl bg-muted px-4 py-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium">Runs</span>
+                <span className="text-sm font-medium">
+                    {t("observabilityUi.analytics.runsTitle")}
+                </span>
                 <div className="flex items-center gap-2">
                     {failedOnly && reasons.length ? (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm" className="max-w-[220px]">
-                                    <span className="truncate">{reason ?? "All reasons"}</span>
+                                    <span className="truncate">
+                                        {reason
+                                            ? failureLabel(reason, t)
+                                            : t("observabilityUi.analytics.allReasons")}
+                                    </span>
                                     <CaretDown data-icon="inline-end" />
                                 </Button>
                             </DropdownMenuTrigger>
@@ -172,7 +185,9 @@ export const DrawerRuns = ({
                                             className="justify-between gap-3"
                                         >
                                             <span className="truncate">
-                                                {r.label ?? "All reasons"}
+                                                {r.label
+                                                    ? failureLabel(r.label, t)
+                                                    : t("observabilityUi.analytics.allReasons")}
                                             </span>
                                             <span className="flex items-center gap-2 text-muted-foreground tabular-nums">
                                                 {formatCount(r.count)}
@@ -202,9 +217,11 @@ export const DrawerRuns = ({
                 failedOnly ? (
                     <div className={cn(FAILED_GRID, "h-7 text-[11px] text-muted-foreground")}>
                         <span />
-                        <span>Agent</span>
-                        <span>Reason</span>
-                        <span className="text-right">Started</span>
+                        <span>{t("observabilityUi.analytics.colAgent")}</span>
+                        <span>{t("observabilityUi.analytics.colReason")}</span>
+                        <span className="text-right">
+                            {t("observabilityUi.analytics.colStarted")}
+                        </span>
                         <span />
                     </div>
                 ) : (
@@ -215,11 +232,15 @@ export const DrawerRuns = ({
                         )}
                     >
                         <span />
-                        <span>Agent</span>
-                        <span className="max-sm:hidden">Model</span>
-                        <span>Started</span>
-                        <span className="max-sm:hidden">Tokens</span>
-                        <span>Cost ↓</span>
+                        <span>{t("observabilityUi.analytics.colAgent")}</span>
+                        <span className="max-sm:hidden">
+                            {t("observabilityUi.analytics.colModel")}
+                        </span>
+                        <span>{t("observabilityUi.analytics.colStarted")}</span>
+                        <span className="max-sm:hidden">
+                            {t("observabilityUi.analytics.colTokens")}
+                        </span>
+                        <span>{t("observabilityUi.analytics.colCostSorted")}</span>
                         <span />
                     </div>
                 )
@@ -232,9 +253,9 @@ export const DrawerRuns = ({
                 </div>
             ) : query.error ? (
                 <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                    Couldn’t load the runs.
+                    {t("observabilityUi.analytics.couldNotLoadRuns")}
                     <Button variant="outline" size="xs" onClick={() => void query.refetch()}>
-                        Retry
+                        {t("observabilityUi.analytics.retry")}
                     </Button>
                 </div>
             ) : listed.length ? (
@@ -252,31 +273,50 @@ export const DrawerRuns = ({
                     />
                 ))
             ) : (
-                <div className="py-4 text-sm text-muted-foreground">No runs match</div>
+                <div className="py-4 text-sm text-muted-foreground">
+                    {t("observabilityUi.analytics.noRunsMatch")}
+                </div>
             )}
             {listed.length ? (
                 <div className="pt-2 text-[11px] text-muted-foreground">
                     {failedOnly
                         ? [
                               matching > listed.length
-                                  ? `Showing ${listed.length} of ${formatCount(matching)}`
+                                  ? t("observabilityUi.analytics.showingOf", {
+                                        shown: listed.length,
+                                        total: formatCount(matching),
+                                    })
                                   : null,
                               failed > runs.length
-                                  ? `reasons from the newest ${formatCount(runs.length)} of ${formatCount(failed)} failed runs`
+                                  ? t("observabilityUi.analytics.reasonsFromNewest", {
+                                        shown: formatCount(runs.length),
+                                        total: formatCount(failed),
+                                    })
                                   : null,
                           ]
                               .filter(Boolean)
                               .join(" · ")
                         : hasCost
-                          ? `Runs costing at least ${formatMoney(
-                                lowerFloor ? average : average * 2,
-                            )} (${lowerFloor ? "the" : "twice the"} average per run), most expensive first${
-                                runs.length >= COST_SAMPLE ? `, from the newest ${COST_SAMPLE}` : ""
-                            }`
-                          : `Newest ${listed.length} of ${formatCount(total)} runs: none recorded a cost`}
+                          ? t(
+                                lowerFloor
+                                    ? runs.length >= COST_SAMPLE
+                                        ? "observabilityUi.analytics.costAverageNewest"
+                                        : "observabilityUi.analytics.costAverage"
+                                    : runs.length >= COST_SAMPLE
+                                      ? "observabilityUi.analytics.costTwiceNewest"
+                                      : "observabilityUi.analytics.costTwice",
+                                {
+                                    amount: formatMoney(lowerFloor ? average : average * 2),
+                                    count: COST_SAMPLE,
+                                },
+                            )
+                          : t("observabilityUi.analytics.newestNoCost", {
+                                shown: listed.length,
+                                total: formatCount(total),
+                            })}
                     {listed.some((run) => run.subscription && run.cost !== null) ? (
                         <span className="block">
-                            ≈ Estimated from tokens: the run used a subscription.
+                            {t("observabilityUi.analytics.estimatedFromTokens")}
                         </span>
                     ) : null}
                 </div>
@@ -305,14 +345,15 @@ const RunRow = ({
     onToggle: () => void
     onOpenTrace?: (traceId: string) => void
 }) => {
+    const t = useT(analyticsCatalog)
     const failedTools = tools?.failed ?? []
     const category = run.failed ? categorizeFailure(run.reason) : null
     const subline = category
-        ? category.label
+        ? failureLabel(category.label, t)
         : failedTools.length
-          ? `${failedTools.length} tool call${failedTools.length > 1 ? "s" : ""} failed, run recovered`
+          ? t("observabilityUi.analytics.toolCallsFailedRecovered", {count: failedTools.length})
           : tools
-            ? `${tools.calls} tool call${tools.calls === 1 ? "" : "s"}`
+            ? t("observabilityUi.analytics.toolCalls", {count: tools.calls})
             : ""
     const subColor = category ? "textBad" : failedTools.length ? "textWarn" : null
     return (
@@ -333,14 +374,16 @@ const RunRow = ({
                 <span className="flex min-w-0 flex-col">
                     <span className="flex min-w-0 items-center gap-1.5">
                         <span className="truncate">
-                            {run.agentId ? agentName(run.agentId) : (run.name ?? UNKNOWN_AGENT)}
+                            {run.agentId
+                                ? agentName(run.agentId)
+                                : (run.name ?? unknownAgentLabel())}
                         </span>
                         {!run.agentId && run.name ? (
                             <span
                                 className="shrink-0 rounded border border-solid border-border px-1 text-[10px] leading-4 text-muted-foreground"
-                                title="Traced from outside Agenta: named after its root span"
+                                title={t("observabilityUi.analytics.externalTitle")}
                             >
-                                external
+                                {t("observabilityUi.analytics.externalBadge")}
                             </span>
                         ) : null}
                     </span>
@@ -387,13 +430,15 @@ const RunRow = ({
                 <div className="mb-2 ml-6 mr-1 flex flex-col gap-2 rounded-lg bg-background px-3 py-2.5 text-sm">
                     <span className="font-medium">
                         {category
-                            ? category.label
+                            ? failureLabel(category.label, t)
                             : failedTools.length
-                              ? "Run succeeded after retrying"
-                              : "Run succeeded"}
+                              ? t("observabilityUi.analytics.runSucceededRetry")
+                              : t("observabilityUi.analytics.runSucceeded")}
                     </span>
                     {category ? (
-                        <span className="text-muted-foreground">{category.fix}</span>
+                        <span className="text-muted-foreground">
+                            {failureFix(category.label, category.fix, t)}
+                        </span>
                     ) : null}
                     {run.reason ? (
                         <code className="whitespace-pre-wrap break-all text-[11px] text-muted-foreground">
@@ -401,18 +446,20 @@ const RunRow = ({
                         </code>
                     ) : null}
                     <div className="flex flex-col gap-1">
-                        <span className="text-xs text-muted-foreground">Failed tool calls</span>
+                        <span className="text-xs text-muted-foreground">
+                            {t("observabilityUi.analytics.failedToolCalls")}
+                        </span>
                         <span className="text-xs">
                             {failedTools.length
                                 ? failedTools.join(", ")
                                 : run.failed
-                                  ? "None. The run itself failed."
-                                  : "None"}
+                                  ? t("observabilityUi.analytics.noneRunFailed")
+                                  : t("observabilityUi.analytics.none")}
                         </span>
                     </div>
                     {run.subscription ? (
                         <span className="text-[11px] text-muted-foreground">
-                            ≈ This run used a subscription; the cost is estimated at API rates.
+                            {t("observabilityUi.analytics.subscriptionNote")}
                         </span>
                     ) : null}
                     {onOpenTrace ? (
@@ -423,7 +470,7 @@ const RunRow = ({
                             onClick={() => onOpenTrace(run.traceId)}
                         >
                             <ArrowSquareOut data-icon="inline-start" />
-                            Open trace
+                            {t("observabilityUi.analytics.openTrace")}
                         </Button>
                     ) : null}
                 </div>

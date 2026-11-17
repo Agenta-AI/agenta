@@ -8,6 +8,8 @@ import {
     type DriveFileKind,
 } from "@agenta/entities/drive"
 import {mountFileContentQueryFamily} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {Image as ImageIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -54,19 +56,24 @@ const Frame = ({children, path, size}: {children: ReactNode; path: string; size:
 )
 
 /** A file with nothing to show: its tinted kind square, the name, and why there is no preview. */
-const NoPreview = ({path, size}: {path: string; size: string}) => (
-    <div className="flex w-64 min-w-0 items-center gap-3 p-3">
-        <DriveFileGlyph path={path} />
-        <span className="flex min-w-0 flex-col">
-            <span className="truncate text-[13px] font-medium text-popover-foreground">
-                {path.split("/").pop() ?? path}
+const NoPreview = ({path, size}: {path: string; size: string}) => {
+    const t = useT(drivePreviewCatalog)
+    return (
+        <div className="flex w-64 min-w-0 items-center gap-3 p-3">
+            <DriveFileGlyph path={path} />
+            <span className="flex min-w-0 flex-col">
+                <span className="truncate text-[13px] font-medium text-popover-foreground">
+                    {path.split("/").pop() ?? path}
+                </span>
+                <span className="truncate text-xs text-muted-foreground">
+                    {size
+                        ? t("entityUi.drivePreview.noPreviewSize", {size})
+                        : t("entityUi.drivePreview.noPreview")}
+                </span>
             </span>
-            <span className="truncate text-xs text-muted-foreground">
-                {size ? `No preview · ${size}` : "No preview"}
-            </span>
-        </span>
-    </div>
-)
+        </div>
+    )
+}
 
 /** The image alone, its name over a soft fade at the foot, as the inline reply image shows it. */
 const Photo = ({src, path}: {src: string | null; path: string}) => (

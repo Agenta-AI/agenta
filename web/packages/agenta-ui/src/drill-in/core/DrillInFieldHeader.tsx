@@ -10,8 +10,11 @@
 
 import {memo, useCallback, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
+import drillInButtonCatalog from "@agenta/i18n/catalogs/ui.drillInButton"
 import {
-    CaretDown,
     CaretRight,
     Check,
     Code,
@@ -23,6 +26,7 @@ import {
     X,
 } from "@phosphor-icons/react"
 
+import {CollapseCaret} from "../../components/ui/collapse-caret"
 import type {FieldHeaderVariant, FieldViewModeOption, ViewMode} from "../coreTypes"
 
 import {ViewModeDropdown} from "./ViewModeDropdown"
@@ -99,10 +103,6 @@ export interface DrillInFieldHeaderProps {
     showMessage?: (content: string, type?: "success" | "error" | "info") => void
 
     // Icon slots - allow custom icons to be passed in
-    /** Caret down icon */
-    caretDownIcon?: ReactNode
-    /** Caret right icon */
-    caretRightIcon?: ReactNode
     /** Check icon */
     checkIcon?: ReactNode
     /** Copy icon */
@@ -205,8 +205,7 @@ const DefaultTooltip = ({children}: {title?: string; children: ReactNode}) => <>
  * Default icons using Phosphor icons
  */
 const defaultIcons = {
-    caretDown: <CaretDown size={14} />,
-    caretRight: <CaretRight size={14} />,
+    drillIn: <CaretRight size={14} />,
     check: <Check size={14} />,
     copy: <Copy size={14} />,
     code: <Code size={14} />,
@@ -241,6 +240,7 @@ const MappingPopoverContent = memo(
         Input?: DrillInFieldHeaderProps["Input"]
         closeIcon: ReactNode
     }) => {
+        const t = useT(uiDrillInCatalog, drillInButtonCatalog, commonCatalog)
         const [newColumnName, setNewColumnName] = useState("")
         const [showNewColumnInput, setShowNewColumnInput] = useState(false)
 
@@ -277,7 +277,7 @@ const MappingPopoverContent = memo(
                         onClick={handleUnmap}
                     >
                         {closeIcon}
-                        Remove mapping
+                        {t("ui.drillIn.removeMapping")}
                     </Button>
                 </div>
             )
@@ -290,7 +290,7 @@ const MappingPopoverContent = memo(
                         {Input ? (
                             <Input
                                 size="small"
-                                placeholder="Column name"
+                                placeholder={t("ui.drillIn.columnName")}
                                 value={newColumnName}
                                 onChange={(e) => setNewColumnName(e.target.value)}
                                 onPressEnter={handleCreateColumn}
@@ -299,7 +299,7 @@ const MappingPopoverContent = memo(
                         ) : (
                             <input
                                 type="text"
-                                placeholder="Column name"
+                                placeholder={t("ui.drillIn.columnName")}
                                 value={newColumnName}
                                 onChange={(e) => setNewColumnName(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && handleCreateColumn()}
@@ -308,7 +308,7 @@ const MappingPopoverContent = memo(
                             />
                         )}
                         <Button size="small" type="primary" onClick={handleCreateColumn}>
-                            Add
+                            {t("common.add")}
                         </Button>
                     </div>
                 ) : (
@@ -318,7 +318,7 @@ const MappingPopoverContent = memo(
                         className="justify-start text-[var(--ag-btn-link)]"
                         onClick={() => setShowNewColumnInput(true)}
                     >
-                        + Create new column
+                        {t("ui.drillIn.createNewColumn")}
                     </Button>
                 )}
                 {columnOptions && columnOptions.length > 0 && (
@@ -382,8 +382,6 @@ const DrillInFieldHeader = memo(
         showMessage,
         typeChip,
         // Icons
-        caretDownIcon = defaultIcons.caretDown,
-        caretRightIcon = defaultIcons.caretRight,
         checkIcon = defaultIcons.check,
         copyIcon = defaultIcons.copy,
         codeIcon = defaultIcons.code,
@@ -399,6 +397,7 @@ const DrillInFieldHeader = memo(
         Popover,
         Input,
     }: DrillInFieldHeaderProps) => {
+        const t = useT(uiDrillInCatalog, drillInButtonCatalog, commonCatalog)
         const [copiedField, setCopiedField] = useState<string | null>(null)
         const [popoverOpen, setPopoverOpen] = useState(false)
         const shouldShowCollapse = showCollapseToggle ?? showCollapse
@@ -464,7 +463,7 @@ const DrillInFieldHeader = memo(
                     {shouldShowCollapse ? (
                         <>
                             <span className="flex items-center text-gray-500">
-                                {isCollapsed ? caretRightIcon : caretDownIcon}
+                                <CollapseCaret open={!isCollapsed} size={14} />
                             </span>
                             <span className="text-gray-700 font-medium">{name}</span>
                             {typeChip}
@@ -477,12 +476,11 @@ const DrillInFieldHeader = memo(
                     )}
                     {mappedColumn ? (
                         <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                            mapped to {mappedColumn}
+                            {t("ui.drillIn.mappedTo", {column: mappedColumn})}
                         </span>
                     ) : nestedMappingCount > 0 ? (
                         <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                            contains {nestedMappingCount} mapping
-                            {nestedMappingCount > 1 ? "s" : ""}
+                            {t("ui.drillIn.containsMappings", {count: nestedMappingCount})}
                         </span>
                     ) : null}
                     {itemCount ? (
@@ -505,7 +503,9 @@ const DrillInFieldHeader = memo(
                             />
                         )}
                     {showCopyButton && (
-                        <Tooltip title={copiedField === name ? "Copied" : "Copy"}>
+                        <Tooltip
+                            title={copiedField === name ? t("common.copied") : t("common.copy")}
+                        >
                             <Button
                                 type="text"
                                 size="small"
@@ -517,7 +517,11 @@ const DrillInFieldHeader = memo(
                         </Tooltip>
                     )}
                     {showRawInVariant && onToggleRawMode && (
-                        <Tooltip title={isRawMode ? "Show formatted" : "Show raw"}>
+                        <Tooltip
+                            title={
+                                isRawMode ? t("ui.drillIn.showFormatted") : t("ui.drillIn.showRaw")
+                            }
+                        >
                             <Button
                                 type="text"
                                 size="small"
@@ -529,7 +533,13 @@ const DrillInFieldHeader = memo(
                         </Tooltip>
                     )}
                     {showMarkdownInVariant && onToggleMarkdownView && (
-                        <Tooltip title={isMarkdownView ? "Preview text" : "Preview markdown"}>
+                        <Tooltip
+                            title={
+                                isMarkdownView
+                                    ? t("ui.drillIn.previewText")
+                                    : t("ui.drillIn.previewMarkdown")
+                            }
+                        >
                             <Button
                                 type="text"
                                 size="small"
@@ -547,8 +557,8 @@ const DrillInFieldHeader = memo(
                             onClick={onDrillIn}
                             className="!px-2 !h-6 text-xs text-gray-500"
                         >
-                            {caretRightIcon}
-                            <span className="ml-1">Drill In</span>
+                            {defaultIcons.drillIn}
+                            <span className="ml-1">{t("ui.drillInButton.drillIn")}</span>
                         </Button>
                     )}
                     {onMapToColumn &&
@@ -560,7 +570,13 @@ const DrillInFieldHeader = memo(
                                 onOpenChange={setPopoverOpen}
                                 placement="bottomRight"
                             >
-                                <Tooltip title={isMapped ? "Mapping options" : "Map to column"}>
+                                <Tooltip
+                                    title={
+                                        isMapped
+                                            ? t("ui.drillIn.mappingOptions")
+                                            : t("ui.drillIn.mapToColumn")
+                                    }
+                                >
                                     <Button
                                         type="text"
                                         size="small"
@@ -572,7 +588,13 @@ const DrillInFieldHeader = memo(
                             </Popover>
                         ) : (
                             <div className="relative">
-                                <Tooltip title={isMapped ? "Mapping options" : "Map to column"}>
+                                <Tooltip
+                                    title={
+                                        isMapped
+                                            ? t("ui.drillIn.mappingOptions")
+                                            : t("ui.drillIn.mapToColumn")
+                                    }
+                                >
                                     <Button
                                         type="text"
                                         size="small"
@@ -595,7 +617,7 @@ const DrillInFieldHeader = memo(
                             size="small"
                             danger
                             onClick={onDelete}
-                            aria-label="Delete field"
+                            aria-label={t("ui.drillIn.deleteField")}
                         >
                             {deleteIcon}
                         </Button>

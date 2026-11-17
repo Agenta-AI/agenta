@@ -1,9 +1,11 @@
 import {Fragment} from "react"
 import type {KeyboardEvent} from "react"
 
-import {ChevronDown} from "lucide-react"
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 
 import {Checkbox} from "../components/ui/checkbox"
+import {CollapseCaret} from "../components/ui/collapse-caret"
 import {SkeletonBlock} from "../components/ui/skeleton"
 import {cn} from "../components/ui/utils"
 
@@ -93,6 +95,7 @@ export const ListTable = <Row,>({
     selection,
     className,
 }: ListTableProps<Row>) => {
+    const t = useT(uiControlsCatalog)
     const isGrid = view === "grid"
     const selecting = Boolean(selection) && !isGrid
     const allColumns = selecting ? [SELECT_COLUMN, ...columns] : columns
@@ -199,7 +202,7 @@ export const ListTable = <Row,>({
                                     checked={allState}
                                     disabled={selectableKeys.length === 0}
                                     onCheckedChange={toggleAll}
-                                    aria-label="Select all"
+                                    aria-label={t("ui.controls.selectAll")}
                                 />
                             </span>
                         ) : null}
@@ -348,14 +351,7 @@ export const ListTable = <Row,>({
                                                     long repository truncates so the group's
                                                     action keeps its place on the right. */}
                                                 <span className="truncate">{group.label}</span>
-                                                <ChevronDown
-                                                    size={12}
-                                                    aria-hidden
-                                                    className={cn(
-                                                        "shrink-0 transition-transform",
-                                                        collapsed && "-rotate-90",
-                                                    )}
-                                                />
+                                                <CollapseCaret open={!collapsed} size={12} />
                                             </button>
                                         ) : (
                                             <p className="m-0 min-w-0 truncate text-[13px] text-muted-foreground">

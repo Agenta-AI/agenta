@@ -1,0 +1,8 @@
+{
+    "true": "是",
+    "false": "否",
+    "metrics_other": "{{count}} 项指标",
+    "copySessionId": "复制会话 ID",
+    "statusFailure": "失败",
+    "statusSuccess": "成功"
+}

@@ -1,0 +1,7 @@
+{
+    "copyValue": "复制值",
+    "hint": "在你的域名服务商处添加此 DNS 记录，然后点击“验证”。",
+    "name": "名称：{{name}}",
+    "type": "类型：TXT",
+    "value": "值：{{value}}"
+}

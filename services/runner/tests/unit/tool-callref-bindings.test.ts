@@ -23,6 +23,7 @@ import {
   startToolRelay,
   type RelayResponse,
 } from "../../src/tools/relay.ts";
+import { fixedToolCallback } from "../utils/tool-callback.ts";
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
 const RUN_CONTEXT: RunContext = {
@@ -66,7 +67,7 @@ async function relayOnce(input: {
       localRelayHost(),
       dir,
       [input.spec],
-      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      fixedToolCallback({ endpoint: ENDPOINT, authorization: "ApiKey secret" }),
       input.runContext,
     );
     // Written AFTER startToolRelay: the stale-file sweep (whose listing is taken

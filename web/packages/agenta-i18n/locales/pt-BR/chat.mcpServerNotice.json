@@ -1,0 +1,8 @@
+{
+    "didNotConnect": "{{name}} não se conectou, então as ferramentas dele ficaram indisponíveis",
+    "needsSignIn": "{{name}} precisa de um novo login.",
+    "needsSignInDetail": "As ferramentas dele falham até que alguém do projeto reconecte.",
+    "notSetUp": "{{name}} ainda não foi configurado, então as ferramentas dele foram ignoradas.",
+    "reconnect": "Reconectar",
+    "reconnectNamed": "Reconectar {{name}}"
+}

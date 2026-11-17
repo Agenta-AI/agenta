@@ -1,0 +1,8 @@
+{
+    "title": "Startseite",
+    "loading": "Startseite wird geladen",
+    "untitledAgent": "Unbenannter Agent",
+    "templatesError": "Vorlagen konnten nicht geladen werden",
+    "agentsEmpty": "Von Ihnen erstellte Agents erscheinen hier.",
+    "agentsError": "Ihre Agents konnten nicht geladen werden"
+}

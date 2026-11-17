@@ -60,6 +60,7 @@ const KNOWN_REQUEST_KEYS = [
   "sandboxCredentials",
   "harnessFiles",
   "turnId",
+  "sessionTurnId",
   "detached",
   "projectId",
   "controlCommandId",

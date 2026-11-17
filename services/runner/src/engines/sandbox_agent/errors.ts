@@ -496,6 +496,39 @@ export const MALFORMED_FUNCTION_CALL =
 export const MALFORMED_FUNCTION_CALL_MESSAGE =
   "The model sent a tool call that could not be read (malformed_function_call). Try again, or pick another model.";
 
+/**
+ * The ChatGPT plan behind a Codex subscription run is out of usage. OpenAI words it two ways:
+ * "You have hit your ChatGPT usage limit (plus plan). Try again in ~2075 min." and, once the
+ * limit is known, "Codex error: The usage limit has been reached". The limit belongs to the
+ * ChatGPT account, so signing in again does not lift it.
+ */
+export const CHATGPT_USAGE_LIMIT =
+  /you have hit your chatgpt usage limit|codex error: the usage limit has been reached/i;
+const CHATGPT_USAGE_LIMIT_RETRY_MINUTES = /try again in ~?(\d+)\s*min/i;
+
+/** When OpenAI says the limit lifts, in words, or undefined when it did not say. */
+function chatgptUsageLimitWait(raw: string): string | undefined {
+  const minutes = Number(CHATGPT_USAGE_LIMIT_RETRY_MINUTES.exec(raw)?.[1]);
+  if (!Number.isFinite(minutes) || minutes <= 0) return undefined;
+  if (minutes < 60) return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? "1 hour" : `${hours} hours`;
+}
+
+export function chatgptUsageLimitMessage(raw: string): string {
+  const wait = chatgptUsageLimitWait(raw);
+  const when = wait ? `Try again in about ${wait}` : "Try again later";
+  return `Your ChatGPT plan has reached its usage limit, so OpenAI refused this request. Signing in again does not change this. ${when}, or pick a model that does not use your ChatGPT subscription.`;
+}
+
+/** OpenAI refuses a model that a ChatGPT account cannot use through Codex. */
+export const CHATGPT_MODEL_UNSUPPORTED =
+  /the '([^'\n]{1,80})' model is not supported when using codex with a chatgpt account/i;
+
+export function chatgptModelUnsupportedMessage(model: string): string {
+  return `Your ChatGPT subscription cannot use the model ${sanitizeErrorText(model)}. Pick another model for this agent.`;
+}
+
 /** The proxy answered but cannot reach its own store, or was not reachable at all. */
 const PROXY_NO_DATABASE = /no_db_connection/i;
 const CONNECTION_FAILURE =
@@ -613,6 +646,13 @@ export function classifyRunError(
     return { message: MALFORMED_FUNCTION_CALL_MESSAGE, code: "upstream_error" };
   if (MODEL_REQUEST_TIMED_OUT.test(raw))
     return { message: MODEL_REQUEST_TIMED_OUT_MESSAGE, code: "upstream_error" };
+  // The ChatGPT plan's own refusals on a Codex subscription run, before the rate-limit and auth
+  // rules: neither is throttling, and neither is fixed by signing in again.
+  if (CHATGPT_USAGE_LIMIT.test(raw))
+    return { message: chatgptUsageLimitMessage(raw), code: "upstream_rejected" };
+  const unsupportedModel = CHATGPT_MODEL_UNSUPPORTED.exec(raw)?.[1];
+  if (unsupportedModel)
+    return { message: chatgptModelUnsupportedMessage(unsupportedModel), code: "model_unavailable" };
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.
   if (BUDGET_REFUSAL.test(raw)) {

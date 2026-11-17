@@ -143,6 +143,9 @@ export function unescapeTemplateDelimiters(markdown: string): string {
     return parts.join("")
 }
 
+// https://spec.commonmark.org/0.31.2/#backslash-escapes
+const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/
+
 export function stripBackslashEscapes(value: string): string {
     const firstEscapeIndex = value.indexOf("\\")
     if (firstEscapeIndex === -1) {
@@ -157,11 +160,18 @@ export function stripBackslashEscapes(value: string): string {
             continue
         }
 
+        const nextChar = value[i + 1]
+        // CommonMark escapes only ASCII punctuation; a backslash before anything else
+        // (the "\n" a table cell exports for its line breaks, "\d" in a regex) is literal.
+        if (!ASCII_PUNCTUATION.test(nextChar)) {
+            continue
+        }
+
         if (lastSliceStart < i) {
             parts.push(value.slice(lastSliceStart, i))
         }
 
-        parts.push(value[i + 1])
+        parts.push(nextChar)
         i += 1
         lastSliceStart = i + 1
     }

@@ -20,6 +20,8 @@ import {
     type AuthSuccessPayload,
     type SignInStage,
 } from "@agenta/auth-ui"
+import {richText, useT} from "@agenta/i18n"
+import signInCatalog from "@agenta/i18n/catalogs/auth.signIn"
 import {LoadingButton} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
@@ -40,6 +42,7 @@ const STAGE_ORDER: Record<SignInStage, number> = {entry: 0, methods: 1, code: 2}
 
 /** Email-first sign-in on `useSignInFlow`; /m routes OIDC through a cookie, EE adds Turnstile. */
 export const SignInScreen = () => {
+    const t = useT(signInCatalog)
     const onSuccess = useAuthSuccess()
     const router = useRouter()
     const [pendingProvider, setPendingProvider] = useState<string | null>(null)
@@ -72,7 +75,7 @@ export const SignInScreen = () => {
         } catch {
             setLeaving(false)
             setMessage({
-                message: "Signed in, but the app could not open. Try again.",
+                message: t("auth.signIn.signedInButAppFailed"),
                 type: "error",
             })
         }
@@ -90,7 +93,7 @@ export const SignInScreen = () => {
         setPendingProvider(providerId)
         await startOidcSignIn(providerId)
         setPendingProvider(null)
-        setMessage({message: "Could not reach that provider. Try again.", type: "error"})
+        setMessage({message: t("auth.signIn.providerUnreachable"), type: "error"})
     }
 
     const changeEmail = async () => {
@@ -99,10 +102,12 @@ export const SignInScreen = () => {
     }
 
     let chip: ReactNode = null
-    let heading = entry.heading
+    let heading = entry.isReturning
+        ? t("auth.signIn.headingReturning")
+        : t("auth.signIn.headingNew")
     let subheading = entry.isReturning
-        ? "Sign in to continue to your workspace."
-        : "Sign in or create an account."
+        ? t("auth.signIn.subheadingReturning")
+        : t("auth.signIn.subheadingNew")
     let body: ReactNode
     const loading = !flow.ready || flow.restoring
 
@@ -112,8 +117,8 @@ export const SignInScreen = () => {
         body = <NoAuthMethods />
     } else if (flow.stage === "code") {
         chip = <EmailChip email={flow.email} onChange={() => void changeEmail()} />
-        heading = "Check your inbox"
-        subheading = "Enter the 6-character code we sent to your email."
+        heading = t("auth.signIn.codeHeading")
+        subheading = t("auth.signIn.codeSubheading")
         body = (
             <OtpVerifyForm
                 email={flow.email}
@@ -127,14 +132,14 @@ export const SignInScreen = () => {
     } else if (flow.stage === "methods") {
         chip = <EmailChip email={flow.email} onChange={() => void changeEmail()} />
         if (methods.password) {
-            heading = "Enter your password"
-            subheading = "New to Agenta? The password you choose here creates your account."
+            heading = t("auth.signIn.passwordHeading")
+            subheading = t("auth.signIn.passwordSubheading")
         } else if (methods.otp) {
-            heading = "Get a sign-in code"
-            subheading = "We will email a one-time code to this address."
+            heading = t("auth.signIn.otpHeading")
+            subheading = t("auth.signIn.otpSubheading")
         } else {
-            heading = "Sign in with SSO"
-            subheading = "Your organization manages sign-in for this email."
+            heading = t("auth.signIn.ssoHeading")
+            subheading = t("auth.signIn.ssoSubheading")
         }
         body = (
             <div className="flex w-full flex-col gap-[22px]">
@@ -174,14 +179,12 @@ export const SignInScreen = () => {
                         onClick={() => void flow.startSso(provider)}
                     >
                         {flow.redirecting
-                            ? `Redirecting to ${provider.label}…`
-                            : `Continue with SSO (${provider.label})`}
+                            ? t("auth.signIn.redirectingTo", {provider: provider.label})
+                            : t("auth.signIn.continueWithSso", {provider: provider.label})}
                     </LoadingButton>
                 ))}
                 {!methods.password && !methods.otp && methods.sso.length === 0 ? (
-                    <p className={SUBLINE_CLASS}>
-                        This email has no sign-in method here. Try another address.
-                    </p>
+                    <p className={SUBLINE_CLASS}>{t("auth.signIn.noMethodForEmail")}</p>
                 ) : null}
             </div>
         )
@@ -216,15 +219,18 @@ export const SignInScreen = () => {
                     />
                 ) : null}
                 <p className="m-0 text-xs leading-[18px] text-muted-foreground [&_a]:text-muted-foreground [&_a]:no-underline [&_a:hover]:text-foreground [&_a:hover]:underline">
-                    By continuing, you agree to Agenta&apos;s{" "}
-                    <a href={TERMS_URL} target="_blank" rel="noopener noreferrer">
-                        Terms of Service
-                    </a>{" "}
-                    and{" "}
-                    <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">
-                        Privacy Policy
-                    </a>
-                    .
+                    {richText(t("auth.signIn.termsNotice"), {
+                        terms: (text) => (
+                            <a href={TERMS_URL} target="_blank" rel="noopener noreferrer">
+                                {text}
+                            </a>
+                        ),
+                        privacy: (text) => (
+                            <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">
+                                {text}
+                            </a>
+                        ),
+                    })}
                 </p>
             </div>
         )

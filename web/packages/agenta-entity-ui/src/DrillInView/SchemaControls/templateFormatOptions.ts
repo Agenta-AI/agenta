@@ -1,3 +1,7 @@
+import {createT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
+
+const tNow = createT(schemaControlsCatalog)
 export type TemplateFormat = "mustache" | "curly" | "fstring" | "jinja2"
 
 // Template format option labels.
@@ -13,6 +17,13 @@ export const TEMPLATE_FORMAT_LABELS: Record<TemplateFormat, string> = {
     jinja2: "Prompt Syntax: Jinja2",
     curly: "Prompt Syntax: Curly",
     fstring: "Prompt Syntax: F-string",
+}
+
+const TEMPLATE_FORMAT_NAMES: Record<TemplateFormat, string> = {
+    mustache: "Mustache",
+    jinja2: "Jinja2",
+    curly: "Curly",
+    fstring: "F-string",
 }
 
 export const OFFERED_TEMPLATE_FORMATS: TemplateFormat[] = ["mustache", "jinja2"]
@@ -46,5 +57,10 @@ export function buildTemplateFormatOptions(
     if (original && !values.includes(original)) {
         values.push(original)
     }
-    return values.map((value) => ({label: TEMPLATE_FORMAT_LABELS[value], value}))
+    return values.map((value) => ({
+        label: tNow("entityUi.schemaControls.promptSyntaxLabel", {
+            name: TEMPLATE_FORMAT_NAMES[value],
+        }),
+        value,
+    }))
 }

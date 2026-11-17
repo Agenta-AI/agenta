@@ -1,0 +1,19 @@
+{
+    "title": "Observabilité",
+    "tracesTab": "Traces",
+    "sessionsTab": "Sessions",
+    "addSelectedToQueue": "Ajouter {{count}} éléments sélectionnés à la file d’attente",
+    "addSelectedToQueueNone": "Ajouter la sélection à la file d’attente",
+    "noSessionsTitle": "Aucune session pour le moment",
+    "noSessionsHint": "Les sessions apparaissent ici dès que votre application regroupe les traces par identifiant de session.",
+    "noTracesTitle": "Aucune trace pour le moment",
+    "noTracesHint": "Les traces apparaissent ici dès que votre application les envoie.",
+    "nothingMatchesTitle": "Aucun résultat pour ces filtres",
+    "nothingMatchesHint": "Essayez une période plus large ou effacez les filtres.",
+    "clearFilters": "Effacer les filtres",
+    "filterByApp": "Filtrer par application",
+    "allApps": "Toutes les applications",
+    "tooManyRequests": "Trop de requêtes.",
+    "playgroundNoApp": "Cette trace n’a pas d’application, elle ne peut donc pas s’ouvrir dans le playground.",
+    "playgroundSpanType": "Les spans de type « {{spanType}} » ne peuvent pas être rejoués dans le playground. Ouvrez plutôt le span parent de type workflow, task, agent ou chain."
+}

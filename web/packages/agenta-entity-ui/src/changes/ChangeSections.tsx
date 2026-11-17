@@ -14,6 +14,8 @@
 import {useState} from "react"
 
 import type {ChangeItem, ChangeSection, ScalarChange} from "@agenta/entities/workflow/commitDiff"
+import {useT} from "@agenta/i18n"
+import changeSectionsCatalog from "@agenta/i18n/catalogs/entityUi.changeSections"
 import {HeightCollapse} from "@agenta/ui/components"
 import {AdaptiveList} from "@agenta/ui/components/selection"
 import type {ExtendedDiffLine} from "@agenta/ui/diff"
@@ -26,10 +28,10 @@ import {
     Cpu,
     DotsThree,
     FileText,
-    GraduationCap,
+    Compass,
+    HardDrives,
     Minus,
     PencilSimple,
-    Plugs,
     Plus,
     Robot,
     SlidersHorizontal,
@@ -98,8 +100,8 @@ export const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
     subagents: <Robot />,
     instructions: <FileText />,
     model: <Cpu />,
-    mcps: <Plugs />,
-    skills: <GraduationCap />,
+    mcps: <HardDrives />,
+    skills: <Compass />,
     params: <SlidersHorizontal />,
 }
 
@@ -240,6 +242,7 @@ function CappedItems({
     onOpenTool?: (itemId: string) => void
     padX?: string
 }) {
+    const t = useT(changeSectionsCatalog)
     const [expanded, setExpanded] = useState(false)
 
     if (expanded && items.length > VIRTUALIZE_AT) {
@@ -268,7 +271,7 @@ function CappedItems({
                     onClick={() => setExpanded(true)}
                 >
                     <DotsThree />
-                    Show {hidden} more
+                    {t("entityUi.changeSections.showMore", {count: hidden})}
                 </button>
             ) : null}
         </div>
@@ -320,6 +323,7 @@ export function SectionCard({
     /** Drop the card fill and border — flat rows separated by a rule, not stacked cards. */
     ghost?: boolean
 }) {
+    const t = useT(changeSectionsCatalog)
     const toolItems = items ?? section.items
     // Ghost bands fill the pane's box and pad inward, so nothing relies on a negative margin —
     // one bled outward gets clipped by the collapse wrapper's overflow-hidden.
@@ -427,9 +431,13 @@ export function SectionCard({
                                         onClick={onOpenInstructions}
                                     >
                                         <ArrowRight />
-                                        View full diff
+                                        {t("entityUi.changeSections.viewFullDiff")}
                                         {section.textDiff.added + section.textDiff.removed > 2
-                                            ? ` · ${section.textDiff.added + section.textDiff.removed} lines`
+                                            ? ` · ${t("entityUi.changeSections.lineCount", {
+                                                  count:
+                                                      section.textDiff.added +
+                                                      section.textDiff.removed,
+                                              })}`
                                             : ""}
                                     </button>
                                 </div>

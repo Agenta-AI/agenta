@@ -1,0 +1,11 @@
+{
+    "couldNotStart": "Não foi possível iniciar a exportação.",
+    "preparing": "Preparando a exportação",
+    "rateLimited": "Limite de taxa atingido: em pausa por {{seconds}} s ({{rows}} linhas exportadas até agora)",
+    "exporting": "Exportando {{rows}} linhas",
+    "nothingToExport": "Não há rastreamentos para exportar",
+    "limitReached": "Limite de exportação atingido. As primeiras {{rows}} linhas foram baixadas.",
+    "exported": "{{rows}} linhas exportadas",
+    "cancelled": "Exportação cancelada",
+    "failed": "Falha na exportação"
+}

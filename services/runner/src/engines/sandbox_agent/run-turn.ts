@@ -7,6 +7,7 @@ import {
 import {
   currentUserTurn,
   resolvePromptText,
+  spanTurnId,
   type AgentRunRequest,
   type AgentRunResult,
   type AgentUsage,
@@ -20,6 +21,7 @@ import {
   thrownFields,
 } from "../../subscription-events.ts";
 import { startPlatformCredentialLease } from "../../sessions/auth.ts";
+import { startToolCallbackRuntime } from "../../tools/run-credential.ts";
 import {
   ApprovalResponder,
   ApprovedExecutionGrants,
@@ -55,6 +57,7 @@ import {
 } from "./acp-interactions.ts";
 import {
   buildClientToolRelay,
+  internalToolName,
   relayWritesPausedAnswer,
 } from "./client-tools.ts";
 import { buildExecutableToolGate } from "./executable-tools.ts";
@@ -118,6 +121,7 @@ import {
 import {
   createRunLimits,
   resolveRunLimits,
+  toolCallLimitMs,
   type RunLimitKind,
 } from "./run-limits.ts";
 import {
@@ -229,17 +233,18 @@ export async function runTurn(
   // exposure. Do NOT add unconditional I/O anywhere above that call; hand pre-turn reads in
   // through `opts` instead (see `opts.seededDecisions`).
   const { plan, logger, deps } = env;
-  const initialCredential = opts.credential ?? (() => runCredential(request));
+  const initialCredential =
+    opts.credentialLease?.credential ?? (() => runCredential(request));
   const initialOtlpTarget = resolveRunOtlpTarget(request, initialCredential);
-  // Session-owned turns receive the watchdog's lease through opts.credential. A standalone
+  // Session-owned turns receive the watchdog's lease through opts.credentialLease. A standalone
   // Agenta run owns the same reusable lease here so even a single 12-hour turn exports with a
   // current credential. External collector headers stay static and never enter this exchange.
   const platformCredentialLease =
-    !opts.credential && initialOtlpTarget.authorizationSource === "platform"
+    !opts.credentialLease && initialOtlpTarget.authorizationSource === "platform"
       ? startPlatformCredentialLease(apiBase(), runCredential(request))
       : undefined;
-  const credential =
-    opts.credential ?? platformCredentialLease?.credential ?? initialCredential;
+  const platformLease = opts.credentialLease ?? platformCredentialLease;
+  const credential = platformLease?.credential ?? initialCredential;
   const otlpTarget = resolveRunOtlpTarget(request, credential);
   const sessionId = env.sessionId;
   const toolRunContext = env.sessionId
@@ -509,7 +514,7 @@ export async function runTurn(
       : undefined;
     limitStopSettled = endedAs === "cancelled";
   };
-  runLimits.onTrip((reason, kind) => {
+  runLimits.onTrip((reason, kind, limitMs) => {
     runLimitReason = reason;
     runLimitKind = kind;
     if (kind === "total" && resolvedRunLimits.turnLimitMessage) {
@@ -519,15 +524,7 @@ export async function runTurn(
       );
     } else {
       // The log keeps `reason`; the person reads which limit ended the turn.
-      runLimitPublicError = runLimitError(
-        kind,
-        {
-          total: resolvedRunLimits.totalMs,
-          idle: resolvedRunLimits.idleMs,
-          ttfb: resolvedRunLimits.ttfbMs,
-          "tool-call": resolvedRunLimits.toolCallMs,
-        }[kind],
-      );
+      runLimitPublicError = runLimitError(kind, limitMs);
     }
     runLimitTrip?.();
   });
@@ -557,6 +554,20 @@ export async function runTurn(
       "[sandbox-liveness] no health URL on this sandbox; polling disabled " +
         "(the transport's own sandbox-gone report still ends the turn)",
     );
+  }
+
+  // Built per turn, never kept on the pooled environment, so a warm turn reads its own credential.
+  let toolCallback: ReturnType<typeof startToolCallbackRuntime>;
+  try {
+    toolCallback = startToolCallbackRuntime(
+      request.toolCallback as ToolCallbackContext | undefined,
+      platformLease,
+      logger,
+    );
+  } catch (err) {
+    // The `finally` below is not reached yet, so stop the standalone lease here.
+    platformCredentialLease?.release();
+    throw err;
   }
 
   // Declared outside the `try` so the failure path can see it: an approval reply is never
@@ -658,6 +669,8 @@ export async function runTurn(
       skillsDropped: plan.workspace.skillsDropped,
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
+      // On an approval resume the spans carry the session turn, not the new execution.
+      sessionTurnId: spanTurnId(request),
       endpoint: otlpTarget.endpoint,
       // The session keepalive owns this getter and refreshes its value while a long turn runs.
       // Resolve it only when the trace batch leaves the runner, not when the turn starts.
@@ -902,6 +915,23 @@ export async function runTurn(
     void pause.signal.then(() => runLimits.notePaused());
 
     const openToolCallIds = (): string[] => run.openToolCallIds?.() ?? [];
+    // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
+    // the approval card and the guard cannot disagree about a tool's permission/readOnly.
+    const specsByName = toolSpecsByName(plan.tools.toolSpecs);
+    // The limit one tool call gets: a runner tool whose spec has its own budget (a reference
+    // tool) may run that long, every other call keeps the run's tool-call limit.
+    // An exact spec name comes first: Pi emits its custom tools under their own name, which may
+    // itself start with `mcp__`.
+    const toolBudgetMs = (toolName: string | undefined): number | undefined => {
+      if (!toolName) return undefined;
+      const name = specsByName.has(toolName) ? toolName : internalToolName(toolName);
+      return name ? specsByName.get(name)?.timeoutMs : undefined;
+    };
+    // How long to wait for an approved call to close: the same bound the watchdog uses (the
+    // call's limit plus the grace), so a result that lands inside the grace is not lost.
+    const callClosureWaitMs = (toolName: string | undefined): number =>
+      toolCallLimitMs(resolvedRunLimits.toolCallMs, toolBudgetMs(toolName)) +
+      (resolvedRunLimits.toolCallGraceMs ?? 0);
     const approvedExecutionSeeds = new Map<string, ParkedApprovedExecution>(
       carriedApprovedExecutions.map((seed) => [seed.toolCallId, seed]),
     );
@@ -1001,9 +1031,14 @@ export async function runTurn(
           sessionUpdate?: unknown;
           toolCallId?: unknown;
           status?: unknown;
+          title?: unknown;
         };
         if (rawFrame?.sessionUpdate === "tool_call" && rawFrame.toolCallId) {
-          runLimits.noteToolCallStart(String(rawFrame.toolCallId));
+          const name = acpToolName(rawFrame);
+          runLimits.noteToolCallStart(
+            String(rawFrame.toolCallId),
+            toolBudgetMs(name ?? (typeof rawFrame.title === "string" ? rawFrame.title : undefined)),
+          );
         } else if (
           rawFrame?.sessionUpdate === "tool_call_update" &&
           rawFrame.toolCallId &&
@@ -1126,6 +1161,9 @@ export async function runTurn(
         kind: seed.toolName,
         rawInput: seed.args,
       });
+      // The harness announced this call in an earlier turn and will not announce it again, so
+      // this turn's watchdog starts it here (it otherwise never sees the call as open).
+      runLimits.noteToolCallStart(seed.toolCallId, toolBudgetMs(seed.toolName));
       pause.markAllowedExecution(seed.toolCallId);
       executionGrants.grant(seed.toolName, seed.args);
     };
@@ -1242,9 +1280,6 @@ export async function runTurn(
       await Promise.all(settling);
     };
     const mcpPermissions = mcpPermissionsFromRequest(request, logger);
-    // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
-    // the approval card and the guard cannot disagree about a tool's permission/readOnly.
-    const specsByName = toolSpecsByName(plan.tools.toolSpecs);
     const settleBufferedPausedCompletions = (): void => {
       for (const [toolCallId, update] of [
         ...bufferedPausedCompletedFrames.entries(),
@@ -1316,7 +1351,7 @@ export async function runTurn(
       isDaytona: plan.isDaytona,
       workspaceCwd: plan.workspace.cwd,
       sandbox: env.sandbox,
-      callback: request.toolCallback as ToolCallbackContext | undefined,
+      callback: toolCallback.runtime,
       runContext: request.runContext,
       permissionPlan,
       toolSpecs: plan.tools.toolSpecs,
@@ -1501,7 +1536,7 @@ export async function runTurn(
           : (deps.localRelayHost ?? localRelayHost)(),
         plan.workspace.relayDir,
         plan.tools.toolSpecs,
-        request.toolCallback as ToolCallbackContext | undefined,
+        toolCallback.runtime,
         toolRunContext,
         env.clientToolRelayRef.current,
         relayGuard,
@@ -1580,6 +1615,11 @@ export async function runTurn(
             toolName: decision.toolName,
             args: decision.args,
           });
+          // Same as `seedApprovedExecution`: the approved call runs now, without a new announcement.
+          runLimits.noteToolCallStart(
+            decision.toolCallId,
+            toolBudgetMs(decision.toolName),
+          );
           pause.markAllowedExecution(decision.toolCallId);
           executionGrants.grant(decision.toolName, decision.args);
         }
@@ -1621,12 +1661,15 @@ export async function runTurn(
       // impossible and the paused-settle's park-and-carry branch owns those spans.
       if (opts.resume && opts.resume.carriedForward.length > 0) {
         if (!plan.isPi) {
-          const answeredAllowedIds = decisions
-            .filter((decision) => decision.reply === "once")
-            .map((decision) => decision.toolCallId);
+          const answeredAllowed = decisions.filter(
+            (decision) => decision.reply === "once",
+          );
           await Promise.all(
-            answeredAllowedIds.map((toolCallId) =>
-              waitForToolCallClosure(toolCallId, resolvedRunLimits.toolCallMs),
+            answeredAllowed.map((decision) =>
+              waitForToolCallClosure(
+                decision.toolCallId,
+                callClosureWaitMs(decision.toolName),
+              ),
             ),
           );
         }
@@ -1763,7 +1806,7 @@ export async function runTurn(
           openAllowedExecutions.map(async (toolCallId) => {
             const closed = await waitForToolCallClosure(
               toolCallId,
-              resolvedRunLimits.toolCallMs,
+              callClosureWaitMs(approvedExecutionSeeds.get(toolCallId)?.toolName),
             );
             if (closed) return;
             run.settleOpenToolCalls(
@@ -2240,6 +2283,7 @@ export async function runTurn(
     };
   } finally {
     platformCredentialLease?.release();
+    toolCallback.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
     // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and
     // never throws — a row whose gate is gone is unanswerable however the turn ended.

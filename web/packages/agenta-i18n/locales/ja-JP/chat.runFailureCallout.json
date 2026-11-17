@@ -1,0 +1,15 @@
+{
+    "addYourKey": "キーを追加",
+    "buyCredits": "クレジットを購入",
+    "messageNotSent": "メッセージは送信されませんでした",
+    "modelUnavailable": "このモデルはあなたの組織では利用できません",
+    "openAiProviders": "AIプロバイダーを開く",
+    "outOfCredits": "クレジットがなくなりました",
+    "plansAndBilling": "プランと請求",
+    "runFailed": "エージェントの実行に失敗しました",
+    "showLess": "一部を表示",
+    "showMore": "もっと見る",
+    "taskTookTooLong": "このタスクは時間がかかりすぎました",
+    "tooManyTasks": "同時に実行中のタスクが多すぎます",
+    "tryAgain": "もう一度試す"
+}

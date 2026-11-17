@@ -21,6 +21,9 @@
  */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+
 import {ChangedPathsProvider, type ChangedPaths} from "../../../drawers/shared/ChangedPathsContext"
 import {FocusPathsProvider} from "../../../drawers/shared/FocusPathsContext"
 import {SectionQuickAction} from "../SectionQuickAction"
@@ -44,10 +47,11 @@ export function SectionChangeBody({
     changes,
     disabled,
 }: SectionChangeBodyProps) {
+    const t = useT(configItemsCatalog)
     return (
         <SectionQuickAction
             onOpenDetails={onOpenDetails}
-            detailsLabel="Detailed configuration"
+            detailsLabel={t("entityUi.configItems.detailedConfiguration")}
             disabled={disabled}
         >
             <ChangedPathsProvider changes={changes}>

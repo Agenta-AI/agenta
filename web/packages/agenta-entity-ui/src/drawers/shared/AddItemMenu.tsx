@@ -9,6 +9,8 @@
  */
 import {memo, useCallback, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
 import {
     Button,
     Popover,
@@ -95,7 +97,7 @@ export const AddItemMenu = memo(function AddItemMenu({
     groups,
     trigger,
     disabled = false,
-    ariaLabel = "Add",
+    ariaLabel,
     minWidth = 288,
 }: {
     groups: AddItemGroup[]
@@ -105,6 +107,7 @@ export const AddItemMenu = memo(function AddItemMenu({
     ariaLabel?: string
     minWidth?: number
 }) {
+    const t = useT(drawerSharedCatalog)
     const [open, setOpen] = useState(false)
 
     const handlePick = useCallback((item: AddItemMenuItem) => {
@@ -125,7 +128,7 @@ export const AddItemMenu = memo(function AddItemMenu({
                     <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={ariaLabel}
+                        aria-label={ariaLabel ?? t("entityUi.drawerShared.add")}
                         disabled={disabled}
                         onClick={(e) => e.stopPropagation()}
                     >

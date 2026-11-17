@@ -52,6 +52,8 @@ import {
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {createT, richText, useT} from "@agenta/i18n"
+import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
 import {projectIdAtom} from "@agenta/shared/state"
 import type {OwnerKind} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
@@ -71,6 +73,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {harnessMetaFor, selectableHarnesses} from "../DrillInView/SchemaControls/harnessMeta"
 import {OwnerRadioGroup} from "../secret/OwnerRadioGroup"
+import {PASSWORD_MANAGER_OPT_OUT} from "../secret/passwordManagerOptOut"
 
 import ActiveModelsSection from "./ActiveModelsSection"
 import HarnessesSection, {type HarnessChoice} from "./HarnessesSection"
@@ -95,17 +98,6 @@ const HARNESS_DOMAINS: Record<string, string> = {pi_core: "pi.dev"}
  * `<input>` from its own size variant, so a class on the wrapper never lands on the text.
  */
 const FIELD_TYPE_SCALE = "[&_input]:!text-xs"
-
-/**
- * A name field beside a secret field and a primary button reads as a login form, so Bitwarden and
- * friends offer to save or update a login over the drawer. Every field opts out explicitly.
- */
-const PASSWORD_MANAGER_OPT_OUT = {
-    "data-1p-ignore": true,
-    "data-lpignore": "true",
-    "data-bwignore": "true",
-    "data-form-type": "other",
-} as const
 
 /** What the drawer's footer needs from the card to render Cancel/Done for it. */
 export interface ProviderCardSaveState {
@@ -156,6 +148,8 @@ export interface ProviderOwnerChoice {
 
 type ProviderOwner = Exclude<OwnerKind, "user">
 
+const tNow = createT(providerConnectionCatalog)
+
 /** Who a saved organization connection reaches, or null for a project connection. */
 const savedProjectsOf = (
     connection: ProviderConnection | null | undefined,
@@ -176,6 +170,7 @@ const ProviderConnectionCard = ({
     organization: organizationScope,
     ownerChoice: ownerChoiceProp,
 }: ProviderConnectionCardProps) => {
+    const t = useT(providerConnectionCatalog)
     // Only a new connection asks; a saved one keeps its owner.
     const ownerChoice = connection ? undefined : ownerChoiceProp
     const [owner, setOwner] = useState<ProviderOwner>("project")
@@ -413,7 +408,8 @@ const ProviderConnectionCard = ({
                 ...(readsOrganizationSecret ? {secretScope: "organization" as const} : {}),
             })
             setProbe(result)
-            if (!result) setProbeFailure(`Agenta could not read ${title}'s answer.`)
+            if (!result)
+                setProbeFailure(tNow("entityUi.providerConnection.couldNotRead", {provider: title}))
         } catch (error) {
             setProbe(null)
             setProbeFailure(probeFailureMessage(error, title))
@@ -493,7 +489,7 @@ const ProviderConnectionCard = ({
         } catch (error) {
             setSaveError(
                 (organization && organizationSaveError(error, organization.name, savedName)) ||
-                    `Agenta could not save this ${title} connection. Try again.`,
+                    tNow("entityUi.providerConnection.couldNotSave", {provider: title}),
             )
         } finally {
             setSaving(false)
@@ -534,7 +530,9 @@ const ProviderConnectionCard = ({
                             disabled={!credentialFilled || !projectId || !testableHere}
                             onClick={() => void runProbe()}
                         >
-                            {credentialFailed ? "Retry" : "Test"}
+                            {credentialFailed
+                                ? t("entityUi.providerConnection.retry")
+                                : t("entityUi.providerConnection.test")}
                         </LoadingButton>
                     </span>
                 </TooltipTrigger>
@@ -569,21 +567,23 @@ const ProviderConnectionCard = ({
                                     {/* TODO(copy: owner) */}
                                     {replaceOnly
                                         ? field.key === "apiKey"
-                                            ? "Replace key"
-                                            : `Replace ${field.label}`
+                                            ? t("entityUi.providerConnection.replaceKey")
+                                            : t("entityUi.providerConnection.replaceField", {
+                                                  field: field.label,
+                                              })
                                         : field.label}
                                 </span>
                                 {/* The card's one encryption disclaimer, on the first credential. */}
                                 {index === 0 ? (
                                     <span className="shrink-0 text-[11px] text-colorTextTertiary">
-                                        Encrypted at rest
+                                        {t("entityUi.providerConnection.encryptedAtRest")}
                                     </span>
                                 ) : null}
                             </div>
                             {replaceOnly && field.key !== "apiKey" ? (
                                 <span className="text-[11px] text-colorTextTertiary">
                                     {/* TODO(copy: owner) */}
-                                    Saved value. Leave blank to keep it.
+                                    {t("entityUi.providerConnection.savedValueKeep")}
                                 </span>
                             ) : null}
                             <div className="flex items-start gap-2">
@@ -669,7 +669,9 @@ const ProviderConnectionCard = ({
                         )}
                         <span>
                             {statusLine}
-                            {credentialFailed ? " Nothing has been saved." : null}
+                            {credentialFailed
+                                ? ` ${t("entityUi.providerConnection.nothingSaved")}`
+                                : null}
                         </span>
                     </span>
                 ) : null}
@@ -677,8 +679,10 @@ const ProviderConnectionCard = ({
                 {keyStored ? (
                     <span className="text-[11px] text-colorTextTertiary">
                         {connection?.keyPreview
-                            ? `Key configured (${connection.keyPreview}). Leave blank to keep it.`
-                            : "Key configured. Leave blank to keep it."}
+                            ? t("entityUi.providerConnection.keyConfiguredPreview", {
+                                  preview: connection.keyPreview,
+                              })
+                            : t("entityUi.providerConnection.keyConfigured")}
                     </span>
                 ) : null}
 
@@ -691,20 +695,26 @@ const ProviderConnectionCard = ({
 
             {ownerChoice ? (
                 <div className="flex shrink-0 flex-col gap-1.5">
-                    <span className="font-medium text-colorText">Who can use it</span>
+                    <span className="font-medium text-colorText">
+                        {t("entityUi.providerConnection.whoCanUseIt")}
+                    </span>
                     <OwnerRadioGroup<ProviderOwner>
                         value={owner}
                         onChange={setOwner}
                         options={[
                             {
                                 value: "project",
-                                label: `Everyone in ${ownerChoice.projectName}`,
-                                note: "Stored in this project.",
+                                label: t("entityUi.providerConnection.everyoneIn", {
+                                    project: ownerChoice.projectName,
+                                }),
+                                note: t("entityUi.providerConnection.storedInProject"),
                             },
                             {
                                 value: "organization",
-                                label: `The ${organizationLabel(ownerChoice.organization.name)}`,
-                                note: "Stored once. You choose which projects can use it.",
+                                label: t("entityUi.providerConnection.theOrganization", {
+                                    organization: organizationLabel(ownerChoice.organization.name),
+                                }),
+                                note: t("entityUi.providerConnection.storedOnce"),
                             },
                         ]}
                     />
@@ -715,7 +725,11 @@ const ProviderConnectionCard = ({
             {readOnly ? null : (
                 <div className="flex shrink-0 flex-col gap-1">
                     <span className="font-medium text-colorText">
-                        Name <span className="font-normal text-colorTextTertiary">— optional</span>
+                        {richText(t("entityUi.providerConnection.nameOptional"), {
+                            muted: (text) => (
+                                <span className="font-normal text-colorTextTertiary">{text}</span>
+                            ),
+                        })}
                     </span>
                     <InputAffix
                         placeholder={namePreview}
@@ -749,10 +763,11 @@ const ProviderConnectionCard = ({
             ) : (
                 // Says where the model list comes from instead of leaving the card blank.
                 <section className="flex shrink-0 flex-col gap-2">
-                    <span className="font-medium text-colorText">Active models</span>
+                    <span className="font-medium text-colorText">
+                        {t("entityUi.providerConnection.activeModels")}
+                    </span>
                     <p className="m-0 rounded-md border border-dashed border-colorBorderSecondary px-3 py-4 text-center text-colorTextTertiary">
-                        Enter the credential above to choose which {title} models this connection
-                        offers.
+                        {t("entityUi.providerConnection.enterCredential", {provider: title})}
                     </p>
                 </section>
             )}

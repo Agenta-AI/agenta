@@ -2,6 +2,8 @@
 import {useMemo, useState} from "react"
 
 import {PROVIDER_CATALOG, type ProviderCatalogEntry} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import providerDrawerCatalog from "@agenta/i18n/catalogs/entityUi.providerDrawer"
 import {Button, EmptyState, SearchInput} from "@agenta/ui/ui"
 
 import {providerIconFor} from "./providerIcon"
@@ -12,6 +14,7 @@ export interface ProviderCatalogListProps {
 }
 
 const ProviderCatalogList = ({onSelect}: ProviderCatalogListProps) => {
+    const t = useT(providerDrawerCatalog)
     const [search, setSearch] = useState("")
 
     const visible = useMemo(() => {
@@ -27,7 +30,7 @@ const ProviderCatalogList = ({onSelect}: ProviderCatalogListProps) => {
         <div className="flex min-h-0 flex-1 flex-col">
             <div className="shrink-0 px-6 pb-2 pt-3">
                 <SearchInput
-                    placeholder="Search providers"
+                    placeholder={t("entityUi.providerDrawer.searchProviders")}
                     value={search}
                     allowClear
                     onValueChange={setSearch}
@@ -36,7 +39,10 @@ const ProviderCatalogList = ({onSelect}: ProviderCatalogListProps) => {
 
             {visible.length === 0 ? (
                 <div className="px-6 py-4">
-                    <EmptyState image="simple" description="No provider matches this search." />
+                    <EmptyState
+                        image="simple"
+                        description={t("entityUi.providerDrawer.noProviderMatches")}
+                    />
                 </div>
             ) : (
                 <ScrollScrim>
@@ -65,7 +71,7 @@ const ProviderCatalogList = ({onSelect}: ProviderCatalogListProps) => {
                                         className="shrink-0"
                                         onClick={() => onSelect(entry)}
                                     >
-                                        Add
+                                        {t("entityUi.providerDrawer.add")}
                                     </Button>
                                 </li>
                             )

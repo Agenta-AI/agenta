@@ -12,6 +12,8 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {selectedOptionLabel} from "@agenta/entities/secret"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {createT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {getOptionsFromSchema} from "@agenta/shared/utils"
 import type {DrillInUIComponents} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
@@ -53,6 +55,8 @@ interface UseModelConfigurePopoverParams {
     schema: PathSchema | null
     serverData: {parameters?: Record<string, unknown>} | null
 }
+
+const tNow = createT(playgroundConfigCatalog)
 
 export function useModelConfigurePopover({
     activeData,
@@ -601,7 +605,7 @@ export function useModelConfigurePopover({
                                 variant="ghost"
                                 onClick={handleCommitFallbackDetail}
                                 disabled={disabled}
-                                aria-label="Back to fallback models"
+                                aria-label={tNow("entityUi.playgroundConfig.backToFallbackModels")}
                             >
                                 <ArrowLeft size={16} />
                             </Button>
@@ -609,13 +613,13 @@ export function useModelConfigurePopover({
                         <span className="truncate text-sm font-medium">
                             {fallbackDetail
                                 ? fallbackDetail.mode === "new"
-                                    ? "Add Fallback Model"
-                                    : "Edit Fallback Model"
-                                : "Configure"}
+                                    ? tNow("entityUi.playgroundConfig.addFallbackModel")
+                                    : tNow("entityUi.playgroundConfig.editFallbackModel")
+                                : tNow("entityUi.playgroundConfig.configure")}
                         </span>
                         {fallbackDetail?.mode === "new" && (
                             <span className="rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
-                                new
+                                {tNow("entityUi.playgroundConfig.newBadge")}
                             </span>
                         )}
                     </div>
@@ -625,7 +629,7 @@ export function useModelConfigurePopover({
                         onClick={handleActiveConfigureReset}
                         disabled={disabled}
                     >
-                        Reset to default
+                        {tNow("entityUi.playgroundConfig.resetToDefault")}
                     </Button>
                 </div>
 
@@ -647,15 +651,15 @@ export function useModelConfigurePopover({
                     <Tabs value={activeConfigureTab} onValueChange={handleConfigureTabChange}>
                         <TabsList className={CONFIGURE_TAB_LIST_CLS}>
                             <TabsTrigger value="model" className={CONFIGURE_TAB_CLS}>
-                                Model
+                                {tNow("entityUi.playgroundConfig.tabModel")}
                             </TabsTrigger>
                             {hasPromptExtensionFields && (
                                 <>
                                     <TabsTrigger value="fallback" className={CONFIGURE_TAB_CLS}>
-                                        Fallback
+                                        {tNow("entityUi.playgroundConfig.tabFallback")}
                                     </TabsTrigger>
                                     <TabsTrigger value="retry" className={CONFIGURE_TAB_CLS}>
-                                        Retry
+                                        {tNow("entityUi.playgroundConfig.tabRetry")}
                                     </TabsTrigger>
                                 </>
                             )}

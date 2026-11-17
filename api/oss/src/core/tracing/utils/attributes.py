@@ -235,6 +235,15 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     else:
         cleaned_ag["session"] = None
 
+    turn_dict = ag.get("turn")
+    if turn_dict and isinstance(turn_dict, dict):
+        cleaned_turn = {}
+        if "id" in turn_dict:
+            cleaned_turn["id"] = turn_dict["id"]
+        cleaned_ag["turn"] = cleaned_turn if cleaned_turn else None
+    else:
+        cleaned_ag["turn"] = None
+
     user_dict = ag.get("user")
     if user_dict and isinstance(user_dict, dict):
         cleaned_user = {}

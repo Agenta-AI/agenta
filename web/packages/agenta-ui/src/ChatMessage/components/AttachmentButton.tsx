@@ -1,5 +1,7 @@
 import React, {useCallback, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
 import {FileArchive, Image as ImageIcon, Paperclip} from "@phosphor-icons/react"
 
 import {Button} from "../../components/ui/button"
@@ -25,6 +27,7 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
     onAddFile,
     disabled,
 }) => {
+    const t = useT(uiChatCatalog)
     const imageInputRef = useRef<HTMLInputElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -83,7 +86,7 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
                         size="sm"
                         disabled={disabled}
                         className={cn(textColors.icon, textColors.iconHover)}
-                        title="Add attachment"
+                        title={t("ui.chat.addAttachment")}
                     >
                         {<Paperclip size={14} />}
                     </Button>
@@ -92,13 +95,13 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
                     <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
                         <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
                             <ImageIcon size={14} />
-                            <span>Upload image</span>
+                            <span>{t("ui.chat.uploadImage")}</span>
                         </span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
                         <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
                             <FileArchive size={14} />
-                            <span>Attach document</span>
+                            <span>{t("ui.chat.attachDocument")}</span>
                         </span>
                     </DropdownMenuItem>
                 </DropdownMenuContent>

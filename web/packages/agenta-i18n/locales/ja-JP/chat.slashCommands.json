@@ -1,0 +1,15 @@
+{
+    "allowReads": "読み取りを許可",
+    "alwaysAllowMany": "{{count}} 個のツールを常に許可",
+    "alwaysAllowOne": "{{name}} を常に許可",
+    "commands": "コマンド",
+    "modelDescription": "このエージェントのモデルを切り替えます",
+    "modelSetTo": "モデルを {{label}} に設定しました",
+    "modelSetToHarness": "モデルを {{label}} ・ {{harness}} に設定しました",
+    "newDescription": "このエージェントで新しいセッションを開始します",
+    "permissionsDescription": "エージェントが確認なしでできることを設定します",
+    "permissionsSetTo": "権限を {{label}} に設定しました",
+    "skills": "スキル",
+    "tools": "ツール",
+    "toolsCount": "{{count}} 個のツール"
+}

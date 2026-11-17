@@ -1,0 +1,16 @@
+{
+    "columnAdded": "Hinzugefügt",
+    "columnAmount": "Menge",
+    "columnCredit": "Credit",
+    "columnExpires": "Läuft ab",
+    "columnPaid": "Bezahlt",
+    "empty": "Noch keine Credits.",
+    "free": "Kostenlos",
+    "included": "Inklusive",
+    "never": "Nie",
+    "opening": "Wird geöffnet…",
+    "statusExpired": "Abgelaufen",
+    "statusUsedUp": "Aufgebraucht",
+    "title": "Credit-Verlauf",
+    "viewInvoices": "Rechnungen anzeigen"
+}

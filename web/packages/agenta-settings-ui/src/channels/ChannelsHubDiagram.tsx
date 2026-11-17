@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import channelsHubCatalog from "@agenta/i18n/catalogs/channels.hub"
+
 import {AgentMark} from "./AgentMark"
 
 export interface ChannelsHubDiagramTarget {
@@ -21,6 +24,7 @@ export const ChannelsHubDiagram = ({
     agentId?: string
     targets: ChannelsHubDiagramTarget[]
 }) => {
+    const t = useT(channelsHubCatalog)
     const H = Math.max(ROW, targets.length * ROW + (targets.length - 1) * GAP)
     const ys = targets.map((_, i) => ROW / 2 + i * (ROW + GAP))
     return (
@@ -31,7 +35,7 @@ export const ChannelsHubDiagram = ({
             <div className="relative flex w-[76px] flex-none justify-center">
                 <AgentMark agentId={agentId} size={30} className="shadow-sm" />
                 <span className="absolute inset-x-0 top-[35px] whitespace-nowrap text-center text-[10.5px] font-medium text-muted-foreground">
-                    This agent
+                    {t("channels.hub.thisAgent")}
                 </span>
             </div>
             {/* The lines give way first on a narrow panel (a phone), so the labels keep their

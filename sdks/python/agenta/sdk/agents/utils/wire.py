@@ -96,6 +96,7 @@ def request_to_wire(
     session_id: Optional[str] = None,
     detached: bool = False,
     turn_id: Optional[str] = None,
+    session_turn_id: Optional[str] = None,
     project_id: Optional[str] = None,
     control_command_id: Optional[str] = None,
     effective_parameters: Optional[Dict[str, Any]] = None,
@@ -182,6 +183,8 @@ def request_to_wire(
         payload["turnContext"] = turn_context
     if turn_id is not None:
         payload["turnId"] = turn_id
+    if session_turn_id is not None:
+        payload["sessionTurnId"] = session_turn_id
     if detached and session_id:
         payload["detached"] = True
     if project_id is not None:

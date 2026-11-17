@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import analyticsCatalog from "@agenta/i18n/catalogs/observabilityUi.analytics"
 import {
     EMPTY_FILTERS,
     ANALYTICS_RANGE,
@@ -12,7 +14,6 @@ import {
     analyticsNowAtom,
     analyticsRangeAtom,
     analyticsCustomRangeAtom,
-    analyticsRangeLabelAtom,
     analyticsWindowAtom,
     type AnalyticsFocus,
     type AnalyticsMetric,
@@ -36,8 +37,9 @@ import {
 } from "./cards/OverviewCards"
 import {ANALYTICS_COLOR_CSS} from "./colors"
 import {AnalyticsDrawer} from "./drawer/AnalyticsDrawer"
-import {bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "./labels"
+import {bucketUnit, fullLabel, groupKeyLabel, shortLabel, type EmptyWhat} from "./labels"
 import {useAgentNames, useFailureReasons, usePageAnalytics} from "./useAnalyticsData"
+import {useRangeLabel} from "./useRangeLabel"
 
 export interface AnalyticsPageProps {
     /** The plan's trace retention; null keeps every range open (OSS, custom plans). */
@@ -50,6 +52,13 @@ export interface AnalyticsPageProps {
     onOpenTrace?: (traceId: string) => void
 }
 
+const WHAT_KEYS = {
+    cost: "observabilityUi.analytics.whatCost",
+    runs: "observabilityUi.analytics.whatRuns",
+    tokens: "observabilityUi.analytics.whatTokens",
+    failedRuns: "observabilityUi.analytics.whatFailedRuns",
+} as const satisfies Record<EmptyWhat, string>
+
 export const AnalyticsPage = ({
     retention,
     onUpgrade,
@@ -60,7 +69,8 @@ export const AnalyticsPage = ({
 }: AnalyticsPageProps) => {
     const [range, setRange] = useAtom(analyticsRangeAtom)
     const [custom, setCustom] = useAtom(analyticsCustomRangeAtom)
-    const rangeLabel = useAtomValue(analyticsRangeLabelAtom)
+    const t = useT(analyticsCatalog)
+    const {label: rangeLabel, inline: rangeInline} = useRangeLabel()
     const [filters, setFilters] = useAtom(analyticsFiltersAtom)
     const window = useAtomValue(analyticsWindowAtom)
     const agents = useAtomValue(analyticsHasAgentsAtom)
@@ -102,11 +112,16 @@ export const AnalyticsPage = ({
     const filtered = filters.agent.length > 0 || filters.model.length > 0
     const clearFilters = useCallback(() => setFilters(EMPTY_FILTERS), [setFilters])
     const emptyText = useCallback(
-        (what: string) =>
+        (what: EmptyWhat) =>
             filtered
-                ? {text: "No runs match your filters", onClear: clearFilters}
-                : {text: `No ${what} in the ${rangeLabel.toLowerCase()}`},
-        [filtered, clearFilters, rangeLabel],
+                ? {text: t("observabilityUi.analytics.noRunsMatchFilters"), onClear: clearFilters}
+                : {
+                      text: t("observabilityUi.analytics.emptyInRange", {
+                          what: t(WHAT_KEYS[what]),
+                          range: rangeInline,
+                      }),
+                  },
+        [filtered, clearFilters, rangeInline, t],
     )
     const onExplore = useCallback(
         (metric: AnalyticsMetric, bucket: number | null) =>
@@ -220,22 +235,30 @@ export const AnalyticsPage = ({
             {noMatch ? (
                 <div className="flex flex-wrap items-center gap-2.5 rounded-lg bg-muted px-3.5 py-2.5 text-sm">
                     <FunnelSimple className="text-muted-foreground" />
-                    <span className="text-muted-foreground">No runs match</span>
+                    <span className="text-muted-foreground">
+                        {t("observabilityUi.analytics.noRunsMatch")}
+                    </span>
                     <span className="min-w-0 flex-1 truncate">
                         {[
                             filters.agent.length
-                                ? `Agent: ${filters.agent.map(agentName).join(", ")}`
+                                ? t("observabilityUi.analytics.filterAgent", {
+                                      names: filters.agent.map(agentName).join(", "),
+                                  })
                                 : null,
-                            filters.model.length ? `Model: ${filters.model.join(", ")}` : null,
+                            filters.model.length
+                                ? t("observabilityUi.analytics.filterModel", {
+                                      names: filters.model.join(", "),
+                                  })
+                                : null,
                         ]
                             .filter(Boolean)
                             .join(" · ")}
                     </span>
                     <Button variant="ghost" size="xs" onClick={() => setRangeOpen(true)}>
-                        Change range
+                        {t("observabilityUi.analytics.changeRange")}
                     </Button>
                     <Button size="xs" onClick={clearFilters}>
-                        Clear filters
+                        {t("observabilityUi.analytics.clearFilters")}
                     </Button>
                 </div>
             ) : null}

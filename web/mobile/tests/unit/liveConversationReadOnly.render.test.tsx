@@ -163,10 +163,12 @@ vi.mock("@agenta/entities/workflow", async () => {
     return {
         invalidateAgentCommittedRevisionCache: vi.fn(),
         workflowBuildKitOverlayReadyAtomFamily: () => ready,
-        MODEL_SETUP_PLACEHOLDER: "Set up the model to send messages",
     }
 })
 vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
+vi.mock("@agenta/entity-ui/needs-setup", () => ({
+    modelSetupPlaceholder: () => "Set up the model to send messages",
+}))
 vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
@@ -238,6 +240,7 @@ vi.mock("@/features/sessions/useLivenessPoll", () => ({
 }))
 vi.mock("@/features/wallet/useWalletSummary", () => ({
     useWalletSummary: () => ({data: undefined, isLoading: false}),
+    walletSummaryKey: (projectId: string) => ["wallet", "summary", projectId],
 }))
 vi.mock("@/features/chat/buildKitWait", () => ({waitForBuildKit: async () => true}))
 vi.mock("@/features/chat/hasUnsavedConfigEdits", () => ({hasUnsavedConfigEdits: () => false}))
@@ -258,6 +261,7 @@ vi.mock("@/features/chat/states/PendingTaskError", () => ({
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
+vi.mock("@/features/wallet/CreditAlertStrip", () => ({CreditAlertStrip: () => null}))
 vi.mock("@/features/chat/useOpenModelSetup", () => ({useOpenModelSetup: () => vi.fn()}))
 vi.mock("@/features/chat/Composer", () => ({
     Composer: ({

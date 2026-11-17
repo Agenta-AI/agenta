@@ -1,0 +1,9 @@
+{
+    "addError": "Impossible d’ajouter le domaine",
+    "adding": "Ajout…",
+    "description": "Ajoutez un domaine, puis publiez son enregistrement DNS TXT pour prouver que vous en êtes propriétaire.",
+    "domainHint": "Par exemple, company.com",
+    "domainLabel": "Domaine",
+    "enterDomain": "Saisissez un nom de domaine",
+    "title": "Ajouter un domaine"
+}

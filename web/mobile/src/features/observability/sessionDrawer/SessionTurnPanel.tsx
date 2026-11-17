@@ -1,5 +1,7 @@
 import {useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionCatalog from "@agenta/i18n/catalogs/observability.sessionDrawer"
 import type {TraceSpanNode} from "@agenta/observability"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {StatusRenderer} from "@agenta/observability-ui"
@@ -71,6 +73,7 @@ export const SessionTurnPanel = ({
     annotationsVisible,
     annotationsBeside,
 }: SessionTurnPanelProps) => {
+    const t = useT(sessionCatalog)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const developerMode = useAtomValue(betaDeveloperModeActiveAtom)
     const [showHidden, setShowHidden] = useState(false)
@@ -83,7 +86,9 @@ export const SessionTurnPanel = ({
             <Accordion type="multiple" defaultValue={["trace"]}>
                 <AccordionItem value="trace">
                     <AccordionTrigger>
-                        <span className="text-sm font-medium">Trace {index + 1}</span>
+                        <span className="text-sm font-medium">
+                            {t("observability.sessionDrawer.traceN", {number: index + 1})}
+                        </span>
                     </AccordionTrigger>
                     <AccordionContent className="!p-0">
                         <div className={annotationsBeside ? "flex" : "flex flex-col"}>
@@ -105,8 +110,8 @@ export const SessionTurnPanel = ({
                                         >
                                             {showHidden ? <Minus size={12} /> : <Plus size={12} />}
                                             {showHidden
-                                                ? "Hide first messages"
-                                                : "Show all messages"}
+                                                ? t("observability.sessionDrawer.hideFirstMessages")
+                                                : t("observability.sessionDrawer.showAllMessages")}
                                         </Button>
                                         <div className="h-px flex-1 bg-border" />
                                     </div>
@@ -130,7 +135,10 @@ export const SessionTurnPanel = ({
                                         />
                                     ) : null}
                                     <ExecutionMetricsDisplay metrics={metrics} variant="plain" />
-                                    <CopyTooltip copyText={trace.span_id} title="Copy span id">
+                                    <CopyTooltip
+                                        copyText={trace.span_id}
+                                        title={t("observability.sessionDrawer.copySpanId")}
+                                    >
                                         <Badge className="min-w-0 cursor-pointer font-mono">
                                             <span className="truncate"># {trace.span_id}</span>
                                         </Badge>
@@ -161,7 +169,7 @@ export const SessionTurnPanel = ({
                                         }
                                     >
                                         <ArrowSquareOut size={14} />
-                                        View trace
+                                        {t("observability.sessionDrawer.viewTrace")}
                                     </Button>
                                 </div>
                             </div>

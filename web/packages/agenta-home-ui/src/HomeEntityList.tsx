@@ -2,6 +2,8 @@ import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import entityListCatalog from "@agenta/i18n/catalogs/home.entityList"
 import {ArrowRightIcon, CheckIcon, ListBulletsIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
@@ -78,25 +80,28 @@ const Row = ({
     marks?: ReactNode
     selected?: boolean
     onClick: () => void
-}) => (
-    <button type="button" onClick={onClick} className={`${ROW} ${selected ? "bg-accent" : ""}`}>
-        {tile}
-        {/* The description line renders even when empty, so rows keep one height and the column
+}) => {
+    const t = useT(entityListCatalog)
+    return (
+        <button type="button" onClick={onClick} className={`${ROW} ${selected ? "bg-accent" : ""}`}>
+            {tile}
+            {/* The description line renders even when empty, so rows keep one height and the column
             does not comb. */}
-        <span className="flex min-w-0 flex-1 flex-col gap-px">
-            <span className="truncate text-sm leading-[1.45] text-foreground">{name}</span>
-            <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
-                {description?.trim() || "No description"}
+            <span className="flex min-w-0 flex-1 flex-col gap-px">
+                <span className="truncate text-sm leading-[1.45] text-foreground">{name}</span>
+                <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
+                    {description?.trim() || t("home.entityList.noDescription")}
+                </span>
             </span>
-        </span>
-        {marks ? <span className="flex shrink-0 items-center pl-2">{marks}</span> : null}
-        {/* The same check the agent picker marks its bound row with — a tinted row alone reads as
+            {marks ? <span className="flex shrink-0 items-center pl-2">{marks}</span> : null}
+            {/* The same check the agent picker marks its bound row with — a tinted row alone reads as
             hover on the one you happen to be pointing at. */}
-        {selected ? (
-            <CheckIcon aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
-        ) : null}
-    </button>
-)
+            {selected ? (
+                <CheckIcon aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
+            ) : null}
+        </button>
+    )
+}
 
 /**
  * Home's one list region, switched between the agents you have and the templates you could start
@@ -124,6 +129,7 @@ export const HomeEntityList = ({
     templatesLoading,
     templatesErrorSlot,
 }: HomeEntityListProps) => {
+    const t = useT(entityListCatalog)
     const scrollerRef = useRef<HTMLDivElement>(null)
     const [mask, setMask] = useState<string>("none")
 
@@ -189,7 +195,7 @@ export const HomeEntityList = ({
                         onClick={() => switchTab("agents")}
                         className={`${TAB_BASE} ${showAgents ? TAB_ON : TAB_OFF}`}
                     >
-                        Your agents
+                        {t("home.entityList.agentsTab")}
                     </button>
                 ) : null}
                 <button
@@ -197,7 +203,7 @@ export const HomeEntityList = ({
                     onClick={() => switchTab("templates")}
                     className={`${TAB_BASE} ${showAgents ? TAB_OFF : TAB_ON}`}
                 >
-                    Templates
+                    {t("home.entityList.templatesTab")}
                 </button>
                 <span className="flex-1" />
                 {newAction ? <span className="pb-[7px]">{newAction}</span> : null}
@@ -265,7 +271,7 @@ export const HomeEntityList = ({
                                 <ListBulletsIcon aria-hidden size={17} />
                             </span>
                             <span className="flex-1 text-sm leading-[1.45] text-foreground">
-                                Browse all {templates.length} templates
+                                {t("home.entityList.browseAll", {total: templates.length})}
                             </span>
                             <ArrowRightIcon
                                 aria-hidden

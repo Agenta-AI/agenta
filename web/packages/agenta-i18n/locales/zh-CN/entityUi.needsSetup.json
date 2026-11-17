@@ -1,0 +1,12 @@
+{
+    "agentTitle": "此 Agent 需要先完成设置",
+    "label": "需要设置",
+    "modelMessage": "需要先设置模型，此 Agent 才能运行。",
+    "modelPlaceholder": "设置模型后即可发送消息",
+    "reasonNotAvailable": "已不可用",
+    "reasonNotChosen": "未选择账号",
+    "reasonNotFound": "在此项目中未找到",
+    "reasonNotShared": "未与此项目共享",
+    "reasonSignInExpired": "登录已过期",
+    "reasonTurnedOff": "已关闭"
+}

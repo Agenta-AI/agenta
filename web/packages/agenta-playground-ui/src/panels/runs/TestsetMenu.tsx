@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {
     Button,
     DropdownMenu,
@@ -29,11 +31,12 @@ export interface TestsetMenuProps {
  * manages, changes or disconnects it. It opens no dialog itself: the model says which one is open.
  */
 export const TestsetMenu = ({model, onAddToTestset}: TestsetMenuProps) => {
+    const t = useT(runsCatalog)
     if (!model.visible) return null
     const addToTestset = onAddToTestset ? (
         <DropdownMenuItem disabled={!model.hasSuccessfulResults} onSelect={onAddToTestset}>
             <Plus aria-hidden size={14} />
-            Add to test set
+            {t("playground.runs.addToTestSet")}
         </DropdownMenuItem>
     ) : null
 
@@ -51,29 +54,29 @@ export const TestsetMenu = ({model, onAddToTestset}: TestsetMenuProps) => {
                     <>
                         <DropdownMenuItem disabled={!model.hasLocalChanges} onSelect={model.sync}>
                             <Database aria-hidden size={14} />
-                            Sync changes
+                            {t("playground.runs.syncChanges")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={model.manage}>
                             <ListBullets aria-hidden size={14} />
-                            Manage test cases
+                            {t("playground.runs.manageTestCases")}
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={model.change}>
                             <ArrowsLeftRight aria-hidden size={14} />
-                            Change test set
+                            {t("playground.runs.changeTestSet")}
                         </DropdownMenuItem>
                         {addToTestset}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem variant="destructive" onSelect={model.disconnect}>
                             <XCircle aria-hidden size={14} />
-                            Disconnect
+                            {t("playground.runs.disconnect")}
                         </DropdownMenuItem>
                     </>
                 ) : (
                     <>
                         <DropdownMenuItem onSelect={model.connect}>
                             <Link aria-hidden size={14} />
-                            Connect test set
+                            {t("playground.runs.connectTestSet")}
                         </DropdownMenuItem>
                         {addToTestset ? (
                             <>

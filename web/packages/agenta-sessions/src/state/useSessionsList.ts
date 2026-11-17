@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {type SessionExpansion, type SessionStream} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import sessionsStatusCatalog from "@agenta/i18n/catalogs/sessions.status"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -111,6 +113,7 @@ export const useSessionsList = ({
     defaultPolicy,
     automationPolicy,
 }: UseSessionsListArgs) => {
+    const t = useT(sessionsStatusCatalog)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const search = useAtomValue(sessionSearchAtom)
     const agentFilter = useAtomValue(sessionAgentFilterAtom)
@@ -188,19 +191,23 @@ export const useSessionsList = ({
 
         const result: SessionGroup[] = []
         if (pinnedRows.length > 0)
-            result.push({key: "pinned", label: `Pinned ${pinnedRows.length}`, rows: pinnedRows})
+            result.push({
+                key: "pinned",
+                label: t("sessions.status.pinnedCount", {count: pinnedRows.length}),
+                rows: pinnedRows,
+            })
         result.push({
             key: "recent",
             label:
                 pinnedRows.length > 0 && recentRows.length > 0
                     ? showTriggered
-                        ? "Automation runs"
-                        : "Recent"
+                        ? t("sessions.status.automationRuns")
+                        : t("sessions.status.recent")
                     : undefined,
             rows: recentRows,
         })
         return result
-    }, [pinnedIds, knownById, listRows, pinnedSet, pendingBySession, showTriggered])
+    }, [pinnedIds, knownById, listRows, pinnedSet, pendingBySession, showTriggered, t])
 
     // A whole page can be unstarted rows (they are the newest); pull the next one instead of
     // showing "No sessions yet" over a list that has plenty one page down.
