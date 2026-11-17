@@ -57,13 +57,13 @@ export const SkillActionsMenu = ({
 
     const onArchive = useCallback(() => {
         confirm({
-            title: `Archive ${row.slug}?`,
+            title: `Archive ${row.title}?`,
             message:
                 "It leaves the registry and agents can no longer run it. Its name stays reserved, " +
                 "and restoring it brings back its full history.",
             onOk: () => archive(row.id),
         })
-    }, [archive, confirm, row.id, row.slug])
+    }, [archive, confirm, row.id, row.title])
 
     return (
         <>

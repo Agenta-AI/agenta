@@ -500,13 +500,13 @@ const ConnectBody = ({
     useEffect(() => {
         if (!active || !shortcutsEnabled) return
         const onKeyDown = (event: KeyboardEvent) => {
+            const commit = (event.metaKey || event.ctrlKey) && event.key === "Enter"
+            const back = event.key === "Escape" && !event.metaKey && !event.ctrlKey
+            if (!commit && !back) return
             // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
             // Escape for a dialog, menu or popover but still lets it reach us, and it never
             // touches Cmd+Enter, which only the overlay check catches.
             if (event.defaultPrevented || isOverlayOpen()) return
-            const commit = (event.metaKey || event.ctrlKey) && event.key === "Enter"
-            const back = event.key === "Escape" && !event.metaKey && !event.ctrlKey
-            if (!commit && !back) return
             const target = event.target as HTMLElement | null
             const typing =
                 !!target &&

@@ -11,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A caret + label (+ optional count) toggle for collapsible table column groups. A pure @agenta/ui presentational header with no antd counterpart.\n\n**Used in:** 3 places — the shared entity table column groups (`@agenta/entity-ui` `EntityTable`), the playground execution header, and the playground single-layout execution row. The execution header overrides the default caret via `renderIcon` with `ArrowsInLineVertical`/`ArrowsOutLineVertical`, so the `CaretDown`/`CaretRight` default shown here only ships in the other two.",
+                    "A caret + label (+ optional count) toggle for collapsible table column groups. A pure @agenta/ui presentational header with no antd counterpart.\n\n**Used in:** 3 places — the shared entity table column groups (`@agenta/entity-ui` `EntityTable`), the playground execution header, and the playground single-layout execution row. The execution header overrides the default caret via `renderIcon` with `ArrowsInLineVertical`/`ArrowsOutLineVertical`, so the default `CollapseCaret` shown here only ships in the other two.",
             },
         },
     },

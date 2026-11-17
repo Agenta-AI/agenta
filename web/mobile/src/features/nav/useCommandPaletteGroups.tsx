@@ -22,7 +22,7 @@ import {
     ChatsCircleIcon,
     GavelIcon,
     GearIcon,
-    GraduationCapIcon,
+    CompassIcon,
     HouseIcon,
     LightningIcon,
     PlusIcon,
@@ -147,7 +147,7 @@ export const useCommandPaletteGroups = (
             {
                 key: "skills",
                 label: "Skills",
-                icon: icon(GraduationCapIcon),
+                icon: icon(CompassIcon),
                 href: `${projectURL}/skills`,
             },
             {

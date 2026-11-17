@@ -47,6 +47,7 @@ import {
   type RelayResponse,
 } from "../../src/tools/relay.ts";
 import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
+import { fixedToolCallback } from "../utils/tool-callback.ts";
 import { isWellFormed } from "../utils/well-formed.ts";
 
 // A fake run context (direct-call tools, Phase 3a). The keys are the snake_case binding namespace
@@ -676,7 +677,7 @@ async function relayOnce(
       localRelayHost(),
       dir,
       [spec],
-      callback,
+      fixedToolCallback(callback),
       runContext,
     );
     // Written AFTER startToolRelay: the stale-file sweep (whose listing is taken

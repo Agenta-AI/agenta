@@ -11,8 +11,8 @@ import {
 import {
     Cpu,
     FileText,
-    GraduationCap,
-    Plugs,
+    Compass,
+    HardDrives,
     Plus,
     PuzzlePiece,
     Robot,
@@ -133,8 +133,27 @@ const AGENT_VALUE = {
             description: "Reads a support ticket and returns its severity and owning team.",
         },
     ],
-    mcps: [{name: "linear", url: "https://mcp.linear.app/sse"}],
-    skills: [{name: "release-notes", description: "Draft release notes from a changelog"}],
+    // The stored shape (`buildMcpAgentItem`): the item names a project connection by slug.
+    mcps: [
+        {
+            name: "linear",
+            connection: {type: "gateway", namespace: "custom", slug: "linear"},
+            policy: {tools: {mode: "all"}},
+        },
+        {
+            name: "posthog",
+            connection: {type: "gateway", namespace: "custom", slug: "posthog"},
+            policy: {tools: {mode: "all"}},
+        },
+    ],
+    skills: [
+        {name: "release-notes", description: "Draft release notes from a changelog"},
+        // A built-in skill: the same mark, the "Agenta" tag, read-only.
+        {
+            "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__web-search"}}},
+            name: "web-search",
+        },
+    ],
     sandbox: {kind: "local"},
 }
 
@@ -163,9 +182,29 @@ const HARNESS_CATALOG = {
     },
 }
 
+/**
+ * The project connections the MCP rows point at. PostHog's stored key is no longer accepted, so
+ * its connection reads "Login expired" in the add drawer. The rail row's needs-setup tag comes
+ * from the revision's requirements query, which this panel-only story has no revision for.
+ */
+const mcpEndpoint = (slug: string, name: string, url: string, isValid = true) => ({
+    id: `mcp-${slug}`,
+    slug,
+    name,
+    auth_mode: "api_key",
+    secret_id: `sec-${slug}`,
+    flags: isValid ? {} : {is_valid: false},
+    data: {route: {base_url: url}},
+})
+const MCP_ENDPOINTS = [
+    mcpEndpoint("linear", "Linear", "https://mcp.linear.app/mcp"),
+    mcpEndpoint("posthog", "PostHog", "https://mcp.posthog.com/mcp", false),
+]
+
 // The integration queries come along so the Integrations rows resolve their app name and logo.
 const agentQueries = (scope: StoryScope): [readonly unknown[], unknown][] => [
     [["workflows", "catalog", "harnesses"], HARNESS_CATALOG],
+    [["mcp-endpoints", undefined, scope.projectId], MCP_ENDPOINTS],
     ...integrationQueries(scope, {connections: [GITHUB_WORK, SLACK_OPS]}),
 ]
 
@@ -307,7 +346,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "mcp",
-        icon: <Plugs size={16} />,
+        icon: <HardDrives size={16} />,
         title: "MCPs",
         summary: "1 server",
         indicator: {tone: "invalid", tooltip: "An MCP server is missing its name or URL."},
@@ -316,7 +355,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "skills",
-        icon: <GraduationCap size={16} />,
+        icon: <Compass size={16} />,
         title: "Skills",
         summary: "1 skill",
         indicator: {tone: "agent", tooltip: "Updated by the agent in v4"},

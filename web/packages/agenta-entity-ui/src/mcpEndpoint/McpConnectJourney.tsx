@@ -308,32 +308,6 @@ const isProbeableUrl = (value: string): boolean => {
     }
 }
 
-const hostOf = (url: string): string => {
-    try {
-        return new URL(url.trim()).hostname
-    } catch {
-        return ""
-    }
-}
-
-/**
- * The server's own sentence, with the host set in mono where the sentence names it.
- *
- * The address is the one thing in a failure worth reading character by character, and a
- * proportional font is where a transposed digit hides.
- */
-const withMonoHost = (message: string, host: string) => {
-    const at = host ? message.indexOf(host) : -1
-    if (at === -1) return message
-    return (
-        <>
-            {message.slice(0, at)}
-            <span className="font-mono">{host}</span>
-            {message.slice(at + host.length)}
-        </>
-    )
-}
-
 /**
  * Mounts the journey only while it is open, so each opening starts a new one.
  *
@@ -717,7 +691,6 @@ export function McpConnectSheet({
     // Only the key screen has a secret to have chosen, and only it should be reading the
     // project's vault: every other screen would be asking a question it has no field for.
     const secretChosen = screen === "api_key" && !!selectedSecretId()
-    const host = hostOf(state.url)
     const probeResponse = readMcpProbeResponse(state.probe?.problem)
     const failureCause = state.probe?.problem?.cause
     const failureHeadline =
@@ -729,7 +702,7 @@ export function McpConnectSheet({
             NEWER_TRANSPORT_ADVICE
         ) : (
             <>
-                {state.error ? withMonoHost(state.error, host) : null}{" "}
+                {state.error || null}{" "}
                 {failureCause === "not_an_mcp_server" ? null : UNREACHABLE_ADVICE}
             </>
         )
@@ -904,10 +877,7 @@ export function McpConnectSheet({
                             error={nameError ?? undefined}
                             hint={
                                 screen === "oauth" && prefix ? (
-                                    <>
-                                        Shown across this project. Tools are prefixed{" "}
-                                        <span className="font-mono">{prefix}_</span>
-                                    </>
+                                    <>Shown across this project. Tools are prefixed {prefix}_</>
                                 ) : null
                             }
                         >

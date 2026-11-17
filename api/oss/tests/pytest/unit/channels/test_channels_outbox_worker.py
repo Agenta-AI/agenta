@@ -667,6 +667,42 @@ async def test_the_answer_excludes_the_inbound_user_message(
 
 
 @pytest.mark.asyncio
+async def test_the_answer_leaves_out_what_the_agent_said_between_tools(
+    worker, channels_dao, records_dao
+):
+    session_id = "sess-steps"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+
+    for record_type, attributes in (
+        ("message", {"text": "Reading the thread for context."}),
+        ("tool_call", {"id": "c1", "name": "Read", "rawInput": {}}),
+        ("tool_result", {"id": "c1", "output": "the thread"}),
+        ("thought", {"text": "the email casing may differ"}),
+        ("message", {"text": "The invite failed on email casing."}),
+    ):
+        records_dao.seed(
+            session_id=session_id,
+            turn_id="turn-steps",
+            record_type=record_type,
+            attributes=attributes,
+        )
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-steps",
+        session_id=session_id,
+    )
+
+    posted = [
+        part.get("text")
+        for row in channels_dao.outbox.values()
+        for part in (row.data.processed or {}).get("content", [])
+    ]
+    assert posted == ["The invite failed on email casing."]
+
+
+@pytest.mark.asyncio
 async def test_redelivery_of_turn_ended_does_not_double_post(
     worker, channels_dao, records_dao, adapter
 ):
@@ -1341,6 +1377,33 @@ async def test_a_fold_still_empty_after_the_re_reads_tells_the_chat(
         "empty" in record.message and record.levelname == "ERROR"
         for record in caplog.records
     )
+
+
+@pytest.mark.asyncio
+async def test_a_turn_of_only_whitespace_tells_the_chat(
+    monkeypatch, worker, channels_dao, records_dao
+):
+    monkeypatch.setattr(
+        "oss.src.tasks.asyncio.channels.outbox._EMPTY_FOLD_BACKOFF_SECONDS", 0
+    )
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-blank")
+    records_dao.seed(
+        session_id="sess-blank",
+        turn_id="turn-blank",
+        record_type="message",
+        attributes={"text": "\n\n"},
+    )
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-blank",
+        session_id="sess-blank",
+    )
+
+    from oss.src.core.channels.render.render import NO_ANSWER_TEXT
+
+    assert _delivered_text(channels_dao) == NO_ANSWER_TEXT
 
 
 class _PlatformRejected(Exception):

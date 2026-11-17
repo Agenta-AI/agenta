@@ -38,15 +38,15 @@ import {
 } from "@agenta/entity-ui/mcpEndpoint"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {projectIdAtom} from "@agenta/shared/state"
+import {McpServerMark} from "@agenta/ui/agent-icon"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, IconTile} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     LinkBreak,
     PencilSimpleLine,
-    Plugs,
     Plus,
     Trash,
     Wrench,
@@ -337,14 +337,7 @@ export default function McpServersSection({
                         <span className="flex min-w-0 items-center gap-2.5">
                             {/* One generic glyph for every server: the registry holds arbitrary
                             URLs, so there is no per-server branding to show. */}
-                            <IconTile
-                                size={28}
-                                tone="muted"
-                                aria-hidden="true"
-                                className="border border-solid border-border bg-muted text-muted-foreground"
-                            >
-                                <Plugs />
-                            </IconTile>
+                            <McpServerMark size={28} />
                             <InlineName
                                 value={record.name || record.slug || ""}
                                 editing={!readOnly && renamingKey === rowKey(record)}
@@ -382,7 +375,7 @@ export default function McpServersSection({
                         </span>
                         {shows("url") ? (
                             <span
-                                className="truncate font-mono text-[13px] text-muted-foreground"
+                                className="truncate text-[13px] text-muted-foreground"
                                 title={record.data.route.base_url ?? undefined}
                             >
                                 {record.data.route.base_url}
