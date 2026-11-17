@@ -42,6 +42,7 @@
         "./workflow": "./src/workflow/index.ts",
         "./drive": "./src/drive/index.ts",
         "./tool-permission": "./src/DrillInView/SchemaControls/toolPermission.ts",
+        "./needs-setup": "./src/DrillInView/SchemaControls/agentTemplate/needsSetupText.ts",
         "./clientTools": "./src/clientTools/index.ts",
         "./drive/htmlApp/kit": "./src/drive/htmlApp/kit/index.ts"
     },

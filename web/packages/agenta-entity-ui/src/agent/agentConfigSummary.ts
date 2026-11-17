@@ -1,4 +1,4 @@
-import {createT} from "@agenta/i18n"
+import {createT, type CatalogKey} from "@agenta/i18n"
 import agentConfigCatalog from "@agenta/i18n/catalogs/entityUi.agentConfig"
 import {skillDisplayName, stripStaticSkillPrefix} from "@agenta/shared/utils"
 
@@ -261,5 +261,18 @@ export const AGENT_CONFIG_ROW_TITLES: Record<AgentConfigRowKey, string> = {
  * field existed has no default, and an empty right-hand side reads as a value that failed to
  * load.
  */
-export const permissionsSummaryDetail = (permissions: string | null): string =>
-    permissions || tNow("entityUi.agentConfig.notSet")
+export const permissionsSummaryDetail = (permissions: string | null): string => {
+    if (!permissions) return tNow("entityUi.agentConfig.notSet")
+    // `permissions` is the prettified stored value ("Allow reads"); known ones read translated.
+    const key = Object.hasOwn(PERMISSION_DETAIL_KEYS, permissions)
+        ? PERMISSION_DETAIL_KEYS[permissions]
+        : undefined
+    return key ? tNow(key) : permissions
+}
+
+const PERMISSION_DETAIL_KEYS: Partial<Record<string, CatalogKey<typeof agentConfigCatalog>>> = {
+    Allow: "entityUi.agentConfig.permissionAllow",
+    "Allow reads": "entityUi.agentConfig.permissionAllowReads",
+    Ask: "entityUi.agentConfig.permissionAsk",
+    Deny: "entityUi.agentConfig.permissionDeny",
+}

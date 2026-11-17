@@ -171,5 +171,19 @@
     "noneRunFailed": "Aucun. L’exécution elle-même a échoué.",
     "subscriptionNote": "≈ Cette exécution a utilisé un abonnement ; le coût est estimé aux tarifs de l’API.",
     "openTrace": "Ouvrir la trace",
-    "unknownAgent": "Agent inconnu"
+    "unknownAgent": "Agent inconnu",
+    "failureUnreachable": "Impossible de joindre le modèle",
+    "failureUnreachableFix": "Le fournisseur n’a pas répondu. C’est généralement temporaire, relancer l’exécution suffit souvent.",
+    "failureNoCredits": "Crédits épuisés",
+    "failureNoCreditsFix": "Votre compte fournisseur n’a plus de crédits. Ajoutez des crédits auprès du fournisseur, puis réessayez.",
+    "failureSandbox": "Le sandbox n’a pas démarré",
+    "failureSandboxFix": "L’environnement d’exécution n’a pas pu démarrer. Relancez l’exécution ; si cela continue, contactez le support.",
+    "failureEmptyPrompt": "Prompt vide",
+    "failureEmptyPromptFix": "L’exécution a démarré sans message. Vérifiez ce qui déclenche cet agent et ce qu’il envoie.",
+    "failureTimeout": "Délai dépassé",
+    "failureTimeoutFix": "Le modèle a mis trop de temps à répondre. Réessayez ou passez à un modèle plus rapide.",
+    "failureMissingKey": "Clé API ou connexion manquante",
+    "failureMissingKeyFix": "La connexion au fournisseur est absente ou n’a pas de clé. Ajoutez-la dans Paramètres → Fournisseurs d’IA.",
+    "failureOther": "Autre erreur",
+    "failureOtherFix": "Ouvrez la trace de l’exécution pour voir l’erreur complète."
 }

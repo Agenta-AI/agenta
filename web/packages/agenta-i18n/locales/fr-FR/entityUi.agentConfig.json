@@ -33,5 +33,9 @@
     "chooseAModel": "Choisissez un modèle",
     "configuration": "Configuration",
     "edit": "Modifier",
-    "couldNotLoadConfiguration": "Impossible de charger la configuration de cet agent."
+    "couldNotLoadConfiguration": "Impossible de charger la configuration de cet agent.",
+    "permissionAllow": "Autoriser",
+    "permissionAllowReads": "Autoriser les lectures",
+    "permissionAsk": "Demander",
+    "permissionDeny": "Refuser"
 }

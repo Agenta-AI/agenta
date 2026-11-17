@@ -28,7 +28,7 @@ import {
     toolPrefixFromName,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
-import {needsSetupReasonLabel, requirementForItem} from "@agenta/entities/workflow"
+import {requirementForItem} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import {Tag} from "@agenta/ui/components/presentational"
@@ -49,6 +49,7 @@ import McpConnectJourney from "../../mcpEndpoint/McpConnectJourney"
 import McpPermissionDrawer from "../../mcpEndpoint/McpPermissionDrawer"
 
 import {NeedsSetupTag} from "./agentTemplate/NeedsSetupTag"
+import {needsSetupReasonText} from "./agentTemplate/needsSetupText"
 import {useAgentRequirements} from "./agentTemplate/useAgentRequirements"
 
 export interface McpServerFormViewProps {
@@ -156,7 +157,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
 
             {requirement ? (
                 <RailField label={t("entityUi.toolForm.status")} align="center">
-                    <NeedsSetupTag reason={needsSetupReasonLabel(requirement.reason)} />
+                    <NeedsSetupTag reason={needsSetupReasonText(requirement.reason)} />
                 </RailField>
             ) : null}
 

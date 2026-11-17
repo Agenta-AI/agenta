@@ -10,6 +10,8 @@
     "claudeHint": "Claude Code のトークンを貼り付け",
     "cloudPlatforms": "クラウドプラットフォーム",
     "connectName": "{{name}} を接続",
+    "customEndpoint": "OpenAI 互換エンドポイント",
+    "customEndpointHint": "OpenAI API に対応した、セルフホストまたはプロキシ経由のモデル",
     "deleted": "{{name}} を削除しました。",
     "keySaved": "キーを保存しました",
     "modelProviders": "モデルプロバイダー",

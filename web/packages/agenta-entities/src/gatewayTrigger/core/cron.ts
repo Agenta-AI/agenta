@@ -13,6 +13,8 @@
  * deployment can override — see MIN_CRON_INTERVAL_MINUTES for what that implies.
  */
 
+import {ENGLISH_SCHEDULE_TEXT, type ScheduleText} from "./scheduleText"
+
 const FIELD_BOUNDS: {min: number; max: number}[] = [
     {min: 0, max: 59}, // minute
     {min: 0, max: 23}, // hour
@@ -76,50 +78,53 @@ function inBounds(value: number, bounds: {min: number; max: number}): boolean {
     return Number.isInteger(value) && value >= bounds.min && value <= bounds.max
 }
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-
 /**
  * A best-effort human-readable description of a cron expression. Handles the
  * common shapes (every minute/hour, daily at HH:MM, weekly on a weekday); falls
- * back to echoing the raw expression for anything more exotic.
+ * back to echoing the raw expression for anything more exotic. `text` gives the
+ * words; English by default.
  */
-export function describeCron(expression: string): string {
+export function describeCron(
+    expression: string,
+    text: ScheduleText = ENGLISH_SCHEDULE_TEXT,
+): string {
     const {valid} = validateCron(expression)
     if (!valid) return expression
 
     const [minute, hour, dom, month, dow] = expression.trim().split(/\s+/)
 
     if (minute === "*" && hour === "*" && dom === "*" && month === "*" && dow === "*")
-        return "Every minute (UTC)"
+        return text.cronEveryMinute
 
     const stepMatch = minute.match(/^\*\/(\d+)$/)
     if (stepMatch && hour === "*" && dom === "*" && month === "*" && dow === "*")
-        return `Every ${stepMatch[1]} minutes (UTC)`
+        return text.cronEveryMinutes(stepMatch[1])
 
     if (minute === "0" && hour === "*" && dom === "*" && month === "*" && dow === "*")
-        return "Every hour (UTC)"
+        return text.cronEveryHour
 
     // "5 * * * *" fell through to the raw expression, which schedule lists show as a name.
     if (/^\d+$/.test(minute) && hour === "*" && dom === "*" && month === "*" && dow === "*")
-        return `Every hour at :${pad(minute)} (UTC)`
+        return text.cronEveryHourAt(pad(minute))
 
     const hourStep = hour.match(/^\*\/(\d+)$/)
     if (/^\d+$/.test(minute) && hourStep && dom === "*" && month === "*" && dow === "*")
-        return `Every ${hourStep[1]} hours at :${pad(minute)} (UTC)`
+        return text.cronEveryHoursAt(hourStep[1], pad(minute))
 
     const isTime = /^\d+$/.test(minute) && /^\d+$/.test(hour)
     if (isTime && dom === "*" && month === "*") {
         const time = `${pad(hour)}:${pad(minute)} UTC`
-        if (dow === "*") return `Every day at ${time}`
-        if (/^\d$/.test(dow)) return `Every ${DAY_NAMES[Number(dow)]} at ${time}`
+        if (dow === "*") return text.cronEveryDayAt(time)
+        if (/^\d$/.test(dow)) return text.cronEveryWeekdayAt(text.dayLong(Number(dow)), time)
         // "0 9 * * 1-5" / "0 9 * * 1,3" — a day set, not a single day.
         if (/^[\d,-]+$/.test(dow)) {
             const days = expandDayList(dow)
-            if (days.length) return `${days.map((day) => DAY_NAMES[day]).join(", ")} at ${time}`
+            if (days.length)
+                return text.cronDaysAt(days.map((day) => text.dayLong(day)).join(", "), time)
         }
     }
 
-    return `${expression} (UTC)`
+    return text.cronRaw(expression)
 }
 
 /** Expand a cron day-of-week list/range ("1-5", "1,3") into day indexes. */

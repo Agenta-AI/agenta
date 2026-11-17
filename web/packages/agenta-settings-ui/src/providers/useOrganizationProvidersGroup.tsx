@@ -33,7 +33,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {LoadFailed} from "../shared/LoadFailed"
 
-import type {ProvidersGroup, ProvidersSource} from "./ProvidersPanel"
+import {providerTitle, type ProvidersGroup, type ProvidersSource} from "./ProvidersPanel"
 
 /**
  * Who may use a connection, in the row's words. Selected projects are named; until every name is
@@ -61,7 +61,7 @@ const rowDescription = (
     t: ReturnType<typeof useT>,
 ): string =>
     [
-        connection.title,
+        providerTitle(connection.kind, connection.title, t),
         connection.hasStoredCredential ? t("settings.providers.keySaved") : null,
         projects,
     ]

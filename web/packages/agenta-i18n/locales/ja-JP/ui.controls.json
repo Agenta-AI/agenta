@@ -33,5 +33,11 @@
     "breadcrumb": "パンくずリスト",
     "autoSelected": "（自動）",
     "datePart": "日付",
-    "timePart": "時刻"
+    "timePart": "時刻",
+    "filter": "フィルター",
+    "group": "グループ化",
+    "showValue": "表示",
+    "hideValue": "非表示",
+    "searchEllipsis": "検索…",
+    "searchLabel": "{{label}}を検索"
 }

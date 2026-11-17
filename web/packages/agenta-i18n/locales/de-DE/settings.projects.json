@@ -16,6 +16,13 @@
     "projectActions": "Projektaktionen",
     "projectName": "Projektname",
     "renameFailed": "Das Projekt konnte nicht umbenannt werden",
+    "roleAdmin": "Administrator",
+    "roleAnnotator": "Annotator",
+    "roleDeveloper": "Entwickler",
+    "roleEditor": "Bearbeiter",
+    "roleMember": "Mitglied",
+    "roleOwner": "Eigentümer",
+    "roleViewer": "Betrachter",
     "setAsDefault": "Als Standard festlegen",
     "setDefaultFailed": "Der Standard konnte nicht festgelegt werden",
     "switchTo": "Zu diesem Projekt wechseln"

@@ -167,5 +167,19 @@
     "noneRunFailed": "Keine. Die Ausführung selbst ist fehlgeschlagen.",
     "subscriptionNote": "≈ Diese Ausführung nutzte ein Abonnement; die Kosten werden zu API-Preisen geschätzt.",
     "openTrace": "Trace öffnen",
-    "unknownAgent": "Unbekannter Agent"
+    "unknownAgent": "Unbekannter Agent",
+    "failureUnreachable": "Modell nicht erreichbar",
+    "failureUnreachableFix": "Der Anbieter hat nicht geantwortet. Das ist meist vorübergehend, ein erneuter Versuch hilft oft.",
+    "failureNoCredits": "Kein Guthaben mehr",
+    "failureNoCreditsFix": "Ihr Anbieterkonto hat kein Guthaben mehr. Laden Sie beim Anbieter Guthaben auf und versuchen Sie es erneut.",
+    "failureSandbox": "Sandbox ist nicht gestartet",
+    "failureSandboxFix": "Die Ausführungsumgebung konnte nicht starten. Versuchen Sie es erneut; wenn es weiter passiert, wenden Sie sich an den Support.",
+    "failureEmptyPrompt": "Leerer Prompt",
+    "failureEmptyPromptFix": "Die Ausführung begann ohne Nachricht. Prüfen Sie, was diesen Agent auslöst und was gesendet wird.",
+    "failureTimeout": "Zeitüberschreitung",
+    "failureTimeoutFix": "Das Modell hat zu lange gebraucht. Versuchen Sie es erneut oder wechseln Sie zu einem schnelleren Modell.",
+    "failureMissingKey": "API-Schlüssel oder Verbindung fehlt",
+    "failureMissingKeyFix": "Die Anbieterverbindung fehlt oder hat keinen Schlüssel. Fügen Sie sie unter Einstellungen → KI-Anbieter hinzu.",
+    "failureOther": "Anderer Fehler",
+    "failureOtherFix": "Öffnen Sie den Trace der Ausführung, um den vollständigen Fehler zu sehen."
 }

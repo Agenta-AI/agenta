@@ -1,7 +1,7 @@
 import {getDefaultStore} from "jotai"
 import {afterEach, describe, expect, it} from "vitest"
 
-import {createT, defineCatalog} from "../../src/catalog"
+import {createEnglishT, createT, defineCatalog} from "../../src/catalog"
 import {byLanguage} from "./byLanguage"
 import {formatDate, formatNumber, richText} from "../../src/index"
 import {activeLanguageAtom, getActiveLanguage, type Language} from "../../src/language"
@@ -181,5 +181,15 @@ describe("a language still loading", () => {
         finish()
         await loading
         expect(tSlow("settings.slow.title")).toBe("慢")
+    })
+})
+
+describe("createEnglishT", () => {
+    it("answers in English while another language is active, for text saved to the API", async () => {
+        const tEnglish = createEnglishT(membersCatalog)
+        await activateLanguage("zh-CN")
+        expect(t(key("settings.members.title"))).toBe("成员")
+        expect(tEnglish("settings.members.title")).toBe("Members")
+        expect(tEnglish("settings.members.count", {count: 2})).toBe("2 members")
     })
 })

@@ -2333,6 +2333,9 @@ importers:
 
   packages/agenta-shared:
     dependencies:
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@tanstack/query-persist-client-core':
         specifier: 5.100.9
         version: 5.100.9

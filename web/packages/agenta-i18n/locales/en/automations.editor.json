@@ -106,5 +106,6 @@
     "optionalFilters": "Add optional filters ({{count}})",
     "noFilters": "This event needs no filters — it runs every time it arrives.",
     "allApps": "All apps",
-    "done": "Done"
+    "done": "Done",
+    "untitledAutomation": "Untitled automation"
 }

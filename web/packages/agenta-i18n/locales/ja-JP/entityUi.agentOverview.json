@@ -15,7 +15,7 @@
     "itemsCount_other": "{{count}} 項目",
     "driveId": "ドライブ ID",
     "couldNotLoadAutomations": "自動化を読み込めませんでした。",
-    "noAutomationsForAgent": "このエージェントに紐づく自動化はまだありません。",
+    "noAutomationsForAgent": "紐づく自動化はまだありません。",
     "nothingScheduled": "予定はありません。エージェントに自動化を設定すると、次回の実行がここに表示されます。",
     "retry": "再試行"
 }

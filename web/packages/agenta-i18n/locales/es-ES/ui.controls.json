@@ -33,5 +33,11 @@
     "breadcrumb": "ruta de navegación",
     "autoSelected": "(automático)",
     "datePart": "fecha",
-    "timePart": "hora"
+    "timePart": "hora",
+    "filter": "Filtro",
+    "group": "Agrupar",
+    "showValue": "mostrar",
+    "hideValue": "ocultar",
+    "searchEllipsis": "Buscar…",
+    "searchLabel": "Buscar {{label}}"
 }

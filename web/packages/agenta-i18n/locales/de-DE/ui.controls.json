@@ -33,5 +33,11 @@
     "breadcrumb": "Breadcrumb-Navigation",
     "autoSelected": "(automatisch)",
     "datePart": "Datum",
-    "timePart": "Uhrzeit"
+    "timePart": "Uhrzeit",
+    "filter": "Filter",
+    "group": "Gruppieren",
+    "showValue": "anzeigen",
+    "hideValue": "ausblenden",
+    "searchEllipsis": "Suchen…",
+    "searchLabel": "{{label}} durchsuchen"
 }

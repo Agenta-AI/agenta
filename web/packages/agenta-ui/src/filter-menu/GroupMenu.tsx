@@ -109,7 +109,7 @@ export const GroupMenu = <Value extends string = string>({
                 triggerClassName={triggerClassName}
                 triggerAriaLabel={triggerAriaLabel}
                 active={active}
-                defaultLabel="Group"
+                defaultLabel={t("ui.controls.group")}
             />
             <PopoverContent
                 side={side}

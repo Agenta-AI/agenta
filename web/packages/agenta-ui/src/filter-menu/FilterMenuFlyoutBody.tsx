@@ -53,8 +53,11 @@ export const FilterMenuFlyoutBody = ({
                         ref={inputRef}
                         value={term}
                         onChange={(event) => setTerm(event.target.value)}
-                        placeholder={section.searchPlaceholder ?? "Search…"}
-                        aria-label={section.searchPlaceholder ?? `Search ${section.label}`}
+                        placeholder={section.searchPlaceholder ?? t("ui.controls.searchEllipsis")}
+                        aria-label={
+                            section.searchPlaceholder ??
+                            t("ui.controls.searchLabel", {label: section.label})
+                        }
                         onKeyDown={(event) => {
                             if (event.key !== "ArrowDown") return
                             event.preventDefault()

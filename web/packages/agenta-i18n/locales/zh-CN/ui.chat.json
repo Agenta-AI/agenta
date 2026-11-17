@@ -33,5 +33,10 @@
     "unsupportedImage": "不支持的图片格式。请使用 JPEG、PNG、WebP 或 GIF。",
     "unsupportedPdf": "不支持的格式。请上传 PDF 文件。",
     "uploadImage": "上传图片",
-    "moreMessages_other": "+{{count}} 条更多消息"
+    "moreMessages_other": "+{{count}} 条更多消息",
+    "roleUser": "用户",
+    "roleAssistant": "助手",
+    "roleSystem": "系统",
+    "roleTool": "工具",
+    "roleDeveloper": "开发者"
 }

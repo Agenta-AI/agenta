@@ -28,8 +28,10 @@
 
 import React, {useMemo} from "react"
 
-import {useT} from "@agenta/i18n"
+import {activeLanguageAtom, useT} from "@agenta/i18n"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import levelSelectCatalog from "@agenta/i18n/catalogs/ui.levelSelect"
+import {useAtomValue} from "jotai"
 
 import {cn, textColors} from "../../utils/styles"
 import {Combobox, type ComboboxOption, type ComboboxOptionGroup} from "../ui/combobox"
@@ -212,15 +214,21 @@ export function HierarchyLevelSelect<T>({
     allowClear = true,
     className,
 }: HierarchyLevelSelectProps<T>) {
-    const t = useT(uiControlsCatalog)
+    const t = useT(uiControlsCatalog, levelSelectCatalog)
+    const language = useAtomValue(activeLanguageAtom)
+    // A level name reads lowercase inside the sentence; German keeps its capitalized nouns.
+    const inSentence = (name: string) => (language === "de-DE" ? name : name.toLowerCase())
+    const selectFirst = prevLevelLabel
+        ? t("ui.levelSelect.selectLabelFirst", {label: inSentence(prevLevelLabel)})
+        : t("ui.levelSelect.selectPreviousFirst")
     // Build placeholder text
     const defaultPlaceholder = isLoading
-        ? "Loading..."
+        ? t("ui.levelSelect.loading")
         : isEnabled
-          ? `Select ${label?.toLowerCase() ?? "item"}...`
-          : prevLevelLabel
-            ? `Select ${prevLevelLabel.toLowerCase()} first`
-            : "Select previous level first"
+          ? label
+              ? t("ui.levelSelect.selectLabel", {label: inSentence(label)})
+              : t("ui.levelSelect.selectItem")
+          : selectFirst
 
     const effectivePlaceholderText = placeholder ?? defaultPlaceholder
 
@@ -268,11 +276,14 @@ export function HierarchyLevelSelect<T>({
 
         return Array.from(groups.entries()).map(
             ([key, groupItems]): HierarchyLevelSelectGroupOption => ({
-                label: key === "__ungrouped__" ? "Other" : (getGroupLabel?.(key) ?? key),
+                label:
+                    key === "__ungrouped__"
+                        ? t("ui.levelSelect.otherGroup")
+                        : (getGroupLabel?.(key) ?? key),
                 options: groupItems.map(buildOption),
             }),
         )
-    }, [items, getItemId, getItemLabel, getItemLabelNode, getGroupKey, getGroupLabel])
+    }, [items, getItemId, getItemLabel, getItemLabelNode, getGroupKey, getGroupLabel, t])
 
     // Handle change
     const handleChange = (value: string | undefined) => {
@@ -282,10 +293,10 @@ export function HierarchyLevelSelect<T>({
     // Get not found content based on state
     const getNotFoundContentText = () => {
         if (notFoundContent) return notFoundContent
-        if (isLoading) return "Loading..."
-        if (isError) return "Error loading items"
-        if (!isEnabled) return `Select ${prevLevelLabel?.toLowerCase() ?? "previous level"} first`
-        return "No items found"
+        if (isLoading) return t("ui.levelSelect.loading")
+        if (isError) return t("ui.levelSelect.loadError")
+        if (!isEnabled) return selectFirst
+        return t("ui.levelSelect.noItems")
     }
 
     return (

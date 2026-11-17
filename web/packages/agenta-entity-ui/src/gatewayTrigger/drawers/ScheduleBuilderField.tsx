@@ -13,6 +13,7 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {createT, useT} from "@agenta/i18n"
 import scheduleCatalog from "@agenta/i18n/catalogs/entityUi.scheduleBuilder"
+import scheduleTextCatalog from "@agenta/i18n/catalogs/entityUi.scheduleText"
 import {message} from "@agenta/ui"
 import {
     Button,
@@ -27,6 +28,8 @@ import {
 } from "@agenta/ui/ui"
 import {CalendarBlank, Clock, Plus, X} from "@phosphor-icons/react"
 import {ChevronDown} from "lucide-react"
+
+import {scheduleTextNow} from "../scheduleText"
 
 // ---------------------------------------------------------------------------
 // ScheduleBuilderField — the collapsed "Schedule" row and the popover behind it.
@@ -161,10 +164,13 @@ export function useScheduleBuilder(
     // Cadence, not just field shape: the backend refuses anything tighter than its
     // frequency floor, so catch it here instead of on submit.
     const validation = useMemo(() => validateSchedule(value), [value])
-    const summary = validation.valid ? summarizeSchedule(builder) : value
+    // `textT` changes when the language or its catalog does; it only re-words these two lines.
+    const textT = useT(scheduleTextCatalog)
+    const summary = validation.valid ? summarizeSchedule(builder, scheduleTextNow()) : value
     const nextLine = useMemo(
-        () => (validation.valid ? formatNextRun(value, builder) : ""),
-        [validation.valid, value, builder],
+        () =>
+            validation.valid ? formatNextRun(value, builder, new Date(), scheduleTextNow()) : "",
+        [validation.valid, value, builder, textT],
     )
 
     return {builder, summary, nextLine, validation, emit, setCronText, selectCadence}

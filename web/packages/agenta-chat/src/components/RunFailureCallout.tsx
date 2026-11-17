@@ -14,7 +14,8 @@
  * which renders the same page. Still props, and still omitted rather than faked where a host has
  * nowhere to send the reader, because a button that opens nothing is worse than no button.
  */
-import {AGENT_NEEDS_SETUP_CODE, AGENT_NEEDS_SETUP_TITLE} from "@agenta/entities/workflow"
+import {AGENT_NEEDS_SETUP_CODE} from "@agenta/entities/workflow"
+import {agentNeedsSetupTitle} from "@agenta/entity-ui/needs-setup"
 import {createT, useT} from "@agenta/i18n"
 import chatRunFailureCalloutCatalog from "@agenta/i18n/catalogs/chat.runFailureCallout"
 import {Button} from "@agenta/ui/ui"
@@ -102,7 +103,9 @@ export const REFUSAL_TITLES: Record<string, string> = {
     get builtin_models_not_enabled() {
         return tNow("chat.runFailureCallout.modelUnavailable")
     },
-    [AGENT_NEEDS_SETUP_CODE]: AGENT_NEEDS_SETUP_TITLE,
+    get [AGENT_NEEDS_SETUP_CODE]() {
+        return agentNeedsSetupTitle()
+    },
 }
 
 /** The title over a failure the platform worded itself, or `null` for an ordinary failure. */

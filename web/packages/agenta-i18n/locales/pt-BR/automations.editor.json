@@ -107,5 +107,6 @@
     "optionalFilters": "Adicionar filtros opcionais ({{count}})",
     "noFilters": "Este evento não precisa de filtros: ele é executado toda vez que chega.",
     "allApps": "Todos os apps",
-    "done": "Concluir"
+    "done": "Concluir",
+    "untitledAutomation": "Automação sem título"
 }

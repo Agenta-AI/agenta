@@ -107,6 +107,16 @@ interface SingleMessageProps {
 // Actual truncation is controlled by maxLines, this just sets max chars
 const CHARS_PER_LINE = 80
 
+/** Display names of the standard chat roles; any other role shows as stored. */
+// English keeps the stored lowercase role; the `capitalize` class capitalizes it on screen.
+const ROLE_LABELS = {
+    user: "ui.chat.roleUser",
+    assistant: "ui.chat.roleAssistant",
+    system: "ui.chat.roleSystem",
+    tool: "ui.chat.roleTool",
+    developer: "ui.chat.roleDeveloper",
+} as const
+
 /**
  * Renders a single chat message
  */
@@ -127,7 +137,9 @@ const SingleMessage = memo(
         return (
             <section key={`${keyPrefix}-${index}`} className="w-full flex flex-col gap-1 text-xs">
                 <span className={`capitalize text-xs font-medium ${roleColorClass}`}>
-                    {message.role}
+                    {message.role in ROLE_LABELS
+                        ? t(ROLE_LABELS[message.role as keyof typeof ROLE_LABELS])
+                        : message.role}
                 </span>
                 {displayContent && (
                     <span className="whitespace-pre-wrap break-words block">{displayContent}</span>

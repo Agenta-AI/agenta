@@ -1,4 +1,4 @@
-import {AGENT_NEEDS_SETUP_TITLE, MODEL_NEEDS_SETUP_MESSAGE} from "@agenta/entities/workflow"
+import {agentNeedsSetupTitle, modelNeedsSetupMessage} from "@agenta/entity-ui/needs-setup"
 import {useT} from "@agenta/i18n"
 import chatModelSetupBannerCatalog from "@agenta/i18n/catalogs/chat.modelSetupBanner"
 import {Alert, Button} from "@agenta/ui/ui"
@@ -42,8 +42,8 @@ export const ModelSetupBanner = ({
                     className="mb-3"
                     type="warning"
                     showIcon
-                    message={AGENT_NEEDS_SETUP_TITLE}
-                    description={MODEL_NEEDS_SETUP_MESSAGE}
+                    message={agentNeedsSetupTitle()}
+                    description={modelNeedsSetupMessage()}
                     action={action}
                 />
             </RevealCollapse>
@@ -60,10 +60,8 @@ export const ModelSetupBanner = ({
                 <span className="flex min-w-0 items-center gap-2 text-xs text-colorWarningText">
                     <Lock size={14} className="shrink-0" />
                     <span className="min-w-0">
-                        <span className="block truncate font-medium">
-                            {AGENT_NEEDS_SETUP_TITLE}
-                        </span>
-                        <span className="block truncate">{MODEL_NEEDS_SETUP_MESSAGE}</span>
+                        <span className="block truncate font-medium">{agentNeedsSetupTitle()}</span>
+                        <span className="block truncate">{modelNeedsSetupMessage()}</span>
                     </span>
                 </span>
                 {action}

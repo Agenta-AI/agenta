@@ -46,6 +46,7 @@ vi.mock("@agenta/entities/gatewayTrigger", async () => ({
     ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/latestDeliveryEvent")),
     ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/messageInputs")),
     ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/scheduleBuilder")),
+    ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/scheduleText")),
     useTriggerSchedule: () => ({schedule: null, create: createSchedule}),
     useTriggerSubscription: () => ({subscription: null, create: vi.fn()}),
     useTriggerDeliveries: () => ({deliveries: []}),
@@ -58,7 +59,8 @@ vi.mock("@agenta/entities/runnable", async () => ({
 vi.mock("@agenta/ui/ui", () => ({Checkbox: () => null}))
 vi.mock("@phosphor-icons/react", () => ({Eye: () => null}))
 // The composer's editor is not this file's subject.
-vi.mock("@agenta/entity-ui/gatewayTrigger", () => ({
+vi.mock("@agenta/entity-ui/gatewayTrigger", async () => ({
+    ...(await import("../../../packages/agenta-entity-ui/src/gatewayTrigger/scheduleText")),
     MessageComposer: () => null,
     EventMessageComposer: () => null,
     EventFieldTags: () => null,

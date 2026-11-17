@@ -17,6 +17,7 @@ import {
 import {ChartTooltipPanel, type TooltipRow} from "../charts/ChartTooltipPanel"
 import {TimeChart} from "../charts/TimeChart"
 import {SERIES_COLORS, analyticsColor} from "../colors"
+import {failureLabel} from "../failureText"
 import {unitLabel, type EmptyWhat} from "../labels"
 import type {AnalyticsWindowData, FailureReasons} from "../useAnalyticsData"
 
@@ -418,7 +419,7 @@ export const SuccessCard = ({ctx}: {ctx: OverviewContext}) => {
                                 .slice(0, 3)
                                 .map((r) => ({
                                     color: analyticsColor("failed"),
-                                    label: r.label,
+                                    label: failureLabel(r.label, t),
                                     value: formatCount(r.count),
                                 }))
                         }

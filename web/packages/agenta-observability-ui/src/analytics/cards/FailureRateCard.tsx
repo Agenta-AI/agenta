@@ -6,6 +6,7 @@ import {formatCount, formatMetric, sum} from "@agenta/observability/analytics"
 import {cn} from "@agenta/ui/ui"
 
 import {analyticsColor} from "../colors"
+import {failureLabel} from "../failureText"
 import type {EmptyWhat} from "../labels"
 import type {AnalyticsWindowData, FailureReasons} from "../useAnalyticsData"
 
@@ -98,7 +99,7 @@ export const FailureRateCard = ({
                         >
                             <span className="truncate text-foreground">{agentName(row.id)}</span>
                             <span className="truncate text-muted-foreground">
-                                {failures.mainReason(row.id) ?? "—"}
+                                {failureLabel(failures.mainReason(row.id) ?? "—", t)}
                             </span>
                             <span className="text-right tabular-nums text-foreground">
                                 {formatCount(row.failed)}

@@ -14,7 +14,7 @@
     "noTools": "ツールなし",
     "noneEnabled": "有効なものはありません",
     "integrations": "インテグレーション",
-    "addIntegrations": "インテグレーションを追加",
+    "addIntegrations": "追加する",
     "noIntegrations": "インテグレーションなし",
     "model": "モデル",
     "instructions": "指示",
@@ -25,5 +25,9 @@
     "chooseAModel": "モデルを選択",
     "configuration": "設定",
     "edit": "編集",
-    "couldNotLoadConfiguration": "このエージェントの設定を読み込めませんでした。"
+    "couldNotLoadConfiguration": "このエージェントの設定を読み込めませんでした。",
+    "permissionAllow": "許可",
+    "permissionAllowReads": "読み取りを許可",
+    "permissionAsk": "確認する",
+    "permissionDeny": "拒否"
 }

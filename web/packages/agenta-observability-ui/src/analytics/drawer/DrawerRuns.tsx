@@ -28,6 +28,7 @@ import {ArrowSquareOut, CaretDown, CaretRight, Check} from "@phosphor-icons/reac
 import {useAtomValue} from "jotai"
 
 import {analyticsColor} from "../colors"
+import {failureFix, failureLabel} from "../failureText"
 import {clock, monthDay, unknownAgentLabel} from "../labels"
 import {FAILURE_SAMPLE} from "../useAnalyticsData"
 
@@ -167,7 +168,9 @@ export const DrawerRuns = ({
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm" className="max-w-[220px]">
                                     <span className="truncate">
-                                        {reason ?? t("observabilityUi.analytics.allReasons")}
+                                        {reason
+                                            ? failureLabel(reason, t)
+                                            : t("observabilityUi.analytics.allReasons")}
                                     </span>
                                     <CaretDown data-icon="inline-end" />
                                 </Button>
@@ -182,8 +185,9 @@ export const DrawerRuns = ({
                                             className="justify-between gap-3"
                                         >
                                             <span className="truncate">
-                                                {r.label ??
-                                                    t("observabilityUi.analytics.allReasons")}
+                                                {r.label
+                                                    ? failureLabel(r.label, t)
+                                                    : t("observabilityUi.analytics.allReasons")}
                                             </span>
                                             <span className="flex items-center gap-2 text-muted-foreground tabular-nums">
                                                 {formatCount(r.count)}
@@ -345,7 +349,7 @@ const RunRow = ({
     const failedTools = tools?.failed ?? []
     const category = run.failed ? categorizeFailure(run.reason) : null
     const subline = category
-        ? category.label
+        ? failureLabel(category.label, t)
         : failedTools.length
           ? t("observabilityUi.analytics.toolCallsFailedRecovered", {count: failedTools.length})
           : tools
@@ -426,13 +430,15 @@ const RunRow = ({
                 <div className="mb-2 ml-6 mr-1 flex flex-col gap-2 rounded-lg bg-background px-3 py-2.5 text-sm">
                     <span className="font-medium">
                         {category
-                            ? category.label
+                            ? failureLabel(category.label, t)
                             : failedTools.length
                               ? t("observabilityUi.analytics.runSucceededRetry")
                               : t("observabilityUi.analytics.runSucceeded")}
                     </span>
                     {category ? (
-                        <span className="text-muted-foreground">{category.fix}</span>
+                        <span className="text-muted-foreground">
+                            {failureFix(category.label, category.fix, t)}
+                        </span>
                     ) : null}
                     {run.reason ? (
                         <code className="whitespace-pre-wrap break-all text-[11px] text-muted-foreground">

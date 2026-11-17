@@ -11,7 +11,7 @@
     "debuggingDescription": "Outils pour inspecter les exécutions et les canaux.",
     "developerMode": "Mode développeur",
     "developerModeDescription": "Affiche Évaluation, Gestion des prompts et Traçage dans la navigation.",
-    "featureFlags": "Feature flags",
+    "featureFlags": "Indicateurs de fonctionnalités",
     "language": "Langue",
     "playgroundInspector": "Inspecteur du Playground",
     "playgroundInspectorDescription": "Affiche les commandes pour inspecter les sessions et les tours du Playground."

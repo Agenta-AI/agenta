@@ -10,6 +10,8 @@
     "claudeHint": "Collez un jeton depuis Claude Code",
     "cloudPlatforms": "Plateformes cloud",
     "connectName": "Connecter {{name}}",
+    "customEndpoint": "Point de terminaison compatible OpenAI",
+    "customEndpointHint": "Modèles auto-hébergés ou via un proxy qui utilisent l’API OpenAI",
     "deleted": "{{name}} supprimé.",
     "keySaved": "Clé enregistrée",
     "modelProviders": "Fournisseurs de modèles",

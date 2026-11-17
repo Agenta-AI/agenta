@@ -34,5 +34,10 @@
     "unsupportedPdf": "Unsupported format. Please upload a PDF file.",
     "uploadImage": "Upload image",
     "moreMessages_one": "+{{count}} more message",
-    "moreMessages_other": "+{{count}} more messages"
+    "moreMessages_other": "+{{count}} more messages",
+    "roleUser": "user",
+    "roleAssistant": "assistant",
+    "roleSystem": "system",
+    "roleTool": "tool",
+    "roleDeveloper": "developer"
 }

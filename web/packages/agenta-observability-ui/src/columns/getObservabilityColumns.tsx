@@ -245,12 +245,13 @@ export const getObservabilityColumns = ({evaluatorSlugs, t}: ObservabilityColumn
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
-            render: (_, record) =>
-                StatusRenderer({
-                    status: record.status_code,
-                    message: record.status_message,
-                    showMore: true,
-                }),
+            render: (_, record) => (
+                <StatusRenderer
+                    status={record.status_code}
+                    message={record.status_message}
+                    showMore
+                />
+            ),
         },
         {
             title: <ColumnVisibilityMenuTrigger variant="icon" label={label("editColumns")} />,

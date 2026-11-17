@@ -16,6 +16,13 @@
     "projectActions": "项目操作",
     "projectName": "项目名称",
     "renameFailed": "无法重命名项目",
+    "roleAdmin": "管理员",
+    "roleAnnotator": "标注员",
+    "roleDeveloper": "开发者",
+    "roleEditor": "编辑者",
+    "roleMember": "成员",
+    "roleOwner": "所有者",
+    "roleViewer": "查看者",
     "setAsDefault": "设为默认",
     "setDefaultFailed": "无法设为默认",
     "switchTo": "切换到此项目"

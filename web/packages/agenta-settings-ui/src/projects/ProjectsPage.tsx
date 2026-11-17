@@ -52,6 +52,20 @@ const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
 ]
 const PHONE_KEYS = ["project_name", "status", "actions"]
 
+/** Display names of the stored roles. English shows the stored value, as before. */
+const ROLE_KEYS = {
+    owner: "settings.projects.roleOwner",
+    admin: "settings.projects.roleAdmin",
+    editor: "settings.projects.roleEditor",
+    viewer: "settings.projects.roleViewer",
+    developer: "settings.projects.roleDeveloper",
+    annotator: "settings.projects.roleAnnotator",
+    member: "settings.projects.roleMember",
+} as const
+
+const roleLabel = (role: string, t: (key: (typeof ROLE_KEYS)[keyof typeof ROLE_KEYS]) => string) =>
+    role in ROLE_KEYS ? t(ROLE_KEYS[role as keyof typeof ROLE_KEYS]) : role
+
 export interface ProjectDialogState<T> {
     open: boolean
     onClose: () => void
@@ -285,7 +299,7 @@ export const ProjectsPage = ({
                         {shows("user_role") ? (
                             <span className="flex min-w-0">
                                 {record.user_role ? (
-                                    <Tag className="m-0" label={record.user_role} />
+                                    <Tag className="m-0" label={roleLabel(record.user_role, t)} />
                                 ) : (
                                     <span className="text-muted-foreground">—</span>
                                 )}

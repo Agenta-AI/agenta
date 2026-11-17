@@ -16,6 +16,13 @@
     "projectActions": "Project actions",
     "projectName": "Project name",
     "renameFailed": "Unable to rename project",
+    "roleAdmin": "admin",
+    "roleAnnotator": "annotator",
+    "roleDeveloper": "developer",
+    "roleEditor": "editor",
+    "roleMember": "member",
+    "roleOwner": "owner",
+    "roleViewer": "viewer",
     "setAsDefault": "Set as default",
     "setDefaultFailed": "Unable to set default",
     "switchTo": "Switch to this project"

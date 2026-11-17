@@ -6,6 +6,7 @@ import {Switch} from "@agenta/ui/ui"
 
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationInstructionField} from "./AutomationInstructionField"
+import {generatedAutomationLabel} from "./automationModel"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationTitle} from "./AutomationTitle"
 import {type AutomationCreateState} from "./useAutomationCreate"
@@ -32,7 +33,7 @@ export const AutomationCreateBody = ({
     footer?: ReactNode
 }) => {
     const t = useT(automationsEditorCatalog)
-    const {draft, preview, agentName, generatedName, errors} = state
+    const {draft, preview, agentName, errors} = state
 
     return (
         <>
@@ -46,7 +47,11 @@ export const AutomationCreateBody = ({
                         onRename={state.setName}
                         autoEdit={autoEditName}
                         placeholder={t("automations.editor.namePlaceholder")}
-                        fallback={generatedName}
+                        fallback={generatedAutomationLabel(
+                            preview,
+                            agentName,
+                            t("automations.editor.untitledAutomation"),
+                        )}
                     />
                 </div>
                 <span className="hidden shrink-0 items-center gap-[9px] lg:flex">

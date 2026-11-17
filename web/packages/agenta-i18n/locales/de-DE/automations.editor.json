@@ -106,5 +106,6 @@
     "optionalFilters": "Optionale Filter hinzufügen ({{count}})",
     "noFilters": "Dieses Ereignis braucht keine Filter – es läuft bei jedem Eintreffen.",
     "allApps": "Alle Apps",
-    "done": "Fertig"
+    "done": "Fertig",
+    "untitledAutomation": "Unbenannte Automatisierung"
 }

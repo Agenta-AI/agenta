@@ -70,6 +70,15 @@ export const createT =
     (key, values) =>
         translate(getActiveLanguage(), key, values, catalogs)
 
+/**
+ * A `t` that always answers in English, for text that is saved to the API or sent to a third
+ * party (a generated name, a default label). Never use it for text that is only displayed.
+ */
+export const createEnglishT =
+    <C extends CatalogEntry[]>(...catalogs: C): Translator<C> =>
+    (key, values) =>
+        translate(DEFAULT_LANGUAGE, key, values, catalogs)
+
 /** A `t` for components; it changes, and the component re-renders, when the language does. */
 export const useT = <C extends CatalogEntry[]>(...catalogs: C): Translator<C> => {
     const [entries] = useState(catalogs)

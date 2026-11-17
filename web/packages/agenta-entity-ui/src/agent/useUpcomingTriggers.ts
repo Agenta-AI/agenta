@@ -13,6 +13,8 @@ import {nowTickAtom} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 
+import {scheduleTextNow} from "../gatewayTrigger/scheduleText"
+
 const LIST_SIZE = 5
 
 // Rows are derived in a memo, which re-runs every minute on the shared clock.
@@ -109,7 +111,7 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
             .map((schedule, index): UpcomingTrigger => {
                 const expression = schedule.data?.schedule ?? ""
                 const [next] = nextCronRuns(expression, 1)
-                const cadence = describeCron(expression)
+                const cadence = describeCron(expression, scheduleTextNow())
                 const agent = describeAgent(schedule.data?.references)
                 return {
                     id: schedule.id ?? `schedule-${index}`,

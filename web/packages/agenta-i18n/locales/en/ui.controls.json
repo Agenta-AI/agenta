@@ -33,5 +33,11 @@
     "breadcrumb": "breadcrumb",
     "autoSelected": "(auto)",
     "datePart": "date",
-    "timePart": "time"
+    "timePart": "time",
+    "filter": "Filter",
+    "group": "Group",
+    "showValue": "show",
+    "hideValue": "hide",
+    "searchEllipsis": "Search…",
+    "searchLabel": "Search {{label}}"
 }

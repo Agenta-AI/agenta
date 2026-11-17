@@ -33,5 +33,11 @@
     "breadcrumb": "面包屑导航",
     "autoSelected": "（自动）",
     "datePart": "日期",
-    "timePart": "时间"
+    "timePart": "时间",
+    "filter": "筛选",
+    "group": "分组",
+    "showValue": "显示",
+    "hideValue": "隐藏",
+    "searchEllipsis": "搜索…",
+    "searchLabel": "搜索{{label}}"
 }

@@ -33,5 +33,11 @@
     "breadcrumb": "fil d’Ariane",
     "autoSelected": "(automatique)",
     "datePart": "date",
-    "timePart": "heure"
+    "timePart": "heure",
+    "filter": "Filtre",
+    "group": "Regrouper",
+    "showValue": "afficher",
+    "hideValue": "masquer",
+    "searchEllipsis": "Rechercher…",
+    "searchLabel": "Rechercher {{label}}"
 }

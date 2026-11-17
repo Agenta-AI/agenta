@@ -105,5 +105,6 @@
     "optionalFilters": "任意のフィルターを追加 ({{count}})",
     "noFilters": "このイベントにフィルターは不要です。届くたびに実行されます。",
     "allApps": "すべてのアプリ",
-    "done": "完了"
+    "done": "完了",
+    "untitledAutomation": "無題の自動化"
 }

@@ -9,11 +9,8 @@ import {
     STARTER_CREDIT_CODES,
     SUBSCRIPTION_LOGIN_CODES,
 } from "@agenta/chat/components"
-import {
-    AGENT_NEEDS_SETUP_CODE,
-    AGENT_NEEDS_SETUP_TITLE,
-    MODEL_NEEDS_SETUP_MESSAGE,
-} from "@agenta/entities/workflow"
+import {AGENT_NEEDS_SETUP_CODE} from "@agenta/entities/workflow"
+import {agentNeedsSetupTitle, modelNeedsSetupMessage} from "@agenta/entity-ui/needs-setup"
 import {createT} from "@agenta/i18n"
 import chatMobileRunErrorCatalog from "@agenta/i18n/catalogs/chat.mobileRunError"
 import {Coins, CreditCard, Key, SignIn} from "@phosphor-icons/react"
@@ -65,9 +62,9 @@ export const describeRunFailure = ({
     // The model needs setup: the banner's words; the banner above the composer is the way out.
     if (code === AGENT_NEEDS_SETUP_CODE) {
         return {
-            paragraphs: [MODEL_NEEDS_SETUP_MESSAGE],
+            paragraphs: [modelNeedsSetupMessage()],
             quote: null,
-            failure: {label: AGENT_NEEDS_SETUP_TITLE, detail: text},
+            failure: {label: agentNeedsSetupTitle(), detail: text},
             recoveries: [],
         }
     }

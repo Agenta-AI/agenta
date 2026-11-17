@@ -117,6 +117,8 @@ export const CredentialBindingFields = ({
                 >
                     <Input
                         className="font-mono text-[13px]"
+                        // Sample header and parameter names, not words to translate.
+                        // eslint-disable-next-line agenta-i18n/no-hardcoded-text
                         placeholder={value.kind === "header" ? "Authorization" : "api_key"}
                         value={value.name ?? ""}
                         disabled={disabled}

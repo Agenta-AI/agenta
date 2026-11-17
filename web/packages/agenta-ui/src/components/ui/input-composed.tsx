@@ -142,6 +142,7 @@ export function SearchInput({prefix, ...props}: InputAffixProps) {
 
 /** PasswordInput — input with a show/hide toggle (replaces antd Input.Password). */
 export function PasswordInput(props: InputAffixProps) {
+    const t = useT(uiControlsCatalog)
     const [show, setShow] = React.useState(false)
     return (
         <InputAffix
@@ -152,7 +153,7 @@ export function PasswordInput(props: InputAffixProps) {
                     type="button"
                     tabIndex={-1}
                     onClick={() => setShow((s) => !s)}
-                    aria-label={show ? "hide" : "show"}
+                    aria-label={show ? t("ui.controls.hideValue") : t("ui.controls.showValue")}
                     className="flex items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
                 >
                     {show ? <EyeSlash size={14} /> : <Eye size={14} />}

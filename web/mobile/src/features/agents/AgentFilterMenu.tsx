@@ -14,8 +14,6 @@ import {
     Waveform,
 } from "@phosphor-icons/react"
 
-import {sharingCopy} from "@/lib/sharingCopy"
-
 import {
     ALL_OWNERS,
     DEFAULT_AGENT_LIST_VIEW,
@@ -66,7 +64,7 @@ export const AgentFilterMenu = ({
         () => [
             {
                 key: "owner",
-                label: sharingCopy.ownerColumn,
+                label: t("agents.list.columnOwner"),
                 icon: <User size={ICON} />,
                 value: view.owner,
                 options: [
@@ -129,7 +127,11 @@ export const AgentFilterMenu = ({
                         label: t("agents.list.filterNone"),
                         icon: <Minus size={ICON} />,
                     },
-                    {value: "owner", label: sharingCopy.ownerColumn, icon: <User size={ICON} />},
+                    {
+                        value: "owner",
+                        label: t("agents.list.columnOwner"),
+                        icon: <User size={ICON} />,
+                    },
                     {
                         value: "status",
                         label: t("agents.list.filterStatus"),

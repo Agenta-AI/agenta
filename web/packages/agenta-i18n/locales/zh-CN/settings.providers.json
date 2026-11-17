@@ -10,6 +10,8 @@
     "claudeHint": "粘贴来自 Claude Code 的令牌",
     "cloudPlatforms": "云平台",
     "connectName": "连接 {{name}}",
+    "customEndpoint": "OpenAI 兼容端点",
+    "customEndpointHint": "自托管或经代理、支持 OpenAI API 的模型",
     "deleted": "{{name}} 已删除。",
     "keySaved": "密钥已保存",
     "modelProviders": "模型供应商",

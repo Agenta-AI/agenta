@@ -11,6 +11,8 @@ import {createT, useT} from "@agenta/i18n"
 import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {Clock} from "@phosphor-icons/react"
 
+import {scheduleTextNow} from "../../../gatewayTrigger/scheduleText"
+
 import {TriggerRow} from "./TriggerRow"
 
 const tNow = createT(triggersCatalog)
@@ -46,8 +48,10 @@ export function ScheduleTriggerRow({
     // Subtitle answers "when does this run?" — the cadence plus the next fire. Both parse the
     // cron, so memoize on it; the countdown bucket needn't track unrelated re-renders.
     const cadence = useMemo(
-        () => (cron ? describeCron(cron) : tNow("entityUi.triggers.noScheduleSet")),
-        [cron],
+        () =>
+            cron ? describeCron(cron, scheduleTextNow()) : tNow("entityUi.triggers.noScheduleSet"),
+        // `t` re-words the cadence when the language changes.
+        [cron, t],
     )
     // The section stays mounted for long sessions, so a mount-time countdown goes stale and can
     // claim a run is upcoming after it already fired. One coarse tick per minute keeps it honest.

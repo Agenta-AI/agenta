@@ -7,8 +7,11 @@ import {
     type TriggerDelivery,
     type TriggerSchedule,
     type TriggerSubscription,
+    ENGLISH_SCHEDULE_TEXT,
+    type ScheduleText,
 } from "@agenta/entities/gatewayTrigger"
-import {createT, useT} from "@agenta/i18n"
+import {scheduleTextNow} from "@agenta/entity-ui/gatewayTrigger"
+import {createEnglishT, createT, useT} from "@agenta/i18n"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 /**
@@ -24,6 +27,9 @@ import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
  */
 
 const tNow = createT(automationsModelCatalog)
+/** For the generated name, which is saved to the API and so stays English. */
+const tEnglish = createEnglishT(automationsModelCatalog)
+type AutomationsModelT = typeof tNow
 
 /**
  * Subscribes a component to the language, so the label functions below re-render with it. They
@@ -78,7 +84,7 @@ export function toAutomation(
         kind,
         // An unnamed trigger reads as its slug before it reads as nothing; neither ever falls
         // through to the raw id.
-        name: entity.name || entity.slug || "Untitled automation",
+        name: entity.name || entity.slug || UNTITLED_AUTOMATION,
         description: entity.description ?? "",
         agentId: triggerBoundAgentId(entity.data?.references),
         isActive: isEntityActive(entity),
@@ -143,12 +149,16 @@ export function automationStatus(a: Automation, hasRecentFailure: boolean): Auto
  * describe the same cron two different ways. An expression the builder can't represent keeps
  * `describeCron`'s longhand.
  */
-export function runsWhenLabel(a: Automation): string {
-    if (a.kind !== "schedule") return eventPhrase(a.eventKey ?? "")
+export function runsWhenLabel(
+    a: Automation,
+    text: ScheduleText = scheduleTextNow(),
+    tr: AutomationsModelT = tNow,
+): string {
+    if (a.kind !== "schedule") return eventPhrase(a.eventKey ?? "", tr)
 
     const cron = a.cron ?? ""
     const {state, representable} = cronToBuilder(cron)
-    return representable ? summarizeSchedule(state) : describeCron(cron)
+    return representable ? summarizeSchedule(state, text) : describeCron(cron, text)
 }
 
 /**
@@ -159,9 +169,25 @@ export function runsWhenLabel(a: Automation): string {
  * than demanded. Without an agent there is nothing to build from and the generic name stands.
  */
 export function generatedAutomationName(a: Automation, agentName: string | null): string {
+    // Saved to the API, so the schedule words stay English (see RULES: never translate saved text).
+    const runsWhen = runsWhenLabel(a, ENGLISH_SCHEDULE_TEXT, tEnglish).trim()
+    const agent = (agentName ?? "").trim()
+    if (!agent || !runsWhen) return UNTITLED_AUTOMATION
+    return `${runsWhen} — ${agent}`
+}
+
+/** The English name an unnamed automation falls back to; the screen shows its own translation. */
+export const UNTITLED_AUTOMATION = "Untitled automation"
+
+/** {@link generatedAutomationName} as the screen shows it: in the active language. */
+export function generatedAutomationLabel(
+    a: Automation,
+    agentName: string | null,
+    untitled: string,
+): string {
     const runsWhen = runsWhenLabel(a).trim()
     const agent = (agentName ?? "").trim()
-    if (!agent || !runsWhen) return "Untitled automation"
+    if (!agent || !runsWhen) return untitled
     return `${runsWhen} — ${agent}`
 }
 
@@ -206,20 +232,20 @@ export function agentLabel(
 }
 
 /** "GITHUB_STAR_ADDED_EVENT" → "When star added in Github". The first segment is the app. */
-function eventPhrase(eventKey: string): string {
+function eventPhrase(eventKey: string, tr: AutomationsModelT): string {
     const parts = eventKey
         .trim()
         .split(/[_\s./-]+/)
         .filter(Boolean)
-    if (!parts.length) return tNow("automations.model.eventWhenNone")
+    if (!parts.length) return tr("automations.model.eventWhenNone")
 
     // Composio keys carry a trailing "EVENT" that adds nothing to the sentence.
     const words = parts.map((part) => part.toLowerCase())
     if (words.length > 1 && words[words.length - 1] === "event") words.pop()
 
     const [app, ...rest] = words
-    if (!rest.length) return tNow("automations.model.eventWhenApp", {app: capitalize(app)})
-    return tNow("automations.model.eventWhenIn", {event: rest.join(" "), app: capitalize(app)})
+    if (!rest.length) return tr("automations.model.eventWhenApp", {app: capitalize(app)})
+    return tr("automations.model.eventWhenIn", {event: rest.join(" "), app: capitalize(app)})
 }
 
 function capitalize(word: string): string {

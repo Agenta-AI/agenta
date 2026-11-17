@@ -6,8 +6,6 @@ import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
 
-import {sharingCopy} from "@/lib/sharingCopy"
-
 import {AgentCardBody} from "./AgentCardBody"
 import type {AgentListGroup, AgentListRow} from "./agentListView"
 import {AgentRowCells} from "./AgentRowCells"
@@ -36,7 +34,7 @@ const columnsFor = (narrow: boolean, t: Translate): ListTableColumn[] => {
     }
     const owner: ListTableColumn = {
         key: "owner",
-        label: sharingCopy.ownerColumn,
+        label: t("agents.list.columnOwner"),
         width: "minmax(96px,1fr)",
     }
     const lastActive: ListTableColumn = {

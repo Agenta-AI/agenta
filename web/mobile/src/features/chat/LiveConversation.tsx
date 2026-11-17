@@ -42,11 +42,11 @@ import {
 } from "@agenta/entities/session"
 import {
     invalidateAgentCommittedRevisionCache,
-    MODEL_SETUP_PLACEHOLDER,
     workflowBuildKitOverlayReadyAtomFamily,
 } from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
+import {modelSetupPlaceholder} from "@agenta/entity-ui/needs-setup"
 import {PersonalAccountsCard} from "@agenta/entity-ui/onboarding"
 import {createT, useT} from "@agenta/i18n"
 import chatMobileComposerCatalog from "@agenta/i18n/catalogs/chat.mobileComposer"
@@ -1149,7 +1149,7 @@ export const LiveConversation = ({
                                     modelBlocked
                                         ? t("chat.mobileComposer.connectModelPlaceholder")
                                         : setupBlocked
-                                          ? MODEL_SETUP_PLACEHOLDER
+                                          ? modelSetupPlaceholder()
                                           : undefined
                                 }
                                 hasTurns={!conversation.isEmpty}

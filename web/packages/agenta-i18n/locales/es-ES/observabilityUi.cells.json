@@ -4,5 +4,7 @@
     "metrics_one": "{{count}} métrica",
     "metrics_many": "{{count}} métricas",
     "metrics_other": "{{count}} métricas",
-    "copySessionId": "Copiar ID de sesión"
+    "copySessionId": "Copiar ID de sesión",
+    "statusFailure": "error",
+    "statusSuccess": "correcto"
 }

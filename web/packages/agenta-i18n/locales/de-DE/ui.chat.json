@@ -34,5 +34,10 @@
     "unsupportedPdf": "Nicht unterstütztes Format. Bitte laden Sie eine PDF-Datei hoch.",
     "uploadImage": "Bild hochladen",
     "moreMessages_one": "+{{count}} weitere Nachricht",
-    "moreMessages_other": "+{{count}} weitere Nachrichten"
+    "moreMessages_other": "+{{count}} weitere Nachrichten",
+    "roleUser": "Benutzer",
+    "roleAssistant": "Assistent",
+    "roleSystem": "System",
+    "roleTool": "Werkzeug",
+    "roleDeveloper": "Entwickler"
 }

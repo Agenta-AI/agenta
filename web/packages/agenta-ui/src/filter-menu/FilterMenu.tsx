@@ -84,7 +84,7 @@ export const FilterMenu = ({
                 triggerClassName={triggerClassName}
                 triggerAriaLabel={triggerAriaLabel}
                 active={active}
-                defaultLabel="Filter"
+                defaultLabel={t("ui.controls.filter")}
             />
             <PopoverContent
                 side={side}

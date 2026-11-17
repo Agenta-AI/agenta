@@ -25,6 +25,7 @@ import {
     type ProviderRemovalState,
     type ProvidersGroup,
     type ProvidersSource,
+    providerTitle,
 } from "./ProvidersPanel"
 import {useOrganizationProvidersGroup} from "./useOrganizationProvidersGroup"
 
@@ -83,7 +84,9 @@ const useProjectProvidersSource = (): ProvidersSource => {
             loading: loading && rows.length === 0,
             describe: (connection: ProviderConnection) =>
                 [
-                    connection.title !== connection.name ? connection.title : null,
+                    connection.title !== connection.name
+                        ? providerTitle(connection.kind, connection.title, t)
+                        : null,
                     credentialSummary(connection),
                     activeModelsSummary(connection, capabilities),
                 ]

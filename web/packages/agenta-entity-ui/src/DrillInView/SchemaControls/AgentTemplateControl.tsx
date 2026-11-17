@@ -30,10 +30,7 @@ import {
     agentRequirementsAtomFamily,
     invalidateAgentRequirements,
     isPersonalRequirement,
-    MODEL_NEEDS_SETUP_MESSAGE,
     modelRequirement,
-    NEEDS_SETUP_LABEL,
-    needsSetupReasonLabel,
     requirementAtPath,
     requirementForItem,
     workflowBuildKitUiStateAtomFamily,
@@ -41,7 +38,7 @@ import {
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
-import {createT, useT, type CatalogKey} from "@agenta/i18n"
+import {createT, getActiveLanguage, useT, type CatalogKey} from "@agenta/i18n"
 import agentTemplateCatalog from "@agenta/i18n/catalogs/entityUi.agentTemplate"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
@@ -97,6 +94,11 @@ import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {McpServersSectionBody} from "./agentTemplate/McpServersSectionBody"
 import {isNeedsSetupStatus, needsSetupStatus} from "./agentTemplate/needsSetup"
 import {NeedsSetupTag} from "./agentTemplate/NeedsSetupTag"
+import {
+    modelNeedsSetupMessage,
+    needsSetupLabel,
+    needsSetupReasonText,
+} from "./agentTemplate/needsSetupText"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -721,6 +723,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // back to the literal. List fields (tools/mcps/skills) carry real titles and pass through.
     const fieldTitle = useCallback(
         (field: string, fallback: string): string => {
+            // The schema's titles are English; in another language the translated label wins.
+            if (getActiveLanguage() !== "en") return fallback
             const title = (props[field] as {title?: unknown} | undefined)?.title
             return typeof title === "string" && title.trim() && !title.startsWith("_")
                 ? title
@@ -1045,10 +1049,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     }
     // Structurally valid but missing setup the section needs to run (amber, ranks below invalid).
     const sectionIncompleteTip = (key: string): string | null => {
-        if (key === "model-harness" && modelReq) return MODEL_NEEDS_SETUP_MESSAGE
-        if (key === "tools" && toolResolutionSummary.needsSetup > 0) return NEEDS_SETUP_LABEL
-        if (key === "mcp" && mcpNeedsSetup) return NEEDS_SETUP_LABEL
-        if (key === "advanced" && secretReq) return NEEDS_SETUP_LABEL
+        if (key === "model-harness" && modelReq) return modelNeedsSetupMessage()
+        if (key === "tools" && toolResolutionSummary.needsSetup > 0) return needsSetupLabel()
+        if (key === "mcp" && mcpNeedsSetup) return needsSetupLabel()
+        if (key === "advanced" && secretReq) return needsSetupLabel()
         return null
     }
     const headerIndicator = (
@@ -1077,10 +1081,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         mh.hasModelOrHarness && !modelIdFromConfig(config.llm) ? (
             <SectionTitleBadge label={t("entityUi.agentTemplate.noModel")} tone="error" />
         ) : modelReq ? (
-            <SectionTitleBadge label={NEEDS_SETUP_LABEL} tone="warning" />
+            <SectionTitleBadge label={needsSetupLabel()} tone="warning" />
         ) : null
     const advancedBadge: React.ReactNode = secretReq ? (
-        <SectionTitleBadge label={NEEDS_SETUP_LABEL} tone="warning" />
+        <SectionTitleBadge label={needsSetupLabel()} tone="warning" />
     ) : null
     // A tagged integration opens the drawer that picks or connects its account.
     const openIntegrationRow = useCallback(
@@ -1162,7 +1166,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     {modelReq ? (
                         <NeedsSetupTag
                             tag={false}
-                            reason={needsSetupReasonLabel(modelReq.reason)}
+                            reason={needsSetupReasonText(modelReq.reason)}
                             className="mt-1"
                         />
                     ) : null}

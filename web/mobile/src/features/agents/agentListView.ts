@@ -4,8 +4,6 @@ import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {timeAgo} from "@agenta/shared/utils"
 import type {ListTableView} from "@agenta/ui/list-table"
 
-import {sharingCopy} from "@/lib/sharingCopy"
-
 /**
  * How the agents roster is CUT and NARROWED — the half of the view the filter menu owns, kept
  * out of the screen so the screen renders what these return rather than deriving it mid-render.
@@ -139,9 +137,9 @@ export const agentOwnerLabel = (
     currentUserId: string | null | undefined,
     names: ReadonlyMap<string, string>,
 ): string => {
-    if (!ownerId) return sharingCopy.ownerNone
-    if (currentUserId && ownerId === currentUserId) return sharingCopy.ownerYou
-    return names.get(ownerId)?.trim() || sharingCopy.ownerFormer
+    if (!ownerId) return tNow("agents.list.ownerNone")
+    if (currentUserId && ownerId === currentUserId) return tNow("agents.list.ownerYou")
+    return names.get(ownerId)?.trim() || tNow("agents.list.ownerFormer")
 }
 
 /** The one place a workflow becomes a row: both views read what this resolves, never the raw

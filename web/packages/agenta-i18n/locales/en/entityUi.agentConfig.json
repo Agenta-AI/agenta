@@ -29,5 +29,9 @@
     "chooseAModel": "Choose a model",
     "configuration": "Configuration",
     "edit": "Edit",
-    "couldNotLoadConfiguration": "Couldn't load this agent's configuration."
+    "couldNotLoadConfiguration": "Couldn't load this agent's configuration.",
+    "permissionAllow": "Allow",
+    "permissionAllowReads": "Allow reads",
+    "permissionAsk": "Ask",
+    "permissionDeny": "Deny"
 }

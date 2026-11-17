@@ -9,7 +9,6 @@ import {
 import {
     agentRequirementsAtomFamily,
     commitAgentCredentialsAtom,
-    needsSetupReasonLabel,
     requirementForItem,
     workflowMolecule,
 } from "@agenta/entities/workflow"
@@ -36,6 +35,7 @@ import {AgentSecretAttachmentModal} from "../../../secret"
 import {useSectionDrawerPanel} from "../sectionDrawerPanel"
 
 import {NeedsSetupTag} from "./NeedsSetupTag"
+import {needsSetupReasonText} from "./needsSetupText"
 
 export interface AgentSecretsSectionProps {
     revisionId?: string | null
@@ -195,7 +195,7 @@ export function AgentSecretsSection({
                                     {requirement ? (
                                         <NeedsSetupTag
                                             tag={false}
-                                            reason={needsSetupReasonLabel(requirement.reason)}
+                                            reason={needsSetupReasonText(requirement.reason)}
                                         />
                                     ) : (
                                         <span className="truncate text-xs leading-4 text-muted-foreground">

@@ -25,5 +25,9 @@
     "chooseAModel": "选择模型",
     "configuration": "配置",
     "edit": "编辑",
-    "couldNotLoadConfiguration": "无法加载此 Agent 的配置。"
+    "couldNotLoadConfiguration": "无法加载此 Agent 的配置。",
+    "permissionAllow": "允许",
+    "permissionAllowReads": "允许读取",
+    "permissionAsk": "询问",
+    "permissionDeny": "拒绝"
 }

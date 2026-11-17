@@ -163,5 +163,19 @@
     "noneRunFailed": "无。运行本身失败了。",
     "subscriptionNote": "≈ 该运行使用了订阅；费用按 API 价格估算。",
     "openTrace": "打开追踪",
-    "unknownAgent": "未知 Agent"
+    "unknownAgent": "未知 Agent",
+    "failureUnreachable": "无法连接到模型",
+    "failureUnreachableFix": "供应商没有响应。这通常是暂时的，重试运行一般就能解决。",
+    "failureNoCredits": "额度已用完",
+    "failureNoCreditsFix": "你的供应商账户额度已用完。请在供应商处充值后重试。",
+    "failureSandbox": "沙箱未能启动",
+    "failureSandboxFix": "运行环境无法启动。请重试运行；如果问题持续，请联系支持团队。",
+    "failureEmptyPrompt": "提示词为空",
+    "failureEmptyPromptFix": "运行开始时没有消息。请检查是什么触发了此 Agent，以及它发送了什么。",
+    "failureTimeout": "超时",
+    "failureTimeoutFix": "模型响应时间过长。请重试，或切换到更快的模型。",
+    "failureMissingKey": "缺少 API 密钥或连接",
+    "failureMissingKeyFix": "供应商连接缺失或没有密钥。请在 设置 → AI 供应商 中添加。",
+    "failureOther": "其他错误",
+    "failureOtherFix": "打开此次运行的追踪以查看完整错误。"
 }

@@ -163,5 +163,19 @@
     "noneRunFailed": "なし。実行自体が失敗しました。",
     "subscriptionNote": "≈ この実行はサブスクリプションを使用しました。コストは API の料金で推定しています。",
     "openTrace": "トレースを開く",
-    "unknownAgent": "不明なエージェント"
+    "unknownAgent": "不明なエージェント",
+    "failureUnreachable": "モデルに接続できませんでした",
+    "failureUnreachableFix": "プロバイダーが応答しませんでした。多くは一時的なものなので、再実行すると解決することがよくあります。",
+    "failureNoCredits": "クレジット不足",
+    "failureNoCreditsFix": "プロバイダーのアカウントのクレジットがなくなりました。プロバイダーでクレジットを追加してから再試行してください。",
+    "failureSandbox": "サンドボックスが起動しませんでした",
+    "failureSandboxFix": "実行環境を起動できませんでした。再実行してください。繰り返し発生する場合はサポートにお問い合わせください。",
+    "failureEmptyPrompt": "空のプロンプト",
+    "failureEmptyPromptFix": "メッセージなしで実行が開始されました。この Agent を起動するものと、その送信内容を確認してください。",
+    "failureTimeout": "タイムアウト",
+    "failureTimeoutFix": "モデルの応答に時間がかかりすぎました。再試行するか、より高速なモデルに切り替えてください。",
+    "failureMissingKey": "API キーまたは接続がありません",
+    "failureMissingKeyFix": "プロバイダーの接続がないか、キーがありません。設定 → AI プロバイダー で追加してください。",
+    "failureOther": "その他のエラー",
+    "failureOtherFix": "実行のトレースを開いて、エラーの全文を確認してください。"
 }

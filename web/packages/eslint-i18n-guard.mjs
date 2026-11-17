@@ -18,7 +18,8 @@ const WEB_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
  * relative to `web/`. Add your folder here when its strings are all in catalogs.
  *
  * A few files in translated folders still hold a hardcoded string and are left out of the
- * globs: audit/AuditEventDrawer.tsx, the auth AgentaBrand.tsx, and in navigation-ui
+ * globs: the release notes WhatsNewDialog.tsx and ReleaseFeatureVideo.tsx in education,
+ * audit/AuditEventDrawer.tsx, the auth AgentaBrand.tsx, and in navigation-ui
  * SessionSearchPalette.tsx, SidebarLogo.tsx and releaseItems.tsx.
  */
 export const ERROR_FOLDERS = [
@@ -29,7 +30,9 @@ export const ERROR_FOLDERS = [
     "mobile/src/features/automations",
     "mobile/src/features/chat",
     "mobile/src/features/context",
+    "mobile/src/features/education/!(WhatsNewDialog|ReleaseFeatureVideo).tsx",
     "mobile/src/features/home",
+    "mobile/src/features/marketplace",
     "mobile/src/features/nav",
     "mobile/src/features/onboarding",
     "mobile/src/features/sessions",
@@ -82,7 +85,15 @@ export const ERROR_FOLDERS = [
     "packages/agenta-ui/src",
 ]
 
-const TEXT_PROPS = new Set(["title", "placeholder", "label", "aria-label", "description", "alt"])
+const TEXT_PROPS = new Set([
+    "title",
+    "placeholder",
+    "label",
+    "aria-label",
+    "description",
+    "alt",
+    "defaultLabel",
+])
 
 const LETTER = /\p{L}/u
 
@@ -98,13 +109,25 @@ function isUserText(value) {
     return !value.trim().split(/\s+/).every(isTechnicalToken)
 }
 
-function stringOf(node) {
-    if (!node) return null
-    if (node.type === "Literal") return typeof node.value === "string" ? node.value : null
+/**
+ * The literal strings an expression can produce: a string, a template with no expressions, and
+ * both branches of `a ? "x" : "y"` or the fallback of `a ?? "x"` / `a || "x"`, at any depth.
+ */
+function stringsOf(node) {
+    if (!node) return []
+    if (node.type === "Literal") return typeof node.value === "string" ? [node.value] : []
     if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
-        return node.quasis.map((quasi) => quasi.value.cooked ?? "").join("")
+        return [node.quasis.map((quasi) => quasi.value.cooked ?? "").join("")]
     }
-    return null
+    if (node.type === "ConditionalExpression") {
+        return [...stringsOf(node.consequent), ...stringsOf(node.alternate)]
+    }
+    if (node.type === "LogicalExpression") {
+        return node.operator === "&&"
+            ? stringsOf(node.right)
+            : [...stringsOf(node.left), ...stringsOf(node.right)]
+    }
+    return []
 }
 
 const noHardcodedText = {
@@ -127,7 +150,7 @@ const noHardcodedText = {
                     node.value?.type === "JSXExpressionContainer"
                         ? node.value.expression
                         : node.value
-                if (isUserText(stringOf(value))) {
+                if (stringsOf(value).some(isUserText)) {
                     context.report({node, messageId: "prop", data: {name: node.name.name}})
                 }
             },

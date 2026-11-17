@@ -29,5 +29,9 @@
     "chooseAModel": "Modell auswählen",
     "configuration": "Konfiguration",
     "edit": "Bearbeiten",
-    "couldNotLoadConfiguration": "Die Konfiguration dieses Agents konnte nicht geladen werden."
+    "couldNotLoadConfiguration": "Die Konfiguration dieses Agents konnte nicht geladen werden.",
+    "permissionAllow": "Zulassen",
+    "permissionAllowReads": "Lesen zulassen",
+    "permissionAsk": "Nachfragen",
+    "permissionDeny": "Ablehnen"
 }

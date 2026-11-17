@@ -105,5 +105,6 @@
     "optionalFilters": "添加可选筛选条件（{{count}}）",
     "noFilters": "这个事件不需要筛选条件，每次收到都会运行。",
     "allApps": "所有应用",
-    "done": "完成"
+    "done": "完成",
+    "untitledAutomation": "未命名自动化"
 }

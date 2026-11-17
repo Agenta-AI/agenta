@@ -171,5 +171,19 @@
     "noneRunFailed": "Ninguna. La propia ejecución falló.",
     "subscriptionNote": "≈ Esta ejecución usó una suscripción; el coste se estima con las tarifas de la API.",
     "openTrace": "Abrir traza",
-    "unknownAgent": "Agente desconocido"
+    "unknownAgent": "Agente desconocido",
+    "failureUnreachable": "No se pudo conectar con el modelo",
+    "failureUnreachableFix": "El proveedor no respondió. Suele ser temporal, así que reintentar la ejecución suele funcionar.",
+    "failureNoCredits": "Sin créditos",
+    "failureNoCreditsFix": "Tu cuenta del proveedor se quedó sin créditos. Añade créditos con el proveedor y vuelve a intentarlo.",
+    "failureSandbox": "El sandbox no se inició",
+    "failureSandboxFix": "El entorno de ejecución no pudo iniciarse. Reintenta la ejecución; si sigue pasando, contacta con soporte.",
+    "failureEmptyPrompt": "Prompt vacío",
+    "failureEmptyPromptFix": "La ejecución empezó sin mensaje. Revisa qué activa este agente y qué envía.",
+    "failureTimeout": "Tiempo agotado",
+    "failureTimeoutFix": "El modelo tardó demasiado en responder. Reintenta o cambia a un modelo más rápido.",
+    "failureMissingKey": "Falta la clave de API o la conexión",
+    "failureMissingKeyFix": "Falta la conexión con el proveedor o no tiene clave. Añádela en Ajustes → Proveedores de IA.",
+    "failureOther": "Otro error",
+    "failureOtherFix": "Abre la traza de la ejecución para ver el error completo."
 }

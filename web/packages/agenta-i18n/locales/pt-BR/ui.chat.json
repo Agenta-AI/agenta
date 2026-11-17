@@ -35,5 +35,10 @@
     "uploadImage": "Enviar imagem",
     "moreMessages_one": "+{{count}} mensagem",
     "moreMessages_many": "+{{count}} mensagens",
-    "moreMessages_other": "+{{count}} mensagens"
+    "moreMessages_other": "+{{count}} mensagens",
+    "roleUser": "Usuário",
+    "roleAssistant": "Assistente",
+    "roleSystem": "Sistema",
+    "roleTool": "Ferramenta",
+    "roleDeveloper": "Desenvolvedor"
 }

@@ -2,7 +2,7 @@
     "addDescription": "説明を追加",
     "agentDescription": "エージェントの説明",
     "agentName": "エージェント名",
-    "automationsEmpty": "このエージェントに紐づく自動化はまだありません。",
+    "automationsEmpty": "紐づく自動化はまだありません。",
     "automationsLoadError": "自動化を読み込めませんでした。",
     "automationsTitle": "自動化",
     "channelsLoadError": "チャネルを読み込めませんでした。",

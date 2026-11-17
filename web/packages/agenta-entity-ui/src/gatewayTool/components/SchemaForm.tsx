@@ -42,6 +42,7 @@ import type {FormInstance} from "@rc-component/form"
 
 import {HelpTip} from "../../drawers/shared/HelpTip"
 import {ScheduleBuilderField} from "../../gatewayTrigger/drawers/ScheduleBuilderField"
+import {scheduleTextNow} from "../../gatewayTrigger/scheduleText"
 
 import {FormItem} from "./FormItem"
 import {
@@ -1000,7 +1001,7 @@ export function formatReviewValue(field: FormFieldDescriptor, value: unknown): s
     if (value === undefined || value === null || value === "") return "—"
     if (field.format === "cron" && typeof value === "string") {
         try {
-            return summarizeSchedule(cronToBuilder(value).state)
+            return summarizeSchedule(cronToBuilder(value).state, scheduleTextNow())
         } catch {
             return value
         }

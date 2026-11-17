@@ -3,5 +3,7 @@
     "false": "Falsch",
     "metrics_one": "{{count}} Kennzahl",
     "metrics_other": "{{count}} Kennzahlen",
-    "copySessionId": "Sitzungs-ID kopieren"
+    "copySessionId": "Sitzungs-ID kopieren",
+    "statusFailure": "Fehler",
+    "statusSuccess": "Erfolg"
 }
