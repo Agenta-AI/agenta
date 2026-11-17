@@ -42,6 +42,7 @@ from oss.src.core.tracing.dtos import (
     Condition,
     ListOperator,
     AnalyticsQueryTimeoutError,
+    TraceType,
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
@@ -1176,6 +1177,10 @@ class TracingDAO(TracingDAOInterface):
                 .distinct(id_column)
                 .filter(SpanDBE.project_id == project_id)
                 .filter(SpanDBE.attributes["ag"][group].has_key("id"))
+                # An annotation copies `ag.session.id` from the span it annotates.
+                # Count only the traced runs as activity, so a new annotation does
+                # not move an old session into a recent window.
+                .filter(SpanDBE.trace_type.is_distinct_from(TraceType.ANNOTATION))
             )
 
             # Apply time-range filters on base query (before deduplication)
