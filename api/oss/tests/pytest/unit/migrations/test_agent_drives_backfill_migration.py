@@ -25,6 +25,9 @@ REVISION = (
     / "oss000000064_backfill_agent_drives.py"
 )
 
+# The tests share one scratch database, so they must run in one xdist worker.
+pytestmark = pytest.mark.xdist_group("agent_drives_backfill_migration")
+
 AGENT = {"is_agent": True}
 NOT_AGENT = {"is_agent": False}
 HARNESS = {"kind": "pi"}
