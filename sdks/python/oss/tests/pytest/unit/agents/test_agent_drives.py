@@ -41,6 +41,23 @@ def test_null_values_read_as_the_default():
     assert template.has_session_drive is True
 
 
+def test_a_stated_null_home_overrides_a_default_home():
+    defaults = AgentTemplate(drives=[{"slug": "notes"}], home_drive="notes")
+    agent = {"llm": {"model": "gpt-5.5"}}
+    stated = AgentTemplate.from_params(
+        {"agent": {**agent, "home_drive": None}}, defaults=defaults
+    )
+    assert stated.drives == defaults.drives
+    assert stated.home_drive is None
+    empty = AgentTemplate.from_params(
+        {"agent": {**agent, "drives": [], "home_drive": None}}, defaults=defaults
+    )
+    assert empty.drives == []
+    assert empty.home_drive is None
+    absent = AgentTemplate.from_params({"agent": agent}, defaults=defaults)
+    assert absent.home_drive == "notes"
+
+
 def test_a_bare_chat_run_gets_the_legacy_default():
     template = AgentTemplate.from_params({"prompt": {"llm_config": {"model": "x"}}})
     assert template.drives is None

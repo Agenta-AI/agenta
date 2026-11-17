@@ -25,7 +25,8 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.prefetch import request_memo_scope
 from oss.src.core.mounts.agent_drives import agent_drive_slug, fill_agent_drive_keys
 from oss.src.core.sharing.dtos import AccessPolicy, Visibility
-from oss.src.core.sharing.service import HOME_DRIVE_NOT_ALLOWED, SharingService
+from oss.src.core.sharing.service import SharingService
+from oss.src.core.sharing.types import HOME_DRIVE_NOT_ALLOWED
 from oss.src.core.sharing.types import DriveNotOwned, HomeDriveNotAllowed
 from oss.tests.pytest.utils.sharing import SharingWorld
 
@@ -267,6 +268,20 @@ def test_the_fill_lists_the_own_drive_when_the_home_rule_allows():
     assert shared["has_session_drive"] is False
 
 
+def test_the_fill_gives_a_shared_agent_no_private_own_drive():
+    alice = uuid4()
+    for agent_policy in (None, _shared(alice)):
+        filled = fill_agent_drive_keys({}, "q", _private(alice), agent_policy)
+        assert filled["drives"] == []
+        assert filled["home_drive"] is None
+
+
+def test_the_fill_reads_drives_null_as_absent():
+    filled = fill_agent_drive_keys({"drives": None}, "q", _shared(), None)
+    assert filled["drives"] == [{"slug": "q"}]
+    assert filled["home_drive"] == "q"
+
+
 def test_the_fill_gives_no_drive_when_the_home_rule_refuses():
     alice = uuid4()
     filled = fill_agent_drive_keys({}, "quote-files", _shared(), _private(alice))
@@ -336,3 +351,35 @@ async def test_making_private_keeps_a_legacy_own_home(w):
     state = await _change(w, agent, Visibility.PRIVATE, drives=[own], homes=[own])
     assert state.policy.visibility == Visibility.PRIVATE
     assert state.drives_made_shared == []
+
+
+async def test_a_row_written_during_the_change_is_read_under_the_lock(w):
+    """The release 2 migration writes the own drive's row (a copy of the shared agent)
+    between the decision and the write: the change to private decides again on that
+    row and refuses, instead of leaving a private agent with a shared own home."""
+    agent = w.agent(_shared(w.alice))
+    own = w.drive(None, agent_id=agent)
+    key = (w.project_id, own.mount_id)
+
+    def migrate():
+        w.dao.mounts[key] = w.dao.mounts[key].model_copy(
+            update={"policy": _shared(w.alice)}
+        )
+
+    w.dao.before_agent_write = migrate
+    with pytest.raises(HomeDriveNotAllowed):
+        await _change(w, agent, Visibility.PRIVATE, drives=[own], homes=[own])
+    assert w.dao.agents[(w.project_id, agent)].visibility == Visibility.PROJECT
+
+
+async def test_sharing_writes_a_row_for_another_agents_legacy_drive(w):
+    """Agent B lists the drive of the owner's other private agent A, which has no
+    visibility row yet: sharing B gives that drive a shared row, owned by the owner."""
+    a = w.agent(_private(w.alice))
+    b = w.agent(_private(w.alice))
+    legacy = w.drive(None, slug="__ag__agent__a__default", agent_id=a)
+    state = await _change(w, b, Visibility.PROJECT, drives=[legacy])
+    assert state.drives_made_shared == ["__ag__agent__a__default"]
+    assert w.dao.mounts[(w.project_id, legacy.mount_id)].policy == AccessPolicy(
+        visibility=Visibility.PROJECT, owner_user_id=w.alice
+    )

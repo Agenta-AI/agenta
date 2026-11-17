@@ -1384,7 +1384,9 @@ class SimpleApplicationsService:
                 application_revision_data = latest_application_revision.data
 
             await self.applications_service.workflows_service.reject_unusable_agent_drives(
-                project_id=project_id, data=application_revision_data
+                project_id=project_id,
+                data=application_revision_data,
+                artifact_id=application.id,
             )
 
         application_edit = ApplicationEdit(
