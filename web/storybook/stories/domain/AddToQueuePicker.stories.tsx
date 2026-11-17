@@ -8,8 +8,6 @@ import {
     type PickerQueue,
 } from "../../../mobile/src/features/annotations/AddToQueuePickerPanel"
 
-// The /m add-to-queue picker body. /m puts it in a popover on the trace drawer header and on the
-// observability toolbar, so the antd popover is not loaded there.
 const meta = {
     title: "mobile/AddToQueuePicker",
     component: AddToQueuePickerPanel,

@@ -1,6 +1,6 @@
 import {useEffect, useState, type FormEvent} from "react"
 
-import {signInDetailed, signUpDetailed} from "@agenta/auth"
+import {AUTH_FAILURE_COPY, classifyAuthFailure, signInDetailed, signUpDetailed} from "@agenta/auth"
 import {
     Input,
     InputGroup,
@@ -69,7 +69,8 @@ export const EmailPasswordForm = ({
         } else if (outcome.kind === "not-allowed") {
             setMessage({message: outcome.message, type: "error"})
         } else {
-            setMessage({message: "Something went wrong. Please try again.", type: "error"})
+            const failure = outcome.kind === "error" ? outcome.failure : "unknown"
+            setMessage({message: AUTH_FAILURE_COPY[failure], type: "error"})
         }
     }
 
@@ -114,13 +115,13 @@ export const EmailPasswordForm = ({
             } else if (outcome.kind === "field-error" || outcome.kind === "not-allowed") {
                 setMessage({message: outcome.message, type: "error"})
             } else {
-                setMessage({message: "Something went wrong. Please try again.", type: "error"})
+                setMessage({message: AUTH_FAILURE_COPY[outcome.failure], type: "error"})
             }
         } catch (error) {
             // Report through the caller's channel when there is one; otherwise the form
             // still has to say something, or the failure is invisible.
             if (onAuthError) onAuthError(error)
-            else setMessage({message: "Something went wrong. Please try again.", type: "error"})
+            else setMessage({message: AUTH_FAILURE_COPY[classifyAuthFailure(error)], type: "error"})
         } finally {
             security?.clearToken()
             setIsLoading(false)
@@ -154,7 +155,7 @@ export const EmailPasswordForm = ({
                     placeholder="Password"
                     value={password}
                     autoFocus={lockEmail}
-                    className="h-full px-3 text-sm md:text-sm"
+                    className="h-full px-3 text-base md:text-sm"
                     onChange={(event) => setPassword(event.target.value)}
                 />
                 <InputGroupAddon align="inline-end">

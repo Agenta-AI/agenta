@@ -17,7 +17,6 @@ RUN npm install -g corepack@0.31.0 && \
 
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
-COPY patches/ ./patches/
 
 # Activate the pnpm version declared in package.json's `packageManager` field.
 # Corepack natively understands the `+sha512.<hash>` integrity suffix.

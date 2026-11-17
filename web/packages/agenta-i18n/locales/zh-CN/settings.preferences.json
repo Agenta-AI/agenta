@@ -1,0 +1,17 @@
+{
+    "appearance": "外观",
+    "betaDeveloperMode": "使用新的 Beta 开发者模式",
+    "betaDeveloperModeDescription": "开发者模式保留在新应用中并显示开发者板块，而不是打开经典应用。",
+    "channelDebug": "渠道调试",
+    "channelDebugDescription": "在渠道设置中显示渠道空间、话题和原始事件。",
+    "channelProbe": "Agenta 渠道探针",
+    "channelProbeDescription": "显示临时的浏览器内渠道探针。",
+    "debugging": "调试",
+    "debuggingDescription": "用于检查运行和渠道的工具。",
+    "developerMode": "开发者模式",
+    "developerModeDescription": "在导航中显示评测、提示词管理和追踪。",
+    "featureFlags": "功能开关",
+    "language": "语言",
+    "playgroundInspector": "调试台检查器",
+    "playgroundInspectorDescription": "显示用于检查调试台会话和轮次的控件。"
+}

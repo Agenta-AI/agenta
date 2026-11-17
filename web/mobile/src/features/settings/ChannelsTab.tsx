@@ -35,6 +35,7 @@ export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 )
                 .map((agent) => ({
                     id: agent.id,
+                    // English: the panel saves this name into the Slack app it creates.
                     name: agent.name || agent.slug || "Agent",
                     description: agent.description?.trim() || null,
                 })),

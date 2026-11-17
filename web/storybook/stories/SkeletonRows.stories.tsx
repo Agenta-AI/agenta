@@ -21,7 +21,7 @@ type Story = StoryObj<typeof meta>
 
 export const ThreeRows: Story = {
     render: (args) => (
-        <div className="w-[420px]" data-vrt-subject>
+        <div className="w-[420px]">
             <SkeletonRows {...args} />
         </div>
     ),
@@ -30,7 +30,7 @@ export const ThreeRows: Story = {
 export const Still: Story = {
     args: {active: false},
     render: (args) => (
-        <div className="w-[420px]" data-vrt-subject>
+        <div className="w-[420px]">
             <SkeletonRows {...args} />
         </div>
     ),
@@ -39,7 +39,7 @@ export const Still: Story = {
 export const CustomRowHeight: Story = {
     args: {count: 5, rowClassName: "h-8"},
     render: (args) => (
-        <div className="w-[420px]" data-vrt-subject>
+        <div className="w-[420px]">
             <SkeletonRows {...args} />
         </div>
     ),

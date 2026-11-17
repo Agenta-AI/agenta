@@ -26,6 +26,8 @@ import {
     organizationRefusal,
     type OrganizationConnectionScope,
 } from "@agenta/entity-ui/secretProvider"
+import {useT} from "@agenta/i18n"
+import settingsProvidersCatalog from "@agenta/i18n/catalogs/settings.providers"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -40,11 +42,12 @@ import type {ProvidersGroup, ProvidersSource} from "./ProvidersPanel"
 const projectsSummary = (
     connection: ProviderConnection,
     names: Map<string, string>,
+    t: ReturnType<typeof useT>,
 ): string | null => {
-    if (connection.availability === "all_projects") return "All projects"
+    if (connection.availability === "all_projects") return t("settings.providers.allProjects")
     if (connection.availability !== "selected_projects") return null
     const ids = connection.selectedProjectIds ?? []
-    if (!ids.length) return "No projects"
+    if (!ids.length) return t("settings.providers.noProjects")
     const picked = ids.flatMap((id) => {
         const name = names.get(id)
         return name ? [name] : []
@@ -52,23 +55,34 @@ const projectsSummary = (
     return picked.length === ids.length ? picked.join(", ") : null
 }
 
-const rowDescription = (connection: ProviderConnection, projects: string | null): string =>
-    [connection.title, connection.hasStoredCredential ? "Key saved" : null, projects]
+const rowDescription = (
+    connection: ProviderConnection,
+    projects: string | null,
+    t: ReturnType<typeof useT>,
+): string =>
+    [
+        connection.title,
+        connection.hasStoredCredential ? t("settings.providers.keySaved") : null,
+        projects,
+    ]
         .filter(Boolean)
         .join(" · ")
 
-const EmptyNote = ({manage}: {manage: boolean}) => (
-    <div className="flex flex-col gap-0.5">
-        <span className="text-[14.5px] font-medium leading-5 text-foreground">
-            No organization connections yet
-        </span>
-        {manage ? (
-            <span className="text-[13px] leading-[18px] text-muted-foreground">
-                Connect a provider below. Then choose which projects can use it.
+const EmptyNote = ({manage}: {manage: boolean}) => {
+    const t = useT(settingsProvidersCatalog)
+    return (
+        <div className="flex flex-col gap-0.5">
+            <span className="text-[14.5px] font-medium leading-5 text-foreground">
+                {t("settings.providers.orgEmptyTitle")}
             </span>
-        ) : null}
-    </div>
-)
+            {manage ? (
+                <span className="text-[13px] leading-[18px] text-muted-foreground">
+                    {t("settings.providers.orgEmptyBody")}
+                </span>
+            ) : null}
+        </div>
+    )
+}
 
 export interface OrganizationProvidersGroup {
     /** The group, or null while there is nothing to show (a member with no connection). */
@@ -84,6 +98,7 @@ export interface OrganizationProvidersGroup {
 export const useOrganizationProvidersGroup = (
     scope: Omit<OrganizationConnectionScope, "readOnly" | "projects"> | null,
 ): OrganizationProvidersGroup => {
+    const t = useT(settingsProvidersCatalog)
     const access = useAtomValue(organizationConnectionsAccessAtom)
     const query = useAtomValue(organizationSecretsQueryAtom)
     // A member's rows come from the project's vault read, so its state is theirs to show.
@@ -134,7 +149,8 @@ export const useOrganizationProvidersGroup = (
                           .join(" · ")
                     : rowDescription(
                           connection,
-                          manage ? projectsSummary(connection, names) : null,
+                          manage ? projectsSummary(connection, names, t) : null,
+                          t,
                       ),
             // A subscription row opens its sign-in for a manager; a member has nothing to do there.
             canOpen: (connection: ProviderConnection) =>
@@ -142,15 +158,15 @@ export const useOrganizationProvidersGroup = (
             manage,
             remove: async (connection: ProviderConnection) => {
                 await deleteSecret(connection.source)
-                message.success(`${connection.name} deleted.`)
+                message.success(t("settings.providers.deleted", {name: connection.name}))
                 await refresh()
             },
             removeFailed: (failure: unknown, connection: ProviderConnection) =>
                 organizationRefusal(failure, scope.name) ??
-                `Agenta could not remove ${connection.name}. Try again.`,
+                t("settings.providers.removeFailed", {name: connection.name}),
             failure: failed ? (
                 <LoadFailed
-                    message="Couldn't load the organization connections."
+                    message={t("settings.providers.orgLoadFailed")}
                     onRetry={() =>
                         void (memberVaultFailed
                             ? vault.refetch()
@@ -182,6 +198,7 @@ export const useOrganizationProvidersGroup = (
         projectsFailed,
         projectsQuery,
         query,
+        t,
     ])
 
     return useMemo(

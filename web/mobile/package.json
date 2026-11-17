@@ -1,6 +1,6 @@
 {
     "name": "@agenta/mobile",
-    "version": "0.128.13",
+    "version": "0.128.14",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -31,6 +31,7 @@
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
         "@agenta/home-ui": "workspace:../packages/agenta-home-ui",
+        "@agenta/i18n": "workspace:../packages/agenta-i18n",
         "@agenta/navigation": "workspace:../packages/agenta-navigation",
         "@agenta/navigation-ui": "workspace:../packages/agenta-navigation-ui",
         "@agenta/observability": "workspace:../packages/agenta-observability",

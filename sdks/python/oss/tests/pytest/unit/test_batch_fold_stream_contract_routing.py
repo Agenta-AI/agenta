@@ -2,7 +2,7 @@
 CONTRACT (now HARD — specs.md "The fold") — batch = fold(stream), over the real
 `/invoke` route, against the REAL `agenta:builtin:agent:v0` handler.
 
-Pins the fold contract from docs/designs/invoke-negotiations/specs.md: the SAME
+Pins the fold contract from docs/design/invoke-negotiations/specs.md: the SAME
 request against `/invoke` (mounting the real `agent_v0`, via `make_agent_handler` +
 a fake `Backend`/`Session` pair over a multi-message turn -- assistant text, a
 tool_call/tool_result pair, then more assistant text), driven once with a stream

@@ -1,6 +1,6 @@
 import {useEffect, useState, type FormEvent} from "react"
 
-import {isValidEmailAddress} from "@agenta/auth"
+import {AUTH_FAILURE_COPY, isValidEmailAddress} from "@agenta/auth"
 import {Input, LoadingButton, cn} from "@agenta/ui/ui"
 
 import {ERROR_TEXT_CLASS, FIELD_CLASS, KEYCAP_CLASS, SURFACE_CLASS} from "./classes"
@@ -54,7 +54,7 @@ export const EmailFirstForm = ({
         } catch {
             // A rejected continuation would otherwise vanish as an unhandled rejection,
             // leaving the form looking like nothing happened.
-            setValidation("Something went wrong. Please try again.")
+            setValidation(AUTH_FAILURE_COPY.unknown)
         } finally {
             setIsLoading(false)
         }

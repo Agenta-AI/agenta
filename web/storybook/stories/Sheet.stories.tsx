@@ -10,7 +10,6 @@ import {
     SheetFooter,
 } from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Drawer as AntDrawer, Button as AntButton} from "antd"
 
 const meta = {
     title: "@agenta/ui/Primitives/Overlays/Sheet",
@@ -20,7 +19,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` Sheet (Radix-based) that replaces antd `Drawer`. It is a compound component — compose `Sheet` > `SheetContent` > `SheetHeader`/`SheetFooter`. Prop tables for each part are below.\n\nThe `left` and `right` sides float: 8px in from the viewport, rounded, with no border. The close button sits at the right of the header (`showCloseButton={false}` on `SheetHeader` hides it), and the footer is a muted band. `top` and `bottom` stay edge to edge. `responsive` is a bottom sheet below `lg` and the floating right drawer from `lg` up.\n\n**Used in:** `EnhancedDrawer`, which backs the app drawers, and directly by the /m sheets (navigation, session inspector, Publish, settings forms).",
+                    "The `@agenta/ui` Sheet (Radix-based) for side panels and bottom sheets. It is a compound component — compose `Sheet` > `SheetContent` > `SheetHeader`/`SheetFooter`. Prop tables for each part are below.\n\nThe `left` and `right` sides float: 8px in from the viewport, rounded, with no border. The close button sits at the right of the header (`showCloseButton={false}` on `SheetHeader` hides it), and the footer is a muted band. `top` and `bottom` stay edge to edge. `responsive` is a bottom sheet below `lg` and the floating right drawer from `lg` up.\n\n**Used in:** `EnhancedDrawer`, which backs the app drawers, and directly by the /m sheets (navigation, session inspector, Publish, settings forms).",
             },
         },
     },
@@ -28,15 +27,15 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-// Body copy shared by both halves.
+// Body copy shared by every story.
 const BODY =
-    "A Sheet slides in from a screen edge — antd calls it a Drawer. Use it for filters, details, and forms that don't warrant a full page."
+    "A Sheet slides in from a screen edge. Use it for filters, details, and forms that don't warrant a full page."
 
-// Forced-OPEN state rendered INLINE (portal container) so antd and agenta panels sit side by
-// side for static comparison. Both use `position: fixed`; a `transform` on the box makes it the
-// containing block for its fixed descendants (overlay + edge-pinned content), so each panel is
-// confined to its own column instead of pinning to the viewport edge.
-// antd: `open` + `getContainer`. agenta: `open` (Root) + `container` on SheetContent.
+// Forced-OPEN state rendered INLINE (portal container) so each panel stays inside the story
+// canvas. Both use `position: fixed`; a `transform` on the box makes it the containing block for
+// its fixed descendants (overlay + edge-pinned content), so each panel is confined to its own
+// box instead of pinning to the viewport edge. `open` goes on the Root and `container` on
+// SheetContent.
 function Panel({
     w = "w-[560px]",
     h = "h-[360px]",
@@ -56,55 +55,30 @@ function Panel({
 
 export const OpenState: Story = {
     render: () => (
-        <div className="flex gap-16 p-4" data-open-compare>
-            <div>
-                <div className="mb-2 text-[10px] text-colorTextSecondary">antd</div>
-                <Panel
-                    render={(c) => (
-                        <AntDrawer
-                            open
-                            placement="right"
-                            getContainer={() => c}
-                            onClose={() => {}}
-                            title="Panel title"
-                            footer={
-                                <div className="flex justify-end gap-2">
-                                    <AntButton>Cancel</AntButton>
-                                    <AntButton type="primary">OK</AntButton>
-                                </div>
-                            }
-                        >
-                            {BODY}
-                        </AntDrawer>
-                    )}
-                />
-            </div>
-            <div>
-                <div className="mb-2 text-[10px] text-colorTextSecondary">agenta</div>
-                <Panel
-                    render={(c) => (
-                        <Sheet open>
-                            <SheetContent container={c} side="right">
-                                <SheetHeader>
-                                    <SheetTitle>Panel title</SheetTitle>
-                                </SheetHeader>
-                                <div className="flex-1 overflow-auto px-6 py-6 text-field-md text-colorText">
-                                    {BODY}
-                                </div>
-                                <SheetFooter>
-                                    <ShadButton variant="outline">Cancel</ShadButton>
-                                    <ShadButton>OK</ShadButton>
-                                </SheetFooter>
-                            </SheetContent>
-                        </Sheet>
-                    )}
-                />
-            </div>
+        <div className="p-4">
+            <Panel
+                render={(c) => (
+                    <Sheet open>
+                        <SheetContent container={c} side="right">
+                            <SheetHeader>
+                                <SheetTitle>Panel title</SheetTitle>
+                            </SheetHeader>
+                            <div className="flex-1 overflow-auto px-6 py-6 text-field-md text-colorText">
+                                {BODY}
+                            </div>
+                            <SheetFooter>
+                                <ShadButton variant="outline">Cancel</ShadButton>
+                                <ShadButton>OK</ShadButton>
+                            </SheetFooter>
+                        </SheetContent>
+                    </Sheet>
+                )}
+            />
         </div>
     ),
 }
 
-// The four `side` variants (agenta), each forced open in its own containing box. A square box
+// The four `side` variants each forced open in its own containing box. A square box
 // gives every side a visible mask gutter (378px panel in a 460px box).
 const SIDES = ["right", "left", "top", "bottom"] as const
 
@@ -173,47 +147,23 @@ export const Responsive: Story = {
     ),
 }
 
-// Reference: real trigger-driven Sheet vs antd Drawer (click to open), portaled to the viewport.
-export const AntdVsAgenta: Story = {
+// A real trigger-driven Sheet (click to open), portaled to the viewport.
+export const Variants: Story = {
     render: () => (
-        <div className="flex gap-24 p-8">
-            <div className="flex flex-col gap-2">
-                <span className="text-[10px] text-colorTextSecondary">antd</span>
-                <AntdTriggered />
-            </div>
-            <div className="flex flex-col gap-2">
-                <span className="text-[10px] text-colorTextSecondary">agenta</span>
-                <Sheet>
-                    <SheetTrigger asChild>
-                        <ShadButton variant="outline">Open sheet</ShadButton>
-                    </SheetTrigger>
-                    <SheetContent side="right">
-                        <SheetHeader>
-                            <SheetTitle>Panel title</SheetTitle>
-                        </SheetHeader>
-                        <div className="flex-1 overflow-auto px-6 py-6 text-field-md text-colorText">
-                            {BODY}
-                        </div>
-                    </SheetContent>
-                </Sheet>
-            </div>
+        <div className="p-8">
+            <Sheet>
+                <SheetTrigger asChild>
+                    <ShadButton variant="outline">Open sheet</ShadButton>
+                </SheetTrigger>
+                <SheetContent side="right">
+                    <SheetHeader>
+                        <SheetTitle>Panel title</SheetTitle>
+                    </SheetHeader>
+                    <div className="flex-1 overflow-auto px-6 py-6 text-field-md text-colorText">
+                        {BODY}
+                    </div>
+                </SheetContent>
+            </Sheet>
         </div>
     ),
-}
-
-function AntdTriggered() {
-    const [open, setOpen] = useState(false)
-    return (
-        <>
-            <AntButton onClick={() => setOpen(true)}>Open drawer</AntButton>
-            <AntDrawer
-                open={open}
-                onClose={() => setOpen(false)}
-                placement="right"
-                title="Panel title"
-            >
-                {BODY}
-            </AntDrawer>
-        </>
-    )
 }
