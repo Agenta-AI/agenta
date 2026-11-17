@@ -21,14 +21,13 @@ These are pages, not files. Search inside each one; do not assume the list of fi
 | GitHub README (English + Chinese, Japanese, Korean), CONTRIBUTING, templates | `README*.md`, `CONTRIBUTING.md`, `.github/` |
 | Changelog and roadmap | `docs/blog/entries/`, `docs/src/data/roadmap.ts` |
 | Docs | `docs/docs/`, `docs/docusaurus.config.ts`, `docs/static/images/` |
-| Web app (page titles, meta, embed widget copy) | `web/mobile/src/pages/_document.tsx`, `web/mobile/src/pages/_app.tsx`, `web/mobile/src/features/`, `web/mobile/public/` |
 | In-app help links | `web/packages/agenta-navigation/src/supportLinks.ts` |
 | PyPI page (text and keywords) | `sdks/python/README.md`, `sdks/python/pyproject.toml` |
 
 Outside the repo (manual only): X, LinkedIn, YouTube, Slack community, Product Hunt,
 cal.com demo page, GitHub repo description, topics and social preview, GitHub org profile.
 
-Not surfaces: `docs/build/`
+Not surfaces: `web/oss/` and `web/ee/` (abandoned app, never edit), `docs/build/`
 (generated), `docs/drafts/` and `docs/blog/announcement-assets/` (unpublished drafts),
 `docs/versioned_docs/` (frozen v1.0 docs, never edit), `docs/design/`, `openspec/`,
 `plans/`, tests.
@@ -49,8 +48,8 @@ Not surfaces: `docs/build/`
    `$` in a price is not read as regex or shell syntax:
 
    ```bash
-   rg -n -i -F -g '!docs/build/**' -- '<old form>' \
-     web/mobile/src web/mobile/public web/website/src web/website/public README*.md CONTRIBUTING.md .github \
+   rg -n -i -F -g '!docs/build/**' -g '!web/oss/**' -g '!web/ee/**' -- '<old form>' \
+     web/website/src web/website/public README*.md CONTRIBUTING.md .github \
      docs/docs docs/blog/entries docs/src docs/docusaurus.config.ts \
      web/packages sdks/python/README.md sdks/python/pyproject.toml
    ```
