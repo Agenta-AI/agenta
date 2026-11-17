@@ -596,15 +596,38 @@ a.ag-mega__head:focus-visible svg {
   color: inherit;
 }
 /* ── mobile menu (hamburger sheet) ── */
+.ag-mobile-menu {
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 14px;
+  background: var(--lp-surface);
+  color: var(--lp-text);
+}
+@keyframes agMmIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ag-mobile-menu.is-open {
+    animation: none !important;
+  }
+}
 .ag-mm-link {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 48px;
+  min-height: 42px;
   padding: 0 12px;
   border-radius: 10px;
-  font: 500 16px/24px var(--font-sans);
-  color: var(--th-text-hi);
+  font: 500 15px/22px var(--font-sans);
+  letter-spacing: 0.02em;
+  color: var(--lp-text);
   text-decoration: none;
   cursor: pointer;
   list-style: none;
@@ -615,6 +638,17 @@ a.ag-mega__head:focus-visible svg {
 .ag-mm-link:hover,
 .ag-mm-group[open] > .ag-mm-link {
   background: var(--th-hover);
+}
+.ag-mm-cta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 14px 2px 0;
+  border-top: 1px solid var(--lp-line-2);
+}
+.ag-mm-cta .ag-theme-btn {
+  flex: 0 0 auto;
 }
 .ag-mm-chev {
   display: inline-flex;

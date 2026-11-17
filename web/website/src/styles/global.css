@@ -1029,28 +1029,27 @@ html,
     padding-right: 18px;
   }
 
-  /* Floating-nav mobile menu. The menu is a normal-flow sibling after <nav>, so
-     once the landing nav sticks and floats into its pill, opening the menu would
-     render it anchored near the top of the document — off-screen when scrolled
-     (measured top: -1081px at scrollY 1148). Pin it to the viewport under the
-     bar/pill so it is always reachable. Above 861px it stays display:none. */
+  /* Pinned to the viewport so the menu stays reachable when the landing nav floats. */
   .ag-mobile-menu.is-open {
     position: fixed;
-    top: 58px;
-    left: 12px;
-    right: 12px;
+    top: 54px;
+    left: 8px;
+    right: 8px;
     z-index: 55;
-    margin-top: 0 !important;
-    max-height: calc(100dvh - 70px);
+    max-height: calc(100dvh - 66px);
     overflow-y: auto;
-    border-top: 1px solid var(--th-border-subtle) !important;
-    border-radius: 14px;
-    box-shadow: var(--th-menu-shadow);
+    border-radius: 0 0 18px 18px;
+    box-shadow:
+      1px 0 0 var(--lp-line-2),
+      -1px 0 0 var(--lp-line-2),
+      0 1px 0 var(--lp-line-2),
+      0 1px 1px rgba(24, 16, 16, 0.03);
+    animation: agMmIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-  /* When the landing nav has floated into its pill (inset 12px), drop the menu a
-     touch lower so it clears the pill's bottom edge. */
   .nav-scrolled .ag-mobile-menu.is-open {
     top: 70px;
+    border-radius: 18px;
+    box-shadow: var(--th-menu-shadow);
   }
 
   /* Authors grids never collapsed (inline repeat(3,1fr)); 3-up -> 2-up on tablet.

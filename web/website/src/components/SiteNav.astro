@@ -214,28 +214,9 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
 <div
   class="ag-mobile-menu"
   id="ag-mobile-menu"
-  style="flex-direction:column;gap:2px;padding:12px 16px 16px;background:var(--th-chrome);border:1px solid var(--th-border-subtle);border-top:none;margin-top:-1px;"
 >
   <a class="ag-mm-link" href={pricing.href}>{pricing.label}</a>
-  <details class="ag-mm-group">
-    <summary class="ag-mm-link">Templates<span class="ag-mm-chev" set:html={chevron} /></summary>
-    <div class="ag-mm-panel ag-art">
-      <div class="ag-mm-cols">
-        {
-          templateGroups.map((g) => (
-            <div class="ag-mm-col">
-              <a class="ag-mm-head" href={g.href}>
-                {g.label}
-                <em>{g.count}</em>
-              </a>
-              {g.items.map((t) => <a class="ag-mm-item" href={t.href}>{t.name}</a>)}
-            </div>
-          ))
-        }
-      </div>
-      <a class="ag-mm-all" href="/marketplace">See all {templates.length} templates<span set:html={arrow} /></a>
-    </div>
-  </details>
+  <a class="ag-mm-link" href="/marketplace">Templates</a>
   <details class="ag-mm-group">
     <summary class="ag-mm-link">Resources<span class="ag-mm-chev" set:html={chevron} /></summary>
     <div class="ag-mm-panel ag-art">
@@ -251,14 +232,8 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       </div>
     </div>
   </details>
-  <div style="display:flex;gap:10px;margin-top:10px;">
-    <button
-      class="ag-theme-btn"
-      data-theme-toggle
-      aria-label="Switch theme"
-      title="Theme"
-      style="width:42px;height:42px;flex:0 0 auto;"
-    >
+  <div class="ag-mm-cta">
+    <button class="ag-theme-btn" data-theme-toggle aria-label="Switch theme" title="Theme">
       <span data-ico="system" set:html={icoMonitor} />
       <span data-ico="light" set:html={icoSun} />
       <span data-ico="dark" set:html={icoMoon} />
