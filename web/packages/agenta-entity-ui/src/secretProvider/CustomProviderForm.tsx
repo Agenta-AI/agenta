@@ -236,17 +236,19 @@ const CustomProviderForm = ({
         [standardProviders],
     )
 
-    // Build provider options for SelectLLMProviderBase
-    const providerOptions = useMemo<ProviderGroup[]>(() => {
-        const allProviders = [...new Set([...standardProviders, ...customProviders])]
-        return allProviders.map((key) => {
-            const label = providerLabel(key)
-            return {
-                label,
-                options: [{label, value: key, key}],
-            }
-        })
-    }, [standardProviders, customProviders])
+    // Build provider options for SelectLLMProviderBase. Labels are read on every render, so they
+    // follow the language and a catalog that loads after the form opens.
+    const allProviders = useMemo(
+        () => [...new Set([...standardProviders, ...customProviders])],
+        [standardProviders, customProviders],
+    )
+    const providerOptions: ProviderGroup[] = allProviders.map((key) => {
+        const label = providerLabel(key)
+        return {
+            label,
+            options: [{label, value: key, key}],
+        }
+    })
 
     const providerValue = values.provider || ""
     const normalizedProviderKind = useMemo(() => {
@@ -300,15 +302,19 @@ const CustomProviderForm = ({
         }
     }, [selectedProvider, initialProviderKind])
 
-    const visibleFields = useMemo(
+    const providerFields = useMemo(
         () =>
             PROVIDER_FIELDS.filter((field) => {
                 if (shouldFilter) {
                     return !field.model || field.model.includes(normalizedProviderKind)
                 }
                 return true
-            }).map((field) => translateField(field, normalizedProviderKind)),
+            }),
         [shouldFilter, normalizedProviderKind],
+    )
+    // Translated on every render, like the provider options above.
+    const visibleFields = providerFields.map((field) =>
+        translateField(field, normalizedProviderKind),
     )
 
     const isFieldRequired = useCallback(

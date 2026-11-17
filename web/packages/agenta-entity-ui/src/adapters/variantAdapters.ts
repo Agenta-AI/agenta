@@ -16,7 +16,7 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {classifyAgentChanges, buildCommitSummaryMessage} from "@agenta/entities/workflow/commitDiff"
-import {createT} from "@agenta/i18n"
+import {createT, textVersionAtom} from "@agenta/i18n"
 import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {stripAgentaMetadataDeep, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import {atom} from "jotai"
@@ -145,6 +145,8 @@ function buildGenericCommitContext(
  */
 const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string, unknown>) =>
     atom((get): CommitContext | null => {
+        // The context holds translated text, so it is rebuilt when that text can change.
+        get(textVersionAtom)
         const isLocalDraft = isLocalDraftId(revisionId)
         const localData = get(workflowMolecule.selectors.data(revisionId))
         const remoteData = get(workflowMolecule.selectors.serverData(revisionId))
