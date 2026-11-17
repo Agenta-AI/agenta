@@ -466,6 +466,12 @@ On `local`, `daytona` and `inprocess` the runner SHALL sign every listed drive a
 - **WHEN** the sign of one listed drive fails
 - **THEN** the run continues with the other drives, the runner logs `mount degraded kind=drive_mount slug=<slug>` (`kind=agent_mount` stays only on the legacy path), and the agent is told the drive is not available
 
+#### Scenario: A drive archived while a session is warm
+
+- **WHEN** a drive that a warm environment mounted, the home drive included, is archived, deleted, or no longer allowed for the agent, and the session's next turn arrives
+- **THEN** the runner signs every drive that environment mounted again, one sign per drive, all at once, before it reuses the environment
+- **AND** when one sign fails, the runner does not reuse the environment: it deletes the sandbox (on `inprocess`, the command sandbox) and acquires a fresh environment, in which the drive is not mounted and the agent is told the drive is not available
+
 ### Requirement: The runner keeps links safe and repairs them every turn
 
 The runner SHALL never replace a real folder or a file with content at `agent-files` or `drives/<slug>`, SHALL replace an empty file or a wrong link, SHALL remove only links that the list no longer holds, and SHALL repair every link at the start of every turn on all three sandbox kinds.

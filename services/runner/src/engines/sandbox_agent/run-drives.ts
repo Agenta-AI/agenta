@@ -666,3 +666,17 @@ export async function seedHomeReadmeRemote(
     log(`remote README seed failed ${readmePath}: ${detail(err)}`);
   }
 }
+
+/**
+ * Sign again, all at once, every drive this environment holds credentials for, the home drive
+ * included, and return the subjects (`driveSubject`) of the ones that no longer sign. A thrown sign
+ * counts as failed. A drive whose first sign failed holds no credentials and is skipped.
+ */
+export async function unsignableDrives(
+  drives: readonly RunDrive[] | undefined,
+  sign: (drive: RunDrive) => Promise<MountCredentials | null>,
+): Promise<string[]> {
+  const held = (drives ?? []).filter((d) => d.credentials);
+  const signed = await Promise.all(held.map((d) => sign(d).catch(() => null)));
+  return held.filter((_, i) => !signed[i]).map(driveSubject);
+}

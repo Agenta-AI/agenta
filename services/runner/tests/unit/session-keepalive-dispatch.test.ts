@@ -8,6 +8,7 @@
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-dispatch.test.ts)
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
@@ -205,6 +206,7 @@ function makeEngine(options: EngineOptions = {}) {
       return runOneTurn(env as unknown as FakeEnv, !!opts.continuation, emit);
     },
     readLatestTurnIndex: turnLogUnmoved,
+    signDrive: driveSigns,
     async runCold(_request, _emit, _signal, presignedMount) {
       calls.cold += 1;
       calls.coldPresigned.push(presignedMount);
