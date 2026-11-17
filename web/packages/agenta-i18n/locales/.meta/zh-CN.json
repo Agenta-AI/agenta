@@ -234,6 +234,25 @@
         "emailPlaceholder": "3ffc275e3d21",
         "sendingCode": "e6ddec3d9dee"
     },
+    "auth.productPreview": {
+        "daysAgo": "477879d991b4",
+        "elapsed": "c98e00945ab1",
+        "hoursAgo": "f9fd95fe176e",
+        "minutesAgo": "96da0d6c543c",
+        "navAgents": "279b44d2ab4b",
+        "navAutomations": "ad1fb9ec0cb3",
+        "navHome": "3a78695388b3",
+        "navSessions": "6fa3cbf451b2",
+        "navSettings": "74a883a037bc",
+        "navSkills": "66d0f523a379",
+        "navTemplates": "56b564b75c7f",
+        "newAutomation": "db87a63d537e",
+        "now": "ed5eb9a37e2d",
+        "starting": "aeed4d26bb5f",
+        "subtitle": "9eefe4abe2f9",
+        "title": "ad1fb9ec0cb3",
+        "workedFor": "e643a6a323d3"
+    },
     "auth.regionSelector": {
         "dataResidency": "3f0d8ed6ee7d",
         "dataResidencyRegion": "9c5e708a9cca",

@@ -1,6 +1,8 @@
 /** A live, decorative mock of the Automations page for the sign-in panel. */
 import {useEffect, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import previewCatalog from "@agenta/i18n/catalogs/auth.productPreview"
 import {
     CaretDown,
     CaretUpDown,
@@ -68,7 +70,9 @@ const AppTile = ({app}: {app: AppId}) => (
     </span>
 )
 
-const NAV: [Icon, string][] = [
+type NavId = "Home" | "Agents" | "Automations" | "Skills" | "Sessions"
+
+const NAV: [Icon, NavId][] = [
     [House, "Home"],
     [Robot, "Agents"],
     [Lightning, "Automations"],
@@ -78,67 +82,70 @@ const NAV: [Icon, string][] = [
 
 const SESSION_GROUPS = AUTOMATIONS.filter((automation) => automation.sessions.length).slice(0, 3)
 
-const Sidebar = () => (
-    <aside className="auth-preview-sidebar flex w-[232px] flex-none flex-col gap-[18px] overflow-hidden px-2.5 pb-3 pt-4">
-        <div className="flex items-center justify-between px-1.5">
-            <AgentaWordmark className="h-[18px] w-auto" />
-            <SidebarSimple size={15} className="auth-preview-muted" />
-        </div>
-        <nav className="flex flex-col gap-0.5">
-            {NAV.map(([NavIcon, label]) => (
-                <div
-                    key={label}
-                    className={clsx(
-                        "flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px]",
-                        label === "Automations" && "auth-preview-nav-active",
-                    )}
-                >
-                    <NavIcon size={16} />
-                    <span className="flex-1">{label}</span>
-                </div>
-            ))}
-        </nav>
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-            {SESSION_GROUPS.map(({name, sessions}) => (
-                <div key={name} className="flex flex-col gap-0.5">
-                    <div className="auth-preview-faint flex h-[26px] items-center justify-between px-2.5 text-xs">
-                        <span className="inline-flex items-center gap-1">
-                            {name}
-                            <CaretDown size={10} />
-                        </span>
-                        <Plus size={12} />
+const Sidebar = () => {
+    const t = useT(previewCatalog)
+    return (
+        <aside className="auth-preview-sidebar flex w-[232px] flex-none flex-col gap-[18px] overflow-hidden px-2.5 pb-3 pt-4">
+            <div className="flex items-center justify-between px-1.5">
+                <AgentaWordmark className="h-[18px] w-auto" />
+                <SidebarSimple size={15} className="auth-preview-muted" />
+            </div>
+            <nav className="flex flex-col gap-0.5">
+                {NAV.map(([NavIcon, label]) => (
+                    <div
+                        key={label}
+                        className={clsx(
+                            "flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px]",
+                            label === "Automations" && "auth-preview-nav-active",
+                        )}
+                    >
+                        <NavIcon size={16} />
+                        <span className="flex-1">{t(`auth.productPreview.nav${label}`)}</span>
                     </div>
-                    {sessions.map((session) => (
-                        <div
-                            key={session}
-                            className="flex h-7 items-center gap-2.5 overflow-hidden whitespace-nowrap px-2.5 text-[13px]"
-                        >
-                            <span className="auth-preview-ring-dot size-1.5 flex-none rounded-full" />
-                            <span className="truncate">{session}</span>
+                ))}
+            </nav>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+                {SESSION_GROUPS.map(({name, sessions}) => (
+                    <div key={name} className="flex flex-col gap-0.5">
+                        <div className="auth-preview-faint flex h-[26px] items-center justify-between px-2.5 text-xs">
+                            <span className="inline-flex items-center gap-1">
+                                {name}
+                                <CaretDown size={10} />
+                            </span>
+                            <Plus size={12} />
                         </div>
-                    ))}
+                        {sessions.map((session) => (
+                            <div
+                                key={session}
+                                className="flex h-7 items-center gap-2.5 overflow-hidden whitespace-nowrap px-2.5 text-[13px]"
+                            >
+                                <span className="auth-preview-ring-dot size-1.5 flex-none rounded-full" />
+                                <span className="truncate">{session}</span>
+                            </div>
+                        ))}
+                    </div>
+                ))}
+            </div>
+            <div className="flex flex-col gap-0.5">
+                <div className="flex h-8 items-center gap-2.5 px-2.5 text-[13px]">
+                    <SquaresFour size={16} />
+                    <span className="flex-1">{t("auth.productPreview.navTemplates")}</span>
                 </div>
-            ))}
-        </div>
-        <div className="flex flex-col gap-0.5">
-            <div className="flex h-8 items-center gap-2.5 px-2.5 text-[13px]">
-                <SquaresFour size={16} />
-                <span className="flex-1">Templates</span>
+                <div className="flex h-8 items-center gap-2.5 px-2.5 text-[13px]">
+                    <Gear size={16} />
+                    <span className="flex-1">{t("auth.productPreview.navSettings")}</span>
+                </div>
+                <div className="mt-1 flex h-9 items-center gap-2.5 px-1.5 text-[13px]">
+                    <span className="inline-flex size-6 items-center justify-center rounded-[7px] bg-[#3b82f6] text-xs font-medium text-white">
+                        M
+                    </span>
+                    <span className="flex-1 truncate">maya@northwind.io</span>
+                    <CaretUpDown size={12} className="auth-preview-faint" />
+                </div>
             </div>
-            <div className="flex h-8 items-center gap-2.5 px-2.5 text-[13px]">
-                <Gear size={16} />
-                <span className="flex-1">Settings</span>
-            </div>
-            <div className="mt-1 flex h-9 items-center gap-2.5 px-1.5 text-[13px]">
-                <span className="inline-flex size-6 items-center justify-center rounded-[7px] bg-[#3b82f6] text-xs font-medium text-white">
-                    M
-                </span>
-                <span className="flex-1 truncate">maya@northwind.io</span>
-                <CaretUpDown size={12} className="auth-preview-faint" />
-            </div>
-        </div>
-    </aside>
-)
+        </aside>
+    )
+}
 
 /** Live text, as the playground shimmers it. */
 const LIVE_TEXT =
@@ -185,15 +192,22 @@ const Activity = ({
     shown: number
     seconds: number
 }) => {
+    const t = useT(previewCatalog)
     const current = automation.steps[Math.max(0, shown - 1)]
     return (
         <div className="flex flex-col pl-[50px] pt-3">
             <div className="auth-preview-muted flex items-center gap-1.5 text-[13px]">
                 <span className={clsx("min-w-0 truncate", !finished && LIVE_TEXT)}>
-                    {finished ? `Worked for ${seconds}s` : shown ? current.running : "Starting"}
+                    {finished
+                        ? t("auth.productPreview.workedFor", {seconds})
+                        : shown
+                          ? current.running
+                          : t("auth.productPreview.starting")}
                 </span>
                 {finished ? null : (
-                    <span className="auth-preview-faint flex-none tabular-nums">· {seconds}s</span>
+                    <span className="auth-preview-faint flex-none tabular-nums">
+                        · {t("auth.productPreview.elapsed", {seconds})}
+                    </span>
                 )}
                 <CaretDown size={10} weight="bold" className="auth-preview-faint flex-none" />
             </div>
@@ -239,7 +253,14 @@ const Activity = ({
 }
 
 export const ProductPreview = () => {
+    const t = useT(previewCatalog)
     const {runningIndex, finished, shown, seconds, rows} = frameAt(usePreviewTick())
+    const ago = (minutes: number) =>
+        minutes < 60
+            ? t("auth.productPreview.minutesAgo", {count: minutes})
+            : minutes < 1440
+              ? t("auth.productPreview.hoursAgo", {count: Math.round(minutes / 60)})
+              : t("auth.productPreview.daysAgo", {count: Math.round(minutes / 1440)})
 
     return (
         <div className="auth-preview flex size-full">
@@ -248,19 +269,19 @@ export const ProductPreview = () => {
                 <div className="flex items-end justify-between gap-4">
                     <div className="flex flex-col gap-1.5">
                         <h3 className="m-0 text-[26px] font-semibold leading-8 tracking-[-0.02em]">
-                            Automations
+                            {t("auth.productPreview.title")}
                         </h3>
                         <p className="auth-preview-muted m-0 text-sm">
-                            Agents that run on a schedule or when something happens in your apps.
+                            {t("auth.productPreview.subtitle")}
                         </p>
                     </div>
                     <span className="auth-preview-cta inline-flex h-8 flex-none items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium">
                         <Plus size={13} />
-                        New automation
+                        {t("auth.productPreview.newAutomation")}
                     </span>
                 </div>
                 <div className="flex flex-col gap-2">
-                    {rows.map(({automation, index, lastRun}) => {
+                    {rows.map(({automation, index, lastRunMinutes}) => {
                         const active = index === runningIndex
                         return (
                             <div
@@ -281,7 +302,10 @@ export const ProductPreview = () => {
                                                 {active ? automation.event : automation.result}
                                             </span>
                                             <span className="auth-preview-faint flex-none">
-                                                · {active ? "now" : lastRun}
+                                                ·{" "}
+                                                {active
+                                                    ? t("auth.productPreview.now")
+                                                    : ago(lastRunMinutes)}
                                             </span>
                                         </span>
                                     </div>

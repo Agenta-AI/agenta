@@ -166,13 +166,6 @@ export const STILL_TICK = TICKS_PER_RUN - 1
 /** One timeline step's height: its top padding plus the 24px node. */
 export const STEP_PX = 38
 
-const ago = (minutes: number) =>
-    minutes < 60
-        ? `${minutes}m ago`
-        : minutes < 1440
-          ? `${Math.round(minutes / 60)}h ago`
-          : `${Math.round(minutes / 1440)}d ago`
-
 /** Everything the preview shows at one tick. */
 export function frameAt(tick: number) {
     const cycle = Math.floor(tick / TICKS_PER_RUN)
@@ -195,7 +188,7 @@ export function frameAt(tick: number) {
             cyclesAgo === undefined
                 ? automation.lastRunMinutes
                 : Math.max(1, Math.round((cyclesAgo * TICKS_PER_RUN * TICK_MS) / 60_000))
-        return {automation, index, lastRun: ago(minutes)}
+        return {automation, index, lastRunMinutes: minutes}
     })
     return {runningIndex, finished, shown, seconds, rows}
 }
