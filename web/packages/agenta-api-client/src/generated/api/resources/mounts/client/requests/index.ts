@@ -12,7 +12,7 @@ export type { MountCreateRequest } from "./MountCreateRequest.js";
 export type { MountEditRequest } from "./MountEditRequest.js";
 export type { MountQueryRequest } from "./MountQueryRequest.js";
 export type { SignAgentMountCredentialsRequest } from "./SignAgentMountCredentialsRequest.js";
+export type { SignMountCredentialsBySlugRequest } from "./SignMountCredentialsBySlugRequest.js";
 export type { SignMountCredentialsRequest } from "./SignMountCredentialsRequest.js";
-export type { SignProjectMountCredentialsRequest } from "./SignProjectMountCredentialsRequest.js";
 export type { UnarchiveMountRequest } from "./UnarchiveMountRequest.js";
 export type { WriteMountFileRequest } from "./WriteMountFileRequest.js";

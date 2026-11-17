@@ -8,7 +8,8 @@ import type * as AgentaApi from "../../../../index.js";
  *         slug: "slug"
  *     }
  */
-export interface SignProjectMountCredentialsRequest {
+export interface SignMountCredentialsBySlugRequest {
     slug: string;
-    access?: AgentaApi.SignProjectMountCredentialsRequestAccess;
+    access?: AgentaApi.SignMountCredentialsBySlugRequestAccess;
+    is_home?: boolean;
 }
