@@ -1,6 +1,6 @@
 import {useState, type FormEvent} from "react"
 
-import {ShowErrorMessage, FIELD_CLASS, KEYCAP_CLASS} from "@agenta/auth-ui"
+import {ShowErrorMessage, FIELD_CLASS, KEYCAP_CLASS, useAuthFailureText} from "@agenta/auth-ui"
 import {useT} from "@agenta/i18n"
 import resetCatalog from "@agenta/i18n/catalogs/auth.resetPassword"
 import {Input, LoadingButton} from "@agenta/ui/ui"
@@ -15,6 +15,7 @@ export interface ResetPasswordFormProps {
 /** New password twice, then one submit; SuperTokens reads the token from the page URL. */
 export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProps) => {
     const t = useT(resetCatalog)
+    const failureText = useAuthFailureText()
     const [password, setPassword] = useState("")
     const [confirm, setConfirm] = useState("")
     const [error, setError] = useState<string | null>(null)
@@ -32,7 +33,7 @@ export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProp
         if (outcome.kind === "ok") onDone()
         else if (outcome.kind === "invalid-link") onInvalidLink()
         else if (outcome.kind === "field-error") setError(outcome.message)
-        else setError(t("auth.resetPassword.somethingWentWrong"))
+        else setError(failureText(outcome.failure))
     }
 
     const invalid = error !== null ? true : undefined

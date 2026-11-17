@@ -1,6 +1,6 @@
 import {useEffect, useState, type FormEvent} from "react"
 
-import {signInDetailed, signUpDetailed} from "@agenta/auth"
+import {classifyAuthFailure, signInDetailed, signUpDetailed} from "@agenta/auth"
 import {useT} from "@agenta/i18n"
 import emailPasswordCatalog from "@agenta/i18n/catalogs/auth.emailPasswordForm"
 import {
@@ -17,6 +17,7 @@ import {Check, Eye, EyeSlash} from "@phosphor-icons/react"
 import {FIELD_CLASS, KEYCAP_CLASS} from "./classes"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSecurityAdapter, AuthSuccessPayload} from "./types"
+import {useAuthFailureText} from "./useAuthFailureText"
 import {useShake} from "./useShake"
 
 export interface EmailPasswordFormProps {
@@ -46,6 +47,7 @@ export const EmailPasswordForm = ({
     security,
 }: EmailPasswordFormProps) => {
     const t = useT(emailPasswordCatalog)
+    const failureText = useAuthFailureText()
     const [email, setEmail] = useState(initialEmail ?? "")
     const [password, setPassword] = useState("")
     const [isLoading, setIsLoading] = useState(false)
@@ -77,7 +79,8 @@ export const EmailPasswordForm = ({
         } else if (outcome.kind === "not-allowed") {
             setMessage({message: outcome.message, type: "error"})
         } else {
-            setMessage({message: t("auth.emailPasswordForm.somethingWentWrong"), type: "error"})
+            const failure = outcome.kind === "error" ? outcome.failure : "unknown"
+            setMessage({message: failureText(failure), type: "error"})
         }
     }
 
@@ -127,14 +130,13 @@ export const EmailPasswordForm = ({
             } else if (outcome.kind === "field-error" || outcome.kind === "not-allowed") {
                 setMessage({message: outcome.message, type: "error"})
             } else {
-                setMessage({message: t("auth.emailPasswordForm.somethingWentWrong"), type: "error"})
+                setMessage({message: failureText(outcome.failure), type: "error"})
             }
         } catch (error) {
             // Report through the caller's channel when there is one; otherwise the form
             // still has to say something, or the failure is invisible.
             if (onAuthError) onAuthError(error)
-            else
-                setMessage({message: t("auth.emailPasswordForm.somethingWentWrong"), type: "error"})
+            else setMessage({message: failureText(classifyAuthFailure(error)), type: "error"})
         } finally {
             security?.clearToken()
             setIsLoading(false)
@@ -168,7 +170,7 @@ export const EmailPasswordForm = ({
                     placeholder={t("auth.emailPasswordForm.password")}
                     value={password}
                     autoFocus={lockEmail}
-                    className="h-full px-3 text-sm md:text-sm"
+                    className="h-full px-3 text-base md:text-sm"
                     onChange={(event) => setPassword(event.target.value)}
                 />
                 <InputGroupAddon align="inline-end">

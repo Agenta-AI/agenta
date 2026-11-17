@@ -32,9 +32,9 @@ export type FilterableEvaluator = EvaluatorCatalogTemplate | Workflow | Evaluato
  * (e.g., `field_match_test` is archived in the backend registry but was
  * historically included here).
  *
- * After the evaluator key consolidation (see docs/designs/runnables/managed-workflows.md),
+ * After the evaluator key consolidation (see docs/design/runnables/managed-workflows.md),
  * these keys will be replaced by canonical family keys: match, code, hook, prompt, agent.
- * See docs/designs/runnables/frontend/evaluator-key-dependencies.md for details.
+ * See docs/design/runnables/frontend/evaluator-key-dependencies.md for details.
  */
 export const ENABLED_EVALUATORS = [
     "auto_exact_match",

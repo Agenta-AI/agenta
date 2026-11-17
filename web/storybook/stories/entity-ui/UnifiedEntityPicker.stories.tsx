@@ -30,8 +30,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Unified entity selection component (already antd-free — inventory " +
-                    "coverage, no parity pair). One export per display variant: " +
+                    "Unified entity selection component. One export per display variant: " +
                     "`cascading`, `cascader`, `breadcrumb`, `list-popover`, `popover-cascader`.",
             },
         },
@@ -67,7 +66,7 @@ export const Cascading: Story = {
         },
     },
     render: (args) => (
-        <div className="w-[320px]" data-vrt-subject>
+        <div className="w-[320px]">
             <EntityPicker
                 variant="cascading"
                 adapter={workflowRevisionAdapter}
@@ -92,7 +91,7 @@ export const Cascader: Story = {
         },
     },
     render: (args) => (
-        <div className="w-[320px]" data-vrt-subject>
+        <div className="w-[320px]">
             <EntityPicker
                 variant="cascader"
                 adapter={workflowRevisionAdapter}
@@ -117,7 +116,7 @@ export const Breadcrumb: Story = {
         },
     },
     render: (args) => (
-        <div className="w-[360px]" data-vrt-subject>
+        <div className="w-[360px]">
             <EntityPicker
                 variant="breadcrumb"
                 adapter={workflowRevisionAdapter}
@@ -146,7 +145,7 @@ export const ListPopover: Story = {
         },
     },
     render: (args) => (
-        <div className="w-[320px]" data-vrt-subject>
+        <div className="w-[320px]">
             <EntityPicker
                 variant="list-popover"
                 adapter={workflowTwoLevelAdapter}
@@ -171,7 +170,7 @@ export const PopoverCascader: Story = {
         },
     },
     render: (args) => (
-        <div className="flex items-center" data-vrt-subject>
+        <div className="flex items-center">
             <EntityPicker
                 variant="popover-cascader"
                 adapter={workflowTwoLevelAdapter}

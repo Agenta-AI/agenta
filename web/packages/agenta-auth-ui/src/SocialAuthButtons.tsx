@@ -68,7 +68,7 @@ export const SocialAuthButtons = ({
                                 : t("auth.shared.continueWith", {provider: provider.label})}
                         </span>
                         {provider.id === lastUsedProviderId && !pending && (
-                            <LastUsedBadge className="absolute right-3" />
+                            <LastUsedBadge className="sm:absolute sm:right-3" />
                         )}
                     </LoadingButton>
                 )

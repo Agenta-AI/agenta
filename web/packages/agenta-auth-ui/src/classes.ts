@@ -13,7 +13,7 @@ export const KEYCAP_CLASS = [
 export const SURFACE_CLASS = "h-11 w-full rounded-lg px-4 text-sm font-medium"
 
 /** A text field on `Input`, sized like the buttons beside it. */
-export const FIELD_CLASS = "h-11 rounded-lg px-3 text-sm md:text-sm"
+export const FIELD_CLASS = "h-11 rounded-lg px-3 text-base md:text-sm"
 
 /** The line under a field that says what went wrong. */
 export const ERROR_TEXT_CLASS = "auth-rise m-0 text-[13px] leading-5 text-error"
