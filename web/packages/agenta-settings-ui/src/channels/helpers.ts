@@ -21,7 +21,13 @@ const t = createT(channelsLabelsCatalog, channelsStatusCatalog)
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
 
 /** Every platform, in the order the Channels card lists them. */
-export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp", "discord", "teams"]
+export const CHANNEL_PLATFORMS: ChannelPlatform[] = [
+    "slack",
+    "telegram",
+    "whatsapp",
+    "discord",
+    "teams",
+]
 
 const PLATFORM_LABELS: Record<ChannelPlatform, string> = {
     slack: "Slack",
