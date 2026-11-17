@@ -360,6 +360,78 @@ async def test_dismiss_choices_removes_the_buttons(adapter, discord):
     ]
 
 
+_APPROVAL_CARD = [
+    {
+        "type": "card",
+        "title": "Approval needed: Write note.txt",
+        "text": "Approve allows this tool call once. Deny prevents it.",
+        "tool": "Write note.txt",
+        "arguments": {
+            "file_path": "/var/lib/agenta/mounts/scope-1/mount-1/note.txt",
+            "content": "hi",
+        },
+    },
+    {"type": "button", "id": "0", "label": "Approve", "value": "u:approve"},
+    {"type": "button", "id": "1", "label": "Deny", "value": "u:deny"},
+]
+
+
+@pytest.mark.parametrize(
+    "approved, verdict", [(True, "Approved by"), (False, "Denied by")]
+)
+async def test_an_answered_card_shows_the_decision_and_who_made_it(
+    adapter, discord, approved, verdict
+):
+    await adapter.dismiss_choices(
+        connection=_connection(),
+        external_locator={"source_channel_id": p.THREAD_ID, "message_id": "77"},
+        content=_APPROVAL_CARD,
+        approved=approved,
+        answered_by={"id": "555", "name": "Ada"},
+    )
+
+    assert discord.edits == [
+        {
+            "channel_id": p.THREAD_ID,
+            "message_id": "77",
+            "content": f"{verdict} <@555>: Write note.txt\n"
+            "File path: note.txt\nContent: hi",
+            "components": [],
+            "allowed_mentions": {"parse": []},
+        }
+    ]
+
+
+async def test_an_answered_card_that_took_two_messages_loses_only_its_buttons(
+    adapter, discord
+):
+    long_card = [
+        {**_APPROVAL_CARD[0], "text": "x" * 2000},
+        *_APPROVAL_CARD[1:],
+    ]
+    await adapter.dismiss_choices(
+        connection=_connection(),
+        external_locator={"source_channel_id": p.THREAD_ID, "message_id": "77"},
+        content=long_card,
+        approved=True,
+        answered_by={"id": "555"},
+    )
+
+    assert discord.edits == [
+        {"channel_id": p.THREAD_ID, "message_id": "77", "components": []}
+    ]
+
+
+def test_an_answer_without_a_user_id_names_the_sender():
+    from oss.src.core.channels.adapters.discord.mapping import answered_message
+
+    body = answered_message(_APPROVAL_CARD, approved=False, answered_by={"name": "Ada"})
+    assert body["content"].startswith("Denied by Ada: Write note.txt\n")
+
+    body = answered_message(_APPROVAL_CARD, approved=True, answered_by=None)
+    assert body["content"].startswith("Approved: Write note.txt\n")
+
+
 async def test_typing_shows_in_the_channel_until_the_thread_exists(adapter, discord):
     connection = _connection()
     await adapter.signal_activity(connection=connection, locator=_mention_locator())

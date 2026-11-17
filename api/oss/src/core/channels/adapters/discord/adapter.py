@@ -383,16 +383,26 @@ class DiscordAdapter(ChannelAdapterInterface):
         connection: ChannelConnection,
         external_locator: Dict[str, Any],
         content: Optional[List[Dict[str, Any]]] = None,
+        approved: Optional[bool] = None,
+        answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """Show the decision and who made it on the card, and remove the
+        buttons. Without the decision, only the buttons go."""
+
         channel_id = external_locator.get("source_channel_id")
         message_id = external_locator.get("message_id")
         if not channel_id or not message_id:
             return
+        body = None
+        if content and approved is not None:
+            body = mapping.answered_message(
+                content, approved=approved, answered_by=answered_by
+            )
         await self._request(
             _bot_token(connection),
             "PATCH",
             f"/channels/{channel_id}/messages/{message_id}",
-            json={"components": []},
+            json=body or {"components": []},
         )
 
     async def signal_activity(

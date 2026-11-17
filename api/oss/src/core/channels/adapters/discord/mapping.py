@@ -16,7 +16,11 @@ from oss.src.core.channels.dtos import (
     ChannelInboxEventProcessed,
     ChannelSpaceKind,
 )
-from oss.src.core.channels.render.approval import approval_details
+from oss.src.core.channels.render.approval import (
+    approval_details,
+    approval_outcome,
+    approval_title,
+)
 from oss.src.core.channels.render.render import _split_text
 
 # Application flags that let the bot read message content.
@@ -317,7 +321,9 @@ def split_text(text: str, *, max_chars: int = TEXT_MAX_CHARS) -> List[str]:
 
 def _card_text(card: Dict[str, Any]) -> str:
     lines = [card[key] for key in ("title", "text") if card.get(key)]
-    lines.append(approval_details(card.get("arguments")))
+    details = approval_details(card.get("arguments"))
+    if details:
+        lines.append(details)
     return "\n".join(lines)
 
 
@@ -383,3 +389,49 @@ def build_messages(content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if components:
         bodies[-1]["components"] = components
     return bodies
+
+
+def _mention(sender: Optional[Dict[str, Any]]) -> Optional[str]:
+    """The person as Discord shows them: a user mention renders as their
+    name. Falls back to the name the click carried."""
+
+    sender = sender or {}
+    user_id = str(sender.get("id") or "")
+    if user_id.isdigit():
+        return f"<@{user_id}>"
+    name = sender.get("name") or sender.get("username")
+    return str(name) if name else None
+
+
+def answered_message(
+    content: List[Dict[str, Any]],
+    *,
+    approved: bool,
+    answered_by: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """The edit that turns an answered approval card into its outcome:
+    "Approved by @name: Write note.txt" in place of "Approval needed: ...",
+    no scope line, no buttons. None when the card took more than one message
+    or the outcome would not fit in one: the receipt names only the last
+    message, so the caller then removes the buttons alone."""
+
+    heading = approval_outcome(approved=approved, by=_mention(answered_by))
+    posted: List[Dict[str, Any]] = []
+    answered: List[Dict[str, Any]] = []
+    for part in content:
+        if part.get("type") == "button":
+            continue
+        posted.append(part)
+        if part.get("type") == "card":
+            part = {
+                **part,
+                "title": approval_title(part.get("tool"), heading=heading),
+                "text": None,
+            }
+        answered.append(part)
+
+    posted_text, _ = render_content(posted)
+    text, _ = render_content(answered)
+    if not text or len(split_text(posted_text)) > 1 or len(split_text(text)) > 1:
+        return None
+    return {"content": text, "components": [], "allowed_mentions": {"parse": []}}

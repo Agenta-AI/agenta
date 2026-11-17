@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from oss.src.core.channels.dtos import ChannelCapabilities
 from oss.src.core.channels.render.approval import (
     approval_details,
+    approval_title,
     redact_approval_arguments,
 )
 from oss.src.core.channels.render.dtos import RenderChoiceOption, RenderItem, RenderPart
@@ -192,22 +193,6 @@ def render_turn_result(
     return _render_text(capabilities, text)
 
 
-def _approval_label(tool) -> str:
-    """The card title's subject. An identifier tool name reads better
-    humanized (`discover_tools` -> "Discover tools"). Anything else is the
-    harness's own description of the call, often the literal command, and is
-    shown verbatim: `.capitalize()` lower-cased the rest of it and `_` became
-    a space, so the card showed a command that was not the one being approved
-    (QA finding, 2026-09-23)."""
-
-    if not tool:
-        return ""
-    text = str(tool).strip()
-    if re.fullmatch(r"[A-Za-z0-9_]+", text):
-        text = text.replace("_", " ").strip().capitalize()
-    return text if len(text) <= 160 else text[:159] + "…"
-
-
 def _render_pending_interaction(
     capabilities: ChannelCapabilities,
     pending_interaction: Dict[str, Any],
@@ -228,8 +213,7 @@ def _render_pending_interaction(
     tool = pending_interaction.get("tool")
     if isinstance(tool, str) and tool.startswith("mcp__"):
         tool = tool.split("__", 2)[-1]
-    label = _approval_label(tool)
-    title = f"Approval needed: {label}" if label else "Approval needed"
+    title = approval_title(tool)
     arguments = redact_approval_arguments(arguments)
     scope = "Approve allows this tool call once. Deny prevents it."
     interaction_id = pending_interaction.get("id")
@@ -261,7 +245,8 @@ def _render_pending_interaction(
         )
 
     # buttons unsupported, or the option count exceeds the declared max
-    lines = [title, scope, approval_details(arguments)]
+    details = approval_details(arguments)
+    lines = [title, scope, *([details] if details else [])]
     for i, (label, _) in enumerate(options, start=1):
         lines.append(f"{i}. {label}")
     lines.append("Reply with the number to choose.")
