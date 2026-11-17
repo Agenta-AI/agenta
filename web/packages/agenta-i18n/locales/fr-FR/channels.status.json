@@ -8,6 +8,7 @@
     "botTokenRevoked": "Jeton du bot révoqué",
     "botTokenRevokedUpdate": "Jeton du bot révoqué · mettez-le à jour",
     "connectedTo": "Connecté à {{agent}}",
+    "discordIdle": "Discutez avec l’agent sur votre serveur Discord",
     "pending": "Pas encore lié · terminez la connexion",
     "placesAndDms": "{{places}} + messages directs",
     "slackIdle": "Discutez avec l’agent dans l’espace de travail de votre équipe",

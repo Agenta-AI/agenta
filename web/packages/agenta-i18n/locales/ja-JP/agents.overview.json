@@ -6,7 +6,7 @@
     "automationsLoadError": "自動化を読み込めませんでした。",
     "automationsTitle": "自動化",
     "channelsLoadError": "チャネルを読み込めませんでした。",
-    "channelsLogosLabel": "Slack、Telegram、WhatsApp",
+    "channelsLogosLabel": "Slack、Telegram、WhatsApp、Discord",
     "channelsManage": "管理",
     "channelsPanelLoadError": "チャネルを読み込めませんでした。もう一度お試しください。",
     "channelsPublish": "公開",
