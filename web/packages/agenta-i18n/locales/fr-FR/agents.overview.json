@@ -17,12 +17,13 @@
     "descriptionUpdateFailed": "Impossible de mettre à jour la description de cet agent",
     "driveEmpty": "Cet agent n’a pas encore de lecteur.",
     "edit": "Modifier",
-    "filesEmpty": "Cet agent n’a pas encore de fichiers.",
+    "filesLoadError": "Impossible de charger les fichiers.",
     "filesTitle": "Fichiers",
     "needsAttention": "Nécessite votre attention",
     "openChat": "Ouvrir le chat",
     "openFiles": "Ouvrir les fichiers",
     "pageTitle": "Agents",
+    "readOnly": "lecture seule",
     "renameFailed": "Impossible de renommer cet agent",
     "retry": "Réessayer"
 }

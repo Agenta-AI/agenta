@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
 import {
     drivePathFromToolPath,
@@ -16,7 +16,14 @@ import {
     type MountFile,
 } from "@agenta/entities/session"
 
-import {agentMountQueryFamily} from "./agentDrive"
+import {
+    agentDrivesStateAtom,
+    driveDir,
+    resolveDrivePath,
+    type AgentDrivesState,
+    type Drive,
+    type DriveEntry,
+} from "./drives"
 import {
     cleanPath,
     driveFileStats,
@@ -25,14 +32,15 @@ import {
     relativeTime,
 } from "./driveTree"
 
-/** The agent's durable mount is symlinked into the session cwd under this name (runner:
- * `AGENT_FILES_LINK_NAME`). Its files live in a SEPARATE mount/prefix, so the drive folds them in
- * under this path — matching how the agent sees them on disk. */
+/** The home drive is linked into the session cwd under this name (runner: `HOME_DRIVE_LINK_NAME`).
+ * Its files live in a SEPARATE mount/prefix, so the drive folds them in under this path — matching
+ * how the agent sees them on disk. */
 export const AGENT_FILES_DIR = "agent-files"
 
-/** Where a presented drive path comes from: the durable per-agent mount (`agent-files/…`, shared
- * across the agent's sessions) or the ephemeral session cwd. Drives it visually + the grid filter. */
-export type FileOrigin = "session" | "agent"
+/** Where a presented drive path comes from: the home drive (`agent-files/…`, kept across the
+ * agent's sessions), another drive (`drives/<slug>/…`) or the session cwd. Drives it visually +
+ * the grid filter. */
+export type FileOrigin = "session" | "home" | "drive"
 
 /** Strip leading slashes only (linear scan, ReDoS-safe). Mirrors the package's `mountPathMatchesToolPath`
  * normalization of the mount side — it keeps any trailing slash, so folder-marker paths stay distinct. */
@@ -42,12 +50,12 @@ const stripLeadingSlashes = (s: string): string => {
     return i === 0 ? s : s.slice(i)
 }
 
-/** Drop an `agent-files/` fold prefix when a path still carries one — an agent-only drive presents
- * the agent mount at its root, but a record-log or chat path may still name the fold. Skipped when
+/** Drop an `agent-files/` fold prefix when a path still carries one — a home-only drive presents
+ * the home mount at its root, but a record-log or chat path may still name the fold. Skipped when
  * the mount owns a real top-level `agent-files` entry: there the prefix is the file's own name, and
  * unfolding it would resolve the directory to the mount root and its children to the wrong paths. */
-const unfoldAgentPath = (rel: string, agentOwnsFold = false): string => {
-    if (agentOwnsFold) return rel
+const unfoldHomePath = (rel: string, homeOwnsFold = false): string => {
+    if (homeOwnsFold) return rel
     if (rel === AGENT_FILES_DIR) return ""
     return rel.startsWith(`${AGENT_FILES_DIR}/`) ? rel.slice(AGENT_FILES_DIR.length + 1) : rel
 }
@@ -59,44 +67,114 @@ const ownsAgentFilesEntry = (paths: readonly string[]): boolean =>
         return rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)
     })
 
-export const fileOrigin = (path: string): FileOrigin => {
+/** The session's drives, by slug: only `drives/<configured slug>` is a drive path. */
+type DriveSlugs = readonly {slug: string}[]
+
+export const fileOrigin = (path: string, drives: DriveSlugs = []): FileOrigin => {
     const rel = cleanPath(path)
-    return rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`) ? "agent" : "session"
+    if (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)) return "home"
+    return resolveDrivePath(rel, drives) ? "drive" : "session"
 }
+
+/**
+ * The presented path of a tool path's file: a home drive file under `agent-files/` (or `homePrefix`),
+ * also when the tool reached it through the session folder's `drives/<home slug>/` link; another
+ * drive's under `drives/<slug>/`; a session file as it is.
+ */
+export const presentToolPath = (
+    tool: DriveToolPath,
+    homeSlug: string | null = null,
+    homePrefix = `${AGENT_FILES_DIR}/`,
+): string => {
+    if (tool.origin === "agent" || (tool.origin === "drive" && tool.slug === homeSlug))
+        return `${homePrefix}${tool.path}`
+    if (tool.origin === "drive" && tool.slug) return `${driveDir(tool.slug)}/${tool.path}`
+    const homeLink = homeSlug ? `${driveDir(homeSlug)}/` : null
+    if (homeLink && tool.path.startsWith(homeLink))
+        return `${homePrefix}${tool.path.slice(homeLink.length)}`
+    return tool.path
+}
+
+/**
+ * A presented path inside one of the session's drives, mapped to that drive's mount. A read drive
+ * answers `readOnly`, so no surface offers a write there. A path under a configured drive whose
+ * mount is not resolved (lookup pending, failed, or a drive the viewer may not use) answers null:
+ * no target at all, never the session folder. `undefined`: the path is not a drive path.
+ */
+export const resolveDriveMount = (
+    path: string,
+    drives: readonly Drive[],
+    entries: DriveSlugs = drives,
+): ResolvedMountPath | null | undefined => {
+    const hit = resolveDrivePath(path, drives)
+    if (hit) return {mount: hit.drive.mount, path: hit.path, readOnly: hit.drive.access === "read"}
+    return resolveDrivePath(path, entries) ? null : undefined
+}
+
+/** A tool path in a drive the session has a mount for, or in no drive: a configured drive without
+ * a mount (the member cannot read it, or its lookup has not answered) holds nothing to list. The
+ * home drive counts through `homeReadable`, for the older `<cwd>-agent` mount and `agent-files/`. */
+export const isReadableToolPath = (
+    tool: DriveToolPath,
+    linked: readonly Drive[],
+    entries: DriveSlugs,
+    homeReadable: boolean,
+): boolean => {
+    if (tool.origin === "drive") return linked.some((d) => d.slug === tool.slug)
+    if (tool.origin === "agent") return homeReadable
+    const rel = cleanPath(tool.path)
+    if (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)) return homeReadable
+    return resolveDriveMount(rel, linked, entries) !== null
+}
+
+/** Present a drive's mount-relative entries under its `drives/<slug>/` folder. */
+export const foldDriveFiles = (drive: Drive, files: readonly MountFile[]): MountFile[] =>
+    files.map((f) => ({...f, path: `${driveDir(drive.slug)}/${cleanPath(f.path)}`}))
 
 /**
  * Does this path belong in a user-facing drive list? ONE question, asked by every list a drive
  * surface builds AND by the gate that decides whether a list is empty — so a gate can never keep a
  * row a list then drops (the bug class behind #5480).
  *
- * Excluded: runner plumbing ({@link isInternalDrivePath}), and the bare `agent-files` entry — that
- * one is the fold-point SYMLINK into the agent mount, not a file. Its CONTENTS are listed, folded
- * under `agent-files/` from the agent mount itself; the marker never is.
+ * Excluded: runner plumbing ({@link isInternalDrivePath}), the bare `agent-files` entry and each
+ * bare `drives/<slug>` entry — those are the fold-point SYMLINKS into the drives, not files. Their
+ * CONTENTS are listed, folded in from the mounts themselves; the markers never are.
  *
- * That exclusion is about PROVENANCE, not the name: the marker only exists in the SESSION mount.
- * Inside the agent mount, `agent-files` is an ordinary directory a user is free to create, so a
- * caller listing agent-mount entries passes `fromAgentMount` and keeps it — otherwise the folder
- * vanishes from the root listing while the file count still counts what is inside it.
+ * That exclusion is about PROVENANCE, not the name: the markers only exist in the SESSION mount.
+ * Inside a drive's mount, the same paths are ordinary entries a user is free to create, so a
+ * caller listing such a mount's entries passes `fromDriveMount` and keeps them — otherwise the
+ * folder vanishes from the root listing while the file count still counts what is inside it.
  */
-export const isListableDrivePath = (path: string, opts?: {fromAgentMount?: boolean}): boolean => {
-    const rel = cleanPath(path)
-    if (!rel || isInternalDrivePath(rel)) return false
-    return opts?.fromAgentMount === true || rel !== AGENT_FILES_DIR
+export interface DrivePathOptions {
+    fromDriveMount?: boolean
+    /** The session's configured drives: their `drives/<slug>` links are markers, not files. */
+    drives?: DriveSlugs
 }
 
+export const isListableDrivePath = (path: string, opts?: DrivePathOptions): boolean => {
+    const rel = cleanPath(path)
+    if (!rel || isInternalDrivePath(rel)) return false
+    if (opts?.fromDriveMount === true) return true
+    return rel !== AGENT_FILES_DIR && !isDriveLink(rel, opts?.drives)
+}
+
+/** A `drives/<slug>` entry itself, for a configured slug: the session folder's link to that drive. */
+export const isDriveLink = (path: string, drives: DriveSlugs = []): boolean =>
+    resolveDrivePath(path, drives)?.path === ""
+
 /** {@link isListableDrivePath} minus hidden paths; the explorer asks the wider one (#6027). */
-export const isSummaryDrivePath = (path: string, opts?: {fromAgentMount?: boolean}): boolean =>
+export const isSummaryDrivePath = (path: string, opts?: DrivePathOptions): boolean =>
     isListableDrivePath(path, opts) && !isHiddenPath(path)
 
-/** True when a listing holds BOTH agent and session files — the only time the origin tags/filter
- * carry information (a single-origin drive doesn't need them). */
-export const driveHasMixedOrigins = (files: {path: string}[]): boolean => {
-    let agent = false
+/** True when a listing holds BOTH session files and durable (drive) files — the only time the
+ * origin tags/filter carry information (a single-origin drive doesn't need them). */
+export const driveHasMixedOrigins = (files: {path: string}[], drives: DriveSlugs = []): boolean => {
+    let durable = false
     let session = false
     for (const f of files) {
-        if (fileOrigin(f.path) === "agent") agent = true
-        else session = true
-        if (agent && session) return true
+        if (fileOrigin(f.path, drives) === "session") session = true
+        else durable = true
+        if (durable && session) return true
     }
     return false
 }
@@ -112,6 +190,8 @@ export interface DriveRecentFile extends MountFile {
 export interface ResolvedMountPath {
     mount: Mount
     path: string
+    /** The path is on a drive attached read-only. */
+    readOnly?: boolean
 }
 
 export interface SessionDriveData {
@@ -152,15 +232,30 @@ export interface SessionDriveData {
      * retry is in flight. */
     retry?: () => void
     /** Map a presented path (as it appears in `files`/`recents`) to the mount + mount-relative path
-     * that backs it — the cwd mount, or the nested `agent-files/` agent mount — for read/download. */
+     * that backs it — the cwd mount, the home drive under `agent-files/`, or a drive under
+     * `drives/<slug>/` — for read/download. */
     resolveMount: (path: string) => ResolvedMountPath | null
+    /** The drives other than the home with an active mount, folded in under `drives/<slug>/`. */
+    otherDrives?: Drive[]
+    /** Every drive the configuration names, the home included: the session's `drives/<slug>`
+     * links, which are markers and never session files. */
+    driveEntries?: DriveEntry[]
+    /** The configured home drive's slug: a tool path under it presents under `agent-files/`. */
+    homeSlug?: string | null
+    /** The home drive is the whole drive (no session folder), so its files sit at the root and not
+     * under `agent-files/`. */
+    homeAtRoot?: boolean
 }
+
+const NO_DRIVES: Drive[] = []
+const NO_ENTRIES: DriveEntry[] = []
 
 /**
  * One data source for every session-drive surface (config row, drawer, chat rail/grid): the
- * primary (cwd) mount + its listing, PLUS the agent's durable mount folded in under `agent-files/`
- * (queried by `artifactId` — the agent mount is keyed by artifact, shared across the agent's
- * sessions). Enriched with recency from the per-session file-activity signals.
+ * primary (cwd) mount + its listing, PLUS the drives of the agent's configuration — the home drive
+ * folded in under `agent-files/`, every other drive under `drives/<slug>/`. A configuration without
+ * a `drives` list folds the agent's drive found by `artifactId` as its home. Enriched with recency
+ * from the per-session file-activity signals.
  */
 export function useSessionDrive(
     sessionId: string,
@@ -168,6 +263,8 @@ export function useSessionDrive(
     /** Surface `.gitignore`d files too (the "show git-ignored files" toggle). Default false = the
      * curated view. Fetches the WHOLE ignored tree (node_modules, …) when on, so it's opt-in. */
     includeGitignored = false,
+    /** The revision the session runs: its `drives` list names the drives to fold in. */
+    revisionId?: string,
 ): SessionDriveData {
     const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
     const mounts = mountsQuery.data ?? []
@@ -177,13 +274,25 @@ export function useSessionDrive(
         mountFilesQueryFamily({mountId: mount?.id ?? "", includeGitignored}),
     )
 
-    // Agent (durable) mount — keyed by artifact, not session. Its files are surfaced under
-    // `agent-files/`. Queries stay disabled (empty key) when there's no artifact.
-    const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
-    const agentMount = artifactId ? (agentMountQuery.data ?? null) : null
-    const agentFilesQuery = useAtomValue(
-        mountFilesQueryFamily({mountId: agentMount?.id ?? "", includeGitignored}),
+    // The configuration's drives. The home drive's files are surfaced under `agent-files/`; queries
+    // stay disabled (empty key) when there's no home drive.
+    const drivesState = useAtomValue(agentDrivesStateAtom(revisionId, artifactId))
+    const homeMount = drivesState.homeMount
+    const homeFilesQuery = useAtomValue(
+        mountFilesQueryFamily({mountId: homeMount?.id ?? "", includeGitignored}),
     )
+    const otherDrives = drivesState.otherDrives
+    const entries = drivesState.entries
+    const driveListingsAtom = useMemo(
+        () =>
+            atom((get) =>
+                otherDrives.map((d) =>
+                    get(mountFilesQueryFamily({mountId: d.mount.id, includeGitignored})),
+                ),
+            ),
+        [otherDrives, includeGitignored],
+    )
+    const driveListings = useAtomValue(driveListingsAtom)
 
     // Agent-only drive: the agent mount IS the drive, at its own root. That covers an overview
     // surface (no conversation) AND a session that resolved without a cwd mount — nothing has run in
@@ -191,7 +300,7 @@ export function useSessionDrive(
     // mount, so the lazy explorer subscribes to nothing and browses an empty tree. Gated on the mounts
     // query having ANSWERED so the presentation doesn't flip once a cwd mount appears mid-load.
     // Kept identical to `useSessionDriveSummary`'s predicate — the two must agree.
-    const agentOnly = Boolean(agentMount) && !mount && (!sessionId || !mountsQuery.isPending)
+    const homeOnly = Boolean(homeMount) && !mount && (!sessionId || !mountsQuery.isPending)
 
     const activity = useAtomValue(sessionFileActivityAtomFamily(sessionId))
     // Durable, cross-device recency from the record log — the base layer under the live browser
@@ -206,19 +315,29 @@ export function useSessionDrive(
     const structural = useMemo(() => {
         const listing = filesQuery.data ?? null
         const cwdStats = driveFileStats(listing)
-        const cwdFiles = cwdStats.files.filter((f) => isListableDrivePath(f.path))
+        // The cwd holds only the link to each drive; its files come from the drive below.
+        const cwdFiles = cwdStats.files.filter(
+            (f) => isListableDrivePath(f.path) && !resolveDrivePath(f.path, entries),
+        )
 
         // Agent-mount files, presented under `agent-files/` so they read as a subfolder of cwd — or at
         // the root when the agent mount is the whole drive.
-        const agentListing = agentFilesQuery.data ?? null
-        const agentStats = driveFileStats(agentListing)
-        const agentPrefix = agentOnly ? "" : `${AGENT_FILES_DIR}/`
-        const agentOwnsFold = agentOnly && ownsAgentFilesEntry(agentStats.files.map((f) => f.path))
-        const agentFiles = agentStats.files.map((f) => ({
+        const homeListing = homeFilesQuery.data ?? null
+        const homeStats = driveFileStats(homeListing)
+        const homePrefix = homeOnly ? "" : `${AGENT_FILES_DIR}/`
+        const homeOwnsFold = homeOnly && ownsAgentFilesEntry(homeStats.files.map((f) => f.path))
+        const homeFiles = homeStats.files.map((f) => ({
             ...f,
-            path: `${agentPrefix}${cleanPath(f.path)}`,
+            path: `${homePrefix}${cleanPath(f.path)}`,
         }))
-        const files: MountFile[] = [...cwdFiles, ...agentFiles]
+        const driveStats = otherDrives.map((d, i) => ({
+            drive: d,
+            stats: driveFileStats(driveListings[i]?.data ?? null),
+        }))
+        const driveFiles = driveStats.flatMap(({drive, stats}) =>
+            foldDriveFiles(drive, stats.files),
+        )
+        const files: MountFile[] = [...cwdFiles, ...homeFiles, ...driveFiles]
 
         // Index files by leading-stripped path so recency stamping matches tool paths by suffix in
         // O(segments) instead of rescanning every file per signal (the secondary O(n²)). Key exactly
@@ -234,27 +353,31 @@ export function useSessionDrive(
 
         const resolveMount = (path: string): ResolvedMountPath | null => {
             const rel = cleanPath(path)
-            if (agentOnly)
-                return agentMount
-                    ? {mount: agentMount, path: unfoldAgentPath(rel, agentOwnsFold)}
+            const linked = resolveDriveMount(rel, drivesState.linked, entries)
+            if (linked !== undefined) return linked
+            if (homeOnly)
+                return homeMount
+                    ? {mount: homeMount, path: unfoldHomePath(rel, homeOwnsFold)}
                     : null
-            if (agentMount && (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`))) {
-                return {mount: agentMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+            if (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)) {
+                if (homeMount)
+                    return {mount: homeMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+                // A configured home drive without a mount has no target, never the session folder.
+                if (drivesState.homeSlug) return null
             }
             return mount ? {mount, path: rel} : null
         }
 
         // Disabled queries (no session) stay isPending forever — an empty id means "no drive",
-        // not "loading". The agent mount is optional: it only contributes loading/error when an
-        // artifact was supplied AND a mount resolved.
-        // The agent mount is artifact-scoped, so it loads (and shows files) with no session at all.
-        const agentPending =
-            Boolean(artifactId) &&
-            (agentMountQuery.isPending || Boolean(agentMount && agentFilesQuery.isPending))
+        // not "loading". The drives are agent-scoped, so they load (and show files) with no
+        // session at all.
+        const homePending = Boolean(homeMount && homeFilesQuery.isPending)
+        const drivesPending = drivesState.isPending || driveListings.some((q) => q.isPending)
         const isLoading =
             (Boolean(sessionId) &&
                 (mountsQuery.isPending || Boolean(mount && filesQuery.isPending))) ||
-            agentPending
+            homePending ||
+            drivesPending
         // The session cwd mount and the artifact-scoped agent mount fail independently — mirror the
         // `isLoading` split above so an agent-mount failure surfaces as an error even with no session
         // (otherwise the drive reads as an empty "No files yet" instead of the real failure).
@@ -264,19 +387,23 @@ export function useSessionDrive(
                 (Boolean(mount) &&
                     !filesQuery.isPending &&
                     (listing === null || filesQuery.isError)))
-        const agentErrored =
-            Boolean(artifactId) &&
-            ((!agentMountQuery.isPending &&
-                (agentMountQuery.data === null || agentMountQuery.isError)) ||
-                (Boolean(agentMount) &&
-                    !agentFilesQuery.isPending &&
-                    (agentListing === null || agentFilesQuery.isError)))
-        const errored = sessionErrored || agentErrored
+        const homeErrored =
+            Boolean(homeMount) &&
+            !homeFilesQuery.isPending &&
+            (homeListing === null || homeFilesQuery.isError)
+        // A failed drive lookup or listing reads as a failure, not as an empty drive.
+        const drivesErrored =
+            drivesState.isError ||
+            driveListings.some((q) => q.isError || (!q.isPending && q.data === null))
+        const errored = sessionErrored || homeErrored || drivesErrored
 
-        const totalSize = cwdStats.totalSize + agentStats.totalSize
+        const totalSize =
+            cwdStats.totalSize +
+            homeStats.totalSize +
+            driveStats.reduce((sum, {stats}) => sum + stats.totalSize, 0)
 
         return {
-            mount: agentOnly ? agentMount : mount,
+            mount: homeOnly ? homeMount : mount,
             files,
             filesByPath,
             resolveMount,
@@ -286,19 +413,19 @@ export function useSessionDrive(
         }
     }, [
         sessionId,
-        artifactId,
-        agentOnly,
+        homeOnly,
         mount,
-        agentMount,
+        homeMount,
+        otherDrives,
+        entries,
+        drivesState,
+        driveListings,
         filesQuery.data,
         filesQuery.isPending,
         filesQuery.isError,
-        agentFilesQuery.data,
-        agentFilesQuery.isPending,
-        agentFilesQuery.isError,
-        agentMountQuery.data,
-        agentMountQuery.isPending,
-        agentMountQuery.isError,
+        homeFilesQuery.data,
+        homeFilesQuery.isPending,
+        homeFilesQuery.isError,
         mountsQuery.data,
         mountsQuery.isPending,
         mountsQuery.isError,
@@ -318,6 +445,7 @@ export function useSessionDrive(
         // Newest signal wins per file; matching is tail-based (tool paths are sandbox-absolute or
         // cwd-relative). A tool path matches a file when the file's cleaned path equals the tool
         // path or is a `/`-boundary suffix of it — so we look up exactly those suffixes.
+        const homePrefix = homeOnly ? "" : `${AGENT_FILES_DIR}/`
         const stamp = (toolPath: string, at: number) => {
             const tool = cleanPath(toolPath)
             if (!tool) return
@@ -327,6 +455,12 @@ export function useSessionDrive(
                 for (const f of bucket) {
                     touchedAt.set(f.path, Math.max(touchedAt.get(f.path) ?? 0, at))
                 }
+            }
+            // A path under a drive's own mount names that drive's file, never a tail match.
+            const resolved = toolPath.startsWith("/") ? drivePathFromToolPath(toolPath) : null
+            if (resolved && resolved.origin !== "session") {
+                apply(presentToolPath(resolved, drivesState.homeSlug, homePrefix))
+                return
             }
             apply(tool)
             for (let i = tool.indexOf("/"); i !== -1; i = tool.indexOf("/", i + 1)) {
@@ -346,7 +480,7 @@ export function useSessionDrive(
             recents: ordered,
             lastTouchedAt: ordered.length ? (ordered[0].touchedAt ?? null) : null,
         }
-    }, [structural, activity, recordRecency])
+    }, [structural, activity, recordRecency, homeOnly, drivesState.homeSlug])
 
     return useMemo(() => {
         const {mount: primaryMount, files, totalSize, resolveMount, isLoading, errored} = structural
@@ -371,9 +505,36 @@ export function useSessionDrive(
             isLoading,
             errored,
             resolveMount,
+            otherDrives: otherDrives.length ? otherDrives : NO_DRIVES,
+            driveEntries: entries.length ? entries : NO_ENTRIES,
+            homeSlug: drivesState.homeSlug,
+            homeAtRoot: homeOnly,
         }
-    }, [structural, recents, lastTouchedAt])
+    }, [structural, recents, lastTouchedAt, otherDrives, entries, drivesState.homeSlug])
 }
+
+interface CountQuery {
+    data?: {total: number; totalCapped: boolean} | null
+    isPending: boolean
+    isFetching: boolean
+    isError: boolean
+}
+
+/**
+ * The drives' share of a drive summary (the home drive aside): their file count, and whether the
+ * lookup or any count is still resolving or failed. A failed request answers null, which is a
+ * failure, not an empty drive, so the summary flags it as a partial error and its retry reruns it.
+ */
+export const summarizeDrives = (
+    lookup: Pick<AgentDrivesState, "isPending" | "isFetching" | "isError">,
+    counts: readonly CountQuery[],
+) => ({
+    fileCount: counts.reduce((sum, q) => sum + (q.data?.total ?? 0), 0),
+    fileCountCapped: counts.some((q) => Boolean(q.data?.totalCapped)),
+    resolving: lookup.isPending || counts.some((q) => q.data === undefined && !q.isError),
+    isFetching: lookup.isFetching || counts.some((q) => q.isFetching),
+    errored: lookup.isError || counts.some((q) => !q.isPending && (q.data === null || q.isError)),
+})
 
 /** The summary surfaces show the latest 5 recent files. */
 const SUMMARY_LATEST_LIMIT = 5
@@ -393,19 +554,26 @@ const SUMMARY_LATEST_LIMIT = 5
  *
  * Returns the same {@link SessionDriveData} shape so consumers are unchanged.
  */
-export function useSessionDriveSummary(sessionId: string, artifactId?: string): SessionDriveData {
+export function useSessionDriveSummary(
+    sessionId: string,
+    artifactId?: string,
+    /** The revision the session runs: its `drives` list names the drives to fold in. */
+    revisionId?: string,
+): SessionDriveData {
     const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
     const mounts = mountsQuery.data ?? []
     const mount = pickCwdMount(mounts)
 
-    const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
-    const agentMount = artifactId ? (agentMountQuery.data ?? null) : null
+    const drivesState = useAtomValue(agentDrivesStateAtom(revisionId, artifactId))
+    const homeMount = drivesState.homeMount
+    const otherDrives = drivesState.otherDrives
+    const entries = drivesState.entries
 
     // The agent mount is the WHOLE drive: no session, or a session that resolved without a cwd mount
     // (nothing has run in it yet). Folding under `agent-files/` needs a cwd to fold into — without one
     // the root resolves to no mount and the explorer browses an empty tree. Gated on the mounts query
     // having ANSWERED so the presentation doesn't flip once a cwd mount appears mid-load.
-    const agentOnly = Boolean(agentMount) && !mount && (!sessionId || !mountsQuery.isPending)
+    const homeOnly = Boolean(homeMount) && !mount && (!sessionId || !mountsQuery.isPending)
 
     // Recents: the agent's own write/edit events from the durable record log (0 object-store scan).
     const recordRecency = useAtomValue(sessionRecordFileRecencyAtomFamily(sessionId))
@@ -415,6 +583,8 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     // mount-relative path, before the fold prefix, exactly as the root listing filters its own.
     // ONE derivation, shared with the gate below, so the gate can't withhold the root-listing
     // fallback over a row the list then drops.
+    // A write into a drive this member cannot read (no mount came back for it) is not listed.
+    const linked = drivesState.linked
     const recordFiles = useMemo(
         () =>
             [...recordRecency.entries()]
@@ -423,10 +593,12 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
                     (entry): entry is {resolved: DriveToolPath; at: number} =>
                         entry.resolved !== null &&
                         isSummaryDrivePath(entry.resolved.path, {
-                            fromAgentMount: entry.resolved.origin === "agent",
-                        }),
+                            fromDriveMount: entry.resolved.origin !== "session",
+                            drives: entries,
+                        }) &&
+                        isReadableToolPath(entry.resolved, linked, entries, Boolean(homeMount)),
                 ),
-        [recordRecency],
+        [recordRecency, entries, linked, homeMount],
     )
     // Does the record log hold ANY change this surface would actually LIST? When it doesn't, the
     // "recent changes" list would be empty even though the drive has files — so fall back to the
@@ -436,8 +608,8 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
 
     // Count only (limit=0): a bounded scan → `total` (+ `total_capped` when it hit the cap).
     const cwdCount = useAtomValue(latestMountFilesQueryFamily({mountId: mount?.id ?? "", limit: 0}))
-    const agentCount = useAtomValue(
-        latestMountFilesQueryFamily({mountId: agentMount?.id ?? "", limit: 0}),
+    const homeCount = useAtomValue(
+        latestMountFilesQueryFamily({mountId: homeMount?.id ?? "", limit: 0}),
     )
     // Fallback list (depth=1, one delimiter call per mount): the drive's TOP-LEVEL entries, so a
     // conversation that changed nothing still shows what's in the drive instead of an empty list.
@@ -447,9 +619,22 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     // entirely (#5480). Disabled (empty id) whenever the record log already has listable changes —
     // no wasted request in the common case.
     const rootQuery = useAtomValue(mountRootQueryFamily(hasVisibleRecords ? "" : (mount?.id ?? "")))
-    const agentRootQuery = useAtomValue(
-        mountRootQueryFamily(hasVisibleRecords ? "" : (agentMount?.id ?? "")),
+    const homeRootQuery = useAtomValue(
+        mountRootQueryFamily(hasVisibleRecords ? "" : (homeMount?.id ?? "")),
     )
+    // Each other drive: its bounded count, and its top-level entries for the same fallback list.
+    const driveSummaryAtom = useMemo(
+        () =>
+            atom((get) =>
+                otherDrives.map((d) => ({
+                    drive: d,
+                    count: get(latestMountFilesQueryFamily({mountId: d.mount.id, limit: 0})),
+                    root: get(mountRootQueryFamily(hasVisibleRecords ? "" : d.mount.id)),
+                })),
+            ),
+        [otherDrives, hasVisibleRecords],
+    )
+    const driveSummary = useAtomValue(driveSummaryAtom)
 
     // Re-run the underlying queries (retry from the errored state). `refetch()` bypasses `enabled`
     // and DOES invoke the queryFn on the empty-id (disabled) queries, but each queryFn guards its id
@@ -459,27 +644,39 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         void mountsQuery.refetch?.()
         void cwdCount.refetch?.()
         void rootQuery.refetch?.()
-        if (artifactId) {
-            void agentMountQuery.refetch?.()
-            void agentCount.refetch?.()
-            void agentRootQuery.refetch?.()
+        drivesState.refetch()
+        if (homeMount) {
+            void homeCount.refetch?.()
+            void homeRootQuery.refetch?.()
         }
-    }, [mountsQuery, cwdCount, rootQuery, agentMountQuery, agentCount, agentRootQuery, artifactId])
+        for (const {count, root} of driveSummary) {
+            void count.refetch?.()
+            void root.refetch?.()
+        }
+    }, [
+        mountsQuery,
+        cwdCount,
+        rootQuery,
+        homeMount,
+        homeCount,
+        homeRootQuery,
+        drivesState,
+        driveSummary,
+    ])
 
     const data = useMemo(() => {
         // Both lists below present an agent-mount path the way the full drive does — folded under
         // `agent-files/`, or at the root when the agent mount IS the drive; `resolveMount` maps
         // either back to the mount it came from.
-        const agentPrefix = agentOnly ? "" : `${AGENT_FILES_DIR}/`
-        const agentOwnsFold =
-            agentOnly && ownsAgentFilesEntry((agentRootQuery.data ?? []).map((f) => f.path))
+        const homePrefix = homeOnly ? "" : `${AGENT_FILES_DIR}/`
+        const homeOwnsFold =
+            homeOnly && ownsAgentFilesEntry((homeRootQuery.data ?? []).map((f) => f.path))
         // Newest write/edit per path. The record map dedups by TOOL path, and one file can be named
         // by more than one of those (`notes.md` from a cwd-relative call, `/tmp/agenta/…/notes.md`
         // from an absolute one) — so re-dedup on the resolved drive path, newest touch winning.
         const touchedAt = new Map<string, number>()
         for (const {resolved, at} of recordFiles) {
-            const path =
-                resolved.origin === "agent" ? `${agentPrefix}${resolved.path}` : resolved.path
+            const path = presentToolPath(resolved, drivesState.homeSlug, homePrefix)
             touchedAt.set(path, Math.max(touchedAt.get(path) ?? 0, at))
         }
         const recordRecents: DriveRecentFile[] = [...touchedAt.entries()]
@@ -496,12 +693,22 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         // `agent-files` from the session mount is the fold marker and goes, the same name from the
         // agent mount is a real directory and stays.
         const rootEntries: MountFile[] = [
-            ...(rootQuery.data ?? []).filter((f) => isSummaryDrivePath(f.path)),
-            ...(agentRootQuery.data ?? [])
-                .filter((f) => isSummaryDrivePath(f.path, {fromAgentMount: true}))
+            ...(rootQuery.data ?? []).filter(
+                (f) => isSummaryDrivePath(f.path) && !resolveDrivePath(f.path, entries),
+            ),
+            ...driveSummary.flatMap(({drive, root}) =>
+                foldDriveFiles(
+                    drive,
+                    (root.data ?? []).filter((f) =>
+                        isSummaryDrivePath(f.path, {fromDriveMount: true}),
+                    ),
+                ),
+            ),
+            ...(homeRootQuery.data ?? [])
+                .filter((f) => isSummaryDrivePath(f.path, {fromDriveMount: true}))
                 .map((f) => ({
                     ...f,
-                    path: `${agentPrefix}${cleanPath(f.path)}`,
+                    path: `${homePrefix}${cleanPath(f.path)}`,
                 })),
         ]
         const rootRecents: DriveRecentFile[] = rootEntries
@@ -515,21 +722,37 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         const recents = recordRecents.length ? recordRecents : rootRecents
         const lastTouchedAt = recents.length ? (recents[0].touchedAt ?? null) : null
 
+        // The cwd count is the store's, so it counts the runner's `drives/<slug>` link per linked
+        // drive; take them out without listing the folder. An approximate count: a session whose
+        // runner did not link every drive counts a few files less.
+        const cwdLinks = mount ? drivesState.linked.length : 0
+        const others = summarizeDrives(
+            drivesState,
+            driveSummary.map(({count}) => count),
+        )
         const fileCount =
-            (cwdCount.data?.total ?? 0) + (agentMount ? (agentCount.data?.total ?? 0) : 0)
+            Math.max(0, (cwdCount.data?.total ?? 0) - cwdLinks) +
+            (homeMount ? (homeCount.data?.total ?? 0) : 0) +
+            others.fileCount
         const fileCountCapped =
             Boolean(cwdCount.data?.totalCapped) ||
-            (Boolean(agentMount) && Boolean(agentCount.data?.totalCapped))
+            (Boolean(homeMount) && Boolean(homeCount.data?.totalCapped)) ||
+            others.fileCountCapped
         const countLabel = `${fileCount}${fileCountCapped ? "+" : ""}`
 
         const resolveMount = (path: string): ResolvedMountPath | null => {
             const rel = cleanPath(path)
-            if (agentOnly)
-                return agentMount
-                    ? {mount: agentMount, path: unfoldAgentPath(rel, agentOwnsFold)}
+            const linked = resolveDriveMount(rel, drivesState.linked, entries)
+            if (linked !== undefined) return linked
+            if (homeOnly)
+                return homeMount
+                    ? {mount: homeMount, path: unfoldHomePath(rel, homeOwnsFold)}
                     : null
-            if (agentMount && (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`))) {
-                return {mount: agentMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+            if (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)) {
+                if (homeMount)
+                    return {mount: homeMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+                // A configured home drive without a mount has no target, never the session folder.
+                if (drivesState.homeSlug) return null
             }
             return mount ? {mount, path: rel} : null
         }
@@ -548,16 +771,15 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
             Boolean(sessionId) &&
             (mountsQuery.isPending ||
                 (Boolean(mount) && cwdCount.data === undefined && !cwdCount.isError))
-        const agentResolving =
-            Boolean(artifactId) &&
-            (agentMountQuery.isPending ||
-                (Boolean(agentMount) && agentCount.data === undefined && !agentCount.isError))
+        const homeResolving =
+            drivesState.isPending ||
+            (Boolean(homeMount) && homeCount.data === undefined && !homeCount.isError)
 
         const cwdInPlay = Boolean(sessionId)
-        const agentInPlay = Boolean(artifactId)
+        const homeInPlay = Boolean(artifactId || revisionId)
         // Has at least one in-play side produced its answer (files, empty, or error)?
-        const anyResolved = (cwdInPlay && !cwdResolving) || (agentInPlay && !agentResolving)
-        const anyResolving = cwdResolving || agentResolving
+        const anyResolved = (cwdInPlay && !cwdResolving) || (homeInPlay && !homeResolving)
+        const anyResolving = cwdResolving || homeResolving || others.resolving
         const hasContent = recents.length > 0 || fileCount > 0
 
         // "A request is in flight over data that may already be shown" — the subtle "Loading more…"
@@ -566,36 +788,32 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         const isFetching =
             mountsQuery.isFetching ||
             cwdCount.isFetching ||
-            (Boolean(artifactId) &&
-                (agentMountQuery.isFetching ||
-                    agentCount.isFetching ||
-                    agentRootQuery.isFetching)) ||
-            rootQuery.isFetching
+            (Boolean(homeMount) && (homeCount.isFetching || homeRootQuery.isFetching)) ||
+            rootQuery.isFetching ||
+            others.isFetching ||
+            driveSummary.some(({root}) => root.isFetching)
 
         // BLOCKING skeleton ONLY at the very start — before ANY in-play side has answered and with
         // nothing to show. The moment one side answers (or the record log yields recents), we drop the
         // skeleton and render what we have; the fast drive is never held hostage to the slow one.
-        const isLoading = (cwdInPlay || agentInPlay) && !anyResolved && !hasContent
+        const isLoading = (cwdInPlay || homeInPlay) && !anyResolved && !hasContent
         // RECONCILING: past that initial blank, a sibling is still catching up. Surfaces keep the list
         // (whatever content is in + a "Loading more…" hint) instead of flashing the terminal "No files"
         // while data is still arriving. Distinct from `isFetching` (which also covers in-place
         // revalidation and the idle mount→count handoff frame).
         const reconciling = anyResolving && (anyResolved || hasContent)
 
-        // Per-mount failure: the session cwd and the artifact-scoped agent mount fail independently.
+        // Per-mount failure: the session cwd and the agent's drives fail independently.
         const sessionErrored =
             Boolean(sessionId) &&
             ((!mountsQuery.isPending && (mountsQuery.data === null || mountsQuery.isError)) ||
                 (Boolean(mount) &&
                     !cwdCount.isPending &&
                     (cwdCount.data === null || cwdCount.isError)))
-        const agentErrored =
-            Boolean(artifactId) &&
-            ((!agentMountQuery.isPending &&
-                (agentMountQuery.data === null || agentMountQuery.isError)) ||
-                (Boolean(agentMount) &&
-                    !agentCount.isPending &&
-                    (agentCount.data === null || agentCount.isError)))
+        const homeErrored =
+            Boolean(homeMount) &&
+            !homeCount.isPending &&
+            (homeCount.data === null || homeCount.isError)
         // TERMINAL error (the inline error + Retry card) means the SESSION (cwd) side failed with
         // nothing to show. An agent-only failure — or any failure with content still visible — is NOT
         // terminal: it falls through to the files/empty state so a working session is never masked.
@@ -603,7 +821,12 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         // PARTIAL failure: a mount failed but we're NOT in the terminal card (there's content, or only
         // the agent side broke). The inline list stays clean; instead the drawer-trigger shows a quiet
         // warning indicator and the drawer itself offers the retry (see the drawer's partial banner).
-        const partialErrored = (sessionErrored || agentErrored) && !errored
+        // A drive's root listing runs only without visible records; a failed one hides its entries.
+        const rootsErrored =
+            !hasVisibleRecords &&
+            driveSummary.some(({root}) => !root.isPending && (root.data === null || root.isError))
+        const partialErrored =
+            (sessionErrored || homeErrored || others.errored || rootsErrored) && !errored
 
         const summary = isLoading
             ? "…"
@@ -616,7 +839,7 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
                   : `${countLabel} file${fileCount === 1 && !fileCountCapped ? "" : "s"}`
 
         return {
-            mount: agentOnly ? agentMount : mount,
+            mount: homeOnly ? homeMount : mount,
             files: recents,
             fileCount,
             fileCountCapped,
@@ -630,32 +853,37 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
             errored,
             partialErrored,
             resolveMount,
+            otherDrives: otherDrives.length ? otherDrives : NO_DRIVES,
+            driveEntries: entries.length ? entries : NO_ENTRIES,
+            homeSlug: drivesState.homeSlug,
+            homeAtRoot: homeOnly,
         }
     }, [
         sessionId,
         artifactId,
-        agentOnly,
+        revisionId,
+        homeOnly,
         mount,
-        agentMount,
+        homeMount,
+        otherDrives,
+        entries,
+        drivesState,
+        driveSummary,
         recordFiles,
         hasVisibleRecords,
         rootQuery.data,
         rootQuery.isPending,
         rootQuery.isFetching,
-        agentRootQuery.data,
-        agentRootQuery.isFetching,
+        homeRootQuery.data,
+        homeRootQuery.isFetching,
         cwdCount.data,
         cwdCount.isPending,
         cwdCount.isFetching,
         cwdCount.isError,
-        agentCount.data,
-        agentCount.isPending,
-        agentCount.isFetching,
-        agentCount.isError,
-        agentMountQuery.data,
-        agentMountQuery.isPending,
-        agentMountQuery.isFetching,
-        agentMountQuery.isError,
+        homeCount.data,
+        homeCount.isPending,
+        homeCount.isFetching,
+        homeCount.isError,
         mountsQuery.data,
         mountsQuery.isPending,
         mountsQuery.isFetching,

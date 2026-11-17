@@ -17,12 +17,13 @@
     "descriptionUpdateFailed": "Die Beschreibung dieses Agents konnte nicht aktualisiert werden",
     "driveEmpty": "Dieser Agent hat noch kein Laufwerk.",
     "edit": "Bearbeiten",
-    "filesEmpty": "Dieser Agent hat noch keine Dateien.",
+    "filesLoadError": "Dateien konnten nicht geladen werden.",
     "filesTitle": "Dateien",
     "needsAttention": "Erfordert Aufmerksamkeit",
     "openChat": "Chat öffnen",
     "openFiles": "Dateien öffnen",
     "pageTitle": "Agents",
+    "readOnly": "nur lesen",
     "renameFailed": "Dieser Agent konnte nicht umbenannt werden",
     "retry": "Erneut versuchen"
 }

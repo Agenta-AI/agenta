@@ -17,12 +17,13 @@
     "descriptionUpdateFailed": "无法更新此 Agent 的描述",
     "driveEmpty": "此 Agent 还没有云盘。",
     "edit": "编辑",
-    "filesEmpty": "此 Agent 还没有任何文件。",
+    "filesLoadError": "无法加载文件。",
     "filesTitle": "文件",
     "needsAttention": "需要处理",
     "openChat": "打开对话",
     "openFiles": "打开文件",
     "pageTitle": "Agent",
+    "readOnly": "只读",
     "renameFailed": "无法重命名此 Agent",
     "retry": "重试"
 }
