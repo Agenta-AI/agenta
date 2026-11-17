@@ -327,6 +327,7 @@ describe("drive committers", () => {
     assert.equal(drive.mountedPath, "/w-drive-notes", "kept until the detach is confirmed");
     context.releaseDriveMount(drive);
     assert.equal(drive.mountedPath, undefined);
+    assert.equal(environment.installedMountExpiries.drives?.["/w-drive-notes"], undefined, "and its expiry");
     context.recordDriveLink(drive, false);
     assert.equal(drive.linked, false);
     assert.equal(context.takeRemountBudget("drive:/w-drive-notes"), true);

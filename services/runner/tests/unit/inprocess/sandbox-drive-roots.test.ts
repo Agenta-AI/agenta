@@ -85,6 +85,15 @@ describe("SandboxDrive with drives", () => {
     expect(prune).toMatch(/'sh' '1' '1' 'home' 'prices'$/);
   });
 
+  it("on the legacy path (a request without drives), prunes nothing under drives/", async () => {
+    const commands: string[] = [];
+    const { mounter } = fakeMounter();
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", drivesListed: false, log: () => {} });
+    await drive.ensure(use(fakeSandbox(commands)));
+    const prune = commands.find((c) => c.includes("for e in"));
+    expect(prune).toMatch(/'sh' '1' '0'$/);
+  });
+
   it("keeps today's rule: a root that fails to mount fails the file command", async () => {
     const { mounter } = fakeMounter(new Set(["/w-drive-prices"]));
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });

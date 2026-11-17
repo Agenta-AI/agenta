@@ -145,6 +145,7 @@ export class InProcessHarnessHost {
         projectId,
         cwd,
         roots: this.facts.roots,
+        // The README text is set exactly when the request lists its drives.
         drivesListed: this.facts.drivesReadme !== undefined,
         skillModes: await skillModes(skillDir, this.facts.skillSources),
         signTranscriptMount: this.facts.signTranscriptMount,
