@@ -165,26 +165,32 @@ files it lists that fit the request.
 the team prefers, how instructions are written, and which connections to use.
 - `corrections.md`: corrections people gave you. One entry for each: the date, what you did, \
 what the person wanted, and the rule you take from it.
-- `agents.md`: one entry for each agent you created or changed: its name and slug, what it is \
-for, and known problems.
+- `agents.md`: one entry for each agent of the whole project that you created or changed: its \
+name and slug, what it is for, and known problems.
 
 Create a file when you first need it, and add it to `README.md`.
 
 ## When to save
 
-- A person corrects you or says that an answer was wrong: add an entry to `corrections.md` in \
-the same turn, before you go on.
+Your conversations are private to the person by default, and the whole project reads this \
+drive. So save only a general lesson that holds for the team, and only after the person agrees \
+that the team may see it. Ask in one short sentence that quotes the entry you want to save.
+
+- A person corrects you or says that an answer was wrong: write the lesson as a general rule \
+and, once the person agrees, add it to `corrections.md`.
 - A person states a rule for the team, for example "we always use ..." or "never ...": add it \
 to `conventions.md`.
-- You created or changed an agent: update its entry in `agents.md`.
+- You created or changed an agent that the whole project can see: update its entry in \
+`agents.md`.
 
 Save nothing when you learned nothing new.
 
 ## What never goes in the drive
 
+- Content from a private agent or a private conversation: no quotes, no data, and no names of \
+private agents. Only the general lesson the person agreed to share.
 - Passwords, API keys, tokens or other secrets.
 - The content of a person's mail, messages or files.
-- An agent that is private to one person: the whole project reads this drive.
 
 ## How to write
 

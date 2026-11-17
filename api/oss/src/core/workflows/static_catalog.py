@@ -637,5 +637,11 @@ class StaticWorkflowCatalog(StaticWorkflowProvider):
                 "workflow_id": _artifact_uuid(slug=slug),
                 "workflow_slug": slug,
                 "workflow_variant_id": _variant_uuid(slug=slug),
+                # `model_copy` skips the alias sync of `model_post_init`. The generic names
+                # are what a run's resolved references are built from, and a static agent's
+                # tools bind its artifact id from them.
+                "artifact_id": _artifact_uuid(slug=slug),
+                "artifact_slug": slug,
+                "variant_id": _variant_uuid(slug=slug),
             }
         )

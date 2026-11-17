@@ -13,13 +13,19 @@ from uuid import uuid4
 import pytest
 from agenta.sdk.agents.adapters.agenta_builtins import AGENT_CONFIG_FIELDS_REFERENCE
 from agenta.sdk.agents.dtos import AgentTemplate
+from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+from agenta.sdk.agents.tools import ToolResolver
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.shared.dtos import Reference
+from oss.src.core.tools import platform_handlers
 from oss.src.core.workflows.builder_agent import (
     BUILDER_AGENT_SLUG,
+    BUILDER_AGENT_TOOLS,
     BUILDER_LEARNING_DRIVE_SLUG,
 )
+from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 
@@ -167,3 +173,126 @@ def test_manage_skill_bundles_the_config_field_reference():
     files = {f["path"]: f["content"] for f in skills["manage-project-agents"]["files"]}
 
     assert files["references/config-fields.md"].endswith(AGENT_CONFIG_FIELDS_REFERENCE)
+
+
+def test_a_run_by_slug_carries_the_builder_artifact_id():
+    """The agent tools bind the caller from the run's resolved workflow reference."""
+    revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
+
+    assert revision.artifact_id == revision.workflow_id
+    assert revision.variant_id == revision.workflow_variant_id
+    assert revision.artifact_slug == BUILDER_AGENT_SLUG
+
+
+@pytest.mark.asyncio
+async def test_resolved_references_name_the_builder_by_id():
+    service = WorkflowsService(
+        workflows_dao=AsyncMock(), static_catalog=StaticWorkflowCatalog()
+    )
+    request = WorkflowServiceRequest(
+        references={"workflow": {"slug": BUILDER_AGENT_SLUG}}
+    )
+
+    await service._ensure_request_revision(project_id=uuid4(), request=request)
+
+    revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
+    assert request.references["workflow"].id == revision.workflow_id
+    assert request.references["workflow_variant"].id == revision.workflow_variant_id
+
+
+@pytest.mark.asyncio
+async def test_writes_by_the_builder_are_attributed_to_it_by_name():
+    revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(
+        workflows_dao=workflows_dao, static_catalog=StaticWorkflowCatalog()
+    )
+
+    clause = await platform_handlers._attribution(
+        workflows_service=service,
+        project_id=uuid4(),
+        read_scope=AgentReadScope(owner_user_id=None),
+        caller_id=revision.workflow_id,
+        session_id="s-1",
+    )
+
+    assert clause == f'by agent "Builder" {revision.workflow_id}, session s-1'
+    workflows_dao.fetch_artifact.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("by", ["slug", "id"])
+@pytest.mark.parametrize(
+    "handler",
+    [
+        platform_handlers.handle_read_agent_config,
+        platform_handlers.handle_edit_agent_config,
+    ],
+)
+async def test_the_builder_cannot_read_or_edit_itself(handler, by):
+    revision = StaticWorkflowCatalog().retrieve_revision(slug=BUILDER_AGENT_SLUG)
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(
+        workflows_dao=workflows_dao, static_catalog=StaticWorkflowCatalog()
+    )
+
+    result = await handler(
+        arguments={
+            "agent": BUILDER_AGENT_SLUG if by == "slug" else str(revision.workflow_id),
+            "base_revision_id": str(revision.id),
+            "operations": [
+                {
+                    "operation": "set",
+                    "target": ["parameters", "agent", "instructions", "agents_md"],
+                    "value": "x",
+                }
+            ],
+            "caller_agent_id": str(revision.workflow_id),
+            "caller_session_id": "s-1",
+        },
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflows_service=service,
+    )
+
+    assert not result.ok
+    assert result.content.code == "agent_is_static"
+    workflows_dao.commit_revision.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["allow", "allow_reads", "ask"])
+async def test_the_four_agent_tools_resolve_for_a_run(mode):
+    """The agent tools are not Agenta tools, so the builder holds them as platform
+    entries; a run's resolver must still give it all four, with their approvals."""
+    template = AgentTemplate.from_params(
+        StaticWorkflowCatalog()
+        .retrieve_revision(slug=BUILDER_AGENT_SLUG)
+        .data.parameters
+    )
+    resolver = ToolResolver(
+        platform_resolver=AgentaPlatformToolResolver(
+            connection=PlatformConnection(
+                base_url="https://api.example/api", authorization="Access tok"
+            )
+        )
+    )
+
+    resolved = await resolver.resolve(
+        template.tools, permission_default=mode, session_id="s-1"
+    )
+
+    permissions = {spec.name: spec.permission for spec in resolved.tool_specs}
+    assert permissions["create_agent"] == "ask"
+    assert permissions["edit_agent_config"] == "ask"
+    assert permissions["list_agents"] == "allow"
+    assert permissions["read_agent_config"] == "allow"
+    assert set(permissions) == set(BUILDER_AGENT_TOOLS)
+
+
+def test_learning_skill_keeps_private_content_out_of_the_shared_drive():
+    skills = {skill["name"]: skill for skill in _agent()["skills"]}
+    body = skills["builder-learning"]["body"]
+
+    assert "Content from a private agent or a private conversation" in body
+    assert "agrees" in body
