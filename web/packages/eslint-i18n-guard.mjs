@@ -19,8 +19,7 @@ const WEB_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
  * relative to `web/`. Add your folder here when its strings are all in catalogs.
  *
  * A few files in translated folders still hold a hardcoded string and are left out of the
- * globs: the release notes WhatsNewDialog.tsx and ReleaseFeatureVideo.tsx in education,
- * audit/AuditEventDrawer.tsx, the auth AgentaBrand.tsx, and in navigation-ui
+ * globs: audit/AuditEventDrawer.tsx, the auth AgentaBrand.tsx, and in navigation-ui
  * SessionSearchPalette.tsx, SidebarLogo.tsx and releaseItems.tsx.
  */
 export const ERROR_FOLDERS = [
@@ -31,7 +30,7 @@ export const ERROR_FOLDERS = [
     "mobile/src/features/automations",
     "mobile/src/features/chat",
     "mobile/src/features/context",
-    "mobile/src/features/education/!(WhatsNewDialog|ReleaseFeatureVideo).tsx",
+    "mobile/src/features/education",
     "mobile/src/features/home",
     "mobile/src/features/marketplace",
     "mobile/src/features/nav",

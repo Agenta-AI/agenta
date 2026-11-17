@@ -1750,6 +1750,18 @@
         "watch": "7f7d264269ef",
         "watchVideo": "dbae3e9ba44b"
     },
+    "education.whatsNew": {
+        "kicker": "135e912e8905",
+        "title": "a8a7d8e3487c",
+        "latest": "8730d3c2022a",
+        "viewAll": "fd37943859cc",
+        "improvements": "c3eb9e6f2b69",
+        "fixes": "59e5965495d9",
+        "dontShowAgain": "497a0f940e31",
+        "readChangelog": "c97da0c481bd",
+        "play": "436e61016e26",
+        "playFeature": "bc2e9f2d0190"
+    },
     "entityUi.accounts": {
         "label": "7e1b0d5641f2",
         "eachPersonDefault": "3b74cfd52a3a",
