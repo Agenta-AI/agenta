@@ -6,7 +6,6 @@ import {fileOrigin} from "@agenta/entities/drive"
 import {CaretDown, CaretRight, CircleNotch} from "@phosphor-icons/react"
 
 import {FOCUS_RING} from "./DriveFileRow"
-import {useAttachedDrives} from "./driveSessionContext"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 import {OriginTag} from "./OriginTag"
 
@@ -22,6 +21,7 @@ export const TreeRow = ({
     isOpen,
     selected,
     showOrigin,
+    otherDrives,
     parent,
     scrollX,
     loading,
@@ -40,6 +40,8 @@ export const TreeRow = ({
     loading?: boolean
     /** Tag top-level nodes with their origin (agent-files vs session) — only when mixed. */
     showOrigin?: boolean
+    /** The session's drives other than the home: they tell a drive file from a session file. */
+    otherDrives?: readonly {slug: string}[]
     /** The parent folder path — the horizontal-scroll GROUP key (siblings share one offset). */
     parent: string
     /** This group's current horizontal offset, applied as a transform to the row's content. */
@@ -53,7 +55,6 @@ export const TreeRow = ({
     onToggle: (path: string) => void
     onSelect: (path: string) => void
 }) => {
-    const drives = useAttachedDrives()
     // Dot-prefixed (hidden) entries surface but dimmed, like a file browser greys .git/.claude.
     const hidden = isHiddenPath(node.path)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -136,7 +137,7 @@ export const TreeRow = ({
                     {/* Only the top-level items carry the tag; nested rows inherit it from their
                         (already-tagged) agent-files folder, so the tree stays quiet. */}
                     {showOrigin && depth === 0 ? (
-                        <OriginTag origin={fileOrigin(node.path, drives)} />
+                        <OriginTag origin={fileOrigin(node.path, otherDrives)} />
                     ) : null}
                     {/* In-flight upload status, trailing the name — the row is otherwise a normal file row. */}
                     {pending && !pending.error && pending.percent < 100 ? (

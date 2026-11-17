@@ -53,17 +53,21 @@ export const recordIndexAtomFamily = atomFamily((sessionId: string) =>
 const inAgentFiles = (rel: string) =>
     rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`)
 
-/** A mention's mount and mount-relative path, given the session's cwd mount, home drive and the
- * drives linked at `drives/<slug>/` (the home included). */
+/** A mention's mount and mount-relative path, given the session's cwd mount, home drive, the
+ * drives linked at `drives/<slug>/` (the home included) and every configured drive. A path in a
+ * configured drive that has no mount opens nothing, never the session folder's link. */
 export function resolveMentionMount<M>(
     path: string,
     cwdMount: M | null | undefined,
     homeMount: M | null | undefined,
     linked: readonly {slug: string; mount: M}[] = [],
+    entries: readonly {slug: string}[] = linked,
 ): {mount: M; path: string} | null {
+    // `undefined`: not a drive path.
     const inDrive = (rel: string) => {
         const hit = resolveDrivePath(rel, linked)
-        return hit ? {mount: hit.drive.mount, path: hit.path} : null
+        if (hit) return {mount: hit.drive.mount, path: hit.path}
+        return resolveDrivePath(rel, entries) ? null : undefined
     }
     // The path as written first. The markdown sanitizer hands `agent-files/x` back as
     // `/agent-files/x`, which names the home drive, never a sandbox path (#7715).
@@ -71,10 +75,10 @@ export function resolveMentionMount<M>(
     if (homeMount && inAgentFiles(written))
         return {mount: homeMount, path: written.slice(AGENT_FILES_DIR.length + 1)}
     const writtenDrive = inDrive(written)
-    if (writtenDrive) return writtenDrive
+    if (writtenDrive !== undefined) return writtenDrive
     // Then a full sandbox path, with its mount root stripped.
     const tool = path.startsWith("/") ? drivePathFromToolPath(path) : null
-    if (tool?.origin === "home") return homeMount ? {mount: homeMount, path: tool.path} : null
+    if (tool?.origin === "agent") return homeMount ? {mount: homeMount, path: tool.path} : null
     if (tool?.origin === "drive") {
         const drive = linked.find((d) => d.slug === tool.slug)
         return drive ? {mount: drive.mount, path: tool.path} : null
@@ -82,17 +86,21 @@ export function resolveMentionMount<M>(
     const rel = cleanPath(tool?.path ?? path)
     if (homeMount && inAgentFiles(rel))
         return {mount: homeMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
-    return inDrive(rel) ?? (cwdMount ? {mount: cwdMount, path: rel} : null)
+    const relDrive = inDrive(rel)
+    if (relDrive !== undefined) return relDrive
+    return cwdMount ? {mount: cwdMount, path: rel} : null
 }
 
 /** A mention's mount and mount-relative path, from the mount lists only (no file listing). */
 export function useMountResolver(sessionId: string, artifactId?: string | null) {
     const cwdMounts = useAtomValue(sessionMountsQueryFamily(sessionId)).data ?? []
     const cwdMount = pickCwdMount(cwdMounts)
-    const {home, linked} = useAtomValue(agentDrivesStateAtom(useDriveRevisionId(), artifactId))
+    const {homeMount, linked, entries} = useAtomValue(
+        agentDrivesStateAtom(useDriveRevisionId(), artifactId),
+    )
     return useCallback(
         (path: string): {mount: Mount; path: string} | null =>
-            resolveMentionMount(path, cwdMount, home, linked),
-        [cwdMount, home, linked],
+            resolveMentionMount(path, cwdMount, homeMount, linked, entries),
+        [cwdMount, homeMount, linked, entries],
     )
 }

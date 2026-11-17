@@ -11,17 +11,17 @@ import {message} from "@agenta/ui/app-message"
 
 /** Every mount the drive folds in, each under its presented folder; a primary mount is optional. */
 export const driveArchiveMounts = (
-    drive: Pick<SessionDriveData, "mount" | "resolveMount" | "drives">,
+    drive: Pick<SessionDriveData, "mount" | "resolveMount" | "otherDrives">,
 ): {mountId: string; prefix: string}[] => {
     const out: {mountId: string; prefix: string}[] = []
     const cwd = drive.mount
     if (cwd?.id) {
         out.push({mountId: cwd.id, prefix: ""})
-        const agent = drive.resolveMount(AGENT_FILES_DIR)
-        if (agent && agent.mount.id !== cwd.id)
-            out.push({mountId: agent.mount.id, prefix: AGENT_FILES_DIR})
+        const home = drive.resolveMount(AGENT_FILES_DIR)
+        if (home && home.mount.id !== cwd.id)
+            out.push({mountId: home.mount.id, prefix: AGENT_FILES_DIR})
     }
-    for (const other of drive.drives ?? [])
+    for (const other of drive.otherDrives ?? [])
         out.push({mountId: other.mount.id, prefix: driveDir(other.slug)})
     return out
 }

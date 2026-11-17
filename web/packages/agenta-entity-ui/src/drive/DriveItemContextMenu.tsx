@@ -38,6 +38,8 @@ import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** An item's write verbs; rename is file-only (no backend move endpoint). */
 export interface DriveItemWriteActions {
+    /** False for a mount root or an item in a read drive: its menu offers no write verb. */
+    canChange: (path: string) => boolean
     onRename: (path: string) => void
     onDelete: (path: string, isFolder: boolean) => void
 }
@@ -69,14 +71,14 @@ export function useCopyDrivePath(): (path: string) => void {
  * below it (the `drives/` folder holds them). The API keeps the source folder in each member path
  * (`drives/notes.md`), so each drive goes under its full folder, `drives/<slug>/`. */
 export const folderArchiveMounts = (
-    drive: Pick<SessionDriveData, "resolveMount" | "drives">,
+    drive: Pick<SessionDriveData, "resolveMount" | "otherDrives">,
     path: string,
 ): {mountId: string; prefix: string; path: string}[] => {
     const resolved = drive.resolveMount(path)
     const out = resolved?.mount
         ? [{mountId: resolved.mount.id, prefix: "", path: resolved.path}]
         : []
-    for (const other of drive.drives ?? []) {
+    for (const other of drive.otherDrives ?? []) {
         const dir = driveDir(other.slug)
         if (path && dir.startsWith(`${path}/`))
             out.push({mountId: other.mount.id, prefix: dir, path: ""})
@@ -141,7 +143,7 @@ export const DriveItemContextMenu = ({
     onCopyPath: (path: string) => void
     /** Download this item (a file's bytes, or a folder as a zip). Omit → no Download entry. */
     onDownload?: (path: string, isFolder: boolean) => void
-    /** Rename / delete — omit on a read-only mount. */
+    /** Rename / delete — omit where nothing can be written. */
     writes?: DriveItemWriteActions
     /** Wrapper class — defaults to `min-w-0` so grid-cell truncation still wins; pass `w-full`
      * variants where the cell needs to stretch. */
@@ -178,7 +180,7 @@ export const DriveItemContextMenu = ({
                         {isFolder ? "Download as zip" : "Download"}
                     </ContextMenuItem>
                 ) : null}
-                {writes ? (
+                {writes?.canChange(path) ? (
                     <>
                         <ContextMenuSeparator />
                         {/* Folder rename needs a backend move endpoint: shown disabled. */}

@@ -17,6 +17,19 @@ describe("findDriveEntry", () => {
         expect(findDriveEntry(files, "/var/lib/agenta/mounts/s/m/a.md")).toEqual({path: "a.md"})
     })
 
+    it("maps a path under a drive's own mount to that drive, never to a session file", () => {
+        const drive = "/var/lib/agenta/mounts/s/m-drive-prices/a.md"
+        expect(findDriveEntry(files, drive)).toEqual({path: "drives/prices/a.md"})
+        expect(findDriveEntry([{path: "a.md"}], drive)).toBeNull()
+        const home = [{path: "a.md"}, {path: "agent-files/a.md"}]
+        expect(findDriveEntry(home, "/var/lib/agenta/mounts/s/m-drive-own/a.md", false, "own")).toEqual(
+            {path: "agent-files/a.md"},
+        )
+        expect(findDriveEntry(home, "/var/lib/agenta/mounts/s/m-agent/a.md")).toEqual({
+            path: "agent-files/a.md",
+        })
+    })
+
     it("takes a drive path as is when exact", () => {
         expect(findDriveEntry(files, "a.md", true)).toEqual({path: "a.md"})
         expect(findDriveEntry(files, "b.md", true)).toBeNull()

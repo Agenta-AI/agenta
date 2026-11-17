@@ -47,19 +47,6 @@ export const ensureWritable = (
     return false
 }
 
-/** Retry a failed upload only while its folder is still writable: the drive's access can change
- * (a drive set to read) after the upload first failed. */
-export const retryIfWritable = (
-    drive: Pick<SessionDriveData, "resolveMount">,
-    items: readonly Pick<MountUploadItem, "id" | "presentedFolder">[],
-    id: string,
-    retry: (id: string) => void,
-): void => {
-    const item = items.find((it) => it.id === id)
-    if (item && !ensureWritable(drive, item.presentedFolder)) return
-    retry(id)
-}
-
 export function useDriveUploads({
     drive,
     explicitFiles,
@@ -107,7 +94,7 @@ export function useDriveUploads({
     // and panes, and the staged-files inbox.
     const uploadInputRef = useRef<HTMLInputElement>(null)
     // A session whose only writable drive is a drive under `drives/` has no primary mount.
-    const canUpload = !explicitFiles && (!!drive.mount || Boolean(drive.drives?.length))
+    const canUpload = !explicitFiles && (!!drive.mount || Boolean(drive.otherDrives?.length))
     const uploadIntoFolder = useCallback(
         (picked: DroppedFile[], folder: string) => {
             if (!ensureWritable(drive, folder)) return
@@ -130,8 +117,10 @@ export function useDriveUploads({
     )
     // Drag-and-drop uploads: highlight + spring-load into folders, drop to upload. Disabled in the
     // local-file preview (no mount to write to).
+    const canDropAt = useCallback((folder: string) => canWriteAt(drive, folder), [drive])
     const drop = useDriveDrop({
         enabled: canUpload,
+        canDropAt,
         onUpload: canUpload ? uploadIntoFolder : () => {},
         onNavigate: select,
     })
@@ -170,11 +159,6 @@ export function useDriveUploads({
         [mountUpload.items, uploadPath],
     )
 
-    const retryUpload = useCallback(
-        (id: string) => retryIfWritable(drive, mountUpload.items, id, mountUpload.retry),
-        [drive, mountUpload.items, mountUpload.retry],
-    )
-
     return {
         canUpload,
         uploadInputRef,
@@ -186,7 +170,7 @@ export function useDriveUploads({
         staged,
         stagedItems,
         removeStaged,
-        retryUpload,
+        retryUpload: mountUpload.retry,
         dismissUpload: mountUpload.dismiss,
     }
 }

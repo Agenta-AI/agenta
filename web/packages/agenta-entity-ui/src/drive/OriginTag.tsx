@@ -1,5 +1,5 @@
-/** A quiet "Temporary" pill on a session-cwd file; agent and project files carry none (their
- * folder says so). */
+/** A quiet "Temporary" pill on a session-cwd file; a drive's files carry none (their folder says
+ * so). */
 import {type FileOrigin} from "@agenta/entities/drive"
 import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 

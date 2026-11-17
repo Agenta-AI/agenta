@@ -22,7 +22,6 @@ import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {ArrowClockwise, CircleNotch, FolderSimple} from "@phosphor-icons/react"
 
 import {driveFileIcon} from "./driveIcons"
-import {useAttachedDrives} from "./driveSessionContext"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 import {FileThumb} from "./FileThumb"
 import {AGENT_ACCENT_SOFT, OriginTag} from "./OriginTag"
@@ -131,6 +130,7 @@ export const DriveFileRow = ({
     file,
     mount,
     showOrigin,
+    otherDrives,
     hideFolder,
     isFolder,
     staticThumb,
@@ -153,6 +153,8 @@ export const DriveFileRow = ({
     mount?: Mount | null
     /** Show the agent/session origin tag. Pass true only when the drive holds both kinds. */
     showOrigin?: boolean
+    /** The session's drives other than the home: they tell a drive file from a session file. */
+    otherDrives?: readonly {slug: string}[]
     /** Drop the folder from the card meta — for the folder view, where every file shares the
      * (already-shown) current folder. */
     hideFolder?: boolean
@@ -172,7 +174,6 @@ export const DriveFileRow = ({
      * skeletons doesn't read as a barcode. */
     skeletonIndex?: number
 }) => {
-    const drives = useAttachedDrives()
     if (loading) {
         const nameW = SKELETON_NAME_WIDTHS[skeletonIndex % SKELETON_NAME_WIDTHS.length]
         // ROW placeholder — reuses the real row's shell classes (minus button/hover/cursor) so the
@@ -223,7 +224,7 @@ export const DriveFileRow = ({
     // Always the basename — folders never bloat the visible name (a nested/long path would
     // truncate the important tail). The full relative path is on the `title` tooltip instead.
     const name = path.split("/").pop() ?? path
-    const origin = fileOrigin(path, drives)
+    const origin = fileOrigin(path, otherDrives)
     // Dot-prefixed (hidden) files/folders are surfaced but dimmed, like a file browser greys .git.
     const hidden = isHiddenPath(path)
     const isFolderEntry = isFolder ?? file?.is_folder ?? false

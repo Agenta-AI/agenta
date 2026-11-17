@@ -112,4 +112,14 @@ describe("resolveQuickLookPath prefers a full path over a shorter tail", () => {
             resolveQuickLookPath([{path: "a.md"}], "drives/prices/a.md", [{slug: "prices"}]),
         ).toBe("drives/prices/a.md")
     })
+
+    it("never opens a session file for a path under a drive's own mount", () => {
+        expect(
+            resolveQuickLookPath(
+                [{path: "a.md"}],
+                "/var/lib/agenta/mounts/s/m-drive-prices/a.md",
+                [{slug: "prices"}],
+            ),
+        ).toBe("drives/prices/a.md")
+    })
 })

@@ -99,9 +99,9 @@ export function mountPathMatchesToolPath(mountPath: string, toolPath: string): b
 /** Which mount an absolute tool path names, and where inside it. */
 export interface DriveToolPath {
     /** `"session"` = the run's own cwd mount; `"drive"` = the drive `slug`, mounted as the cwd's
-     * sibling `<cwd>-drive-<slug>`; `"home"` = the agent's drive at the older sibling `<cwd>-agent`,
-     * which recorded sessions keep. */
-    origin: "session" | "home" | "drive"
+     * sibling `<cwd>-drive-<slug>`; `"agent"` = the older sibling `<cwd>-agent`, the home drive of
+     * recorded sessions. */
+    origin: "session" | "agent" | "drive"
     /** The drive's slug, for the `"drive"` origin. */
     slug?: string
     /** The path relative to that mount's root — what a drive listing can actually resolve. */
@@ -118,7 +118,7 @@ const mountOrigin = (segment: string): Pick<DriveToolPath, "origin" | "slug"> =>
     const at = segment.indexOf(DRIVE_MOUNT_INFIX)
     const slug = at > 0 ? segment.slice(at + DRIVE_MOUNT_INFIX.length) : ""
     if (slug) return {origin: "drive", slug}
-    return {origin: segment.endsWith(AGENT_MOUNT_SUFFIX) ? "home" : "session"}
+    return {origin: segment.endsWith(AGENT_MOUNT_SUFFIX) ? "agent" : "session"}
 }
 
 /** Index one past the last segment of the durable mount root, or -1 when these segments sit under

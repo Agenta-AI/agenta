@@ -1,7 +1,16 @@
 import {useCallback} from "react"
 
-import {useSessionDrive, type ResolvedMountPath} from "@agenta/entities/drive"
-import {mountPathMatchesToolPath, type MountFile} from "@agenta/entities/session"
+import {
+    AGENT_FILES_DIR,
+    presentToolPath,
+    useSessionDrive,
+    type ResolvedMountPath,
+} from "@agenta/entities/drive"
+import {
+    drivePathFromToolPath,
+    mountPathMatchesToolPath,
+    type MountFile,
+} from "@agenta/entities/session"
 
 import {useDriveArtifactId, useDriveRevisionId, useDriveSessionId} from "./driveSessionContext"
 
@@ -13,16 +22,23 @@ export interface DriveFileLookup {
 }
 
 /**
- * The listing's entry for a path. `exact` takes a drive path as is; a tool path matches on its
- * tail, and the longest matching path wins, so `drives/prices/a.md` never resolves to a shorter
- * `a.md` that only shares its tail.
+ * The listing's entry for a path. `exact` takes a drive path as is. A tool path under a drive's own
+ * mount (`<cwd>-drive-<slug>`, `<cwd>-agent`) names that drive's presented path, never a session
+ * file that shares its tail. Any other tool path matches on its tail, and the longest matching path
+ * wins, so `drives/prices/a.md` never resolves to a shorter `a.md` that only shares its tail.
  */
 export const findDriveEntry = <F extends {path: string}>(
     files: readonly F[],
     path: string,
     exact = false,
+    homeSlug: string | null = null,
+    homePrefix = `${AGENT_FILES_DIR}/`,
 ): F | null => {
-    if (exact) return files.find((file) => file.path === path) ?? null
+    const byPath = (p: string) => files.find((file) => file.path === p) ?? null
+    if (exact) return byPath(path)
+    const tool = path.startsWith("/") ? drivePathFromToolPath(path) : null
+    if (tool && tool.origin !== "session")
+        return byPath(presentToolPath(tool, homeSlug, homePrefix))
     let best: F | null = null
     for (const file of files)
         if (
@@ -38,18 +54,22 @@ export function useDriveFileLookup(): (path: string, exact?: boolean) => DriveFi
     const sessionId = useDriveSessionId()
     const artifactId = useDriveArtifactId()
     const revisionId = useDriveRevisionId()
-    const {files, resolveMount} = useSessionDrive(
+    const {files, mount, homeSlug, resolveMount} = useSessionDrive(
         sessionId ?? "",
         artifactId ?? undefined,
         false,
         revisionId ?? undefined,
     )
+    // A drive that is the home drive alone presents it at the root, not under `agent-files/`.
+    const home = resolveMount(AGENT_FILES_DIR)
+    const homePrefix =
+        home && home.path === "" && home.mount.id === mount?.id ? "" : `${AGENT_FILES_DIR}/`
     return useCallback(
         (path: string, exact = false) => {
-            const entry = findDriveEntry(files, path, exact)
+            const entry = findDriveEntry(files, path, exact, homeSlug ?? null, homePrefix)
             // The file may live in the cwd mount, the home drive or another drive.
             return {entry, target: entry ? resolveMount(entry.path) : null}
         },
-        [files, resolveMount],
+        [files, homeSlug, homePrefix, resolveMount],
     )
 }

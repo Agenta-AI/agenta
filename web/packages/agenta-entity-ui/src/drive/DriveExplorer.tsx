@@ -349,7 +349,7 @@ export function DriveExplorer({
     )
     useDrivePasteUpload({
         paneRef,
-        enabled: chrome && canUpload,
+        enabled: chrome && canWrite,
         onFiles: onPasteFiles,
         isNameTaken,
     })
@@ -447,8 +447,7 @@ export function DriveExplorer({
     )
     const startRename = useCallback(
         (path: string) => {
-            // A mount root or a read drive is not renamed, as it is not deleted.
-            if (!writes.canDelete(path)) return
+            if (!writes.canChange(path)) return
             const folder = parentOf(path)
             if (selectedPath !== folder) select(folder)
             setNameEdit({path, kind: nodeByPath.get(path)?.isFolder ? "folder" : "file"})
@@ -470,7 +469,7 @@ export function DriveExplorer({
     }, [nameEdit, siblingsOf, commitName])
     const onDelete = useCallback(
         async (path: string, isFolder: boolean) => {
-            if (!writes.canDelete(path)) return
+            if (!writes.canChange(path)) return
             const node = nodeByPath.get(path)
             const under =
                 selectedPath != null &&
@@ -483,15 +482,17 @@ export function DriveExplorer({
         },
         [writes, nodeByPath, selectedPath, editing, discardDraft, select],
     )
+    // Each item's menu asks for its own path: a read drive's items offer no write verb.
     const itemWrites = useMemo<DriveItemWriteActions | undefined>(
         () =>
-            canWrite
+            canUpload
                 ? {
+                      canChange: writes.canChange,
                       onRename: startRename,
                       onDelete: (path, isFolder) => void onDelete(path, isFolder),
                   }
                 : undefined,
-        [canWrite, startRename, onDelete],
+        [canUpload, writes.canChange, startRename, onDelete],
     )
     const fileActions = useMemo<DriveFileActions | undefined>(
         () =>
@@ -599,7 +600,7 @@ export function DriveExplorer({
                 mirrored={mirrored}
             />
         )
-    } else if (drive.fileCount === 0 && !drive.drives?.length) {
+    } else if (drive.fileCount === 0 && !drive.otherDrives?.length) {
         body = <DriveEmptyState scope={scope} />
     } else {
         // The folder's verbs — row 2's ⋯ and the blank-space right-click menu share them.
@@ -756,6 +757,7 @@ export function DriveExplorer({
                     path={selectedMountPath}
                     displayPath={selectedPath}
                     showOrigin={showOrigin}
+                    otherDrives={drive.otherDrives}
                     rootLabel={rootLabel}
                     touchedAt={selected?.touchedAt}
                     size={selectedFileSize}
@@ -804,6 +806,7 @@ export function DriveExplorer({
                             shownExpanded={shownExpanded}
                             selectedPath={selectedPath}
                             showOrigin={showOrigin}
+                            otherDrives={drive.otherDrives}
                             isDirLoading={isDirLoading}
                             scrollXFor={scrollXFor}
                             onMeasureContent={onMeasureContent}

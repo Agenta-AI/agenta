@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     AGENT_FILES_DIR,
+    DRIVES_DIR,
     DRIVE_NOT_WRITABLE,
     fileOrigin,
     moveMountFile,
@@ -21,14 +22,14 @@ import {message, modal} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-/** Mount roots (the root, `agent-files/`, `drives/<slug>/`) and read drives are never renamed or
- * deleted. */
+/** Mount roots (the root, `agent-files/`, `drives/<slug>/`), the `drives/` folder that holds them
+ * and read drives are never renamed or deleted. */
 export const canMoveOrDelete = (
-    drive: Pick<SessionDriveData, "resolveMount" | "drives">,
+    drive: Pick<SessionDriveData, "resolveMount" | "otherDrives">,
     presentedPath: string,
 ): boolean => {
-    if (presentedPath === "" || presentedPath === AGENT_FILES_DIR) return false
-    if (fileOrigin(presentedPath, drive.drives) !== "drive") return true
+    if (["", AGENT_FILES_DIR, DRIVES_DIR].includes(presentedPath)) return false
+    if (fileOrigin(presentedPath, drive.otherDrives) !== "drive") return true
     const resolved = drive.resolveMount(presentedPath)
     return Boolean(resolved && resolved.path !== "" && !resolved.readOnly)
 }
@@ -136,7 +137,7 @@ export function useDriveWrites(
         [run, projectId, getContainer],
     )
 
-    const canDelete = useCallback(
+    const canChange = useCallback(
         (presentedPath: string) => canMoveOrDelete(drive, presentedPath),
         [drive],
     )
@@ -149,8 +150,8 @@ export function useDriveWrites(
             rename,
             renameEmptyFolder,
             remove,
-            canDelete,
+            canChange,
         }),
-        [busy, createFolder, createFile, rename, renameEmptyFolder, remove, canDelete],
+        [busy, createFolder, createFile, rename, renameEmptyFolder, remove, canChange],
     )
 }

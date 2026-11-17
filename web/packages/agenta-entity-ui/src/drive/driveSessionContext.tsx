@@ -7,7 +7,7 @@
  */
 import {createContext, useContext, useMemo, type ReactNode} from "react"
 
-import {agentDrivesStateAtom, type Drive} from "@agenta/entities/drive"
+import {agentDrivesStateAtom} from "@agenta/entities/drive"
 import {useAtomValue} from "jotai"
 
 interface DriveSession {
@@ -51,11 +51,6 @@ export const useDriveArtifactId = (): string | null => useContext(DriveSessionCo
 /** The enclosing conversation's revision id — for the drives its configuration names; null
  * outside a conversation. */
 export const useDriveRevisionId = (): string | null => useContext(DriveSessionContext).revisionId
-
-/** The enclosing conversation's drives under `drives/<slug>/`, the home drive aside (none outside a
- * conversation) — which `drives/<slug>` paths are drive paths rather than session files. */
-export const useAttachedDrives = (): Drive[] =>
-    useAtomValue(agentDrivesStateAtom(useDriveRevisionId(), useDriveArtifactId())).drives
 
 /** The enclosing conversation's home drive slug: its tool paths present under `agent-files/`. */
 export const useDriveHomeSlug = (): string | null =>

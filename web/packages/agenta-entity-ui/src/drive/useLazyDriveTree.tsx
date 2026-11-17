@@ -90,19 +90,19 @@ export function useLazyDriveTree(
     includeGitignored: boolean,
 ): LazyDriveTree {
     const cwdMount = drive.mount
-    // The agent mount, if the drive folds one in (else resolveMount keeps everything on cwd).
-    const agentResolved = drive.resolveMount(AGENT_FILES_DIR)
-    const agentMount =
-        agentResolved && cwdMount && agentResolved.mount.id !== cwdMount.id
-            ? agentResolved.mount
+    // The home drive's mount, if the drive folds one in (else resolveMount keeps everything on cwd).
+    const homeResolved = drive.resolveMount(AGENT_FILES_DIR)
+    const homeMount =
+        homeResolved && cwdMount && homeResolved.mount.id !== cwdMount.id
+            ? homeResolved.mount
             : null
-    const drives = drive.drives ?? NO_DRIVES
-    const configured = drive.configuredDrives ?? NO_ENTRIES
+    const drives = drive.otherDrives ?? NO_DRIVES
+    const entries = drive.driveEntries ?? NO_ENTRIES
     const driveDirs = useMemo(() => drives.map((d) => driveDir(d.slug)), [drives])
     // The cwd's links to the home drive and to unresolved drives: never shown under `drives/`.
     const hiddenLinks = useMemo(
-        () => configured.filter((c) => !drives.some((d) => d.slug === c.slug)),
-        [configured, drives],
+        () => entries.filter((c) => !drives.some((d) => d.slug === c.slug)),
+        [entries, drives],
     )
     // A drive's folder is the drive's own, never the cwd's: a cwd listing that does not name it
     // (no turn ran yet) must not drop what the drive's own subscription loaded.
@@ -121,7 +121,7 @@ export function useLazyDriveTree(
         const removed = prevDriveDirs.current.filter((d) => !driveDirs.includes(d))
         prevDriveDirs.current = driveDirs
         if (!removed.length) return
-        for (const key of [...removed, ...dropDirs(dirFilesRef.map, removed)])
+        for (const key of new Set([...removed, ...dropDirs(dirFilesRef.map, removed)]))
             setFetching(key, false)
         forceVersion()
     }, [driveDirs, dirFilesRef, setFetching, forceVersion])
@@ -162,9 +162,9 @@ export function useLazyDriveTree(
             includeGitignored,
         }),
     )
-    const agentFullQ = useAtomValue(
+    const homeFullQ = useAtomValue(
         mountFilesQueryFamily({
-            mountId: searchActive && agentMount ? agentMount.id : "",
+            mountId: searchActive && homeMount ? homeMount.id : "",
             includeGitignored,
         }),
     )
@@ -186,16 +186,15 @@ export function useLazyDriveTree(
     const fullFiles = useMemo(() => {
         if (!searchActive) return null
         const cwd = (cwdFullQ.data ?? []).filter(
-            (f) =>
-                cleanPath(f.path) !== AGENT_FILES_DIR && !resolveDrivePath(f.path, configured),
+            (f) => cleanPath(f.path) !== AGENT_FILES_DIR && !resolveDrivePath(f.path, entries),
         )
-        const agent = (agentFullQ.data ?? []).map((f) => ({
+        const home = (homeFullQ.data ?? []).map((f) => ({
             ...f,
             path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
         }))
         const others = drives.flatMap((d, i) => foldDriveFiles(d, driveFullQs[i]?.data ?? []))
-        return [...cwd, ...agent, ...others, ...driveFolders(driveDirs)]
-    }, [searchActive, cwdFullQ.data, agentFullQ.data, drives, configured, driveDirs, driveFullQs])
+        return [...cwd, ...home, ...others, ...driveFolders(driveDirs)]
+    }, [searchActive, cwdFullQ.data, homeFullQ.data, drives, entries, driveDirs, driveFullQs])
 
     const lazyFiles = useMemo(() => {
         // dirVersion in deps: the ref mutates in place, so bump a version to recompute.
@@ -211,12 +210,12 @@ export function useLazyDriveTree(
     // Always subscribe to the folded agent mount's ROOT, even while `agent-files` is collapsed — its
     // count/children can't come from the cwd mount (which sees an empty mount-point there), so without
     // this the fold node shows a wrong "0 items" until it's expanded. Each other drive's root too.
-    const agentMountId = agentMount?.id ?? null
+    const homeMountId = homeMount?.id ?? null
     const subscriberPaths = useMemo(() => {
-        const roots = [...(agentMountId ? [AGENT_FILES_DIR] : []), ...driveDirs]
+        const roots = [...(homeMountId ? [AGENT_FILES_DIR] : []), ...driveDirs]
         const missing = roots.filter((p) => !activePaths.includes(p))
         return missing.length ? [...activePaths, ...missing] : activePaths
-    }, [activePaths, agentMountId, driveDirs])
+    }, [activePaths, homeMountId, driveDirs])
 
     const subscribers = useMemo(
         () =>
@@ -254,17 +253,15 @@ export function useLazyDriveTree(
         rootLoading: !loadedDirs.has(""),
         searchLoading:
             searchActive &&
-            (cwdFullQ.isFetching ||
-                agentFullQ.isFetching ||
-                driveFullQs.some((q) => q.isFetching)),
+            (cwdFullQ.isFetching || homeFullQ.isFetching || driveFullQs.some((q) => q.isFetching)),
         subscribers,
     }
 }
 
 // --- tiny state helpers (kept local so the hook reads top-down) --------------------------------
 
-const NO_DRIVES: NonNullable<SessionDriveData["drives"]> = []
-const NO_ENTRIES: NonNullable<SessionDriveData["configuredDrives"]> = []
+const NO_DRIVES: NonNullable<SessionDriveData["otherDrives"]> = []
+const NO_ENTRIES: NonNullable<SessionDriveData["driveEntries"]> = []
 
 /** Drop every cached level at or under `dirs`; answers the dropped keys. */
 export const dropDirs = (map: Map<string, unknown>, dirs: readonly string[]): string[] => {
@@ -276,8 +273,7 @@ export const dropDirs = (map: Map<string, unknown>, dirs: readonly string[]): st
 }
 
 /** Each drive's folder, so an empty drive still shows at `drives/<slug>/`. */
-const driveFolders = (dirs: string[]): MountFile[] =>
-    dirs.map((path) => ({path, is_folder: true}))
+const driveFolders = (dirs: string[]): MountFile[] => dirs.map((path) => ({path, is_folder: true}))
 
 /** A monotonically-bumped version, to recompute memos off an in-place-mutated ref. */
 function useReducerVersion(): [number, () => void] {

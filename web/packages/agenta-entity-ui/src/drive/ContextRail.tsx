@@ -29,7 +29,7 @@ import {
     SKELETON_ROW_COUNT,
 } from "./DriveFileRow"
 import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
-import {useDriveArtifactId} from "./driveSessionContext"
+import {useDriveArtifactId, useDriveRevisionId} from "./driveSessionContext"
 import {driveQuickLookAtomFamily} from "./quickLook"
 
 /** antd `Typography.Text` stand-in: the only prop this module used is `type="secondary"`. */
@@ -92,9 +92,11 @@ export function ContextRail({
     )
     // A brand-new never-run tab has no server data — hold the queries off until its first run.
     const artifactId = useDriveArtifactId()
+    const revisionId = useDriveRevisionId()
     const drive = useSessionDriveSummary(
         isSessionFresh(sessionId) ? "" : sessionId,
         artifactId ?? undefined,
+        revisionId ?? undefined,
     )
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
 
@@ -197,7 +199,7 @@ const ExpandedRail = ({
     dropActive?: boolean
 }) => {
     const now = useRecentChangeClock(drive.lastTouchedAt)
-    const showOrigin = driveHasMixedOrigins(drive.recents)
+    const showOrigin = driveHasMixedOrigins(drive.recents, drive.otherDrives)
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)
     return (
@@ -380,6 +382,9 @@ const ExpandedRail = ({
                                                                               drive.mount
                                                                           }
                                                                           showOrigin={showOrigin}
+                                                                          otherDrives={
+                                                                              drive.otherDrives
+                                                                          }
                                                                           recent={isRecentlyChanged(
                                                                               file.touchedAt,
                                                                               now,

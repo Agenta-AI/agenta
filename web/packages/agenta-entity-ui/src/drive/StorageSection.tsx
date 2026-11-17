@@ -41,6 +41,7 @@ const RecentFileRow = ({
     file,
     recent,
     showOrigin,
+    otherDrives,
     onOpen,
     onCopyPath,
     onDownload,
@@ -48,6 +49,7 @@ const RecentFileRow = ({
     file: DriveRecentFile
     recent?: boolean
     showOrigin?: boolean
+    otherDrives?: readonly {slug: string}[]
     onOpen: () => void
     onCopyPath: (path: string) => void
     onDownload: (path: string, isFolder: boolean) => void
@@ -64,6 +66,7 @@ const RecentFileRow = ({
             path={file.path}
             recent={recent}
             showOrigin={showOrigin}
+            otherDrives={otherDrives}
             isFolder={!!file.is_folder}
             mark="typed"
             // " · " only between the parts that exist; a folder count only when known.
@@ -120,7 +123,7 @@ export default function StorageSection({
     // (dot-prefixed) entries are dimmed by the row, not dropped, and clone dumps are already rolled
     // up into a single folder row by the backend.
     const visibleRecents = drive.recents
-    const showOrigin = driveHasMixedOrigins(visibleRecents)
+    const showOrigin = driveHasMixedOrigins(visibleRecents, drive.otherDrives)
 
     // The loading skeleton is NOT a separate block — it's the same list rendering placeholder rows,
     // so the resolve is a per-row content swap (skeleton → real) inside one AnimatePresence, with zero
@@ -201,6 +204,7 @@ export default function StorageSection({
                                                           now,
                                                       )}
                                                       showOrigin={showOrigin}
+                                                      otherDrives={drive.otherDrives}
                                                       onOpen={() => openPane(file.path)}
                                                       onCopyPath={copyPath}
                                                       onDownload={download}

@@ -31,7 +31,6 @@ import {
     canWriteAt,
     DRIVE_NOT_WRITABLE,
     ensureWritable,
-    retryIfWritable,
 } from "../../src/drive/useDriveUploads"
 import {
     driveHasMixedOrigins,
@@ -120,9 +119,9 @@ describe("agentDrivesStateForParameters", () => {
         expect(fern.queryMounts.mock.calls[0][0]).toEqual({
             mount: {slugs: ["quote-agent-files", "price-lists"]},
         })
-        expect(state.home).toEqual(home)
+        expect(state.homeMount).toEqual(home)
         expect(state.homeSlug).toBe("quote-agent-files")
-        expect(state.drives).toEqual([{slug: "price-lists", access: "read", mount: prices}])
+        expect(state.otherDrives).toEqual([{slug: "price-lists", access: "read", mount: prices}])
         expect(state.linked.map((d) => d.slug)).toEqual(["quote-agent-files", "price-lists"])
         expect(fern.queryAgentMount).not.toHaveBeenCalled()
     })
@@ -141,16 +140,16 @@ describe("agentDrivesStateForParameters", () => {
                 "a-unresolved",
             ),
         )
-        expect(state.home).toBeNull()
-        expect(state.drives.map((d) => d.slug)).toEqual(["price-lists"])
-        expect(state.configured.map((d) => d.slug)).toEqual(["quote-agent-files", "price-lists"])
+        expect(state.homeMount).toBeNull()
+        expect(state.otherDrives.map((d) => d.slug)).toEqual(["price-lists"])
+        expect(state.entries.map((d) => d.slug)).toEqual(["quote-agent-files", "price-lists"])
     })
 
     it("has no home and sends no request for an empty list", async () => {
         const state = await settle(
             agentDrivesStateForParameters({agent: {drives: [], home_drive: null}}, "a-none"),
         )
-        expect(state).toMatchObject({home: null, drives: [], configured: []})
+        expect(state).toMatchObject({homeMount: null, otherDrives: [], entries: []})
         expect(fern.queryMounts).not.toHaveBeenCalled()
         expect(fern.queryAgentMount).not.toHaveBeenCalled()
     })
@@ -161,8 +160,8 @@ describe("agentDrivesStateForParameters", () => {
             agentDrivesStateForParameters({agent: {has_session_drive: true}}, "a-legacy"),
         )
         expect(fern.queryAgentMount.mock.calls[0][0]).toEqual({artifact_id: "a-legacy"})
-        expect(state.home).toEqual({id: "m-own", slug: "own"})
-        expect(state.drives).toEqual([])
+        expect(state.homeMount).toEqual({id: "m-own", slug: "own"})
+        expect(state.otherDrives).toEqual([])
         expect(fern.queryMounts).not.toHaveBeenCalled()
     })
 
@@ -342,27 +341,6 @@ describe("ensureWritable", () => {
     })
 })
 
-describe("retryIfWritable", () => {
-    const drive = {
-        resolveMount: (path: string) =>
-            path === "drives/prices"
-                ? {mount: {id: "m"}, path: "", readOnly: true}
-                : {mount: {id: "cwd"}, path},
-    }
-    const items = [
-        {id: "u1", presentedFolder: "drives/prices"},
-        {id: "u2", presentedFolder: "notes"},
-    ]
-
-    it("does not retry an upload whose folder became read-only", () => {
-        const retry = vi.fn()
-        retryIfWritable(drive, items, "u1", retry)
-        expect(retry).not.toHaveBeenCalled()
-        retryIfWritable(drive, items, "u2", retry)
-        expect(retry).toHaveBeenCalledWith("u2")
-    })
-})
-
 describe("resolveDriveMount", () => {
     const prices = {slug: "prices", access: "read" as const, mount: {id: "m-prices"}}
 
@@ -411,7 +389,7 @@ describe("presentToolPath", () => {
         const prices = {origin: "drive" as const, slug: "price-lists", path: "b.csv"}
         expect(presentToolPath(home, "quote-agent-files")).toBe("agent-files/a.md")
         expect(presentToolPath(prices, "quote-agent-files")).toBe("drives/price-lists/b.csv")
-        expect(presentToolPath({origin: "home", path: "c.md"})).toBe("agent-files/c.md")
+        expect(presentToolPath({origin: "agent", path: "c.md"})).toBe("agent-files/c.md")
         expect(presentToolPath({origin: "session", path: "d.md"})).toBe("d.md")
     })
 })

@@ -90,13 +90,13 @@ export const resolveDrivePath = <D extends {slug: string}>(
 
 export interface AgentDrivesState {
     /** The home drive's mount, shown under `agent-files/`. */
-    home: Mount | null
+    homeMount: Mount | null
     /** The configured home slug; null without a `drives` list or without a home. */
     homeSlug: string | null
     /** Every configured entry, the home included, resolved or not. */
-    configured: DriveEntry[]
-    /** The other drives with an active mount, in configuration order. */
-    drives: Drive[]
+    entries: DriveEntry[]
+    /** The drives other than the home with an active mount, in configuration order. */
+    otherDrives: Drive[]
     /** Every drive with an active mount, the home included: each is linked at `drives/<slug>`. */
     linked: Drive[]
     /** The configuration or a lookup is still in flight. */
@@ -107,21 +107,18 @@ export interface AgentDrivesState {
     refetch: () => void
 }
 
-interface ResolvedDrives {
-    home: Mount | null
-    homeSlug: string | null
-    configured: DriveEntry[]
-    drives: Drive[]
-    linked: Drive[]
-}
+type ResolvedDrives = Pick<
+    AgentDrivesState,
+    "homeMount" | "homeSlug" | "entries" | "otherDrives" | "linked"
+>
 
 const NO_ENTRIES: DriveEntry[] = []
 const NO_DRIVES: Drive[] = []
 const NOTHING: ResolvedDrives = {
-    home: null,
+    homeMount: null,
     homeSlug: null,
-    configured: NO_ENTRIES,
-    drives: NO_DRIVES,
+    entries: NO_ENTRIES,
+    otherDrives: NO_DRIVES,
     linked: NO_DRIVES,
 }
 const noop = () => {}
@@ -167,17 +164,17 @@ const resolvedDrivesFamily = atomFamily((key: ConfigKey) =>
         const config = configOfKey(key)
         if (!config) {
             const artifactId = key.slice("legacy:".length)
-            const home = artifactId ? get(legacyHomeDataFamily(artifactId)) : null
-            return home ? {...NOTHING, home} : NOTHING
+            const homeMount = artifactId ? get(legacyHomeDataFamily(artifactId)) : null
+            return homeMount ? {...NOTHING, homeMount} : NOTHING
         }
         if (!config.entries.length) return NOTHING
         const mounts = get(driveMountsDataFamily(slugsKeyOf(config.entries))) ?? []
         const linked = matchDrives(config.entries, mounts)
         return {
-            home: linked.find((d) => d.slug === config.homeSlug)?.mount ?? null,
+            homeMount: linked.find((d) => d.slug === config.homeSlug)?.mount ?? null,
             homeSlug: config.homeSlug,
-            configured: config.entries,
-            drives: linked.filter((d) => d.slug !== config.homeSlug),
+            entries: config.entries,
+            otherDrives: linked.filter((d) => d.slug !== config.homeSlug),
             linked,
         }
     }),

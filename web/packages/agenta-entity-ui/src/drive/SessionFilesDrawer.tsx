@@ -74,10 +74,12 @@ export const resolveQuickLookPath = (
         // The home drive is presented folded under `agent-files/`, except on a drive that IS the
         // home drive, which presents it at the root. Try both spellings, then fall back to the
         // folded one — `resolveMount` unfolds it again, so it resolves either way.
+        // Only the home drive has a second spelling: another drive's file is never a session file.
         const folded = presentToolPath(resolved, homeSlug)
+        const home = folded.startsWith(`${AGENT_FILES_DIR}/`)
         return (
             recents.find((f) => f.path === folded)?.path ??
-            recents.find((f) => f.path === resolved.path)?.path ??
+            (home ? recents.find((f) => f.path === resolved.path)?.path : undefined) ??
             folded
         )
     }
@@ -115,11 +117,11 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
                 ? resolveQuickLookPath(
                       drive.recents,
                       quickLook.path,
-                      drive.drives,
+                      drive.otherDrives,
                       drive.homeSlug,
                   )
                 : null,
-        [quickLook, drive.recents, drive.drives, drive.homeSlug],
+        [quickLook, drive.recents, drive.otherDrives, drive.homeSlug],
     )
 
     const driveIds = useMemo(

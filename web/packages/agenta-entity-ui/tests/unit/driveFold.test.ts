@@ -18,7 +18,7 @@ describe("driveArchiveMounts", () => {
             driveArchiveMounts({
                 mount: {id: "m-cwd"},
                 resolveMount: () => ({mount: agent, path: ""}),
-                drives: [prices],
+                otherDrives: [prices],
             }),
         ).toEqual([
             {mountId: "m-cwd", prefix: ""},
@@ -29,7 +29,7 @@ describe("driveArchiveMounts", () => {
 
     it("zips the drives when the session has no mount of its own", () => {
         expect(
-            driveArchiveMounts({mount: null, resolveMount: () => null, drives: [prices]}),
+            driveArchiveMounts({mount: null, resolveMount: () => null, otherDrives: [prices]}),
         ).toEqual([{mountId: "m-prices", prefix: "drives/price-lists"}])
     })
 })
@@ -55,7 +55,7 @@ describe("folderArchiveMounts", () => {
             path.startsWith("drives/price-lists")
                 ? {mount: prices.mount, path: path.slice("drives/price-lists".length + 1)}
                 : {mount: cwd, path},
-        drives: [prices],
+        otherDrives: [prices],
     }
 
     // The API names a member by its mount path under the prefix: the cwd source scoped to `drives`
@@ -75,7 +75,7 @@ describe("folderArchiveMounts", () => {
 
     it("zips the drives folder of a session with no mount from the drives", () => {
         expect(
-            folderArchiveMounts({resolveMount: () => null, drives: [prices]}, "drives"),
+            folderArchiveMounts({resolveMount: () => null, otherDrives: [prices]}, "drives"),
         ).toEqual([{mountId: "m-prices", prefix: "drives/price-lists", path: ""}])
     })
 })
@@ -96,12 +96,13 @@ describe("canMoveOrDelete", () => {
             }
             return {mount: {id: "m-cwd"}, path}
         },
-        drives: [prices, team],
+        otherDrives: [prices, team],
     }
 
     it("refuses mount roots and read drives, for rename as for delete", () => {
         expect(canMoveOrDelete(drive, "")).toBe(false)
         expect(canMoveOrDelete(drive, "agent-files")).toBe(false)
+        expect(canMoveOrDelete(drive, "drives")).toBe(false)
         expect(canMoveOrDelete(drive, "drives/team")).toBe(false)
         expect(canMoveOrDelete(drive, "drives/price-lists/2026.md")).toBe(false)
     })

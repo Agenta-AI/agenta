@@ -44,7 +44,7 @@ export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string})
         [parameters, agentId],
     )
     const drives = useAtomValue(drivesAtom)
-    const rows = agentDriveRows(Boolean(drives.home), drives.drives)
+    const rows = agentDriveRows(Boolean(drives.homeMount), drives.otherDrives)
 
     // Seed the pane's state before the route changes; both atoms are read on mount.
     const openDrive = (folder: string | null) => {

@@ -86,13 +86,13 @@ describe("drivePathFromToolPath", () => {
         })
     })
 
-    it("routes the older `<cwd>-agent` sibling mount of recorded sessions to the home origin", () => {
+    it("routes the older `<cwd>-agent` sibling mount of recorded sessions to the agent origin", () => {
         expect(
             drivePathFromToolPath("/var/lib/agenta/mounts/proj-1/mount-1-agent/skills/SKILL.md"),
-        ).toEqual({origin: "home", path: "skills/SKILL.md"})
+        ).toEqual({origin: "agent", path: "skills/SKILL.md"})
         expect(
             drivePathFromToolPath("/tmp/agenta/mounts/proj-1/mount-1-agent/skills/SKILL.md"),
-        ).toEqual({origin: "home", path: "skills/SKILL.md"})
+        ).toEqual({origin: "agent", path: "skills/SKILL.md"})
         // Reached through the symlink the runner drops in the cwd instead: still the home drive,
         // but named the way every drive surface already presents it.
         expect(
@@ -142,7 +142,7 @@ describe("drivePathFromToolPath", () => {
             drivePathFromToolPath(
                 "/var/lib/agenta/mounts/proj-1/mount-1-agent/agenta-x-agent/a.md",
             ),
-        ).toEqual({origin: "home", path: "agenta-x-agent/a.md"})
+        ).toEqual({origin: "agent", path: "agenta-x-agent/a.md"})
     })
 
     it("passes a cwd-relative path through, minus the `./` noise", () => {

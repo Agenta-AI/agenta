@@ -100,6 +100,12 @@ describe("resolveMentionMount with drives", () => {
         ).toBeNull()
     })
 
+    it("opens nothing for a configured drive that has no mount", () => {
+        const entries = [{slug: "price-lists"}, {slug: "notes"}]
+        for (const href of ["drives/notes/x.md", "/var/lib/agenta/mounts/s/m/drives/notes/x.md"])
+            expect(resolveMentionMount(href, cwd, agent, drives, entries)).toBeNull()
+    })
+
     it("keeps a drives/ path of an unknown slug on the session drive", () => {
         expect(resolveMentionMount("drives/other/x.md", cwd, agent, drives)).toEqual({
             mount: cwd,
