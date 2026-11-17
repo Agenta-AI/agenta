@@ -655,19 +655,19 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             model=CachedMountVisibility,
         )
-        if cached is not None and cached.access is not None:
-            return cached.access
-        access = await self._dao.fetch_mount_visibility(
+        if cached is not None and cached.mount is not None:
+            return cached.mount
+        mount = await self._dao.fetch_mount_visibility(
             project_id=project_id, mount_id=mount_id
         )
-        if access is not None:
+        if mount is not None:
             await _set(
                 namespace=MOUNT_VISIBILITY_NAMESPACE,
                 project_id=project_id,
                 key=key,
-                value=CachedMountVisibility(access=access),
+                value=CachedMountVisibility(mount=mount),
             )
-        return access
+        return mount
 
     async def _session_access(
         self,
@@ -815,7 +815,7 @@ class SharingService(ResourcePolicyInterface):
         migration) makes the write conflict and the decision run again on that row."""
 
         share_mount_ids: List[UUID] = []
-        own_drive: List[Optional[AccessPolicy]] = [None]
+        agent_drive_policy: List[Optional[AccessPolicy]] = [None]
 
         async def _decide(current: Optional[AccessPolicy]) -> AccessPolicy:
             owner = await self._require_active_owner(
@@ -823,13 +823,15 @@ class SharingService(ResourcePolicyInterface):
             )
             new = AccessPolicy(visibility=visibility, owner_user_id=owner)
             share_mount_ids.clear()
-            own_drive[0] = await self._dao.fetch_own_drive_policy(
+            agent_drive_policy[0] = await self._dao.fetch_agent_drive_policy(
                 project_id=project_id, artifact_id=artifact_id
             )
 
             def _fresh(drive: MountVisibility) -> MountVisibility:
-                if own_drive[0] is not None and _follows_agent(drive, artifact_id):
-                    return drive.model_copy(update={"policy": own_drive[0]})
+                if agent_drive_policy[0] is not None and _follows_agent(
+                    drive, artifact_id
+                ):
+                    return drive.model_copy(update={"policy": agent_drive_policy[0]})
                 return drive
 
             drives_now = [_fresh(drive) for drive in drives]
@@ -864,7 +866,7 @@ class SharingService(ResourcePolicyInterface):
             artifact_id=artifact_id,
             decide=_decide,
             share_mount_ids=share_mount_ids,
-            own_drive=own_drive,
+            agent_drive_policy=agent_drive_policy,
         )
 
     async def transfer_agent(
@@ -1097,12 +1099,12 @@ class SharingService(ResourcePolicyInterface):
         artifact_id: UUID,
         decide,
         share_mount_ids: Sequence[UUID] = (),
-        own_drive: Optional[List[Optional[AccessPolicy]]] = None,
+        agent_drive_policy: Optional[List[Optional[AccessPolicy]]] = None,
     ) -> AgentSharingState:
         """Read `expected`, decide, write; on a conflict decide once more on the
         committed policy and retry once. A decision equal to the current policy
         writes nothing. `share_mount_ids` (filled by `decide`) become shared in the
-        same transaction. `own_drive` (filled by `decide`) is the own drive row the
+        same transaction. `agent_drive_policy` (filled by `decide`) is the own drive row the
         decision saw; the write compares it under the lock."""
 
         principal = access.principal
@@ -1124,8 +1126,10 @@ class SharingService(ResourcePolicyInterface):
                     policy=new,
                     user_id=principal.id,
                     share_mount_ids=list(share_mount_ids),
-                    check_own_drive=own_drive is not None,
-                    expected_own_drive=own_drive[0] if own_drive is not None else None,
+                    check_agent_drive=agent_drive_policy is not None,
+                    expected_agent_drive_policy=agent_drive_policy[0]
+                    if agent_drive_policy is not None
+                    else None,
                 )
                 break
             except SharingConflict as conflict:

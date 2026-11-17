@@ -21,6 +21,7 @@ from oss.src.core.git.dtos import (
     Variant,
     VariantQuery,
 )
+from oss.src.core.mounts.types import RESERVED_AGENT_SLUG_PREFIX
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.sharing.dtos import AccessPolicy, AgentReadScope, Visibility
@@ -113,7 +114,8 @@ SELECT EXISTS (
 # The other agents that use one of the drives: the latest revision of one of their
 # variants lists it (by its slug, or by the reserved slug of its agent, which
 # `fetch_mount_by_slug` resolves by agent id), or it is their own drive and the latest
-# revision of one of their variants states no `drives` (the read fill lists it). The read scope is applied by `query_artifacts`.
+# revision of one of their variants states no `drives` (the read fill lists it).
+# `query_artifacts` applies the read scope.
 _AGENTS_USING_DRIVES_SQL = """
 WITH latest AS (
     SELECT DISTINCT ON (r.variant_id)
@@ -154,7 +156,7 @@ WHERE a.project_id = :project_id
             e ->> 'slug' = u.slug
             OR (
                 u.agent_id IS NOT NULL
-                AND starts_with(e ->> 'slug', '__ag__agent__' || u.agent_id || '__')
+                AND starts_with(e ->> 'slug', :reserved_prefix || u.agent_id || '__')
             )
           )
     )
@@ -444,6 +446,7 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                         "project_id": project_id,
                         "artifact_id": artifact_id,
                         "slugs": list(slugs),
+                        "reserved_prefix": RESERVED_AGENT_SLUG_PREFIX,
                     },
                 )
             ).scalars()

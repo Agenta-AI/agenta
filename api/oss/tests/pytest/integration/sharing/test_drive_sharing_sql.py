@@ -211,7 +211,7 @@ async def test_a_changed_own_drive_row_conflicts_under_the_lock():
         agent = await _agent(project_id, name="Quote", policy=_shared(alice))
         await _drive(project_id, slug="quote-files", agent_id=agent)
         assert (
-            await _sharing().fetch_own_drive_policy(
+            await _sharing().fetch_agent_drive_policy(
                 project_id=project_id, artifact_id=agent
             )
             is None
@@ -236,10 +236,10 @@ async def test_a_changed_own_drive_row_conflicts_under_the_lock():
                 expected=_shared(alice),
                 policy=_private(alice),
                 user_id=alice,
-                check_own_drive=True,
-                expected_own_drive=None,
+                check_agent_drive=True,
+                expected_agent_drive_policy=None,
             )
-        assert await _sharing().fetch_own_drive_policy(
+        assert await _sharing().fetch_agent_drive_policy(
             project_id=project_id, artifact_id=agent
         ) == _shared(alice)
         policy = await _sharing().fetch_agent_policy(
@@ -300,3 +300,28 @@ async def test_the_agents_that_use_a_drive():
         )
 
         assert names == ["Legacy", "Lister", "Reserved"]
+
+
+async def test_sharing_refuses_a_drive_whose_agent_changed_owner():
+    """The decision saw the drive's agent private to alice; it was transferred to bob
+    before the write. The write locks that agent, sees bob, and conflicts."""
+    async with seeded("alice", "bob") as org:
+        project_id = org.project_ids[0]
+        alice, bob = org.user_ids["alice"], org.user_ids["bob"]
+        other = await _agent(project_id, name="Other", policy=_private(bob))
+        agent = await _agent(project_id, name="Quote", policy=_private(alice))
+        legacy = await _drive(project_id, slug="other-files", agent_id=other)
+
+        with pytest.raises(SharingConflict):
+            await _sharing().set_agent_policy(
+                project_id=project_id,
+                artifact_id=agent,
+                expected=_private(alice),
+                policy=_shared(alice),
+                user_id=alice,
+                share_mount_ids=[legacy],
+            )
+        assert await _visibility(project_id, legacy) is None
+        assert await _sharing().fetch_agent_policy(
+            project_id=project_id, artifact_id=agent
+        ) == _private(alice)

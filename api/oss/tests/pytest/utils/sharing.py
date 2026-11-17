@@ -150,7 +150,7 @@ class InMemorySharingDAO(SharingDAOInterface):
         self.mounts[(project_id, access.mount_id)] = access
         return access
 
-    def _own_drive_policy(
+    def _agent_drive_policy(
         self, project_id: UUID, artifact_id: UUID
     ) -> Optional[AccessPolicy]:
         for (project, _), drive in self.mounts.items():
@@ -158,11 +158,11 @@ class InMemorySharingDAO(SharingDAOInterface):
                 return drive.policy
         return None
 
-    async def fetch_own_drive_policy(
+    async def fetch_agent_drive_policy(
         self, *, project_id: UUID, artifact_id: UUID
     ) -> Optional[AccessPolicy]:
-        self.reads.append("fetch_own_drive_policy")
-        return self._own_drive_policy(project_id, artifact_id)
+        self.reads.append("fetch_agent_drive_policy")
+        return self._agent_drive_policy(project_id, artifact_id)
 
     async def fetch_mount_visibility(
         self, *, project_id: UUID, mount_id: UUID
@@ -187,8 +187,8 @@ class InMemorySharingDAO(SharingDAOInterface):
         policy: AccessPolicy,
         user_id: UUID,
         share_mount_ids=(),
-        check_own_drive: bool = False,
-        expected_own_drive: Optional[AccessPolicy] = None,
+        check_agent_drive: bool = False,
+        expected_agent_drive_policy: Optional[AccessPolicy] = None,
     ) -> AgentPolicyWriteResult:
         self.reads.append("set_agent_policy")
         if self.before_agent_write is not None:
@@ -200,10 +200,22 @@ class InMemorySharingDAO(SharingDAOInterface):
         current = self.agents.get(key)
         if current != expected:
             raise SharingConflict(current=current)
-        if check_own_drive and expected_own_drive != self._own_drive_policy(
-            project_id, artifact_id
+        if (
+            check_agent_drive
+            and expected_agent_drive_policy
+            != self._agent_drive_policy(project_id, artifact_id)
         ):
             raise SharingConflict(current=current)
+        for mount_id in share_mount_ids:
+            # `_LOCK_DRIVE_AGENTS_SQL`: a drive without its row is shared only while its
+            # agent is still private to the acting owner.
+            access = self.mounts.get((project_id, mount_id))
+            if access is not None and access.policy is None and access.agent_id:
+                drive_agent = self.agents.get((project_id, UUID(access.agent_id)))
+                if drive_agent != AccessPolicy(
+                    visibility=Visibility.PRIVATE, owner_user_id=policy.owner_user_id
+                ):
+                    raise SharingConflict(current=current)
         self.agents[key] = policy
         shared = []
         for mount_id in share_mount_ids:
@@ -212,7 +224,10 @@ class InMemorySharingDAO(SharingDAOInterface):
             access = self.mounts.get((project_id, mount_id))
             if access is None:
                 continue
-            if access.policy is None or access.policy.visibility == Visibility.PRIVATE:
+            if access.policy is None or (
+                access.policy.visibility == Visibility.PRIVATE
+                and access.policy.owner_user_id == policy.owner_user_id
+            ):
                 self.mounts[(project_id, mount_id)] = access.model_copy(
                     update={
                         "policy": AccessPolicy(
