@@ -73,6 +73,10 @@ For a connection whose locator has an `app_id`, `build_setup_document` SHALL ret
 - **WHEN** the package is built for an `app_id`
 - **THEN** `manifest.json` SHALL have `bots[0].botId` equal to the `app_id`, the scopes `personal`, `groupChat` and `team`, and no resource-specific consent permissions
 
+#### Scenario: Manifest schema version
+- **WHEN** the package is built for an `app_id`
+- **THEN** `manifest.json` SHALL have `manifestVersion` `"1.20"` and the `$schema` URL of the Teams 1.20 manifest schema, and SHALL be valid against that schema
+
 #### Scenario: Same app on a new upload
 - **WHEN** the package is built twice for the same `app_id`
 - **THEN** both manifests SHALL have the same `id`, a UUIDv5 of the `app_id` under the adapter's fixed namespace, and the same `version`
