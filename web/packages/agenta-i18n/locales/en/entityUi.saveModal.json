@@ -1,0 +1,13 @@
+{
+    "titleCreate": "Create New",
+    "titleSaveAs": "Save As",
+    "titleSave": "Save",
+    "missingName": "Cannot save: missing name or entity type",
+    "name": "Name",
+    "namePlaceholder": "Enter a name...",
+    "saveAsNewCopy": "Save as new copy",
+    "original": "Original: <name>{{name}}</name>",
+    "saveFailed": "Save failed",
+    "saved": "Saved successfully",
+    "save": "Save"
+}

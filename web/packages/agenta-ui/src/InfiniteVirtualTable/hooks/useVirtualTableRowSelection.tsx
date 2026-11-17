@@ -1,6 +1,9 @@
 import type {Key, ReactNode} from "react"
 import {useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import type {OnChangeFn, RowSelectionState} from "@tanstack/react-table"
 
 import {Checkbox} from "../../components/ui/checkbox"
@@ -42,6 +45,7 @@ const useVirtualTableRowSelection = <RecordType extends object>({
     dataSource: RecordType[]
     rowKey: (record: RecordType, index: number) => Key
 }): VirtualTableRowSelectionProps<RecordType> | undefined => {
+    const t = useT(uiTableCatalog, commonCatalog)
     const {
         selectedRowKeys,
         onChange,
@@ -147,7 +151,7 @@ const useVirtualTableRowSelection = <RecordType extends object>({
         if (isRadio) return null
         return (
             <Checkbox
-                aria-label="Select all rows"
+                aria-label={t("ui.table.selectAllRows")}
                 checked={someSelected ? "indeterminate" : allSelected}
                 disabled={selectableIds.length === 0}
                 onCheckedChange={(checked) => {
@@ -176,11 +180,11 @@ const useVirtualTableRowSelection = <RecordType extends object>({
                     onValueChange={() => toggle(id, true)}
                     disabled={props.disabled}
                 >
-                    <RadioGroupItem aria-label={`Select row ${id}`} value={id} />
+                    <RadioGroupItem aria-label={t("ui.table.selectRow", {id})} value={id} />
                 </RadioGroup>
             ) : (
                 <Checkbox
-                    aria-label={`Select row ${id}`}
+                    aria-label={t("ui.table.selectRow", {id})}
                     checked={props.indeterminate && !checked ? "indeterminate" : checked}
                     disabled={props.disabled}
                     onCheckedChange={(next) => toggle(id, next === true)}

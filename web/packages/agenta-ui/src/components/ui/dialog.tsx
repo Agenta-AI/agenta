@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import {X} from "lucide-react"
 
@@ -108,6 +110,7 @@ function DialogContent({
     /** Extra backdrop classes, e.g. a darker mask for a media lightbox. */
     overlayClassName?: string
 }) {
+    const t = useT(commonCatalog)
     useCloseWithContainer(container, contained)
     return (
         <DialogPortal container={container}>
@@ -165,7 +168,7 @@ function DialogContent({
                                 variant="ghost"
                                 size="icon-sm"
                                 className="absolute right-2 top-2"
-                                aria-label="Close"
+                                aria-label={t("common.close")}
                             >
                                 {closeIcon ?? <X />}
                             </Button>
@@ -196,6 +199,7 @@ function DialogFooter({
     /** Appends an outline "Close" button that dismisses the dialog. */
     showCloseButton?: boolean
 }) {
+    const t = useT(commonCatalog)
     return (
         <div
             data-slot="dialog-footer"
@@ -212,7 +216,7 @@ function DialogFooter({
             {children}
             {showCloseButton && (
                 <DialogPrimitive.Close asChild>
-                    <Button variant="outline">Close</Button>
+                    <Button variant="outline">{t("common.close")}</Button>
                 </DialogPrimitive.Close>
             )}
         </div>

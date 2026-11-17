@@ -8,6 +8,8 @@ import {
 } from "@agenta/chat/components"
 import {useVoiceComposer, type useComposerAttachments} from "@agenta/chat/hooks"
 import {AgentPicker} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import composerCatalog from "@agenta/i18n/catalogs/home.composer"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {XIcon} from "@phosphor-icons/react"
@@ -84,9 +86,6 @@ export interface HomeTaskComposerProps {
     ring?: boolean
 }
 
-const TASK_PLACEHOLDER = "Describe the task, or start the conversation…"
-const CREATE_PLACEHOLDER = "Describe the agent you want — what it does, when it runs…"
-
 /** What the composer is aimed at, named under the input. One shape for an agent and a template —
  * only the tile differs, and two copies of this row is how they stop matching. */
 const DockLabel = ({
@@ -155,6 +154,7 @@ export const HomeTaskComposer = ({
     hideDock,
     ring = true,
 }: HomeTaskComposerProps) => {
+    const t = useT(composerCatalog)
     const effectiveAgentId = fixedAgentId ?? agentId ?? null
     const creating = mode === "create"
     const ringed = creating && ring
@@ -187,7 +187,7 @@ export const HomeTaskComposer = ({
             }
             name={template.name}
             onClear={onClear}
-            clearLabel="Clear this template"
+            clearLabel={t("home.composer.clearTemplate")}
         />
     ) : fixedAgentId ? null : (
         // The app's one AgentPicker, not a label. A name that only READ as text gave no sign it
@@ -203,11 +203,11 @@ export const HomeTaskComposer = ({
             trigger="pill"
             density="compact"
             value={creating ? null : effectiveAgentId}
-            placeholder="New agent"
+            placeholder={t("home.composer.newAgent")}
             onChange={(id) => onAgentChange?.(id)}
             disabled={!onAgentChange}
             onCreateAgent={creating ? undefined : onClear}
-            triggerAriaLabel="Agent"
+            triggerAriaLabel={t("home.composer.agent")}
             // The dock is already a surface; a filled pill on it is a box within a box.
             triggerClassName="bg-transparent px-1 text-[12px] font-normal hover:bg-accent"
         />
@@ -273,7 +273,10 @@ export const HomeTaskComposer = ({
                         }}
                         attachments={attachments}
                         placeholder={
-                            placeholder ?? (creating ? CREATE_PLACEHOLDER : TASK_PLACEHOLDER)
+                            placeholder ??
+                            (creating
+                                ? t("home.composer.createPlaceholder")
+                                : t("home.composer.taskPlaceholder"))
                         }
                         initialMarkdown={initialMarkdown}
                         onChange={onChange}

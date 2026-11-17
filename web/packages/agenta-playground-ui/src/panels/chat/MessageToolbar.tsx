@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
 import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -58,6 +60,7 @@ export const MessageToolbar = ({
     onToggleCollapse,
     children,
 }: MessageToolbarProps) => {
+    const t = useT(chatCatalog)
     const [copied, setCopied] = useState(false)
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
     useEffect(() => () => void (timer.current && clearTimeout(timer.current)), [])
@@ -72,17 +75,17 @@ export const MessageToolbar = ({
 
     const canAddImage = Boolean(onAddImage) && imageAllowed
     const canAddDocument = Boolean(onAddDocument) && documentAllowed
-    const copyLabel = copied ? "Copied" : "Copy"
+    const copyLabel = copied ? t("playground.chat.copied") : t("playground.chat.copy")
 
     return (
         <div className="ml-auto flex flex-wrap items-center justify-end gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100">
             {children}
             {onRerun ? (
-                <SimpleTooltip title="Re-run" side="top">
+                <SimpleTooltip title={t("playground.chat.rerun")} side="top">
                     <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Re-run"
+                        aria-label={t("playground.chat.rerun")}
                         disabled={rerunDisabled}
                         onClick={onRerun}
                     >
@@ -92,10 +95,14 @@ export const MessageToolbar = ({
             ) : null}
             {onAddImage || onAddDocument ? (
                 <DropdownMenu>
-                    <SimpleTooltip title="Add attachment" side="top">
+                    <SimpleTooltip title={t("playground.chat.addAttachment")} side="top">
                         <span className="inline-flex">
                             <DropdownMenuTrigger asChild disabled={!canAddImage && !canAddDocument}>
-                                <Button variant="ghost" size="icon" aria-label="Add attachment">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={t("playground.chat.addAttachment")}
+                                >
                                     <Paperclip />
                                 </Button>
                             </DropdownMenuTrigger>
@@ -105,13 +112,13 @@ export const MessageToolbar = ({
                         {onAddImage ? (
                             <DropdownMenuItem disabled={!canAddImage} onSelect={onAddImage}>
                                 <PhImage />
-                                Upload image
+                                {t("playground.chat.uploadImage")}
                             </DropdownMenuItem>
                         ) : null}
                         {onAddDocument ? (
                             <DropdownMenuItem disabled={!canAddDocument} onSelect={onAddDocument}>
                                 <FileArchive />
-                                Attach document
+                                {t("playground.chat.attachDocument")}
                             </DropdownMenuItem>
                         ) : null}
                     </DropdownMenuContent>
@@ -122,8 +129,13 @@ export const MessageToolbar = ({
                     {copied ? <Check /> : <Copy />}
                 </Button>
             </SimpleTooltip>
-            <SimpleTooltip title="Remove" side="top">
-                <Button variant="ghost" size="icon" aria-label="Remove" onClick={onRemove}>
+            <SimpleTooltip title={t("playground.chat.remove")} side="top">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("playground.chat.remove")}
+                    onClick={onRemove}
+                >
                     <MinusCircle />
                 </Button>
             </SimpleTooltip>

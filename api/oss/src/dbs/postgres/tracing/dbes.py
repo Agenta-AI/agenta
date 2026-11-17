@@ -44,7 +44,13 @@ class SpanDBE(
             "ix_spans_project_id_session_id",
             "project_id",
             "session_id",
-        ),  # for session filtering (root-only column)
+        ),  # for session filtering
+        Index(
+            "ix_spans_project_id_turn_id",
+            "project_id",
+            "turn_id",
+            postgresql_where=text("turn_id IS NOT NULL"),
+        ),  # for turn filtering
         Index(
             "ix_spans_project_id_trace_type",
             "project_id",

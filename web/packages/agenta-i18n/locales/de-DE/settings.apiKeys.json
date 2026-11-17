@@ -1,0 +1,14 @@
+{
+    "apiKey": "API-Schlüssel",
+    "deleteKey": "Schlüssel löschen",
+    "emptyDescription": "Erzeugen Sie einen Schlüssel, um Anfragen an die Agenta-API aus Ihrem Code, Ihren CI-Jobs und SDKs zu authentifizieren.",
+    "emptyTitle": "Noch keine API-Schlüssel",
+    "expired": "Abgelaufen",
+    "expires": "Läuft ab",
+    "generateKey": "Schlüssel erzeugen",
+    "keyActions": "Schlüsselaktionen",
+    "lastUsed": "Zuletzt verwendet",
+    "never": "Nie",
+    "neverUsed": "Nie verwendet",
+    "noAccess": "Sie haben in diesem Projekt keinen Zugriff auf API-Schlüssel."
+}

@@ -1,5 +1,7 @@
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {Tag} from "@agenta/ui/components"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
@@ -35,16 +37,19 @@ const OutputHeader = ({revisionId}: {revisionId: string}) => (
  * The row above the compare rows: "Input", then each revision's name and version. Below `md`
  * the columns stack, so the row is hidden and each output carries its own `OutputLabel`.
  */
-export const CompareRowsHeader = ({revisionIds}: {revisionIds: string[]}) => (
-    <div className="sticky top-0 z-[6] hidden min-w-fit md:flex border-0 border-b border-solid border-border">
-        <div className={`${LEAD_COLUMN} flex h-10 items-center px-3 text-sm font-medium`}>
-            Input
+export const CompareRowsHeader = ({revisionIds}: {revisionIds: string[]}) => {
+    const t = useT(panelsCatalog)
+    return (
+        <div className="sticky top-0 z-[6] hidden min-w-fit md:flex border-0 border-b border-solid border-border">
+            <div className={`${LEAD_COLUMN} flex h-10 items-center px-3 text-sm font-medium`}>
+                {t("playground.panels.input")}
+            </div>
+            {revisionIds.map((revisionId) => (
+                <OutputHeader key={revisionId} revisionId={revisionId} />
+            ))}
         </div>
-        {revisionIds.map((revisionId) => (
-            <OutputHeader key={revisionId} revisionId={revisionId} />
-        ))}
-    </div>
-)
+    )
+}
 
 /** The revision's name above its output in a stacked row, where the header row is hidden. */
 export const OutputLabel = ({revisionId}: {revisionId: string}) => (

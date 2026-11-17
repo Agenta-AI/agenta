@@ -1,0 +1,12 @@
+{
+    "toolsCount_other": "{{count}} 個のツール",
+    "skillsCount_other": "{{count}} 個のスキル",
+    "toolsAndSkills": "{{tools}} · {{skills}}",
+    "agent": "エージェント",
+    "tomorrowAt": "明日 {{time}}",
+    "unassignedAgent": "未割り当てのエージェント",
+    "eventAutomation": "イベント自動化",
+    "onEvent": "イベント時",
+    "firesOn": "{{eventKey}} で実行",
+    "firesWhenEventArrives": "イベントの到着時に実行"
+}

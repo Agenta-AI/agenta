@@ -1,0 +1,9 @@
+{
+    "attachTooltip": "メッセージに添付",
+    "delete": "録音を削除",
+    "deleteTooltip": "録音を削除（Esc）",
+    "sendTooltip": "音声メッセージを送信",
+    "stopAndAttach": "録音を停止してメッセージに添付",
+    "stopAndSend": "録音を停止して音声メッセージを送信",
+    "timeLeft": "残り {{time}}"
+}

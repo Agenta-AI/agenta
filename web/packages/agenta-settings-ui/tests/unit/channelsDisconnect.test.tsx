@@ -102,7 +102,11 @@ const buttonByText = (text: string) => {
     expect(button, text).toBeTruthy()
     return button as HTMLButtonElement
 }
-const click = async (text: string) => act(async () => buttonByText(text).click())
+// The manage panel loads on demand, so wait for its button to appear.
+const click = async (text: string) => {
+    const button = await vi.waitFor(() => buttonByText(text))
+    await act(async () => button.click())
+}
 
 const openAndDisconnect = async () => {
     await act(async () =>

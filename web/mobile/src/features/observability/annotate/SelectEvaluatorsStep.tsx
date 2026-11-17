@@ -1,6 +1,8 @@
 import {useState} from "react"
 
 import type {Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import annotateCatalog from "@agenta/i18n/catalogs/observability.annotate"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {Alert, Button, Checkbox, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
@@ -44,6 +46,7 @@ export const SelectEvaluatorsStep = ({
     onChange: (slugs: string[]) => void
     evaluatorsHref: string | null
 }) => {
+    const t = useT(annotateCatalog)
     const [search, setSearch] = useState("")
     const canCreate = useAtomValue(betaDeveloperModeActiveAtom)
     const [creating, setCreating] = useState(false)
@@ -73,6 +76,7 @@ export const SelectEvaluatorsStep = ({
         (evaluator) => !term || (evaluator.name ?? "").toLowerCase().includes(term),
     )
 
+    const metricLabel = t("observability.annotate.metric")
     const toggle = (slug: string, checked: boolean) =>
         onChange(checked ? [...selected, slug] : selected.filter((item) => item !== slug))
 
@@ -82,10 +86,10 @@ export const SelectEvaluatorsStep = ({
                 <Alert
                     type="warning"
                     showIcon
-                    message="Some evaluators could not be loaded"
+                    message={t("observability.annotate.someEvaluatorsFailed")}
                     action={
                         <Button variant="outline" size="sm" onClick={onRetry}>
-                            Try again
+                            {t("observability.annotate.tryAgain")}
                         </Button>
                     }
                 />
@@ -93,21 +97,21 @@ export const SelectEvaluatorsStep = ({
             <div className="flex items-center gap-2">
                 <SearchInput
                     className="min-w-0 flex-1"
-                    placeholder="Search"
-                    aria-label="Search evaluators"
+                    placeholder={t("observability.annotate.search")}
+                    aria-label={t("observability.annotate.searchEvaluators")}
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                 />
                 {onCreate ? (
                     <Button variant="outline" size="sm" onClick={onCreate}>
                         <PlusIcon aria-hidden />
-                        Create evaluator
+                        {t("observability.annotate.createEvaluator")}
                     </Button>
                 ) : null}
             </div>
             {shown.length === 0 ? (
                 <p className="m-0 py-6 text-center text-sm text-muted-foreground">
-                    No results found
+                    {t("observability.annotate.noResults")}
                 </p>
             ) : (
                 <ul className="m-0 flex list-none flex-col p-0">
@@ -129,7 +133,7 @@ export const SelectEvaluatorsStep = ({
                                             {name}
                                         </span>
                                         <span className="shrink-0 text-xs text-muted-foreground">
-                                            Metric
+                                            {metricLabel}
                                         </span>
                                     </label>
                                 </SimpleTooltip>

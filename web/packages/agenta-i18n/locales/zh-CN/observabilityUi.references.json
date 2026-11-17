@@ -1,0 +1,14 @@
+{
+    "application": "应用",
+    "variant": "变体",
+    "testSet": "测试集",
+    "evaluator": "评测器",
+    "environment": "环境",
+    "slug": "Slug",
+    "id": "ID",
+    "version": "版本",
+    "revisionId": "修订版本 ID",
+    "copyName": "复制名称",
+    "copyField": "复制{{name}}",
+    "deleted": "已删除"
+}

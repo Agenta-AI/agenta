@@ -2,6 +2,8 @@
  * "Add one" and "Add another secret": the create fields of "Attach a secret", with "Only me"
  * fixed. The caller stores the choice with the new secret's id.
  */
+import {useT} from "@agenta/i18n"
+import secretFormCatalog from "@agenta/i18n/catalogs/entityUi.secretForm"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 
 import {ACCOUNT_COPY} from "../accounts/copy"
@@ -24,6 +26,7 @@ export function OwnSecretDialog({
     container?: HTMLElement | null
     zIndex?: number
 }) {
+    const t = useT(secretFormCatalog)
     const controller = useSecretForm({
         open,
         initialName,
@@ -43,7 +46,7 @@ export function OwnSecretDialog({
             width={480}
             destroyOnClose
             title={ACCOUNT_COPY.addYourSecret}
-            okText="Save"
+            okText={t("entityUi.secretForm.save")}
             onOk={() => void controller.submit()}
             confirmLoading={controller.saving}
             okButtonProps={{

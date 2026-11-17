@@ -1,0 +1,22 @@
+{
+    "configureProvider": "プロバイダーを設定",
+    "howToUse": "使い方",
+    "cancel": "キャンセル",
+    "submit": "送信",
+    "selectProvider": "プロバイダーを選択してください",
+    "enterName": "名前を入力してください",
+    "nameInvalid": "名前には英字、数字、アンダースコア、ハイフンのみを使用し、スペースは含めないでください。",
+    "nameMatchesDefault": "名前をデフォルトのプロバイダーと同じにすることはできません。別の名前を選んでください。",
+    "enterField": "{{field}} を入力してください",
+    "invalidJson": "有効な JSON である必要があります",
+    "addModelName": "モデル名を追加してください",
+    "addModelBeforeSubmit": "送信する前にモデル名を追加してください",
+    "validationError": "検証エラー",
+    "somethingWrong": "問題が発生しました。正しい認証情報でもう一度お試しください。",
+    "provider": "プロバイダー",
+    "models": "モデル",
+    "add": "追加",
+    "noCustomModels": "カスタムモデルは設定されていません",
+    "enterModelName": "モデル名を入力",
+    "removeModel": "モデルを削除"
+}

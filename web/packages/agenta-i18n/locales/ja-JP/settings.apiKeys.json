@@ -1,0 +1,14 @@
+{
+    "apiKey": "API キー",
+    "deleteKey": "キーを削除",
+    "emptyDescription": "キーを生成すると、コード、CI ジョブ、SDK から Agenta API へのリクエストを認証できます。",
+    "emptyTitle": "API キーはまだありません",
+    "expired": "期限切れ",
+    "expires": "有効期限",
+    "generateKey": "キーを生成",
+    "keyActions": "キーの操作",
+    "lastUsed": "最終使用日時",
+    "never": "なし",
+    "neverUsed": "未使用",
+    "noAccess": "このプロジェクトの API キーにアクセスする権限がありません。"
+}

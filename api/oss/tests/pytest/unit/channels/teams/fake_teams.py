@@ -70,6 +70,7 @@ class FakeMicrosoft:
     def __init__(self) -> None:
         self.keys: List[Dict[str, Any]] = [public_jwk(PRIVATE_KEY, KEY_ID)]
         self.key_reads = 0
+        self.keys_status = 200
         self.token_requests: List[Dict[str, Any]] = []
         self.token_status = 200
         self.token_body: Dict[str, Any] = {
@@ -105,7 +106,7 @@ class FakeMicrosoft:
 
     async def _keys(self, request: Request) -> JSONResponse:
         self.key_reads += 1
-        return JSONResponse({"keys": self.keys})
+        return JSONResponse({"keys": self.keys}, status_code=self.keys_status)
 
     async def _token(self, request: Request) -> JSONResponse:
         form = await request.form()

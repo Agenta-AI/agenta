@@ -1,0 +1,11 @@
+{
+    "agentReply": "Antwort des Agent",
+    "attachment": "Anhang",
+    "messageNotSent": "Nachricht nicht gesendet",
+    "noResponse": "Keine Antwort: Der Agent hat seinen Durchgang ohne Antwort beendet.",
+    "retryMessage": "Nachricht erneut senden",
+    "savedAttachments": "Gespeicherte Anhänge",
+    "somethingWentWrong": "Etwas ist schiefgelaufen.",
+    "stopped": "Beendet",
+    "textSaved": "Ihr Text und Ihre Anhänge sind gespeichert."
+}

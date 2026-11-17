@@ -1,0 +1,16 @@
+{
+    "attachmentsLabel": "添付ファイル {{count}} 件",
+    "attachmentsOnly": "（添付ファイルのみ）",
+    "cancel": "キャンセル",
+    "cancelEditing": "編集をキャンセル",
+    "editQueued": "待機中のメッセージを編集",
+    "emptyMessage": "（空のメッセージ）",
+    "noLongerQueued": "このメッセージはもう待機中ではありません。",
+    "queuedCount_other": "待機中のメッセージ {{count}} 件",
+    "quotesLabel_other": "引用 {{count}} 件",
+    "removeQueued": "待機中のメッセージを削除",
+    "sendBlocked": "別のメッセージが先に送信されています",
+    "sendNow": "今すぐ送信",
+    "sending": "送信中",
+    "waitsForAnswer": " ・回答を待っています"
+}

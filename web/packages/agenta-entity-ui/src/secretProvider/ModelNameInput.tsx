@@ -1,5 +1,7 @@
 import {memo} from "react"
 
+import {useT} from "@agenta/i18n"
+import customProviderFormCatalog from "@agenta/i18n/catalogs/entityUi.customProviderForm"
 import {Button, Input, type InputProps} from "@agenta/ui/ui"
 import {Trash} from "@phosphor-icons/react"
 
@@ -8,10 +10,11 @@ export interface ModelNameInputProps extends InputProps {
 }
 
 const ModelNameInput = ({onDelete, disabled, ...props}: ModelNameInputProps) => {
+    const t = useT(customProviderFormCatalog)
     return (
         <div className="w-full relative">
             <Input
-                placeholder="Enter model name"
+                placeholder={t("entityUi.customProviderForm.enterModelName")}
                 className="w-full"
                 disabled={disabled}
                 {...props}
@@ -22,7 +25,7 @@ const ModelNameInput = ({onDelete, disabled, ...props}: ModelNameInputProps) => 
                 className="absolute top-[1px] right-1"
                 onClick={onDelete}
                 disabled={disabled}
-                aria-label="Remove model"
+                aria-label={t("entityUi.customProviderForm.removeModel")}
             >
                 <Trash size={14} />
             </Button>

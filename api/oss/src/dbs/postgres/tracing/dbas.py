@@ -58,9 +58,13 @@ class SpanDBA:
         nullable=True,
     )
 
-    # Root-span-only (parent_id IS NULL); promoted from ag.session/user/agent
-    # attributes at ingest_span_dtos. Nullable — children never populate these.
+    # Promoted at ingest: session_id and turn_id from each span's own
+    # ag.session/ag.turn; user_id and agent_id from the root span only.
     session_id = Column(
+        VARCHAR,
+        nullable=True,
+    )
+    turn_id = Column(
         VARCHAR,
         nullable=True,
     )

@@ -1,6 +1,8 @@
 import {Component, useState, type ReactNode} from "react"
 
 import {REGIONS, type RegionId} from "@agenta/auth"
+import {useT} from "@agenta/i18n"
+import regionCatalog from "@agenta/i18n/catalogs/auth.regionSelector"
 import {Button, cn} from "@agenta/ui/ui"
 import {Globe} from "@phosphor-icons/react"
 
@@ -35,51 +37,52 @@ interface RegionButtonProps {
     onSwitch: (id: RegionId) => void
 }
 
-const RegionButton = ({id, label, isSelected, disabled, onSwitch}: RegionButtonProps) => (
-    <Button
-        type="button"
-        variant={isSelected ? "default" : "outline"}
-        size="lg"
-        className={cn(
-            "h-10 flex-1 rounded-lg text-sm font-medium",
-            isSelected ? "disabled:opacity-100" : "text-muted-foreground",
-        )}
-        onClick={() => onSwitch(id)}
-        disabled={disabled}
-        role="radio"
-        aria-checked={isSelected}
-        aria-label={`${label} region`}
-    >
-        <Globe size={14} />
-        {label}
-    </Button>
-)
+const RegionButton = ({id, label, isSelected, disabled, onSwitch}: RegionButtonProps) => {
+    const t = useT(regionCatalog)
+    return (
+        <Button
+            type="button"
+            variant={isSelected ? "default" : "outline"}
+            size="lg"
+            className={cn(
+                "h-10 flex-1 rounded-lg text-sm font-medium",
+                isSelected ? "disabled:opacity-100" : "text-muted-foreground",
+            )}
+            onClick={() => onSwitch(id)}
+            disabled={disabled}
+            role="radio"
+            aria-checked={isSelected}
+            aria-label={t("auth.regionSelector.regionLabel", {region: label})}
+        >
+            <Globe size={14} />
+            {label}
+        </Button>
+    )
+}
 
 // ---------------------------------------------------------------------------
 // Region info copy — the desktop shows it in a modal, /m inline; one text.
 // ---------------------------------------------------------------------------
 
-export const RegionInfoText = ({className}: {className?: string}) => (
-    <div className={cn("flex flex-col gap-3", className)}>
-        <p className="m-0">Agenta Cloud is available in two regions:</p>
-        <ul className="m-0 list-disc pl-5">
-            {(Object.entries(REGIONS) as [RegionId, (typeof REGIONS)[RegionId]][]).map(
-                ([id, region]) => (
-                    <li key={id}>
-                        {region.label}: {region.location}
-                    </li>
-                ),
-            )}
-        </ul>
-        <p className="m-0">
-            Regions are completely isolated. No data is shared between regions. Choose a region
-            based on data residency requirements and latency needs.
-        </p>
-        <p className="m-0">
-            You can have accounts in multiple regions. Each requires a separate sign-up.
-        </p>
-    </div>
-)
+export const RegionInfoText = ({className}: {className?: string}) => {
+    const t = useT(regionCatalog)
+    return (
+        <div className={cn("flex flex-col gap-3", className)}>
+            <p className="m-0">{t("auth.regionSelector.regionsIntro")}</p>
+            <ul className="m-0 list-disc pl-5">
+                {(Object.entries(REGIONS) as [RegionId, (typeof REGIONS)[RegionId]][]).map(
+                    ([id, region]) => (
+                        <li key={id}>
+                            {region.label}: {region.location}
+                        </li>
+                    ),
+                )}
+            </ul>
+            <p className="m-0">{t("auth.regionSelector.regionsIsolated")}</p>
+            <p className="m-0">{t("auth.regionSelector.multipleRegions")}</p>
+        </div>
+    )
+}
 
 // ---------------------------------------------------------------------------
 // Region selector
@@ -94,6 +97,7 @@ export interface RegionSelectorProps {
 }
 
 const RegionSelectorInner = ({onLearnMore}: RegionSelectorProps) => {
+    const t = useT(regionCatalog)
     const {currentRegion, isSwitching, switchToRegion} = useRegionSelector()
     const [isInfoOpen, setIsInfoOpen] = useState(false)
 
@@ -105,7 +109,7 @@ const RegionSelectorInner = ({onLearnMore}: RegionSelectorProps) => {
         <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
                 <span className="text-xs font-medium uppercase leading-[18px] tracking-[0.03em] text-muted-foreground">
-                    Data Residency
+                    {t("auth.regionSelector.dataResidency")}
                 </span>
                 <Button
                     type="button"
@@ -116,10 +120,14 @@ const RegionSelectorInner = ({onLearnMore}: RegionSelectorProps) => {
                     aria-haspopup={onLearnMore ? "dialog" : undefined}
                     aria-expanded={onLearnMore ? undefined : isInfoOpen}
                 >
-                    Learn more
+                    {t("auth.regionSelector.learnMore")}
                 </Button>
             </div>
-            <div className="flex gap-2" role="radiogroup" aria-label="Data residency region">
+            <div
+                className="flex gap-2"
+                role="radiogroup"
+                aria-label={t("auth.regionSelector.dataResidencyRegion")}
+            >
                 {(Object.entries(REGIONS) as [RegionId, (typeof REGIONS)[RegionId]][]).map(
                     ([id, region]) => (
                         <RegionButton

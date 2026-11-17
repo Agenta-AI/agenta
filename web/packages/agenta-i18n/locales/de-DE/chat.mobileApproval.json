@@ -1,0 +1,8 @@
+{
+    "failed": "Die Genehmigung ist fehlgeschlagen.",
+    "failedStatus": "Die Genehmigung ist fehlgeschlagen (HTTP {{status}}).",
+    "noLongerPending": "Diese Genehmigung steht nicht mehr aus: Aktualisieren Sie und versuchen Sie es erneut.",
+    "noneFound": "Keine ausstehende Genehmigung gefunden: Der Durchgang ist möglicherweise weitergegangen.",
+    "oneExecutionOnly": "„Alle genehmigen“ kann nur Genehmigungen aus einer Ausführung beantworten.",
+    "resumeFailed": "Die Fortsetzung ist fehlgeschlagen."
+}

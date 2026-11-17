@@ -1,0 +1,5 @@
+{
+    "scanRepository": "リポジトリをスキャン",
+    "repositoryUrl": "リポジトリの URL",
+    "scanFailed": "スキャンに失敗しました。URL を確認し、リポジトリが公開されていることを確認してください。"
+}

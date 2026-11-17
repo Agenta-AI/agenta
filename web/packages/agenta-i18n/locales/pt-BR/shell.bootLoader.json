@@ -1,0 +1,15 @@
+{
+    "didYouKnow": "Você sabia?",
+    "statusAlmostReady": "Quase pronto",
+    "statusNew1": "Criando seu espaço de trabalho",
+    "statusNew2": "Configurando seu primeiro projeto",
+    "statusPending1": "Fazendo seu login",
+    "statusPending2": "Carregando seu espaço de trabalho",
+    "statusReturning1": "Carregando seus agentes",
+    "statusReturning2": "Restaurando as sessões recentes",
+    "tip1": "Você pode conversar com seus agentes no Slack, no Telegram, no WhatsApp ou no Microsoft Teams.",
+    "tip2": "Corrija um agente uma vez e ele lembrará da próxima vez.",
+    "tip3": "Cada sessão roda no próprio sandbox, isolada das demais.",
+    "tip4": "Os agentes podem rodar em um agendamento ou quando algo acontece em um app conectado.",
+    "tip5": "Você pode executar agentes com sua assinatura do Claude ou do ChatGPT."
+}

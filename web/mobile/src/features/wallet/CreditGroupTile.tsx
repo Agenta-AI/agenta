@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import walletCreditsCatalog from "@agenta/i18n/catalogs/wallet.credits"
 import {analyticsColor} from "@agenta/observability-ui/analytics"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
@@ -22,6 +24,7 @@ export const CreditGroupTile = ({
     icon: ReactNode
     credits: WalletCredit[]
 }) => {
+    const t = useT(walletCreditsCatalog)
     const sorted = [...credits].sort(byExpiry)
     const remaining = sorted.reduce((total, credit) => total + credit.remaining_musd, 0)
     const amount = sorted.reduce((total, credit) => total + credit.amount_musd, 0)
@@ -47,7 +50,7 @@ export const CreditGroupTile = ({
                             <AnimatedNumber value={formatCredits(remaining)} />
                         </span>
                         <span className="text-muted-foreground truncate text-xs tabular-nums">
-                            of {formatCredits(amount)}
+                            {t("wallet.credits.ofAmount", {amount: formatCredits(amount)})}
                         </span>
                     </span>
                     <span className="bg-accent my-1.5 flex h-[3px] w-full gap-px overflow-hidden rounded-full">
@@ -58,23 +61,25 @@ export const CreditGroupTile = ({
                                 style={{
                                     flex: credit.remaining_musd,
                                     background: analyticsColor(
-                                        creditKind(credit.credit_kind).color,
+                                        creditKind(credit.credit_kind, t).color,
                                     ),
                                 }}
                             />
                         ))}
                     </span>
                     <span className="text-muted-foreground line-clamp-2 w-full text-[13px] leading-[18px]">
-                        {next ? `Next expires ${formatDate(next)}` : "No expiry"}
+                        {next
+                            ? t("wallet.credits.nextExpires", {date: formatDate(next)})
+                            : t("wallet.credits.noExpiry")}
                     </span>
                 </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[300px] p-1.5">
                 <div className="text-muted-foreground px-2 pb-1 pt-1.5 text-xs">
-                    {label}, by expiry
+                    {t("wallet.credits.byExpiry", {label})}
                 </div>
                 {sorted.map((credit) => {
-                    const kind = creditKind(credit.credit_kind)
+                    const kind = creditKind(credit.credit_kind, t)
                     return (
                         <div
                             key={credit.id}

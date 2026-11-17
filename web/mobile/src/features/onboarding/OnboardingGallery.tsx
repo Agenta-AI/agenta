@@ -1,6 +1,8 @@
 import {useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {templateCategories} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import galleryCatalog from "@agenta/i18n/catalogs/onboarding.gallery"
 import {Button} from "@agenta/ui/ui"
 import {ArrowLeft, Plus} from "@phosphor-icons/react"
 import {motion} from "motion/react"
@@ -11,24 +13,21 @@ import {cn} from "@/lib/utils"
 
 import {
     ALL,
-    categoryLabel,
     galleryTemplates,
     RECOMMENDED,
     type GalleryCategory,
     type OnboardingCatalog,
 } from "./onboardingChoices"
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import type {OnboardingCreateState} from "./OnboardingCreateState"
 import type {OnboardingAgent} from "./onboardingDraft"
 import {onboardingHeadingId, type GalleryFocus} from "./onboardingRoute"
 import {OnboardingScratchPanel} from "./OnboardingScratchPanel"
+import {ONBOARDING_STYLE} from "./onboardingStyle"
 import {OnboardingTemplateDetail} from "./OnboardingTemplateDetail"
 import {OnboardingTemplateTile} from "./OnboardingTemplateTile"
 import {OnboardingGalleryError} from "./states/OnboardingGalleryError"
 import {OnboardingGallerySkeleton} from "./states/OnboardingGallerySkeleton"
 import {useGalleryDetail} from "./useGalleryDetail"
-
-const copy = ONBOARDING_COPY.gallery
 
 const ROW =
     "flex h-14 w-full shrink-0 cursor-pointer items-center gap-3 rounded-[10px] px-3 text-left text-foreground transition-colors"
@@ -61,18 +60,26 @@ export const OnboardingGallery = ({
     onCloseDetail: () => void
     onChange: (patch: Partial<OnboardingAgent>) => void
 }) => {
+    const t = useT(galleryCatalog)
     const presets = useMotionPresets()
-    const chips = useMemo(
-        () => [
-            {id: RECOMMENDED, label: copy.recommended},
-            ...templateCategories(catalog.templates).map((item) => ({
-                id: item,
-                label: categoryLabel(item),
-            })),
-            {id: ALL, label: copy.all},
-        ],
-        [catalog.templates],
-    )
+    const categories = templateCategories(catalog.templates)
+    const chipLabel = (item: string) =>
+        item === "Engineering"
+            ? t("onboarding.gallery.categoryEngineering")
+            : item === "Support"
+              ? t("onboarding.gallery.categorySupport")
+              : item === "Sales"
+                ? t("onboarding.gallery.categorySales")
+                : item === "Knowledge"
+                  ? t("onboarding.gallery.categoryKnowledge")
+                  : item === "Ops"
+                    ? t("onboarding.gallery.categoryOps")
+                    : item
+    const chips = [
+        {id: RECOMMENDED, label: t("onboarding.gallery.recommended")},
+        ...categories.map((item) => ({id: item, label: chipLabel(item)})),
+        {id: ALL, label: t("onboarding.gallery.all")},
+    ]
     const listed = useMemo(
         () => galleryTemplates(catalog.templates, category, preferred),
         [catalog.templates, category, preferred],
@@ -122,7 +129,7 @@ export const OnboardingGallery = ({
                         className="-ml-3 h-11 self-start px-3 text-sm font-medium"
                     >
                         <ArrowLeft data-icon="inline-start" />
-                        {copy.backToTemplates}
+                        {t("onboarding.gallery.backToTemplates")}
                     </Button>
                     {shownPanel}
                 </motion.div>
@@ -142,18 +149,18 @@ export const OnboardingGallery = ({
                     <h1
                         id={onboardingHeadingId("templates")}
                         tabIndex={-1}
-                        className={ONBOARDING_COPY.headingClass}
+                        className={ONBOARDING_STYLE.headingClass}
                     >
-                        {copy.title}
+                        {t("onboarding.gallery.title")}
                     </h1>
                     <p className="text-muted-foreground m-0 text-[15px] leading-[22px]">
-                        {copy.subtitle}
+                        {t("onboarding.gallery.subtitle")}
                     </p>
                 </div>
                 {catalog.status === "success" ? (
                     <div
                         role="group"
-                        aria-label={copy.categories}
+                        aria-label={t("onboarding.gallery.categories")}
                         className="-mx-4 flex scroll-px-4 gap-1.5 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
                     >
                         {chips.map((chip) => {
@@ -199,10 +206,10 @@ export const OnboardingGallery = ({
                             </span>
                             <span className="flex min-w-0 flex-1 flex-col">
                                 <span className="text-sm font-medium leading-5">
-                                    {copy.scratch}
+                                    {t("onboarding.gallery.scratch")}
                                 </span>
                                 <span className="text-muted-foreground text-xs leading-[18px]">
-                                    {copy.scratchHint}
+                                    {t("onboarding.gallery.scratchHint")}
                                 </span>
                             </span>
                         </button>
@@ -211,7 +218,9 @@ export const OnboardingGallery = ({
                         ) : catalog.status === "error" ? (
                             <OnboardingGalleryError onRetry={catalog.retry} />
                         ) : listed.length === 0 ? (
-                            <p className="text-muted-foreground m-0 py-4 text-sm">{copy.empty}</p>
+                            <p className="text-muted-foreground m-0 py-4 text-sm">
+                                {t("onboarding.gallery.empty")}
+                            </p>
                         ) : (
                             // Keyed by category, so a chip switch replays the rows' stagger.
                             <div key={category} className="flex flex-col gap-1">

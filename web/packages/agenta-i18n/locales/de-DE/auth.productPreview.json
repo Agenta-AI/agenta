@@ -1,0 +1,19 @@
+{
+    "daysAgo": "vor {{count}} T.",
+    "elapsed": "{{seconds}} s",
+    "hoursAgo": "vor {{count}} Std.",
+    "minutesAgo": "vor {{count}} Min.",
+    "navAgents": "Agents",
+    "navAutomations": "Automatisierungen",
+    "navHome": "Startseite",
+    "navSessions": "Sitzungen",
+    "navSettings": "Einstellungen",
+    "navSkills": "Skills",
+    "navTemplates": "Vorlagen",
+    "newAutomation": "Neue Automatisierung",
+    "now": "jetzt",
+    "starting": "Wird gestartet",
+    "subtitle": "Agents, die nach Zeitplan oder bei Ereignissen in Ihren Apps laufen.",
+    "title": "Automatisierungen",
+    "workedFor": "{{seconds}} s gearbeitet"
+}

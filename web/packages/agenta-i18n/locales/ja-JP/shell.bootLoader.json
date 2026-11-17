@@ -1,0 +1,15 @@
+{
+    "didYouKnow": "ご存じですか",
+    "statusAlmostReady": "まもなく完了します",
+    "statusNew1": "ワークスペースを作成しています",
+    "statusNew2": "最初のプロジェクトを設定しています",
+    "statusPending1": "サインインしています",
+    "statusPending2": "ワークスペースを読み込んでいます",
+    "statusReturning1": "エージェントを読み込んでいます",
+    "statusReturning2": "最近のセッションを復元しています",
+    "tip1": "Slack、Telegram、WhatsApp、Microsoft Teams からエージェントと会話できます。",
+    "tip2": "エージェントを一度修正すれば、次回から覚えています。",
+    "tip3": "各セッションは専用のサンドボックスで実行され、ほかのセッションから隔離されます。",
+    "tip4": "エージェントは、スケジュールに従って、または連携アプリで何かが起きたときに実行できます。",
+    "tip5": "Claude または ChatGPT のサブスクリプションでエージェントを実行できます。"
+}

@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
 import {linksAndReferencesAtom, traceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -12,13 +14,13 @@ const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
 // The side panel hugs the right edge of the screen, so hovercards open leftward.
 const HOVERCARD_PLACEMENT = "bottomRight" as const
 
-const labelMap: Record<string, string> = {
-    evaluator: "Evaluators",
-    application: "Applications",
-    application_variant: "Variants",
-    environment: "Environments",
-    testset: "Test sets",
-}
+const LABEL_KEYS = {
+    evaluator: "observabilityUi.traceDrawer.refEvaluators",
+    application: "observabilityUi.traceDrawer.refApplications",
+    application_variant: "observabilityUi.traceDrawer.refVariants",
+    environment: "observabilityUi.traceDrawer.refEnvironments",
+    testset: "observabilityUi.traceDrawer.refTestSets",
+} as const
 
 interface ReferenceEntry extends Record<string, unknown> {
     key?: string
@@ -27,6 +29,7 @@ interface ReferenceEntry extends Record<string, unknown> {
 }
 
 const TraceReferences = () => {
+    const t = useT(drawerCatalog)
     const {
         ApplicationReferenceLabel,
         EnvironmentReferenceLabel,
@@ -154,14 +157,19 @@ const TraceReferences = () => {
     }
 
     if (!references.length) {
-        return <span className="text-colorTextSecondary">No references found.</span>
+        return (
+            <span className="text-colorTextSecondary">
+                {t("observabilityUi.traceDrawer.noReferences")}
+            </span>
+        )
     }
 
     return (
         <div className="flex flex-col gap-3 items-start w-full">
             {Object.entries(groupedReferences || {}).map(([key, refs]) => {
-                const displayLabel = labelMap[key]
-                if (!displayLabel) return null
+                const labelKey = LABEL_KEYS[key as keyof typeof LABEL_KEYS]
+                if (!labelKey) return null
+                const displayLabel = t(labelKey)
                 return (
                     <div key={key} className="flex flex-col gap-1.5 items-start w-full">
                         <span className={titleClass}>{displayLabel}</span>

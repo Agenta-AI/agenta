@@ -9,10 +9,6 @@ import {traceIds, traceRootSpan, traceSummaryQueries} from "../../fixtures/trace
  * `traceDataSummaryAtomFamily` (backed by the `["trace-summary", projectId, traceId]`
  * query) and renders the open-trace button, a status tag, and the metrics display.
  *
- * Migration: antd `Button`(icon/loading) → `LoadingButton` (`outline`/`icon-sm`),
- * antd `Skeleton.Button` → `SkeletonBlock`, antd `Tooltip` → `@agenta/ui` Tooltip,
- * antd `Tag` → `Badge` (`success`/`error`/`default` severities).
- *
  * Every id is story-scoped (`scope.id(…)`); the fixture root span is built through
  * `traceSpanSchema`.
  */

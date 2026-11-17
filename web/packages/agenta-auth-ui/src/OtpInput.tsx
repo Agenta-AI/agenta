@@ -6,6 +6,8 @@ import {
     type KeyboardEvent,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import otpVerifyCatalog from "@agenta/i18n/catalogs/auth.otpVerify"
 import {Input, cn} from "@agenta/ui/ui"
 
 export interface OtpInputHandle {
@@ -26,6 +28,7 @@ export const OtpInput = forwardRef<
         disabled?: boolean
     }
 >(({value, onChange, length = 6, error, status, autoFocus, disabled}, ref) => {
+    const t = useT(otpVerifyCatalog)
     const cellsRef = useRef<(HTMLInputElement | null)[]>([])
     const focusCell = (index: number) =>
         cellsRef.current[Math.max(0, Math.min(index, length - 1))]?.focus()
@@ -63,14 +66,18 @@ export const OtpInput = forwardRef<
     }
 
     return (
-        <div className="flex w-full gap-2" role="group" aria-label="One-time code">
+        <div
+            className="flex w-full gap-2"
+            role="group"
+            aria-label={t("auth.otpVerify.oneTimeCode")}
+        >
             {Array.from({length}, (_, index) => (
                 <Input
                     key={index}
                     ref={(el) => {
                         cellsRef.current[index] = el
                     }}
-                    aria-label={`Character ${index + 1}`}
+                    aria-label={t("auth.otpVerify.characterN", {number: index + 1})}
                     aria-invalid={error || undefined}
                     size="lg"
                     className={cn(

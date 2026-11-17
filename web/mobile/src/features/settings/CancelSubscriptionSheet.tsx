@@ -1,5 +1,8 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import billingCancelSubscriptionSheetCatalog from "@agenta/i18n/catalogs/billing.cancelSubscriptionSheet"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     cancelBillingSubscription,
     CancelSubscriptionReasons,
@@ -27,6 +30,7 @@ interface Props {
 
 /** Ends auto-renewal, after asking why. */
 export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChanged}: Props) => {
+    const t = useT(billingCancelSubscriptionSheetCatalog, commonCatalog)
     const [reason, setReason] = useState("")
     const [otherReason, setOtherReason] = useState("")
     const [cancelling, setCancelling] = useState(false)
@@ -44,7 +48,7 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
             setReason("")
             setOtherReason("")
         } catch {
-            setError("We couldn't cancel your subscription. Try again, or contact support.")
+            setError(t("billing.cancelSubscriptionSheet.cancelError"))
         } finally {
             setCancelling(false)
         }
@@ -57,9 +61,11 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
         >
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel auto-renewal</AlertDialogTitle>
+                    <AlertDialogTitle>
+                        {t("billing.cancelSubscriptionSheet.title")}
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                        Your plan stays active until the end of the current period.
+                        {t("billing.cancelSubscriptionSheet.description")}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 {error ? <Alert type="error" showIcon message={error} /> : null}
@@ -78,7 +84,7 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
                             onClick={() => onOpenChange(false)}
                             disabled={cancelling}
                         >
-                            Keep my plan
+                            {t("billing.cancelSubscriptionSheet.keepPlan")}
                         </Button>
                     </AlertDialogCancel>
                     {/* Stays open for the error; `confirm` closes it on success. */}
@@ -91,7 +97,9 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
                                 void confirm()
                             }}
                         >
-                            {cancelling ? "Cancelling…" : "Confirm"}
+                            {cancelling
+                                ? t("billing.cancelSubscriptionSheet.cancelling")
+                                : t("common.confirm")}
                         </Button>
                     </AlertDialogAction>
                 </AlertDialogFooter>

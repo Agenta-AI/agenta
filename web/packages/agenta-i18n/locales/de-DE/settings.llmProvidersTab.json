@@ -1,0 +1,6 @@
+{
+    "aboutToDelete": "Sie sind dabei, Folgendes zu löschen:",
+    "deleteOrganizationDescription": "Agents, die diese Verbindung verwenden, müssen in jedem Projekt, das sie nutzt, neu konfiguriert werden.",
+    "deleteProjectDescription": "Diese Aktion ist nicht umkehrbar. Agents und Prompts, die diese Verbindung verwenden, funktionieren nicht mehr.",
+    "deleteTitle": "Möchten Sie wirklich löschen?"
+}

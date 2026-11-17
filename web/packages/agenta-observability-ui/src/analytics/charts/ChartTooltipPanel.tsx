@@ -34,8 +34,8 @@ export const ChartTooltipPanel = ({
             <div className="flex flex-col gap-1">
                 {rowsTitle ? <span className="text-muted-foreground">{rowsTitle}</span> : null}
                 {rows.map((row, i) => (
-                    // Two keys can share a name (two agents called the same).
-                    <div key={`${i}-${row.label}`} className="flex flex-col">
+                    // By position: two rows can share a name, and a label may be translated text.
+                    <div key={i} className="flex flex-col">
                         <div className="flex items-center gap-1.5">
                             <span
                                 className="size-2 shrink-0 rounded-full"

@@ -12,6 +12,8 @@
 
 import React, {useCallback, useEffect, useId, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import selectionCatalog from "@agenta/i18n/catalogs/entityUi.selection"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -28,6 +30,7 @@ import {
 } from "@agenta/ui/ui"
 
 import {useListPopoverMode} from "../../../hooks"
+import {adapterText, labelInSentence} from "../../../text"
 import type {EntitySelectionResult} from "../../../types"
 import {AutoSelectHandler, ChildPopoverContent} from "../shared"
 import type {ListPopoverVariantProps} from "../types"
@@ -85,15 +88,16 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
     autoSelectLatest = false,
     selectLatestOnParentClick = false,
     disabledParentIds,
-    disabledTooltip = "Already connected",
+    disabledTooltip,
     disabledChildIds,
-    disabledChildTooltip = "Already connected",
+    disabledChildTooltip,
     popoverPlacement = "rightTop",
     popoverTrigger = "hover",
     maxHeight = 400,
     onParentHover,
     sectionLabel,
 }: ListPopoverVariantProps<TSelection>) {
+    const t = useT(selectionCatalog)
     const generatedId = useId()
     const instanceId = providedInstanceId ?? generatedId
 
@@ -128,8 +132,16 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
     })
 
     // Get display messages
-    const displayEmptyMessage = emptyMessage ?? resolvedAdapter.emptyMessage ?? "No items found"
-    const displayLoadingMessage = loadingMessage ?? resolvedAdapter.loadingMessage ?? "Loading..."
+    const displayEmptyMessage =
+        emptyMessage ??
+        (resolvedAdapter.emptyMessage
+            ? adapterText(resolvedAdapter.emptyMessage)
+            : t("entityUi.selection.noItemsFound"))
+    const displayLoadingMessage =
+        loadingMessage ??
+        (resolvedAdapter.loadingMessage
+            ? adapterText(resolvedAdapter.loadingMessage)
+            : t("entityUi.selection.loading"))
 
     // Handle parent hover (combines internal + external callbacks)
     const onParentHoverCombined = useCallback(
@@ -219,7 +231,9 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                     <SearchInput
                         value={searchTerm}
                         onChange={setSearchTerm}
-                        placeholder={`Search ${parentLabel.toLowerCase()}...`}
+                        placeholder={t("entityUi.selection.searchLevel", {
+                            label: labelInSentence(parentLabel),
+                        })}
                         disabled={disabled}
                     />
                 </div>
@@ -246,7 +260,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                 // listbox parent for the rows' role=option (axe aria-required-parent).
                 <div
                     role="listbox"
-                    aria-label={sectionLabel ?? "Options"}
+                    aria-label={sectionLabel ?? t("entityUi.selection.options")}
                     className="overflow-auto"
                     style={{maxHeight: typeof maxHeight === "number" ? maxHeight : undefined}}
                 >
@@ -268,7 +282,10 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                                             />
                                         </div>
                                     </TooltipTrigger>
-                                    <TooltipContent>{disabledTooltip}</TooltipContent>
+                                    <TooltipContent>
+                                        {disabledTooltip ??
+                                            t("entityUi.selection.alreadyConnected")}
+                                    </TooltipContent>
                                 </Tooltip>
                             )
                         }
@@ -317,7 +334,10 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                                         childLevelConfig={childLevelConfig}
                                         selectedChildId={selectedChildId}
                                         disabledChildIds={disabledChildIds}
-                                        disabledChildTooltip={disabledChildTooltip}
+                                        disabledChildTooltip={
+                                            disabledChildTooltip ??
+                                            t("entityUi.selection.alreadyConnected")
+                                        }
                                         onSelect={(child) =>
                                             handleChildSelect(parent.id, parent.label, child)
                                         }

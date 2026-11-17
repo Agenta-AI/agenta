@@ -9,10 +9,11 @@ import {
 import {
     agentRequirementsAtomFamily,
     commitAgentCredentialsAtom,
-    needsSetupReasonLabel,
     requirementForItem,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentSecretsCatalog from "@agenta/i18n/catalogs/entityUi.agentSecrets"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -34,6 +35,7 @@ import {AgentSecretAttachmentModal} from "../../../secret"
 import {useSectionDrawerPanel} from "../sectionDrawerPanel"
 
 import {NeedsSetupTag} from "./NeedsSetupTag"
+import {needsSetupReasonText} from "./needsSetupText"
 
 export interface AgentSecretsSectionProps {
     revisionId?: string | null
@@ -55,6 +57,7 @@ export function AgentSecretsSection({
     onRevisionCommitted,
     attachContainer,
 }: AgentSecretsSectionProps) {
+    const t = useT(agentSecretsCatalog)
     const {namedSecrets, loading} = useVaultSecret()
     // Inside the Advanced drawer, its dialogs stay within the drawer.
     const panel = useSectionDrawerPanel()
@@ -80,15 +83,15 @@ export function AgentSecretsSection({
         [namedSecrets],
     )
     // The agent's name alone: "default" told the reader nothing about which agent this is.
-    const targetLabel = artifactName || "Agent"
+    const targetLabel = artifactName || t("entityUi.agentSecrets.agent")
     const committedRevision = Boolean(revisionId && !revisionId.startsWith("local-"))
     const canAttach = committedRevision && !disabled && canEditSecrets && !dirty
 
     const saveBindings = async (next: AgentSecretBinding[]) => {
         if (!committedRevision || !revisionId) {
-            throw new Error("Save this agent before attaching a secret.")
+            throw new Error(t("entityUi.agentSecrets.saveAgentFirst"))
         }
-        if (dirty) throw new Error("Save or discard the current agent changes first.")
+        if (dirty) throw new Error(t("entityUi.agentSecrets.saveOrDiscardFirst"))
         const result = await commitCredentials({revisionId, bindings: next})
         onRevisionCommitted?.(result.revisionId)
         return result
@@ -112,7 +115,7 @@ export function AgentSecretsSection({
             setRemoveIndex(null)
         } catch (error) {
             setRemoveError(
-                error instanceof Error ? error.message : "Unable to remove this attachment.",
+                error instanceof Error ? error.message : t("entityUi.agentSecrets.unableToRemove"),
             )
         } finally {
             setRemoving(false)
@@ -129,7 +132,7 @@ export function AgentSecretsSection({
                 setModalOpen(true)
             }}
         >
-            <Plus size={13} /> Attach
+            <Plus size={13} /> {t("entityUi.agentSecrets.attach")}
         </Button>
     )
 
@@ -143,25 +146,25 @@ export function AgentSecretsSection({
 
             {!canEditSecrets ? (
                 <div className="rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary">
-                    You need permission to edit project secrets before you can change attachments.
+                    {t("entityUi.agentSecrets.needPermission")}
                 </div>
             ) : dirty ? (
                 <div className="rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary">
-                    Save or discard the current agent changes before changing secret attachments.
+                    {t("entityUi.agentSecrets.saveOrDiscardBeforeChanging")}
                 </div>
             ) : null}
 
             {!committedRevision ? (
                 <div className="rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary">
-                    Save this agent before attaching a secret.
+                    {t("entityUi.agentSecrets.saveAgentFirst")}
                 </div>
             ) : loading ? (
                 <div className="flex items-center gap-2 py-3 text-xs text-colorTextSecondary">
-                    <Spinner size="small" /> Loading secrets
+                    <Spinner size="small" /> {t("entityUi.agentSecrets.loadingSecrets")}
                 </div>
             ) : bindings.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-colorBorderSecondary p-4 text-center text-xs text-colorTextSecondary">
-                    No custom secrets attached.
+                    {t("entityUi.agentSecrets.noSecretsAttached")}
                 </div>
             ) : (
                 // -mx/px: the hover fill bleeds 4px, within the panel's scroll clip.
@@ -192,7 +195,7 @@ export function AgentSecretsSection({
                                     {requirement ? (
                                         <NeedsSetupTag
                                             tag={false}
-                                            reason={needsSetupReasonLabel(requirement.reason)}
+                                            reason={needsSetupReasonText(requirement.reason)}
                                         />
                                     ) : (
                                         <span className="truncate text-xs leading-4 text-muted-foreground">
@@ -207,7 +210,9 @@ export function AgentSecretsSection({
                                         size="icon-sm"
                                         // The row already hovers to accent; the button's own is a foreground wash.
                                         className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
-                                        aria-label={`Edit ${binding.binding.name}`}
+                                        aria-label={t("entityUi.agentSecrets.editBinding", {
+                                            name: binding.binding.name,
+                                        })}
                                         disabled={disabled || !canEditSecrets || dirty}
                                         onClick={() => {
                                             setEditingIndex(index)
@@ -220,7 +225,9 @@ export function AgentSecretsSection({
                                         variant="ghost"
                                         size="icon-sm"
                                         className="hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] hover:text-error"
-                                        aria-label={`Remove ${binding.binding.name}`}
+                                        aria-label={t("entityUi.agentSecrets.removeBinding", {
+                                            name: binding.binding.name,
+                                        })}
                                         disabled={disabled || !canEditSecrets || dirty}
                                         onClick={() => {
                                             setRemoveError(null)
@@ -267,10 +274,11 @@ export function AgentSecretsSection({
             >
                 <AlertDialogContent container={panel}>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Remove this secret attachment?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {t("entityUi.agentSecrets.removeAttachmentTitle")}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            The agent will lose access to this variable. The secret stays in the
-                            project vault.
+                            {t("entityUi.agentSecrets.removeAttachmentBody")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     {removeError ? (
@@ -279,7 +287,9 @@ export function AgentSecretsSection({
                         </div>
                     ) : null}
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel disabled={removing}>
+                            {t("entityUi.agentSecrets.cancel")}
+                        </AlertDialogCancel>
                         <AlertDialogAction
                             disabled={removing || dirty}
                             onClick={(event) => {
@@ -287,7 +297,9 @@ export function AgentSecretsSection({
                                 void remove()
                             }}
                         >
-                            {removing ? "Removing..." : "Remove"}
+                            {removing
+                                ? t("entityUi.agentSecrets.removing")
+                                : t("entityUi.agentSecrets.remove")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

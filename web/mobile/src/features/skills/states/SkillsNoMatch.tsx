@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {
     Button,
     Empty,
@@ -17,25 +19,26 @@ export const SkillsNoMatch = ({
     /** The search that matched nothing. Absent ⇒ the filters are what narrowed it. */
     term?: string
     onClear?: () => void
-}) => (
-    <Empty className="py-14">
-        <EmptyHeader>
-            <EmptyMedia variant="icon">{term ? <Search /> : <Filter />}</EmptyMedia>
-            <EmptyTitle>
-                {term ? `Nothing matches “${term}”` : "No skills match these filters"}
-            </EmptyTitle>
-            <EmptyDescription>
-                {term
-                    ? "Try a shorter search, or check the filters — they narrow this list too."
-                    : "Try widening the filters, or including archived skills."}
-            </EmptyDescription>
-        </EmptyHeader>
-        {onClear ? (
-            <EmptyContent>
-                <Button size="sm" variant="outline" onClick={onClear}>
-                    {term ? "Clear search" : "Clear filters"}
-                </Button>
-            </EmptyContent>
-        ) : null}
-    </Empty>
-)
+}) => {
+    const t = useT(skillsListCatalog)
+    return (
+        <Empty className="py-14">
+            <EmptyHeader>
+                <EmptyMedia variant="icon">{term ? <Search /> : <Filter />}</EmptyMedia>
+                <EmptyTitle>
+                    {term ? t("skills.list.noMatchTerm", {term}) : t("skills.list.noMatchFilters")}
+                </EmptyTitle>
+                <EmptyDescription>
+                    {term ? t("skills.list.noMatchTermBody") : t("skills.list.noMatchFiltersBody")}
+                </EmptyDescription>
+            </EmptyHeader>
+            {onClear ? (
+                <EmptyContent>
+                    <Button size="sm" variant="outline" onClick={onClear}>
+                        {term ? t("skills.list.clearSearch") : t("skills.list.clearFilters")}
+                    </Button>
+                </EmptyContent>
+            ) : null}
+        </Empty>
+    )
+}

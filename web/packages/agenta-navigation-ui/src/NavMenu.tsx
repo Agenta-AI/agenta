@@ -1,5 +1,7 @@
 import {Fragment, memo, useRef, type KeyboardEvent, type MouseEvent, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import type {SidebarConfig, SidebarDragItem, SidebarMenuMode} from "@agenta/navigation"
 import {HeightCollapse} from "@agenta/ui/components/presentational"
 import {
@@ -217,6 +219,7 @@ const STICKY_HEADING =
     "[[data-nav-scroll]_&]:sticky [[data-nav-scroll]_&]:top-0 [[data-nav-scroll]_&]:z-10 [[data-nav-scroll]_&]:bg-[var(--ag-sidebar-bg)]"
 
 const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
+    const t = useT(navigationCatalog)
     const toggle = item.onClick
     if (!toggle)
         return (
@@ -260,7 +263,14 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             <span className="min-w-0 truncate">{item.title}</span>
             {/* The caret sits right after the title, so the fold reads as one control. */}
             <span
-                aria-label={`${item.isCollapsed ? "Expand" : "Collapse"} ${item.title}`}
+                aria-label={t(
+                    item.isCollapsed
+                        ? "navigation.chrome.expandGroup"
+                        : "navigation.chrome.collapseGroup",
+                    {
+                        title: String(item.title),
+                    },
+                )}
                 className="flex shrink-0 items-center justify-center"
             >
                 <CaretRight
@@ -507,6 +517,7 @@ const NavMenuImpl = ({
     onItemSelect,
     className,
 }: NavMenuProps) => {
+    const t = useT(navigationCatalog)
     const inline = mode === "inline" && !collapsed
     const navRef = useRef<HTMLElement>(null)
 
@@ -639,7 +650,12 @@ const NavMenuImpl = ({
                             <span
                                 role="button"
                                 tabIndex={0}
-                                aria-label={`${open ? "Collapse" : "Expand"} ${item.title}`}
+                                aria-label={t(
+                                    open
+                                        ? "navigation.chrome.collapseGroup"
+                                        : "navigation.chrome.expandGroup",
+                                    {title: String(item.title)},
+                                )}
                                 // z-[1] keeps the toggle clickable above the stretched link anchor.
                                 className="relative z-[1] mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
                                 onClick={(event) => {

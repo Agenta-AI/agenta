@@ -9,6 +9,8 @@ import {
     type AgentSecretBinding,
 } from "@agenta/entities/secret"
 import {commitAgentCredentialsAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import clientToolsCatalog from "@agenta/i18n/catalogs/entityUi.clientTools"
 import type {ClientToolMeta} from "@agenta/shared/clientTools"
 import {
     Button,
@@ -85,6 +87,7 @@ export const SecretRequestDock = ({
     onAdoptRevision,
     onOutput,
 }: SecretRequestDockProps) => {
+    const t = useT(clientToolsCatalog)
     const [targetId, setTargetId] = useState(revisionId)
     const [typing, setTyping] = useState(false)
     // The dock outlives a revision switch on both hosts, so it follows the prop when it moves.
@@ -121,7 +124,7 @@ export const SecretRequestDock = ({
         | undefined
     const bindings = agent?.sandbox?.credentials ?? []
     const request = parseSecretRequest(meta.input)
-    const label = artifactName || "This agent"
+    const label = artifactName || t("entityUi.clientTools.thisAgent")
 
     // The vault query never refetches itself; `refetchVault` changes identity, so it is not a dep.
     useEffect(() => {
@@ -400,7 +403,7 @@ export const SecretRequestDock = ({
             <div
                 className="rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-colorText"
                 role="region"
-                aria-label="Secret request"
+                aria-label={t("entityUi.clientTools.secretRequestAria")}
             >
                 <p className="m-0 truncate text-sm font-medium">{title}</p>
                 <p
@@ -533,7 +536,7 @@ export const SecretRequestDock = ({
                             disabled={busy}
                             onClick={() => settle({status: "cancelled"})}
                         >
-                            Not now
+                            {t("entityUi.clientTools.notNow")}
                         </Button>
                         {showContinue ? (
                             <LoadingButton
@@ -542,7 +545,7 @@ export const SecretRequestDock = ({
                                 disabled={blocked}
                                 onClick={continueWithSaved}
                             >
-                                Continue
+                                {t("entityUi.clientTools.continue")}
                             </LoadingButton>
                         ) : rejected && changeInDialog && !retry ? (
                             <Button

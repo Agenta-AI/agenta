@@ -1,5 +1,7 @@
-import {Key} from "react"
+import {Key, useMemo} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import columnsCatalog from "@agenta/i18n/catalogs/observabilityUi.columns"
 import {ColumnVisibilityMenuTrigger, type ExtendedColumn} from "@agenta/ui/table"
 
 import {DurationCell} from "../session/DurationCell"
@@ -25,9 +27,11 @@ export interface SessionRow {
 // antd column extended with props consumed by the InfiniteVirtualTable layer.
 type SessionColumn = ExtendedColumn<SessionRow>
 
-export const getSessionColumns = (): SessionColumn[] => [
+export const getSessionColumns = (
+    t: (key: CatalogKey<typeof columnsCatalog>) => string,
+): SessionColumn[] => [
     {
-        title: "Session id",
+        title: t("observabilityUi.columns.sessionId"),
         dataIndex: "session_id",
         key: "session_id",
         width: 180,
@@ -38,7 +42,7 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (sessionId: string) => <SessionIdCell sessionId={sessionId} />,
     },
     {
-        title: "Traces",
+        title: t("observabilityUi.columns.traces"),
         dataIndex: "traces",
         key: "traces",
         width: 120,
@@ -48,7 +52,7 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (_, record) => <TracesCountCell sessionId={record.session_id} />,
     },
     {
-        title: "First input",
+        title: t("observabilityUi.columns.firstInput"),
         dataIndex: "first_input",
         key: "first_input",
         width: 320,
@@ -58,7 +62,7 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (_, record) => <FirstInputCell sessionId={record.session_id} />,
     },
     {
-        title: "Last output",
+        title: t("observabilityUi.columns.lastOutput"),
         dataIndex: "last_output",
         key: "last_output",
         width: 320,
@@ -68,7 +72,7 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (_, record) => <LastOutputCell sessionId={record.session_id} />,
     },
     {
-        title: "Start time",
+        title: t("observabilityUi.columns.startTime"),
         dataIndex: "start_time",
         key: "start_time",
         width: 200,
@@ -78,7 +82,7 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (_, record) => <StartTimeCell sessionId={record.session_id} />,
     },
     {
-        title: "End time",
+        title: t("observabilityUi.columns.endTime"),
         dataIndex: "end_time",
         key: "end_time",
         width: 200,
@@ -88,7 +92,7 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (_, record) => <EndTimeCell sessionId={record.session_id} />,
     },
     {
-        title: "Duration",
+        title: t("observabilityUi.columns.duration"),
         dataIndex: "duration_ms",
         key: "duration_ms",
         width: 120,
@@ -98,7 +102,7 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (_, record) => <DurationCell sessionId={record.session_id} />,
     },
     {
-        title: "Total Latency",
+        title: t("observabilityUi.columns.totalLatency"),
         dataIndex: "total_latency_ms",
         key: "total_latency_ms",
         width: 140,
@@ -108,7 +112,7 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (_, record) => <TotalLatencyCell sessionId={record.session_id} />,
     },
     {
-        title: "Total Usage",
+        title: t("observabilityUi.columns.totalUsage"),
         dataIndex: "total_usage",
         key: "total_usage",
         width: 120,
@@ -118,7 +122,7 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (_, record) => <TotalUsageCell sessionId={record.session_id} />,
     },
     {
-        title: "Total Cost",
+        title: t("observabilityUi.columns.totalCost"),
         dataIndex: "total_cost",
         key: "total_cost",
         width: 120,
@@ -128,7 +132,12 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: (_, record) => <TotalCostCell sessionId={record.session_id} />,
     },
     {
-        title: <ColumnVisibilityMenuTrigger variant="icon" label="Edit columns" />,
+        title: (
+            <ColumnVisibilityMenuTrigger
+                variant="icon"
+                label={t("observabilityUi.columns.editColumns")}
+            />
+        ),
         key: "actions",
         width: 61,
         fixed: "right",
@@ -141,3 +150,9 @@ export const getSessionColumns = (): SessionColumn[] => [
         render: () => null,
     },
 ]
+
+/** The session columns in the active language; they change when the language does. */
+export const useSessionColumns = (): SessionColumn[] => {
+    const t = useT(columnsCatalog)
+    return useMemo(() => getSessionColumns(t), [t])
+}

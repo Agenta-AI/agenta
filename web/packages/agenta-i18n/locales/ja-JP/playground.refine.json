@@ -1,0 +1,18 @@
+{
+    "describeRefine": "プロンプトをどのように改善したいかを説明してください",
+    "orPickSuggestion": "または下の候補から選択してください",
+    "refining": "プロンプトを改善中…",
+    "describePlaceholder": "プロンプトの改善方法を入力…",
+    "send": "送信",
+    "submitToSee": "指示を送信すると、改善されたプロンプトが表示されます",
+    "messagePlaceholder": "メッセージの内容を入力…",
+    "instructions": "指示",
+    "refinePrompt": "プロンプトを改善",
+    "closeModal": "モーダルを閉じる",
+    "chatWithAgent": "LLM エージェントとチャットして、プロンプトを改善します",
+    "diff": "差分",
+    "toggleDiff": "差分表示を切り替え",
+    "cancel": "キャンセル",
+    "useRefined": "改善したプロンプトを使用",
+    "refineFailed": "プロンプトを改善できませんでした。もう一度お試しください。"
+}
