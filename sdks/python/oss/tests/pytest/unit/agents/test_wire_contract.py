@@ -106,6 +106,7 @@ KNOWN_REQUEST_KEYS = {
     "sandboxPermission",
     "harnessFiles",
     "drives",
+    "homeDrive",
     "hasSessionDrive",
     "turnId",
     "detached",
@@ -194,10 +195,11 @@ def _pi_payload():
         skills=[dict(_SKILL)],
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
         drives=[
-            AgentDrive(kind="agent"),
-            AgentDrive(kind="project", slug="price-lists", access="read"),
-            AgentDrive(kind="project", slug="team-notes"),
+            AgentDrive(slug="quote-agent-files"),
+            AgentDrive(slug="price-lists", access="read"),
+            AgentDrive(slug="team-notes"),
         ],
+        home_drive="quote-agent-files",
         system="You are Pi.",
         append_system="Be terse.",
     )
@@ -306,7 +308,7 @@ def _codex_payload():
                 value="github-secret",
             )
         ],
-        # An agent with no durable drive and no session drive.
+        # An agent with no drive and no session drive.
         drives=[],
         has_session_drive=False,
     )

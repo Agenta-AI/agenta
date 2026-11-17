@@ -36,7 +36,7 @@ from typing import Any, ClassVar, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .dtos import AgentDriveAccess, AgentDriveKind
+from .dtos import AgentDriveAccess
 
 
 class _WireModel(BaseModel):
@@ -504,12 +504,10 @@ class WireSandboxPermission(_WireModel):
 
 
 class WireAgentDrive(_WireModel):
-    """One configured drive entry (mirrors ``AgentDrive.to_wire``). A ``project`` entry carries
-    its ``slug`` and its ``access``; an ``agent`` entry carries neither."""
+    """One configured drive entry (mirrors ``AgentDrive.to_wire``), ``access`` filled in."""
 
-    kind: AgentDriveKind
-    slug: Optional[str] = None
-    access: Optional[AgentDriveAccess] = None
+    slug: str
+    access: AgentDriveAccess
 
 
 class WireHarnessFile(_WireModel):
@@ -657,9 +655,11 @@ class WireRunRequest(_WireModel):
     harness_files: Optional[List[WireHarnessFile]] = Field(
         default=None, alias="harnessFiles"
     )
-    # The durable drives the configuration names, and whether the session keeps its working
-    # folder in the store. Optional: a request without ``drives`` comes from an older service.
+    # The drives the configuration names, its home drive, and whether the session keeps its
+    # working folder in the store. A request without ``drives`` is a legacy configuration or
+    # comes from an older service.
     drives: Optional[List[WireAgentDrive]] = None
+    home_drive: Optional[str] = Field(default=None, alias="homeDrive")
     has_session_drive: Optional[bool] = Field(default=None, alias="hasSessionDrive")
     # The post-hydration config this turn runs, opaque to the runner: it echoes the blob onto
     # the interaction row of any HITL gate the turn parks, so the answering client can replay

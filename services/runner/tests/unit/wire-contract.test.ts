@@ -61,6 +61,7 @@ const KNOWN_REQUEST_KEYS = [
   "sandboxCredentials",
   "harnessFiles",
   "drives",
+  "homeDrive",
   "hasSessionDrive",
   "turnId",
   "detached",
@@ -116,13 +117,14 @@ describe("wire contract: requests (vs Python golden)", () => {
     });
   }
 
-  it("pi_core request: carries the configured drives, access filled in on project entries", () => {
+  it("pi_core request: carries the configured drives with access filled in, and the home", () => {
     const req = loadGolden("run_request.pi_core.json") as AgentRunRequest;
     assert.deepEqual(req.drives, [
-      { kind: "agent" },
-      { kind: "project", slug: "price-lists", access: "read" },
-      { kind: "project", slug: "team-notes", access: "read-write" },
+      { slug: "quote-agent-files", access: "read-write" },
+      { slug: "price-lists", access: "read" },
+      { slug: "team-notes", access: "read-write" },
     ]);
+    assert.equal(req.homeDrive, "quote-agent-files");
     assert.equal(req.hasSessionDrive, true);
     assert.deepEqual(selectRunDrives(req), {
       session: !!req.sessionId?.trim(),
@@ -134,11 +136,19 @@ describe("wire contract: requests (vs Python golden)", () => {
     });
   });
 
-  it("codex request: an empty drive list and no session drive", () => {
+  it("codex request: an empty drive list, no home and no session drive", () => {
     const req = loadGolden("run_request.codex.json") as AgentRunRequest;
     assert.deepEqual(req.drives, []);
+    assert.equal(req.homeDrive, null);
     assert.equal(req.hasSessionDrive, false);
     assert.deepEqual(selectRunDrives(req), { session: false, agent: false, projects: [] });
+  });
+
+  it("claude request: a legacy configuration sends no drives and no home", () => {
+    const req = loadGolden("run_request.claude.json") as AgentRunRequest;
+    assert.equal(req.drives, undefined);
+    assert.equal("homeDrive" in req, false);
+    assert.equal(req.hasSessionDrive, true);
   });
 
   it("attachment request: carries the resource handle and resolved modalities", () => {

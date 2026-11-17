@@ -1,14 +1,16 @@
 ---
 title: "Files and knowledge"
 sidebar_label: "Files and knowledge"
-description: "Learn how AI agents use temporary session files and shared agent files to work with documents, build knowledge, and carry context across sessions."
+description: "Learn how AI agents use session files, agent files, and project drives to work with documents, build knowledge, and share files with other agents."
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
 
-Each agent in Agenta has two folders. Session files are temporary and belong to one session. Agent files persist and are shared across every session for that agent.
+An agent in Agenta works with up to three kinds of folder. Session files belong to one session. Agent files persist and are shared across every session of that agent. Project drives persist and are shared by the agents of a project that list them.
+
+Each folder is a drive: a folder of files that Agenta keeps in storage. The agent's configuration lists the drives it mounts, in [`drives` and `has_session_drive`](/reference/agents/agent-configuration#drives). A new agent has a session drive and its own agent drive.
 
 ## Session files support the work happening now
 
@@ -40,10 +42,26 @@ Agent files are useful for:
 
 Think of the agent files as the shared shelf the agent returns to from one conversation to the next.
 
+## Project drives share files between agents
+
+Suppose the launch agent and the support agent both need the current price list. Copying it into each agent's files means two copies that drift apart.
+
+Put the price list in a project drive instead, and list that drive in the configuration of both agents. Each agent sees it at `drives/price-lists/`. When someone updates the file, both agents see the new version on their next turn.
+
+Each agent that lists a drive gets one of two kinds of access:
+
+- **Read**: the agent can open the files but cannot change them. Use this for reference material that people maintain, such as the price list.
+- **Read-write**: the agent can also add, change, and delete files. Use this for a folder that a team of agents builds together, such as shared research notes.
+
+An agent that does not list a drive cannot see it. An agent also cannot add a drive to its own configuration; a person decides which drives each agent gets.
+
+When several agents write the same drive, a write replaces the whole file, and the last write wins. Agents that add new files, instead of editing the same shared file, do not overwrite each other's work.
+
 | File scope | Best for | Launch agent example |
 | --- | --- | --- |
 | **Session** | The task in front of you | This month's campaign spreadsheet |
 | **Agent** | Work and knowledge worth reusing | The brand guide and approved launch email |
+| **Project drive** | Files several agents use | The price list the launch and support agents both read |
 
 ## Patterns for using files
 
@@ -72,3 +90,4 @@ A file adds nothing to the context until the agent opens it. This lets the agent
 
 - [Instructions](/concepts/instructions) covers how to point the agent at these files.
 - [Skills](/concepts/skills) covers the other on-demand way to give an agent know-how.
+- [Share a drive between agents](/reference/agents/files-and-attachments#share-a-drive-between-agents) shows how to create a project drive and attach it.
