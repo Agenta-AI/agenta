@@ -64,12 +64,7 @@ const listArgs = (tools: unknown[]) => ({
     onRemoveIntegration: noop,
 })
 
-// Showcase, not an antd parity pair. `data-vrt-subject` is the harness's readiness marker.
-const Frame = (children: React.ReactNode) => (
-    <div data-vrt-subject className="w-[520px]">
-        {children}
-    </div>
-)
+const Frame = (children: React.ReactNode) => <div className="w-[520px]">{children}</div>
 
 /** A default preset, a Custom row with its override count, and an unmigrated "old format" row. */
 export const RowStates: Story = {

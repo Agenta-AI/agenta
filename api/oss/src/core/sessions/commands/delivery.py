@@ -62,4 +62,5 @@ async def deliver_continue_interaction(
         envelope=envelope,
         control_command_id=command.id,
         continuation_execution_id=command.target_turn_id,
+        session_turn_id=(command.data or {}).get("session_turn_id"),
     )

@@ -2,8 +2,9 @@ from typing import Any, Dict, Optional, Tuple
 
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.engines.tracing.server import product_context
-from opentelemetry.baggage import set_baggage
+from opentelemetry.baggage import get_all, set_baggage
 from opentelemetry.baggage.propagation import W3CBaggagePropagator
+from opentelemetry.context import Context
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 
@@ -50,12 +51,10 @@ def extract(
         )
         _carrier = {"baggage": raw_baggage}
 
-        _context = W3CBaggagePropagator().extract(_carrier)
+        # a fresh context: the current one can hold a span (e.g. a server request span)
+        _context = W3CBaggagePropagator().extract(_carrier, context=Context())
 
-        if _context:
-            for partial in _context.values():
-                for key, value in partial.items():
-                    baggage[key] = value
+        baggage = dict(get_all(_context))
 
     except Exception:  # pylint: disable=bare-except
         pass

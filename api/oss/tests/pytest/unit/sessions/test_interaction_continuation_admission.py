@@ -335,8 +335,10 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
         "interaction_id": str(interaction_id),
         "interaction_ids": [str(interaction_id)],
         "continuation_execution_id": admission.execution_id,
+        "session_turn_id": "source-1",
     }
     assert delivery.delivered[0].data["answer"] == {"approved": True}
+    assert delivery.delivered[0].data["session_turn_id"] == "source-1"
     assert executions.source.terminal_outcome == "continued"
     assert executions.states[-1][1] == SessionExecutionState.recoverable
     assert interactions.published[0]["interactions"][0].data.resolution == {
@@ -1606,3 +1608,174 @@ async def test_steer_handles_a_lost_input_delivery_reservation(monkeypatch):
     assert settled is not None
     assert inputs.items[0].state == PendingInputState.promoted
     assert service._executions.continuation.state == SessionExecutionState.recoverable
+
+
+class _ChainExecutions(_Executions):
+    """An execution store that also holds the earlier executions of the paused turn."""
+
+    def __init__(self, *, project_id, session_id, source, earlier):
+        super().__init__(
+            project_id=project_id,
+            session_id=session_id,
+            source_id=source.execution_id,
+        )
+        self.source = source
+        self.earlier = {execution.execution_id: execution for execution in earlier}
+
+    async def fetch_execution(self, **kwargs):
+        if kwargs["execution_id"] in self.earlier:
+            return self.earlier[kwargs["execution_id"]]
+        return await super().fetch_execution(**kwargs)
+
+
+async def _answer_paused(*, source, earlier):
+    project_id = source.project_id
+    interaction_id = uuid4()
+    interaction = SessionInteraction(
+        run_envelope=make_envelope(),
+        id=interaction_id,
+        project_id=project_id,
+        session_id=source.session_id,
+        turn_id=source.execution_id,
+        token="approval-1",
+        kind=SessionInteractionKind.user_approval,
+        status=SessionInteractionStatus.pending,
+    )
+    commands = _Commands()
+    executions = _ChainExecutions(
+        project_id=project_id,
+        session_id=source.session_id,
+        source=source,
+        earlier=earlier,
+    )
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=_Interactions(interaction),
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+    await service.respond_interaction(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction_id,
+        answer={"approved": True},
+        expected_execution_id=source.execution_id,
+        idempotency_key="response-chain",
+        approved_by=any_approval(),
+    )
+    return commands.command
+
+
+def _execution(project_id, execution_id, *, parent=None):
+    return SessionExecutionSettlement(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id=execution_id,
+        state=SessionExecutionState.active,
+        parent_execution_id=parent,
+        source_interaction_id=uuid4() if parent is not None else None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_second_approval_in_a_turn_keeps_the_first_execution_as_turn():
+    project_id = uuid4()
+    first = _execution(project_id, "turn-start")
+    resumed = _execution(project_id, "resume-1", parent="turn-start")
+    paused = _execution(project_id, "resume-2", parent="resume-1")
+
+    command = await _answer_paused(source=paused, earlier=[first, resumed])
+
+    assert command.data["session_turn_id"] == "turn-start"
+    assert command.data["continuation_execution_id"] == command.target_turn_id
+
+
+@pytest.mark.asyncio
+async def test_a_queued_input_execution_starts_its_own_turn():
+    """A promoted input has a parent (the turn before it) but no source interaction:
+    the walk stops there, because the input starts a new turn."""
+    project_id = uuid4()
+    paused = SessionExecutionSettlement(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="input-turn",
+        state=SessionExecutionState.active,
+        parent_execution_id="previous-turn",
+    )
+
+    command = await _answer_paused(
+        source=paused, earlier=[_execution(project_id, "previous-turn")]
+    )
+
+    assert command.data["session_turn_id"] == "input-turn"
+
+
+@pytest.mark.asyncio
+async def test_a_broken_execution_chain_sends_no_session_turn_id():
+    project_id = uuid4()
+    paused = _execution(project_id, "resume-1", parent="missing")
+
+    command = await _answer_paused(source=paused, earlier=[])
+
+    assert "session_turn_id" not in command.data
+
+
+@pytest.mark.asyncio
+async def test_a_cycle_in_the_execution_chain_sends_no_session_turn_id():
+    project_id = uuid4()
+    first = _execution(project_id, "resume-1", parent="resume-2")
+    paused = _execution(project_id, "resume-2", parent="resume-1")
+
+    command = await _answer_paused(source=paused, earlier=[first, paused])
+
+    assert "session_turn_id" not in command.data
+
+
+@pytest.mark.asyncio
+async def test_a_long_approval_chain_keeps_the_first_execution_as_turn():
+    project_id = uuid4()
+    chain = [_execution(project_id, "turn-start")]
+    for index in range(1, 41):
+        chain.append(
+            _execution(project_id, f"resume-{index}", parent=chain[-1].execution_id)
+        )
+
+    command = await _answer_paused(source=chain[-1], earlier=chain[:-1])
+
+    assert command.data["session_turn_id"] == "turn-start"
+
+
+@pytest.mark.asyncio
+async def test_delivery_passes_the_session_turn_id_to_respond_many(monkeypatch):
+    from oss.src.core.sessions.commands import delivery
+
+    envelope = make_envelope()
+    monkeypatch.setattr(delivery, "get_access_service", lambda: None)
+    monkeypatch.setattr(
+        delivery, "deliverable_envelope", AsyncMock(return_value=envelope)
+    )
+    dispatcher = SimpleNamespace(respond_many=AsyncMock())
+    interaction_id = uuid4()
+    command = _continuation_command(uuid4(), interaction_id).model_copy(
+        update={
+            "data": {
+                "answers": [{"interaction_id": str(interaction_id), "answer": True}],
+                "session_turn_id": "turn-start",
+            }
+        }
+    )
+
+    await delivery.deliver_continue_interaction(
+        command=command, interactions_dispatcher=dispatcher
+    )
+    kwargs = dispatcher.respond_many.await_args.kwargs
+    assert kwargs["session_turn_id"] == "turn-start"
+    assert kwargs["continuation_execution_id"] == "continuation-1"
+
+    without = command.model_copy(update={"data": {"answers": command.data["answers"]}})
+    await delivery.deliver_continue_interaction(
+        command=without, interactions_dispatcher=dispatcher
+    )
+    assert dispatcher.respond_many.await_args.kwargs["session_turn_id"] is None

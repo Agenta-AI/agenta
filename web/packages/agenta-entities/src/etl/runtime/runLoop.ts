@@ -9,7 +9,7 @@
  *   4. Backpressure: `await sink.load` blocks the loop
  *   5. Cleanup: `finally` runs `sink.finalize?()` on any exit path
  *
- * See docs/designs/etl-engine.md for the design RFC.
+ * See docs/design/etl-engine.md for the design RFC.
  *
  * @packageDocumentation
  */

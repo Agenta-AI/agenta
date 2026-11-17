@@ -10,7 +10,7 @@
  *     unexpected close-at-root, empty tags, unterminated `{{`.
  *   - Span tracking (start/end offsets) for editor decorations.
  *
- * Authority: `docs/designs/mustache-section-support.md` Phase 2a.
+ * Authority: `docs/design/mustache-section-support.md` Phase 2a.
  */
 
 import {parseMustache, walkMustache} from "@agenta/shared/utils"

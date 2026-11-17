@@ -2,14 +2,10 @@ import {useState} from "react"
 
 import {ChipsInput, DateTimeInput, MultiSelect, SchemaForm} from "@agenta/entity-ui/gatewayTool"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {DatePicker as AntDatePicker, Select as AntSelect} from "antd"
 
-// SchemaForm — JSON-schema-driven form renderer. A full parity pair would replay the whole
-// 1400-line pre-migration file, so the form itself is a showcase (all field kinds, both
-// themes) and the parity grid covers only the three NEW composed controls this migration
-// introduced: MultiSelect (antd `Select mode="multiple"`), ChipsInput (antd
-// `Select mode="tags"` with `open={false}`), DateTimeInput (antd `DatePicker` — declared
-// structural deviation: native picker instead of antd's popup calendar).
+// SchemaForm — JSON-schema-driven form renderer. The form itself is a showcase (all field
+// kinds, both themes); the Variants story lists the three composed controls: MultiSelect,
+// ChipsInput and DateTimeInput.
 const meta = {
     title: "@agenta/entity-ui/GatewayTool/SchemaForm",
     component: SchemaForm,
@@ -18,7 +14,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Schema-driven form. Leaves migrated to @agenta/ui (Input/InputNumber/Switch/Select/Accordion/Buttons + composed MultiSelect/ChipsInput/DateTimeInput). The antd `Form` engine is retained deliberately — its `FormInstance` prop is cross-package API (ElicitationWidget, gatewayTrigger).",
+                    "Schema-driven form renderer: inputs, number fields, switches, selects, accordions, and the composed MultiSelect, ChipsInput and DateTimeInput controls.",
             },
         },
     },
@@ -98,38 +94,10 @@ export const Disabled: Story = {
     ),
 }
 
-// ---------------------------------------------------------------------------
-// Parity: the three new composed controls vs their antd originals
-// ---------------------------------------------------------------------------
-
-const Row = ({
-    label,
-    a,
-    s,
-    expected,
-}: {
-    label: string
-    a: React.ReactNode
-    s: React.ReactNode
-    expected?: string
-}) => (
-    <div
-        className="grid grid-cols-[12rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3"
-        data-vrt-expected={expected}
-    >
+const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
+    <div className="grid grid-cols-[12rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject className="flex-1">
-                {a}
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject className="flex-1">
-                {s}
-            </div>
-        </div>
+        <div>{children}</div>
     </div>
 )
 
@@ -139,57 +107,29 @@ const OPTIONS = [
     {value: "alan", label: "Alan"},
 ]
 
-function ControlsComparison() {
+function ControlsGallery() {
     const [multi, setMulti] = useState<string[]>(["ada"])
     const [chips, setChips] = useState<string[] | undefined>(["alpha", "beta"])
     return (
-        <div className="flex max-w-[900px] flex-col">
-            <Row
-                label="multi-select"
-                a={
-                    <AntSelect
-                        mode="multiple"
-                        className="w-full"
-                        value={multi}
-                        onChange={setMulti}
-                        options={OPTIONS}
-                        placeholder="Reviewers"
-                    />
-                }
-                s={
-                    <MultiSelect
-                        value={multi}
-                        onChange={setMulti}
-                        options={OPTIONS}
-                        placeholder="Reviewers"
-                    />
-                }
-            />
-            <Row
-                label="tags input"
-                a={
-                    <AntSelect
-                        mode="tags"
-                        className="w-full"
-                        value={chips ?? []}
-                        onChange={(v: string[]) => setChips(v.length ? v : undefined)}
-                        open={false}
-                        suffixIcon={null}
-                        placeholder="Labels"
-                    />
-                }
-                s={<ChipsInput value={chips} onChange={setChips} placeholder="Labels" />}
-            />
-            <Row
-                label="date-time"
-                expected="antd DatePicker popup calendar not reproduced — native datetime-local input styled as ui Input (no calendar primitive in @agenta/ui); value stays dayjs"
-                a={<AntDatePicker className="w-full" showTime />}
-                s={<DateTimeInput showTime aria-label="Date and time" />}
-            />
+        <div className="flex max-w-[640px] flex-col">
+            <Row label="multi-select">
+                <MultiSelect
+                    value={multi}
+                    onChange={setMulti}
+                    options={OPTIONS}
+                    placeholder="Reviewers"
+                />
+            </Row>
+            <Row label="tags input">
+                <ChipsInput value={chips} onChange={setChips} placeholder="Labels" />
+            </Row>
+            <Row label="date-time">
+                <DateTimeInput showTime aria-label="Date and time" />
+            </Row>
         </div>
     )
 }
 
-export const AntdVsAgenta: Story = {
-    render: () => <ControlsComparison />,
+export const Variants: Story = {
+    render: () => <ControlsGallery />,
 }
