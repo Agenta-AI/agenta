@@ -42,10 +42,5 @@
     "credentialMode": "runtime_provided",
     "credentials": []
   },
-  "drives": [
-    {
-      "kind": "agent"
-    }
-  ],
   "hasSessionDrive": true
 }
