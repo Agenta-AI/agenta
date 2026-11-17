@@ -1,0 +1,15 @@
+{
+    "allowReads": "允许读取",
+    "alwaysAllowMany": "始终允许 {{count}} 个工具",
+    "alwaysAllowOne": "始终允许 {{name}}",
+    "commands": "命令",
+    "modelDescription": "切换此 Agent 的模型",
+    "modelSetTo": "模型已设为 {{label}}",
+    "modelSetToHarness": "模型已设为 {{label}} · {{harness}}",
+    "newDescription": "用此 Agent 开始新会话",
+    "permissionsDescription": "设置 Agent 在必须询问之前可以做什么",
+    "permissionsSetTo": "权限已设为 {{label}}",
+    "skills": "Skill",
+    "tools": "工具",
+    "toolsCount": "{{count}} 个工具"
+}

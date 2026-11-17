@@ -1,5 +1,7 @@
 // The `+ New skill ▾` menu, shared by every creation entry point; no default-click action.
 import {scanSkillFromFileList, type SkillUploadScan} from "@agenta/entity-ui/drill-in"
+import {useT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {CreateMenuButton, type CreateMenuOption} from "@agenta/ui/create-menu"
 
 export interface NewSkillMenuButtonProps {
@@ -23,28 +25,29 @@ export function NewSkillMenuButton({
     onImport,
     ...button
 }: NewSkillMenuButtonProps) {
+    const t = useT(skillsGalleryCatalog)
     const options: CreateMenuOption[] = [
         {
             kind: "write",
-            title: "Write from scratch",
-            hint: "Start with an empty SKILL.md and write it here",
+            title: t("skills.gallery.menuWriteTitle"),
+            hint: t("skills.gallery.menuWriteHint"),
             onSelect: onWrite,
         },
     ]
     if (onUpload)
         options.push({
             kind: "upload",
-            title: "Upload",
-            hint: "A .zip, .skill or SKILL.md, opened in the editor",
+            title: t("skills.gallery.menuUploadTitle"),
+            hint: t("skills.gallery.menuUploadHint"),
             accept: ".zip,.skill,.md,text/markdown,text/plain",
             multiple: true,
             onFiles: (files) => onUpload(scanSkillFromFileList(files)),
         })
     options.push({
         kind: "import",
-        title: "Import from a repo",
-        hint: "Scan a public GitHub repository for SKILL.md folders",
+        title: t("skills.gallery.menuImportTitle"),
+        hint: t("skills.gallery.menuImportHint"),
         onSelect: onImport,
     })
-    return <CreateMenuButton label="New skill" options={options} {...button} />
+    return <CreateMenuButton label={t("skills.gallery.newSkill")} options={options} {...button} />
 }

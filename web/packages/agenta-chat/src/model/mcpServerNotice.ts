@@ -19,6 +19,8 @@
  * (`⟦agenta_code:auth_required⟧`) never reaches a screen through this path either.
  */
 import {gatewayRefusalCode, gatewayRefusalMessage} from "@agenta/entities/mcpEndpoint/refusal"
+import {createT} from "@agenta/i18n"
+import chatMcpServerNoticeCatalog from "@agenta/i18n/catalogs/chat.mcpServerNotice"
 import type {UIMessage} from "ai"
 
 /**
@@ -113,6 +115,8 @@ export const mcpServerNotices = (parts: UIMessage["parts"]): McpServerNotice[] =
     return notices
 }
 
+const tNow = createT(chatMcpServerNoticeCatalog)
+
 export interface McpServerNoticeCopy {
     /** The first sentence, which the banner sets in the foreground weight. */
     lead: string
@@ -140,14 +144,13 @@ export const mcpServerNoticeCopy = (
     const name = readString(displayName) ?? notice.serverName
     if (notice.needsAuthorization)
         return {
-            lead: `${name} needs a new sign-in.`,
-            detail: "Its tools fail until someone in the project reconnects.",
+            lead: tNow("chat.mcpServerNotice.needsSignIn", {name}),
+            detail: tNow("chat.mcpServerNotice.needsSignInDetail"),
         }
     // The gateway's own sentence names an endpoint path and a hint the reader cannot act on.
-    if (notice.notSetUp)
-        return {lead: `${name} isn't set up yet, so its tools were skipped.`, detail: null}
+    if (notice.notSetUp) return {lead: tNow("chat.mcpServerNotice.notSetUp", {name}), detail: null}
     return {
-        lead: notice.statedMessage ?? `${name} did not connect, so its tools were unavailable`,
+        lead: notice.statedMessage ?? tNow("chat.mcpServerNotice.didNotConnect", {name}),
         detail: null,
     }
 }

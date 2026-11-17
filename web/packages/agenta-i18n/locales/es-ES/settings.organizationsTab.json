@@ -1,0 +1,19 @@
+{
+    "chooseMember": "Elige un miembro",
+    "createFailed": "No hemos podido crearla",
+    "deleteBody": "Elimina de forma permanente {{name}}, con todos los espacios de trabajo, proyectos y agentes que contiene.",
+    "deleteFailed": "No hemos podido eliminar esta organización",
+    "deleteTitle": "Eliminar organización",
+    "inviteFirst": "Invita antes a alguien a esta organización; la propiedad solo se puede transferir a un miembro.",
+    "namePlaceholder": "Nombre de la organización",
+    "newDescription": "Una organización agrupa tus espacios de trabajo, tus proyectos y las personas que forman parte de ellos.",
+    "newTitle": "Nueva organización",
+    "noProjectYet": "{{name}} todavía no tiene ningún proyecto que abrir",
+    "renameFailed": "No hemos podido renombrar esta organización",
+    "thisOrganization": "esta organización",
+    "thisOrganizationCapital": "Esta organización",
+    "transfer": "Transferir",
+    "transferDescription": "El nuevo propietario obtiene el control total de {{name}}. Tú sigues siendo miembro.",
+    "transferFailed": "No hemos podido transferir la propiedad",
+    "transferTitle": "Transferir la propiedad"
+}

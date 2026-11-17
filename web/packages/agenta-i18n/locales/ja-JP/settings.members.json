@@ -1,0 +1,13 @@
+{
+    "added": "追加日",
+    "emptyDescription": "この組織で共同作業する人を招待しましょう。招待は承諾されるか期限が切れるまでここに表示されます。",
+    "emptyTitle": "メンバーはまだいません",
+    "expired": "期限切れ",
+    "inviteMembers": "メンバーを招待",
+    "member": "メンバー",
+    "memberActions": "メンバーの操作",
+    "resendInvitation": "招待を再送信",
+    "resetPassword": "パスワードをリセット",
+    "username": "ユーザー名",
+    "you": "あなた"
+}

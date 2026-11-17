@@ -1,5 +1,7 @@
 import {useMemo, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import revisionDrawerCatalog from "@agenta/i18n/catalogs/entityUi.revisionDrawer"
 import {DrillInUIProvider, useDrillInUI} from "@agenta/ui/drill-in"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -13,8 +15,8 @@ import type {ConfigViewMode} from "../../DrillInView/components/PlaygroundConfig
 
 import type {RevisionDrawerKind} from "./types"
 
-const VIEW_MODES: {label: string; value: ConfigViewMode}[] = [
-    {label: "Form", value: "form"},
+const viewModes = (formLabel: string): {label: string; value: ConfigViewMode}[] => [
+    {label: formLabel, value: "form"},
     {label: "JSON", value: "json"},
     {label: "YAML", value: "yaml"},
 ]
@@ -44,6 +46,7 @@ export const RevisionConfigView = ({
     revisionId: string
     kind: RevisionDrawerKind
 }) => {
+    const t = useT(revisionDrawerCatalog)
     const [viewMode, setViewMode] = useState<ConfigViewMode>(
         kind === "deployment" ? "json" : "form",
     )
@@ -52,7 +55,7 @@ export const RevisionConfigView = ({
     if (!hasRenderableConfigSections(config)) {
         return (
             <p className="text-muted-foreground m-0 py-6 text-center text-sm">
-                No parameters to display
+                {t("entityUi.revisionDrawer.noParameters")}
             </p>
         )
     }
@@ -61,7 +64,7 @@ export const RevisionConfigView = ({
         <div className="flex flex-col gap-3">
             <Segmented
                 className="self-start"
-                options={VIEW_MODES}
+                options={viewModes(t("entityUi.revisionDrawer.viewForm"))}
                 value={viewMode}
                 onChange={(value) => setViewMode(value as ConfigViewMode)}
             />

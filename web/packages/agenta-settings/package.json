@@ -17,6 +17,7 @@
         ".": "./src/index.ts"
     },
     "dependencies": {
+        "@agenta/i18n": "workspace:../agenta-i18n",
         "@agenta/navigation": "workspace:../agenta-navigation",
         "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared",

@@ -1,0 +1,15 @@
+{
+    "didYouKnow": "Le saviez-vous",
+    "statusAlmostReady": "Presque prêt",
+    "statusNew1": "Création de votre espace de travail",
+    "statusNew2": "Configuration de votre premier projet",
+    "statusPending1": "Connexion en cours",
+    "statusPending2": "Chargement de votre espace de travail",
+    "statusReturning1": "Chargement de vos agents",
+    "statusReturning2": "Restauration des sessions récentes",
+    "tip1": "Vous pouvez parler à vos agents dans Slack, Telegram ou WhatsApp.",
+    "tip2": "Corrigez un agent une fois et il s’en souviendra la prochaine fois.",
+    "tip3": "Chaque session s’exécute dans son propre bac à sable, isolée des autres.",
+    "tip4": "Les agents peuvent s’exécuter selon une planification ou lorsqu’un événement survient dans une application connectée.",
+    "tip5": "Vous pouvez exécuter des agents avec votre abonnement Claude ou ChatGPT."
+}

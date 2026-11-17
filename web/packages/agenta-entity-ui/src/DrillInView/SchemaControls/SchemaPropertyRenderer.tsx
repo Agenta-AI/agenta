@@ -15,6 +15,8 @@
 import {Component, lazy, memo, Suspense, useMemo, type ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {createT, useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {formatLabel} from "@agenta/ui/drill-in"
 import clsx from "clsx"
 
@@ -31,6 +33,8 @@ import {ObjectSchemaControl} from "./ObjectSchemaControl"
 import {PromptSchemaControl, isPromptSchema, isPromptValue} from "./PromptSchemaControl"
 import {hasGroupedChoices, resolveAnyOfSchema, shouldRenderObjectInline} from "./schemaUtils"
 import {TextInputControl} from "./TextInputControl"
+
+const tNow = createT(schemaControlsCatalog)
 
 // The agent config composite (sections + item drawers + markdown editor) is the heaviest
 // control in the registry and only renders for agent-template schemas — code-split it so
@@ -81,7 +85,9 @@ class AgentTemplateBoundary extends Component<{children: ReactNode}, {error: Err
         if (!error) return this.props.children
         return (
             <div className="flex flex-col gap-1 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg px-3 py-2 text-xs text-colorErrorText">
-                <span className="font-medium">The agent configuration could not load.</span>
+                <span className="font-medium">
+                    {tNow("entityUi.schemaControls.configCouldNotLoad")}
+                </span>
                 <span className="break-words font-mono">{error.message}</span>
             </div>
         )
@@ -337,13 +343,18 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
     originalValue,
     entityId,
 }: SchemaPropertyRendererProps) {
+    const t = useT(schemaControlsCatalog)
     // Resolve anyOf/oneOf schemas for rendering
     const resolvedSchema = useMemo(() => resolveAnyOfSchema(schema), [schema])
     const controlType = useMemo(() => getControlType(schema, value, as), [schema, value, as])
 
     // Format label from path if not provided
     // Use ?? to respect empty string (label="") vs undefined/null
-    const displayLabel = label ?? (path?.length ? formatLabel(path[path.length - 1]) : "Value")
+    const displayLabel =
+        label ??
+        (path?.length
+            ? formatLabel(path[path.length - 1])
+            : t("entityUi.schemaControls.valueLabel"))
 
     // Get description from schema or prop
     const tooltipDesc = description ?? (schema?.description as string | undefined)
@@ -555,11 +566,11 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                 <div className={clsx("flex flex-col gap-1", className)}>
                     <span className="text-sm font-medium text-colorText">{displayLabel}</span>
                     <span className="text-xs text-colorTextDescription">
-                        Object with{" "}
-                        {resolvedSchema?.properties
-                            ? Object.keys(resolvedSchema.properties).length
-                            : 0}{" "}
-                        properties (click to expand)
+                        {t("entityUi.schemaControls.objectWithProperties", {
+                            count: resolvedSchema?.properties
+                                ? Object.keys(resolvedSchema.properties).length
+                                : 0,
+                        })}
                     </span>
                 </div>
             )
@@ -584,7 +595,9 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                 <div className={clsx("flex flex-col gap-1", className)}>
                     <span className="text-sm font-medium text-colorText">{displayLabel}</span>
                     <span className="text-xs text-colorTextDescription">
-                        Array with {Array.isArray(value) ? value.length : 0} items (click to expand)
+                        {t("entityUi.schemaControls.arrayWithItems", {
+                            count: Array.isArray(value) ? value.length : 0,
+                        })}
                     </span>
                 </div>
             )

@@ -1,0 +1,10 @@
+{
+    "clearFilters": "清除筛选",
+    "loadFailed": "无法加载会话",
+    "loadMore": "加载更多",
+    "loading": "正在加载会话",
+    "loadingMore": "加载中…",
+    "noMatch": "没有符合这些筛选条件的会话。",
+    "noSessions": "还没有会话。",
+    "startConversation": "与 Agent 开始一段对话后，它会显示在这里。"
+}

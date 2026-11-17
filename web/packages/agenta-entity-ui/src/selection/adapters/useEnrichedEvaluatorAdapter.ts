@@ -30,6 +30,8 @@ import {
 } from "@agenta/entities/workflow"
 import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
+import {tSelection} from "../text"
+
 import {
     renderEvaluatorPickerLabelNode,
     renderEvaluatorPickerNameNode,
@@ -265,15 +267,17 @@ export function useEnrichedEvaluatorOnlyAdapter(
             return templateCategoryMapRef.current.get(key) ?? "custom"
         }
 
-        const CATEGORY_LABELS: Record<string, string> = {
-            ai_llm: "AI / LLM",
-            classifiers: "Classifiers",
-            similarity: "Similarity",
-            custom: "Custom",
-            rag: "RAG",
-        }
+        // Read when a group or tab is drawn, so the labels are in the active language.
+        const categoryLabel = (key: string): string | undefined =>
+            ({
+                ai_llm: "AI / LLM",
+                classifiers: tSelection("entityUi.selection.categoryClassifiers"),
+                similarity: tSelection("entityUi.selection.categorySimilarity"),
+                custom: tSelection("entityUi.selection.categoryCustom"),
+                rag: "RAG",
+            })[key]
 
-        const getGroupLabel = (key: string): string => CATEGORY_LABELS[key] ?? key
+        const getGroupLabel = (key: string): string => categoryLabel(key) ?? key
 
         const getDescription = showWorkflowMeta
             ? (entity: unknown): string | undefined => {
@@ -303,10 +307,12 @@ export function useEnrichedEvaluatorOnlyAdapter(
                             : "custom"
                         categorySeen.add(cat)
                     }
-                    const result: {key: string; label: string}[] = [{key: "all", label: "All"}]
+                    const result: {key: string; label: string}[] = [
+                        {key: "all", label: tSelection("entityUi.selection.all")},
+                    ]
                     for (const cat of ORDERED_CATEGORIES) {
                         if (categorySeen.has(cat)) {
-                            result.push({key: cat, label: CATEGORY_LABELS[cat]})
+                            result.push({key: cat, label: categoryLabel(cat) ?? cat})
                         }
                     }
                     return result

@@ -1,0 +1,8 @@
+{
+    "backToCommands": "retour aux commandes",
+    "changesDraft": "Modifie la configuration brouillon de cet agent.",
+    "editRules": "Modifier les règles dans la configuration →",
+    "policyLabel": "Politique d’autorisations",
+    "subtitle": "ce que l’agent peut faire avant de devoir demander",
+    "title": "Autorisations"
+}

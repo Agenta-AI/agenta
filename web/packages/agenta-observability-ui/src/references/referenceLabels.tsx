@@ -2,6 +2,8 @@ import {useMemo, type ComponentType} from "react"
 
 import {latestRevisionForTestsetAtomFamily, testsetQueryAtomFamily} from "@agenta/entities/testset"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import referencesCatalog from "@agenta/i18n/catalogs/observabilityUi.references"
 import {traceDrawerProjectURLAtom} from "@agenta/observability/traceDrawer"
 import {useAtomValue} from "jotai"
 
@@ -48,6 +50,7 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
     }
 
     const ApplicationReferenceLabel = (props: Props) => {
+        const t = useT(referencesCatalog)
         const appId = str(props.applicationId)
         const query = useWorkflow(appId)
         const href = useHref("app", appId ? {appId} : null)
@@ -61,7 +64,11 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         return (
             <ReferenceChip
                 kind="app"
-                label={deleted ? "Deleted" : (app?.name ?? app?.slug ?? fallback ?? appId)}
+                label={
+                    deleted
+                        ? t("observabilityUi.references.deleted")
+                        : (app?.name ?? app?.slug ?? fallback ?? appId)
+                }
                 href={href}
                 openExternally={props.openExternally === true}
                 identifiers={{slug: app?.slug ?? fallback, id: appId}}
@@ -71,6 +78,7 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
     }
 
     const VariantReferenceLabel = (props: Props) => {
+        const t = useT(referencesCatalog)
         const revisionId = str(props.revisionId)
         const data = useAtomValue(
             useMemo(() => workflowMolecule.selectors.data(revisionId ?? ""), [revisionId]),
@@ -90,7 +98,11 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         return (
             <ReferenceChip
                 kind="variant"
-                label={deleted ? "Deleted" : (data?.name ?? data?.slug ?? fallback ?? revisionId)}
+                label={
+                    deleted
+                        ? t("observabilityUi.references.deleted")
+                        : (data?.name ?? data?.slug ?? fallback ?? revisionId)
+                }
                 href={href}
                 openExternally={props.openExternally === true}
                 identifiers={{
@@ -121,6 +133,7 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
     }
 
     const EvaluatorReferenceLabel = (props: Props) => {
+        const t = useT(referencesCatalog)
         const evaluatorId = str(props.evaluatorId)
         const query = useWorkflow(evaluatorId)
         const fallback = str(props.evaluatorSlug) ?? str(props.label)
@@ -135,7 +148,7 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
                 kind="evaluator"
                 label={
                     deleted
-                        ? "Deleted"
+                        ? t("observabilityUi.references.deleted")
                         : (evaluator?.name ?? evaluator?.slug ?? fallback ?? evaluatorId)
                 }
                 href={str(props.href)}
@@ -147,6 +160,7 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
     }
 
     const TestsetTag = (props: Props) => {
+        const t = useT(referencesCatalog)
         const testsetId = str(props.testsetId)
         const query = useAtomValue(
             useMemo(() => testsetQueryAtomFamily(testsetId ?? ""), [testsetId]),
@@ -163,7 +177,9 @@ export const createReferenceLabels = (routes: ReferenceHrefs) => {
         return (
             <ReferenceChip
                 kind="testset"
-                label={deleted ? "Deleted" : (testset?.name ?? testsetId)}
+                label={
+                    deleted ? t("observabilityUi.references.deleted") : (testset?.name ?? testsetId)
+                }
                 href={deleted ? null : href}
                 openExternally={props.openExternally === true}
                 identifiers={{id: testsetId, revisionId: str(props.revisionId)}}

@@ -46,6 +46,7 @@ from oss.src.core.tracing.utils.traces import (
     build_simple_trace_attributes,
     build_simple_trace_query,
     first_link,
+    keep_general_fields_on_edit,
     parse_simple_trace,
 )
 from oss.src.core.tracing.dtos import (
@@ -85,11 +86,16 @@ from oss.src.core.tracing.dtos import (
     SimpleTraceOrigin,
     SimpleTraceKind,
     SimpleTraceChannel,
+    SimpleTraceLinks,
     SimpleTraceReferences,
 )
 from oss.src.core.shared.dtos import Link, Reference
 
 if TYPE_CHECKING:
+    from oss.src.core.annotations.general_fields import (
+        AnnotationGeneralFieldsService,
+        CanViewSession,
+    )
     from oss.src.core.queries.service import QueriesService
     from oss.src.core.evaluators.service import (
         EvaluatorsService,
@@ -995,12 +1001,14 @@ class SimpleTracesService:
         self,
         *,
         tracing_service: "TracingService",
+        annotation_general_fields_service: "AnnotationGeneralFieldsService",
         evaluators_service: Optional["EvaluatorsService"] = None,
         simple_evaluators_service: Optional["SimpleEvaluatorsService"] = None,
     ):
         self.tracing_service = tracing_service
         self.evaluators_service = evaluators_service
         self.simple_evaluators_service = simple_evaluators_service
+        self.annotation_general_fields_service = annotation_general_fields_service
 
     # --- helpers ---------------------------------------------------------------
 
@@ -1080,10 +1088,11 @@ class SimpleTracesService:
         project_id: UUID,
         user_id: UUID,
         trace_create: SimpleTraceCreate,
+        links: Optional[SimpleTraceLinks],
     ) -> SimpleTraceReferences:
         references = trace_create.references.model_copy(deep=True)
 
-        if not references.evaluator or not trace_create.links:
+        if not references.evaluator or not links:
             return references
 
         if not self.evaluators_service or not self.simple_evaluators_service:
@@ -1173,15 +1182,28 @@ class SimpleTracesService:
         organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
+        can_view_session: "CanViewSession",
         #
         trace_create: SimpleTraceCreate,
     ) -> Optional[SimpleTrace]:
         trace_id = uuid4().hex
         span_id = uuid4().hex[16:]
+        # The builder may add the subject link that the evaluator lookup needs.
+        general_fields = await self.annotation_general_fields_service.build(
+            project_id=project_id,
+            user_id=user_id,
+            can_view_session=can_view_session,
+            scope=trace_create.scope,
+            session_id=trace_create.session_id,
+            turn_id=trace_create.turn_id,
+            links=trace_create.links,
+            references=trace_create.references,
+        )
         references = await self._resolve_evaluator_references(
             project_id=project_id,
             user_id=user_id,
             trace_create=trace_create,
+            links=general_fields.links,
         )
 
         _flags = self._flags(
@@ -1190,13 +1212,15 @@ class SimpleTracesService:
         _references = references.model_dump(
             mode="json", exclude_none=True, exclude_unset=True
         )
-        _links = build_otel_links(trace_create.links)
+        _references.update(general_fields.application_references)
+        _links = build_otel_links(general_fields.links)
         _attributes = build_simple_trace_attributes(
             flags=_flags,
             tags=trace_create.tags,
             meta=trace_create.meta,
             data=trace_create.data,
             references=_references,
+            general_fields=general_fields.to_attributes(),
         )
 
         span_name = (
@@ -1269,9 +1293,15 @@ class SimpleTracesService:
         #
         trace_edit: SimpleTraceEdit,
     ) -> Optional[SimpleTrace]:
-        existing = await self.fetch(project_id=project_id, trace_id=trace_id)
-        if existing is None:
+        parsed = parse_simple_trace(
+            await self.tracing_service.fetch_trace(
+                project_id=project_id,
+                trace_id=trace_id,
+            )
+        )
+        if parsed is None:
             return None
+        existing = self._build_from_parsed(parsed)
 
         _flags = self._flags(existing.origin, existing.kind, existing.channel)
         references = trace_edit.references or SimpleTraceReferences()
@@ -1280,6 +1310,10 @@ class SimpleTracesService:
         _references = references.model_dump(
             mode="json", exclude_none=True, exclude_unset=True
         )
+        general_fields, _references = keep_general_fields_on_edit(
+            stored_attributes=parsed.span.attributes,
+            references=_references,
+        )
         _links = build_otel_links(links)
         _attributes = build_simple_trace_attributes(
             flags=_flags,
@@ -1287,6 +1321,7 @@ class SimpleTracesService:
             meta=trace_edit.meta,
             data=trace_edit.data,
             references=_references,
+            general_fields=general_fields,
         )
 
         otel_links = await self.tracing_service.edit_trace(

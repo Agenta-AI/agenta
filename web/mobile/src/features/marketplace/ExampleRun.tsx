@@ -1,6 +1,8 @@
 import {useRef} from "react"
 
 import type {TemplateExampleSession} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {Badge} from "@agenta/ui/ui"
 import {CheckIcon} from "@phosphor-icons/react"
 import {motion, useInView} from "motion/react"
@@ -31,6 +33,7 @@ export const ExampleRun = ({
     className?: string
 }) => {
     const presets = useMotionPresets()
+    const t = useT(marketplaceCatalog)
     const ref = useRef<HTMLElement>(null)
     const inView = useInView(ref)
     const {revealed, fading, onFaded} = useRunLoop(example.steps.length, active && inView, loop)
@@ -39,14 +42,14 @@ export const ExampleRun = ({
     return (
         <section
             ref={ref}
-            aria-label="Example run"
+            aria-label={t("marketplace.page.exampleRun")}
             className={cn(
                 "box-border flex flex-col gap-2 rounded-lg border border-solid border-border bg-card p-4",
                 className,
             )}
         >
             <div className="flex min-h-6 items-center justify-between gap-2">
-                <SectionLabel>Example run</SectionLabel>
+                <SectionLabel>{t("marketplace.page.exampleRun")}</SectionLabel>
                 {example.status ? (
                     <span className="text-muted-foreground text-xs">{example.status}</span>
                 ) : null}
@@ -104,7 +107,7 @@ export const ExampleRun = ({
             </motion.div>
             {example.artifacts?.length && !compact ? (
                 <ul
-                    aria-label="Files it wrote"
+                    aria-label={t("marketplace.page.filesItWrote")}
                     className="m-0 flex list-none flex-wrap gap-1.5 p-0"
                 >
                     {example.artifacts.map((artifact) => (
@@ -116,7 +119,7 @@ export const ExampleRun = ({
             ) : null}
             {compact ? null : (
                 <span className="text-muted-foreground text-xs">
-                    An example of how this template runs, not a recorded session.
+                    {t("marketplace.page.exampleNote")}
                 </span>
             )}
         </section>

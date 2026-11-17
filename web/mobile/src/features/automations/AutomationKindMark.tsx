@@ -1,4 +1,4 @@
-import {AUTOMATION_TYPE_LABEL, type Automation} from "@agenta/automation-ui"
+import {automationTypeLabel, useAutomationText, type Automation} from "@agenta/automation-ui"
 import {ClockClockwise, Lightning} from "@phosphor-icons/react"
 
 /** The kind mark's tile. Preset pairs, so both halves flip with the theme. */
@@ -15,16 +15,19 @@ const KIND_CHIP: Record<Automation["kind"], string> = {
  * Named for a screen reader: on a phone the row drops its Runs-when cell, so this tile is the
  * only thing on the row that says which kind it is.
  */
-export const AutomationKindMark = ({kind}: {kind: Automation["kind"]}) => (
-    <span
-        role="img"
-        aria-label={AUTOMATION_TYPE_LABEL[kind]}
-        className={`flex size-7 shrink-0 items-center justify-center rounded-md ${KIND_CHIP[kind]}`}
-    >
-        {kind === "event" ? (
-            <Lightning size={15} aria-hidden />
-        ) : (
-            <ClockClockwise size={15} aria-hidden />
-        )}
-    </span>
-)
+export const AutomationKindMark = ({kind}: {kind: Automation["kind"]}) => {
+    useAutomationText()
+    return (
+        <span
+            role="img"
+            aria-label={automationTypeLabel(kind)}
+            className={`flex size-7 shrink-0 items-center justify-center rounded-md ${KIND_CHIP[kind]}`}
+        >
+            {kind === "event" ? (
+                <Lightning size={15} aria-hidden />
+            ) : (
+                <ClockClockwise size={15} aria-hidden />
+            )}
+        </span>
+    )
+}

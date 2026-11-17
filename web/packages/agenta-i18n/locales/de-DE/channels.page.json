@@ -1,0 +1,21 @@
+{
+    "channelActions": "Kanalaktionen",
+    "connectHere": "Hier verbinden",
+    "connectPlatform": "{{platform}} verbinden",
+    "disconnectMessage": "{{name}} antwortet nicht mehr auf {{platform}}. Sie können die Verbindung später wieder herstellen.",
+    "disconnectTitle": "Kanal trennen",
+    "finishLinking": "Verknüpfung abschließen",
+    "intro": "Sprechen Sie mit {{agent}} in den Chat-Tools, die Ihr Team bereits nutzt.",
+    "loading": "Wird geladen…",
+    "messagingPlatforms": "Messaging-Plattformen",
+    "noAgent": "Kein Agent",
+    "noAgentYet": "Noch kein Agent",
+    "notLinkedYet": "Noch nicht verknüpft",
+    "slackDescription": "Einen Agenten in Slack erwähnen oder per DM schreiben",
+    "telegramDescription": "Mit einem Agenten über einen gehosteten oder eigenen Bot chatten",
+    "title": "Kanäle",
+    "unknownAgent": "Unbekannter Agent",
+    "whatsappDescription": "Kunden können einem Agenten auf WhatsApp schreiben",
+    "yourAgent": "Ihr Agent",
+    "yourWorkspace": "Ihr Workspace"
+}

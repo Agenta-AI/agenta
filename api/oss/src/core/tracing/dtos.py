@@ -30,7 +30,12 @@ from agenta.sdk.models.tracing import (  # noqa: F401
     AgTypeAttributes,
     AgDataAttributes,
     AgSessionAttributes,
+    AgTurnAttributes,
     AgUserAttributes,
+    AnnotationScope,
+    AnnotationPartyType,
+    AgAnnotationPartyAttributes,
+    AgAnnotationAttributes,
     AgAttributes,
     OTelStatusCode,
     OTelSpanKind,
@@ -95,6 +100,7 @@ class Fields(str, Enum):
     DELETED_BY_ID = "deleted_by_id"
     CONTENT = "content"
     SESSION_ID = "session_id"
+    TURN_ID = "turn_id"
     USER_ID = "user_id"
     AGENT_ID = "agent_id"
     HAS_ANNOTATION = "has_annotation"
@@ -336,7 +342,7 @@ class SimpleTrace(Link, Lifecycle):
     links: SimpleTraceLinks
 
 
-class SimpleTraceCreate(BaseModel):
+class SimpleTraceCreateBase(BaseModel):
     origin: SimpleTraceOrigin = SimpleTraceOrigin.CUSTOM
     kind: SimpleTraceKind = SimpleTraceKind.ADHOC
     channel: SimpleTraceChannel = SimpleTraceChannel.API
@@ -348,6 +354,14 @@ class SimpleTraceCreate(BaseModel):
 
     references: SimpleTraceReferences
     links: SimpleTraceLinks
+
+
+class SimpleTraceCreate(SimpleTraceCreateBase):
+    # What the annotation judges. `turn_id` is the session turn's id, the value of
+    # `ag.turn.id` on its spans; the platform prefers the stored subject span's own values.
+    scope: Optional[AnnotationScope] = None
+    session_id: Optional[str] = None
+    turn_id: Optional[str] = None
 
 
 class SimpleTraceEdit(BaseModel):

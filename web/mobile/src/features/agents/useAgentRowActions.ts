@@ -1,6 +1,8 @@
 import {useCallback, useMemo, useRef} from "react"
 
 import {useRestoreWorkflow, type AgentActionsMenuProps} from "@agenta/entity-ui/agent"
+import {createT} from "@agenta/i18n"
+import agentsList from "@agenta/i18n/catalogs/agents.list"
 import {message} from "@agenta/ui/app-message"
 
 import {startBlankSession} from "../chat/useStartBlankSession"
@@ -14,6 +16,8 @@ export interface AgentRowActions {
     openPlayground: (row: AgentListRow) => void
     restore: (row: AgentListRow) => Promise<void>
 }
+
+const tNow = createT(agentsList)
 
 /** What the roster's menu does beyond what the shared menu does itself. Called once per page. */
 export const useAgentRowActions = (base: string, projectId: string): AgentRowActions => {
@@ -34,8 +38,8 @@ export const useAgentRowActions = (base: string, projectId: string): AgentRowAct
             if (restoring.current.has(row.id)) return
             restoring.current.add(row.id)
             try {
-                if (await restoreAgent(row.id)) message.success("Agent restored")
-                else message.error("Couldn't restore this agent")
+                if (await restoreAgent(row.id)) message.success(tNow("agents.list.restored"))
+                else message.error(tNow("agents.list.restoreFailed"))
             } finally {
                 restoring.current.delete(row.id)
             }

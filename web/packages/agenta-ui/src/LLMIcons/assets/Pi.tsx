@@ -1,5 +1,8 @@
 import {IconProps} from "./types"
 
+/** The logo mark: a symbol, not text, so it is not translated. */
+const PI_GLYPH = "π"
+
 /**
  * Interim Pi harness mark: an ink rounded square with a white italic π. Stands in until pi.dev
  * publishes a real logo asset, so it is drawn rather than traced from one.
@@ -24,7 +27,7 @@ const Pi = ({...props}: IconProps) => {
                 fontStyle="italic"
                 fontFamily="Georgia, 'Times New Roman', serif"
             >
-                π
+                {PI_GLYPH}
             </text>
         </svg>
     )

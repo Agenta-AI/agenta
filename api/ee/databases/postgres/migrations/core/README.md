@@ -5,7 +5,7 @@
 > here — it ends at `park00000000` and never advances. Shared schema changes go in
 > `oss/databases/postgres/migrations/core_oss/` (EE ships and runs the `oss/` tree);
 > EE-only schema goes in `core_ee/`. Full rules:
-> `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+> `docs/design/oss-ee-convergence/migration-chains-and-edition-switch.md`.
 >
 > The commands below still describe the alembic mechanics, but they name the active
 > `core_ee` chain. Swap the `-w` working directory for

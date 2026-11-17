@@ -1,0 +1,21 @@
+{
+    "chatMessage": "对话消息",
+    "commands": "命令",
+    "dismiss": "关闭",
+    "enterInsert": "插入",
+    "enterOpen": "打开",
+    "enterRun": "运行",
+    "enterSend": "发送",
+    "navigate": "导航",
+    "newline": "换行",
+    "noCommand": "没有与“{{query}}”匹配的命令或 Skill",
+    "noMatchFor": "没有与“{{query}}”匹配的内容",
+    "openItem": "打开{{item}}",
+    "pasteBlocked": "粘贴已被阻止。这会超出 {{max}} 个字符的上限 {{over}} 个字符（共 {{total}} 个）。请减少粘贴的内容后重试。",
+    "pastingLarge": "正在粘贴大段内容…",
+    "send": "发送",
+    "sending": "正在发送",
+    "stop": "停止",
+    "stopping": "正在停止",
+    "typeMessage": "输入消息…"
+}

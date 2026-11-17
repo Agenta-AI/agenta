@@ -1,0 +1,9 @@
+{
+    "showFiles": "Afficher les fichiers",
+    "hideFiles": "Masquer les fichiers",
+    "showFilesPane": "Afficher le volet des fichiers",
+    "hideFilesPane": "Masquer le volet des fichiers",
+    "openConversationToBrowse": "Ouvrez une conversation pour parcourir les fichiers.",
+    "driveId": "ID du lecteur",
+    "sessionId": "ID de session"
+}

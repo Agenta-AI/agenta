@@ -53,11 +53,6 @@ export const sharingCopy = {
     rowMenuNotOwner: (owner: string) =>
         `Only ${owner} can rename, share, archive or delete this chat.`,
 
-    // The agent list.
-    ownerColumn: "Owner",
-    ownerYou: "You",
-    ownerNone: "No owner",
-    ownerFormer: "Former member",
     // The lock on the reader's own private agent (the privacy panel's line for a private agent).
     agentPrivateMarker: "Only you can see and use it in Agenta.",
 } as const

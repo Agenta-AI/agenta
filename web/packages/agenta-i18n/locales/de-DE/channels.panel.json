@@ -1,0 +1,16 @@
+{
+    "addSlackWorkspace": "Slack-Workspace hinzufügen",
+    "addTelegramBot": "Telegram-Bot hinzufügen",
+    "addWhatsAppNumber": "WhatsApp-Nummer hinzufügen",
+    "agent": "Agent",
+    "agentLive_one": "{{name}} · {{count}} aktiv",
+    "agentLive_other": "{{name}} · {{count}} aktiv",
+    "chooseAgent": "Agenten wählen, der antwortet",
+    "connectChannel": "Kanal verbinden",
+    "connectPlatform": "{{platform}} verbinden",
+    "embed": "Einbetten",
+    "noIdYet": "Diese Verbindung hat noch keine ID.",
+    "publish": "Veröffentlichen",
+    "yourAgent": "Ihr Agent",
+    "yourWorkspace": "Ihr Workspace"
+}

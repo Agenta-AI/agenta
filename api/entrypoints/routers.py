@@ -161,6 +161,7 @@ from oss.src.apis.fastapi.sharing.router import SharingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.core.annotations.service import AnnotationsService
+from oss.src.core.annotations.general_fields import AnnotationGeneralFieldsService
 from oss.src.core.invocations.service import InvocationsService
 
 from oss.src.core.ai_services.service import AIServicesService
@@ -935,10 +936,16 @@ simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
 )
 
+annotation_general_fields_service = AnnotationGeneralFieldsService(
+    tracing_service=tracing_service,
+    session_turns_service=session_turns_service,
+)
+
 simple_traces_service = SimpleTracesService(
     tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
+    annotation_general_fields_service=annotation_general_fields_service,
 )
 
 simple_workflows_service = SimpleWorkflowsService(
@@ -1626,6 +1633,7 @@ annotations_service = AnnotationsService(
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
     tracing_service=tracing_service,
+    annotation_general_fields_service=annotation_general_fields_service,
 )
 annotations = AnnotationsRouter(
     annotations_service=annotations_service,

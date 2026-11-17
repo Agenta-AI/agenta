@@ -1,0 +1,19 @@
+{
+    "noParameters": "没有可显示的参数",
+    "viewForm": "表单",
+    "variant": "变体",
+    "type": "类型",
+    "slug": "Slug",
+    "deployment": "部署",
+    "details": "详情",
+    "dateCreated": "创建日期",
+    "createdBy": "创建者",
+    "note": "备注",
+    "loadError": "无法加载此修订版本",
+    "notAvailable": "此修订版本已不可用。",
+    "titleRevision": "修订版本",
+    "titleDeployment": "部署",
+    "titleEvaluator": "评测器",
+    "previousRevision": "上一个修订版本",
+    "nextRevision": "下一个修订版本"
+}

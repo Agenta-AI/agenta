@@ -1,4 +1,8 @@
-import {AUTOMATION_STATUS_LABEL, type AutomationStatus} from "@agenta/automation-ui"
+import {
+    automationStatusLabel,
+    useAutomationText,
+    type AutomationStatus,
+} from "@agenta/automation-ui"
 
 /**
  * The status colour. A bare dot and a coloured word, never a pill: the status column is read
@@ -13,11 +17,12 @@ const STATUS_COLOR: Record<AutomationStatus, {dot: string; text: string}> = {
 
 /** Whether an automation is working — the same dot and word in a row's cell and a card's line. */
 export const AutomationStatusMark = ({status}: {status: AutomationStatus}) => {
+    useAutomationText()
     const color = STATUS_COLOR[status]
     return (
         <span className="flex min-w-0 items-center gap-[7px]">
             <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${color.dot}`} />
-            <span className={`text-[13px] ${color.text}`}>{AUTOMATION_STATUS_LABEL[status]}</span>
+            <span className={`text-[13px] ${color.text}`}>{automationStatusLabel(status)}</span>
         </span>
     )
 }

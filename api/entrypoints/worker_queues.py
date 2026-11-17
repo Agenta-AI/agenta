@@ -17,7 +17,7 @@ taskiq.receiver.Receiver.listen(finish_event), a plain coroutine; start_listen
 awaits exactly that after all the process/signal/executor setup. This
 entrypoint does that setup itself (once, for the whole process) and drives one
 Receiver per selected broker as a sibling asyncio task. See
-docs/designs/workers-sprawl/specs.md for the full writeup.
+docs/design/workers-sprawl/specs.md for the full writeup.
 
 When channels-inbox is selected, the process also runs the Discord socket loop
 as a sibling task (oss/src/tasks/asyncio/channels/discord_socket.py).

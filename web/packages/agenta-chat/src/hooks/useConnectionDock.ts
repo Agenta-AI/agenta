@@ -14,6 +14,8 @@
  */
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatConnectionDockCatalog from "@agenta/i18n/catalogs/chat.connectionDock"
 import {declinedConnectOutput} from "@agenta/shared/clientTools"
 import type {UIMessage} from "ai"
 
@@ -82,6 +84,8 @@ export interface ConnectionDockState {
     settlingIds: ReadonlySet<string>
 }
 
+const tNow = createT(chatConnectionDockCatalog)
+
 export const useConnectionDock = ({
     messages,
     enabled = true,
@@ -144,7 +148,7 @@ export const useConnectionDock = ({
         await dismissAll(
             pendingRef.current,
             (meta) => declinedConnectOutput(meta.input) as Record<string, unknown>,
-            "The connection request couldn't be dismissed.",
+            tNow("chat.connectionDock.dismissFailed"),
         )
     }, [dismissAll])
 

@@ -15,6 +15,8 @@
 
 import {memo, useCallback, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Check, Copy} from "@phosphor-icons/react"
 
 import {copyToClipboard} from "../../../utils/copyToClipboard"
@@ -35,6 +37,7 @@ export interface FieldHeaderProps {
  * and drill-in field headers — see ChatMessageViewModeDropdown.
  */
 const FieldHeader = ({value = ""}: FieldHeaderProps) => {
+    const t = useT(commonCatalog)
     const [isCopied, setIsCopied] = useState(false)
 
     const onCopyText = useCallback(async () => {
@@ -63,7 +66,9 @@ const FieldHeader = ({value = ""}: FieldHeaderProps) => {
                             {isCopied ? <Check size={14} /> : <Copy size={14} />}
                         </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top">{isCopied ? "Copied" : "Copy"}</TooltipContent>
+                    <TooltipContent side="top">
+                        {isCopied ? t("common.copied") : t("common.copy")}
+                    </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         </div>

@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import sharingCatalog from "@agenta/i18n/catalogs/entityUi.sharing"
 import {personName} from "@agenta/sessions-ui/sharing"
 import {
     Button,
@@ -25,6 +27,8 @@ export type AgentPrivacyControlProps = AgentPrivacyProps & {
  * values so nothing beside it moves. Someone who is not the owner always sees "Shared".
  */
 export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
+    // The texts come from `copy`; this draws the control again when the language's text loads.
+    useT(sharingCatalog)
     const {projectName, sharing, loading = false, loadError = false, onRetry, owner, onOpen} = props
     const [panelOpen, setPanelOpen] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
@@ -109,9 +113,9 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                                   ? copy.ownerLeft(
                                         personName(owner) || sharing.policy.owner_user_id,
                                     )
-                                  : `${copy.ownerLeft(
+                                  : copy.ownerLeftAskAdmin(
                                         personName(owner) || sharing.policy.owner_user_id,
-                                    )} ${copy.ownerLeftNonAdmin}`}
+                                    )}
                         </p>
                     ) : null}
                     {known && owner && !ownerless ? (

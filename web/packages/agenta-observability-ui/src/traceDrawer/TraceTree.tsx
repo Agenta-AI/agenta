@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawer"
 import {filterKeySpans, filterTree} from "@agenta/observability"
 import type {TraceSpanNode} from "@agenta/observability"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
@@ -28,6 +30,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
         },
     )
 
+    const t = useT(drawerCatalog)
     const {getTraceById, traces: allTraces} = useTraceDrawer()
     const activeTrace = active || getTraceById(activeTraceId)
 
@@ -98,7 +101,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                 <div className="flex items-center gap-2 w-full">
                     <MagnifyingGlass size={14} className="text-gray-500 shrink-0" />
                     <Input
-                        placeholder="Search in tree"
+                        placeholder={t("observabilityUi.traceDrawer.searchInTree")}
                         className="w-full border-0 bg-transparent shadow-none focus-visible:ring-0"
                         value={searchValue}
                         onChange={(e) => setSearchValue(e.target.value)}
@@ -141,8 +144,16 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                     <div className="flex items-center gap-2 mx-2 mb-2 px-3 py-2 rounded-md bg-colorFillTertiary border border-solid border-colorBorderSecondary">
                         <Info size={14} className="shrink-0 text-colorTextTertiary" />
                         <span className="text-[12px] text-colorTextSecondary">
-                            <span className="font-medium text-colorText">{hiddenCount}</span>{" "}
-                            {hiddenCount === 1 ? "span" : "spans"} hidden by key spans
+                            {richText(
+                                t("observabilityUi.traceDrawer.hiddenByKeySpans", {
+                                    count: hiddenCount,
+                                }),
+                                {
+                                    count: (text) => (
+                                        <span className="font-medium text-colorText">{text}</span>
+                                    ),
+                                },
+                            )}
                         </span>
                         <EnhancedButton
                             type="link"
@@ -155,7 +166,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                                 }))
                             }
                         >
-                            Show all
+                            {t("observabilityUi.traceDrawer.showAll")}
                         </EnhancedButton>
                     </div>
                 )}

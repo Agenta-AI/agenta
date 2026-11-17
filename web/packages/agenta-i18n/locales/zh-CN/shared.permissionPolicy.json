@@ -1,0 +1,10 @@
+{
+    "allowAll": "全部允许",
+    "allowAllHelp": "所有工具都无需询问即可运行",
+    "allowReads": "允许读取",
+    "allowReadsHelp": "读取直接运行，写入需询问",
+    "ask": "询问",
+    "askHelp": "每次工具调用都需人工批准",
+    "denyAll": "全部拒绝",
+    "denyAllHelp": "所有工具调用都会被拒绝"
+}

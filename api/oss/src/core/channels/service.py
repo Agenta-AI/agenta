@@ -2989,37 +2989,50 @@ class ChannelsService:
         approved: Optional[bool] = None,
         answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
+        def skip(reason: str) -> None:
+            # Each early return is named, so a card left pending says why.
+            log.info(
+                "[CHANNELS] approval controls not dismissed thread=%s "
+                "interaction=%s: %s",
+                thread.id,
+                interaction_id,
+                reason,
+            )
+
         pending = thread.data.pending_choice
-        if (
-            pending is None
-            or pending.interaction_id != interaction_id
-            or pending.outbox_event_id is None
-        ):
-            return
+        if pending is None:
+            return skip("the thread has no pending choice")
+        if pending.interaction_id != interaction_id:
+            return skip(f"the pending choice is for {pending.interaction_id}")
+        if pending.outbox_event_id is None:
+            return skip("the pending choice names no outbox event")
         event = await self.channels_dao.fetch_outbox_event(
             project_id=project_id,
             event_id=pending.outbox_event_id,
         )
-        if (
-            event is None
-            or event.thread_id != thread.id
-            or event.connection_id != connection_id
-            or not event.data.external_locator
-        ):
-            return
+        if event is None:
+            return skip(f"outbox event {pending.outbox_event_id} not found")
+        if event.thread_id != thread.id or event.connection_id != connection_id:
+            return skip(
+                f"outbox event {event.id} belongs to thread {event.thread_id} "
+                f"and connection {event.connection_id}, not connection "
+                f"{connection_id}"
+            )
+        if not event.data.external_locator:
+            return skip(f"outbox event {event.id} has no receipt")
         content = (event.data.processed or {}).get("content") or []
         if not any(
             part.get("type") == "button"
             and str(part.get("value", "")).startswith(f"{interaction_id}:")
             for part in content
         ):
-            return
+            return skip(f"outbox event {event.id} has no button for it")
         connection = await self.fetch_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
         if connection is None:
-            return
+            return skip(f"connection {connection_id} not found")
         adapter = self.adapter_registry.get(connection.channel)
         await adapter.dismiss_choices(
             connection=connection,
@@ -3027,6 +3040,13 @@ class ChannelsService:
             content=content,
             approved=approved,
             answered_by=answered_by,
+        )
+        log.info(
+            "[CHANNELS] approval controls dismissed thread=%s interaction=%s "
+            "outbox_event=%s",
+            thread.id,
+            interaction_id,
+            event.id,
         )
 
     async def enqueue_output(self, *, project_id, thread_id, turn_id, items):

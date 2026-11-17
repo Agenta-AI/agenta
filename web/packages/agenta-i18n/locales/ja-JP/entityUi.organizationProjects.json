@@ -1,0 +1,22 @@
+{
+    "pickProjects": "プロジェクトを選択",
+    "searchProjects": "プロジェクトを検索",
+    "noProjectsMatch": "「{{search}}」に一致するプロジェクトはありません。",
+    "projectsThatCanUse": "使用できるプロジェクト",
+    "everyProjectIn": "{{organization}} のすべてのプロジェクト。",
+    "allProjects": "すべてのプロジェクト",
+    "everyProjectInIncludingNew": "{{organization}} のすべてのプロジェクト（新しいプロジェクトを含む）。",
+    "selectedProjects": "選択したプロジェクト",
+    "onlyProjectsYouPick": "選択したプロジェクトのみ。",
+    "choosingProjectsPlan": "プロジェクトの選択は Business プランと Enterprise プランで利用できます。",
+    "seePlans": "プランを見る",
+    "removeProject": "{{project}} を削除",
+    "noProjectUntilPick": "プロジェクトを選択するまで、どのプロジェクトもこの接続を使用できません。",
+    "projectLosesAccess": "保存すると、{{project}} はこの接続を使用できなくなります。{{project}} でこの接続を使用しているエージェントは設定が必要になります。",
+    "savedEveryProject": "{{name}} を保存しました。すべてのプロジェクトで使用できます。",
+    "savedProjectsCount_other": "{{name}} を保存しました。{{count}} 件のプロジェクトで使用できます。",
+    "noLongerOwner": "{{organization}} のオーナーまたは管理者ではなくなったため、組織の接続を変更できません。",
+    "projectNotInOrg": "選択したプロジェクトの 1 つが {{organization}} に存在しなくなりました。ページを再読み込みしてから、もう一度選択してください。",
+    "nameTaken": "{{organization}} にはすでに {{name}} という名前の接続があります。別の名前を選んでください。",
+    "couldNotSave": "Agenta はこの {{name}} 接続を保存できませんでした。もう一度お試しください。"
+}
