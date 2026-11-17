@@ -230,6 +230,19 @@ describe("the revoked drive teardown deletes on every backend", () => {
       assert.match(log.lines.join(""), /mismatch \(drive-revoked\)/);
     });
 
+    it("a rebuild for another reason still checks the drives, and a revoked one deletes the sandbox", async () => {
+      const { engine, revoked, acquired } = makeEngine();
+      const ctx = makeCtx(engine);
+      await runWithKeepalive(turn(sandbox, 1), undefined, undefined, ctx);
+
+      revoked.add("notes");
+      // A changed model is a config mismatch; on `inprocess` it would park the command sandbox.
+      await runWithKeepalive({ ...turn(sandbox, 2), model: "m2" }, undefined, undefined, ctx);
+
+      assert.deepEqual(acquired[0]!.destroyReasons, ["drive-revoked"]);
+      assert.equal(acquired.length, 2);
+    });
+
     it("a drive that did not sign at acquire is not signed again and does not evict", async () => {
       const { engine, signs, acquired } = makeEngine({ unsignedAtAcquire: ["notes"] });
       const ctx = makeCtx(engine);

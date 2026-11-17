@@ -773,6 +773,50 @@ describe("runWithKeepalive: approval park + resume", () => {
     assert.deepEqual(reasons, ["drive-revoked"]);
   });
 
+  it("an approval evicted for another reason still deletes its sandbox when a drive no longer signs", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const parked = calls.acquiredEnvs[0];
+    (parked as unknown as { drives: unknown[] }).drives = [
+      { kind: "project", slug: "prices", access: "read-write", credentials: { accessKey: "AK" } },
+    ];
+    engine.signProjectDrive = async () => null;
+    const reasons: Array<string | undefined> = [];
+    parked.destroy = ((opts?: { reason?: string }) => {
+      reasons.push(opts?.reason);
+      return parked.destroyImpl();
+    }) as DispatchFakeEnv["destroy"];
+
+    // An edited history: alone, that evicts as continuity-invalid and parks the sandbox.
+    const edited = approveResume(true, {
+      messages: [
+        { role: "user", content: "do X EDITED" },
+        {
+          role: "assistant",
+          content: [{ type: "tool_call", toolCallId: "tc-gate", toolName: "commit" }],
+        },
+        {
+          role: "user",
+          content: [{ type: "tool_result", toolCallId: "tc-gate", output: { approved: true } }],
+        },
+      ],
+    });
+    await runWithKeepalive(edited, undefined, undefined, ctx);
+
+    assert.equal(calls.resumes.length, 0);
+    assert.deepEqual(reasons, ["drive-revoked"]);
+  });
+
   it("a failed turn-log read refuses the resume and keeps the approval parked", async () => {
     const { engine, calls } = makeApprovalEngine([
       {

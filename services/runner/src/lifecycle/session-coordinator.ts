@@ -1149,6 +1149,9 @@ export async function runWithKeepalive(
       if (revoked) mismatch = "drive-revoked";
       else if (turnLog === "moved") mismatch = "turn-log";
       else if (turnLog !== "current") return turnLog;
+    } else if (await drivesRevoked(existing.environment)) {
+      // A rebuild for another reason may park the sandbox, which keeps the drive's credentials.
+      mismatch = "drive-revoked";
     }
 
     if (mismatch) {
@@ -1218,7 +1221,9 @@ export async function runWithKeepalive(
         // failure instead of being re-derived from a label. They agree today; the point is that
         // they cannot drift. Otherwise every unresolved reason gets a vote and the strictest
         // wins, so a continuity reason that merely sorts first cannot park a stale sandbox.
-        credentialTeardown ?? strictestTeardown(allMismatches),
+        mismatch === "drive-revoked"
+          ? "drive-revoked"
+          : (credentialTeardown ?? strictestTeardown(allMismatches)),
       );
       return coldAndPark();
     }
@@ -1390,10 +1395,9 @@ export async function runWithKeepalive(
     if (!mismatch && (await mountLost(existing.environment)))
       mismatch = "mount-lost";
 
-    // Checked even when no decision resumes: the eviction below would otherwise park a sandbox
-    // that holds credentials for a drive the agent lost.
-    if (!mismatch && (await drivesRevoked(existing.environment)))
-      mismatch = "drive-revoked";
+    // Checked on every path, mismatch or not: the eviction below may otherwise park a sandbox that
+    // holds credentials for a drive the agent lost.
+    if (await drivesRevoked(existing.environment)) mismatch = "drive-revoked";
 
     if (!mismatch && resumeDecisions.length > 0) {
       const turnLog = await confirmTurnLogCurrent(existing);
