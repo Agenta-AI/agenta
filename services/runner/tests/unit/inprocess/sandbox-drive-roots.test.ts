@@ -125,6 +125,21 @@ describe("SandboxDrive with drives", () => {
     expect(drive.blockedLinks).toEqual([]);
   });
 
+  it("fails the file command when the link call itself fails, instead of going on without the link", async () => {
+    const { mounter } = fakeMounter();
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
+    const sandbox = {
+      id: "sbx-1",
+      run: async (command: string) => {
+        if (command.includes("'/w/drives/prices'")) throw new Error("connection reset");
+        return { exitCode: 0, output: "" };
+      },
+    } as unknown as DaytonaSandbox;
+    await expect(drive.ensure(use(sandbox))).rejects.toBeInstanceOf(DriveUnreachableError);
+    expect(drive.mountedOn("sbx-1", 1)).toBe(false);
+    expect(drive.blockedLinks).toEqual([]);
+  });
+
   it("repairs every link, agent-files included, when asked at the start of a turn", async () => {
     const commands: string[] = [];
     const { mounter } = fakeMounter();

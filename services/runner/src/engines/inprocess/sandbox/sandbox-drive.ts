@@ -349,7 +349,7 @@ export class SandboxDrive {
    * Make each root's links in the session folder. They are made again at the start of every turn,
    * since a link can be replaced between turns. A blocked link (a real folder, or a file with
    * content, at its path) is left as it is and skipped: commands still run, and `blockedLinks`
-   * names it so the agent is told.
+   * names it so the agent is told. Throws `DriveUnreachableError` when the link call itself fails.
    */
   async link(sandbox: DaytonaSandbox, signal?: AbortSignal): Promise<void> {
     const cwd = this.options.cwd;
@@ -358,9 +358,11 @@ export class SandboxDrive {
     const blocked = new Set<string>();
     for (const r of this.roots) {
       for (const name of linkNames(r)) {
+        // Only a link the script refused is skipped. A call that failed proves nothing about what is
+        // at the path, and a tool call that went on could write into a folder made there.
         const linked = await linkDriveRemote(exec, this.inSandbox(cwd), name, this.inSandbox(r.root)).catch((err: unknown) => {
           if (signal?.aborted) throw err;
-          return false;
+          throw withPublicCode(new DriveUnreachableError(`${name} link call failed: ${String(err).slice(0, 120)}`), "runner_error");
         });
         if (linked) continue;
         blocked.add(name);
