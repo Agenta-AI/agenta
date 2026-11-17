@@ -871,10 +871,24 @@ class MountsService:
         agent_slug: Optional[str],
         agent_name: Optional[str],
         visibility: AccessPolicy,
+        slug: Optional[str] = None,
     ) -> Mount:
         """Create the agent's drive with its visibility row, or return the agent's row.
-        The one owner of creating an agent's drive."""
+        The one owner of creating an agent's drive. `slug` is a fixed slug in the
+        reserved namespace, for a static catalog agent; without it the slug comes from
+        the agent's slug, with a suffix on a collision."""
         agent_id = mint_agent_id(artifact_id=artifact_id)
+        if slug is not None:
+            return await self.mounts_dao.create_agent_mount(
+                project_id=project_id,
+                user_id=user_id,
+                mount_create=MountCreate(
+                    slug=slug,
+                    name=agent_name or slug,
+                    agent_id=agent_id,
+                ),
+                visibility=visibility,
+            )
         for attempt in range(2):
             base = agent_drive_slug(agent_slug, ())
             taken = await self.mounts_dao.list_slugs_with_prefix(

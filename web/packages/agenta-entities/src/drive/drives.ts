@@ -14,7 +14,11 @@ import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryMountsBySlugs, type Mount} from "@agenta/entities/session"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {
+    retrievedWorkflowRevisionFamilyKey,
+    retrievedWorkflowRevisionQueryAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 
 import {agentMountQueryFamily} from "./agentDrive"
 import {cleanPath} from "./driveTree"
@@ -243,18 +247,26 @@ export const agentDrivesStateForParameters = (
             : configKeyOf(agentDriveConfig(parameters), artifactId),
     )
 
-/** The config key of a revision: pending while it loads; without a revision, the legacy lookup. */
+/** The config key of a revision: pending while it loads; without a revision, the legacy lookup.
+ * A revision the database does not hold is read by reference, which also serves a static catalog
+ * revision (a reserved `__ag__*` agent has no row). */
 const revisionConfigKeyFamily = atomFamily((key: string) =>
     atom((get): ConfigKey => {
         const [revisionId, artifactId] = key.split("\n")
         if (!revisionId) return configKeyOf(null, artifactId)
         const parameters = get(workflowMolecule.selectors.parameters(revisionId))
-        if (parameters == null) {
-            const query = get(workflowMolecule.selectors.query(revisionId))
-            if (query.isPending) return PENDING_KEY
-            return query.isError ? `${FAILED_PREFIX}${revisionId}` : configKeyOf(null, artifactId)
-        }
-        return configKeyOf(agentDriveConfig(parameters), artifactId)
+        if (parameters != null) return configKeyOf(agentDriveConfig(parameters), artifactId)
+        const query = get(workflowMolecule.selectors.query(revisionId))
+        if (query.isPending) return PENDING_KEY
+        if (query.isError) return `${FAILED_PREFIX}${revisionId}`
+        if (query.data != null) return configKeyOf(null, artifactId)
+        const retrieved = get(
+            retrievedWorkflowRevisionQueryAtomFamily(
+                retrievedWorkflowRevisionFamilyKey({revision: {id: revisionId}}),
+            ),
+        )
+        if (retrieved.isPending) return PENDING_KEY
+        return configKeyOf(agentDriveConfig(retrieved.data?.parameters ?? null), artifactId)
     }),
 )
 

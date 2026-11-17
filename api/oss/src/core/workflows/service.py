@@ -623,11 +623,14 @@ class WorkflowsService:
         artifact_id: UUID,
         include_archived: bool,
         first_agent_owner_user_id: Optional[UUID] = None,
+        slug: Optional[str] = None,
+        name: Optional[str] = None,
     ) -> Optional["Mount"]:
         """The drive created with the agent, created now when the agent has none. The
         new drive's visibility is the agent's; an agent with no access row gets a shared
         drive, owned by ``first_agent_owner_user_id`` when given. None when the agent
-        does not exist (a static-catalog agent exists in code)."""
+        does not exist (a static-catalog agent exists in code). ``slug`` and ``name``
+        fix the new drive's slug and name (a static catalog agent's own drive)."""
         lookup = self._require_mount_lookup()
         own = await lookup.fetch_agent_drive(
             project_id=project_id, artifact_id=str(artifact_id)
@@ -660,8 +663,65 @@ class WorkflowsService:
             user_id=user_id,
             artifact_id=str(artifact_id),
             agent_slug=getattr(workflow, "slug", None),
-            agent_name=getattr(workflow, "name", None),
+            agent_name=name or getattr(workflow, "name", None),
             visibility=visibility,
+            slug=slug,
+        )
+
+    async def ensure_static_agent_drive(
+        self,
+        *,
+        project_id: UUID,
+        envelope: RunEnvelope,
+        artifact_id: UUID,
+    ) -> None:
+        """Create the own drive of a static catalog agent at its first run in the
+        project. A static agent is never committed, so the commit never creates it.
+
+        Its own drive is the first ``drives`` entry whose slug is the agent's reserved
+        slug, ``__``, and a name (``__ag__builder__learning``): no user can create a
+        drive in the reserved namespace, so nobody can take the slug first. The drive
+        gets the catalog revision's name and is shared with no owner. Every later run
+        costs one lookup; any other agent costs none."""
+        if self.static_catalog is None or not self.static_catalog.is_static_id(
+            artifact_id
+        ):
+            return
+        revision = self.static_catalog.retrieve_revision(id=artifact_id)
+        if revision is None:
+            return
+        drives = (_agent_config(revision.data) or {}).get("drives")
+        slug = next(
+            (
+                entry["slug"]
+                for entry in (drives if isinstance(drives, list) else [])
+                if isinstance(entry, dict)
+                and isinstance(entry.get("slug"), str)
+                and entry["slug"].startswith(f"{revision.slug}__")
+            ),
+            None,
+        )
+        if slug is None:
+            return
+        if (
+            await self._require_mount_lookup().fetch_agent_drive(
+                project_id=project_id, artifact_id=str(artifact_id)
+            )
+            is not None
+        ):
+            return
+        user_id = await get_access_service().acting_user_id(
+            authority=envelope.authority
+        )
+        if user_id is None:
+            return
+        await self.ensure_agent_drive(
+            project_id=project_id,
+            user_id=user_id,
+            artifact_id=artifact_id,
+            include_archived=False,
+            slug=slug,
+            name=revision.name,
         )
 
     async def fill_agent_revision_drives(
@@ -1719,7 +1779,8 @@ class WorkflowsService:
         resolved for this request, else the agent `references` name, resolved in this
         project) and that the run's principal may run. None for a run with no stored
         agent (an inline configuration), a reference that resolves to nothing, or an
-        agent the principal may not run. Never a raw id from the caller."""
+        agent the principal may not run. Never a raw id from the caller. For a static
+        catalog agent, creates its own drive first (`ensure_static_agent_drive`)."""
 
         if resolved_revision is not None:
             artifact_id = resolved_revision.workflow_id
@@ -1757,7 +1818,22 @@ class WorkflowsService:
             resource=ResourceRef(kind=ResourceKind.AGENT, id=str(artifact_id)),
             context=envelope.context,
         )
-        return artifact_id if decision.allowed else None
+        if not decision.allowed:
+            return None
+        # Both run credential mints come here, before the runner signs the run's drives.
+        try:
+            await self.ensure_static_agent_drive(
+                project_id=project_id, envelope=envelope, artifact_id=artifact_id
+            )
+        except Exception:  # pylint: disable=broad-except
+            # The run goes on without the drive: the runner skips a drive it cannot sign.
+            log.warning(
+                "[DRIVES] static agent drive create failed",
+                project_id=str(project_id),
+                artifact_id=str(artifact_id),
+                exc_info=True,
+            )
+        return artifact_id
 
     async def resolve_agent_artifact_id(
         self,
