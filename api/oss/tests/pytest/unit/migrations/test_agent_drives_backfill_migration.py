@@ -418,6 +418,7 @@ async def _run():
             "agent_visibility": 5,
             "project_visibility": 1,
             "revisions": 13,
+            "corrected": 0,
         }
 
         after = await db.snapshot()
@@ -427,11 +428,61 @@ async def _run():
             "agent_visibility": 0,
             "project_visibility": 0,
             "revisions": 0,
+            "corrected": 0,
         }
         assert await db.snapshot() == after
     finally:
         await connection.close()
         await _drop()
+
+
+async def _run_concurrent_visibility_change():
+    revision = _revision()
+    connection = await _scratch()
+    project, organization, owner = uuid4(), uuid4(), uuid4()
+    await connection.execute(
+        "INSERT INTO projects VALUES ($1, $2)", project, organization
+    )
+    db = _Db(connection, project, organization)
+    owner_connection = await asyncpg.connect(DATABASE_DSN)
+    try:
+        agent = await db.agent("turned-private", access=("project", owner))
+        mount = await db.drive(_reserved(agent), agent_id=agent)
+        # a release 1 row that differs from its agent on purpose
+        kept = await db.agent("kept-agent", access=("project", owner))
+        kept_mount = await db.drive(
+            "kept-agent-files", agent_id=kept, visibility=("private", owner)
+        )
+
+        async with connection.transaction():
+            await connection.execute(revision._AGENT_DRIVE_VISIBILITY_SQL)
+            # the owner makes the agent private while the migration runs
+            await owner_connection.execute(
+                "UPDATE agent_access SET visibility = 'private' "
+                "WHERE project_id = $1 AND artifact_id = $2",
+                project,
+                agent,
+            )
+            status = await connection.execute(
+                revision._CORRECT_AGENT_DRIVE_VISIBILITY_SQL
+            )
+        assert status == "UPDATE 1"
+
+        row = await db.mount(mount)
+        assert (row["visibility"], row["owner_user_id"]) == ("private", owner)
+        kept_row = await db.mount(kept_mount)
+        assert (kept_row["visibility"], kept_row["owner_user_id"]) == (
+            "private",
+            owner,
+        )
+    finally:
+        await owner_connection.close()
+        await connection.close()
+        await _drop()
+
+
+def test_agent_drive_visibility_follows_a_concurrent_agent_change():
+    asyncio.run(_run_concurrent_visibility_change())
 
 
 def test_agent_drives_get_slugs_visibility_and_stated_revisions_once():

@@ -10,12 +10,17 @@ service runs release 1. Data only, no schema change.
 | 3 | Every agent drive without a `mount_visibility` row gets one copied from `agent_access` (`project` with no owner when the agent has no row). |
 | 4 | Every other drive with no session and no visibility row gets `project` with no owner. |
 | 5 | In every agent revision, a reserved agent slug in `drives` or `home_drive` becomes the drive's slug, and missing keys are added: `has_session_drive: true`, and when `drives` is absent, the agent's own drive as the only entry and as home if it is not archived and the home rule allows it, else `drives: []` and `home_drive: null`. |
+| 6 | Every agent drive visibility row that this run wrote and that no longer equals its agent's `agent_access` (an agent visibility change committed while this run ran) gets the agent's value again. |
 
 A static catalog agent has no artifact in the database: its drive keeps its reserved slug
 and gets no visibility row. A stated JSON null counts as absent, except in `home_drive`,
 where a stated value (null included) is kept, as the app's fill keeps it. The slug rule and the
 fill are frozen copies, not imports, so this revision does what it did when it was
 written. A second run changes nothing.
+
+An agent visibility change that commits after step 6 and before this migration commits
+still leaves its own drive with the old value; release 1 rechecks the drive row under the
+agent lock, and a second run of this migration does not correct it.
 
 Revision ID: oss000000064
 Revises: oss000000063
@@ -100,6 +105,21 @@ LEFT JOIN agent_access aa
   ON aa.project_id = a.project_id AND aa.artifact_id = a.id
 WHERE m.session_id IS NULL
 ON CONFLICT (project_id, mount_id) DO NOTHING
+"""
+
+# Rows inserted by this transaction carry its id in `xmin`, so a rerun or a row that
+# release 1 wrote is never touched.
+_CORRECT_AGENT_DRIVE_VISIBILITY_SQL = """
+UPDATE mount_visibility mv
+SET visibility = COALESCE(aa.visibility, 'project'), owner_user_id = aa.owner_user_id
+FROM mounts m
+JOIN workflow_artifacts a ON a.project_id = m.project_id AND a.id::text = m.agent_id
+LEFT JOIN agent_access aa
+  ON aa.project_id = a.project_id AND aa.artifact_id = a.id
+WHERE mv.project_id = m.project_id AND mv.mount_id = m.id
+  AND mv.xmin = pg_current_xact_id()::xid
+  AND (mv.visibility, mv.owner_user_id)
+      IS DISTINCT FROM (COALESCE(aa.visibility, 'project'), aa.owner_user_id)
 """
 
 _PROJECT_DRIVE_VISIBILITY_SQL = """
@@ -318,12 +338,16 @@ def _backfill(connection, *, batch_size: int = BATCH_SIZE) -> Dict[str, int]:
     agent_rows = connection.execute(sa.text(_AGENT_DRIVE_VISIBILITY_SQL)).rowcount
     project_rows = connection.execute(sa.text(_PROJECT_DRIVE_VISIBILITY_SQL)).rowcount
     revisions = _state_drives(connection, batch_size=batch_size)
+    corrected = connection.execute(
+        sa.text(_CORRECT_AGENT_DRIVE_VISIBILITY_SQL)
+    ).rowcount
     return {
         "renamed": renamed,
         "created": created,
         "agent_visibility": agent_rows,
         "project_visibility": project_rows,
         "revisions": revisions,
+        "corrected": corrected,
     }
 
 
@@ -333,7 +357,8 @@ def upgrade() -> None:
     log.info(
         "agent drives: %(renamed)s renamed, %(created)s created; visibility rows: "
         "%(agent_visibility)s agent, %(project_visibility)s project; "
-        "%(revisions)s agent revisions written",
+        "%(revisions)s agent revisions written; %(corrected)s visibility rows "
+        "corrected",
         counts,
     )
 
