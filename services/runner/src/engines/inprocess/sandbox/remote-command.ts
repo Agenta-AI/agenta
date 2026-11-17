@@ -191,9 +191,11 @@ export function launchScript(
   // returns at once and a kill reaches every process the command started. `timeout` leads that
   // group and kills the supervisor at the lifetime. GNU `timeout` also kills the rest of the group,
   // but uutils `timeout` (Ubuntu 26.04 and later) does not, so the outer shell kills the group
-  // itself when the supervisor did not finish (it removes `pgid` only when it finishes).
+  // itself when the supervisor did not finish (it removes `pgid` only when it finishes). It does so
+  // only when `timeout` reports the lifetime (124, or 137 when the KILL also hit `timeout`), so a
+  // Stop's TERM (143) keeps its grace before the Stop script sends KILL.
   const lifetime = Math.max(1, Math.ceil(lifetimeSeconds));
-  const guarded = `timeout -s KILL ${lifetime} bash -c ${shellQuote(supervisor)}; pg=$(cat ${d}/pgid 2>/dev/null) && kill -KILL -- "-$pg"`;
+  const guarded = `timeout -s KILL ${lifetime} bash -c ${shellQuote(supervisor)}; rc=$?; { [ $rc = 124 ] || [ $rc = 137 ]; } && pg=$(cat ${d}/pgid 2>/dev/null) && kill -KILL -- "-$pg"`;
   const supervised = `setsid ${bash(guarded)}`;
   return bash([...mounted, `mkdir -p ${d} && : > ${out} && { ${supervised} < /dev/null > /dev/null 2>&1 & } && echo launched`].join("; "));
 }
