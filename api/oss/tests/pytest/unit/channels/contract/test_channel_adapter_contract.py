@@ -62,14 +62,14 @@ def default_suite_connection():
 
 
 async def _assert_controls_update(
-    adapter: ChannelAdapterInterface, capabilities, connection
+    adapter: ChannelAdapterInterface, capabilities, connection, locator
 ) -> None:
     if not capabilities.rendering.controls.update:
         return
 
     receipt = await adapter.post_message(
         connection=connection,
-        locator={"team": "T1", "channel": "C1"},
+        locator=locator,
         content=[{"type": "text", "text": "working..."}],
         idempotency_key=uuid4(),
     )
@@ -90,7 +90,7 @@ async def _assert_controls_update(
 
 
 async def _assert_buttons_max(
-    adapter: ChannelAdapterInterface, capabilities, connection
+    adapter: ChannelAdapterInterface, capabilities, connection, locator
 ) -> None:
     if not capabilities.rendering.buttons.supported:
         return
@@ -101,7 +101,7 @@ async def _assert_buttons_max(
     try:
         receipt = await adapter.post_message(
             connection=connection,
-            locator={"team": "T1", "channel": "C1"},
+            locator=locator,
             content=content,
             idempotency_key=uuid4(),
         )
@@ -128,13 +128,13 @@ async def _assert_buttons_max(
 
 
 async def _assert_backfill(
-    adapter: ChannelAdapterInterface, capabilities, connection
+    adapter: ChannelAdapterInterface, capabilities, connection, locator
 ) -> None:
     if not capabilities.fill.backfill.supported:
         return  # asserted by the caller that fetch_history is never invoked
 
     result = await adapter.fetch_history(
-        connection=connection, locator={"team": "T1", "channel": "C1"}, limit=50
+        connection=connection, locator=locator, limit=50
     )
     assert isinstance(result, list), (
         "fill.backfill.supported declared true, but fetch_history did not "
@@ -276,7 +276,11 @@ def _assert_identity_no_threads(capabilities: ChannelCapabilities) -> None:
 
 
 async def run_contract_suite(
-    adapter: ChannelAdapterInterface, *, connection=None
+    adapter: ChannelAdapterInterface,
+    *,
+    connection=None,
+    locator=None,
+    signed: bool = True,
 ) -> None:
     """Run every contract assertion against one adapter instance.
 
@@ -287,16 +291,22 @@ async def run_contract_suite(
     Pass `connection` when the adapter's credentials are not named the way
     `default_suite_connection` names them; the egress assertions drive the
     adapter with whatever is passed.
+
+    Pass `locator` when the adapter's locator fields are not Slack's. Pass
+    `signed=False` for an adapter with no HTTP ingress (Discord's socket),
+    which has no request signature to check.
     """
 
     connection = connection or default_suite_connection()
+    locator = locator or {"team": "T1", "channel": "C1"}
     capabilities = await adapter.fetch_capabilities(connection=connection)
 
-    await _assert_controls_update(adapter, capabilities, connection)
-    await _assert_buttons_max(adapter, capabilities, connection)
-    await _assert_backfill(adapter, capabilities, connection)
-    await _assert_verify_signature_rejects_bad_signature(adapter, connection)
-    await _assert_verify_signature_accepts_good_signature(adapter, connection)
+    await _assert_controls_update(adapter, capabilities, connection, locator)
+    await _assert_buttons_max(adapter, capabilities, connection, locator)
+    await _assert_backfill(adapter, capabilities, connection, locator)
+    if signed:
+        await _assert_verify_signature_rejects_bad_signature(adapter, connection)
+        await _assert_verify_signature_accepts_good_signature(adapter, connection)
     await _assert_parse_event_addressed_is_bool(adapter)
 
     _assert_identity_distinctness(capabilities)
