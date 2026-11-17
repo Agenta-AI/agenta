@@ -40,6 +40,7 @@ export function DriveTreeList({
     shownExpanded,
     selectedPath,
     showOrigin,
+    otherDrives,
     isDirLoading,
     scrollXFor,
     onMeasureContent,
@@ -67,6 +68,7 @@ export function DriveTreeList({
     shownExpanded: Set<string>
     selectedPath: string | null
     showOrigin: boolean
+    otherDrives?: readonly {slug: string}[]
     isDirLoading: (path: string) => boolean
     scrollXFor: (parent: string) => number
     onMeasureContent: (parent: string, width: number) => void
@@ -170,6 +172,7 @@ export function DriveTreeList({
                                                 isDirLoading(node.path)
                                             }
                                             showOrigin={showOrigin}
+                                            otherDrives={otherDrives}
                                             parent={parent}
                                             scrollX={scrollXFor(parent)}
                                             onMeasureContent={onMeasureContent}

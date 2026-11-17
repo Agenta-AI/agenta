@@ -12,13 +12,13 @@
  * The three remaining units (mount, runtime, harness session) are not separable the way sandbox
  * and workspace were. They share ONE closure containing six mutually recursive helpers:
  *
- *   activateAgentMountGuidance          mountLocalAgentCwd
- *   mountLocalDurableCwd                reSignAndRemountLocalAgentMount
+ *   activateHomeDriveGuidance           mountLocalDrive
+ *   mountLocalDurableCwd                reSignAndRemountLocalDrive
  *   reSignAndRemountLocalCwd            remountLocalCwdAfterRuntimeEnotconn
  *
- * `mountLocalAgentCwd` calls `activateAgentMountGuidance`, which writes the DAEMON ENV and the
- * PLAN's system prompt. `reSignAndRemountLocalCwd` re-signs a credential and then calls
- * `mountLocalDurableCwd`. `remountLocalCwdAfterRuntimeEnotconn` calls both re-signers.
+ * `activateHomeDriveGuidance` writes the PLAN's system prompt. `reSignAndRemountLocalCwd`
+ * re-signs a credential and then calls `mountLocalDurableCwd`.
+ * `remountLocalCwdAfterRuntimeEnotconn` calls both re-signers.
  *
  * A context object is the smallest change that lets those helpers live in separate modules
  * without any of them importing another. Every helper takes `ctx`; nothing captures.
@@ -44,7 +44,7 @@
  * ---- INVARIANT 1: LOCAL MOUNTS RUN BEFORE THE PROVIDER FREEZES THE DAEMON ENV ----
  *
  * On a LOCAL run the daemon has not started when the mounts run, so the env maps are still
- * mutable and a successful mount can advertise itself through `AGENT_MOUNT_ENV_VAR`.
+ * mutable.
  * `buildSandboxProvider` takes them BY REFERENCE (environment.ts:641-647) and hands them to
  * `SandboxAgent.start`; after that the daemon environment is fixed for the life of the sandbox.
  *
@@ -68,8 +68,8 @@
  *
  * Exactly two credential re-sign paths exist:
  *
- *   reSignAndRemountLocalCwd        signMount(session)   -> mountCreds      -> mountLocalDurableCwd
- *   reSignAndRemountLocalAgentMount signAgentMount(art)  -> agentMountCreds -> mountLocalAgentCwd
+ *   reSignAndRemountLocalCwd        signMount(session)   -> mountCreds          -> mountLocalDurableCwd
+ *   reSignAndRemountLocalDrive      sign the drive       -> drive.credentials   -> mountLocalDrive
  *
  * Each writes the fresh credential and THEN remounts. PRESERVED FOR THIS SPLIT, per the
  * reviewer's ruling: it is current behavior, and changing it does not belong in a zero-change
@@ -98,11 +98,12 @@
  */
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
 import type { RunPlan } from "../engines/sandbox_agent/run-plan.ts";
+import type { RunDrive } from "../engines/sandbox_agent/run-drives.ts";
 import type { SessionEnvironment } from "../engines/sandbox_agent/runtime-contracts.ts";
 import type { Log, TimingLog } from "./timing.ts";
 
-/** Which of the two durable mounts a call is about. */
-export type MountKind = "cwd" | "agent";
+/** A remount budget: one for the session folder, one per drive by its mount path. */
+export type RemountBudgetKey = "cwd" | `drive:${string}`;
 
 /**
  * A violation of an acquire ORDERING rule. It means the code called things in the wrong order,
@@ -147,9 +148,9 @@ export interface EnvironmentView {
   readonly session: unknown;
   readonly sessionId: string;
   readonly mountCreds: MountCredentials | null;
-  readonly agentMountCreds: MountCredentials | null | undefined;
   readonly mountedCwd: string | undefined;
-  readonly agentMountedPath: string | undefined;
+  /** The run's configured drives (`run-drives.ts`). */
+  readonly drives: readonly RunDrive[];
   readonly runAgentDir: string | undefined;
   readonly piPromptDir: string | undefined;
   readonly durableCwdSafeToDelete: boolean;
@@ -181,7 +182,7 @@ export interface AcquireContext {
 
   /** The session id whose mount is being signed. Undefined disables the durable cwd mount. */
   readonly sessionForMount: string | undefined;
-  /** The artifact id whose agent mount is being signed. Undefined disables the agent mount. */
+  /** The artifact id of the run; the legacy agent drive is signed by it. */
   readonly artifactId: string | undefined;
   /** The caller credential every re-sign presents. Undefined disables BOTH re-sign paths. */
   readonly runCred: string | undefined;
@@ -242,11 +243,11 @@ export interface AcquireContext {
   /**
    * Record a credential that was just re-signed. INVARIANT 2.
    *
-   * The ONLY writer of `mountCreds` and `agentMountCreds`. Takes a NON-NULL credential, per the
+   * The ONLY writer of `mountCreds`. Takes a NON-NULL credential, per the
    * reviewer's answer 2: keeping the committer total forces each signer to handle and log its own
    * null result, which is what both signers already do.
    */
-  recordResignedCredential(kind: MountKind, credential: MountCredentials): void;
+  recordResignedCredential(credential: MountCredentials): void;
 
   /**
    * Record a LOCAL mount that is now live: its host path and the expiry of the credential the
@@ -255,11 +256,7 @@ export interface AcquireContext {
    * Local only. The path matters because teardown must unmount that host mountpoint before
    * deleting anything under it.
    */
-  commitLocalMount(
-    kind: MountKind,
-    path: string,
-    credential: MountCredentials,
-  ): void;
+  commitLocalMount(path: string, credential: MountCredentials): void;
 
   /**
    * Record a DAYTONA cwd mount: the expiry ONLY, with no path.
@@ -269,15 +266,32 @@ export interface AcquireContext {
    * `mountedCwd` must stay unset. Setting it would make teardown attempt to unmount a path that
    * never existed on this host.
    */
-  commitRemoteMountExpiry(kind: MountKind, credential: MountCredentials): void;
+  commitRemoteMountExpiry(credential: MountCredentials): void;
 
   /**
-   * Clear a mount's path so a later attempt does not short-circuit.
-   *
-   * Used by the agent re-sign path, which clears `agentMountedPath` precisely so
-   * `mountLocalAgentCwd` remounts instead of returning early on its identity check.
+   * Record a drive that now serves I/O: its path (local and Daytona alike, so the turn refresh and
+   * the prompt can name it) and the expiry of the credential it was mounted with.
    */
-  clearMountPath(kind: MountKind): void;
+  commitDriveMount(
+    drive: RunDrive,
+    path: string,
+    credential: MountCredentials,
+  ): void;
+
+  /** Record whether the drive's links (`drives/<slug>`, and `agent-files` for the home) were made. */
+  recordDriveLink(drive: RunDrive, linked: boolean): void;
+
+  /**
+   * Forget a drive's mount once its detach is confirmed. Until then the path stays, so a remount
+   * that fails part way still leaves teardown a mount to unmount.
+   */
+  releaseDriveMount(drive: RunDrive): void;
+
+  /** Record a re-signed drive credential, before its remount. */
+  recordResignedDriveCredential(
+    drive: RunDrive,
+    credential: MountCredentials,
+  ): void;
 
   // ---------------------------------------------------------------------------------------
   // `durableCwdSafeToDelete`. Writer: the mount unit and teardown.
@@ -340,10 +354,10 @@ export interface AcquireContext {
   // ---------------------------------------------------------------------------------------
 
   /** Consume one retry for `kind`. False when the budget is spent; the caller then gives up. */
-  takeRemountBudget(kind: MountKind): boolean;
+  takeRemountBudget(kind: RemountBudgetKey): boolean;
 
   /**
-   * True once the agent-mount guidance has run. The guidance is idempotent by this flag rather
+   * True once the home drive guidance has run. The guidance is idempotent by this flag rather
    * than by its effects, because it APPENDS to a system prompt and appending twice is visible.
    */
   readonly guidanceActive: boolean;
@@ -370,9 +384,8 @@ export interface AcquireContextHandle {
  * | # | environment field        | owner unit          | written via                  |
  * |---|--------------------------|---------------------|------------------------------|
  * | 1 | `mountCreds`             | mount               | recordResignedCredential     |
- * | 2 | `agentMountCreds`        | mount               | recordResignedCredential     |
+ * | 2 | `drives[]` mount state   | mount               | commitDriveMount / recordDriveLink / releaseDriveMount / recordResignedDriveCredential; after the acquire, teardown and the per-turn link repair write `mountedPath` and `linked` directly |
  * | 3 | `mountedCwd`             | mount (LOCAL only)  | commitLocalMount             |
- * | 4 | `agentMountedPath`       | mount               | commitLocalMount / clearMountPath |
  * | 5 | `installedMountExpiries` | mount               | commitLocalMount / commitRemoteMountExpiry |
  * | 6 | `durableCwdSafeToDelete` | mount + teardown    | beginCwdMount / markCwdDetachConfirmed / recordCwdUnmountResult |
  * | 7 | `runtimeRemount`         | runtime             | setRuntimeRemount            |

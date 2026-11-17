@@ -7,29 +7,51 @@
  */
 import {createContext, useContext, useMemo, type ReactNode} from "react"
 
+import {agentDrivesStateAtom} from "@agenta/entities/drive"
+import {useAtomValue} from "jotai"
+
 interface DriveSession {
     sessionId: string | null
     artifactId: string | null
+    revisionId: string | null
 }
 
-const DriveSessionContext = createContext<DriveSession>({sessionId: null, artifactId: null})
+const DriveSessionContext = createContext<DriveSession>({
+    sessionId: null,
+    artifactId: null,
+    revisionId: null,
+})
 
 export function DriveSessionProvider({
     sessionId,
     artifactId = null,
+    revisionId = null,
     children,
 }: {
     sessionId: string
     artifactId?: string | null
+    /** The revision the conversation runs; its `drives` list names the drives. */
+    revisionId?: string | null
     children: ReactNode
 }) {
-    const value = useMemo(() => ({sessionId, artifactId}), [sessionId, artifactId])
+    const value = useMemo(
+        () => ({sessionId, artifactId, revisionId}),
+        [sessionId, artifactId, revisionId],
+    )
     return <DriveSessionContext.Provider value={value}>{children}</DriveSessionContext.Provider>
 }
 
 /** The enclosing conversation's session id; null outside a conversation. */
 export const useDriveSessionId = (): string | null => useContext(DriveSessionContext).sessionId
 
-/** The enclosing conversation's artifact (workflow) id — for the agent's durable `agent-files`
- * mount; null outside a conversation. */
+/** The enclosing conversation's artifact (workflow) id — for the agent's drive of a configuration
+ * without a `drives` list; null outside a conversation. */
 export const useDriveArtifactId = (): string | null => useContext(DriveSessionContext).artifactId
+
+/** The enclosing conversation's revision id — for the drives its configuration names; null
+ * outside a conversation. */
+export const useDriveRevisionId = (): string | null => useContext(DriveSessionContext).revisionId
+
+/** The enclosing conversation's home drive slug: its tool paths present under `agent-files/`. */
+export const useDriveHomeSlug = (): string | null =>
+    useAtomValue(agentDrivesStateAtom(useDriveRevisionId(), useDriveArtifactId())).homeSlug

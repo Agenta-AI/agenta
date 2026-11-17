@@ -11,6 +11,9 @@ from uuid import UUID
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.sharing.dtos import AccessPolicy
 
+# The code of a refused home drive, at sign (403), save (422) and visibility change (409).
+HOME_DRIVE_NOT_ALLOWED = "home_drive_not_allowed"
+
 
 class SharingError(Exception):
     """Base for the sharing domain."""
@@ -77,6 +80,32 @@ class InvalidTransferTarget(SharingError):
         self.user_id = user_id
         super().__init__(
             "The user cannot own this agent.", details={"user_id": str(user_id)}
+        )
+
+
+class DriveNotOwned(SharingError):
+    """Sharing the agent would share a private drive of another owner."""
+
+    code = "drive_not_owned"
+
+    def __init__(self, *, slug: str):
+        super().__init__(
+            f"The agent lists the private drive '{slug}' of another member, so it "
+            "cannot become shared.",
+            details={"slug": slug},
+        )
+
+
+class HomeDriveNotAllowed(SharingError):
+    """Making the agent private would leave it a home drive the home rule refuses."""
+
+    code = HOME_DRIVE_NOT_ALLOWED
+
+    def __init__(self, *, slug: str):
+        super().__init__(
+            f"The home drive '{slug}' is not a private drive of the agent's owner, so "
+            "the agent cannot become private.",
+            details={"slug": slug},
         )
 
 

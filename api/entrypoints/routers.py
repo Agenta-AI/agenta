@@ -1172,6 +1172,8 @@ session_mounts_service = SessionMountsService(
     mounts_service=mounts_service,
 )
 
+workflows_service.set_mount_lookup(mounts_service)
+
 session_attachments_service = SessionAttachmentsService(
     attachments_dao=session_attachments_dao,
     original_store=mounts_service,
@@ -2360,7 +2362,7 @@ async def store_jwks():
     return webidentity.jwks()
 
 
-access_router = AccessRouter()
+access_router = AccessRouter(workflows_service=workflows_service)
 app.include_router(
     access_router.router,
     prefix="/access",

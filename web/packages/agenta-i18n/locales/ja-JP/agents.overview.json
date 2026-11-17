@@ -17,12 +17,13 @@
     "descriptionUpdateFailed": "このエージェントの説明を更新できませんでした",
     "driveEmpty": "このエージェントにはまだドライブがありません。",
     "edit": "編集",
-    "filesEmpty": "このエージェントにはまだファイルがありません。",
+    "filesLoadError": "ファイルを読み込めませんでした。",
     "filesTitle": "ファイル",
     "needsAttention": "要対応",
     "openChat": "チャットを開く",
     "openFiles": "ファイルを開く",
     "pageTitle": "エージェント",
+    "readOnly": "読み取りのみ",
     "renameFailed": "このエージェントの名前を変更できませんでした",
     "retry": "再試行"
 }

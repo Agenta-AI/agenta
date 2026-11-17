@@ -605,7 +605,11 @@ async def test_writes_invalidate_and_publish(people):
         visibility=Visibility.PRIVATE,
     )
     assert people.invalidations.calls == [
-        {"project_id": people.project_id, "artifact_ids": [artifact_id]}
+        {
+            "project_id": people.project_id,
+            "artifact_ids": [artifact_id],
+            "mount_ids": [],
+        }
     ]
     (event,) = people.events.calls
     assert event["resource"].id == str(artifact_id)

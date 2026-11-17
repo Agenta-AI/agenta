@@ -7,15 +7,23 @@
  *
  * It presents the same accumulated `files: MountFile[]` the tree builder already consumes — so the
  * explorer's `buildDriveTree`/virtualization stay unchanged; only WHERE the files come from changes.
- * The agent's durable mount is folded in under `agent-files/` exactly as {@link useSessionDrive} does,
- * so both mounts browse as one tree.
+ * The home drive is folded in under `agent-files/` and each other drive under `drives/<slug>/`,
+ * exactly as {@link useSessionDrive} does, so every mount browses as one tree.
  */
-import {useCallback, useEffect, useMemo, useReducer, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode} from "react"
 
-import {cleanPath, parentOf} from "@agenta/entities/drive"
+import {
+    cleanPath,
+    driveDir,
+    DRIVES_DIR,
+    foldDriveFiles,
+    isDriveLink,
+    parentOf,
+    resolveDrivePath,
+} from "@agenta/entities/drive"
 import {AGENT_FILES_DIR, type SessionDriveData} from "@agenta/entities/drive"
 import {mountDirQueryFamily, mountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
 /** The fold prefix that maps a mount-RELATIVE path back to its PRESENTED path — "" for the cwd mount,
  * "agent-files/" for the folded agent mount. Derived from (presentedPath, mountRelPath) so it needs no
@@ -82,18 +90,41 @@ export function useLazyDriveTree(
     includeGitignored: boolean,
 ): LazyDriveTree {
     const cwdMount = drive.mount
-    // The agent mount, if the drive folds one in (else resolveMount keeps everything on cwd).
-    const agentResolved = drive.resolveMount(AGENT_FILES_DIR)
-    const agentMount =
-        agentResolved && cwdMount && agentResolved.mount.id !== cwdMount.id
-            ? agentResolved.mount
+    // The home drive's mount, if the drive folds one in (else resolveMount keeps everything on cwd).
+    const homeResolved = drive.resolveMount(AGENT_FILES_DIR)
+    const homeMount =
+        homeResolved && cwdMount && homeResolved.mount.id !== cwdMount.id
+            ? homeResolved.mount
             : null
+    const drives = drive.otherDrives ?? NO_DRIVES
+    const entries = drive.driveEntries ?? NO_ENTRIES
+    const driveDirs = useMemo(() => drives.map((d) => driveDir(d.slug)), [drives])
+    // The cwd's links to the home drive and to unresolved drives: never shown under `drives/`.
+    const hiddenLinks = useMemo(
+        () => entries.filter((c) => !drives.some((d) => d.slug === c.slug)),
+        [entries, drives],
+    )
+    // A drive's folder is the drive's own, never the cwd's: a cwd listing that does not name it
+    // (no turn ran yet) must not drop what the drive's own subscription loaded.
+    const pinned = useRef(new Set<string>())
+    pinned.current = new Set(driveDirs.length ? [DRIVES_DIR, ...driveDirs] : [])
 
     // Per-directory results, accumulated. A key insight: React reconciles the subscribers by path
     // KEY, so re-deriving the array each render never remounts a stable directory's query.
     const dirFilesRef = useMemo(() => ({map: new Map<string, MountFile[]>()}), [])
     const [dirVersion, forceVersion] = useReducerVersion()
     const [fetchingDirs, setFetching] = useSetState()
+
+    // A drive that leaves the configuration leaves the tree: its cached levels and loading flags go.
+    const prevDriveDirs = useRef(driveDirs)
+    useEffect(() => {
+        const removed = prevDriveDirs.current.filter((d) => !driveDirs.includes(d))
+        prevDriveDirs.current = driveDirs
+        if (!removed.length) return
+        for (const key of new Set([...removed, ...dropDirs(dirFilesRef.map, removed)]))
+            setFetching(key, false)
+        forceVersion()
+    }, [driveDirs, dirFilesRef, setFetching, forceVersion])
 
     const onResult = useCallback(
         (path: string, files: MountFile[] | null, fetching: boolean) => {
@@ -105,7 +136,9 @@ export function useLazyDriveTree(
                 // A subfolder this listing no longer names is gone, with everything under it.
                 const listed = new Set(own.map((f) => cleanPath(f.path)))
                 const keys = [...dirFilesRef.map.keys()]
-                const gone = keys.filter((k) => k && parentOf(k) === path && !listed.has(k))
+                const gone = keys.filter(
+                    (k) => k && parentOf(k) === path && !listed.has(k) && !pinned.current.has(k),
+                )
                 for (const k of keys)
                     if (gone.some((g) => k === g || k.startsWith(`${g}/`)))
                         dirFilesRef.map.delete(k)
@@ -129,41 +162,60 @@ export function useLazyDriveTree(
             includeGitignored,
         }),
     )
-    const agentFullQ = useAtomValue(
+    const homeFullQ = useAtomValue(
         mountFilesQueryFamily({
-            mountId: searchActive && agentMount ? agentMount.id : "",
+            mountId: searchActive && homeMount ? homeMount.id : "",
             includeGitignored,
         }),
     )
+    const driveFullAtom = useMemo(
+        () =>
+            atom((get) =>
+                drives.map((d) =>
+                    get(
+                        mountFilesQueryFamily({
+                            mountId: searchActive ? d.mount.id : "",
+                            includeGitignored,
+                        }),
+                    ),
+                ),
+            ),
+        [drives, searchActive, includeGitignored],
+    )
+    const driveFullQs = useAtomValue(driveFullAtom)
     const fullFiles = useMemo(() => {
         if (!searchActive) return null
-        const cwd = (cwdFullQ.data ?? []).filter((f) => cleanPath(f.path) !== AGENT_FILES_DIR)
-        const agent = (agentFullQ.data ?? []).map((f) => ({
+        const cwd = (cwdFullQ.data ?? []).filter(
+            (f) => cleanPath(f.path) !== AGENT_FILES_DIR && !resolveDrivePath(f.path, entries),
+        )
+        const home = (homeFullQ.data ?? []).map((f) => ({
             ...f,
             path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
         }))
-        return [...cwd, ...agent]
-    }, [searchActive, cwdFullQ.data, agentFullQ.data])
+        const others = drives.flatMap((d, i) => foldDriveFiles(d, driveFullQs[i]?.data ?? []))
+        return [...cwd, ...home, ...others, ...driveFolders(driveDirs)]
+    }, [searchActive, cwdFullQ.data, homeFullQ.data, drives, entries, driveDirs, driveFullQs])
 
     const lazyFiles = useMemo(() => {
         // dirVersion in deps: the ref mutates in place, so bump a version to recompute.
         void dirVersion
         const byPath = new Map<string, MountFile>()
-        for (const list of dirFilesRef.map.values()) for (const f of list) byPath.set(f.path, f)
+        for (const list of dirFilesRef.map.values())
+            for (const f of list) if (!isDriveLink(f.path, hiddenLinks)) byPath.set(f.path, f)
+        // Last, so the folder flag wins over the cwd's bare link entry of the same path.
+        for (const f of driveFolders(driveDirs)) byPath.set(f.path, f)
         return [...byPath.values()]
-    }, [dirFilesRef, dirVersion])
+    }, [dirFilesRef, dirVersion, driveDirs, hiddenLinks])
 
     // Always subscribe to the folded agent mount's ROOT, even while `agent-files` is collapsed — its
     // count/children can't come from the cwd mount (which sees an empty mount-point there), so without
-    // this the fold node shows a wrong "0 items" until it's expanded.
-    const agentMountId = agentMount?.id ?? null
-    const subscriberPaths = useMemo(
-        () =>
-            agentMountId && !activePaths.includes(AGENT_FILES_DIR)
-                ? [...activePaths, AGENT_FILES_DIR]
-                : activePaths,
-        [activePaths, agentMountId],
-    )
+    // this the fold node shows a wrong "0 items" until it's expanded. Each other drive's root too.
+    const homeMountId = homeMount?.id ?? null
+    const subscriberPaths = useMemo(() => {
+        const roots = [...(homeMountId ? [AGENT_FILES_DIR] : []), ...driveDirs]
+        const missing = roots.filter((p) => !activePaths.includes(p))
+        return missing.length ? [...activePaths, ...missing] : activePaths
+    }, [activePaths, homeMountId, driveDirs])
 
     const subscribers = useMemo(
         () =>
@@ -185,22 +237,43 @@ export function useLazyDriveTree(
         [subscriberPaths, drive, includeGitignored, onResult],
     )
 
+    // A level no mount backs (the root of a session that has only other drives, or `drives/`
+    // there) has nothing to fetch: its entries come from the drives folded under it.
     const loadedDirs = useMemo(() => {
         void dirVersion
-        return new Set(dirFilesRef.map.keys())
-    }, [dirFilesRef, dirVersion])
+        const loaded = new Set(dirFilesRef.map.keys())
+        for (const p of ["", ...subscriberPaths]) if (!drive.resolveMount(p)) loaded.add(p)
+        return loaded
+    }, [dirFilesRef, dirVersion, subscriberPaths, drive])
 
     return {
         files: searchActive ? (fullFiles ?? []) : lazyFiles,
         fetchingDirs,
         loadedDirs,
         rootLoading: !loadedDirs.has(""),
-        searchLoading: searchActive && (cwdFullQ.isFetching || agentFullQ.isFetching),
+        searchLoading:
+            searchActive &&
+            (cwdFullQ.isFetching || homeFullQ.isFetching || driveFullQs.some((q) => q.isFetching)),
         subscribers,
     }
 }
 
 // --- tiny state helpers (kept local so the hook reads top-down) --------------------------------
+
+const NO_DRIVES: NonNullable<SessionDriveData["otherDrives"]> = []
+const NO_ENTRIES: NonNullable<SessionDriveData["driveEntries"]> = []
+
+/** Drop every cached level at or under `dirs`; answers the dropped keys. */
+export const dropDirs = (map: Map<string, unknown>, dirs: readonly string[]): string[] => {
+    const dropped = [...map.keys()].filter((k) =>
+        dirs.some((d) => k === d || k.startsWith(`${d}/`)),
+    )
+    for (const k of dropped) map.delete(k)
+    return dropped
+}
+
+/** Each drive's folder, so an empty drive still shows at `drives/<slug>/`. */
+const driveFolders = (dirs: string[]): MountFile[] => dirs.map((path) => ({path, is_folder: true}))
 
 /** A monotonically-bumped version, to recompute memos off an in-place-mutated ref. */
 function useReducerVersion(): [number, () => void] {
