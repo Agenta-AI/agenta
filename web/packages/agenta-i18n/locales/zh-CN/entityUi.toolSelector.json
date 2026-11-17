@@ -17,7 +17,5 @@
     "runWorkflowAsTool": "将工作流作为工具运行",
     "hoverToBrowse": "将鼠标悬停在供应商或已连接的集成上以浏览工具。",
     "tool": "工具",
-    "addTool": "添加工具",
-    "subscriptionTag": "订阅",
-    "organizationTag": "组织"
+    "addTool": "添加工具"
 }

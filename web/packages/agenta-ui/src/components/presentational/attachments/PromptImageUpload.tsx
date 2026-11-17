@@ -23,6 +23,7 @@ import {useEffect, useMemo, useRef, useState} from "react"
 
 import {createT, richText, useT} from "@agenta/i18n"
 import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
+import uiChatActionsCatalog from "@agenta/i18n/catalogs/ui.chatActions"
 import {generateId} from "@agenta/shared/utils"
 import {Image as ImageIcon, MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -36,7 +37,7 @@ import ImagePreview from "./ImagePreview"
 import {usePromptFileUpload} from "./usePromptFileUpload"
 import {resolveSafeImagePreviewSrc} from "./utils"
 
-const tNow = createT(uiChatCatalog)
+const tNow = createT(uiChatCatalog, uiChatActionsCatalog)
 
 // ============================================================================
 // TYPES
@@ -99,7 +100,7 @@ const PromptImageUpload = ({
     handleUploadFileChange,
     imageFile,
 }: PromptImageUploadProps) => {
-    const t = useT(uiChatCatalog)
+    const t = useT(uiChatCatalog, uiChatActionsCatalog)
     const fileUploadRef = useRef(false)
 
     const [draftValue, setDraftValue] = useState<string | null>(null)
@@ -222,7 +223,7 @@ const PromptImageUpload = ({
                 ) : isValidPreview ? (
                     <ImagePreview
                         src={displayValue}
-                        alt={t("ui.chat.preview")}
+                        alt={t("ui.chatActions.preview")}
                         size={48}
                         isValidPreview={isValidPreview}
                     />

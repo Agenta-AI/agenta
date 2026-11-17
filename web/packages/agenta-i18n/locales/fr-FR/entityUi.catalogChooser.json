@@ -5,7 +5,6 @@
     "deprecated": "obsolète",
     "readOnly": "lecture seule",
     "connectedAt": "connecté {{when}}",
-    "connected": "Connecté",
     "pending": "En attente",
     "accountCount_one": "{{count}} compte",
     "accountCount_many": "{{count}} comptes",
@@ -35,6 +34,5 @@
     "noAppsMatch": "Aucune app ne correspond à « {{query}} ».",
     "clearSearch": "Effacer la recherche",
     "noAppsInCategory": "Aucune app dans {{category}} pour le moment.",
-    "noApps": "Aucune app trouvée.",
-    "connectionPending": "Connexion en attente : terminez ou réessayez la connexion"
+    "noApps": "Aucune app trouvée."
 }

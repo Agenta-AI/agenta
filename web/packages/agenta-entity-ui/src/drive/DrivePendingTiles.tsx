@@ -7,7 +7,7 @@
 import {type StagedTileItem} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {File as FileIcon, X} from "@phosphor-icons/react"
 
 /** The ONE grid tile for a pending item (staged or in-flight upload) — a real-file-tile look with a
@@ -35,7 +35,7 @@ const PendingTile = ({
     /** Remove/dismiss — a corner ✕: hover-revealed while staged, always visible on error. */
     onRemove?: () => void
 }) => {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveBrowserCatalog)
     return (
         // box-border is REQUIRED: the real file tiles are <button>s (border-box by UA default even with
         // preflight off), but this is a <div> (content-box) — without it the padding+border widen the box
@@ -62,7 +62,7 @@ const PendingTile = ({
                             onClick={onRetry}
                             className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-xs font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
                         >
-                            {t("entityUi.driveExplorer.retry")}
+                            {t("entityUi.driveBrowser.retry")}
                         </button>
                     ) : null}
                     {state === "uploading" && percent < 100 ? (
@@ -76,7 +76,7 @@ const PendingTile = ({
                     {onRemove ? (
                         <button
                             type="button"
-                            aria-label={t("entityUi.driveExplorer.removeName", {name})}
+                            aria-label={t("entityUi.driveBrowser.removeName", {name})}
                             onClick={onRemove}
                             className={`absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white hover:bg-[rgba(0,0,0,0.7)] ${
                                 state === "error"
@@ -111,7 +111,7 @@ export const UploadTile = ({
     onRetry?: (id: string) => void
     onDismiss?: (id: string) => void
 }) => {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveBrowserCatalog)
     return (
         <PendingTile
             name={item.name}
@@ -120,10 +120,10 @@ export const UploadTile = ({
             percent={item.percent}
             caption={
                 item.error
-                    ? t("entityUi.driveExplorer.uploadFailed")
+                    ? t("entityUi.driveBrowser.uploadFailed")
                     : item.percent >= 100
-                      ? t("entityUi.driveExplorer.uploaded")
-                      : t("entityUi.driveExplorer.uploadingPercent", {percent: item.percent})
+                      ? t("entityUi.driveBrowser.uploaded")
+                      : t("entityUi.driveBrowser.uploadingPercent", {percent: item.percent})
             }
             captionTone={item.error ? "error" : "muted"}
             onRetry={onRetry ? () => onRetry(item.id) : undefined}
@@ -141,13 +141,13 @@ export const StagedTile = ({
     item: StagedTileItem
     onRemove?: (id: string) => void
 }) => {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveBrowserCatalog)
     return (
         <PendingTile
             name={item.name}
             previewUrl={item.previewUrl}
             state="staged"
-            caption={t("entityUi.driveExplorer.readyToUpload")}
+            caption={t("entityUi.driveBrowser.readyToUpload")}
             onRemove={onRemove ? () => onRemove(item.id) : undefined}
         />
     )

@@ -18,7 +18,5 @@
     "runWorkflowAsTool": "Run a workflow as a tool",
     "hoverToBrowse": "Hover a provider or connected integration to browse tools.",
     "tool": "Tool",
-    "addTool": "Add a tool",
-    "subscriptionTag": "Subscription",
-    "organizationTag": "Organization"
+    "addTool": "Add a tool"
 }

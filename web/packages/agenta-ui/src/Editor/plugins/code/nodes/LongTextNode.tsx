@@ -8,7 +8,7 @@ import React, {type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useS
 
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
+import drillInButtonCatalog from "@agenta/i18n/catalogs/ui.drillInButton"
 import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
@@ -167,7 +167,7 @@ function useHoverOpen(enterDelayMs: number, leaveDelayMs: number) {
  * React component for rendering the long text content
  */
 function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: string}) {
-    const t = useT(uiEditorCatalog, uiDrillInCatalog, uiStatusCatalog, commonCatalog)
+    const t = useT(uiEditorCatalog, drillInButtonCatalog, uiStatusCatalog, commonCatalog)
     useLexicalComposerContext() // Ensure we're in a Lexical context
     const {enabled: drillInEnabled, decodeEscapedJsonStrings} = useDrillInContext()
     const [copied, setCopied] = useState(false)
@@ -282,7 +282,7 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
                     {drillInEnabled ? (
                         <Button size="sm" variant="default" onClick={handleAction}>
                             {<ArrowSquareOut size={14} />}
-                            {t("ui.drillIn.drillIn")}
+                            {t("ui.drillInButton.drillIn")}
                         </Button>
                     ) : (
                         <Button size="sm" variant="default" onClick={handleAction}>

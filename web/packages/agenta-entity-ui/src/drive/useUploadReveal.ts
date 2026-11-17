@@ -15,7 +15,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {isHiddenPath, nameOf} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
 import {createT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {message} from "@agenta/ui/app-message"
 
 /** How long a batch waits for its destination listing to settle before we rule on it, and the hard
@@ -32,12 +32,12 @@ const dirOf = (path: string) => {
 }
 
 // The toasts fire from effects and timers, outside render.
-const tNow = createT(driveExplorerCatalog)
+const tNow = createT(driveBrowserCatalog)
 
 const label = (paths: string[]) =>
     paths.length === 1
-        ? tNow("entityUi.driveExplorer.uploadedName", {name: nameOf(paths[0])})
-        : tNow("entityUi.driveExplorer.uploadedFiles", {number: paths.length})
+        ? tNow("entityUi.driveBrowser.uploadedName", {name: nameOf(paths[0])})
+        : tNow("entityUi.driveBrowser.uploadedFiles", {number: paths.length})
 
 /** One toasted group of uploads, watched until its files show up in the listing. */
 export interface UploadBatch {
@@ -129,7 +129,7 @@ export function useUploadReveal({
             type: "success",
             key,
             content: revealHidden
-                ? tNow("entityUi.driveExplorer.showingHiddenFiles", {label: label(paths)})
+                ? tNow("entityUi.driveBrowser.showingHiddenFiles", {label: label(paths)})
                 : label(paths),
         })
         setBatches((prev) => [...prev, {key, paths, at: Date.now(), sawFetch: false}])
@@ -169,7 +169,7 @@ export function useUploadReveal({
                 message.open({
                     type: "success",
                     key: batch.key,
-                    content: tNow("entityUi.driveExplorer.showingGitignoredFiles", {
+                    content: tNow("entityUi.driveBrowser.showingGitignoredFiles", {
                         label: label(batch.paths),
                     }),
                 })

@@ -5,7 +5,6 @@
     "deprecated": "veraltet",
     "readOnly": "schreibgeschützt",
     "connectedAt": "verbunden {{when}}",
-    "connected": "Verbunden",
     "pending": "Ausstehend",
     "accountCount_one": "{{count}} Konto",
     "accountCount_other": "{{count}} Konten",
@@ -34,6 +33,5 @@
     "noAppsMatch": "Keine App passt zu „{{query}}“.",
     "clearSearch": "Suche löschen",
     "noAppsInCategory": "Noch keine Apps in {{category}}.",
-    "noApps": "Keine Apps gefunden.",
-    "connectionPending": "Verbindung ausstehend: Schließen Sie die Verbindung ab oder versuchen Sie es erneut"
+    "noApps": "Keine Apps gefunden."
 }

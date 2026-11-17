@@ -13,6 +13,7 @@ import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
 import catalogChooserCatalog from "@agenta/i18n/catalogs/entityUi.catalogChooser"
+import catalogAppCardCatalog from "@agenta/i18n/catalogs/entityUi.catalogAppCard"
 import {ScrollSentinel} from "@agenta/ui"
 import {
     Button,
@@ -144,7 +145,7 @@ function CatalogItemList<I, T, C>({
     connection: C
     props: CatalogChooserProps<I, T, C>
 }) {
-    const t = useT(catalogChooserCatalog)
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const {items, isLoading, hasNextPage, isFetchingNextPage, requestMore, setSearch} =
         props.useItems(props.connection.integrationKey(connection))
     const [query, setQuery] = useState("")
@@ -291,7 +292,7 @@ function ConnectionDetail<I, T, C>({
     integration?: I
     props: CatalogChooserProps<I, T, C>
 }) {
-    const t = useT(catalogChooserCatalog)
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const ready = props.isConnectionReady(connection)
     const account = props.connection.name(connection) || props.connection.slug(connection) || ""
     const connectedAt = props.connection.connectedAt?.(connection) || ""
@@ -325,7 +326,7 @@ function ConnectionDetail<I, T, C>({
                     }`}
                 />
                 {ready
-                    ? t("entityUi.catalogChooser.connected")
+                    ? t("entityUi.catalogAppCard.connected")
                     : t("entityUi.catalogChooser.pending")}
             </span>
         </div>
@@ -350,7 +351,7 @@ function ConnectionSwitcher<I, T, C>({
     props: CatalogChooserProps<I, T, C>
     onSelect: (id: string) => void
 }) {
-    const t = useT(catalogChooserCatalog)
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const integrationName = integration
         ? props.integration.name(integration)
         : props.connection.integrationKey(selectedConn)
@@ -456,7 +457,7 @@ function AppRailItem({
     state?: "active" | "pending"
     onClick: () => void
 }) {
-    const t = useT(catalogChooserCatalog)
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     return (
         <button
             type="button"
@@ -517,7 +518,7 @@ function ConnectInvite<I, T, C>({
     props: CatalogChooserProps<I, T, C>
     onConnect: () => void
 }) {
-    const t = useT(catalogChooserCatalog)
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const name = integration ? props.integration.name(integration) : undefined
     const description = integration ? props.integration.description(integration) : undefined
     return (
@@ -606,7 +607,7 @@ function CatalogGridSkeleton() {
 }
 
 export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
-    const t = useT(catalogChooserCatalog)
+    const t = useT(catalogChooserCatalog, catalogAppCardCatalog)
     const {connections, defaultIntegrationKey, searchMinChars = 3} = props
     const {
         integrations,

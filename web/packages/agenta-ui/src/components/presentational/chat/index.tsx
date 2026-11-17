@@ -9,7 +9,7 @@
 import {useEffect, useRef, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
-import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
+import uiChatActionsCatalog from "@agenta/i18n/catalogs/ui.chatActions"
 import {ArrowDown} from "@phosphor-icons/react"
 
 // The tailwind-merge `cn`, NOT the clsx-only one in utils/styles: a caller's `classNames.content`
@@ -227,7 +227,7 @@ export const ChatJumpToLatest = ({
     onClick: () => void
     className?: string
 }) => {
-    const t = useT(uiChatCatalog)
+    const t = useT(uiChatActionsCatalog)
     const ref = useRef<HTMLButtonElement>(null)
     // `tabIndex={-1}` does not drop focus the element already has, so a button hidden while
     // focused would stay keyboard-reachable while `aria-hidden` — and Enter would still fire it.
@@ -245,7 +245,7 @@ export const ChatJumpToLatest = ({
             onClick={onClick}
             tabIndex={show ? 0 : -1}
             aria-hidden={!show}
-            aria-label={t("ui.chat.jumpToLatestMessage")}
+            aria-label={t("ui.chatActions.jumpToLatestMessage")}
             className={cn(
                 // `hover:bg-colorBgElevated` is load-bearing: the variant's hover fill is 4% white
                 // in dark mode, which would let streamed text read through the pill.
@@ -255,7 +255,7 @@ export const ChatJumpToLatest = ({
             )}
         >
             <ArrowDown size={11} className="!size-[11px]" />
-            {t("ui.chat.jumpToLatest")}
+            {t("ui.chatActions.jumpToLatest")}
         </Button>
     )
 }

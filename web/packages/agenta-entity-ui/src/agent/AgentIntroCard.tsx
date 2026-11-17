@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {createT, useT} from "@agenta/i18n"
-import agentOverviewCatalog from "@agenta/i18n/catalogs/entityUi.agentOverview"
+import agentIntroCatalog from "@agenta/i18n/catalogs/entityUi.agentIntro"
 import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -52,7 +52,7 @@ const agentSummary = (config: unknown): string | null => {
     return line.length > 140 ? `${line.slice(0, 140)}…` : line
 }
 
-const tNow = createT(agentOverviewCatalog)
+const tNow = createT(agentIntroCatalog)
 
 /** "2 tools · 1 skill", or null when the agent has neither. */
 export const capabilityLabel = (config: unknown): string | null => {
@@ -63,13 +63,13 @@ export const capabilityLabel = (config: unknown): string | null => {
         : 0
     const skills = Array.isArray(a?.skills) ? a!.skills!.length : 0
     if (tools && skills) {
-        return tNow("entityUi.agentOverview.toolsAndSkills", {
-            tools: tNow("entityUi.agentOverview.toolsCount", {count: tools}),
-            skills: tNow("entityUi.agentOverview.skillsCount", {count: skills}),
+        return tNow("entityUi.agentIntro.toolsAndSkills", {
+            tools: tNow("entityUi.agentIntro.toolsCount", {count: tools}),
+            skills: tNow("entityUi.agentIntro.skillsCount", {count: skills}),
         })
     }
-    if (tools) return tNow("entityUi.agentOverview.toolsCount", {count: tools})
-    if (skills) return tNow("entityUi.agentOverview.skillsCount", {count: skills})
+    if (tools) return tNow("entityUi.agentIntro.toolsCount", {count: tools})
+    if (skills) return tNow("entityUi.agentIntro.skillsCount", {count: skills})
     return null
 }
 
@@ -105,7 +105,7 @@ const Bot = ({size = 34, workflowId}: {size?: number; workflowId?: string | null
  * they both have and cannot disagree about the shape underneath.
  */
 export const AgentIntroCard = ({entityId, className}: {entityId: string; className?: string}) => {
-    const t = useT(agentOverviewCatalog)
+    const t = useT(agentIntroCatalog)
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
@@ -128,9 +128,9 @@ export const AgentIntroCard = ({entityId, className}: {entityId: string; classNa
                 <div className="min-w-0">
                     <span
                         className="block truncate text-sm font-medium text-colorText"
-                        title={name || t("entityUi.agentOverview.agent")}
+                        title={name || t("entityUi.agentIntro.agent")}
                     >
-                        {name || t("entityUi.agentOverview.agent")}
+                        {name || t("entityUi.agentIntro.agent")}
                     </span>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         {model ? (

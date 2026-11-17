@@ -3,6 +3,7 @@ import * as React from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {X} from "@phosphor-icons/react"
 import {ChevronDown, LoaderCircle} from "lucide-react"
 
@@ -182,8 +183,8 @@ export function TreeSelect({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: TreeSelectProps) {
-    const t = useT(uiControlsCatalog, commonCatalog)
-    const placeholder = placeholderProp ?? t("ui.controls.select")
+    const t = useT(uiControlsCatalog, listControlsCatalog, commonCatalog)
+    const placeholder = placeholderProp ?? t("ui.listControls.select")
     const emptyText = emptyTextProp ?? t("ui.controls.noData")
     const [open, setOpen] = React.useState(defaultOpen)
     const [query, setQuery] = React.useState("")

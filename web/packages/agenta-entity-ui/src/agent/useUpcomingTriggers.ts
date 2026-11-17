@@ -8,7 +8,7 @@ import {
     useTriggerSubscriptions,
 } from "@agenta/entities/gatewayTrigger"
 import {createT, formatDate, formatLocale} from "@agenta/i18n"
-import agentOverviewCatalog from "@agenta/i18n/catalogs/entityUi.agentOverview"
+import agentIntroCatalog from "@agenta/i18n/catalogs/entityUi.agentIntro"
 import {nowTickAtom} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
@@ -16,14 +16,14 @@ import {useAtomValue} from "jotai"
 const LIST_SIZE = 5
 
 // Rows are derived in a memo, which re-runs every minute on the shared clock.
-const tNow = createT(agentOverviewCatalog)
+const tNow = createT(agentIntroCatalog)
 
 /** `formatDay` renders in UTC; a next-run time is only meaningful in the reader's own day. */
 const formatNextRun = (at: Date) => {
     const run = dayjs(at)
     const days = run.startOf("day").diff(dayjs().startOf("day"), "day")
     if (days === 0) return run.format("HH:mm")
-    if (days === 1) return tNow("entityUi.agentOverview.tomorrowAt", {time: run.format("HH:mm")})
+    if (days === 1) return tNow("entityUi.agentIntro.tomorrowAt", {time: run.format("HH:mm")})
     // English keeps its exact format; other languages name the day and month in their own words.
     const time = {hour: "2-digit", minute: "2-digit", hourCycle: "h23"} as const
     if (days < 7) {
@@ -94,7 +94,7 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
             const boundId = triggerBoundAgentId(references as never)
             return (
                 (boundId && agentNames?.get(boundId)) ||
-                tNow("entityUi.agentOverview.unassignedAgent")
+                tNow("entityUi.agentIntro.unassignedAgent")
             )
         }
         const isInScope = (references: unknown) =>
@@ -146,7 +146,7 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
                     name:
                         subscription.name ||
                         eventKey ||
-                        tNow("entityUi.agentOverview.eventAutomation"),
+                        tNow("entityUi.agentIntro.eventAutomation"),
                     subtitle: agentId
                         ? subscription.name
                             ? eventKey
@@ -154,11 +154,11 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
                         : eventKey && subscription.name
                           ? `${agent} · ${eventKey}`
                           : agent,
-                    detail: tNow("entityUi.agentOverview.onEvent"),
+                    detail: tNow("entityUi.agentIntro.onEvent"),
                     at: null,
                     tooltip: eventKey
-                        ? tNow("entityUi.agentOverview.firesOn", {eventKey})
-                        : tNow("entityUi.agentOverview.firesWhenEventArrives"),
+                        ? tNow("entityUi.agentIntro.firesOn", {eventKey})
+                        : tNow("entityUi.agentIntro.firesWhenEventArrives"),
                 }
             })
 

@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 
 import {Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia} from "../ui/empty"
 
@@ -35,7 +35,7 @@ export const EmptyPlaceholder = ({
     secondaryCta,
     className,
 }: EmptyPlaceholderProps) => {
-    const t = useT(uiControlsCatalog)
+    const t = useT(listControlsCatalog)
     return (
         <Empty className={className}>
             <EmptyHeader>
@@ -59,7 +59,7 @@ export const EmptyPlaceholder = ({
                         {/* The separator only makes sense between two CTAs; a secondary-only state
                         used to render an orphaned "Or". */}
                         {primaryCta ? (
-                            <span className="text-colorText">{t("ui.controls.or")}</span>
+                            <span className="text-colorText">{t("ui.listControls.or")}</span>
                         ) : null}
                         <EnhancedButton
                             size={secondaryCta.size ?? "large"}

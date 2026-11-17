@@ -18,7 +18,7 @@ import {memo, type MouseEvent} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 
 import {Button, type ButtonProps} from "../../ui/button"
@@ -42,14 +42,14 @@ export interface RunButtonProps extends ButtonProps {
 // ============================================================================
 
 const MODE_LABEL_KEY = {
-    run: "ui.controls.run",
-    rerun: "ui.controls.rerun",
+    run: "ui.listControls.run",
+    rerun: "ui.listControls.rerun",
     cancel: "common.cancel",
-    runAll: "ui.controls.runAll",
+    runAll: "ui.listControls.runAll",
 } as const
 
 const RunButton = memo(({mode = "run", label, onTrackRun, ...props}: RunButtonProps) => {
-    const t = useT(uiControlsCatalog, commonCatalog)
+    const t = useT(listControlsCatalog, commonCatalog)
     const isCancel = mode === "cancel"
     const {onClick, ...restProps} = props
 

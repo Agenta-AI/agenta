@@ -8,7 +8,7 @@ import {type KeyboardEvent, type ReactNode} from "react"
 import {type DriveDrop} from "@agenta/entities/drive"
 import {type DriveTreePaneState} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {motion} from "motion/react"
 
 export function DriveTreePane({
@@ -39,7 +39,7 @@ export function DriveTreePane({
      * tree first). Pair with `useDriveTreePane({mirrored})` so the resize drag direction matches. */
     mirrored?: boolean
 }) {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveBrowserCatalog)
     const {
         paneW,
         innerW,
@@ -97,7 +97,7 @@ export function DriveTreePane({
                 <div
                     role="separator"
                     aria-orientation="vertical"
-                    aria-label={t("entityUi.driveExplorer.resizeFileTree")}
+                    aria-label={t("entityUi.driveBrowser.resizeFileTree")}
                     onPointerDown={onTreeHandleDown}
                     onPointerMove={onTreeHandleMove}
                     onPointerUp={onTreeHandleUp}

@@ -13,7 +13,6 @@
     "clearFilters": "Effacer les filtres",
     "filterByApp": "Filtrer par application",
     "allApps": "Toutes les applications",
-    "couldNotLoadPanel": "Impossible de charger ce panneau",
     "tooManyRequests": "Trop de requêtes.",
     "playgroundNoApp": "Cette trace n’a pas d’application, elle ne peut donc pas s’ouvrir dans le playground.",
     "playgroundSpanType": "Les spans de type « {{spanType}} » ne peuvent pas être rejoués dans le playground. Ouvrez plutôt le span parent de type workflow, task, agent ou chain."

@@ -7,7 +7,6 @@
     "copyTestcase": "Copier le cas de test",
     "createNewColumn": "+ Créer une colonne",
     "deleteField": "Supprimer le champ",
-    "drillIn": "Explorer",
     "emptyArray": "Tableau vide",
     "enterField": "Saisissez {{name}}...",
     "filterFields": "Filtrer les champs",

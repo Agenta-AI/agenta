@@ -7,6 +7,7 @@ import {type DriveScope} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {
     Button,
     Empty,
@@ -19,7 +20,7 @@ import {
 import {ArrowClockwise, CircleNotch, Tray, WarningCircle} from "@phosphor-icons/react"
 
 export function DriveErrorState({drive}: {drive: SessionDriveData}) {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     return (
         <Empty className="flex-1 gap-2 p-8">
             <EmptyHeader className="gap-1">
@@ -27,10 +28,10 @@ export function DriveErrorState({drive}: {drive: SessionDriveData}) {
                     <WarningCircle size={26} />
                 </EmptyMedia>
                 <EmptyTitle className="text-xs">
-                    {t("entityUi.driveExplorer.couldNotReachStore")}
+                    {t("entityUi.driveBrowser.couldNotReachStore")}
                 </EmptyTitle>
                 <EmptyDescription className="text-xs">
-                    {t("entityUi.driveExplorer.noStoreConfigured")}
+                    {t("entityUi.driveBrowser.noStoreConfigured")}
                 </EmptyDescription>
             </EmptyHeader>
             {drive.retry ? (
@@ -58,7 +59,7 @@ export function DriveErrorState({drive}: {drive: SessionDriveData}) {
 }
 
 export function DriveEmptyState({scope}: {scope: DriveScope}) {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     return (
         <Empty className="flex-1 gap-2 p-8">
             <EmptyHeader className="gap-1">
@@ -66,12 +67,12 @@ export function DriveEmptyState({scope}: {scope: DriveScope}) {
                     <Tray size={26} />
                 </EmptyMedia>
                 <EmptyTitle className="text-xs">
-                    {t("entityUi.driveExplorer.driveEmpty")}
+                    {t("entityUi.driveBrowser.driveEmpty")}
                 </EmptyTitle>
                 <EmptyDescription className="text-xs">
                     {scope === "session"
-                        ? t("entityUi.driveExplorer.createdOnFirstRun")
-                        : t("entityUi.driveExplorer.agentFilesLandHere")}
+                        ? t("entityUi.driveBrowser.createdOnFirstRun")
+                        : t("entityUi.driveBrowser.agentFilesLandHere")}
                 </EmptyDescription>
             </EmptyHeader>
         </Empty>

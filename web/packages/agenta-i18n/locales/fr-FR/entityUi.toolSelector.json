@@ -19,7 +19,5 @@
     "runWorkflowAsTool": "Exécuter un workflow comme outil",
     "hoverToBrowse": "Survolez un fournisseur ou une intégration connectée pour parcourir les outils.",
     "tool": "Outil",
-    "addTool": "Ajouter un outil",
-    "subscriptionTag": "Abonnement",
-    "organizationTag": "Organisation"
+    "addTool": "Ajouter un outil"
 }

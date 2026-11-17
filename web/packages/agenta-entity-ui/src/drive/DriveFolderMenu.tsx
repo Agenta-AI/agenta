@@ -7,6 +7,7 @@ import {type ComponentProps, type ReactElement, type ReactNode} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {
     ContextMenu,
     ContextMenuContent,
@@ -17,7 +18,7 @@ import {
 import {DownloadSimple, FilePlus, FolderPlus, LinkSimple, UploadSimple} from "@phosphor-icons/react"
 
 // The entries are built by a plain function that menus call while rendering.
-const tNow = createT(driveExplorerCatalog)
+const tNow = createT(driveExplorerCatalog, driveBrowserCatalog)
 
 /** A folder's write actions; absent on a read-only mount. */
 export interface DriveFolderActions {
@@ -61,14 +62,14 @@ export const driveFolderMenuEntries = ({
     {
         key: "new-folder",
         icon: <FolderPlus />,
-        label: tNow("entityUi.driveExplorer.newFolder"),
+        label: tNow("entityUi.driveBrowser.newFolder"),
         disabled: !actions,
         onSelect: actions?.onNewFolder,
     },
     {
         key: "new-file",
         icon: <FilePlus />,
-        label: tNow("entityUi.driveExplorer.newFile"),
+        label: tNow("entityUi.driveBrowser.newFile"),
         disabled: !actions,
         onSelect: actions?.onNewFile,
     },
@@ -76,8 +77,8 @@ export const driveFolderMenuEntries = ({
         key: "upload",
         icon: <UploadSimple />,
         label: actions?.stagedCount
-            ? tNow("entityUi.driveExplorer.uploadStagedHere", {count: actions.stagedCount})
-            : tNow("entityUi.driveExplorer.uploadFiles"),
+            ? tNow("entityUi.driveBrowser.uploadStagedHere", {count: actions.stagedCount})
+            : tNow("entityUi.driveBrowser.uploadFiles"),
         disabled: !actions,
         onSelect: actions?.onUpload,
     },
@@ -105,7 +106,7 @@ export const driveFolderMenuEntries = ({
         icon: <DownloadSimple />,
         label: downloadingAll
             ? tNow("entityUi.driveExplorer.preparingDownload")
-            : tNow("entityUi.driveExplorer.downloadAll"),
+            : tNow("entityUi.driveBrowser.downloadAll"),
         disabled: !onDownloadAll || Boolean(downloadingAll),
         onSelect: onDownloadAll,
         shortcut: ".zip",
@@ -139,7 +140,7 @@ export const DriveFolderContextMenu = ({
     children: ReactElement | ReactElement[]
 }) => {
     // The entries translate when built; this re-renders the menu when the language changes.
-    useT(driveExplorerCatalog)
+    useT(driveExplorerCatalog, driveBrowserCatalog)
     if (!menu) return <div {...wrapper}>{children}</div>
     return (
         <ContextMenu>

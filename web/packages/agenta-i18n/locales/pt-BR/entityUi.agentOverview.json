@@ -23,19 +23,5 @@
     "couldNotLoadAutomations": "Não foi possível carregar as automações.",
     "noAutomationsForAgent": "Ainda não há automações vinculadas a este agente.",
     "nothingScheduled": "Nada agendado. Dê uma automação a um agente e a próxima execução aparecerá aqui.",
-    "retry": "Tentar novamente",
-    "toolsCount_one": "{{count}} ferramenta",
-    "toolsCount_many": "{{count}} ferramentas",
-    "toolsCount_other": "{{count}} ferramentas",
-    "skillsCount_one": "{{count}} habilidade",
-    "skillsCount_many": "{{count}} habilidades",
-    "skillsCount_other": "{{count}} habilidades",
-    "toolsAndSkills": "{{tools}} · {{skills}}",
-    "agent": "Agente",
-    "tomorrowAt": "amanhã {{time}}",
-    "unassignedAgent": "Agente não atribuído",
-    "eventAutomation": "Automação por evento",
-    "onEvent": "por evento",
-    "firesOn": "Dispara em {{eventKey}}",
-    "firesWhenEventArrives": "Dispara quando o evento chega"
+    "retry": "Tentar novamente"
 }

@@ -13,7 +13,6 @@
     "clearFilters": "Clear filters",
     "filterByApp": "Filter by app",
     "allApps": "All apps",
-    "couldNotLoadPanel": "Couldn't load this panel",
     "tooManyRequests": "Too many requests.",
     "playgroundNoApp": "This trace has no app, so it cannot open in the playground.",
     "playgroundSpanType": "\"{{spanType}}\" spans can't be replayed in the playground. Open the parent workflow, task, agent, or chain span instead."

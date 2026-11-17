@@ -4,7 +4,7 @@ import {isHiddenPath, type DriveTreeNode} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {CaretDown, CaretRight, CircleNotch} from "@phosphor-icons/react"
 
 import {FOCUS_RING} from "./DriveFileRow"
@@ -54,7 +54,7 @@ export const TreeRow = ({
     onToggle: (path: string) => void
     onSelect: (path: string) => void
 }) => {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveBrowserCatalog)
     // Dot-prefixed (hidden) entries surface but dimmed, like a file browser greys .git/.claude.
     const hidden = isHiddenPath(node.path)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -109,8 +109,8 @@ export const TreeRow = ({
                         tabIndex={-1}
                         aria-label={
                             isOpen
-                                ? t("entityUi.driveExplorer.collapseFolder")
-                                : t("entityUi.driveExplorer.expandFolder")
+                                ? t("entityUi.driveBrowser.collapseFolder")
+                                : t("entityUi.driveBrowser.expandFolder")
                         }
                         onClick={(e) => {
                             e.stopPropagation()
@@ -153,7 +153,7 @@ export const TreeRow = ({
                     {pending?.error ? (
                         <span className="flex shrink-0 items-center gap-1.5 text-xs">
                             <span className="text-colorError">
-                                {t("entityUi.driveExplorer.failed")}
+                                {t("entityUi.driveBrowser.failed")}
                             </span>
                             {onRetryUpload ? (
                                 <button
@@ -164,7 +164,7 @@ export const TreeRow = ({
                                     }}
                                     className="cursor-pointer border-0 bg-transparent p-0 text-colorPrimary hover:underline"
                                 >
-                                    {t("entityUi.driveExplorer.retry")}
+                                    {t("entityUi.driveBrowser.retry")}
                                 </button>
                             ) : null}
                             {onDismissUpload ? (
@@ -176,7 +176,7 @@ export const TreeRow = ({
                                     }}
                                     className="cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary hover:underline"
                                 >
-                                    {t("entityUi.driveExplorer.dismiss")}
+                                    {t("entityUi.driveBrowser.dismiss")}
                                 </button>
                             ) : null}
                         </span>

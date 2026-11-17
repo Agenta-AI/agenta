@@ -13,7 +13,6 @@
     "clearFilters": "Borrar filtros",
     "filterByApp": "Filtrar por aplicación",
     "allApps": "Todas las aplicaciones",
-    "couldNotLoadPanel": "No se pudo cargar este panel",
     "tooManyRequests": "Demasiadas solicitudes.",
     "playgroundNoApp": "Esta traza no tiene aplicación, así que no se puede abrir en el playground.",
     "playgroundSpanType": "Los spans de tipo “{{spanType}}” no se pueden reproducir en el playground. Abre en su lugar el span padre de tipo workflow, task, agent o chain."

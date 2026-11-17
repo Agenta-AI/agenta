@@ -5,7 +5,6 @@
     "deprecated": "非推奨",
     "readOnly": "読み取り専用",
     "connectedAt": "{{when}} に接続",
-    "connected": "接続済み",
     "pending": "保留中",
     "accountCount_other": "{{count}} 個のアカウント",
     "account": "アカウント",
@@ -33,6 +32,5 @@
     "noAppsMatch": "「{{query}}」に一致するアプリはありません。",
     "clearSearch": "検索をクリア",
     "noAppsInCategory": "{{category}} にはまだアプリがありません。",
-    "noApps": "アプリが見つかりません。",
-    "connectionPending": "接続は保留中です。接続を完了するか、再試行してください"
+    "noApps": "アプリが見つかりません。"
 }

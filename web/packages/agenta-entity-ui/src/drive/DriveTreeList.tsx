@@ -12,7 +12,7 @@ import {type DriveDrop} from "@agenta/entities/drive"
 import {type DriveTreeViewport} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {motion} from "motion/react"
 
 import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemContextMenu"
@@ -88,14 +88,14 @@ export function DriveTreeList({
     /** Extra indent per row: 1 when the root row is shown. */
     depthOffset?: number
 }) {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveBrowserCatalog)
     return flatRows.length === 0 ? (
         <>
             {rootRow}
             <Text type="secondary" className="px-2 !text-xs">
                 {searchLoading
-                    ? t("entityUi.driveExplorer.searching")
-                    : t("entityUi.driveExplorer.noMatches")}
+                    ? t("entityUi.driveBrowser.searching")
+                    : t("entityUi.driveBrowser.noMatches")}
             </Text>
         </>
     ) : (

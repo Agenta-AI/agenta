@@ -7,7 +7,6 @@
     "copyTestcase": "テストケースをコピー",
     "createNewColumn": "+ 新しい列を作成",
     "deleteField": "フィールドを削除",
-    "drillIn": "詳細を表示",
     "emptyArray": "空の配列",
     "enterField": "{{name}}を入力…",
     "filterFields": "フィールドを絞り込み",

@@ -28,7 +28,7 @@
 import React, {useRef, useEffect} from "react"
 
 import {useT} from "@agenta/i18n"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
 import {cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
@@ -131,7 +131,7 @@ export function VirtualList<T>({
     className = "",
     getItemKey,
 }: VirtualListProps<T>) {
-    const t = useT(uiControlsCatalog)
+    const t = useT(listControlsCatalog)
     const parentRef = useRef<HTMLDivElement>(null)
     const loadMoreTriggeredRef = useRef(false)
 
@@ -242,7 +242,7 @@ export function VirtualList<T>({
                 <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-4")}>
                     <Spinner size="small" />
                     <span className={cn("ml-2", textColors.tertiary)}>
-                        {t("ui.controls.loadingMore")}
+                        {t("ui.listControls.loadingMore")}
                     </span>
                 </div>
             )}
@@ -277,7 +277,7 @@ export function SimpleList<T>({
     loadingMessage = "Loading...",
     className = "",
 }: SimpleListProps<T>) {
-    const t = useT(uiControlsCatalog)
+    const t = useT(listControlsCatalog)
     const containerStyle: React.CSSProperties = {
         maxHeight: typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight,
         overflowY: "auto",
@@ -307,7 +307,7 @@ export function SimpleList<T>({
                 <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-4")}>
                     <Spinner size="small" />
                     <span className={cn("ml-2", textColors.tertiary)}>
-                        {t("ui.controls.loadingMore")}
+                        {t("ui.listControls.loadingMore")}
                     </span>
                 </div>
             )}

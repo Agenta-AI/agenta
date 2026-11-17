@@ -23,7 +23,7 @@ import React from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {ChevronDown} from "lucide-react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
@@ -130,9 +130,9 @@ export function LoadMoreButton({
     className = "",
     block = true,
 }: LoadMoreButtonProps) {
-    const t = useT(uiControlsCatalog, commonCatalog)
+    const t = useT(listControlsCatalog, commonCatalog)
     const label = labelProp ?? t("common.loadMore")
-    const loadingLabel = loadingLabelProp ?? t("ui.controls.loadingDots")
+    const loadingLabel = loadingLabelProp ?? t("ui.listControls.loadingDots")
     // Use counts object if provided, otherwise fall back to individual props
     const hasMore = counts?.hasMore ?? hasMoreProp
     const totalCount = counts?.totalCount ?? totalCountProp
@@ -147,9 +147,9 @@ export function LoadMoreButton({
     const countString = counts?.displayLabel
         ? ` (${counts.displayLabel})`
         : showCount && loadedCount !== undefined && totalCount
-          ? ` ${t("ui.controls.loadedOfTotal", {loaded: loadedCount, total: totalCount})}`
+          ? ` ${t("ui.listControls.loadedOfTotal", {loaded: loadedCount, total: totalCount})}`
           : showCount && loadedCount !== undefined
-            ? ` ${t("ui.controls.loadedCount", {loaded: loadedCount})}`
+            ? ` ${t("ui.listControls.loadedCount", {loaded: loadedCount})}`
             : ""
 
     return (
@@ -190,7 +190,7 @@ export function LoadMoreInline({
     label: labelProp,
     className = "",
 }: LoadMoreInlineProps) {
-    const t = useT(uiControlsCatalog, commonCatalog)
+    const t = useT(listControlsCatalog, commonCatalog)
     const label = labelProp ?? t("common.loadMore")
     if (!hasMore && !isLoading) {
         return null
@@ -208,7 +208,7 @@ export function LoadMoreInline({
                     )}
                 >
                     <Spinner size="small" />
-                    {t("ui.controls.loadingDots")}
+                    {t("ui.listControls.loadingDots")}
                 </span>
             ) : (
                 <button
@@ -249,10 +249,10 @@ export interface EndOfListProps {
  * Indicator shown when all items have been loaded
  */
 export function EndOfList({message: messageProp, totalCount, className = ""}: EndOfListProps) {
-    const t = useT(uiControlsCatalog)
-    const message = messageProp ?? t("ui.controls.allItemsLoaded")
+    const t = useT(listControlsCatalog)
+    const message = messageProp ?? t("ui.listControls.allItemsLoaded")
     const displayMessage = totalCount
-        ? `${message} ${t("ui.controls.totalInParens", {total: totalCount})}`
+        ? `${message} ${t("ui.listControls.totalInParens", {total: totalCount})}`
         : message
 
     return (

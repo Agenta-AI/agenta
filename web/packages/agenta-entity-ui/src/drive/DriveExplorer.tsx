@@ -47,6 +47,7 @@ import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {projectIdAtom} from "@agenta/shared/state"
 import {InputAffix as Input} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
@@ -163,7 +164,7 @@ export function DriveExplorer({
     treePersistKey?: string
     closeVariant?: "close" | "collapse" | "back"
 }) {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveExplorerCatalog, driveBrowserCatalog)
     const chrome = chromeProp ?? onClose != null
     const rootLabel = driveRootLabel(drive.mount)
     const {
@@ -654,7 +655,7 @@ export function DriveExplorer({
                 path={selectedPath ?? ""}
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
-                note={tooLargeToEdit ? t("entityUi.driveExplorer.readOnlyTooLarge") : undefined}
+                note={tooLargeToEdit ? t("entityUi.driveBrowser.readOnlyTooLarge") : undefined}
                 appView={
                     htmlApp
                         ? {
@@ -676,7 +677,7 @@ export function DriveExplorer({
         const contentPane =
             selectedPath == null ? (
                 <div className="flex h-full flex-1 items-center justify-center text-xs text-colorTextTertiary">
-                    {t("entityUi.driveExplorer.selectFileToPreview")}
+                    {t("entityUi.driveBrowser.selectFileToPreview")}
                 </div>
             ) : selectedIsFolder ? (
                 <FolderView
@@ -785,7 +786,7 @@ export function DriveExplorer({
                                 size="sm"
                                 value={search}
                                 onValueChange={setSearch}
-                                placeholder={t("entityUi.driveExplorer.searchFiles")}
+                                placeholder={t("entityUi.driveBrowser.searchFiles")}
                                 className="w-full"
                                 prefix={
                                     <MagnifyingGlass

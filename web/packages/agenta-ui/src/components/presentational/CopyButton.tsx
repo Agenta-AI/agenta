@@ -24,7 +24,7 @@ import {memo, useState} from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
+import uiChatActionsCatalog from "@agenta/i18n/catalogs/ui.chatActions"
 import {Check, Copy} from "@phosphor-icons/react"
 
 import {message} from "../../utils/appMessageContext"
@@ -82,9 +82,9 @@ export const CopyButton = memo(function CopyButton({
     onCopy,
     ...props
 }: CopyButtonProps) {
-    const t = useT(uiChatCatalog, commonCatalog)
+    const t = useT(uiChatActionsCatalog, commonCatalog)
     const buttonText = buttonTextProp ?? t("common.copy")
-    const successMessage = successMessageProp ?? t("ui.chat.copiedBang")
+    const successMessage = successMessageProp ?? t("ui.chatActions.copiedBang")
     const [copied, setCopied] = useState(false)
 
     const handleClick = async (e: React.MouseEvent<HTMLElement>) => {

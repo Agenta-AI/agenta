@@ -17,7 +17,5 @@
     "runWorkflowAsTool": "ワークフローをツールとして実行",
     "hoverToBrowse": "プロバイダーまたは接続済みのインテグレーションにカーソルを合わせると、ツールを参照できます。",
     "tool": "ツール",
-    "addTool": "ツールを追加",
-    "subscriptionTag": "サブスクリプション",
-    "organizationTag": "組織"
+    "addTool": "ツールを追加"
 }

@@ -12,13 +12,13 @@
  */
 
 import {createT} from "@agenta/i18n"
-import toolSelectorCatalog from "@agenta/i18n/catalogs/entityUi.toolSelector"
+import toolTagsCatalog from "@agenta/i18n/catalogs/entityUi.toolTags"
 import {splitCuratedLabel} from "@agenta/shared/utils"
 import type {ProviderGroup, ProviderSection} from "@agenta/ui/select-llm-provider"
 
 import {modelRowKey, type PickerConnectionRow, type PickerModelRow} from "./connectionPicker"
 
-const t = createT(toolSelectorCatalog)
+const t = createT(toolTagsCatalog)
 
 /** The olive `Subscription` mark, which is the only thing that says a row is not a stored key. */
 export const SUBSCRIPTION_TAG = "Subscription"
@@ -103,9 +103,9 @@ export const buildPickerGroupsWithSections = (rows: PickerConnectionRow[]): Prov
             iconKey: row.iconKey,
             // The group has one tag slot: an organization subscription says whose it is there.
             ...(row.organization
-                ? {tag: t("entityUi.toolSelector.organizationTag")}
+                ? {tag: t("entityUi.toolTags.organizationTag")}
                 : row.kind === "subscription"
-                  ? {tag: t("entityUi.toolSelector.subscriptionTag"), tagTone: "olive" as const}
+                  ? {tag: t("entityUi.toolTags.subscriptionTag"), tagTone: "olive" as const}
                   : {}),
             // A row that cannot run anything says so under its name instead of disappearing.
             ...(row.disabled ? {disabled: true} : {}),

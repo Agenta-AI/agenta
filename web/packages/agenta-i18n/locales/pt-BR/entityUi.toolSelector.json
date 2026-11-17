@@ -19,7 +19,5 @@
     "runWorkflowAsTool": "Executar um fluxo de trabalho como ferramenta",
     "hoverToBrowse": "Passe o cursor sobre um provedor ou integração conectada para procurar ferramentas.",
     "tool": "Ferramenta",
-    "addTool": "Adicionar uma ferramenta",
-    "subscriptionTag": "Assinatura",
-    "organizationTag": "Organização"
+    "addTool": "Adicionar uma ferramenta"
 }

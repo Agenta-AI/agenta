@@ -8,7 +8,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {createT, useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import uiChatCatalog from "@agenta/i18n/catalogs/ui.chat"
+import uiChatActionsCatalog from "@agenta/i18n/catalogs/ui.chatActions"
 import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import uiStatusCatalog from "@agenta/i18n/catalogs/ui.status"
 import {FileArchive, FilePdf, FileText, Image as ImageIcon} from "@phosphor-icons/react"
@@ -26,7 +26,7 @@ import {Popover, PopoverAnchor, PopoverContent} from "../../../../components/ui/
 import {message} from "../../../../utils/appMessageContext"
 import {copyToClipboard} from "../../../../utils/copyToClipboard"
 
-const tNow = createT(uiEditorCatalog, commonCatalog, uiChatCatalog)
+const tNow = createT(uiEditorCatalog, commonCatalog, uiChatActionsCatalog)
 
 /** Regex to detect base64 data URLs */
 const BASE64_DATA_URL_REGEX = /^"?data:([^;]+);base64,([A-Za-z0-9+/=]{50,})"?$/
@@ -235,7 +235,7 @@ function Base64Component({
                 {isImage && dataUrl ? (
                     <img
                         src={dataUrl}
-                        alt={tNow("ui.chat.preview")}
+                        alt={tNow("ui.chatActions.preview")}
                         className="max-w-full max-h-[250px] rounded object-contain"
                     />
                 ) : isPdf && dataUrl ? (

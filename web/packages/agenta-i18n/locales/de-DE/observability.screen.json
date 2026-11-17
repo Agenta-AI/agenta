@@ -13,7 +13,6 @@
     "clearFilters": "Filter zurücksetzen",
     "filterByApp": "Nach App filtern",
     "allApps": "Alle Apps",
-    "couldNotLoadPanel": "Dieses Panel konnte nicht geladen werden",
     "tooManyRequests": "Zu viele Anfragen.",
     "playgroundNoApp": "Dieser Trace hat keine App und kann daher nicht im Playground geöffnet werden.",
     "playgroundSpanType": "Spans vom Typ „{{spanType}}“ können im Playground nicht erneut ausgeführt werden. Öffnen Sie stattdessen den übergeordneten Workflow-, Task-, Agent- oder Chain-Span."

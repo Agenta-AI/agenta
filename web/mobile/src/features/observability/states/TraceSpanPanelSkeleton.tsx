@@ -1,5 +1,5 @@
 import {useT} from "@agenta/i18n"
-import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
+import panelErrorCatalog from "@agenta/i18n/catalogs/observability.panelError"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import type {DynamicOptionsLoadingProps} from "next/dynamic"
@@ -9,10 +9,10 @@ import type {DynamicOptionsLoadingProps} from "next/dynamic"
  * to load, it offers a retry instead of loading forever.
  */
 export const TraceSpanPanelSkeleton = ({error, retry}: DynamicOptionsLoadingProps) => {
-    const t = useT(screenCatalog)
+    const t = useT(panelErrorCatalog)
     return error ? (
         <LoadError
-            title={t("observability.screen.couldNotLoadPanel")}
+            title={t("observability.panelError.couldNotLoadPanel")}
             onRetry={retry}
             className="py-6"
         />

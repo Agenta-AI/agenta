@@ -13,7 +13,7 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 import {type DriveId} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {createT} from "@agenta/i18n"
-import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
+import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {clearQuoteReveal, getQuotes, useQuoteReveal} from "@agenta/ui/quote-selection"
 import {atom, useAtom, useAtomValue} from "jotai"
@@ -43,7 +43,7 @@ export const sessionFilesPaneOpenAtomFamily = atomFamily((_scope: string) => ato
 const openedReveals = new Map<string, number>()
 
 // The id labels are built in a memo; they read the language when it runs.
-const tNow = createT(driveRailCatalog)
+const tNow = createT(filesPaneCatalog)
 
 /** The pane's open/close/toggle — one hook so the splitter host, the session bar toggle, and
  * every opener (config Files section, context rail, inspector) drive the SAME state. */
@@ -136,14 +136,14 @@ export function SessionFilesPane({
                       drive.mount?.id
                           ? {
                                 key: "mount",
-                                label: tNow("entityUi.driveRail.driveId"),
+                                label: tNow("entityUi.filesPane.driveId"),
                                 value: drive.mount.id,
                             }
                           : null,
                       sessionId
                           ? {
                                 key: "owner",
-                                label: tNow("entityUi.driveRail.sessionId"),
+                                label: tNow("entityUi.filesPane.sessionId"),
                                 value: sessionId,
                             }
                           : null,

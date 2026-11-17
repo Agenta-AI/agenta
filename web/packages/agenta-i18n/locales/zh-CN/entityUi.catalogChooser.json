@@ -5,7 +5,6 @@
     "deprecated": "已弃用",
     "readOnly": "只读",
     "connectedAt": "连接于 {{when}}",
-    "connected": "已连接",
     "pending": "待处理",
     "accountCount_other": "{{count}} 个账号",
     "account": "账号",
@@ -33,6 +32,5 @@
     "noAppsMatch": "没有与“{{query}}”匹配的应用。",
     "clearSearch": "清除搜索",
     "noAppsInCategory": "{{category}} 中还没有应用。",
-    "noApps": "未找到应用。",
-    "connectionPending": "连接待处理。请完成或重试连接"
+    "noApps": "未找到应用。"
 }

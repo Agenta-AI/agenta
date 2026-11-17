@@ -8,6 +8,7 @@ import type {ComponentType, ReactNode} from "react"
 import {readMcpConnectionSlug} from "@agenta/entities/mcpEndpoint"
 import {createT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import itemDescriptorsCatalog from "@agenta/i18n/catalogs/entityUi.itemDescriptors"
 import {Compass, HardDrives, Wrench} from "@phosphor-icons/react"
 
 import {McpServerFormView} from "../McpServerFormView"
@@ -28,7 +29,7 @@ import {
     type ItemDescriptor,
 } from "./itemDescriptors"
 
-const t = createT(configItemsCatalog)
+const t = createT(configItemsCatalog, itemDescriptorsCatalog)
 
 export type ItemKind = "tool" | "mcp" | "skill"
 
@@ -162,7 +163,7 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         drawerWidth: () => 760,
         drawerTitle: (draft) =>
             isEmbedRefSkill(draft)
-                ? t("entityUi.configItems.skillReference")
+                ? t("entityUi.itemDescriptors.skillReference")
                 : String(draft.name ?? "").trim() || t("entityUi.configItems.newSkill"),
         jsonOnly: (draft) => isEmbedRefSkill(draft),
         isReadOnly: (item) => isStaticSkill(item),

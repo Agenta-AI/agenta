@@ -10,7 +10,7 @@ import {
 } from "@agenta/entities/workflow"
 import {useCreateAgent, type CreatedAgent} from "@agenta/home-ui"
 import {createT} from "@agenta/i18n"
-import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
+import agentsNewAgentErrors from "@agenta/i18n/catalogs/agents.newAgentErrors"
 import {projectIdAtom} from "@agenta/shared/state"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import type {FileUIPart} from "ai"
@@ -32,7 +32,7 @@ import {agentHandoffPath, isSeededCreate} from "./agentHandoff"
  * A template create loads its package and starts the first session on the server. Ordinary
  * creation keeps the pending-task handoff used by the chat screen.
  */
-const tNow = createT(agentsFirstRun)
+const tNow = createT(agentsNewAgentErrors)
 
 export const useNewAgentAction = (base: string) => {
     const router = useRouter()
@@ -76,7 +76,7 @@ export const useNewAgentAction = (base: string) => {
             // A template create whose key the catalogue cannot resolve (not loaded, or gone) must
             // not fall through to a blank agent under the template's name.
             if (params?.templateKey && !template) {
-                setError(tNow("agents.firstRun.templateRetry"))
+                setError(tNow("agents.newAgentErrors.templateRetry"))
                 return false
             }
             setCreating(true)
@@ -137,7 +137,7 @@ export const useNewAgentAction = (base: string) => {
                 // The agent exists; only the navigation failed. Release the latch, or the button
                 // stays dead for the rest of the mount.
                 if (seeded && !created.sessionId) dropTask(sessionId)
-                setError(tNow("agents.firstRun.openFailed"))
+                setError(tNow("agents.newAgentErrors.openFailed"))
                 setCreating(false)
                 return false
             }

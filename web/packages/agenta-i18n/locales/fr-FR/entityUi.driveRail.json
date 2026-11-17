@@ -1,9 +1,4 @@
 {
-    "showFiles": "Afficher les fichiers",
-    "hideFiles": "Masquer les fichiers",
-    "showFilesPane": "Afficher le volet des fichiers",
-    "hideFilesPane": "Masquer le volet des fichiers",
-    "openConversationToBrowse": "Ouvrez une conversation pour parcourir les fichiers.",
     "someFilesFailedRetry": "Certains fichiers n’ont pas pu être chargés ; ouvrez pour réessayer",
     "filesInConversation_one": "{{count}} fichier dans cette conversation",
     "filesInConversation_many": "{{count}} fichiers dans cette conversation",
@@ -26,8 +21,6 @@
     "noConversationYet": "Aucune conversation ouverte pour l’instant ; les fichiers de travail de l’agent apparaîtront ici dès qu’un chat commencera.",
     "noChangesBrowseAll": "Aucune modification dans cette conversation pour l’instant ; ouvrez Fichiers pour parcourir les {{total}}.",
     "noFilesYetFirstRun": "Aucun fichier pour l’instant ; l’agent reçoit son dossier de travail lors de la première exécution.",
-    "driveId": "ID du lecteur",
-    "sessionId": "ID de session",
     "noFiles": "Aucun fichier",
     "filesCount_one": "{{count}} fichier",
     "filesCount_many": "{{count}} fichiers",

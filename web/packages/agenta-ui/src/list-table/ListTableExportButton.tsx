@@ -1,5 +1,5 @@
 import {useT} from "@agenta/i18n"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {Download} from "lucide-react"
 
 import {Button} from "../components/ui/button"
@@ -25,8 +25,8 @@ export const ListTableExportButton = <Row,>({
     label?: string
     className?: string
 }) => {
-    const t = useT(uiControlsCatalog)
-    const label = labelProp ?? t("ui.controls.exportCsv")
+    const t = useT(listControlsCatalog)
+    const label = labelProp ?? t("ui.listControls.exportCsv")
     return (
         <Button
             type="button"

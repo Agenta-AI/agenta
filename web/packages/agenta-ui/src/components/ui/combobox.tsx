@@ -2,7 +2,7 @@ import * as React from "react"
 
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {X} from "@phosphor-icons/react"
 import {ChevronDown, LoaderCircle} from "lucide-react"
 
@@ -108,9 +108,9 @@ export function Combobox({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: ComboboxProps) {
-    const t = useT(uiControlsCatalog, commonCatalog)
-    const placeholder = placeholderProp ?? t("ui.controls.select")
-    const emptyText = emptyTextProp ?? t("ui.controls.noResults")
+    const t = useT(listControlsCatalog, commonCatalog)
+    const placeholder = placeholderProp ?? t("ui.listControls.select")
+    const emptyText = emptyTextProp ?? t("ui.listControls.noResults")
     const [open, setOpen] = React.useState(defaultOpen)
     const [query, setQuery] = React.useState("")
     const [activeIndex, setActiveIndex] = React.useState(0)
@@ -335,7 +335,7 @@ export function Combobox({
                 container={container}
                 // The popup is the listbox; name the Radix Popover dialog wrapper so it isn't an
                 // unnamed dialog, and stop it stealing focus from the input (activedescendant pattern).
-                aria-label={ariaLabel ?? t("ui.controls.suggestions")}
+                aria-label={ariaLabel ?? t("ui.listControls.suggestions")}
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onCloseAutoFocus={(e) => e.preventDefault()}
                 className={cn(
@@ -347,7 +347,7 @@ export function Combobox({
                     id={listId}
                     ref={listRef}
                     role="listbox"
-                    aria-label={ariaLabel ?? t("ui.controls.suggestions")}
+                    aria-label={ariaLabel ?? t("ui.listControls.suggestions")}
                     className="max-h-[300px] overflow-y-auto"
                 >
                     {items.length === 0 ? (

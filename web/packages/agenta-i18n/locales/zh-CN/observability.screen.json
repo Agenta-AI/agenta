@@ -13,7 +13,6 @@
     "clearFilters": "清除筛选",
     "filterByApp": "按应用筛选",
     "allApps": "所有应用",
-    "couldNotLoadPanel": "无法加载此面板",
     "tooManyRequests": "请求过多。",
     "playgroundNoApp": "此追踪没有关联应用，因此无法在调试台中打开。",
     "playgroundSpanType": "无法在调试台中重放“{{spanType}}”类型的 Span。请改为打开其父级工作流、任务、Agent 或链 Span。"

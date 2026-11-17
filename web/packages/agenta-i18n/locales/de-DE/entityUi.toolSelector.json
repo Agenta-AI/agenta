@@ -18,7 +18,5 @@
     "runWorkflowAsTool": "Einen Workflow als Werkzeug ausführen",
     "hoverToBrowse": "Bewegen Sie den Mauszeiger über einen Anbieter oder eine verbundene Integration, um Werkzeuge zu durchsuchen.",
     "tool": "Werkzeug",
-    "addTool": "Werkzeug hinzufügen",
-    "subscriptionTag": "Abonnement",
-    "organizationTag": "Organisation"
+    "addTool": "Werkzeug hinzufügen"
 }

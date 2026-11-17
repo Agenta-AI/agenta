@@ -15,6 +15,7 @@ import {driveHasMixedOrigins, useSessionDriveSummary} from "@agenta/entities/dri
 import {isSessionFresh} from "@agenta/entities/session"
 import {useT} from "@agenta/i18n"
 import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
+import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {Tag} from "@agenta/ui/components/presentational"
 import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
@@ -81,7 +82,7 @@ export function ContextRail({
      * disable drop-to-stage. */
     onStageFiles?: (files: DroppedFile[]) => void
 }) {
-    const t = useT(driveRailCatalog)
+    const t = useT(driveRailCatalog, filesPaneCatalog)
     const [open, setOpen] = useAtom(contextRailOpenAtom)
     // Drop-to-stage: a file drag over the rail (strip or expanded) opens the drawer with the files
     // staged, so the destination is chosen there (recents has no folder of its own).
@@ -122,12 +123,12 @@ export function ContextRail({
                             setOpen(true)
                         }
                     }}
-                    aria-label={t("entityUi.driveRail.showFiles")}
+                    aria-label={t("entityUi.filesPane.showFiles")}
                     className={`group flex h-full cursor-pointer flex-col items-center gap-2.5 border-0 border-l border-solid pt-3 transition-colors hover:bg-[var(--ag-colorFillTertiary)] ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
                     style={{width: STRIP_WIDTH, borderColor: BORDER}}
                     {...stageDropProps}
                 >
-                    <Tooltip title={t("entityUi.driveRail.showFiles")} side="left">
+                    <Tooltip title={t("entityUi.filesPane.showFiles")} side="left">
                         <span className="flex h-7 w-7 items-center justify-center rounded text-colorTextSecondary transition-colors group-hover:text-colorText">
                             <Sidebar size={15} />
                         </span>
@@ -205,7 +206,7 @@ const ExpandedRail = ({
     dropProps?: FileDropProps
     dropActive?: boolean
 }) => {
-    const t = useT(driveRailCatalog)
+    const t = useT(driveRailCatalog, filesPaneCatalog)
     const now = useRecentChangeClock(drive.lastTouchedAt)
     const showOrigin = driveHasMixedOrigins(drive.recents)
     const copyPath = useCopyDrivePath()

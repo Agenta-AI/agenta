@@ -13,7 +13,7 @@ import {AGENT_FILES_DIR, cleanPath, type DroppedFile} from "@agenta/entities/dri
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {drivePathFromToolPath} from "@agenta/entities/session"
 import {createT} from "@agenta/i18n"
-import driveRailCatalog from "@agenta/i18n/catalogs/entityUi.driveRail"
+import filesPaneCatalog from "@agenta/i18n/catalogs/entityUi.filesPane"
 import {atom, useAtom} from "jotai"
 import {atomFamily} from "jotai-family"
 
@@ -38,7 +38,7 @@ export const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
 
 // The id labels are built in a memo; they read the language when it runs.
-const tNow = createT(driveRailCatalog)
+const tNow = createT(filesPaneCatalog)
 
 /**
  * The presented drive path a quick-look request selects by. Openers pass whatever they hold: a drive
@@ -105,12 +105,12 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
                 drive.mount?.id
                     ? {
                           key: "mount",
-                          label: tNow("entityUi.driveRail.driveId"),
+                          label: tNow("entityUi.filesPane.driveId"),
                           value: drive.mount.id,
                       }
                     : null,
                 sessionId
-                    ? {key: "owner", label: tNow("entityUi.driveRail.sessionId"), value: sessionId}
+                    ? {key: "owner", label: tNow("entityUi.filesPane.sessionId"), value: sessionId}
                     : null,
             ].filter(Boolean) as DriveId[],
         [drive.mount?.id, sessionId],

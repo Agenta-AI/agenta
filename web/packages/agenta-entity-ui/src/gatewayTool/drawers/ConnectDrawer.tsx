@@ -8,7 +8,7 @@ import {
     useToolConnectionsQuery,
 } from "@agenta/entities/gatewayTool"
 import {useT} from "@agenta/i18n"
-import toolConnectionsCatalog from "@agenta/i18n/catalogs/entityUi.toolConnections"
+import connectFormCatalog from "@agenta/i18n/catalogs/entityUi.connectForm"
 import type {OwnerKind} from "@agenta/shared/types"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
@@ -83,7 +83,7 @@ export default function ConnectDrawer({
     // The allowed owners can change while the dialog is open (the switch was still loading):
     // a choice that is no longer allowed falls back to the first allowed owner.
     const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
-    const t = useT(toolConnectionsCatalog)
+    const t = useT(connectFormCatalog)
     const [loading, setLoading] = useState(false)
     /** A failed create said NOTHING before — the spinner just stopped, indistinguishable from
      * a popup that never came. The server's refusal must reach the person who clicked. */
@@ -205,15 +205,15 @@ export default function ConnectDrawer({
     const ownerOptions: OwnerOption<Exclude<OwnerKind, "organization">>[] = [
         {
             value: "user",
-            label: t("entityUi.toolConnections.onlyMe"),
-            note: t("entityUi.toolConnections.onlyMeNote", {name: integrationName}),
+            label: t("entityUi.connectForm.onlyMe"),
+            note: t("entityUi.connectForm.onlyMeNote", {name: integrationName}),
         },
         {
             value: "project",
             label: projectName
-                ? t("entityUi.toolConnections.everyoneInProject", {project: projectName})
-                : t("entityUi.toolConnections.everyoneInThisProject"),
-            note: t("entityUi.toolConnections.everyoneNote"),
+                ? t("entityUi.connectForm.everyoneInProject", {project: projectName})
+                : t("entityUi.connectForm.everyoneInThisProject"),
+            note: t("entityUi.connectForm.everyoneNote"),
         },
     ]
 
@@ -249,7 +249,7 @@ export default function ConnectDrawer({
             <ModalContent>
                 <div className="flex flex-col gap-1">
                     <span className="text-base font-medium leading-snug text-foreground">
-                        {t("entityUi.toolConnections.connectName", {name: integrationName})}
+                        {t("entityUi.connectForm.connectName", {name: integrationName})}
                     </span>
                     {integrationDescription && (
                         <span className="text-sm text-colorTextDescription line-clamp-2">
@@ -261,12 +261,12 @@ export default function ConnectDrawer({
                 {/* Form (explicitly controlled — no antd Form) */}
                 <div className="flex flex-col gap-4">
                     <Field
-                        label={t("entityUi.toolConnections.name")}
-                        error={nameMissing ? t("entityUi.toolConnections.required") : null}
+                        label={t("entityUi.connectForm.name")}
+                        error={nameMissing ? t("entityUi.connectForm.required") : null}
                     >
                         <Input
                             autoFocus
-                            placeholder={t("entityUi.toolConnections.namePlaceholder", {
+                            placeholder={t("entityUi.connectForm.namePlaceholder", {
                                 name: integrationName,
                             })}
                             value={name}
@@ -280,7 +280,7 @@ export default function ConnectDrawer({
                     </Field>
 
                     {owners && owners.length > 1 ? (
-                        <Field label={t("entityUi.toolConnections.whoCanUseIt")}>
+                        <Field label={t("entityUi.connectForm.whoCanUseIt")}>
                             <OwnerRadioGroup
                                 value={owner}
                                 options={ownerOptions.filter((option) =>
@@ -292,7 +292,7 @@ export default function ConnectDrawer({
                     ) : null}
 
                     {availableModes.length > 1 && (
-                        <Field label={t("entityUi.toolConnections.authMethod")}>
+                        <Field label={t("entityUi.connectForm.authMethod")}>
                             <Select
                                 value={selectedMode}
                                 onValueChange={(v) => setSelectedMode(v as AuthMode)}
@@ -305,7 +305,7 @@ export default function ConnectDrawer({
                                         <SelectItem key={m} value={m}>
                                             {m === "oauth"
                                                 ? "OAuth"
-                                                : t("entityUi.toolConnections.apiKey")}
+                                                : t("entityUi.connectForm.apiKey")}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -316,14 +316,14 @@ export default function ConnectDrawer({
 
                 {submitFailed ? (
                     <p className="m-0 text-xs leading-snug text-[var(--ag-colorError)]">
-                        {t("entityUi.toolConnections.submitFailed")}
+                        {t("entityUi.connectForm.submitFailed")}
                     </p>
                 ) : null}
 
                 <ModalFooter
                     onCancel={handleClose}
                     onConfirm={handleSubmit}
-                    confirmLabel={t("entityUi.toolConnections.connect")}
+                    confirmLabel={t("entityUi.connectForm.connect")}
                     isLoading={loading}
                 />
             </ModalContent>

@@ -18,7 +18,7 @@
 import {memo} from "react"
 
 import {useT} from "@agenta/i18n"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 
 import {cn, textColors} from "../../../utils/styles"
 import {Field} from "../../ui/field"
@@ -71,15 +71,15 @@ export const CommitMessageInput = memo(function CommitMessageInput({
     className,
     fill = false,
 }: CommitMessageInputProps) {
-    const t = useT(uiControlsCatalog)
-    const placeholder = placeholderProp ?? t("ui.controls.commitPlaceholder")
+    const t = useT(listControlsCatalog)
+    const placeholder = placeholderProp ?? t("ui.listControls.commitPlaceholder")
     const labelNode = (
         <>
             {label}
             {showOptional && (
                 <>
                     {" "}
-                    <span className={textColors.quaternary}>{t("ui.controls.optionalSuffix")}</span>
+                    <span className={textColors.quaternary}>{t("ui.listControls.optionalSuffix")}</span>
                 </>
             )}
         </>

@@ -5,7 +5,7 @@
 import {type KeyboardEvent, useEffect, useRef, useState} from "react"
 
 import {useT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
+import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
 import {message} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
 
@@ -32,7 +32,7 @@ export const DriveNameField = ({
     onCancel,
     className,
 }: DriveNameFieldProps) => {
-    const t = useT(driveExplorerCatalog)
+    const t = useT(driveBrowserCatalog)
     const [value, setValue] = useState(initial)
     const [busy, setBusy] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
@@ -85,7 +85,7 @@ export const DriveNameField = ({
             size="sm"
             value={value}
             disabled={busy}
-            aria-label={t("entityUi.driveExplorer.name")}
+            aria-label={t("entityUi.driveBrowser.name")}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={onKeyDown}
             onBlur={() => void commit()}

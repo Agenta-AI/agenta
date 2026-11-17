@@ -1,9 +1,4 @@
 {
-    "showFiles": "Mostrar archivos",
-    "hideFiles": "Ocultar archivos",
-    "showFilesPane": "Mostrar el panel de archivos",
-    "hideFilesPane": "Ocultar el panel de archivos",
-    "openConversationToBrowse": "Abre una conversación para explorar los archivos.",
     "someFilesFailedRetry": "No se han podido cargar algunos archivos; ábrelo para reintentarlo",
     "filesInConversation_one": "{{count}} archivo en esta conversación",
     "filesInConversation_many": "{{count}} archivos en esta conversación",
@@ -26,8 +21,6 @@
     "noConversationYet": "Aún no hay ninguna conversación abierta; los archivos de trabajo del agente aparecerán aquí cuando empiece un chat.",
     "noChangesBrowseAll": "Aún no hay cambios en esta conversación; abre Archivos para explorar los {{total}}.",
     "noFilesYetFirstRun": "Aún no hay archivos; el agente obtiene su carpeta de trabajo en la primera ejecución.",
-    "driveId": "ID de la unidad",
-    "sessionId": "ID de la sesión",
     "noFiles": "Sin archivos",
     "filesCount_one": "{{count}} archivo",
     "filesCount_many": "{{count}} archivos",

@@ -1,5 +1,5 @@
 import {useT} from "@agenta/i18n"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {Columns3} from "lucide-react"
 
 import {Button} from "../components/ui/button"
@@ -39,7 +39,7 @@ export const ListTableColumnsMenu = ({
     label?: string
     className?: string
 }) => {
-    const t = useT(uiControlsCatalog)
+    const t = useT(listControlsCatalog)
     const hideable = columns.filter(isColumnHideable)
     if (hideable.length < minColumns) return null
     const visibleCount = hideable.filter((column) => !hiddenKeys.has(column.key)).length
@@ -57,7 +57,7 @@ export const ListTableColumnsMenu = ({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-                <DropdownMenuLabel>{t("ui.controls.showColumns")}</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("ui.listControls.showColumns")}</DropdownMenuLabel>
                 {hideable.map((column) => {
                     const visible = !hiddenKeys.has(column.key)
                     return (

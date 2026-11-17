@@ -5,6 +5,7 @@ import {type CSSProperties, type ReactNode, useMemo} from "react"
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {createT, useT} from "@agenta/i18n"
 import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import itemDescriptorsCatalog from "@agenta/i18n/catalogs/entityUi.itemDescriptors"
 import {humanizeActionKey} from "@agenta/shared/utils"
 
 import {ProviderLogo} from "../sectionGroups"
@@ -19,7 +20,7 @@ import {
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemRow, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
 
-const tNow = createT(configItemsCatalog)
+const tNow = createT(configItemsCatalog, itemDescriptorsCatalog)
 
 /** Per-tool draft/validation status, keyed by the tool's index in the flat `tools` array. */
 type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
@@ -77,7 +78,7 @@ function IntegrationListRow({
     disabled?: boolean
     statusFor?: ToolStatusFor
 }) {
-    const t = useT(configItemsCatalog)
+    const t = useT(configItemsCatalog, itemDescriptorsCatalog)
     // Selected-integration metadata must not come from the searchable browse query: typing in the
     // open catalog changes that query's pages and would make existing rows lose their logos.
     const {integration} = useToolIntegrationDetail(row.integration)
@@ -99,7 +100,7 @@ function IntegrationListRow({
                 color: "transparent",
                 icon: <ProviderLogo logo={integration?.logo ?? null} size={20} />,
                 tags: row.legacyIndices.length > 0 ? [t("entityUi.configItems.oldFormatTag")] : [],
-                typeLabel: t("entityUi.configItems.integrationType"),
+                typeLabel: t("entityUi.itemDescriptors.integrationType"),
                 subtitle: t("entityUi.configItems.integrationRowSubtitle", {
                     integration: row.integration,
                 }),
@@ -139,7 +140,7 @@ export function ToolManagementList({
     onRemoveIntegration,
     statusFor,
 }: ToolManagementListProps) {
-    const t = useT(configItemsCatalog)
+    const t = useT(configItemsCatalog, itemDescriptorsCatalog)
     if (integrationRows.length === 0) {
         if (disabled) return null
         return <EmptyLine label={t("entityUi.configItems.noIntegrationsYet")} />
@@ -233,7 +234,7 @@ export function SubagentList({
     disabled,
     statusFor,
 }: SubagentListProps) {
-    const t = useT(configItemsCatalog)
+    const t = useT(configItemsCatalog, itemDescriptorsCatalog)
     const keys = subagentKeys(entries)
 
     if (entries.length === 0) {

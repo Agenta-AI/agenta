@@ -3,6 +3,7 @@ import {useEffect, useMemo, useRef, useState} from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {Group} from "lucide-react"
 
 import {Popover, PopoverContent} from "../components/ui/popover"
@@ -71,9 +72,9 @@ export const GroupMenu = <Value extends string = string>({
     triggerAriaLabel,
     active,
 }: GroupMenuProps<Value>) => {
-    const t = useT(uiControlsCatalog, commonCatalog)
+    const t = useT(uiControlsCatalog, listControlsCatalog, commonCatalog)
     const searchPlaceholder = searchPlaceholderProp ?? t("common.search")
-    const emptyText = emptyTextProp ?? t("ui.controls.nothingToGroupBy")
+    const emptyText = emptyTextProp ?? t("ui.listControls.nothingToGroupBy")
     const resetLabel = resetLabelProp ?? t("ui.controls.resetToDefaults")
     const [uncontrolled, setUncontrolled] = useState(false)
     const [query, setQuery] = useState(defaultSearch)
@@ -114,7 +115,7 @@ export const GroupMenu = <Value extends string = string>({
                 side={side}
                 align={align}
                 sideOffset={sideOffset}
-                aria-label={t("ui.controls.groupBy")}
+                aria-label={t("ui.listControls.groupBy")}
                 className={className ?? "w-[220px] p-0"}
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >

@@ -13,6 +13,7 @@ import {memo, useCallback, useState, type ReactNode} from "react"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
+import drillInButtonCatalog from "@agenta/i18n/catalogs/ui.drillInButton"
 import {
     CaretRight,
     Check,
@@ -239,7 +240,7 @@ const MappingPopoverContent = memo(
         Input?: DrillInFieldHeaderProps["Input"]
         closeIcon: ReactNode
     }) => {
-        const t = useT(uiDrillInCatalog, commonCatalog)
+        const t = useT(uiDrillInCatalog, drillInButtonCatalog, commonCatalog)
         const [newColumnName, setNewColumnName] = useState("")
         const [showNewColumnInput, setShowNewColumnInput] = useState(false)
 
@@ -396,7 +397,7 @@ const DrillInFieldHeader = memo(
         Popover,
         Input,
     }: DrillInFieldHeaderProps) => {
-        const t = useT(uiDrillInCatalog, commonCatalog)
+        const t = useT(uiDrillInCatalog, drillInButtonCatalog, commonCatalog)
         const [copiedField, setCopiedField] = useState<string | null>(null)
         const [popoverOpen, setPopoverOpen] = useState(false)
         const shouldShowCollapse = showCollapseToggle ?? showCollapse
@@ -558,7 +559,7 @@ const DrillInFieldHeader = memo(
                             className="!px-2 !h-6 text-xs text-gray-500"
                         >
                             {defaultIcons.drillIn}
-                            <span className="ml-1">{t("ui.drillIn.drillIn")}</span>
+                            <span className="ml-1">{t("ui.drillInButton.drillIn")}</span>
                         </Button>
                     )}
                     {onMapToColumn &&

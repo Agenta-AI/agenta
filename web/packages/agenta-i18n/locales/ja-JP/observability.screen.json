@@ -13,7 +13,6 @@
     "clearFilters": "フィルターをクリア",
     "filterByApp": "アプリで絞り込む",
     "allApps": "すべてのアプリ",
-    "couldNotLoadPanel": "このパネルを読み込めませんでした",
     "tooManyRequests": "リクエストが多すぎます。",
     "playgroundNoApp": "このトレースにはアプリがないため、プレイグラウンドで開けません。",
     "playgroundSpanType": "「{{spanType}}」のスパンはプレイグラウンドで再生できません。代わりに、親のワークフロー、タスク、エージェント、またはチェーンのスパンを開いてください。"

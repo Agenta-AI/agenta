@@ -24,7 +24,7 @@
 import {memo} from "react"
 
 import {useT} from "@agenta/i18n"
-import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {Lightning, Table, Database} from "@phosphor-icons/react"
 
 import {cn} from "../../../utils/styles"
@@ -110,8 +110,8 @@ export const PathSelectorDropdown = memo(function PathSelectorDropdown({
     disabled = false,
     renderSourceIcon,
 }: PathSelectorDropdownProps) {
-    const t = useT(uiControlsCatalog)
-    const placeholder = placeholderProp ?? t("ui.controls.selectSource")
+    const t = useT(listControlsCatalog)
+    const placeholder = placeholderProp ?? t("ui.listControls.selectSource")
     const iconSize = size === "sm" ? 12 : 14
 
     const options: ComboboxOption[] = paths.map((p) => ({

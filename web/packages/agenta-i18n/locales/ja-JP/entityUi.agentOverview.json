@@ -17,15 +17,5 @@
     "couldNotLoadAutomations": "自動化を読み込めませんでした。",
     "noAutomationsForAgent": "このエージェントに紐づく自動化はまだありません。",
     "nothingScheduled": "予定はありません。エージェントに自動化を設定すると、次回の実行がここに表示されます。",
-    "retry": "再試行",
-    "toolsCount_other": "{{count}} 個のツール",
-    "skillsCount_other": "{{count}} 個のスキル",
-    "toolsAndSkills": "{{tools}} · {{skills}}",
-    "agent": "エージェント",
-    "tomorrowAt": "明日 {{time}}",
-    "unassignedAgent": "未割り当てのエージェント",
-    "eventAutomation": "イベント自動化",
-    "onEvent": "イベント時",
-    "firesOn": "{{eventKey}} で実行",
-    "firesWhenEventArrives": "イベントの到着時に実行"
+    "retry": "再試行"
 }
