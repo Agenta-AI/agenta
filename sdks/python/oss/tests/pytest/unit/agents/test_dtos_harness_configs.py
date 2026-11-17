@@ -121,6 +121,18 @@ def test_pi_and_claude_emit_same_permission_block_for_same_config():
     }
 
 
+def test_ask_policy_does_not_send_authored_bash_allow_to_runner():
+    for template in (PiAgentTemplate, ClaudeAgentTemplate):
+        agent = template(
+            permission_default="ask",
+            harness_permissions={"allow": ["Read", "Bash(npm run:*)"]},
+        )
+        assert agent.wire_tools()["permissions"] == {
+            "default": "ask",
+            "rules": [{"pattern": "Read", "permission": "allow"}],
+        }
+
+
 def test_permission_policy_key_absent_from_wire_tools():
     assert "permissionPolicy" not in PiAgentTemplate().wire_tools()
     assert "permissionPolicy" not in ClaudeAgentTemplate().wire_tools()

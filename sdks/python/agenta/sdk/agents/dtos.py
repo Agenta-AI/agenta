@@ -1027,7 +1027,9 @@ class HarnessAgentTemplate(BaseModel):
     def wire_permissions(self) -> Dict[str, Any]:
         """The runner permission plan this harness contributes to the ``/run`` payload."""
         permissions: Dict[str, Any] = {"default": self.permission_default}
-        rules = wire_author_permission_rules(self.harness_permissions)
+        rules = wire_author_permission_rules(
+            self.harness_permissions, self.permission_default
+        )
         if rules:
             permissions["rules"] = rules
         return {"permissions": permissions}

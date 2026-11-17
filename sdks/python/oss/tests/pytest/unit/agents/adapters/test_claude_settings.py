@@ -83,6 +83,16 @@ def test_ask_policy_requires_approval_for_bash():
     assert _settings(files)["permissions"] == {"ask": ["Bash"]}
 
 
+def test_ask_policy_overrides_authored_bash_allow():
+    files = build_claude_settings_files(
+        {"allow": ["Read", "Bash(npm run:*)"]}, permission_default="ask"
+    )
+    assert _settings(files)["permissions"] == {
+        "allow": ["Read"],
+        "ask": ["Bash"],
+    }
+
+
 def test_network_off_denies_web_tools():
     files = build_claude_settings_files(
         None, SandboxPermission(network={"mode": "off"})

@@ -37,7 +37,11 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Sequence
 
-from ..permission_rules import CLAUDE_PERMISSION_MODES, parse_author_permissions
+from ..permission_rules import (
+    CLAUDE_PERMISSION_MODES,
+    is_bash_rule,
+    parse_author_permissions,
+)
 from ..tools.models import PermissionMode, effective_permission
 
 # Claude Code's four permission modes (its ``permissions.defaultMode``); any other authored value
@@ -294,8 +298,15 @@ def build_claude_settings_files(
     mcp_rules = _rules_from_mcp_permissions(mcp_servers)
     tool_rules = _rules_from_tool_specs(tool_specs, permission_default)
 
+    # Under Ask, Bash must reach the runner even when the author also supplied a Bash allow rule.
+    # Claude gives ask priority over allow, and the runner must make the same decision.
+    author_allow = (
+        [rule for rule in author["allow"] if not is_bash_rule(rule)]
+        if permission_default == "ask"
+        else author["allow"]
+    )
     allow = _dedupe(
-        [*author["allow"], *mcp_rules.get("allow", []), *tool_rules.get("allow", [])]
+        [*author_allow, *mcp_rules.get("allow", []), *tool_rules.get("allow", [])]
     )
     deny = _dedupe(
         [
