@@ -6,6 +6,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {replaceDataUpdate} from "./testcaseDataUpdate"
 import {TestcaseEditorDrawerContent} from "./TestcaseEditorDrawerContent"
+import {TestcaseQueueButton} from "./TestcaseQueuePicker"
 
 /**
  * The drawer of one testcase, with previous and next over the rows of the grid.
@@ -72,6 +73,15 @@ export const TestcaseEditorDrawer = ({
         [isNewRow, testcaseId, viewOnly],
     )
 
+    // A row that is not saved yet gets no item ids, so no button.
+    const renderAddToQueue = useCallback(
+        (itemIds: string[]) =>
+            itemIds.length === 0 ? null : (
+                <TestcaseQueueButton label="Add to queue" itemIds={itemIds} />
+            ),
+        [],
+    )
+
     return (
         <TestcaseDrawer<Testcase>
             open={testcaseId !== null}
@@ -91,6 +101,7 @@ export const TestcaseEditorDrawer = ({
             isDirty={isDirty}
             onRestoreSessionStart={restore}
             renderContent={renderContent}
+            renderAddToQueue={viewOnly ? undefined : renderAddToQueue}
             viewOnly={viewOnly}
             enableRootViewMode
         />

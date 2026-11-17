@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
 import {
     EntityPicker,
@@ -17,7 +17,7 @@ import {
     DialogTitle,
     Input,
 } from "@agenta/ui/ui"
-import {CaretLeft, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import {CaretLeft, MagnifyingGlass} from "@phosphor-icons/react"
 
 import {useTestsetLoadSelection} from "../../hooks/useTestsetLoadSelection"
 import type {TestsetLoadPayload} from "../../hooks/useTestsetMenuModel"
@@ -33,8 +33,11 @@ export interface LoadTestsetDialogProps {
     /** The picked rows. In edit mode only the revision and the row ids matter. */
     onConfirm: (payload: TestsetLoadPayload) => void
     onCancel: () => void
-    /** Opens the way to make a new test set. Load mode only: managing rows has no use for it. */
-    onCreate?: () => void
+    /**
+     * The host's way to make a new test set (a file drop), above the test sets. Load mode only:
+     * managing rows has no use for it.
+     */
+    create?: ReactNode
 }
 
 /**
@@ -49,7 +52,7 @@ export const LoadTestsetDialog = ({
     singleSelect,
     onConfirm,
     onCancel,
-    onCreate,
+    create,
 }: LoadTestsetDialogProps) => {
     const wide = useMediaQuery("(min-width: 768px)")
     const isEdit = mode === "edit"
@@ -97,17 +100,7 @@ export const LoadTestsetDialog = ({
                                     : "min-w-0 flex-1 overflow-y-auto p-3"
                             }
                         >
-                            {onCreate && !isEdit ? (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="mb-3 w-full"
-                                    onClick={onCreate}
-                                >
-                                    <Plus aria-hidden size={14} />
-                                    Create a new test set
-                                </Button>
-                            ) : null}
+                            {create && !isEdit ? <div className="mb-3">{create}</div> : null}
                             <EntityPicker<TestsetSelectionResult>
                                 variant="list-popover"
                                 adapter={testsetAdapter}

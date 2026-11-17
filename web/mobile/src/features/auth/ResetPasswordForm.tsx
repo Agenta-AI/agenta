@@ -3,7 +3,7 @@ import {useState, type FormEvent} from "react"
 import {ShowErrorMessage, FIELD_CLASS, KEYCAP_CLASS} from "@agenta/auth-ui"
 import {Input, LoadingButton} from "@agenta/ui/ui"
 
-import {submitNewPasswordDetailed} from "@/lib/auth"
+import {AUTH_FAILURE_COPY, submitNewPasswordDetailed} from "@/lib/auth"
 
 export interface ResetPasswordFormProps {
     onDone: () => void
@@ -29,7 +29,7 @@ export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProp
         if (outcome.kind === "ok") onDone()
         else if (outcome.kind === "invalid-link") onInvalidLink()
         else if (outcome.kind === "field-error") setError(outcome.message)
-        else setError("Something went wrong. Please try again.")
+        else setError(AUTH_FAILURE_COPY[outcome.failure])
     }
 
     const invalid = error ? true : undefined

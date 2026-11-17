@@ -6,6 +6,7 @@ import {outputConnectionController, playgroundController} from "@agenta/playgrou
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import {
     TokenPathSuggestionsProvider,
+    useTokenPathSuggestionsContext,
     type TokenPathSuggestion,
     type TokenPathSuggestionsGetter,
 } from "@agenta/ui/editor"
@@ -59,6 +60,7 @@ export const ChainTokenPathProvider = ({
     entityId: string
     children: ReactNode
 }) => {
+    const outer = useTokenPathSuggestionsContext()
     const nodes = useAtomValue(playgroundController.selectors.nodes())
     const connections = useAtomValue(outputConnectionController.selectors.allConnections())
     const node = nodes.find((item) => item.entityId === entityId)
@@ -103,9 +105,14 @@ export const ChainTokenPathProvider = ({
         [inputs, appInputs, outputs],
     )
 
-    if (!upstreamId) return <>{children}</>
+    // Always the same element: switching between a provider and a bare fragment when an app is
+    // connected would remount everything below it (the editable drawer lost its playground state).
+    // Without an app the editors keep whatever an outer provider gives them.
     return (
-        <TokenPathSuggestionsProvider getSuggestions={getSuggestions} allowedEnvelopeSlots={SLOTS}>
+        <TokenPathSuggestionsProvider
+            getSuggestions={upstreamId ? getSuggestions : (outer?.getSuggestions ?? null)}
+            allowedEnvelopeSlots={upstreamId ? SLOTS : outer?.allowedEnvelopeSlots}
+        >
             {children}
         </TokenPathSuggestionsProvider>
     )

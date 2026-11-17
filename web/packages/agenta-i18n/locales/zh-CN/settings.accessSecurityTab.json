@@ -1,0 +1,23 @@
+{
+    "addProvider": "添加供应商",
+    "addProviderSetSlug": "添加供应商（请先设置标识）",
+    "deleteDomain": "删除域名",
+    "deleteDomainBody": "将从此组织中移除 {{name}}。",
+    "deleteDomainError": "无法删除该域名",
+    "deleteProvider": "删除供应商",
+    "deleteProviderBody": "将移除 {{name}} 及其存储的密钥。",
+    "deleteProviderError": "无法删除该供应商",
+    "deleteProviderTitle": "删除 SSO 供应商",
+    "enableProviderError": "无法启用该供应商",
+    "loadError": "无法加载该组织的设置",
+    "providerAddedNotice": "供应商已添加。启用后即可验证并激活。",
+    "providerConnectError": "无法连接到该供应商。请检查颁发者 URL 和客户端信息，然后重试。",
+    "providerSavedNotice": "供应商已保存。编辑设置会清除验证状态，请重新启用。",
+    "refreshTokenError": "无法刷新令牌",
+    "saveFlagError": "无法保存该设置，请重试",
+    "setSlugFirst": "请先设置组织标识",
+    "setSlugHint": "添加供应商之前，请先设置组织标识。没有标识就无法生成回调 URL。",
+    "thisDomain": "此域名",
+    "thisProvider": "此供应商",
+    "verifyDomainError": "无法验证该域名"
+}

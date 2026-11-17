@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {act, createElement} from "react"
 
-import {activeUserIdAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, navSimplifiedOverrideAtom} from "@agenta/shared/state"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -81,6 +81,8 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+    localStorage.clear()
     act(() => root.unmount())
     host.remove()
 })
@@ -138,5 +140,54 @@ describe("archived test sets route", () => {
         api.canEdit = false
         await mount()
         expect(await openMenu()).toEqual(["View details"])
+    })
+
+    it("Copy ID shows only in developer mode, and copies the test set's id", async () => {
+        vi.stubEnv("NEXT_PUBLIC_AGENTA_DEVELOPER_VIEWS", "testsets")
+        api.page.mockResolvedValue({
+            testsets: [{id: "t1", name: "Old smoke set", deleted_at: "2026-10-01T00:00:00Z"}],
+            nextCursor: null,
+        })
+        const copied: string[] = []
+        Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: {writeText: async (text: string) => void copied.push(text)},
+        })
+        const menuItems = async () => {
+            await act(async () => {
+                host.querySelector('[aria-label="Test set actions"]')?.dispatchEvent(
+                    new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+                )
+            })
+            return [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+        }
+
+        // The deployment shows the view, but the reader is not in beta developer mode.
+        await mount()
+        expect((await menuItems()).map((item) => item.textContent)).toEqual([
+            "View details",
+            "Restore",
+        ])
+        act(() => root.unmount())
+        document.body.innerHTML = ""
+        host = document.createElement("div")
+        document.body.appendChild(host)
+        root = createRoot(host)
+
+        vi.stubGlobal("__env", {NEXT_PUBLIC_AGENTA_BETA_DEVELOPER_MODE: "true"})
+        localStorage.setItem("agenta:settings:user-1:beta-developer-mode", JSON.stringify(true))
+        // A fresh store reads the stored switch, as a page load does.
+        store = createStore()
+        store.set(activeUserIdAtom, "user-1")
+        store.set(navSimplifiedOverrideAtom, false)
+        await mount()
+        const items = await menuItems()
+        expect(items.map((item) => item.textContent)).toEqual([
+            "View details",
+            "Restore",
+            "Copy ID",
+        ])
+        await act(async () => items[2].click())
+        await vi.waitFor(() => expect(copied).toEqual(["t1"]))
     })
 })

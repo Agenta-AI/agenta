@@ -563,10 +563,10 @@ export interface PopoverCascaderVariantProps<
     size?: "small" | "middle" | "large"
 
     /**
-     * Button text
+     * Button text, or an element (for example a label hidden on a phone)
      * @default "Select..."
      */
-    placeholder?: string
+    placeholder?: ReactNode
 
     /**
      * Icon rendered inside the trigger button (before the text)
@@ -619,6 +619,9 @@ export interface PopoverCascaderVariantProps<
      * Maximum height of item lists (px)
      * @default 340
      */
+    /** Classes on the popup panel, which renders in a portal outside the page's own scope. */
+    popupClassName?: string
+
     maxHeight?: number
 
     /**

@@ -75,7 +75,9 @@ export const InputVariableCardHeader = ({
     return (
         <div className="flex min-w-0 items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate font-mono text-xs font-medium text-primary">{name}</span>
+                <span className="truncate font-mono text-xs font-medium text-[var(--ag-c-1677FF)]">
+                    {name}
+                </span>
                 <TypeChip variant={chipVariantFor(value, expectedType)} value={value} />
                 {helpText ? (
                     <SimpleTooltip title={helpText} side="top">
@@ -128,6 +130,9 @@ export const InputVariableCardHeader = ({
                     size="icon-sm"
                     aria-label={collapsed ? `Expand ${name}` : `Collapse ${name}`}
                     aria-expanded={!collapsed}
+                    // The ghost button fills while expanded; this toggle is open by default, so
+                    // the fill would sit on every card.
+                    className="aria-expanded:bg-transparent"
                     onClick={onToggleCollapsed}
                 >
                     {collapsed ? <CaretRight /> : <CaretDown />}

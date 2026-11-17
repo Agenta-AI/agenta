@@ -38,7 +38,7 @@ export const SCENARIOS_PAGE_SIZE = 50
 /** How often rows that have not finished are read again while the run is running. */
 export const SCENARIOS_REFRESH_MS = 5000
 
-interface ScenarioPage {
+export interface ScenarioPage {
     /** The cursor this page was asked with; null for the first page. */
     cursor: string | null
     nextCursor: string | null
@@ -49,7 +49,7 @@ type ScenarioPages = InfiniteData<ScenarioPage, string | null>
 export const runScenariosQueryKey = (projectId: string, runId: string) =>
     ["evaluation-run-scenarios", projectId, runId] as const
 
-interface PageRequest {
+export interface PageRequest {
     projectId: string
     runId: string
     order: "ascending" | "descending"
@@ -64,7 +64,7 @@ interface PageRequest {
  * hides a failed read (the values come back empty), so a failure is counted here and thrown: a
  * row with missing values from a failed request must not look like a row without values.
  */
-async function loadScenarioPage(
+export async function loadScenarioPage(
     request: PageRequest,
     cursor: string | null,
 ): Promise<ScenarioPage> {
@@ -302,6 +302,7 @@ export function useRunScenarios(runId: string, {poll = true}: {poll?: boolean} =
     return {
         rows,
         columnGroups,
+        schema,
         order,
         hasMore: Boolean(query.hasNextPage),
         loadMore,

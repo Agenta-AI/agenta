@@ -31,8 +31,6 @@
 
 import type {ReactNode} from "react"
 
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
-
 import {
     cn,
     flexLayouts,
@@ -41,6 +39,7 @@ import {
     textColors,
     textSizes,
 } from "../../../utils/styles"
+import {CollapseCaret} from "../../ui/collapse-caret"
 
 /** Default icon size for caret icons */
 const DEFAULT_ICON_SIZE = 14
@@ -67,7 +66,7 @@ export interface CollapsibleGroupHeaderProps {
      */
     iconSize?: number
     /**
-     * Custom icon renderer. When provided, replaces the default CaretDown/CaretRight icons.
+     * Custom icon renderer. When provided, replaces the default collapse caret.
      * Receives the current collapsed state and icon size.
      */
     renderIcon?: (isCollapsed: boolean, iconSize: number) => ReactNode
@@ -132,10 +131,8 @@ export function CollapsibleGroupHeader({
             >
                 {renderIcon ? (
                     renderIcon(isCollapsed, iconSize)
-                ) : isCollapsed ? (
-                    <CaretRight size={iconSize} className={textColors.secondary} />
                 ) : (
-                    <CaretDown size={iconSize} className={textColors.secondary} />
+                    <CollapseCaret open={!isCollapsed} size={iconSize} />
                 )}
             </span>
             {renderLabel ? (

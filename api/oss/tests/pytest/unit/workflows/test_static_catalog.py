@@ -1037,6 +1037,8 @@ def test_request_secret_catalog_entry_shape():
     assert tool["render"] == {"kind": "secret"}
     assert tool["input_schema"]["required"] == ["name", "env_var", "reason"]
     assert "value" not in tool["input_schema"]["properties"]
+    assert tool["input_schema"]["properties"]["rejected"]["type"] == "boolean"
+    assert "`rejected: true`" in tool["description"]
     # The usage rules live on the tool, not in the always-on platform preamble: an agent that
     # cannot see this tool must not be told about the secret setup flow at all.
     description = tool["description"]

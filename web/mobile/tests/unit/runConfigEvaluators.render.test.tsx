@@ -93,7 +93,10 @@ afterEach(() => {
 
 const EVALUATOR: EvaluatorConfig = {
     key: "ev-step",
+    evaluatorId: "ev-1",
     name: "Exact match",
+    evaluatorKey: null,
+    outputs: [],
     description: "Compares the answer with the expected one",
     version: 4,
     latest: false,
@@ -174,7 +177,17 @@ function serveRunWithEvaluator(options: {
         version: 4,
         workflow_id: "ev-1",
         flags: {is_evaluator: true},
-        data: {parameters: {correct_answer_key: "capital"}},
+        data: {
+            uri: "agenta:builtin:auto_exact_match:v0",
+            parameters: {correct_answer_key: "capital"},
+            schemas: {
+                outputs: {
+                    type: "object",
+                    properties: {success: {type: "boolean"}, score: {type: "number"}},
+                    required: ["success"],
+                },
+            },
+        },
     }
     http.post.mockImplementation(async (url: string) => {
         if (url.endsWith("/evaluations/runs/query")) return {data: {count: 1, runs: [run]}}
@@ -230,6 +243,16 @@ async function mountPage() {
 }
 
 describe("evaluators on the Configuration tab", () => {
+    it("The open card lists the output metrics of the revision the run used", async () => {
+        serveRunWithEvaluator({revisionReference: true})
+        await mountPage()
+        const card = host.querySelector('[data-testid="evaluator-card"]')
+        expect(card?.textContent).toContain("Output metrics")
+        const metrics = [...(card?.querySelectorAll("li") ?? [])].map((item) => item.textContent)
+        expect(metrics).toEqual(["successbooleanRequired", "scorenumber"])
+        expect(card?.textContent).toContain("Evaluator type")
+    })
+
     it("An evaluator without a revision reference shows Latest and sends no PATCH", async () => {
         serveRunWithEvaluator({revisionReference: false})
         await mountPage()

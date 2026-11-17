@@ -45,11 +45,14 @@ export const CreateTestsetDialog = ({
     base,
     onClose,
     onCreated,
+    initialFile,
 }: {
     projectId: string
     base: string
     onClose: () => void
     onCreated?: (created: CreatedTestset) => void | Promise<void>
+    /** A file dropped before the dialog opened (the playground's load dialog). */
+    initialFile?: File
 }) => {
     const [step, setStep] = useState<Step>("choose")
     const [saving, setSaving] = useState(false)
@@ -86,6 +89,7 @@ export const CreateTestsetDialog = ({
                         onPendingChange={setSaving}
                         onScratch={onCreated ? undefined : () => setStep("scratch")}
                         onApi={onCreated ? undefined : () => setStep("api")}
+                        initialFile={initialFile}
                     />
                 ) : null}
                 {step === "scratch" ? <ScratchTestsetStep base={base} onClose={onClose} /> : null}

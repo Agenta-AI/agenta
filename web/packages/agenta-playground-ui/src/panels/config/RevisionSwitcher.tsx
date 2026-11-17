@@ -40,9 +40,9 @@ export const RevisionSwitcher = ({appId, revisionId, onSwitch}: RevisionSwitcher
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="max-w-48 gap-1 px-2 font-medium"
+                    className="h-7 min-w-20 max-w-48 shrink gap-1 px-2 font-medium"
                     aria-label="Switch revision"
                 >
                     <span className="truncate">

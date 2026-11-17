@@ -18,6 +18,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AnnotateScenarioSheet} from "./AnnotateScenarioSheet"
 import {toEvaluatorColumns} from "./scenarioListColumns"
 import {ScenarioListRow} from "./ScenarioListRow"
+import {useIsTraceQueue} from "./useIsTraceQueue"
 import {useScenarioRows, type ScenarioRow} from "./useScenarioRows"
 
 const ALL_STATUSES = "all"
@@ -36,6 +37,11 @@ const LEADING_COLUMNS: ListTableColumn[] = [
     {key: "select", label: "Select", srOnly: true, width: "28px"},
     {key: "index", label: "#", width: "56px"},
     {key: "item", label: "Item", width: "minmax(160px,2fr)"},
+]
+/** A trace queue shows what each trace was asked and what it answered, as the old app does. */
+const TRACE_IO_COLUMNS: ListTableColumn[] = [
+    {key: "inputs", label: "Inputs", width: "minmax(180px,2fr)"},
+    {key: "outputs", label: "Outputs", width: "minmax(180px,2fr)"},
 ]
 const TRAILING_COLUMNS: ListTableColumn[] = [
     {key: "status", label: "Status", width: "96px"},
@@ -77,11 +83,13 @@ export const ScenarioListTab = ({
     const openAddToTestset = useSetAtom(annotationSessionController.actions.openAddToTestsetModal)
     const navigateToIndex = useSetAtom(annotationSessionController.actions.navigateToIndex)
 
+    const isTraces = useIsTraceQueue()
     const evaluatorColumns = useMemo(() => toEvaluatorColumns(columnDefs), [columnDefs])
     const rows = useScenarioRows({search, status, columns: evaluatorColumns})
     const columns = useMemo<ListTableColumn[]>(
         () => [
             ...LEADING_COLUMNS,
+            ...(isTraces ? TRACE_IO_COLUMNS : []),
             ...evaluatorColumns.map((column) => ({
                 key: column.key,
                 label: column.title,
@@ -89,7 +97,7 @@ export const ScenarioListTab = ({
             })),
             ...TRAILING_COLUMNS,
         ],
-        [evaluatorColumns],
+        [evaluatorColumns, isTraces],
     )
     const selected = useMemo(() => new Set(selectedIds), [selectedIds])
 
@@ -147,7 +155,7 @@ export const ScenarioListTab = ({
             </div>
             <ListTable
                 columns={narrow ? NARROW_COLUMNS : columns}
-                minWidth={narrow ? 0 : columns.length > 6 ? 900 : 640}
+                minWidth={narrow ? 0 : columns.length > 6 ? 1100 : 640}
                 density="compact"
                 groups={[{key: "all", label: null, rows}]}
                 rowKey={(row) => row.scenarioId}
@@ -161,6 +169,7 @@ export const ScenarioListTab = ({
                     <ScenarioListRow
                         row={row}
                         columns={evaluatorColumns}
+                        traceIO={isTraces}
                         narrow={narrow}
                         selected={selected.has(row.scenarioId)}
                         onSelectedChange={(isSelected) => toggleSelected(row, isSelected)}

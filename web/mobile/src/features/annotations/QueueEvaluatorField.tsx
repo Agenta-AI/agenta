@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     formatHumanMetricLabel,
@@ -12,13 +12,21 @@ import {
     useEnsureEvaluatorEnrichment,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {Field} from "@agenta/ui/ui"
 import {PlusIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import type {SelectedEvaluator} from "./createQueueTypes"
 import {SelectedEvaluatorCard} from "./SelectedEvaluatorCard"
+
+// The create form is its own chunk: it downloads only when a user creates an evaluator here.
+const CreateEvaluatorFlow = dynamic(
+    () => import("../evaluators/create/CreateEvaluatorFlow").then((m) => m.CreateEvaluatorFlow),
+    {ssr: false},
+)
 
 type EvaluatorSelection = WorkflowRevisionSelectionResult & {
     metadata: WorkflowRevisionSelectionResult["metadata"] & {
@@ -61,7 +69,11 @@ const renderRevisionLabel = (entity: unknown) => {
     )
 }
 
-/** The "Feedback" field: the evaluator picker and a card for each evaluator picked. */
+/**
+ * The "Feedback" field: the evaluator picker and a card for each evaluator picked. In beta
+ * developer mode the picker also offers "Create evaluator", which opens the human evaluator form
+ * and adds the new evaluator here.
+ */
 export const QueueEvaluatorField = ({
     selected,
     onChange,
@@ -120,6 +132,8 @@ export const QueueEvaluatorField = ({
         },
         [onChange],
     )
+    const canCreate = useAtomValue(betaDeveloperModeActiveAtom)
+    const [creating, setCreating] = useState(false)
     const remove = useCallback(
         (revisionId: string) =>
             onChange((previous) =>
@@ -129,43 +143,65 @@ export const QueueEvaluatorField = ({
     )
 
     return (
-        <Field label="Feedback" required error={error} htmlFor="queue-evaluator">
-            <div className="flex flex-col gap-3">
-                <div id="queue-evaluator" className="w-full min-w-0">
-                    <EntityPicker<WorkflowRevisionSelectionResult>
-                        variant="popover-cascader"
-                        adapter={adapter}
-                        onSelect={handleSelect}
-                        instanceId="queue-evaluator"
-                        className="!w-full !justify-start"
-                        placeholder="Add evaluator"
-                        icon={<PlusIcon size={14} />}
-                        showDropdownIcon={false}
-                        panelMinWidth={280}
-                        disabled={disabled}
-                        openChildOnHover
-                        multiSelect
-                        selectedChildIds={selectedRevisionIds}
-                        selectionSummary
-                        showParentCheckboxes
-                        selectedChildrenByParent={selectedByEvaluator}
-                        totalChildrenByParent={totalByEvaluator}
-                        onDeselectChild={remove}
-                        showParentDescription
-                        showChildSelectAll
-                        onClearAll={() => onChange(() => [])}
-                        size="middle"
-                    />
+        <>
+            <Field label="Feedback" required error={error} htmlFor="queue-evaluator">
+                <div className="flex flex-col gap-3">
+                    <div id="queue-evaluator" className="w-full min-w-0">
+                        <EntityPicker<WorkflowRevisionSelectionResult>
+                            variant="popover-cascader"
+                            adapter={adapter}
+                            onSelect={handleSelect}
+                            instanceId="queue-evaluator"
+                            className="!w-full !justify-start"
+                            placeholder="Add evaluator"
+                            icon={<PlusIcon size={14} />}
+                            showDropdownIcon={false}
+                            panelMinWidth={280}
+                            disabled={disabled}
+                            openChildOnHover
+                            multiSelect
+                            selectedChildIds={selectedRevisionIds}
+                            selectionSummary
+                            showParentCheckboxes
+                            selectedChildrenByParent={selectedByEvaluator}
+                            totalChildrenByParent={totalByEvaluator}
+                            onDeselectChild={remove}
+                            showParentDescription
+                            showChildSelectAll
+                            onClearAll={() => onChange(() => [])}
+                            onCreateNew={canCreate ? () => setCreating(true) : undefined}
+                            createNewLabel="Create evaluator"
+                            size="middle"
+                        />
+                    </div>
+                    {selected.map((evaluator) => (
+                        <SelectedEvaluatorCard
+                            key={evaluator.revisionId}
+                            evaluator={evaluator}
+                            disabled={disabled}
+                            onRemove={remove}
+                        />
+                    ))}
                 </div>
-                {selected.map((evaluator) => (
-                    <SelectedEvaluatorCard
-                        key={evaluator.revisionId}
-                        evaluator={evaluator}
-                        disabled={disabled}
-                        onRemove={remove}
-                    />
-                ))}
-            </div>
-        </Field>
+            </Field>
+            {creating ? (
+                <CreateEvaluatorFlow
+                    kind="human"
+                    onClose={() => setCreating(false)}
+                    onCreated={(created) =>
+                        onChange((previous) => [
+                            ...previous,
+                            {
+                                evaluatorId: created.workflowId,
+                                revisionId: created.revisionId,
+                                evaluatorName: created.name,
+                                version: created.version,
+                                isHuman: true,
+                            },
+                        ])
+                    }
+                />
+            ) : null}
+        </>
     )
 }

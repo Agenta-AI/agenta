@@ -179,7 +179,7 @@ describe("The row controls that open the focus drawer", () => {
         await click(host, "Test case")
         const second = rowIds()[1]
 
-        await click(section(1), "test case 2")
+        await click(section(1), "testcase 2")
 
         expect(store.get(playgroundFocusDrawerAtom)).toMatchObject({isOpen: true, rowId: second})
         // The label no longer folds the row: only the caret does.

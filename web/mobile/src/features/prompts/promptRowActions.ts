@@ -5,6 +5,8 @@ export interface PromptRowActions {
     openFolder: (row: Extract<PromptsRow, {kind: "folder"}>) => void
     /** Opens the prompt in the playground; null while the playground view is off. */
     openPrompt: ((row: Extract<PromptsRow, {kind: "prompt"}>) => void) | null
+    /** Opens the prompt's overview; null while the app overview view is off. */
+    openOverview: ((row: Extract<PromptsRow, {kind: "prompt"}>) => void) | null
     rename: (row: PromptsRow) => void
     move: (row: PromptsRow) => void
     /** Delete for a folder, Archive for a prompt. */

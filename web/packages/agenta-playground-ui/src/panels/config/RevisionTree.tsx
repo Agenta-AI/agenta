@@ -61,7 +61,9 @@ export const RevisionTree = ({appId, selectedValue, onSelect}: RevisionTreeProps
                 }
                 return (
                     <VariantDetailsWithStatus
-                        className="w-full"
+                        // The deployment dots sit right after the version, as in the old
+                        // playground, not at the far edge of the row.
+                        className="gap-2 !justify-start"
                         variantName={revision.variantName ?? ""}
                         revision={revision.version ?? 0}
                         variant={revision}

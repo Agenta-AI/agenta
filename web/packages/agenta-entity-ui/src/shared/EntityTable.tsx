@@ -64,6 +64,8 @@ import type {GroupColumnsOptions} from "@agenta/ui/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {collapsedGroupValue} from "./collapsedGroupValue"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -141,6 +143,11 @@ export interface EntityTableProps<
     multiSelect?: boolean
     /** Whether selection is disabled (grayed out but visible) */
     selectionDisabled?: boolean
+    /**
+     * Drawn in each row's selection cell, behind the checkbox, for a per-row marker such as an
+     * unsaved edit. Only used when `selectable` is true.
+     */
+    renderSelectionMarker?: (record: TRow) => ReactNode
 
     // Column customization
     /**
@@ -173,6 +180,8 @@ export interface EntityTableProps<
     rowHeightConfig?: RowHeightFeatureConfig
     /** Show settings dropdown (default: true) */
     showSettings?: boolean
+    /** A "Delete selected" entry in the settings menu */
+    settingsDelete?: {onDelete: () => void; disabled?: boolean; label?: string}
     /** Enable table export action (default: true) */
     enableExport?: boolean
     /** Extra controls in the table toolbar, next to the settings button */
@@ -305,6 +314,7 @@ export function EntityTable<
     onRowClick,
     multiSelect = true,
     selectionDisabled = false,
+    renderSelectionMarker,
     grouping = false,
     prependColumns,
     appendColumns,
@@ -312,6 +322,7 @@ export function EntityTable<
     renderCell,
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
+    settingsDelete,
     enableExport = true,
     headerExtra,
     loadNextPage,
@@ -492,8 +503,7 @@ export function EntityTable<
                 render: (_, record) => {
                     const dataSource = getRowData(record)
                     if (!dataSource) return null
-                    const value = (dataSource as Record<string, unknown>)[groupPath]
-                    return <SmartCellContent value={value} />
+                    return <SmartCellContent value={collapsedGroupValue(dataSource, groupPath)} />
                 },
             }),
         } as GroupColumnsOptions<TRow, TColumn>
@@ -509,7 +519,43 @@ export function EntityTable<
         // checkboxes whose behaviour silently replaces the previous
         // selection on every click — the "we do something else behind the
         // curtains" UX wart Arda flagged on 2026-06-01.
-        const selectionColumn: ColumnDef<TRow> = {
+        const selectionControl = (record: TRow) => {
+            const checked = selectedIdsSet.has(record.id)
+            if (multiSelect) {
+                return (
+                    <Checkbox
+                        checked={checked}
+                        onCheckedChange={(next) => handleRowSelect(record.id, next === true)}
+                        disabled={selectionDisabled}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Select row"
+                    />
+                )
+            }
+            // Single-select: render a radio. Clicking an unchecked radio
+            // selects (and replaces the previous selection via the
+            // `multiSelect ? … : [rowId]` branch in `handleRowSelect`).
+            // Clicking a checked radio is a no-op (Radix only fires
+            // `onValueChange` on an actual change) — we don't try to
+            // "uncheck" because single-select tables are semantically
+            // "pick one"; the user can pick a different row instead.
+            // Each row is its own single-item RadioGroup: rows render in
+            // independent cells, so a shared Radix group root can't wrap them.
+            return (
+                <RadioGroup
+                    value={checked ? record.id : ""}
+                    onValueChange={() => {
+                        if (!checked) handleRowSelect(record.id, true)
+                    }}
+                    disabled={selectionDisabled}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <RadioGroupItem value={record.id} aria-label="Select row" />
+                </RadioGroup>
+            )
+        }
+
+        const selectionColumn: ColumnDef<TRow> & {columnVisibilityLocked: boolean} = {
             key: "__selection",
             title: multiSelect ? (
                 <Checkbox
@@ -525,41 +571,17 @@ export function EntityTable<
             ),
             width: SELECTION_COLUMN_WIDTH,
             fixed: "left",
-            render: (_, record) => {
-                const checked = selectedIdsSet.has(record.id)
-                if (multiSelect) {
-                    return (
-                        <Checkbox
-                            checked={checked}
-                            onCheckedChange={(next) => handleRowSelect(record.id, next === true)}
-                            disabled={selectionDisabled}
-                            onClick={(e) => e.stopPropagation()}
-                            aria-label="Select row"
-                        />
-                    )
-                }
-                // Single-select: render a radio. Clicking an unchecked radio
-                // selects (and replaces the previous selection via the
-                // `multiSelect ? … : [rowId]` branch in `handleRowSelect`).
-                // Clicking a checked radio is a no-op (Radix only fires
-                // `onValueChange` on an actual change) — we don't try to
-                // "uncheck" because single-select tables are semantically
-                // "pick one"; the user can pick a different row instead.
-                // Each row is its own single-item RadioGroup: rows render in
-                // independent cells, so a shared Radix group root can't wrap them.
-                return (
-                    <RadioGroup
-                        value={checked ? record.id : ""}
-                        onValueChange={() => {
-                            if (!checked) handleRowSelect(record.id, true)
-                        }}
-                        disabled={selectionDisabled}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <RadioGroupItem value={record.id} aria-label="Select row" />
-                    </RadioGroup>
-                )
-            },
+            // The column picker lists data columns only.
+            columnVisibilityLocked: true,
+            render: (_, record) =>
+                renderSelectionMarker ? (
+                    <>
+                        {renderSelectionMarker(record)}
+                        <span className="relative">{selectionControl(record)}</span>
+                    </>
+                ) : (
+                    selectionControl(record)
+                ),
         }
 
         // Build entity columns using the helper
@@ -589,6 +611,7 @@ export function EntityTable<
         isSomeSelected,
         selectedIdsSet,
         selectionDisabled,
+        renderSelectionMarker,
         groupingOptions,
         handleSelectAll,
         handleRowSelect,
@@ -649,6 +672,7 @@ export function EntityTable<
                 rowKey="id"
                 autoHeight={autoHeight}
                 useSettingsDropdown={showSettings}
+                settingsDropdownDelete={settingsDelete}
                 enableExport={enableExport}
                 primaryActions={headerExtra}
                 typeChips={effectiveTypeChips}

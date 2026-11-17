@@ -6,6 +6,8 @@
  */
 import {act} from "react"
 
+import {playgroundController} from "@agenta/playground"
+import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -65,6 +67,7 @@ vi.mock("@agenta/playground-ui/panels/config", () => ({
     ConfigPanelSkeleton: () => <div data-testid="config-panel-skeleton" />,
     RevisionSwitcher: () => null,
     CompareButton: () => null,
+    PromptTokenPathProvider: ({children}: {children: React.ReactNode}) => children,
 }))
 vi.mock("@/features/playground/RevisionActions", () => ({RevisionActions: () => null}))
 vi.mock("@/features/playground/PlaygroundRunPane", () => ({
@@ -109,6 +112,19 @@ const render = async () => {
     )
 }
 
+/** Emits an in-app route change; "stopped" when the leave guard aborts it. */
+const leave = () => {
+    let outcome = "left"
+    act(() => {
+        try {
+            router.events.emit("routeChangeStart", "/w/ws-1/p/proj-1/apps")
+        } catch {
+            outcome = "stopped"
+        }
+    })
+    return outcome
+}
+
 const byTestId = (id: string) => document.querySelector(`[data-testid="${id}"]`)
 /** Shown unless an ancestor pane carries the `hidden` class. */
 const isShown = (id: string) => byTestId(id)?.closest(".hidden") === null
@@ -128,6 +144,7 @@ beforeEach(() => {
 })
 afterEach(async () => {
     await act(async () => root.unmount())
+    getDefaultStore().set(playgroundController.actions.resetAll)
     host.remove()
 })
 
@@ -140,6 +157,13 @@ describe("PlaygroundScreen", () => {
         expect(byTestId("config-panel")?.textContent).toBe("rev-1")
         expect(byTestId("run-pane")?.textContent).toBe("rev-1")
         expect(byTestId("page-title")?.textContent).toBe("Playground | Greeter")
+    })
+
+    it("Marks its panes as the playground, the scope of the playground editor style", async () => {
+        await render()
+
+        expect(byTestId("config-panel")?.closest("[data-playground]")).not.toBeNull()
+        expect(byTestId("run-pane")?.closest("[data-playground]")).not.toBeNull()
     })
 
     it("On a phone the Configuration and Generations switch shows one pane", async () => {
@@ -191,20 +215,25 @@ describe("PlaygroundScreen", () => {
         expect(fixture.selection.retry).toHaveBeenCalled()
     })
 
-    it("Leaving with a dirty revision asks first", async () => {
+    it("Leaving with edits of a saved revision goes straight through and keeps them", async () => {
         fixture.dirty = true
         await render()
 
-        let aborted = false
-        await act(async () => {
-            try {
-                router.events.emit("routeChangeStart", "/w/ws-1/p/proj-1/apps")
-            } catch {
-                aborted = true
-            }
-        })
+        expect(leave()).toBe("left")
+        expect(document.body.textContent).not.toContain("Discard unsaved changes?")
+    })
 
-        expect(aborted).toBe(true)
+    it("Leaving with a local draft copy asks first, since the copy would be lost", async () => {
+        await render()
+        await act(async () =>
+            getDefaultStore().set(playgroundController.actions.addPrimaryNode, {
+                type: "workflow",
+                id: "local-copy-1",
+                label: "local-copy-1",
+            }),
+        )
+
+        expect(leave()).toBe("stopped")
         expect(document.body.textContent).toContain("Discard unsaved changes?")
         expect(document.body.textContent).toContain(
             "You have local draft revisions or unsaved changes that will be lost if you leave.",

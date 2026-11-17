@@ -10,10 +10,13 @@ import {
 } from "../../../mobile/src/features/evaluations/list/CreateEvaluationMenu"
 import {EvaluationKindTabs} from "../../../mobile/src/features/evaluations/list/EvaluationKindTabs"
 import {EvaluationRunsTable} from "../../../mobile/src/features/evaluations/list/EvaluationRunsTable"
-import {RunStatusFilter} from "../../../mobile/src/features/evaluations/list/RunStatusFilter"
+import {RunFiltersPanel} from "../../../mobile/src/features/evaluations/list/RunFiltersPanel"
 import {EvaluationsEmpty} from "../../../mobile/src/features/evaluations/list/states/EvaluationsEmpty"
 import {EvaluationsNoMatch} from "../../../mobile/src/features/evaluations/list/states/EvaluationsNoMatch"
-import type {EvaluationKindTab} from "../../../mobile/src/features/evaluations/list/useEvaluationRunsFilters"
+import {
+    EMPTY_RUN_FILTERS,
+    type EvaluationKindTab,
+} from "../../../mobile/src/features/evaluations/list/useEvaluationRunsFilters"
 import type {RunRowActions} from "../../../mobile/src/features/evaluations/list/useRunRowActions"
 import type {
     AgentaDataParameters,
@@ -37,6 +40,7 @@ setUserAtoms({
 })
 
 const noop = () => undefined
+const NO_FILTER_OPTIONS = {evaluator: [], testset: [], query: [], variant: []}
 
 const makeActions = (canEdit: boolean): RunRowActions => ({
     canEdit,
@@ -242,7 +246,14 @@ const Demo = ({
                 searchPlaceholder="Search evaluations"
                 actions={
                     <>
-                        <RunStatusFilter value={[]} onChange={noop} />
+                        <RunFiltersPanel
+                            value={EMPTY_RUN_FILTERS}
+                            onApply={noop}
+                            options={NO_FILTER_OPTIONS}
+                            onOpenChange={noop}
+                            showType={tab === "all"}
+                            appPicked={appScoped}
+                        />
                         {canEdit ? <CreateEvaluationMenu tab={tab} onCreate={onCreate} /> : null}
                     </>
                 }

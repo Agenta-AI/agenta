@@ -1,7 +1,8 @@
 import {evaluationRunQueryAtomFamily, type RunHeader} from "@agenta/entities/evaluationRun"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {Badge} from "@agenta/ui/ui"
+import {Badge, Button} from "@agenta/ui/ui"
+import {PencilSimple} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {RunStatusTag} from "../overview/RunStatusTag"
@@ -15,11 +16,23 @@ function formatCreatedAt(value: string | null): string {
     return date && !Number.isNaN(date.getTime()) ? CREATED_AT.format(date) : MISSING
 }
 
+/** The old app's short id: the first 8 and the last 4 characters. */
+const shortId = (id: string) => (id.length > 14 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id)
+
 /**
- * The run's identity: status, name, description, who made it and when, tags and the run id.
- * Read only: the API has no edit that changes only the name and description of a run.
+ * The run's identity: status, name, description, who made it and when, tags and the run id, with
+ * "Edit" when the reader may edit the run.
  */
-export const RunSummaryCard = ({runId, header}: {runId: string; header: RunHeader}) => {
+export const RunSummaryCard = ({
+    runId,
+    header,
+    onEdit,
+}: {
+    runId: string
+    header: RunHeader
+    /** Absent when the run cannot be edited. */
+    onEdit?: () => void
+}) => {
     const run = useAtomValue(evaluationRunQueryAtomFamily(runId)).data
     const name = run?.name?.trim() ?? ""
     const tags = run?.tags ?? []
@@ -31,6 +44,12 @@ export const RunSummaryCard = ({runId, header}: {runId: string; header: RunHeade
         >
             <div className="flex items-center justify-between gap-2">
                 <RunStatusTag status={header.status} />
+                {onEdit ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={onEdit}>
+                        <PencilSimple aria-hidden size={14} />
+                        Edit
+                    </Button>
+                ) : null}
             </div>
             <div className="flex min-w-0 flex-col gap-1">
                 <h2 className="m-0 break-words text-base font-semibold text-foreground">
@@ -56,8 +75,11 @@ export const RunSummaryCard = ({runId, header}: {runId: string; header: RunHeade
                 </ul>
             ) : null}
             <div className="flex min-w-0 items-center gap-1">
-                <code className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-                    {runId}
+                <code
+                    className="min-w-0 truncate font-mono text-xs text-muted-foreground"
+                    title={runId}
+                >
+                    {shortId(runId)}
                 </code>
                 <CopyButton
                     text={runId}

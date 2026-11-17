@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import type {WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {AppPicker, RunOnSelector, type RunOnMode} from "@agenta/playground-ui/panels/evaluator"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -13,6 +15,7 @@ export const EvaluatorPlaygroundHeader = ({
     workspaceId,
     projectId,
     evaluatorName,
+    typeTag,
     runOn,
     appLabel,
     onRunOnChange,
@@ -22,6 +25,8 @@ export const EvaluatorPlaygroundHeader = ({
     workspaceId: string
     projectId: string
     evaluatorName: string | null
+    /** The evaluator's template ("LLM-as-a-judge"), after the title. */
+    typeTag?: ReactNode
     runOn: RunOnMode
     /** The connected app's name, or null. */
     appLabel: string | null
@@ -35,6 +40,7 @@ export const EvaluatorPlaygroundHeader = ({
             {evaluatorName ?? "Evaluator"}
         </h1>
         <span className="shrink-0 text-sm text-muted-foreground">Playground</span>
+        {typeTag}
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1">
             <RunOnSelector mode={runOn} onPick={onRunOnChange} />
             {runOn === "app" ? (

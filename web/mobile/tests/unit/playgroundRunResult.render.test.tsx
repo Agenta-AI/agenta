@@ -51,10 +51,12 @@ afterEach(async () => {
 })
 
 describe("RunResult", () => {
-    it("No result shows the click run hint", async () => {
+    it("No result shows No output yet and the run hint, as in the old playground", async () => {
         await render({})
 
-        expect(host.textContent).toBe("Click run (Ctrl+Enter / ⌘+Enter) to generate output")
+        expect(host.textContent).toBe(
+            "No output yetClick Run (Ctrl+Enter / ⌘+Enter) to generate output.",
+        )
     })
 
     it("A running row without a result shows Generating response", async () => {

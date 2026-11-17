@@ -1,5 +1,8 @@
 import {useEffect, useState} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
     Button,
@@ -17,10 +20,13 @@ import {createTopUpCheckout, type TopUpPack} from "./api"
 import {TopUpPackOption} from "./TopUpPackOption"
 import {topUpCheckoutError, topUpReturnUrls, type TopUpCheckoutError} from "./topUpRules"
 
-const ERROR_TEXT: Record<Exclude<TopUpCheckoutError, "paid_plan_required">, string> = {
-    unavailable: "Credit purchases are not available right now.",
-    forbidden: "You do not have permission to buy credits for this organization.",
-    failed: "Could not open checkout. Try again.",
+const ERROR_TEXT: Record<
+    Exclude<TopUpCheckoutError, "paid_plan_required">,
+    CatalogKey<typeof billingTopupsCatalog | typeof commonCatalog>
+> = {
+    unavailable: "billing.topups.errorUnavailable",
+    forbidden: "billing.topups.errorForbidden",
+    failed: "billing.topups.errorFailed",
 }
 
 export interface BuyCreditsDialogProps {
@@ -43,6 +49,7 @@ export const BuyCreditsDialog = ({
     packs,
     onUpgrade,
 }: BuyCreditsDialogProps) => {
+    const t = useT(billingTopupsCatalog, commonCatalog)
     const [selected, setSelected] = useState<string | null>(null)
     const [opening, setOpening] = useState(false)
     const [error, setError] = useState<TopUpCheckoutError | null>(null)
@@ -85,18 +92,18 @@ export const BuyCreditsDialog = ({
         <Dialog open={open} onOpenChange={(next) => (opening ? undefined : onOpenChange(next))}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Buy credits</DialogTitle>
+                    <DialogTitle>{t("billing.topups.buyCredits")}</DialogTitle>
                     <DialogDescription>
                         {expiresAfterDays
-                            ? `A one-time payment. Purchased credits expire ${expiresAfterDays} days after purchase.`
-                            : "A one-time payment."}
+                            ? t("billing.topups.paymentExpire", {days: expiresAfterDays})
+                            : t("billing.topups.payment")}
                     </DialogDescription>
                 </DialogHeader>
 
                 <RadioGroup
                     value={selected ?? undefined}
                     onValueChange={setSelected}
-                    aria-label="Credit pack"
+                    aria-label={t("billing.topups.creditPack")}
                 >
                     {packs.map((pack) => (
                         <TopUpPackOption key={pack.code} pack={pack} disabled={opening} />
@@ -107,7 +114,7 @@ export const BuyCreditsDialog = ({
                     <Alert
                         type="info"
                         showIcon
-                        message="Credit packs are available on paid plans."
+                        message={t("billing.topups.paidPlansOnly")}
                         action={
                             onUpgrade ? (
                                 <Button
@@ -117,13 +124,13 @@ export const BuyCreditsDialog = ({
                                         onUpgrade()
                                     }}
                                 >
-                                    Upgrade
+                                    {t("common.upgrade")}
                                 </Button>
                             ) : undefined
                         }
                     />
                 ) : error ? (
-                    <Alert type="error" showIcon message={ERROR_TEXT[error]} />
+                    <Alert type="error" showIcon message={t(ERROR_TEXT[error])} />
                 ) : null}
 
                 <DialogFooter>
@@ -132,14 +139,16 @@ export const BuyCreditsDialog = ({
                         disabled={opening}
                         onClick={() => onOpenChange(false)}
                     >
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <LoadingButton
                         loading={opening}
                         disabled={!selected}
                         onClick={() => void openCheckout()}
                     >
-                        {opening ? "Opening checkout…" : "Continue to checkout"}
+                        {opening
+                            ? t("billing.topups.openingCheckout")
+                            : t("billing.topups.continueToCheckout")}
                     </LoadingButton>
                 </DialogFooter>
             </DialogContent>

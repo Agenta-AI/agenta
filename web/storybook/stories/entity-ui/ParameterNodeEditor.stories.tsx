@@ -15,12 +15,6 @@ import {
 } from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {
-    Button as AntButton,
-    Input as AntInput,
-    Select as AntSelect,
-    Switch as AntSwitch,
-} from "antd"
 
 // Imported from source: the DrillInView barrel does not re-export the parameter editor.
 import {ParameterNodeEditor} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ParameterNodeEditor"
@@ -35,20 +29,8 @@ import {ChipsInput} from "../../../packages/agenta-entity-ui/src/gatewayTool/com
 // ParameterNodeEditor — the right-hand detail of the tool-parameter master/detail editor: a
 // stack of `RailField` rows for the ONE node selected in `ParameterTree`. The rows shown depend
 // on the node's kind, so the BRANCH MATRIX stories below (scalar / enum'd scalar / boolean /
-// object / scalar array / array-of-object / deep path) are the real inventory; the parity grid
-// covers the controls themselves.
-//
-// antd swaps: `Input` → `@agenta/ui` `Input` (`onPressEnter` → an Enter `onKeyDown`);
-// `Input.TextArea autoSize` → `@agenta/ui` `Select` (+ an explicit `aria-label`: a Radix Select
-// trigger is `role="combobox"`, which is not named from its contents); the CLEARABLE Default
-// select → `Combobox` (Radix Select has no `allowClear`), same call as SandboxPermissionControl;
-// `Input.TextArea autoSize` → `AutosizeTextarea`;
-// `Select mode="tags" open={false}` → `ChipsInput` (antd's `tokenSeparators` split moved to the
-// call site's `changeEnum`); `Switch onChange` → `onCheckedChange`; `Button icon` → icon child.
-//
-// The antd half replays the pre-migration markup from
-// `git show feat/storybook-data-seam:web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ParameterNodeEditor.tsx`
-// inside the same (already-migrated) `RailField` chrome.
+// object / scalar array / array-of-object / deep path) are the real inventory; the Variants
+// story covers the controls themselves.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/ParameterNodeEditor",
     component: ParameterNodeEditor,
@@ -196,38 +178,10 @@ export const Disabled: Story = {
     render: () => <EditorBox path={[{p: "unit"}]} disabled />,
 }
 
-// ---------------------------------------------------------------------------
-// Parity grid
-// ---------------------------------------------------------------------------
-
-const Row = ({
-    label,
-    a,
-    s,
-    expected,
-}: {
-    label: string
-    a: ReactNode
-    s: ReactNode
-    expected?: string
-}) => (
-    <div
-        className="grid grid-cols-[10rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3"
-        data-vrt-expected={expected}
-    >
+const Row = ({label, children}: {label: string; children: ReactNode}) => (
+    <div className="grid grid-cols-[10rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject className="flex-1">
-                {a}
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject className="flex-1">
-                {s}
-            </div>
-        </div>
+        <div>{children}</div>
     </div>
 )
 
@@ -262,7 +216,7 @@ const ENUM_OPTIONS = [
     {value: "fahrenheit", label: "fahrenheit"},
 ]
 
-function ControlsComparison() {
+function ControlsGallery() {
     const [name, setName] = useState("location")
     const [type, setType] = useState("string")
     const [itemType, setItemType] = useState("string")
@@ -272,253 +226,121 @@ function ControlsComparison() {
     const [description, setDescription] = useState("")
     const [required, setRequired] = useState(true)
     return (
-        <div className="flex max-w-[1000px] flex-col">
-            <Row
-                label="Name (mono input)"
-                a={
-                    <RailField label="Name" align="center">
-                        <AntInput
-                            className="font-mono"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="parameter_name"
-                        />
-                    </RailField>
-                }
-                s={
-                    <RailField label="Name" align="center">
-                        <Input
-                            className="font-mono"
-                            aria-label="Parameter name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="parameter_name"
-                        />
-                    </RailField>
-                }
-            />
-            <Row
-                label="Type select"
-                a={
-                    <RailField label="Type" align="center">
-                        <AntSelect
-                            className="w-full"
-                            value={type}
-                            options={TYPE_OPTIONS}
-                            onChange={setType}
-                        />
-                    </RailField>
-                }
-                s={
-                    <RailField label="Type" align="center">
+        <div className="flex max-w-[640px] flex-col">
+            <Row label="Name (mono input)">
+                <RailField label="Name" align="center">
+                    <Input
+                        className="font-mono"
+                        aria-label="Parameter name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="parameter_name"
+                    />
+                </RailField>
+            </Row>
+            <Row label="Type select">
+                <RailField label="Type" align="center">
+                    <TypeSelect
+                        value={type}
+                        options={TYPE_OPTIONS}
+                        onChange={setType}
+                        label="Type"
+                    />
+                </RailField>
+            </Row>
+            <Row label="Type + item type (array)">
+                <RailField label="Type" align="center">
+                    <div className="grid grid-cols-2 gap-2">
                         <TypeSelect
-                            value={type}
+                            value="array"
                             options={TYPE_OPTIONS}
-                            onChange={setType}
+                            onChange={noop}
                             label="Type"
                         />
-                    </RailField>
-                }
-            />
-            <Row
-                label="Type + item type (array)"
-                a={
-                    <RailField label="Type" align="center">
-                        <div className="grid grid-cols-2 gap-2">
-                            <AntSelect
-                                className="w-full"
-                                value="array"
-                                options={TYPE_OPTIONS}
-                                onChange={noop}
-                            />
-                            <AntSelect
-                                className="w-full"
-                                value={itemType}
-                                options={ITEM_TYPE_OPTIONS}
-                                onChange={setItemType}
-                            />
-                        </div>
-                    </RailField>
-                }
-                s={
-                    <RailField label="Type" align="center">
-                        <div className="grid grid-cols-2 gap-2">
-                            <TypeSelect
-                                value="array"
-                                options={TYPE_OPTIONS}
-                                onChange={noop}
-                                label="Type"
-                            />
-                            <TypeSelect
-                                value={itemType}
-                                options={ITEM_TYPE_OPTIONS}
-                                onChange={setItemType}
-                                label="Item type"
-                            />
-                        </div>
-                    </RailField>
-                }
-            />
-            <Row
-                label="Allowed values (tags)"
-                expected="ChipsInput (the shared gatewayTool composed control) sizes its text input `min-w-[80px] flex-1`, so a full chip row pushes the caret onto a second line; antd's tags-mode search input is width-auto and stays inline. Layout property of ChipsInput, not of this call site."
-                a={
-                    <RailField label="Allowed values">
-                        <AntSelect
-                            mode="tags"
-                            className="w-full"
-                            value={enumValues}
-                            onChange={setEnumValues}
-                            tokenSeparators={[",", "\n"]}
-                            placeholder="Any value — add to restrict"
-                            open={false}
-                            suffixIcon={null}
+                        <TypeSelect
+                            value={itemType}
+                            options={ITEM_TYPE_OPTIONS}
+                            onChange={setItemType}
+                            label="Item type"
                         />
-                    </RailField>
-                }
-                s={
-                    <RailField label="Allowed values">
-                        <ChipsInput
-                            value={enumValues}
-                            onChange={(v) => setEnumValues(v ?? [])}
-                            placeholder="Any value — add to restrict"
+                    </div>
+                </RailField>
+            </Row>
+            <Row label="Allowed values (tags)">
+                <RailField label="Allowed values">
+                    <ChipsInput
+                        value={enumValues}
+                        onChange={(v) => setEnumValues(v ?? [])}
+                        placeholder="Any value — add to restrict"
+                    />
+                </RailField>
+            </Row>
+            <Row label="Default (clearable select)">
+                <RailField label="Default" align="center">
+                    <Combobox
+                        value={def}
+                        onChange={setDef}
+                        options={ENUM_OPTIONS}
+                        placeholder="No default"
+                        allowClear
+                        aria-label="Default value"
+                        className="w-full"
+                    />
+                </RailField>
+            </Row>
+            <Row label="Default (free input)">
+                <RailField label="Default" align="center">
+                    <Input
+                        aria-label="Default value"
+                        value={plainDef}
+                        onChange={(e) => setPlainDef(e.target.value)}
+                        placeholder="No default"
+                    />
+                </RailField>
+            </Row>
+            <Row label="Description (autosize)">
+                <RailField label="Description">
+                    <AutosizeTextarea
+                        aria-label="Parameter description"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        autoSize={{minRows: 2, maxRows: 5}}
+                        placeholder="What this parameter is for"
+                    />
+                </RailField>
+            </Row>
+            <Row label="Required switch">
+                <RailField label="Required" align="center">
+                    <div className="flex items-center gap-2">
+                        <Switch
+                            aria-label="Required"
+                            checked={required}
+                            onCheckedChange={setRequired}
                         />
-                    </RailField>
-                }
-            />
-            <Row
-                label="Default (clearable select)"
-                expected="antd `Select allowClear` → `Combobox` (Radix Select has no clear): the trigger is an input, so it also filters as you type. Same deliberate substitution SandboxPermissionControl made for its clearable knob."
-                a={
-                    <RailField label="Default" align="center">
-                        <AntSelect
-                            className="w-full"
-                            value={def}
-                            onChange={setDef}
-                            options={ENUM_OPTIONS}
-                            placeholder="No default"
-                            allowClear
-                        />
-                    </RailField>
-                }
-                s={
-                    <RailField label="Default" align="center">
-                        <Combobox
-                            value={def}
-                            onChange={setDef}
-                            options={ENUM_OPTIONS}
-                            placeholder="No default"
-                            allowClear
-                            aria-label="Default value"
-                            className="w-full"
-                        />
-                    </RailField>
-                }
-            />
-            <Row
-                label="Default (free input)"
-                a={
-                    <RailField label="Default" align="center">
-                        <AntInput
-                            value={plainDef}
-                            onChange={(e) => setPlainDef(e.target.value)}
-                            placeholder="No default"
-                        />
-                    </RailField>
-                }
-                s={
-                    <RailField label="Default" align="center">
-                        <Input
-                            aria-label="Default value"
-                            value={plainDef}
-                            onChange={(e) => setPlainDef(e.target.value)}
-                            placeholder="No default"
-                        />
-                    </RailField>
-                }
-            />
-            <Row
-                label="Description (autosize)"
-                a={
-                    <RailField label="Description">
-                        <AntInput.TextArea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            autoSize={{minRows: 2, maxRows: 5}}
-                            placeholder="What this parameter is for"
-                        />
-                    </RailField>
-                }
-                s={
-                    <RailField label="Description">
-                        <AutosizeTextarea
-                            aria-label="Parameter description"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            autoSize={{minRows: 2, maxRows: 5}}
-                            placeholder="What this parameter is for"
-                        />
-                    </RailField>
-                }
-            />
-            <Row
-                label="Required switch"
-                a={
-                    <RailField label="Required" align="center">
-                        <div className="flex items-center gap-2">
-                            <AntSwitch checked={required} onChange={setRequired} />
-                            <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                The model must provide this parameter on every call.
-                            </span>
-                        </div>
-                    </RailField>
-                }
-                s={
-                    <RailField label="Required" align="center">
-                        <div className="flex items-center gap-2">
-                            <Switch
-                                aria-label="Required"
-                                checked={required}
-                                onCheckedChange={setRequired}
-                            />
-                            <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                The model must provide this parameter on every call.
-                            </span>
-                        </div>
-                    </RailField>
-                }
-            />
-            <Row
-                label="Add property button"
-                a={
-                    <RailField label="Properties" align="center">
-                        <div className="flex items-center gap-2">
-                            <AntButton icon={<Plus size={13} />}>Add property</AntButton>
-                            <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                2 nested properties — edit them in the tree.
-                            </span>
-                        </div>
-                    </RailField>
-                }
-                s={
-                    <RailField label="Properties" align="center">
-                        <div className="flex items-center gap-2">
-                            <Button variant="outline">
-                                <Plus size={13} />
-                                Add property
-                            </Button>
-                            <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                2 nested properties — edit them in the tree.
-                            </span>
-                        </div>
-                    </RailField>
-                }
-            />
+                        <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                            The model must provide this parameter on every call.
+                        </span>
+                    </div>
+                </RailField>
+            </Row>
+            <Row label="Add property button">
+                <RailField label="Properties" align="center">
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline">
+                            <Plus size={13} />
+                            Add property
+                        </Button>
+                        <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                            2 nested properties — edit them in the tree.
+                        </span>
+                    </div>
+                </RailField>
+            </Row>
         </div>
     )
 }
 
-/** Every migrated control, antd beside its replacement, inside the shared RailField chrome. */
-export const AntdVsAgenta: Story = {
-    render: () => <ControlsComparison />,
+/** Every control inside the shared RailField chrome. */
+export const Variants: Story = {
+    render: () => <ControlsGallery />,
 }

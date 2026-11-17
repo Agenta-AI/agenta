@@ -175,6 +175,22 @@ describe("ArchivedEvaluatorsScreen", () => {
         )
     })
 
+    it("The automatic archived list has a Commit message column and the row menu copies", async () => {
+        await mount()
+        const headers = [...host.querySelectorAll('[role="columnheader"]')].map(
+            (h) => h.textContent,
+        )
+        expect(headers).toContain("Commit message")
+        expect(text()).toContain("Commit 2")
+        await act(async () => {
+            host.querySelector('[aria-label="Evaluator actions"]')?.dispatchEvent(
+                new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
+            )
+        })
+        const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)
+        expect(items).toEqual(["Open details", "Copy ID", "Copy Slug", "Restore"])
+    })
+
     it("A row with no tags still fills every column", async () => {
         await mount()
         const row = host.querySelector('[role="button"]')

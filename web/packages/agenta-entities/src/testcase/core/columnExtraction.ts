@@ -19,7 +19,7 @@
 
 import {isPlainObject} from "@agenta/shared/utils"
 
-import {isSystemField} from "./schema"
+import {isInternalDataField} from "./schema"
 import type {Column} from "./types"
 
 // ============================================================================
@@ -73,8 +73,9 @@ export function collectColumnPaths(
     const parentPath = parentSegments.join(".")
 
     for (const [key, value] of Object.entries(obj)) {
-        // Skip system fields and private fields
-        if (isSystemField(key) || key.startsWith("_")) continue
+        // Keys of the testcase itself live outside `data`, so a data key named `meta` or `tags`
+        // is a user column. Only internal keys stay hidden.
+        if (isInternalDataField(key)) continue
 
         const fullPath = parentPath ? `${parentPath}.${key}` : key
         const path = [...parentSegments, key]
@@ -141,12 +142,13 @@ export function extractColumnsFromData(
     for (const row of data.slice(0, sampleSize)) {
         if (!row) continue
 
-        // If the row has a `data` property (Testcase format), extract columns from there
-        // Otherwise use the row directly (flat format)
-        const dataSource =
-            row.data && typeof row.data === "object" && !Array.isArray(row.data)
-                ? (row.data as Record<string, unknown>)
-                : row
+        // A testcase (`{id, data}`) gives its `data`, or nothing when `data` is empty, so its own
+        // fields never become columns. Any other row is the data itself.
+        const dataSource = isPlainObject(row.data)
+            ? row.data
+            : "id" in row && "data" in row
+              ? {}
+              : row
 
         collectColumnPaths(dataSource, [], columnMap, 0, maxDepth)
     }

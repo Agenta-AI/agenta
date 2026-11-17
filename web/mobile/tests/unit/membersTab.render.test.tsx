@@ -3,6 +3,7 @@ import {act} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
+import {getDefaultStore, type PrimitiveAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -18,7 +19,18 @@ const state = vi.hoisted(() => ({
     signedIn: {id: "user-1", email: "me@example.com", username: "Me"},
     org: null as unknown,
     emailMode: "password" as "password" | "otp" | "disabled",
+    router: null as null | {pathname: string; query: Record<string, string>; replace: () => void},
+    betaAtom: null as null | PrimitiveAtom<boolean>,
 }))
+
+vi.mock("next/compat/router", () => ({useRouter: () => state.router}))
+
+vi.mock("@agenta/shared/state", async (importOriginal) => {
+    const original = await importOriginal<Record<string, unknown>>()
+    const {atom} = await import("jotai")
+    state.betaAtom = atom(false)
+    return {...original, betaDeveloperModeActiveAtom: state.betaAtom}
+})
 
 vi.mock("@agenta/auth", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/auth")>()),
@@ -291,5 +303,41 @@ describe("MembersTab existing actions", () => {
             true,
         )
         expect(state.refetch).toHaveBeenCalled()
+    })
+})
+
+describe("MembersTab invite link", () => {
+    const openInviteLink = (beta: boolean) => {
+        getDefaultStore().set(state.betaAtom!, beta)
+        state.permissions = new Set(["add_new_user_to_workspace"])
+        state.fetchOfferedRoles.mockResolvedValue([])
+        state.router = {
+            pathname: "/w/[workspace_id]/p/[project_id]/settings",
+            query: {tab: "workspace", inviteModal: "open"},
+            replace: vi.fn(),
+        }
+    }
+
+    afterEach(() => {
+        state.router = null
+        getDefaultStore().set(state.betaAtom!, false)
+    })
+
+    it("beta developer mode opens the invite dialog from inviteModal=open and drops it", async () => {
+        openInviteLink(true)
+        await mount()
+        expect(document.querySelector('input[type="email"]')).not.toBeNull()
+        expect(state.router!.replace).toHaveBeenCalledWith(
+            {pathname: "/w/[workspace_id]/p/[project_id]/settings", query: {tab: "workspace"}},
+            undefined,
+            {shallow: true},
+        )
+    })
+
+    it("without beta developer mode the parameter changes nothing", async () => {
+        openInviteLink(false)
+        await mount()
+        expect(document.querySelector('input[type="email"]')).toBeNull()
+        expect(state.router!.replace).not.toHaveBeenCalled()
     })
 })

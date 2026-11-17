@@ -15,6 +15,7 @@ import {TestsetGrid} from "@/features/testsets/detail/TestsetGrid"
 import type {ColumnEdit} from "@/features/testsets/detail/useTestsetEditor"
 
 const toast = vi.hoisted(() => ({success: vi.fn(), error: vi.fn()}))
+const columnConfigs = vi.hoisted(() => [] as {searchTerm?: string}[])
 vi.mock("@agenta/ui/app-message", () => ({message: toast}))
 vi.mock("@agenta/ui/utils", () => ({copyToClipboard: async () => true}))
 
@@ -24,7 +25,26 @@ vi.mock("@agenta/entities/testcase", () => {
         {key: "meta.lang", label: "lang", parentKey: "meta"},
         {key: "meta.tone", label: "tone", parentKey: "meta"},
     ])
-    return {testcaseDataController: {selectors: {columns: () => columns}}}
+    const rows = atom([{id: "case-1"}, {id: "new-1", __isNew: true}, {id: "case-2"}])
+    // A search that shows only case-1.
+    const narrowRows = atom([{id: "case-1"}])
+    const noRows = atom([] as {id: string}[])
+    return {
+        testcaseDataController: {
+            selectors: {
+                columns: (config: {searchTerm?: string}) => {
+                    columnConfigs.push(config)
+                    return columns
+                },
+                rows: (config: {scopeId: string}) =>
+                    config.scopeId === "empty"
+                        ? noRows
+                        : config.scopeId === "narrow"
+                          ? narrowRows
+                          : rows,
+            },
+        },
+    }
 })
 
 interface Header {
@@ -47,51 +67,89 @@ const HEADERS: Header[] = [
 const ROWS: Row[] = [
     {id: "case-1", key: "case-1"},
     {id: "new-1", key: "new-1", __isNew: true},
+    {id: "case-2", key: "case-2"},
 ]
+
+const tableFeatures = vi.hoisted(() => ({last: null as null | Record<string, unknown>}))
 
 vi.mock("@agenta/entity-ui/testcase", () => ({
     TestcaseTable: (props: {
+        config: {scopeId: string; searchTerm?: string}
         selectable?: boolean
         selectionDisabled?: boolean
         onSelectionChange?: (ids: string[]) => void
         onRowClick?: (row: Row) => void
-        appendColumns?: {render?: (value: unknown, row: Row) => ReactNode}[]
+        appendColumns?: {
+            key?: string
+            title?: ReactNode
+            render?: (value: unknown, row: Row) => ReactNode
+        }[]
+        settingsDelete?: {onDelete: () => void; disabled?: boolean; label?: string}
         renderColumnHeader?: (header: Header) => ReactNode
         headerExtra?: ReactNode
-    }) => (
-        <div>
-            <div data-testid="toolbar">{props.headerExtra}</div>
-            {props.selectable ? (
-                <button
-                    type="button"
-                    disabled={props.selectionDisabled}
-                    onClick={() => props.onSelectionChange?.(["case-1", "new-1"])}
-                >
-                    Select all
-                </button>
-            ) : null}
-            {HEADERS.map((header) => (
-                <div key={header.key} data-header={header.key}>
-                    {props.renderColumnHeader ? props.renderColumnHeader(header) : header.title}
-                </div>
-            ))}
-            {ROWS.map((row) => (
-                <div key={row.id} data-row={row.id}>
-                    {props.appendColumns?.map((column, index) => (
-                        <span key={index}>{column.render?.(null, row)}</span>
-                    ))}
-                </div>
-            ))}
-        </div>
-    ),
+        canExportData?: boolean
+        columnSettings?: boolean
+        cellPopover?: boolean
+        markEditedRows?: boolean
+    }) => {
+        tableFeatures.last = {
+            canExportData: props.canExportData,
+            columnSettings: props.columnSettings,
+            cellPopover: props.cellPopover,
+            markEditedRows: props.markEditedRows,
+        }
+        return (
+            <div data-search={props.config.searchTerm ?? ""}>
+                {/* Like the real table, no toolbar while there are no rows. */}
+                {props.config.scopeId === "empty" ? null : (
+                    <div data-testid="toolbar">{props.headerExtra}</div>
+                )}
+                {props.selectable ? (
+                    <button
+                        type="button"
+                        disabled={props.selectionDisabled}
+                        onClick={() => props.onSelectionChange?.(["case-1", "new-1"])}
+                    >
+                        Select all
+                    </button>
+                ) : null}
+                {/* The settings menu entry, as the real table settings show it. */}
+                {props.settingsDelete ? (
+                    <button
+                        type="button"
+                        disabled={props.settingsDelete.disabled}
+                        onClick={props.settingsDelete.onDelete}
+                    >
+                        {props.settingsDelete.label ?? "Delete"}
+                    </button>
+                ) : null}
+                {props.appendColumns?.map((column) => (
+                    <div key={column.key} data-header={column.key}>
+                        {column.title}
+                    </div>
+                ))}
+                {HEADERS.map((header) => (
+                    <div key={header.key} data-header={header.key}>
+                        {props.renderColumnHeader ? props.renderColumnHeader(header) : header.title}
+                    </div>
+                ))}
+                {ROWS.map((row) => (
+                    <div key={row.id} data-row={row.id}>
+                        {props.appendColumns?.map((column, index) => (
+                            <span key={index}>{column.render?.(null, row)}</span>
+                        ))}
+                    </div>
+                ))}
+            </div>
+        )
+    },
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-const saved = (): Promise<ColumnEdit> => Promise.resolve({ok: true, revisionId: "rev-3"})
+const saved = (): Promise<ColumnEdit> => Promise.resolve({ok: true})
 
 const fakeEditor = (over: Partial<Parameters<typeof TestsetGrid>[0]["editor"]> = {}) => ({
-    isNew: false,
     tableConfig: {scopeId: "scope", revisionId: "rev-2", includeNewRows: true},
     readOnly: false,
     columnEditBlocked: null,
@@ -130,19 +188,11 @@ describe("Test set grid", () => {
             .at(-1)
 
     const mount = (editor: ReturnType<typeof fakeEditor>, canEdit = true) => {
-        const onColumnSaved = vi.fn()
         const onOpenRow = vi.fn()
         act(() =>
-            root.render(
-                <TestsetGrid
-                    editor={editor}
-                    canEdit={canEdit}
-                    onOpenRow={onOpenRow}
-                    onColumnSaved={onColumnSaved}
-                />,
-            ),
+            root.render(<TestsetGrid editor={editor} canEdit={canEdit} onOpenRow={onOpenRow} />),
         )
-        return {onColumnSaved, onOpenRow}
+        return {onOpenRow}
     }
 
     beforeEach(() => {
@@ -156,23 +206,67 @@ describe("Test set grid", () => {
         host.remove()
     })
 
+    it("Search narrows the grid rows, leaves the editor rows alone and clears the selection", async () => {
+        vi.useFakeTimers()
+        try {
+            const editor = fakeEditor()
+            mount(editor)
+            await click(button("Select all"))
+            expect(button("Delete selected")?.hasAttribute("disabled")).toBe(false)
+            const box = byLabel("Search testcases...") as HTMLInputElement
+            expect(box).not.toBeNull()
+            await act(async () => {
+                const setValue = Object.getOwnPropertyDescriptor(
+                    HTMLInputElement.prototype,
+                    "value",
+                )?.set
+                setValue?.call(box, "Peru")
+                box.dispatchEvent(new Event("input", {bubbles: true}))
+            })
+            await act(async () => {
+                vi.advanceTimersByTime(300)
+            })
+            expect(document.querySelector("[data-search]")?.getAttribute("data-search")).toBe(
+                "Peru",
+            )
+            expect(editor.tableConfig).not.toHaveProperty("searchTerm")
+            // The header actions read the same columns as the table.
+            expect(columnConfigs.at(-1)?.searchTerm).toBe("Peru")
+            // The rows selected before the search are no longer selected.
+            expect(button("Delete selected")?.hasAttribute("disabled")).toBe(true)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("With no rows, Add column still shows", async () => {
+        const editor = fakeEditor({
+            tableConfig: {scopeId: "empty", revisionId: "new", includeNewRows: true},
+        })
+        mount(editor)
+        expect(button("Add column")).toBeDefined()
+        await click(button("Add column"))
+        expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    })
+
     it("Rename column with an unchanged name changes nothing", async () => {
         const editor = fakeEditor()
-        const {onColumnSaved} = mount(editor)
+        mount(editor)
         await press(byLabel("Column question actions"))
         await click(item("Rename column"))
-        expect(document.querySelector("input")?.value).toBe("question")
+        expect(document.querySelector<HTMLInputElement>('[role="dialog"] input')?.value).toBe(
+            "question",
+        )
 
-        await click(button("Rename and save"))
+        await click(button("Rename"))
 
         expect(editor.renameColumn).toHaveBeenCalledWith("question", "question")
-        expect(onColumnSaved).not.toHaveBeenCalled()
         expect(document.querySelector('[role="dialog"]')).toBeNull()
     })
 
-    it("Delete column asks first and removes the column", async () => {
+    it("Delete column asks first, stages the removal and closes the step", async () => {
         const editor = fakeEditor()
-        const {onColumnSaved} = mount(editor)
+        mount(editor)
         await press(byLabel("Column question actions"))
         await click(item("Delete column"))
         expect(document.body.textContent).toContain(
@@ -180,10 +274,10 @@ describe("Test set grid", () => {
         )
         expect(editor.deleteColumns).not.toHaveBeenCalled()
 
-        await click(button("Delete and save"))
+        await click(button("Delete"))
 
         expect(editor.deleteColumns).toHaveBeenCalledWith(["question"])
-        expect(onColumnSaved).toHaveBeenCalledWith("rev-3")
+        expect(document.querySelector('[role="dialog"]')).toBeNull()
     })
 
     it("Deleting a group removes every nested column", async () => {
@@ -193,7 +287,7 @@ describe("Test set grid", () => {
         expect(item("Rename column")).toBeUndefined()
         await click(item("Delete group"))
 
-        await click(button("Delete and save"))
+        await click(button("Delete"))
 
         // The nested values sit under one top-level key, the only key the server can remove.
         expect(editor.deleteColumns).toHaveBeenCalledWith(["meta"])
@@ -218,18 +312,32 @@ describe("Test set grid", () => {
     it("Bulk delete reports the number of rows", async () => {
         const editor = fakeEditor()
         mount(editor)
-        expect(button("Delete")?.hasAttribute("disabled")).toBe(true)
+        expect(button("Delete selected")?.hasAttribute("disabled")).toBe(true)
         await click(button("Select all"))
-        await click(button("Delete"))
+        await click(button("Delete selected"))
 
         expect(editor.deleteRows).toHaveBeenCalledWith(["case-1", "new-1"])
         expect(toast.success).toHaveBeenCalledWith("Deleted 2 testcase(s). Save to apply changes.")
     })
 
+    it("Bulk delete takes only the selected rows the grid still shows", async () => {
+        const editor = fakeEditor({
+            tableConfig: {scopeId: "narrow", revisionId: "rev-2", includeNewRows: true},
+        })
+        mount(editor)
+        // Both rows are selected; only case-1 is still shown.
+        await click(button("Select all"))
+        await click(button("Delete selected"))
+
+        expect(editor.deleteRows).toHaveBeenCalledWith(["case-1"])
+        expect(toast.success).toHaveBeenCalledWith("Deleted testcase. Save to apply changes.")
+    })
+
     it("A reader without edit_testsets sees no column or row edit actions", async () => {
         mount(fakeEditor(), false)
         expect(byLabel("Column question actions")).toBeNull()
-        expect(button("Add column")).toBeUndefined()
+        expect(byLabel("Add column")).toBeNull()
+        expect(button("Delete selected")).toBeUndefined()
         expect(button("Select all")).toBeUndefined()
         await press(document.querySelector('[data-row="case-1"] [aria-label="Actions"]'))
         expect(item("Delete")).toBeUndefined()
@@ -245,7 +353,7 @@ describe("Test set grid", () => {
         expect(byLabel("Column question actions")?.hasAttribute("disabled")).toBe(true)
         expect(byLabel("Add column")?.hasAttribute("disabled")).toBe(true)
         expect(button("Select all")?.hasAttribute("disabled")).toBe(true)
-        expect(button("Delete")?.hasAttribute("disabled")).toBe(true)
+        expect(button("Delete selected")?.hasAttribute("disabled")).toBe(true)
         await press(document.querySelector('[data-row="case-1"] [aria-label="Actions"]'))
         expect(item("Delete")?.getAttribute("aria-disabled")).toBe("true")
         await click(item("Delete"))
@@ -257,5 +365,84 @@ describe("Test set grid", () => {
         await press(document.querySelector('[data-row="new-1"] [aria-label="Actions"]'))
         expect(item("Edit")).toBeDefined()
         expect(item("Copy ID")).toBeUndefined()
+    })
+    it("The page actions sit on the search row, before the table", () => {
+        act(() =>
+            root.render(
+                <TestsetGrid
+                    editor={fakeEditor()}
+                    canEdit
+                    onOpenRow={vi.fn()}
+                    actions={() => <button type="button">Commit</button>}
+                />,
+            ),
+        )
+        const search = byLabel("Search testcases...")
+        const commit = button("Commit")
+        // The search box and the actions share one row.
+        const row = search?.parentElement?.parentElement
+        expect(row?.contains(commit ?? null)).toBe(true)
+        expect(row?.querySelector("[data-header]")).toBeNull()
+    })
+
+    it("Add column sits in the header of the row menu column and opens the add step", async () => {
+        mount(fakeEditor())
+        const header = document.querySelector('[data-header="__row_actions"]')
+        const add = header?.querySelector('[aria-label="Add column"]')
+        expect(add).not.toBeNull()
+
+        await click(add)
+
+        expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Add Column")
+    })
+
+    it("A queue action takes the selected saved rows, or else every saved row shown", async () => {
+        const seen: string[][] = []
+        act(() =>
+            root.render(
+                <TestsetGrid
+                    editor={fakeEditor()}
+                    canEdit
+                    onOpenRow={vi.fn()}
+                    actions={(ids) => {
+                        seen.push(ids)
+                        return null
+                    }}
+                />,
+            ),
+        )
+        // Nothing selected: every saved row; a row not saved yet has no id to send.
+        expect(seen.at(-1)).toEqual(["case-1", "case-2"])
+
+        // The mock table's "Select all" selects case-1 and new-1.
+        await click(button("Select all"))
+        expect(seen.at(-1)).toEqual(["case-1"])
+    })
+
+    it("A saved row's menu offers Add annotation queue; a new row's does not", async () => {
+        mount(fakeEditor())
+        await press(document.querySelector('[data-row="case-1"] [aria-label="Actions"]'))
+        expect(item("Add annotation queue")).toBeDefined()
+        await act(async () => (document.activeElement as HTMLElement | null)?.blur())
+        act(() => root.unmount())
+        root = createRoot(host)
+        mount(fakeEditor())
+        await press(document.querySelector('[data-row="new-1"] [aria-label="Actions"]'))
+        expect(item("Add annotation queue")).toBeUndefined()
+    })
+
+    it("An editor gets the table settings, the cell popover and the edited-row marker", () => {
+        mount(fakeEditor())
+        expect(tableFeatures.last).toEqual({
+            canExportData: false,
+            columnSettings: true,
+            cellPopover: true,
+            markEditedRows: true,
+        })
+    })
+
+    it("A reader who may not edit gets no edited-row marker", () => {
+        mount(fakeEditor(), false)
+        expect(tableFeatures.last).toMatchObject({markEditedRows: false, columnSettings: true})
     })
 })

@@ -11,4 +11,6 @@ export interface TestsetRowActions {
     onArchive: () => void
     onClone?: () => void
     onRename?: () => void
+    /** Absent hides Copy ID (developer mode only). */
+    onCopyId?: () => void
 }

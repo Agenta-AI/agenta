@@ -1,5 +1,9 @@
 import type {ConfigViewMode} from "@agenta/entity-ui/drill-in"
-import {ConfigPanel, RevisionSwitcher} from "@agenta/playground-ui/panels/config"
+import {
+    ConfigPanel,
+    PromptTokenPathProvider,
+    RevisionSwitcher,
+} from "@agenta/playground-ui/panels/config"
 
 import {RevisionActions} from "./RevisionActions"
 
@@ -37,30 +41,33 @@ export const RevisionConfig = ({
     onRefinePrompt: (revisionId: string, promptKey: string) => void
     onClose?: (revisionId: string) => void
 }) => (
-    <ConfigPanel
-        revisionId={revisionId}
-        readOnly={readOnly}
-        viewMode={viewMode}
-        onViewModeChange={onViewModeChange}
-        onRefinePrompt={(promptKey) => onRefinePrompt(revisionId, promptKey)}
-        switcher={
-            <RevisionSwitcher
-                appId={appId}
-                revisionId={revisionId}
-                onSwitch={(id) => onSwitch(revisionId, id)}
-            />
-        }
-        actions={
-            <RevisionActions
-                workspaceId={workspaceId}
-                projectId={projectId}
-                appId={appId}
-                revisionId={revisionId}
-                readOnly={readOnly}
-                onCommitted={(id) => onCommitted(revisionId, id)}
-                onArchived={onArchived}
-                onClose={onClose ? () => onClose(revisionId) : undefined}
-            />
-        }
-    />
+    // `{{$.inputs.` in a prompt offers its variables and the test case columns, as in /w.
+    <PromptTokenPathProvider revisionId={revisionId}>
+        <ConfigPanel
+            revisionId={revisionId}
+            readOnly={readOnly}
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
+            onRefinePrompt={(promptKey) => onRefinePrompt(revisionId, promptKey)}
+            switcher={
+                <RevisionSwitcher
+                    appId={appId}
+                    revisionId={revisionId}
+                    onSwitch={(id) => onSwitch(revisionId, id)}
+                />
+            }
+            actions={
+                <RevisionActions
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    appId={appId}
+                    revisionId={revisionId}
+                    readOnly={readOnly}
+                    onCommitted={(id) => onCommitted(revisionId, id)}
+                    onArchived={onArchived}
+                    onClose={onClose ? () => onClose(revisionId) : undefined}
+                />
+            }
+        />
+    </PromptTokenPathProvider>
 )

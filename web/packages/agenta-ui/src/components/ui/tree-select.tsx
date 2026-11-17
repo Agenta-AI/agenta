@@ -1,8 +1,9 @@
 import * as React from "react"
 
 import {X} from "@phosphor-icons/react"
-import {ChevronDown, ChevronRight, LoaderCircle} from "lucide-react"
+import {ChevronDown, LoaderCircle} from "lucide-react"
 
+import {CollapseCaret} from "./collapse-caret"
 import {Popover, PopoverAnchor, PopoverContent} from "./popover"
 import {selectTriggerVariants, type SelectTriggerProps} from "./select"
 import {cn} from "./utils"
@@ -622,12 +623,7 @@ export function TreeSelect({
                                                     toggle(option)
                                                 }}
                                             >
-                                                <ChevronRight
-                                                    className={cn(
-                                                        "size-3 transition-transform",
-                                                        row.expanded && "rotate-90",
-                                                    )}
-                                                />
+                                                <CollapseCaret open={row.expanded} size={12} />
                                             </button>
                                         ) : null}
                                     </span>

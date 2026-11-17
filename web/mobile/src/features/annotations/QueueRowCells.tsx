@@ -67,12 +67,14 @@ export const QueueRowCells = ({
     narrow,
     canDelete,
     onOpen,
+    onViewResults,
     onDelete,
 }: {
     row: SimpleQueueTableRow
     narrow: boolean
     canDelete: boolean
     onOpen: (row: SimpleQueueTableRow) => void
+    onViewResults?: (row: SimpleQueueTableRow) => void
     onDelete: (queue: QueueToDelete) => void
 }) => {
     // One observer per row: the progress and the status read the same query, so they start
@@ -163,6 +165,9 @@ export const QueueRowCells = ({
                     queue={{id: row.id, name: row.name}}
                     canDelete={canDelete}
                     onOpen={() => onOpen(row)}
+                    onViewResults={
+                        onViewResults && row.run_id ? () => onViewResults(row) : undefined
+                    }
                     onDelete={onDelete}
                 />
             </span>

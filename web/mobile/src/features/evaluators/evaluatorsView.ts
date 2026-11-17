@@ -5,7 +5,6 @@ import {
     type EvaluatorEntry,
 } from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
-import type {ListTableGroup} from "@agenta/ui/list-table"
 
 export type {EvaluatorCategory}
 
@@ -78,41 +77,46 @@ export const toArchivedRow = ({
 export const evaluatorLabel = (entry: EvaluatorEntry): string =>
     entry.workflow.name?.trim() || entry.workflow.slug?.trim() || "Untitled evaluator"
 
-/**
- * One group per evaluator, in list order, holding its revisions newest first. Revision 0 is the
- * empty first commit and is not listed. An evaluator with no revision on the loaded pages gets no
- * group, so a heading never sits over nothing.
- */
-export const buildEvaluatorGroups = (
-    entries: readonly EvaluatorEntry[],
-    revisions: readonly Workflow[],
-): ListTableGroup<EvaluatorRevisionRow>[] => {
-    const byWorkflow = new Map<string, Workflow[]>()
-    for (const revision of revisions) {
-        if (!revision.workflow_id || !(revision.version && revision.version > 0)) continue
-        byWorkflow.set(revision.workflow_id, [
-            ...(byWorkflow.get(revision.workflow_id) ?? []),
-            revision,
-        ])
-    }
-
-    return entries.flatMap((entry) => {
-        const own = (byWorkflow.get(entry.workflow.id) ?? []).sort(
-            (a, b) => (b.version ?? 0) - (a.version ?? 0),
-        )
-        if (own.length === 0) return []
-        const newest = entry.latestRevision.version
-        return [
-            {
-                key: entry.workflow.id,
-                label: newest ? `${evaluatorLabel(entry)} v${newest}` : evaluatorLabel(entry),
-                rows: own.map((revision) =>
-                    toRevisionRow(revision, entry.workflow, entry.latestRevision),
-                ),
-            },
-        ]
-    })
+/** A row of the live list: an evaluator (its latest revision), or one of its older revisions. */
+export interface EvaluatorListRow extends EvaluatorRevisionRow {
+    /** The evaluator's workflow id on an evaluator row; the revision id on an older revision. */
+    key: string
+    /** 0 for an evaluator, 1 for an older revision under it. */
+    depth: 0 | 1
+    /** An evaluator row with revisions before its latest one: it can expand. */
+    hasOlder: boolean
 }
+
+/**
+ * One row per evaluator, in list order, on its latest revision. An expanded evaluator is followed
+ * by its older revisions, newest first. Revision 0 is the empty first commit and is not listed.
+ */
+export const buildEvaluatorRows = (
+    entries: readonly EvaluatorEntry[],
+    expanded: ReadonlySet<string>,
+    olderByWorkflow: ReadonlyMap<string, readonly Workflow[]>,
+): EvaluatorListRow[] =>
+    entries.flatMap(({workflow, latestRevision}) => {
+        const evaluatorRow: EvaluatorListRow = {
+            ...toRevisionRow(latestRevision, workflow, latestRevision),
+            key: workflow.id,
+            depth: 0,
+            hasOlder: (latestRevision.version ?? 0) > 1,
+        }
+        if (!expanded.has(workflow.id)) return [evaluatorRow]
+        const older = (olderByWorkflow.get(workflow.id) ?? [])
+            .filter((revision) => (revision.version ?? 0) > 0 && revision.id !== latestRevision.id)
+            .sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+            .map(
+                (revision): EvaluatorListRow => ({
+                    ...toRevisionRow(revision, workflow, latestRevision),
+                    key: revision.id,
+                    depth: 1,
+                    hasOlder: false,
+                }),
+            )
+        return [evaluatorRow, ...older]
+    })
 
 /** Names for a dialog: up to three, then "and N more…". */
 export const summarizeNames = (names: readonly string[]): string => {

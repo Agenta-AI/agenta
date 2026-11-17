@@ -53,7 +53,7 @@ export const PlaygroundWorkspace = ({
 }) => {
     // Form, JSON or YAML: kept while the page is open, as in the old playground.
     const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
-    const {switchTo, modal: switchDialog} = useSwitchRevision()
+    const switchTo = useSwitchRevision()
     // A revision the server has deleted is read only from that moment. It stays on screen until
     // the lists load again and the page takes it out, and an edit made then would be lost.
     const [deletedId, setDeletedId] = useState<string | null>(null)
@@ -78,22 +78,20 @@ export const PlaygroundWorkspace = ({
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-background">
+        <div data-playground className="flex h-full min-h-0 flex-col bg-background">
             <PlaygroundHeader
                 workspaceId={workspaceId}
                 projectId={projectId}
                 appName={appName}
-                actions={
-                    <>
-                        <PlaygroundNewEvaluation
-                            workspaceId={workspaceId}
-                            projectId={projectId}
-                            appId={appId}
-                            revisionIds={revisionIds}
-                        />
-                        <CompareButton appId={appId} />
-                    </>
+                newEvaluation={
+                    <PlaygroundNewEvaluation
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                        appId={appId}
+                        revisionIds={revisionIds}
+                    />
                 }
+                actions={<CompareButton appId={appId} />}
             />
             <DrillInBridgeProvider
                 projectId={projectId}
@@ -127,7 +125,6 @@ export const PlaygroundWorkspace = ({
                     onClose={() => setRefine(null)}
                 />
             ) : null}
-            {switchDialog}
             <PlaygroundFocusDrawerHost />
         </div>
     )

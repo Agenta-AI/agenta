@@ -1,31 +1,38 @@
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {FormattedDate, Tag} from "@agenta/ui/components/presentational"
 import {Badge} from "@agenta/ui/ui"
+import {useAtomValue} from "jotai"
 import Link from "next/link"
 
 const CARD_CLASS =
     "flex min-w-0 flex-col gap-2 rounded-lg border border-solid bg-card p-3 text-left text-sm"
 
-const CardBody = ({environment}: {environment: AppEnvironmentDeployment}) => (
-    <>
-        <Tag env={environment.name} />
-        <span className="flex min-w-0 items-center justify-between gap-2">
-            <span className="text-muted-foreground">Variant</span>
-            {environment.deployedVariantName ? (
-                <span className="flex min-w-0 items-center gap-1">
-                    <span className="truncate">{environment.deployedVariantName}</span>
-                    {environment.revision ? <Badge>v{environment.revision}</Badge> : null}
-                </span>
-            ) : (
-                <Tag label="No deployment" />
-            )}
-        </span>
-        <span className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">Last modified</span>
-            <FormattedDate date={environment.updatedAt} />
-        </span>
-    </>
-)
+const CardBody = ({environment}: {environment: AppEnvironmentDeployment}) => {
+    // Beta developer mode matches /w: an environment with nothing deployed has no date.
+    const beta = useAtomValue(betaDeveloperModeActiveAtom)
+    const undeployed = beta && !environment.deployedVariantName
+    return (
+        <>
+            <Tag env={environment.name} />
+            <span className="flex min-w-0 items-center justify-between gap-2">
+                <span className="text-muted-foreground">Variant</span>
+                {environment.deployedVariantName ? (
+                    <span className="flex min-w-0 items-center gap-1">
+                        <span className="truncate">{environment.deployedVariantName}</span>
+                        {environment.revision ? <Badge>v{environment.revision}</Badge> : null}
+                    </span>
+                ) : (
+                    <Tag label="No deployment" />
+                )}
+            </span>
+            <span className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Last modified</span>
+                {undeployed ? <span>-</span> : <FormattedDate date={environment.updatedAt} />}
+            </span>
+        </>
+    )
+}
 
 /**
  * One card per environment of the app. With `onSelect` a card chooses that environment's history.

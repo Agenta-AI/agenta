@@ -1,6 +1,7 @@
 import {useState} from "react"
 
 import {Button} from "@agenta/ui/ui"
+import {Flask} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 
 import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
@@ -36,12 +37,13 @@ export const PlaygroundNewEvaluation = ({
     return (
         <>
             <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 disabled={savedIds.length === 0}
                 onClick={() => setPicked({ids: savedIds, open: true})}
             >
-                New Evaluation
+                <Flask aria-hidden />
+                <span className="max-sm:sr-only">New Evaluation</span>
             </Button>
             {picked ? (
                 <PlaygroundNewEvaluationSheet

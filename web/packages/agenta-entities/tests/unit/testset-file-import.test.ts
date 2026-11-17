@@ -49,6 +49,7 @@ describe("Testset file import", () => {
         expect(result).toEqual({
             ok: true,
             rows: [{question: "What is 2+2?", answer: "4", tag: ""}],
+            totalRows: 1,
         })
     })
 
@@ -64,6 +65,17 @@ describe("Testset file import", () => {
         expect(result.rows).toHaveLength(10)
         expect(result.rows[0]).toEqual({id: "1"})
         expect(result.rows[9]).toEqual({id: "10"})
+        expect(result.totalRows).toBe(25)
+    })
+
+    it("JSON preview counts every object row and skips other items", async () => {
+        const items = [...Array.from({length: 12}, (_, index) => ({id: index})), "text", [1], null]
+        const file = new File([JSON.stringify(items)], "many.json")
+        const result = await readTestsetFilePreview(file, "json", 5)
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.rows).toHaveLength(5)
+        expect(result.totalRows).toBe(12)
     })
 
     it("Invalid JSON reports invalid-json", async () => {
@@ -75,7 +87,7 @@ describe("Testset file import", () => {
     it("A JSON object that is not an array is valid but has no preview rows", async () => {
         const file = new File(['{"question": "What is 2+2?"}'], "object.json")
         const result = await readTestsetFilePreview(file, "json")
-        expect(result).toEqual({ok: true, rows: []})
+        expect(result).toEqual({ok: true, rows: [], totalRows: 0})
     })
 })
 

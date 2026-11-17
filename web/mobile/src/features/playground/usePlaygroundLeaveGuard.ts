@@ -1,4 +1,5 @@
 import {loadableController} from "@agenta/entities/loadable"
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {playgroundController} from "@agenta/playground"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {atom, useAtomValue} from "jotai"
@@ -6,24 +7,36 @@ import {atom, useAtomValue} from "jotai"
 import {useUnsavedGuard} from "../automations/useUnsavedGuard"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
-/** Unsaved edits of the connected test set. */
-const testsetHasLocalChangesAtom = atom((get) => {
+/**
+ * What leaving the page would lose: a local copy of a revision (it has no saved revision to come
+ * back to) and the unsaved edits of the connected test set. The edits of a saved revision are not
+ * in it: they stay when the page is left, as in the old playground.
+ */
+const loseOnLeaveAtom = atom((get) => {
+    const hasLocalCopy = get(playgroundController.selectors.nodes()).some((node) =>
+        isLocalDraftId(node.entityId),
+    )
     const loadableId = get(playgroundController.selectors.loadableId())
-    return loadableId ? get(loadableController.selectors.hasLocalChanges(loadableId)) : false
+    const testsetChanged = loadableId
+        ? get(loadableController.selectors.hasLocalChanges(loadableId))
+        : false
+    return hasLocalCopy || testsetChanged
 })
 
 /**
- * Asks before the playground is left with a local draft, unsaved edits or unsaved test set edits: the browser's own
- * question when the page unloads, the app's dialog for a link inside the app.
+ * The browser asks before the page unloads with any unsaved edit, as in the old playground: a
+ * reload loses them all. A link inside the app goes straight through when the edits stay (the
+ * edits of saved revisions); it asks first only when something would be lost (a local copy, or
+ * unsaved test set edits).
  *
  * Returns the dialog to render.
  */
 export const usePlaygroundLeaveGuard = () => {
-    const hasUnsavedOrLocalDrafts = useLocalDraftWarning()
-    const hasTestsetChanges = useAtomValue(testsetHasLocalChangesAtom)
+    useLocalDraftWarning()
+    const loseOnLeave = useAtomValue(loseOnLeaveAtom)
     const {confirm, modal} = useConfirmModal()
     useUnsavedGuard({
-        dirty: hasUnsavedOrLocalDrafts || hasTestsetChanges,
+        dirty: loseOnLeave,
         confirm,
         title: "Discard unsaved changes?",
         message:

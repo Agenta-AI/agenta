@@ -10,14 +10,7 @@ import {
 } from "@agenta/entity-ui/drill-in"
 import {FilesPaneToggle} from "@agenta/entity-ui/drive"
 import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
-import {
-    Cpu,
-    FileText,
-    GraduationCap,
-    PuzzlePiece,
-    Robot,
-    SlidersHorizontal,
-} from "@phosphor-icons/react"
+import {Cpu, FileText, Compass, PuzzlePiece, Robot, SlidersHorizontal} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // The agent playground config pane, stacked: region header bars, accordion section headers and
@@ -104,7 +97,7 @@ const SECTIONS: AgentTemplateSectionDescriptor[] = [
     },
     {
         key: "skills",
-        icon: <GraduationCap size={16} />,
+        icon: <Compass size={16} />,
         title: "Skills",
         summary: "1 skill",
         extra: <SectionAddButton label="Add skill" onClick={noop} />,
@@ -135,10 +128,7 @@ const FilesCount = () => {
 const Pane = () => {
     const [open, setOpen] = useState<Record<string, boolean>>({tools: true, subagents: true})
     return (
-        <div
-            data-vrt-subject
-            className="flex w-[420px] flex-col border border-solid border-colorBorderSecondary bg-[var(--ag-surface-section-content)]"
-        >
+        <div className="flex w-[420px] flex-col border border-solid border-colorBorderSecondary bg-[var(--ag-surface-section-content)]">
             <AgentRegionHeaderBar title="Configuration" sticky={false} />
             <div className="px-4">
                 <AgentTemplateSectionList

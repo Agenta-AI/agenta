@@ -1,3 +1,5 @@
+import {AUTH_FAILURE_COPY} from "./authError"
+
 /**
  * Pure state machine + status mapping for the passwordless (email OTP) flow.
  *
@@ -77,7 +79,7 @@ export function otpReducer(state: OtpState, event: OtpEvent): OtpState {
 /** 60s, matching the desktop resend cooldown. */
 export const OTP_RESEND_COOLDOWN_MS = 60_000
 
-const GENERIC_ERROR = "Something went wrong. Try again."
+const GENERIC_ERROR = AUTH_FAILURE_COPY.unknown
 
 export function describeCreateCode(
     result: {status: string; reason?: string} | null,

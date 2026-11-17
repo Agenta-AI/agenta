@@ -6,8 +6,9 @@ const PAGE_SIZE = 50
 const NONE: Workflow[] = []
 
 /**
- * The revisions of the listed evaluators, a page of 50 at a time across all of them, newest
- * first. Managed revisions only, as the list is.
+ * The revisions of the given evaluators, a page of 50 at a time across all of them, newest
+ * first. Managed revisions only. The New evaluation sheet uses it; the Evaluators list loads
+ * revisions per evaluator on expand (`useOlderRevisions`).
  */
 export const useEvaluatorRevisions = ({
     projectId,

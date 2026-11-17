@@ -12,7 +12,8 @@
         "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./run-history-drawer-atom": "./src/runHistoryDrawerAtom.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

@@ -1,4 +1,11 @@
-import {format3Sig, type EvaluationRunScenario} from "@agenta/entities/evaluationRun"
+import {
+    format3Sig,
+    INVOCATION_METRICS,
+    scenarioMetricStats,
+    stepMetricStats,
+    type EvaluationRunScenario,
+    type MetricStats,
+} from "@agenta/entities/evaluationRun"
 import {
     computeColumnGroup,
     findInTrace,
@@ -6,6 +13,7 @@ import {
     resolveMappings,
     type ColumnGroup,
     type HydratedScenarioRow,
+    type ResolvedColumn,
     type RunColumnGroup,
     type RunMapping,
     type RunStep,
@@ -30,6 +38,8 @@ export interface ScenarioCell {
 /** A scenario with its values already picked out of the hydrated entities. */
 export interface ScenarioRowData {
     scenario: EvaluationRunScenario
+    /** The test case the scenario ran on: what lines up the rows of compared runs. */
+    testcaseId: string | null
     /** Cells by group key, in the order of the group's columns. */
     cells: Record<string, ScenarioCell[]>
     /** True when the traces of this scenario did not load: its outputs and scores are unknown. */
@@ -43,7 +53,25 @@ export interface ScenarioRowData {
     errors: Record<string, string>
     /** The error messages of failed steps that no shown group stands for. */
     otherErrors: string[]
+    /** Every mapped column with its value: what the scenario filter checks. */
+    columns: ResolvedColumn[]
+    /** The stats of each invocation metric (cost, duration, tokens, errors), by metric key. */
+    metrics: Record<string, MetricStats | null>
+    /** What each step left behind, by the key of the group that shows the step. */
+    steps: Record<string, ScenarioStep>
 }
+
+/** One step of a scenario (the app call, an evaluator, a trace the run read): its trace and cost. */
+export interface ScenarioStep {
+    traceId: string | null
+    /** The stats of the step's own call, by metric key ({@link STEP_METRICS}); null when absent. */
+    metrics: Record<string, MetricStats | null>
+}
+
+/** The metrics of one step's own call, in the order the old app shows them: time, tokens, cost. */
+export const STEP_METRICS = ["duration", "tokens", "cost"].flatMap((id) =>
+    INVOCATION_METRICS.filter((metric) => metric.id === id),
+)
 
 /** What the run produced for one scenario: where its trace is and how the step ended. */
 export interface ScenarioInvocation {
@@ -143,7 +171,8 @@ export function buildScenarioRowData(
 
     const mappings = schema.mappings.filter((mapping) => !isQueryMapping(mapping))
     // `resolveMappings` returns one column per mapping, in the mappings' order.
-    resolveMappings(hydrated, {steps: schema.steps, mappings}).forEach((column, position) => {
+    const columns = resolveMappings(hydrated, {steps: schema.steps, mappings})
+    columns.forEach((column, position) => {
         if (!isListedColumn(mappings[position])) return
         const list = (cells[column.group.key] ??= [])
         list.push({
@@ -165,19 +194,51 @@ export function buildScenarioRowData(
     // group (two runs of one evaluator) keep both messages. A step with no shown group (an app
     // step with no listed output) still shows its message, with the scenario.
     const shown = new Set(scenarioColumnGroups(schema).map(({group}) => group.key))
-    const errors: Record<string, string> = {}
-    const otherErrors: string[] = []
-    for (const step of schema.steps) {
-        const message = stepErrorMessage(resultOf(step.key))
-        if (!message) continue
-        const traceGroup = queries.some((query) => query.step.key === step.key)
-        const key = traceGroup
+    const groupKeyOf = (step: RunStep) =>
+        queries.some((query) => query.step.key === step.key)
             ? traceGroups(step).outputs.group.key
             : computeColumnGroup(step, "").key
+    const errors: Record<string, string> = {}
+    const otherErrors: string[] = []
+    const steps: Record<string, ScenarioStep> = {}
+    for (const step of schema.steps) {
+        const key = groupKeyOf(step)
+        // Two steps in one group (two runs of one evaluator): the first with a trace stands for it.
+        const traceId = resultOf(step.key)?.trace_id ?? null
+        if (!steps[key]?.traceId) {
+            steps[key] = {
+                traceId,
+                metrics: Object.fromEntries(
+                    STEP_METRICS.map(({metricKey}) => [
+                        metricKey,
+                        stepMetricStats(hydrated.metrics, step.key, metricKey),
+                    ]),
+                ),
+            }
+        }
+        const message = stepErrorMessage(resultOf(step.key))
+        if (!message) continue
         if (!shown.has(key)) otherErrors.push(message)
         else errors[key] = errors[key] ? `${errors[key]}; ${message}` : message
     }
-    return {scenario: hydrated.scenario, cells, valuesFailed, invocation, errors, otherErrors}
+    const metrics = Object.fromEntries(
+        INVOCATION_METRICS.map(({metricKey}) => [
+            metricKey,
+            scenarioMetricStats(hydrated.metrics, schema.steps, metricKey),
+        ]),
+    )
+    return {
+        scenario: hydrated.scenario,
+        testcaseId: hydrated.testcase?.id ?? hydrated.scenario.testcase_id ?? null,
+        cells,
+        valuesFailed,
+        invocation,
+        errors,
+        otherErrors,
+        columns,
+        metrics,
+        steps,
+    }
 }
 
 const FAILED_STATUSES: ReadonlySet<string> = new Set(["failure", "failed", "error", "errors"])

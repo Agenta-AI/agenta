@@ -142,6 +142,8 @@ beforeEach(() => {
 
 afterEach(() => {
     act(() => root.unmount())
+    // Leaving keeps the edits of a saved revision; the next test starts without them.
+    store.set(workflowMolecule.actions.discard, "rev-1")
     host.remove()
 })
 
@@ -304,7 +306,7 @@ describe("usePlaygroundSelection", () => {
         expect(nodes()).toEqual([])
     })
 
-    it("Leaving discards the drafts it asked about", async () => {
+    it("Leaving keeps the edits of a saved revision and drops a local copy", async () => {
         await mount("app-1", "rev-1")
         const localId = createLocalDraftFromWorkflowRevision("rev-1")!
         act(() => {
@@ -318,8 +320,26 @@ describe("usePlaygroundSelection", () => {
 
         act(() => root.render(null))
 
-        expect(store.get(workflowMolecule.selectors.isDirty("rev-1"))).toBe(false)
+        expect(store.get(workflowMolecule.selectors.isDirty("rev-1"))).toBe(true)
         expect(store.get(workflowMolecule.selectors.data(localId))).toBeNull()
+    })
+
+    it("Coming back shows the kept edit as a draft of the same revision", async () => {
+        await mount("app-1", "rev-1")
+        act(() => {
+            workflowMolecule.set.update("rev-1", {
+                data: {uri: "agenta:builtin:completion:v0", parameters: {temperature: 0.9}},
+            })
+        })
+        await settle()
+        act(() => root.render(null))
+
+        await mount("app-1", "rev-1")
+
+        expect(selection.revisionIds).toEqual(["rev-1"])
+        expect(store.get(workflowMolecule.selectors.isDirty("rev-1"))).toBe(true)
+        const parameters = store.get(workflowMolecule.selectors.data("rev-1"))?.data?.parameters
+        expect(parameters).toMatchObject({temperature: 0.9})
     })
 
     it("Changing the app clears the previous app's selection", async () => {

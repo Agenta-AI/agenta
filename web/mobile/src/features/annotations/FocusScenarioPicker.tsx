@@ -14,6 +14,7 @@ import {copyToClipboard} from "@agenta/ui/utils"
 import {ArrowSquareOut, Copy} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {useIsTraceQueue} from "./useIsTraceQueue"
 import {useScenarioTraceOpener} from "./useScenarioTraceOpener"
 
 /**
@@ -30,7 +31,7 @@ export const FocusScenarioPicker = ({
 }) => {
     const focusIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
     const total = useAtomValue(annotationSessionController.selectors.scenarioIds()).length
-    const isTraces = useAtomValue(annotationSessionController.selectors.queueKind()) === "traces"
+    const isTraces = useIsTraceQueue()
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(scenarioId),
     )

@@ -22,7 +22,7 @@ export interface RunHeader {
     /** The run name, else the run id. */
     name: string
     description: string | null
-    /** The status to show: `paused` for a live run that is paused, else the run's own status. */
+    /** The status to show: `stopped` for a live run that is stopped, else the run's own status. */
     status: string | null
     kind: EvaluationRunKind
     flags: {isLive: boolean; isClosed: boolean; isActive: boolean}
@@ -34,6 +34,8 @@ export interface RunHeader {
 export interface RunTestsetReference {
     testsetId: string
     revisionId: string | null
+    /** The test set revision's version number, from the run's step reference. */
+    version: number | null
 }
 
 export interface RunEvaluatorReference {
@@ -43,6 +45,11 @@ export interface RunEvaluatorReference {
     stepKey: string
 }
 
+export interface RunQueryReference {
+    queryId: string
+    revisionId: string | null
+}
+
 export interface RunReferences {
     applicationId: string | null
     variantId: string | null
@@ -50,7 +57,8 @@ export interface RunReferences {
     revisionVersion: number | null
     testsets: RunTestsetReference[]
     evaluators: RunEvaluatorReference[]
-    queryIds: string[]
+    /** A live run's trace queries, each with the revision the run stored. */
+    queries: RunQueryReference[]
 }
 
 const flag = (flags: Record<string, unknown> | null | undefined, key: string) =>
@@ -95,7 +103,15 @@ export const runReferencesAtomFamily = atomFamily((runId: string) =>
             revisionVersion: invocation?.references?.application_revision?.version ?? null,
             testsets: inputs.flatMap((step) => {
                 const testsetId = refId(step, "testset")
-                return testsetId ? [{testsetId, revisionId: refId(step, "testset_revision")}] : []
+                return testsetId
+                    ? [
+                          {
+                              testsetId,
+                              revisionId: refId(step, "testset_revision"),
+                              version: step.references?.testset_revision?.version ?? null,
+                          },
+                      ]
+                    : []
             }),
             evaluators: steps.flatMap((step) => {
                 const evaluatorId = step.type === "annotation" ? refId(step, "evaluator") : null
@@ -110,9 +126,9 @@ export const runReferencesAtomFamily = atomFamily((runId: string) =>
                       ]
                     : []
             }),
-            queryIds: inputs.flatMap((step) => {
+            queries: inputs.flatMap((step) => {
                 const queryId = refId(step, "query")
-                return queryId ? [queryId] : []
+                return queryId ? [{queryId, revisionId: refId(step, "query_revision")}] : []
             }),
         }
     }),

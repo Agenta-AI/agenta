@@ -226,6 +226,28 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     return isSimplifiedCohort(user) || beta ? "0" : null
 }
 
+/**
+ * What the beta developer mode cookie should say: `"1"` only while beta developer mode is
+ * active (the deployment offers it, the user turned it on, Developer Mode is on), `null` to
+ * clear it in every other settled state, `undefined` to leave it alone while that is unknown.
+ * The gate reads it to pick the `/m` page for a `/w` developer link; see `BETA_DEVELOPER_MODE_COOKIE`.
+ */
+export const readSettledBetaDeveloperModeCookie = (user: User | null): "1" | null | undefined => {
+    if (typeof window === "undefined") return undefined
+    const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
+    if (!userId) return null
+    if (user?.uid && user.uid !== userId) return undefined
+    if (
+        !isBetaDeveloperModeEnabled() ||
+        readStoredBoolean(userSettingsKey(userId, BETA_DEVELOPER_MODE_KEY)) !== true
+    ) {
+        return null
+    }
+    const advancedNavHidden = readSettledAdvancedNavHidden(user)
+    if (advancedNavHidden === null) return undefined
+    return advancedNavHidden ? null : "1"
+}
+
 /** The one atom both apps' Preferences pages bind their "Developer Mode" switch to. */
 export const classicModeEnabledAtom = atom(
     (get) => !get(advancedNavHiddenAtom),

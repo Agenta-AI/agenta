@@ -183,13 +183,19 @@ describe("run summary card", () => {
         expect(host.querySelector('[aria-label="Copy run ID"]')).not.toBeNull()
     })
 
-    it("The card has no Edit button, even for a reader who may edit evaluation runs", async () => {
+    it("The card has Edit for a reader who may edit runs, and none for one who may not", async () => {
         permission.allowed = true
         serveRun()
         await mount()
         expect(host.textContent).toContain("Capitals check")
+        expect(buttonNamed("Edit")).toBeDefined()
+
+        act(() => root.unmount())
+        root = createRoot(host)
+        permission.allowed = false
+        await mount()
+        expect(host.textContent).toContain("Capitals check")
         expect(buttonNamed("Edit")).toBeUndefined()
-        expect(host.querySelector('input[placeholder="Run name"]')).toBeNull()
     })
 
     it("Opening the Configuration tab sends no write request", async () => {

@@ -22,6 +22,7 @@ import { join } from "node:path";
 import { apiBase, envApiUrl, runWithRequestApiBase } from "./apiBase.ts";
 import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
+import type { PlatformCredentialSource } from "./sessions/auth.ts";
 import { withDaytonaActivityHeartbeat } from "./engines/sandbox_agent/daytona-heartbeat.ts";
 import {
   isRunnerShutdownAbort,
@@ -276,8 +277,8 @@ function isAuthorized(req: IncomingMessage): boolean {
  */
 export interface RunAgentOptions {
   clientGone?: () => boolean;
-  /** Latest session credential; the alive watchdog refreshes it during long turns. */
-  credential?: () => string;
+  /** The alive watchdog's credential lease; it refreshes the value during long turns. */
+  credentialLease?: PlatformCredentialSource;
 }
 
 /** Run one request through an engine. Tests inject a fake to avoid a live harness. */
@@ -399,7 +400,7 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
     signal,
     presignedMount,
     clientGone,
-    credential,
+    credentialLease,
   ) => {
     const acquired = await acquireEnvironment(
       request,
@@ -415,7 +416,7 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
         runTurn(acquired.env, request, emit, signal, {
           loaded: acquired.env.loadedFromContinuity,
           nativeHistoryVerified: acquired.env.nativeHistoryVerified,
-          ...(credential ? { credential } : {}),
+          ...(credentialLease ? { credentialLease } : {}),
           seededDecisions: await loadDurableDecisions(
             acquired.env.sessionId,
             runCredential(request),
@@ -520,7 +521,7 @@ const dispatchRun: RunAgent = async (request, emit, signal, options) => {
         signal,
         inProcess ? await inProcessDeps() : {},
         {
-          ...(options?.credential ? { credential: options.credential } : {}),
+          ...(options?.credentialLease ? { credentialLease: options.credentialLease } : {}),
         },
       );
     }
@@ -530,7 +531,7 @@ const dispatchRun: RunAgent = async (request, emit, signal, options) => {
       pool: keepalivePools[provider],
       config,
       clientGone: options?.clientGone,
-      credential: options?.credential,
+      credentialLease: options?.credentialLease,
       // The coordinator is the first place that knows this run's project, because the scope can
       // come from the signed mount rather than the request. A control command needs it to tell
       // one tenant's session from another's.
@@ -786,6 +787,7 @@ async function runAndStreamWithApiBaseResolved(
         release: () => Promise<void>;
         abandon: () => void;
         credential: () => string;
+        credentialLease: PlatformCredentialSource;
         streamId: () => string | undefined;
         firstBeatOwned: boolean;
         admitted: boolean;
@@ -1176,7 +1178,7 @@ async function runAndStreamWithApiBaseResolved(
     const outcome = await awaitTurnOrAbandon({
       run: run(request, gatedEmit, controller.signal, {
         clientGone: () => clientDisconnected,
-        credential: aliveWatchdog?.credential,
+        credentialLease: aliveWatchdog?.credentialLease,
       }),
       abort: () => controller.abort(),
       interrupted: activeTurn

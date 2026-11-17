@@ -1,7 +1,7 @@
 /**
  * @agenta/entities/evaluationRun/etl
  *
- * Eval-specific ETL adapters. See docs/designs/eval-etl-engine.md for
+ * Eval-specific ETL adapters. See docs/design/eval-etl-engine.md for
  * the design.
  *
  * Currently exposed:
@@ -143,6 +143,21 @@ export {
     type FilterOperator,
     type BuildFilterSchemaOptions,
 } from "./filterSchema"
+
+// Scenario table filter — which conditions count, typed values, and when to read more pages.
+export {
+    EMPTY_SCENARIO_FILTER,
+    FILTERABLE_COLUMN_KINDS,
+    SCENARIO_FILTER_FILL_TARGET,
+    filterValueFromText,
+    filterValueToText,
+    inferFilterValueType,
+    isConditionComplete,
+    isListOperator,
+    isScenarioFilterActive,
+    shouldReadMoreForFilter,
+    toEffectiveFilter,
+} from "./scenarioFilter"
 
 // Hit-ratio meter — v1→v2 escalation signal (reports the regime; doesn't
 // swap engines today). Per eval-filtering.md §D2 + §C3: tracks rolling

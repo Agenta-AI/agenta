@@ -23,7 +23,15 @@ vi.mock("@agenta/entities/environment", () => ({
     appEnvironmentsLoadableAtomFamily: () => ({id: "environments"}),
 }))
 vi.mock("@agenta/entities/workflow", () => ({archiveWorkflowRevision: fixture.archive}))
-vi.mock("jotai", () => ({useAtomValue: () => fixture.environments}))
+// The real jotai: only the environments atom is stubbed, and beta developer mode reads off.
+vi.mock("jotai", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("jotai")>()
+    return {
+        ...actual,
+        useAtomValue: (atom: {id?: string}) =>
+            atom?.id === "environments" ? fixture.environments : actual.useAtomValue(atom as never),
+    }
+})
 vi.mock("@agenta/ui/app-message", () => ({
     message: {success: fixture.success, error: fixture.error},
 }))

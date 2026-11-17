@@ -50,15 +50,13 @@ import {testcaseMolecule} from "../../testcase/state/molecule"
 import {normalizeRevision, type Revision, type QueryResult} from "../core"
 
 // Import testcase molecule for compound actions
+import {addColumnEditAtom, removeColumnEditAtom, renameColumnEditAtom} from "./columnEdits"
 import {deleteRevisionsReducer} from "./mutations"
 import {
     revisionTableState,
     pendingColumnOpsAtomFamily,
     pendingRowOpsAtomFamily,
     hasPendingChangesAtomFamily,
-    addColumnReducer,
-    removeColumnReducer,
-    renameColumnReducer,
     addRowReducer,
     removeRowReducer,
     removeRowsReducer,
@@ -1018,12 +1016,12 @@ export const revisionMolecule = {
      * Table reducers for column and row operations
      */
     tableReducers: {
-        /** Add a column to the revision */
-        addColumn: addColumnReducer,
-        /** Remove a column from the revision */
-        removeColumn: removeColumnReducer,
-        /** Rename a column in the revision */
-        renameColumn: renameColumnReducer,
+        /** Add a column, staged until the commit */
+        addColumn: addColumnEditAtom,
+        /** Remove a column and its values in edited rows, staged until the commit */
+        removeColumn: removeColumnEditAtom,
+        /** Rename a column and its key in edited rows, staged until the commit */
+        renameColumn: renameColumnEditAtom,
         /** Add a new row (creates local testcase) */
         addRow: addRowReducer,
         /** Remove a row (marks for deletion or removes local) */

@@ -19,16 +19,19 @@ type TestsetRowRef = Pick<TestsetRow, "id" | "name">
 export const exportFileName = (name: string, format: TestsetExportFormat): string =>
     `${name.replace(/[^a-zA-Z0-9-_]/g, "-")}.${format}`
 
-const inUseMessage = (count: number): string => {
+const inUseMessage = (count: number, testsets: number): string => {
     const noun = count === 1 ? "evaluation" : "evaluations"
-    return `The test set is used by ${count} ${noun}. Archive or delete the ${noun} first.`
+    const subject = testsets === 1 ? "The test set is" : "These test sets are"
+    return `${subject} used by ${count} ${noun}. Archive or delete the ${noun} first.`
 }
 
 /** Thrown for the one refusal the reader can act on; its message is safe to show. */
 class TestsetInUseError extends Error {}
 
 const ROW_BUSY = "This test set is busy. Try again in a moment"
+const ROWS_BUSY = "A selected test set is busy. Try again in a moment"
 const ARCHIVE_FAILED = "Couldn't archive this test set"
+const ARCHIVE_MANY_FAILED = "Couldn't archive these test sets"
 
 /**
  * The verbs a testset row offers. Each runs once per row at a time: a second press while one is
@@ -52,21 +55,25 @@ export function useTestsetRowActions({
     const running = useRef(new Set<string>())
     const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set())
 
-    // Runs `work` unless this row is already busy. The ref is the guard (it answers at once),
-    // the state only drives what is drawn.
-    const guarded = useCallback(
-        async <T>(id: string, work: () => Promise<T>): Promise<T | undefined> => {
-            if (running.current.has(id)) return undefined
-            running.current.add(id)
+    // Runs `work` unless one of these rows is already busy. The ref is the guard (it answers at
+    // once), the state only drives what is drawn.
+    const guardedAll = useCallback(
+        async <T>(ids: readonly string[], work: () => Promise<T>): Promise<T | undefined> => {
+            if (ids.some((id) => running.current.has(id))) return undefined
+            ids.forEach((id) => running.current.add(id))
             setBusyIds(new Set(running.current))
             try {
                 return await work()
             } finally {
-                running.current.delete(id)
+                ids.forEach((id) => running.current.delete(id))
                 setBusyIds(new Set(running.current))
             }
         },
         [],
+    )
+    const guarded = useCallback(
+        <T>(id: string, work: () => Promise<T>) => guardedAll([id], work),
+        [guardedAll],
     )
 
     const openLatest = useCallback(
@@ -112,31 +119,58 @@ export function useTestsetRowActions({
         [guarded, projectId],
     )
 
-    const archive = useCallback(
-        async (row: TestsetRowRef): Promise<void> => {
-            const done = await guarded(row.id, async () => {
+    /** Each test set downloads as its own file, one after another, as the old app does. */
+    const exportMany = useCallback(
+        async (rows: readonly TestsetRowRef[], format: TestsetExportFormat) => {
+            for (const row of rows) await exportTestset(row, format)
+        },
+        [exportTestset],
+    )
+
+    /**
+     * Archive one or more test sets with all their revisions. Refused as a whole when an
+     * evaluation uses any of them, as the old app does: nothing is archived then.
+     */
+    const archiveMany = useCallback(
+        async (rows: readonly TestsetRowRef[]): Promise<void> => {
+            if (rows.length === 0) return
+            const ids = rows.map((row) => row.id)
+            const single = ids.length === 1
+            const done = await guardedAll(ids, async () => {
                 try {
                     const runIds = await fetchEvaluationRunIdsUsingTestsets({
                         projectId,
-                        testsetIds: [row.id],
+                        testsetIds: ids,
                     })
-                    if (runIds.length > 0) throw new TestsetInUseError(inUseMessage(runIds.length))
-                    await testsetMolecule.lifecycle.archive([row.id], {projectId})
+                    if (runIds.length > 0) {
+                        throw new TestsetInUseError(inUseMessage(runIds.length, ids.length))
+                    }
+                    await testsetMolecule.lifecycle.archive(ids, {projectId})
                 } catch (cause) {
                     if (cause instanceof TestsetInUseError) throw cause
-                    throw new Error(ARCHIVE_FAILED)
+                    throw new Error(single ? ARCHIVE_FAILED : ARCHIVE_MANY_FAILED)
                 }
-                message.success("Testset archived")
+                message.success(single ? "Testset archived" : `${ids.length} test sets archived`)
                 await queryClient.invalidateQueries({queryKey: ["testsets"]})
                 return true
             })
-            // The row was busy (opening or exporting): say so, or the dialog would close as if it worked.
-            if (!done) throw new Error(ROW_BUSY)
+            // A row was busy (opening or exporting): say so, or the dialog would close as if it worked.
+            if (!done) throw new Error(single ? ROW_BUSY : ROWS_BUSY)
         },
-        [guarded, projectId, queryClient],
+        [guardedAll, projectId, queryClient],
     )
+
+    const archive = useCallback((row: TestsetRowRef) => archiveMany([row]), [archiveMany])
 
     const isBusy = useCallback((id: string) => busyIds.has(id), [busyIds])
 
-    return {openLatest, exportTestset, archive, isBusy, isAnyBusy: busyIds.size > 0}
+    return {
+        openLatest,
+        exportTestset,
+        exportMany,
+        archive,
+        archiveMany,
+        isBusy,
+        isAnyBusy: busyIds.size > 0,
+    }
 }

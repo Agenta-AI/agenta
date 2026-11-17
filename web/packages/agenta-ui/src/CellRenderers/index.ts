@@ -26,4 +26,5 @@ export type {EvaluatorMetricBarProps} from "./EvaluatorMetricBar"
 
 export * from "./utils"
 export * from "./constants"
+export {RoleColorClassesProvider, useRoleColorClasses} from "./roleColorClasses"
 export * from "./metricUtils"

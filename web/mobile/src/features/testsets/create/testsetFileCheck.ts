@@ -14,7 +14,7 @@ export const INVALID_JSON =
     "Invalid JSON format. Ensure it's an array of objects with column names as keys."
 
 export type TestsetFileCheck =
-    | {ok: true; fileType: TestsetFileType; rows: Record<string, unknown>[]}
+    | {ok: true; fileType: TestsetFileType; rows: Record<string, unknown>[]; totalRows: number}
     | {ok: false; fileType: TestsetFileType | null; message: string}
 
 /**
@@ -31,7 +31,7 @@ export async function checkTestsetFile(file: File): Promise<TestsetFileCheck> {
         if (!result.ok || (fileType === "json" && result.rows.length === 0)) {
             return {ok: false, fileType, message: invalid}
         }
-        return {ok: true, fileType, rows: result.rows}
+        return {ok: true, fileType, rows: result.rows, totalRows: result.totalRows}
     } catch {
         // The browser could not read the file at all.
         return {ok: false, fileType, message: invalid}

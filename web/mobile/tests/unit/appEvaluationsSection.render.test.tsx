@@ -6,6 +6,7 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {AppEvaluationsSection} from "@/features/app-overview/AppEvaluationsSection"
+import {EMPTY_RUN_FILTERS} from "@/features/evaluations/list/useEvaluationRunsFilters"
 import {useEvaluationRunsList} from "@/features/evaluations/list/useEvaluationRunsList"
 
 import {makeRun, page} from "./evaluationRunsFixtures"
@@ -127,7 +128,7 @@ describe("app evaluations section", () => {
                 kind: "auto",
                 appId: "app-1",
                 search: "",
-                statuses: [],
+                panel: EMPTY_RUN_FILTERS,
             })
             return null
         }

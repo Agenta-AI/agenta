@@ -12,11 +12,13 @@ import {
     betaDeveloperModeActiveAtom,
     betaDeveloperModeFlagAtom,
     readSettledAdvancedNavHidden,
+    readSettledBetaDeveloperModeCookie,
     readSettledClassicModeCookie,
 } from "../state/classicMode"
 import {activeUserIdAtom} from "../state/featureFlags"
 import {userAtom} from "../state/user"
 import {
+    BETA_DEVELOPER_MODE_COOKIE,
     CLASSIC_MODE_COOKIE,
     GATE_COOKIE_MAX_AGE,
     MOBILE_OPTOUT_COOKIE,
@@ -104,6 +106,15 @@ export const useClassicModeCookieSync = () => {
         }
         writeCookie(CLASSIC_MODE_COOKIE, value)
     }, [value])
+
+    // Alongside the preference, and cleared whenever beta is not active, so a stale cookie
+    // cannot outlive the switch or the deployment's env var.
+    const beta = readSettledBetaDeveloperModeCookie(user)
+    useEffect(() => {
+        if (typeof document === "undefined" || beta === undefined) return
+        if (beta === null) clearCookie(BETA_DEVELOPER_MODE_COOKIE)
+        else writeCookie(BETA_DEVELOPER_MODE_COOKIE, beta)
+    }, [beta])
 }
 
 /**
@@ -155,7 +166,9 @@ export const useClassicModeRedirect = (
         if (isDesktopOnlyLink(pathname, search)) return
         if (readCookie(MOBILE_OPTOUT_COOKIE)) return
 
-        const target = mobileRouteFor(pathname, search)
+        const target = mobileRouteFor(pathname, search, {
+            developerViews: betaDeveloperModeActive,
+        })
         if (!target) return
         // Publish before navigating, exactly as the Classic mode switch does. Relying on the
         // sync effect above having already run makes this correct only by hook order; if the
@@ -186,5 +199,6 @@ export const desktopEscapeHref = (): string => {
 export const mobileEscapeHref = (): string => {
     if (typeof window === "undefined") return "/m/"
     const {pathname, search} = window.location
-    return mapDesktopToMobile(pathname, search)
+    // Only the beta switch leaves for `/m` from here, so the developer views are on there.
+    return mapDesktopToMobile(pathname, search, {developerViews: true})
 }

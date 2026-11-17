@@ -57,7 +57,11 @@ export const REPLICA_ID =
 export const REPLICA_ADDRESS =
   process.env.AGENTA_RUNNER_REPLICA_ADDRESS?.trim() ?? "";
 
-import { runnerTokenHeader, startPlatformCredentialLease } from "./auth.ts";
+import {
+  runnerTokenHeader,
+  startPlatformCredentialLease,
+  type PlatformCredentialSource,
+} from "./auth.ts";
 import { isAccessDeniedStatus, noteAccessDenied } from "./access-denied.ts";
 import type { TypedReference } from "./interactions.ts";
 
@@ -229,6 +233,8 @@ export async function startAliveWatchdog(
   /** Stop heartbeating without publishing turn-end; used before durable admission. */
   abandon: () => void;
   credential: () => string;
+  /** The same lease as `credential`, with the value it started from. */
+  credentialLease: PlatformCredentialSource;
   streamId: () => string | undefined;
   /** False when the FIRST beat reported `is_current_turn: false` — another turn owns the session. */
   admitted: boolean;
@@ -333,6 +339,7 @@ export async function startAliveWatchdog(
       credentialLease.release();
     },
     credential: credentialLease.credential,
+    credentialLease,
     streamId: () => streamId,
     firstBeatOwned: first.owned,
   };

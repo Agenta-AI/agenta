@@ -1,0 +1,21 @@
+{
+    "channelActions": "渠道操作",
+    "connectHere": "连接到此处",
+    "connectPlatform": "连接 {{platform}}",
+    "disconnectMessage": "{{name}} 将停止在 {{platform}} 上回复。你之后可以重新连接。",
+    "disconnectTitle": "断开渠道",
+    "finishLinking": "完成关联",
+    "intro": "在团队已在使用的聊天工具中与 {{agent}} 对话。",
+    "loading": "加载中…",
+    "messagingPlatforms": "消息平台",
+    "noAgent": "无 Agent",
+    "noAgentYet": "暂无 Agent",
+    "notLinkedYet": "尚未关联",
+    "slackDescription": "在 Slack 中提及 Agent 或给它发私信",
+    "telegramDescription": "通过托管机器人或你自己的机器人与 Agent 对话",
+    "title": "渠道",
+    "unknownAgent": "未知 Agent",
+    "whatsappDescription": "让客户在 WhatsApp 上给 Agent 发消息",
+    "yourAgent": "你的 Agent",
+    "yourWorkspace": "你的工作区"
+}

@@ -24,6 +24,14 @@ export interface AppEndpointParamsInput {
     environmentSlug: string
     isChat: boolean
     appSlug: string | null
+    /** One variant version instead of an environment: the Registry's "Use API". */
+    variant?: AppEndpointVariant
+}
+
+/** A variant version a snippet names in place of an environment. */
+export interface AppEndpointVariant {
+    slug: string
+    version: number
 }
 
 /**
@@ -35,6 +43,7 @@ export const buildAppEndpointParams = ({
     environmentSlug,
     isChat,
     appSlug,
+    variant,
 }: AppEndpointParamsInput): string => {
     const values: Record<string, unknown> = {}
     for (const {key, schema} of inputs) {
@@ -47,7 +56,12 @@ export const buildAppEndpointParams = ({
             data: {inputs: values},
             references: {
                 ...(appSlug ? {application: {slug: appSlug}} : {}),
-                environment: {slug: environmentSlug},
+                ...(variant
+                    ? {
+                          application_variant: {slug: variant.slug},
+                          application_revision: {version: String(variant.version)},
+                      }
+                    : {environment: {slug: environmentSlug}}),
             },
         },
         null,
@@ -221,6 +235,68 @@ const getConfig = async (appSlug: string, environmentSlug: string) => {
 };
 
 getConfig(${stringLiteral(appSlug)}, ${stringLiteral(environmentSlug)}).then(console.log).catch(console.error);
+`,
+    }
+}
+
+export interface FetchVariantConfigSnippetInput {
+    /** The API origin and path, for example `https://host/api`. */
+    apiUrl: string
+    appSlug: string
+    variant: AppEndpointVariant
+    apiKey?: string
+}
+
+/** How to fetch one variant version's config, once per language. */
+export const buildFetchVariantConfigSnippets = ({
+    apiUrl,
+    appSlug,
+    variant,
+    apiKey,
+}: FetchVariantConfigSnippetInput): AppEndpointSnippets => {
+    const key = apiKey || API_KEY_PLACEHOLDER
+    const endpoint = `${apiUrl}/applications/revisions/retrieve`
+    const body = {
+        application_ref: {slug: appSlug},
+        application_variant_ref: {slug: variant.slug},
+        application_revision_ref: {version: String(variant.version)},
+    }
+    return {
+        python: `import os
+import agenta as ag
+
+os.environ["AGENTA_API_KEY"] = ${JSON.stringify(key)}
+os.environ["AGENTA_API_URL"] = ${JSON.stringify(apiUrl)}
+
+ag.init()
+config = ag.ConfigManager.get_from_registry(
+    app_slug=${stringLiteral(appSlug)},
+    variant_slug=${stringLiteral(variant.slug)},
+    variant_version=${Number(variant.version)},
+)
+print(config)
+`,
+        bash: `curl -X POST ${shellSingleQuoted(endpoint)} \\
+-H 'Content-Type: application/json' \\
+-H ${shellSingleQuoted(`Authorization: ApiKey ${key}`)} \\
+-d ${shellSingleQuoted(JSON.stringify(body, null, 4))}
+`,
+        typescript: `import axios from 'axios';
+
+const getConfig = async () => {
+    const response = await axios.post(${stringLiteral(endpoint)}, ${typescriptValue(
+        JSON.stringify(body, null, 4),
+        4,
+    )}, {
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': ${stringLiteral(`ApiKey ${key}`)},
+        },
+    });
+    return response.data;
+};
+
+getConfig().then(console.log).catch(console.error);
 `,
     }
 }

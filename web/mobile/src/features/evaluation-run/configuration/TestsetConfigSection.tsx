@@ -7,14 +7,20 @@ import {TestsetRows} from "./TestsetRows"
 export const TestsetConfigSection = ({
     projectId,
     testsets,
+    idSuffix = "",
+    differs = false,
 }: {
     projectId: string
     testsets: readonly RunTestsetReference[]
+    /** Keeps the section id unique when several runs show side by side. */
+    idSuffix?: string
+    /** Compare mode: the test sets differ from the base run's. */
+    differs?: boolean
 }) => {
     if (testsets.length === 0) return null
     return (
         <ConfigSection
-            id="config-testset"
+            id={`config-testset${idSuffix}`}
             title="Test set"
             subtitle={testsets.length > 1 ? `${testsets.length} test sets` : null}
         >
@@ -23,6 +29,7 @@ export const TestsetConfigSection = ({
                     key={`${testset.testsetId}:${testset.revisionId}`}
                     projectId={projectId}
                     testset={testset}
+                    differs={differs}
                 />
             ))}
         </ConfigSection>

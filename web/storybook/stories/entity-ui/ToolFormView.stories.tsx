@@ -6,18 +6,6 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 // ToolFormView — the Form side of the tool ConfigItemDrawer: a 240px ParameterTree rail
 // beside a contextual detail panel (the selected parameter's editor, or the tool "basics"
 // while nothing is selected).
-//
-// antd swaps in THIS file: `Input` → `@agenta/ui` `Input`; `Input.TextArea autoSize` →
-// `AutosizeTextarea`; `Select options/onChange` → Radix `Select` composition;
-// `Switch onChange` → `Switch onCheckedChange`; `Spin` → `Spinner`.
-//
-// NO `AntdVsAgenta` pair here, deliberately: the left rail (`agentTemplate/ParameterTree`,
-// `ParameterNodeEditor`) is owned by a different migration chunk and is not exported, so an
-// antd replay of this view could not hold the rail constant across the two halves and the
-// diff would report that chunk's work as this one's. The migrated leaves are gated by
-// their own parity stories — `DrillIn/ReferenceToolFormView` (AutosizeTextarea),
-// `Drawers/RailField`, and the wave-1 `@agenta/ui` Input/Select/Switch grids. These
-// stories are the inventory + state coverage for the composed view.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/ToolFormView",
     component: ToolFormView,

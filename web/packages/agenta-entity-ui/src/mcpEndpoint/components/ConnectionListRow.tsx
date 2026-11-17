@@ -18,9 +18,10 @@
  */
 import {getMcpConnectionStatusLabel, type McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
 import {formatCount} from "@agenta/shared/utils"
+import {McpServerMark} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
-import {Button, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
-import {ArrowClockwise, Check, Plugs, Plus} from "@phosphor-icons/react"
+import {Button, touchTargetExpansion} from "@agenta/ui/ui"
+import {ArrowClockwise, Check, Plus} from "@phosphor-icons/react"
 
 export interface ConnectionListRowProps {
     name: string
@@ -72,15 +73,13 @@ export function ConnectionListRow({
                 added && "opacity-70",
             )}
         >
-            <IconTile size={28}>
-                <Plugs />
-            </IconTile>
+            <McpServerMark size={28} />
 
             <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-colorText">{name}</div>
                 <div
                     className={cn(
-                        "truncate font-mono text-xs",
+                        "truncate text-xs",
                         working ? "text-colorTextTertiary" : "text-colorWarning",
                     )}
                 >

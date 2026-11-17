@@ -363,9 +363,9 @@ describe("live evaluation sheet", () => {
         })
     })
 
-    it("The query summary counts only the user's filters", async () => {
+    it("The query summary counts the locked invocation filter, like the filter button", async () => {
         await mount()
-        expect(text()).toContain("No filters • Sampling 100% • Live traffic")
+        expect(text()).toContain("1 filter • Sampling 100% • Live traffic")
         await act(async () => root.unmount())
         root = createRoot(host)
         await mount({
@@ -375,7 +375,20 @@ describe("live evaluation sheet", () => {
             ],
             samplingRate: 25,
         })
-        expect(text()).toContain("2 filters • Sampling 25% • Live traffic")
+        expect(text()).toContain("3 filters • Sampling 25% • Live traffic")
+    })
+
+    it("Run on historical data is shown off and disabled, with its dates, as in the old app", async () => {
+        await mount()
+        const toggle = host.ownerDocument.querySelector("[aria-label='Run on historical data']")
+        expect(toggle?.getAttribute("aria-checked")).toBe("false")
+        expect(toggle?.hasAttribute("disabled")).toBe(true)
+        for (const label of ["Start date", "End date"]) {
+            expect(
+                host.ownerDocument.querySelector<HTMLInputElement>(`[aria-label='${label}']`)
+                    ?.disabled,
+            ).toBe(true)
+        }
     })
 
     it("Opening the trace filter does not submit the form", async () => {

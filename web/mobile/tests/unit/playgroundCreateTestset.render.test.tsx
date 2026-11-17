@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * "Create a new test set" in the load dialog of the playground, on the real controllers with only
+ * "Create a new test set" (a file drop) in the load dialog of the playground, on the real controllers with only
  * HTTP mocked: the M3 create dialog uploads a file, the playground connects to the new revision,
  * and a cancel returns to the load dialog.
  */
@@ -158,8 +158,9 @@ const openLoadDialog = async () => {
 }
 const dialogs = () => [...document.querySelectorAll<HTMLElement>('[role="dialog"]')]
 const topDialog = () => dialogs()[dialogs().length - 1]
-const upload = async (fileName: string, name: string) => {
-    const input = document.querySelector<HTMLInputElement>('[data-testid="testset-file-input"]')!
+/** Drops a CSV on the load dialog's "Create a new test set" area: the create dialog opens with it. */
+const dropFile = async (fileName: string) => {
+    const input = topDialog().querySelector<HTMLInputElement>('[data-testid="testset-file-input"]')!
     Object.defineProperty(input, "files", {
         value: [new File(["country\nFrance\nItaly"], fileName)],
         configurable: true,
@@ -168,6 +169,8 @@ const upload = async (fileName: string, name: string) => {
         input.dispatchEvent(new Event("change", {bubbles: true}))
     })
     await settle()
+}
+const nameAndCreate = async (name: string) => {
     const field = document.querySelector<HTMLInputElement>("#upload-testset-name")!
     await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
@@ -214,14 +217,14 @@ describe("Create a new test set from the load dialog", () => {
     it("The create dialog's code loads only when it opens", async () => {
         await openLoadDialog()
         expect(loads.create).toBe(0)
-        await click(topDialog(), "Create a new test set")
+        await dropFile("capitals.csv")
         expect(loads.create).toBe(1)
     })
 
     it("Create and load uploads the file and connects the playground to the new revision", async () => {
         await openLoadDialog()
-        await click(topDialog(), "Create a new test set")
-        await upload("capitals.csv", "  Capitals  ")
+        await dropFile("capitals.csv")
+        await nameAndCreate("  Capitals  ")
 
         const [request] = uploads.filter((item) => item.url.includes("/simple/testsets/upload"))
         expect(new URL(request.url).searchParams.get("project_id")).toBe(projectId)
@@ -254,8 +257,8 @@ describe("Create a new test set from the load dialog", () => {
         )
         await settle()
         await openLoadDialog()
-        await click(topDialog(), "Create a new test set")
-        await upload("capitals.csv", "Capitals")
+        await dropFile("capitals.csv")
+        await nameAndCreate("Capitals")
         expect(document.body.textContent).toContain("Keep your draft test cases?")
         await click(document.body, "Keep and load")
         await settle()
@@ -278,8 +281,8 @@ describe("Create a new test set from the load dialog", () => {
         })
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         await openLoadDialog()
-        await click(topDialog(), "Create a new test set")
-        await upload("capitals.csv", "Capitals")
+        await dropFile("capitals.csv")
+        await nameAndCreate("Capitals")
 
         expect(message.error).toHaveBeenCalledWith("The test set was created, but it did not load")
         expect(store.get(loadableController.selectors.connectedSource(loadableId()))).toMatchObject(
@@ -290,7 +293,7 @@ describe("Create a new test set from the load dialog", () => {
 
     it("Cancel returns to the load dialog and connects nothing", async () => {
         await openLoadDialog()
-        await click(topDialog(), "Create a new test set")
+        await dropFile("capitals.csv")
         expect(topDialog().textContent).toContain("Create new test set")
         await click(topDialog(), "Close")
         await settle()
@@ -301,10 +304,15 @@ describe("Create a new test set from the load dialog", () => {
         expect(button(host, "Test set")).toBeDefined()
     })
 
-    it("The create dialog offers the file upload only", async () => {
+    it("The dropped file opens the create dialog with the file and its name, upload only", async () => {
         await openLoadDialog()
-        await click(topDialog(), "Create a new test set")
-        expect(topDialog().textContent).toContain("Click or drag file to this area to upload")
+        expect(topDialog().textContent).toContain("Create a new test set")
+        await dropFile("capitals.csv")
+
+        expect(topDialog().textContent).toContain("capitals.csv")
+        expect(document.querySelector<HTMLInputElement>("#upload-testset-name")?.value).toBe(
+            "capitals",
+        )
         expect(topDialog().textContent).not.toContain("New via UI")
         expect(topDialog().textContent).not.toContain("Create via API")
     })

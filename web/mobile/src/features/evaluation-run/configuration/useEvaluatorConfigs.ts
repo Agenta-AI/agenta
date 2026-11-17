@@ -1,5 +1,6 @@
 import {runReferencesAtomFamily} from "@agenta/entities/evaluationRun"
 import {
+    parseEvaluatorKeyFromUri,
     workflowArtifactQueryAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
     workflowQueryAtomFamily,
@@ -7,10 +8,21 @@ import {
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 
+/** One field of what the evaluator returns, from its outputs schema. */
+export interface EvaluatorOutputMetric {
+    name: string
+    type: string | null
+    required: boolean
+}
+
 export interface EvaluatorConfig {
     /** The step key: one evaluator can appear in two steps. */
     key: string
+    evaluatorId: string
     name: string
+    /** The template key in the revision URI, for example `auto_exact_match`. */
+    evaluatorKey: string | null
+    outputs: EvaluatorOutputMetric[]
     description: string | null
     /** The revision version the run used; null when the run names no revision. */
     version: number | null
@@ -23,6 +35,27 @@ export interface EvaluatorConfig {
     snapshot: unknown
     pending: boolean
     failed: boolean
+}
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+    value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null
+
+/** The fields of an outputs JSON schema, in order, with their type and whether they are required. */
+export const outputMetrics = (schema: unknown): EvaluatorOutputMetric[] => {
+    const properties = asRecord(asRecord(schema)?.properties)
+    if (!properties) return []
+    const required = asRecord(schema)?.required
+    const requiredNames = new Set(Array.isArray(required) ? required.map(String) : [])
+    return Object.entries(properties).map(([name, field]) => {
+        const type = asRecord(field)?.type
+        return {
+            name,
+            type: typeof type === "string" ? type : Array.isArray(type) ? type.join(" | ") : null,
+            required: requiredNames.has(name),
+        }
+    })
 }
 
 /**
@@ -51,7 +84,10 @@ const evaluatorConfigsAtomFamily = atomFamily((runId: string) =>
                 settledEmpty(revision)
             return {
                 key: stepKey,
+                evaluatorId,
                 name: artifact.data?.name?.trim() || slug || evaluatorId,
+                evaluatorKey: parseEvaluatorKeyFromUri(stored?.data?.uri) ?? null,
+                outputs: outputMetrics(stored?.data?.schemas?.outputs),
                 description: artifact.data?.description?.trim() || null,
                 version: referencedRevisionId ? (stored?.version ?? null) : null,
                 latest: !referencedRevisionId,

@@ -29,7 +29,7 @@ export const useLatestAppRuns = ({
     const queryClient = useQueryClient()
     return useQuery({
         queryKey: [
-            ...evaluationRunsListQueryKey(projectId, {appId, kind}),
+            ...evaluationRunsListQueryKey(projectId, {appId, kinds: [kind]}),
             "latest",
             LATEST_RUNS_COUNT,
         ],
@@ -38,7 +38,7 @@ export const useLatestAppRuns = ({
                 projectId,
                 limit: LATEST_RUNS_COUNT,
                 appId,
-                kind,
+                kinds: [kind],
             })
             seedEvaluationRunCache(queryClient, page.runs)
             return page.runs

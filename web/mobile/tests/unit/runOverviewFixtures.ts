@@ -30,6 +30,7 @@ export const evaluatorMetric = (
     evaluatorSlug: "exact-match",
     evaluatorName: "Exact match",
     stats: normalizeMetricStats(raw),
+    statsAreRunWide: true,
     temporal: [],
     ...patch,
 })
@@ -47,6 +48,7 @@ export const invocationMetric = (
     evaluatorSlug: null,
     evaluatorName: null,
     stats: raw ? normalizeMetricStats(raw) : null,
+    statsAreRunWide: raw !== null,
     temporal: [],
 })
 

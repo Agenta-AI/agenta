@@ -172,6 +172,9 @@ export {
     clearChangesAtom,
 } from "./state/mutations"
 
+export {commitPreviewAtom, type CommitPreview, type CommitPreviewEntry} from "./state/commitPreview"
+export {applyColumnOps, type PendingColumnOps} from "./state/revisionTableState"
+
 export type {
     SaveTestsetParams,
     SaveTestsetResult,

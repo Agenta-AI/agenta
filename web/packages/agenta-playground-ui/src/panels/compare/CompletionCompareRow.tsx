@@ -2,6 +2,7 @@ import {memo, useMemo, type ReactNode} from "react"
 
 import {executionItemController} from "@agenta/playground"
 import {RunButton} from "@agenta/ui/components/presentational"
+import {Rows} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useExecutionCell} from "../../hooks/useExecutionCell"
@@ -45,7 +46,7 @@ const OutputCell = ({
 
 export interface CompletionCompareRowProps {
     rowId: string
-    /** 0-based position, shown as "test case {n}". */
+    /** 0-based position, shown as "testcase {n}". */
     index: number
     revisionIds: string[]
     canRemove: boolean
@@ -83,13 +84,14 @@ export const CompletionCompareRow = memo(
                 className="flex flex-col md:min-w-fit md:flex-row"
             >
                 <div className={`${LEAD_COLUMN} flex flex-col gap-3 border-b p-3`}>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="group/row-header flex flex-wrap items-center gap-2">
                         <button
                             type="button"
                             onClick={showDetails}
-                            className="whitespace-nowrap rounded-md border-0 bg-muted px-2 py-0.5 text-xs text-foreground"
+                            className="flex items-center gap-1 whitespace-nowrap rounded-md border-0 bg-muted px-2 py-0.5 text-xs text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                            {`test case ${index + 1}`}
+                            <Rows size={12} aria-hidden />
+                            {`testcase ${index + 1}`}
                         </button>
                         <RowSyncTag rowId={rowId} />
                         <div className="ml-auto flex items-center gap-2">
