@@ -86,6 +86,7 @@
       "follow-redirects": "1.16.2",
       "hono": "4.13.11",
       "ip-address": "10.7.4",
+      "minimatch@>=7 <11.0.1": "11.0.1",
       "postcss": "8.5.23",
       "protobufjs": "7.6.5",
       "proxy-addr@<2.0.8": "^2.0.8",
