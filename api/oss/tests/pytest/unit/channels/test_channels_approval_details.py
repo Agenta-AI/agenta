@@ -12,6 +12,7 @@ from oss.src.core.channels.adapters.whatsapp.mapping import _card_text
 from oss.src.core.channels.render.approval import (
     approval_details,
     approval_label,
+    approval_title,
     strip_mount_roots,
 )
 
@@ -43,6 +44,33 @@ def test_every_mount_root_form_is_removed():
     # a path outside a mount names what the call touches, so it stays
     assert strip_mount_roots("/etc/hosts") == "/etc/hosts"
     assert strip_mount_roots("/data/mounts/a/b/c") == "/data/mounts/a/b/c"
+
+
+_MOUNT_ROOT = "/home/sandbox/agenta/mounts/0190aaaa-bbbb/0190cccc-dddd"
+
+
+def test_a_command_on_the_mount_root_still_shows_its_target():
+    assert approval_details({"command": f"rm -rf {_MOUNT_ROOT}"}) == (
+        "Command: rm -rf ."
+    )
+    assert approval_details({"command": f"rm -rf {_MOUNT_ROOT}/"}) == (
+        "Command: rm -rf ."
+    )
+
+
+def test_a_path_that_is_the_mount_root_reads_as_dot():
+    assert approval_details({"path": _MOUNT_ROOT}) == "Path: ."
+
+
+def test_a_mount_root_inside_a_command_reads_as_dot():
+    assert approval_details({"command": f"cd {_MOUNT_ROOT} && rm -rf *"}) == (
+        "Command: cd . && rm -rf *"
+    )
+    assert strip_mount_roots(f"cd '{_MOUNT_ROOT}'") == "cd '.'"
+
+
+def test_a_title_on_the_mount_root_still_shows_its_target():
+    assert approval_title(f"rm -rf {_MOUNT_ROOT}") == "Approval needed: rm -rf ."
 
 
 def test_a_harness_title_with_a_server_path_shows_the_mount_path():

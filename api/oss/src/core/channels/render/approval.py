@@ -41,10 +41,17 @@ def redact_approval_arguments(value: Any) -> Any:
 
 def strip_mount_roots(text: str) -> str:
     """`/var/lib/agenta/mounts/<scope>/<mount>/notes/a.md` -> `notes/a.md`,
-    also inside a command. Paths outside a mount stay as they are: they name
-    what the call touches."""
+    also inside a command. A bare mount root becomes `.`, so the card still
+    shows the target. Paths outside a mount stay as they are: they name what
+    the call touches."""
 
-    return _MOUNT_ROOT.sub("", text)
+    def replace(match: re.Match[str]) -> str:
+        # A root followed by a path inside it goes; a root alone, or with only
+        # a trailing slash, is the target itself.
+        bare = re.match(r"[\s'\"`]|$", match.string[match.end() :])
+        return "." if bare else ""
+
+    return _MOUNT_ROOT.sub(replace, text)
 
 
 def approval_label(tool: Any) -> str:
