@@ -41,9 +41,11 @@ from oss.src.core.sharing.dtos import (
     AgentReadScope,
     AgentSharingState,
     CachedAgentAccess,
+    CachedMountAccess,
     CachedSessionAccess,
     CachedUserGrants,
     EffectiveRole,
+    MountAccess,
     NotShareableReason,
     SessionGrant,
     SessionPolicyState,
@@ -58,9 +60,15 @@ from oss.src.core.sharing.dtos import (
     SessionTombstone,
 )
 from oss.src.core.access import prefetch
-from oss.src.core.access.context import clear_request_memo, get_request_memo
+from oss.src.core.access.context import (
+    clear_request_memo,
+    get_request_access,
+    get_request_memo,
+)
 from oss.src.core.sharing.interfaces import SharingDAOInterface
 from oss.src.core.sharing.types import (
+    DriveNotOwned,
+    HomeDriveNotAllowed,
     InvalidGrantee,
     InvalidTransferTarget,
     OwnerStillActive,
@@ -84,10 +92,14 @@ log = get_module_logger(__name__)
 
 AGENT_ACCESS_NAMESPACE = "sharing_agent_access"
 SESSION_ACCESS_NAMESPACE = "sharing_session_access"
+MOUNT_ACCESS_NAMESPACE = "sharing_mount_access"
 USER_GRANTS_NAMESPACE = "sharing_user_grants"
 # One `sharing_user_grants` entry per (project, user), with a fixed key, so one entry can
 # be deleted directly by its name.
 _USER_GRANTS_KEY = "grants"
+
+# The code of a refused home drive, at sign (403), save (422) and visibility change (409).
+HOME_DRIVE_NOT_ALLOWED = "home_drive_not_allowed"
 
 # Rule S1: the actions that only read a session.
 _SESSION_READ_ACTIONS = frozenset(
@@ -168,7 +180,133 @@ class SharingService(ResourcePolicyInterface):
                 session_id=resource.id,
                 context=context,
             )
+        if resource.kind == ResourceKind.MOUNT:
+            return await self._evaluate_mount(
+                principal=principal,
+                action=action,
+                project_id=project_id,
+                resource_id=resource.id,
+                context=context,
+            )
         return None
+
+    async def _evaluate_mount(
+        self,
+        *,
+        principal: PrincipalRef,
+        action: Action,
+        project_id: UUID,
+        resource_id: str,
+        context: Optional[RunContext] = None,
+    ) -> Optional[DecisionReason]:
+        """Rules D1, D2 and the legacy branch. A missing row returns None (the caller's
+        not-found path answers); an unreadable id is denied."""
+
+        try:
+            mount_id = UUID(resource_id)
+        except ValueError:
+            return DecisionReason.RESOURCE_DENIED
+        access = await self.fetch_mount_access_cached(
+            project_id=project_id, mount_id=mount_id
+        )
+        if access is None:
+            return None
+        if access.session_id:
+            # A session drive follows its session: reading is S1, writing and signing S2.
+            return await self._evaluate_session(
+                principal=principal,
+                action=(
+                    Permission.VIEW_MOUNTS
+                    if action == Permission.VIEW_MOUNTS
+                    else Permission.RUN_SESSIONS
+                ),
+                project_id=project_id,
+                session_id=access.session_id,
+                context=context,
+            )
+
+        policy = await self.mount_policy(project_id=project_id, access=access)
+        # D1: shared, the role decides.
+        if policy.visibility == Visibility.PROJECT:
+            return None
+        # D2: private, only the human owner, and the owner's channel binding signing it
+        # on its own channel turn of the owner's private agent.
+        if _is_human(principal, policy.owner_user_id):
+            return None
+        if (
+            action == Permission.USE_MOUNTS
+            and _is_channel_turn(principal, context)
+            and _binding_creator(principal) == policy.owner_user_id
+            and await self._runs_private_agent_of(
+                principal=principal,
+                project_id=project_id,
+                owner_user_id=policy.owner_user_id,
+            )
+        ):
+            return None
+        return DecisionReason.RESOURCE_DENIED
+
+    async def _runs_private_agent_of(
+        self,
+        *,
+        principal: PrincipalRef,
+        project_id: UUID,
+        owner_user_id: Optional[UUID],
+    ) -> bool:
+        """The request runs (its `run_agent_id` claim) a private agent of this owner."""
+
+        access = get_request_access()
+        if access is None or access.principal != principal:
+            return False
+        if access.run_agent_id is None:
+            return False
+        agent_policy = (
+            await self.fetch_agent_policy_cached(
+                project_id=project_id, artifact_id=access.run_agent_id
+            )
+        ).policy
+        return (
+            agent_policy is not None
+            and agent_policy.visibility == Visibility.PRIVATE
+            and agent_policy.owner_user_id == owner_user_id
+        )
+
+    async def mount_policy(
+        self, *, project_id: UUID, access: MountAccess
+    ) -> AccessPolicy:
+        """The visibility a drive has: its own row, else (a drive with `agent_id` before
+        release 2 writes its row) its agent's, else shared with no owner."""
+
+        if access.policy is not None:
+            return access.policy
+        if access.agent_id:
+            try:
+                artifact_id = UUID(access.agent_id)
+            except ValueError:
+                return OWNERLESS_PROJECT_POLICY
+            agent_policy = (
+                await self.fetch_agent_policy_cached(
+                    project_id=project_id, artifact_id=artifact_id
+                )
+            ).policy
+            return agent_policy or OWNERLESS_PROJECT_POLICY
+        return OWNERLESS_PROJECT_POLICY
+
+    @staticmethod
+    def check_home_drive(
+        agent_policy: Optional[AccessPolicy], mount_policy: AccessPolicy
+    ) -> Optional[str]:
+        """The home rule: a private agent's home drive is a private drive of the agent's
+        owner. A shared agent has no extra condition. Returns the refusal code."""
+
+        if agent_policy is None or agent_policy.visibility != Visibility.PRIVATE:
+            return None
+        if (
+            mount_policy.visibility == Visibility.PRIVATE
+            and mount_policy.owner_user_id == agent_policy.owner_user_id
+        ):
+            return None
+        return HOME_DRIVE_NOT_ALLOWED
 
     async def _evaluate_agent(
         self,
@@ -360,6 +498,8 @@ class SharingService(ResourcePolicyInterface):
             except ValueError:
                 return
             prefetch.register(agent_access_entry(project_id, artifact_id))
+        elif resource.kind == ResourceKind.MOUNT:
+            prefetch.register(mount_access_entry(project_id, resource.id))
 
     # -- read scopes ------------------------------------------------------------------------
 
@@ -444,6 +584,36 @@ class SharingService(ResourcePolicyInterface):
                 value=cached,
             )
         return cached
+
+    async def fetch_mount_access_cached(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+    ) -> Optional[MountAccess]:
+        """The drive's scope and visibility row through `sharing_mount_access`. None
+        when no `mounts` row exists; that answer is never cached."""
+
+        key = {"m": str(mount_id)}
+        cached = await _get(
+            namespace=MOUNT_ACCESS_NAMESPACE,
+            project_id=project_id,
+            key=key,
+            model=CachedMountAccess,
+        )
+        if cached is not None and cached.access is not None:
+            return cached.access
+        access = await self._dao.fetch_mount_access(
+            project_id=project_id, mount_id=mount_id
+        )
+        if access is not None:
+            await _set(
+                namespace=MOUNT_ACCESS_NAMESPACE,
+                project_id=project_id,
+                key=key,
+                value=CachedMountAccess(access=access),
+            )
+        return access
 
     async def _session_access(
         self,
@@ -574,14 +744,52 @@ class SharingService(ResourcePolicyInterface):
         #
         artifact_id: UUID,
         visibility: Visibility,
+        #
+        drives: Sequence[MountAccess] = (),
+        home_drives: Sequence[MountAccess] = (),
     ) -> AgentSharingState:
-        """Only the active human owner changes the visibility."""
+        """Only the active human owner changes the visibility.
+
+        `drives` are the drives the agent's latest revisions list, and `home_drives`
+        their home drives. To `project`, the owner's private drives among them become
+        shared in the same transaction (a private drive of another owner refuses with
+        `DriveNotOwned`). To `private`, every home drive must pass the home rule
+        (`HomeDriveNotAllowed`)."""
+
+        share_mount_ids: List[UUID] = []
 
         async def _decide(current: Optional[AccessPolicy]) -> AccessPolicy:
             owner = await self._require_active_owner(
                 project_id=project_id, principal=access.principal, policy=current
             )
-            return AccessPolicy(visibility=visibility, owner_user_id=owner)
+            new = AccessPolicy(visibility=visibility, owner_user_id=owner)
+            share_mount_ids.clear()
+            if visibility == Visibility.PROJECT:
+                for drive in drives:
+                    if _follows_agent(drive, artifact_id):
+                        continue
+                    policy = await self.mount_policy(
+                        project_id=project_id, access=drive
+                    )
+                    if policy.visibility != Visibility.PRIVATE:
+                        continue
+                    if policy.owner_user_id != owner:
+                        raise DriveNotOwned(slug=drive.slug or str(drive.mount_id))
+                    share_mount_ids.append(drive.mount_id)
+            else:
+                for drive in home_drives:
+                    policy = (
+                        new
+                        if _follows_agent(drive, artifact_id)
+                        else await self.mount_policy(
+                            project_id=project_id, access=drive
+                        )
+                    )
+                    if self.check_home_drive(new, policy) is not None:
+                        raise HomeDriveNotAllowed(
+                            slug=drive.slug or str(drive.mount_id)
+                        )
+            return new
 
         return await self._write_agent(
             organization_id=organization_id,
@@ -589,6 +797,7 @@ class SharingService(ResourcePolicyInterface):
             access=access,
             artifact_id=artifact_id,
             decide=_decide,
+            share_mount_ids=share_mount_ids,
         )
 
     async def transfer_agent(
@@ -820,10 +1029,12 @@ class SharingService(ResourcePolicyInterface):
         access: RequestAccess,
         artifact_id: UUID,
         decide,
+        share_mount_ids: Sequence[UUID] = (),
     ) -> AgentSharingState:
         """Read `expected`, decide, write; on a conflict decide once more on the
         committed policy and retry once. A decision equal to the current policy
-        writes nothing."""
+        writes nothing. `share_mount_ids` (filled by `decide`) become shared in the
+        same transaction."""
 
         principal = access.principal
         current = await self._dao.fetch_agent_policy(
@@ -843,6 +1054,7 @@ class SharingService(ResourcePolicyInterface):
                     expected=current,
                     policy=new,
                     user_id=principal.id,
+                    share_mount_ids=list(share_mount_ids),
                 )
                 break
             except SharingConflict as conflict:
@@ -851,7 +1063,9 @@ class SharingService(ResourcePolicyInterface):
                 current = conflict.current
 
         await invalidate_sharing_caches(
-            project_id=project_id, artifact_ids=[artifact_id]
+            project_id=project_id,
+            artifact_ids=[artifact_id],
+            mount_ids=list(share_mount_ids),
         )
         await publish_sharing_event(
             organization_id=organization_id,
@@ -861,8 +1075,11 @@ class SharingService(ResourcePolicyInterface):
             before=current,
             after=result.policy,
         )
-        return await self._agent_state(
+        state = await self._agent_state(
             project_id=project_id, principal=principal, policy=result.policy
+        )
+        return state.model_copy(
+            update={"drives_made_shared": result.drives_made_shared}
         )
 
     async def _require_active_owner(
@@ -1061,6 +1278,12 @@ class SharingService(ResourcePolicyInterface):
         )
 
 
+def _follows_agent(drive: MountAccess, artifact_id: UUID) -> bool:
+    """A drive created with this agent and without its own row yet (before release 2)."""
+
+    return drive.policy is None and drive.agent_id == str(artifact_id)
+
+
 def _resource_denied() -> AccessDenied:
     """The caller may read the item but not do this write: 403 `access_denied`."""
 
@@ -1168,6 +1391,15 @@ def agent_access_entry(project_id: UUID, artifact_id: UUID) -> dict:
         project_id=project_id,
         key={"a": str(artifact_id)},
         model=CachedAgentAccess,
+    )
+
+
+def mount_access_entry(project_id: UUID, mount_id: str) -> dict:
+    return _entry(
+        namespace=MOUNT_ACCESS_NAMESPACE,
+        project_id=project_id,
+        key={"m": str(mount_id)},
+        model=CachedMountAccess,
     )
 
 
@@ -1430,9 +1662,10 @@ async def invalidate_sharing_caches(
     artifact_ids: Sequence[UUID] = (),
     session_ids: Sequence[str] = (),
     grant_user_ids: Sequence[UUID] = (),
+    mount_ids: Sequence[UUID] = (),
 ) -> None:
-    """Clear the policy entries of these agents and sessions and the grant entries of
-    these users in the project. Called after the commit of every sharing write and
+    """Clear the policy entries of these agents, sessions and drives and the grant
+    entries of these users in the project. Called after the commit of every sharing write and
     every session delete. A failure is logged and never fails the writer."""
 
     # This request's later decisions read the written state, not what it read before.
@@ -1453,6 +1686,12 @@ async def invalidate_sharing_caches(
             namespace=SESSION_ACCESS_NAMESPACE,
             project_id=project_id,
             key={"s": session_id},
+        )
+    for mount_id in mount_ids:
+        await _invalidate(
+            namespace=MOUNT_ACCESS_NAMESPACE,
+            project_id=project_id,
+            key={"m": str(mount_id)},
         )
     for user_id in grant_user_ids:
         await _invalidate(

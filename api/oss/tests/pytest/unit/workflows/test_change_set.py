@@ -2275,6 +2275,7 @@ class TestAgentCommitScope:
             ["parameters", "agent", "sandbox", "permissions"],
             ["parameters", "agent", "sandbox", "credentials"],
             ["parameters", "agent", "drives"],
+            ["parameters", "agent", "home_drive"],
             ["parameters", "agent", "has_session_drive"],
         ],
     )
