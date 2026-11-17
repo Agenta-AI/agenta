@@ -127,7 +127,9 @@ class ChannelAdapterInterface(ABC):
     ) -> str:
         """Prove the caller may speak for this connection, and return the id
         it speaks for. Verification and identification are one act — the
-        caller maps that id to a connection. Raises ChannelSignatureInvalid.
+        caller maps that id to a connection. Raises ChannelSignatureInvalid,
+        or ChannelSignatureUnavailable when the check cannot run now because
+        a key source on our side failed.
 
         Not intrinsically HMAC: an API key validated against its owner
         satisfies this the same way a signing secret does.

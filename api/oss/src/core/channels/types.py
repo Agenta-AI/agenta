@@ -103,8 +103,8 @@ class ChannelSignatureInvalid(ChannelsError):
 
 class ChannelSignatureUnavailable(ChannelsError):
     """The signature cannot be checked now because a key source on our side
-    failed (Microsoft's signing keys did not load). A temporary error, not a
-    bad signature: ingress answers 503 so the platform retries."""
+    failed, for example the platform's signing keys did not load. A temporary
+    error, not a bad signature: ingress answers 503 so the platform retries."""
 
     def __init__(self, *, channel: str):
         self.channel = channel
