@@ -233,6 +233,25 @@ describe("classifyAuthFailure", () => {
         expect(classifyAuthFailure(new Response(null, {status: 503}))).toBe("server")
     })
 
+    it("knows the offline wording of each browser", () => {
+        for (const message of [
+            "Failed to fetch",
+            "NetworkError when attempting to fetch resource.",
+            "Load failed",
+            "The Internet connection appears to be offline.",
+        ]) {
+            expect(classifyAuthFailure(new TypeError(message))).toBe("unreachable")
+        }
+    })
+
+    it("does not call a code error unreachable", () => {
+        // What supertokens-web-js throws when a sign-up reply for an existing email has no user.
+        const error = new TypeError(
+            "Cannot use 'in' operator to search for 'loginMethods' in undefined",
+        )
+        expect(classifyAuthFailure(error)).toBe("unknown")
+    })
+
     it("does not guess at anything else", () => {
         expect(classifyAuthFailure(new Response(null, {status: 400}))).toBe("unknown")
         expect(classifyAuthFailure(new Response(null, {status: 401}))).toBe("unknown")
