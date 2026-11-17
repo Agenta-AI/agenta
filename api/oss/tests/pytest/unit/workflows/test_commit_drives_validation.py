@@ -80,15 +80,7 @@ class _Drives:
         return self.own
 
     async def create_agent_drive(
-        self,
-        *,
-        project_id,
-        user_id,
-        artifact_id,
-        agent_slug,
-        agent_name,
-        visibility,
-        slug=None,
+        self, *, project_id, user_id, artifact_id, agent_slug, agent_name, visibility
     ):
         self.created.append({"slug": agent_slug, "visibility": visibility})
         self.own = self.add(f"{agent_slug}-files", visibility, agent_id=artifact_id)

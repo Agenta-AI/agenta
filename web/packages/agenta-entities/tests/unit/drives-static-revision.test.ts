@@ -109,6 +109,25 @@ describe("the drives of a revision the database does not hold", () => {
         expect(state.homeMount).toEqual({id: "m-own", slug: "own"})
     })
 
+    it("reports a failed read by reference as an error, not as the lookup by agent id", async () => {
+        fern.retrieveWorkflowRevision.mockRejectedValue(new Error("server error"))
+
+        const target = agentDrivesStateAtom("r-failed", "a-failed")
+        const store = createStore()
+        store.set(
+            queryClientAtom,
+            new QueryClient({defaultOptions: {queries: {retry: false, retryDelay: 0}}}),
+        )
+        store.set(projectIdAtom, "p1")
+        const unsub = store.sub(target, () => undefined)
+        await vi.waitFor(() => expect(store.get(target).isError).toBe(true))
+        const state = store.get(target)
+        unsub()
+
+        expect(state.homeMount).toBeNull()
+        expect(fern.queryAgentMount).not.toHaveBeenCalled()
+    })
+
     it("does not read by reference a revision the database holds", async () => {
         stored.found.set("r-stored", {
             id: "r-stored",

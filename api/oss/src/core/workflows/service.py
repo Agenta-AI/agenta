@@ -183,6 +183,7 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.mounts.agent_drives import fill_agent_drive_keys
+from oss.src.core.mounts.types import is_static_agent_drive_slug
 from oss.src.core.sharing.service import (
     get_sharing_service,
     invalidate_sharing_caches,
@@ -623,14 +624,11 @@ class WorkflowsService:
         artifact_id: UUID,
         include_archived: bool,
         first_agent_owner_user_id: Optional[UUID] = None,
-        slug: Optional[str] = None,
-        name: Optional[str] = None,
     ) -> Optional["Mount"]:
         """The drive created with the agent, created now when the agent has none. The
         new drive's visibility is the agent's; an agent with no access row gets a shared
         drive, owned by ``first_agent_owner_user_id`` when given. None when the agent
-        does not exist (a static-catalog agent exists in code). ``slug`` and ``name``
-        fix the new drive's slug and name (a static catalog agent's own drive)."""
+        does not exist (a static-catalog agent exists in code)."""
         lookup = self._require_mount_lookup()
         own = await lookup.fetch_agent_drive(
             project_id=project_id, artifact_id=str(artifact_id)
@@ -663,10 +661,33 @@ class WorkflowsService:
             user_id=user_id,
             artifact_id=str(artifact_id),
             agent_slug=getattr(workflow, "slug", None),
-            agent_name=name or getattr(workflow, "name", None),
+            agent_name=getattr(workflow, "name", None),
             visibility=visibility,
-            slug=slug,
         )
+
+    def _static_agent_drive(self, artifact_id: UUID) -> Optional[Tuple[str, str]]:
+        """The slug and name of a static catalog agent's own drive: the first ``drives``
+        entry its catalog configuration lists under ``is_static_agent_drive_slug``, named
+        after the catalog revision. None for any other agent. No read."""
+        if self.static_catalog is None or not self.static_catalog.is_static_id(
+            artifact_id
+        ):
+            return None
+        revision = self.static_catalog.retrieve_revision(id=artifact_id)
+        if revision is None:
+            return None
+        drives = (_agent_config(revision.data) or {}).get("drives")
+        slug = next(
+            (
+                entry["slug"]
+                for entry in (drives if isinstance(drives, list) else [])
+                if isinstance(entry, dict)
+                and isinstance(entry.get("slug"), str)
+                and is_static_agent_drive_slug(entry["slug"], agent_slug=revision.slug)
+            ),
+            None,
+        )
+        return (slug, revision.name or slug) if slug is not None else None
 
     async def ensure_static_agent_drive(
         self,
@@ -676,35 +697,14 @@ class WorkflowsService:
         artifact_id: UUID,
     ) -> None:
         """Create the own drive of a static catalog agent at its first run in the
-        project. A static agent is never committed, so the commit never creates it.
-
-        Its own drive is the first ``drives`` entry whose slug is the agent's reserved
-        slug, ``__``, and a name (``__ag__builder__learning``): no user can create a
-        drive in the reserved namespace, so nobody can take the slug first. The drive
-        gets the catalog revision's name and is shared with no owner. Every later run
-        costs one lookup; any other agent costs none."""
-        if self.static_catalog is None or not self.static_catalog.is_static_id(
-            artifact_id
-        ):
+        project, shared with no owner. A static agent is never committed, so the commit
+        never creates it. Every later run costs one lookup; any other agent costs none."""
+        drive = self._static_agent_drive(artifact_id)
+        if drive is None:
             return
-        revision = self.static_catalog.retrieve_revision(id=artifact_id)
-        if revision is None:
-            return
-        drives = (_agent_config(revision.data) or {}).get("drives")
-        slug = next(
-            (
-                entry["slug"]
-                for entry in (drives if isinstance(drives, list) else [])
-                if isinstance(entry, dict)
-                and isinstance(entry.get("slug"), str)
-                and entry["slug"].startswith(f"{revision.slug}__")
-            ),
-            None,
-        )
-        if slug is None:
-            return
+        lookup = self._require_mount_lookup()
         if (
-            await self._require_mount_lookup().fetch_agent_drive(
+            await lookup.fetch_agent_drive(
                 project_id=project_id, artifact_id=str(artifact_id)
             )
             is not None
@@ -715,13 +715,15 @@ class WorkflowsService:
         )
         if user_id is None:
             return
-        await self.ensure_agent_drive(
+        slug, name = drive
+        await lookup.create_agent_drive(
             project_id=project_id,
             user_id=user_id,
-            artifact_id=artifact_id,
-            include_archived=False,
+            artifact_id=str(artifact_id),
+            agent_slug=None,
+            agent_name=name,
+            visibility=OWNERLESS_PROJECT_POLICY,
             slug=slug,
-            name=revision.name,
         )
 
     async def fill_agent_revision_drives(
@@ -1758,9 +1760,16 @@ class WorkflowsService:
         project_id: UUID,
         artifact_id: UUID,
     ) -> bool:
-        """True when a stored revision of the agent states `drives`: the legacy sign
-        route then refuses. One read, never cached."""
+        """True when a stored revision of the agent states `drives`, or the catalog
+        configuration of a static agent does: the legacy sign route then refuses. One
+        read, never cached; none for a static agent."""
 
+        if self.static_catalog is not None and self.static_catalog.is_static_id(
+            artifact_id
+        ):
+            revision = self.static_catalog.retrieve_revision(id=artifact_id)
+            agent = _agent_config(revision.data) if revision is not None else None
+            return agent is not None and agent.get("drives") is not None
         return await self.workflows_dao.has_revision_with_drives(
             project_id=project_id, artifact_id=artifact_id
         )

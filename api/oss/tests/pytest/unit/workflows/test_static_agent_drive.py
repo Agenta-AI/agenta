@@ -15,6 +15,7 @@ import oss.src.core.sharing.service as sharing_module
 import oss.src.core.workflows.service as workflows_module
 from oss.src.core.mounts.dtos import MountCreate
 from oss.src.core.mounts.service import MountsService
+from oss.src.core.mounts.types import MountSlugReserved, is_static_agent_drive_slug
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
@@ -134,7 +135,12 @@ async def test_a_user_drive_with_a_similar_slug_does_not_break_it(world, access)
         {"drives": [{"slug": DRIVE_SLUG}], "home_drive": None}
     )
     mounts = service._require_mount_lookup()
-    # A user's drive can never take the reserved slug, only a similar one.
+    with pytest.raises(MountSlugReserved):
+        await mounts.create_mount(
+            project_id=world.project_id,
+            user_id=uuid4(),
+            mount_create=MountCreate(slug=DRIVE_SLUG, name="learning"),
+        )
     await mounts.create_mount(
         project_id=world.project_id,
         user_id=uuid4(),
@@ -186,3 +192,30 @@ async def test_a_failed_create_does_not_fail_the_mint(world, access):
     dao.create_agent_mount = AsyncMock(side_effect=RuntimeError("database down"))
 
     assert await _mint(service, world, artifact_id) == artifact_id
+
+
+async def test_the_legacy_sign_route_refuses_a_static_agent_that_lists_drives(world):
+    service, _, artifact_id = _service({"drives": [{"slug": DRIVE_SLUG}]})
+    assert await service.has_revision_with_drives(
+        project_id=world.project_id, artifact_id=artifact_id
+    )
+    legacy, _, legacy_id = _service({"llm": {"model": "gpt-5.5"}})
+    assert not await legacy.has_revision_with_drives(
+        project_id=world.project_id, artifact_id=legacy_id
+    )
+
+
+@pytest.mark.parametrize(
+    "slug, agent_slug, expected",
+    [
+        ("__ag__builder__learning", "__ag__builder", True),
+        ("__ag__builder", "__ag__builder", False),
+        ("__ag__builderx__learning", "__ag__builder", False),
+        ("team-notes", "__ag__builder", False),
+        ("__ag__agent__0b6c__default", "__ag__agent", False),
+        ("__ag__session__0b6c__cwd", "__ag__session", False),
+        ("quote__learning", "quote", False),
+    ],
+)
+def test_the_static_agent_drive_slug_rule(slug, agent_slug, expected):
+    assert is_static_agent_drive_slug(slug, agent_slug=agent_slug) is expected

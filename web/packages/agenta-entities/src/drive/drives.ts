@@ -128,10 +128,18 @@ const NOTHING: ResolvedDrives = {
 const noop = () => {}
 
 /** `pending` (the revision is loading), `failed:<revision id>` (it did not load),
- * `legacy:<artifact id>`, or `listed:<entries and home>`. */
+ * `failed-retrieve:<revision id>` (its read by reference did not load), `legacy:<artifact id>`,
+ * or `listed:<entries and home>`. */
 type ConfigKey = string
 const PENDING_KEY = "pending"
 const FAILED_PREFIX = "failed:"
+const RETRIEVE_FAILED_PREFIX = "failed-retrieve:"
+
+/** A revision read by reference: the endpoint also serves static catalog revisions. */
+const revisionByReference = (revisionId: string) =>
+    retrievedWorkflowRevisionQueryAtomFamily(
+        retrievedWorkflowRevisionFamilyKey({revision: {id: revisionId}}),
+    )
 
 const configKeyOf = (config: AgentDriveConfig | null, artifactId: string): ConfigKey =>
     config ? `listed:${JSON.stringify(config)}` : `legacy:${artifactId}`
@@ -166,7 +174,12 @@ const legacyHomeDataFamily = atomFamily((artifactId: string) =>
 
 const resolvedDrivesFamily = atomFamily((key: ConfigKey) =>
     atom((get): ResolvedDrives => {
-        if (key === PENDING_KEY || key.startsWith(FAILED_PREFIX)) return NOTHING
+        if (
+            key === PENDING_KEY ||
+            key.startsWith(FAILED_PREFIX) ||
+            key.startsWith(RETRIEVE_FAILED_PREFIX)
+        )
+            return NOTHING
         const config = configOfKey(key)
         if (!config) {
             const artifactId = key.slice("legacy:".length)
@@ -199,6 +212,16 @@ const drivesStateFamily = atomFamily((key: ConfigKey) =>
         if (key === PENDING_KEY) return {...IDLE, isPending: true}
         // The revision did not load, so its drives are unknown: an error with a retry of the
         // revision, never the lookup of a configuration without a `drives` list.
+        if (key.startsWith(RETRIEVE_FAILED_PREFIX)) {
+            const query = get(revisionByReference(key.slice(RETRIEVE_FAILED_PREFIX.length)))
+            return {
+                ...IDLE,
+                isPending: query.isPending,
+                isFetching: query.isFetching,
+                isError: true,
+                refetch: () => void query.refetch(),
+            }
+        }
         if (key.startsWith(FAILED_PREFIX)) {
             const query = get(workflowMolecule.atoms.query(key.slice(FAILED_PREFIX.length)))
             return {
@@ -260,12 +283,9 @@ const revisionConfigKeyFamily = atomFamily((key: string) =>
         if (query.isPending) return PENDING_KEY
         if (query.isError) return `${FAILED_PREFIX}${revisionId}`
         if (query.data != null) return configKeyOf(null, artifactId)
-        const retrieved = get(
-            retrievedWorkflowRevisionQueryAtomFamily(
-                retrievedWorkflowRevisionFamilyKey({revision: {id: revisionId}}),
-            ),
-        )
+        const retrieved = get(revisionByReference(revisionId))
         if (retrieved.isPending) return PENDING_KEY
+        if (retrieved.isError) return `${RETRIEVE_FAILED_PREFIX}${revisionId}`
         return configKeyOf(agentDriveConfig(retrieved.data?.parameters ?? null), artifactId)
     }),
 )
