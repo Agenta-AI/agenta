@@ -257,6 +257,11 @@ nav[data-pill] {
   display: flex;
   align-items: center;
 }
+@media (max-width: 860px) {
+  .ag-brand img {
+    height: 19px !important;
+  }
+}
 
 /* ── side rules: hairlines from the column edge to the pill's outer ring ── */
 .ag-nav-rule {
