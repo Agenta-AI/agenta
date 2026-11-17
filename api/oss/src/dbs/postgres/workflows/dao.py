@@ -97,14 +97,81 @@ SELECT EXISTS (
 """
 
 # `json_extract_path`, not a `jsonb` cast: some stored `data` values the cast refuses.
-_AGENT_STATES_DRIVES_SQL = """
+# `drives: null` reads as no `drives`, like the fill.
+_HAS_REVISION_WITH_DRIVES_SQL = """
 SELECT EXISTS (
     SELECT 1
     FROM workflow_revisions r
     WHERE r.project_id = :project_id
       AND r.artifact_id = :artifact_id
-      AND json_extract_path(r.data, 'parameters', 'agent', 'drives') IS NOT NULL
+      AND json_typeof(json_extract_path(r.data, 'parameters', 'agent', 'drives'))
+          = 'array'
 )
+"""
+
+
+# The agent read scope (`_agent_read_filter`) on artifact `a`.
+_AGENT_READ_SCOPE_SQL = """
+NOT EXISTS (
+    SELECT 1 FROM agent_access x
+    WHERE x.project_id = a.project_id
+      AND x.artifact_id = a.id
+      AND x.visibility = 'private'
+      AND x.owner_user_id IS DISTINCT FROM :owner_user_id
+)
+"""
+
+# The other agents that use one of the drives: the latest revision of one of their
+# variants lists it, or it is their own drive and no revision of theirs states `drives`.
+_AGENTS_USING_DRIVES_SQL = f"""
+WITH latest AS (
+    SELECT DISTINCT ON (r.variant_id)
+        r.artifact_id,
+        json_extract_path(r.data, 'parameters', 'agent', 'drives') AS drives
+    FROM workflow_revisions r
+    JOIN workflow_variants v
+      ON v.project_id = r.project_id AND v.id = r.variant_id
+    WHERE r.project_id = :project_id
+      AND r.artifact_id <> :artifact_id
+      AND v.deleted_at IS NULL
+      AND r.flags @> '{{"is_agent": true}}'::jsonb
+    ORDER BY r.variant_id, r.created_at DESC
+)
+SELECT a.name, a.slug
+FROM workflow_artifacts a
+WHERE a.project_id = :project_id
+  AND a.id <> :artifact_id
+  AND a.deleted_at IS NULL
+  AND {_AGENT_READ_SCOPE_SQL}
+  AND (
+    EXISTS (
+        SELECT 1
+        FROM latest l,
+             json_array_elements(
+                 CASE WHEN json_typeof(l.drives) = 'array' THEN l.drives
+                      ELSE '[]'::json END
+             ) e
+        WHERE l.artifact_id = a.id
+          AND e ->> 'slug' = ANY(CAST(:slugs AS text[]))
+    )
+    OR (
+        EXISTS (
+            SELECT 1 FROM mounts m
+            WHERE m.project_id = a.project_id
+              AND m.agent_id = a.id::text
+              AND m.deleted_at IS NULL
+              AND m.slug = ANY(CAST(:slugs AS text[]))
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM workflow_revisions r
+            WHERE r.project_id = a.project_id
+              AND r.artifact_id = a.id
+              AND json_typeof(json_extract_path(r.data, 'parameters', 'agent', 'drives'))
+                  = 'array'
+        )
+    )
+  )
+ORDER BY a.name, a.slug
 """
 
 
@@ -348,7 +415,7 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                 ).scalar()
             )
 
-    async def agent_states_drives(
+    async def has_revision_with_drives(
         self,
         *,
         project_id: UUID,
@@ -358,11 +425,35 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
             return bool(
                 (
                     await session.execute(
-                        text(_AGENT_STATES_DRIVES_SQL),
+                        text(_HAS_REVISION_WITH_DRIVES_SQL),
                         {"project_id": project_id, "artifact_id": artifact_id},
                     )
                 ).scalar()
             )
+
+    async def fetch_agents_using_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        slugs: List[str],
+        read_scope: AgentReadScope,
+    ) -> List[str]:
+        if not slugs:
+            return []
+        async with self.engine.session() as session:
+            rows = (
+                await session.execute(
+                    text(_AGENTS_USING_DRIVES_SQL),
+                    {
+                        "project_id": project_id,
+                        "artifact_id": artifact_id,
+                        "slugs": list(slugs),
+                        "owner_user_id": read_scope.owner_user_id,
+                    },
+                )
+            ).all()
+        return [row.name or row.slug for row in rows]
 
     # -- agent access writes ------------------------------------------------------------
 

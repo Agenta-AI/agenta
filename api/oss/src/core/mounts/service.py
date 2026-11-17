@@ -47,7 +47,6 @@ from oss.src.core.mounts.types import (
     RESERVED_SLUG_PREFIX,
     SESSION_SLUG_PREFIX,
     MountArtifactIdInvalid,
-    MountArtifactNotFound,
     MountFileNotFound,
     MountFileTooLarge,
     MountImmutableField,
@@ -61,7 +60,7 @@ from oss.src.core.mounts.types import (
     MountStorageUnavailable,
     organization_storage_prefix,
 )
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -131,6 +130,10 @@ def is_organization_keyed(*, mount: Mount, organization_id: UUID) -> bool:
         organization_id=organization_id,
         mount_id=mount.id,
     )
+
+
+# The reserved slug of an agent's own drive: `__ag__agent__<artifact id>__default`.
+RESERVED_AGENT_SLUG_PREFIX = f"{RESERVED_SLUG_PREFIX}agent__"
 
 
 def mint_agent_id(*, artifact_id: str) -> str:
@@ -546,33 +549,6 @@ class MountsService:
             mount_create=mount_create,
         )
 
-    async def _verify_agent_artifact(
-        self,
-        *,
-        project_id: UUID,
-        artifact_id: str,
-    ) -> None:
-        """The bound artifact must exist in the project; static-catalog ids resolve in code, not the DB."""
-        if self.workflows_service is None:
-            return
-
-        try:
-            artifact_uuid = UUID(str(artifact_id))
-        except (ValueError, TypeError, AttributeError) as e:
-            raise MountArtifactIdInvalid(str(artifact_id)) from e
-
-        static_catalog = self.workflows_service.static_catalog
-        if static_catalog is not None and static_catalog.is_static_id(artifact_uuid):
-            return
-
-        workflow = await self.workflows_service.fetch_workflow(
-            project_id=project_id,
-            workflow_ref=Reference(id=artifact_uuid),
-            include_archived=False,
-        )
-        if workflow is None:
-            raise MountArtifactNotFound(str(artifact_id))
-
     @asynccontextmanager
     async def _materialize_lock(
         self,
@@ -855,11 +831,24 @@ class MountsService:
         slug: str,
     ) -> Optional[Mount]:
         """The active drive with this slug, or None. Never a session drive (by its
-        `session_id`, not its slug). An agent's drive is found, reserved slug included."""
-        mount = await self.mounts_dao.fetch_mount_by_slug(
-            project_id=project_id,
-            slug=slug,
-        )
+        `session_id`, not its slug). A reserved agent slug
+        (`__ag__agent__<artifact id>__...`) resolves by the agent id it holds, so a
+        configuration that names it keeps its drive after release 2 renames the drive."""
+        if slug.startswith(RESERVED_AGENT_SLUG_PREFIX):
+            try:
+                agent_id = mint_agent_id(
+                    artifact_id=slug[len(RESERVED_AGENT_SLUG_PREFIX) :].split("__")[0]
+                )
+            except MountArtifactIdInvalid:
+                return None
+            mount = await self.mounts_dao.fetch_mount_by_agent_id(
+                project_id=project_id, agent_id=agent_id
+            )
+        else:
+            mount = await self.mounts_dao.fetch_mount_by_slug(
+                project_id=project_id,
+                slug=slug,
+            )
         if mount is None or mount.session_id or is_protected_mount(mount):
             return None
         return mount

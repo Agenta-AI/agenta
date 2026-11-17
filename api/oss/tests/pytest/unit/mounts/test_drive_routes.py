@@ -16,7 +16,9 @@ from oss.src.apis.fastapi.mounts.router import MountsRouter
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.mounts.dtos import MountCreate, MountQuery
 from oss.src.core.mounts.service import MountsService
-from oss.src.core.sharing.dtos import AccessPolicy, MountAccess, Visibility
+from oss.src.core.sharing.dtos import AccessPolicy, MountVisibility, Visibility
+from oss.src.core.workflows import service as workflows_module
+from oss.src.core.workflows.service import WorkflowsService
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.tests.pytest.utils.sharing import SharingWorld
 
@@ -45,14 +47,19 @@ class _RecordingStore:
 
 
 class _Workflows:
-    """What the legacy route reads from the workflows service."""
+    """What the legacy route reads from the workflows service, with the real
+    `ensure_agent_drive`."""
 
     static_catalog = None
+    _mount_lookup = None
+    ensure_agent_drive = WorkflowsService.ensure_agent_drive
+    _agent_policy = WorkflowsService._agent_policy
+    _require_mount_lookup = WorkflowsService._require_mount_lookup
 
     def __init__(self, *, states_drives=False):
         self.states_drives = states_drives
 
-    async def agent_states_drives(self, *, project_id, artifact_id):
+    async def has_revision_with_drives(self, *, project_id, artifact_id):
         return self.states_drives
 
     async def fetch_workflow(self, *, project_id, workflow_ref, include_archived=True):
@@ -74,19 +81,20 @@ class _Project:
             bucket="mounts",
             workflows_service=self.workflows,
         )
+        self.workflows._mount_lookup = self.service
         self.sharing = SharingWorld()
         self.project_id = self.sharing.project_id
         self.user_id = uuid4()
         self.run_agent_id = None
         self.allowed = True
-        self.sharing.dao.fetch_mount_access = self._fetch_mount_access
+        self.sharing.dao.fetch_mount_visibility = self._fetch_mount_visibility
 
-    async def _fetch_mount_access(self, *, project_id, mount_id):
+    async def _fetch_mount_visibility(self, *, project_id, mount_id):
         """The sharing read of a drive, over the mounts DAO rows and visibility rows."""
         mount = await self.dao.fetch_mount(project_id=project_id, mount_id=mount_id)
         if mount is None:
             return None
-        return MountAccess(
+        return MountVisibility(
             mount_id=mount.id,
             slug=mount.slug,
             session_id=mount.session_id,
@@ -137,6 +145,9 @@ def project(monkeypatch):
     monkeypatch.setattr(router_module, "allow_resource", allow_resource)
     monkeypatch.setattr(
         router_module, "get_sharing_service", lambda: project.sharing.service
+    )
+    monkeypatch.setattr(
+        workflows_module, "get_sharing_service", lambda: project.sharing.service
     )
     with patch(
         "oss.src.apis.fastapi.mounts.router.check_action_access",
@@ -249,6 +260,17 @@ async def test_the_legacy_route_creates_and_signs_the_run_agents_drive(project):
     again = project.client().post(f"/mounts/agents/sign?artifact_id={agent}")
     assert again.json()["mount"]["id"] == response.json()["mount"]["id"]
     assert len(project.dao.mounts) == 1
+
+
+async def test_the_legacy_route_gives_a_private_agent_a_private_drive(project):
+    owner = uuid4()
+    project.user_id = owner
+    agent = project.agent(_private(owner))
+    project.run_agent_id = agent
+    response = project.client().post(f"/mounts/agents/sign?artifact_id={agent}")
+    assert response.status_code == 200
+    mount_id = UUID(response.json()["mount"]["id"])
+    assert project.dao.visibility[mount_id] == _private(owner)
 
 
 async def test_the_legacy_route_signs_an_existing_reserved_drive(project):

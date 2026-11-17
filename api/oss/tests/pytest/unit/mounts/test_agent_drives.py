@@ -248,6 +248,28 @@ async def test_fetch_mount_by_slug_finds_a_reserved_agent_slug(mount_context):
     assert found.id == legacy.id
 
 
+async def test_a_reserved_agent_slug_finds_the_drive_after_its_rename(mount_context):
+    """Release 2 renames an agent's drive; a configuration saved during release 1 still
+    names the reserved slug, which resolves by the agent id it holds."""
+    service, dao, project_id, user_id = mount_context
+    artifact_id = str(uuid4())
+    renamed = await dao.upsert_mount(
+        project_id=project_id,
+        user_id=user_id,
+        mount_create=MountCreate(
+            slug="quote-files", name="quote", agent_id=artifact_id
+        ),
+    )
+    found = await service.fetch_mount_by_slug(
+        project_id=project_id, slug=f"__ag__agent__{artifact_id}__default"
+    )
+    assert found.id == renamed.id
+    for slug in (f"__ag__agent__{uuid4()}__default", "__ag__agent__not-an-id__x"):
+        assert (
+            await service.fetch_mount_by_slug(project_id=project_id, slug=slug) is None
+        )
+
+
 async def test_fetch_mount_by_slug_never_returns_a_session_drive(mount_context):
     service, _, project_id, user_id = mount_context
     session = await service.get_or_create_session_mount(

@@ -180,9 +180,6 @@ from oss.src.core.sharing.dtos import (
     AgentReadScope,
     Visibility,
 )
-from oss.src.core.access.context import get_request_access
-from oss.src.core.access.dtos import ResourceKind, ResourceRef
-from oss.src.core.access.permissions.types import Permission
 from oss.src.core.mounts.agent_drives import fill_agent_drive_keys
 from oss.src.core.sharing.service import (
     get_sharing_service,
@@ -583,13 +580,12 @@ class WorkflowsService:
         )
         if own is None:
             return None, None
-        sharing = get_sharing_service()
-        access = await sharing.fetch_mount_access_cached(
+        policy = await get_sharing_service().fetch_mount_policy(
             project_id=project_id, mount_id=own.id
         )
-        if access is None:
+        if policy is None:
             return None, None
-        return own, await sharing.mount_policy(project_id=project_id, access=access)
+        return own, policy
 
     async def _agent_policy(
         self, *, project_id: UUID, artifact_id: Optional[UUID]
@@ -601,6 +597,55 @@ class WorkflowsService:
                 project_id=project_id, artifact_id=artifact_id
             )
         ).policy
+
+    async def ensure_agent_drive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        artifact_id: UUID,
+        include_archived: bool,
+        first_agent_owner_user_id: Optional[UUID] = None,
+    ) -> Optional[Any]:
+        """The drive created with the agent, created now when the agent has none. The
+        new drive's visibility is the agent's; an agent with no access row gets a shared
+        drive, owned by ``first_agent_owner_user_id`` when given. None when the agent
+        does not exist (a static-catalog agent exists in code)."""
+        lookup = self._require_mount_lookup()
+        own = await lookup.fetch_agent_drive(
+            project_id=project_id, artifact_id=str(artifact_id)
+        )
+        if own is not None:
+            return own
+        workflow = await self.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=artifact_id),
+            include_archived=include_archived,
+        )
+        if workflow is None and not (
+            self.static_catalog is not None
+            and self.static_catalog.is_static_id(artifact_id)
+        ):
+            return None
+        agent_policy = await self._agent_policy(
+            project_id=project_id, artifact_id=artifact_id
+        )
+        visibility = agent_policy or (
+            AccessPolicy(
+                visibility=Visibility.PROJECT,
+                owner_user_id=first_agent_owner_user_id,
+            )
+            if first_agent_owner_user_id is not None
+            else OWNERLESS_PROJECT_POLICY
+        )
+        return await lookup.create_agent_drive(
+            project_id=project_id,
+            user_id=user_id,
+            artifact_id=str(artifact_id),
+            agent_slug=getattr(workflow, "slug", None),
+            agent_name=getattr(workflow, "name", None),
+            visibility=visibility,
+        )
 
     async def fill_agent_revision_drives(
         self,
@@ -616,56 +661,50 @@ class WorkflowsService:
 
         With ``create_missing`` (a commit): an agent with no drive whose configuration
         has no ``home_drive`` key gets its own drive, listed and set as home. Then a
-        configuration without ``drives`` is filled (``fill_agent_drive_keys``). On a
-        read, an agent with no drive keeps the legacy configuration."""
+        configuration without ``drives`` (or with ``drives: null``) is filled
+        (``fill_agent_drive_keys``). On a read, an agent with no drive keeps the legacy
+        configuration."""
         agent = _agent_config(data)
         if agent is None or artifact_id is None:
             return data
-        if "drives" in agent and not create_missing:
+        if (
+            create_missing
+            and "home_drive" not in agent
+            and await self._require_mount_lookup().fetch_agent_drive(
+                project_id=project_id, artifact_id=str(artifact_id)
+            )
+            is None
+        ):
+            own = await self.ensure_agent_drive(
+                project_id=project_id,
+                user_id=user_id,
+                artifact_id=artifact_id,
+                include_archived=True,
+                first_agent_owner_user_id=first_agent_owner_user_id,
+            )
+            if own is not None:
+                drives = agent.get("drives")
+                return _with_agent_config(
+                    data,
+                    {
+                        **agent,
+                        "drives": [
+                            *(drives if isinstance(drives, list) else []),
+                            {"slug": own.slug},
+                        ],
+                        "home_drive": own.slug,
+                    },
+                )
+        if agent.get("drives") is not None:
             return data
-        lookup = self._require_mount_lookup()
         own, own_policy = await self._own_drive_and_policy(
             project_id=project_id, artifact_id=artifact_id
         )
+        if own is None and not create_missing:
+            return data
         agent_policy = await self._agent_policy(
             project_id=project_id, artifact_id=artifact_id
         )
-        if own is None and create_missing and "home_drive" not in agent:
-            visibility = agent_policy or (
-                AccessPolicy(
-                    visibility=Visibility.PROJECT,
-                    owner_user_id=first_agent_owner_user_id,
-                )
-                if first_agent_owner_user_id is not None
-                else OWNERLESS_PROJECT_POLICY
-            )
-            workflow = await self.fetch_workflow(
-                project_id=project_id,
-                workflow_ref=Reference(id=artifact_id),
-                include_archived=True,
-            )
-            own = await lookup.create_agent_drive(
-                project_id=project_id,
-                user_id=user_id,
-                artifact_id=str(artifact_id),
-                agent_slug=getattr(workflow, "slug", None),
-                agent_name=getattr(workflow, "name", None),
-                visibility=visibility,
-            )
-            drives = agent.get("drives")
-            agent = {
-                **agent,
-                "drives": [
-                    *(drives if isinstance(drives, list) else []),
-                    {"slug": own.slug},
-                ],
-                "home_drive": own.slug,
-            }
-            return _with_agent_config(data, agent)
-        if "drives" in agent:
-            return data
-        if own is None and not create_missing:
-            return data
         return _with_agent_config(
             data,
             fill_agent_drive_keys(
@@ -675,27 +714,6 @@ class WorkflowsService:
                 agent_policy,
             ),
         )
-
-    async def _saver_may_use(self, *, project_id: UUID, mount_id: UUID) -> bool:
-        """The drive rule for the request's principal, with no channel exception."""
-        access = get_request_access()
-        sharing = get_sharing_service()
-        if access is None:
-            mount = await sharing.fetch_mount_access_cached(
-                project_id=project_id, mount_id=mount_id
-            )
-            if mount is None:
-                return False
-            policy = await sharing.mount_policy(project_id=project_id, access=mount)
-            return policy.visibility == Visibility.PROJECT
-        reason = await sharing.evaluate(
-            principal=access.principal,
-            action=Permission.USE_MOUNTS,
-            project_id=project_id,
-            resource=ResourceRef(kind=ResourceKind.MOUNT, id=str(mount_id)),
-            context=None,
-        )
-        return reason is None
 
     async def reject_unusable_agent_drives(
         self,
@@ -725,9 +743,18 @@ class WorkflowsService:
             mount = await lookup.fetch_mount_by_slug(
                 project_id=project_id, slug=drive.slug
             )
-            if mount is None or not await self._saver_may_use(
-                project_id=project_id, mount_id=mount.id
-            ):
+            # No channel exception at save: `context` stays None.
+            policy = (
+                await sharing.fetch_mount_policy(
+                    project_id=project_id, mount_id=mount.id
+                )
+                if mount is not None
+                and await sharing.may_use_mount(
+                    project_id=project_id, mount_id=mount.id
+                )
+                else None
+            )
+            if policy is None:
                 raise AgentDriveNotFoundError(
                     field=f"drives[{index}].slug",
                     value=drive.slug,
@@ -736,10 +763,6 @@ class WorkflowsService:
                 )
             if artifact_id is None:
                 continue
-            access = await sharing.fetch_mount_access_cached(
-                project_id=project_id, mount_id=mount.id
-            )
-            policy = await sharing.mount_policy(project_id=project_id, access=access)
             if not agent_is_private and policy.visibility == Visibility.PRIVATE:
                 raise AgentDriveNotSharedError(
                     field=f"drives[{index}].slug",
@@ -1628,7 +1651,26 @@ class WorkflowsService:
                 homes.append(mount)
         return drives, homes
 
-    async def agent_states_drives(
+    async def fetch_agents_using_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        slugs: List[str],
+        read_scope: AgentReadScope,
+    ) -> List[str]:
+        """The names of the other agents in `read_scope` that use one of the drives:
+        the latest revision of one of their variants lists it, or it is their own drive
+        and they state no `drives`. One read, never cached."""
+
+        return await self.workflows_dao.fetch_agents_using_drives(
+            project_id=project_id,
+            artifact_id=artifact_id,
+            slugs=slugs,
+            read_scope=read_scope,
+        )
+
+    async def has_revision_with_drives(
         self,
         *,
         project_id: UUID,
@@ -1637,7 +1679,7 @@ class WorkflowsService:
         """True when a stored revision of the agent states `drives`: the legacy sign
         route then refuses. One read, never cached."""
 
-        return await self.workflows_dao.agent_states_drives(
+        return await self.workflows_dao.has_revision_with_drives(
             project_id=project_id, artifact_id=artifact_id
         )
 
@@ -3634,6 +3676,7 @@ class WorkflowsService:
         # agent's drive unless the configuration opts out through `home_drive`.
         if _agent_config(_revision_commit.data) is not None:
             if self._dump_flags(_revision_commit.flags).get("is_agent"):
+                # A broken drive list is refused before the fill creates a drive.
                 _agent_drives(_agent_config(_revision_commit.data))
                 _revision_commit.data = await self.fill_agent_revision_drives(
                     project_id=project_id,
@@ -5307,7 +5350,9 @@ class SimpleWorkflowsService:
                 workflow_revision_data = latest_workflow_revision.data
 
             await self.workflows_service.reject_unusable_agent_drives(
-                project_id=project_id, data=workflow_revision_data
+                project_id=project_id,
+                data=workflow_revision_data,
+                artifact_id=workflow.id,
             )
 
         workflow_edit = WorkflowEdit(
