@@ -127,3 +127,38 @@ describe("the generic preview for a file gate", () => {
         )
     })
 })
+
+describe("a drive's file on the approval card", () => {
+    const cwd = "/var/lib/agenta/mounts/p1/m1"
+
+    it("keeps the drives/<slug>/ folder, through the session link or the drive's own mount", () => {
+        for (const path of [
+            "drives/team-notes/ui-note.md",
+            `${cwd}/drives/team-notes/ui-note.md`,
+            `${cwd}-drive-team-notes/ui-note.md`,
+        ]) {
+            expect(fileTarget(path, "home")).toBe("drives/team-notes/ui-note.md")
+            expect(displayPath(path, "home")).toBe("drives/team-notes/ui-note.md")
+        }
+        expect(fileTarget(`${cwd}-drive-team-notes/a/b/c.md`)).toBe("drives/team-notes/b/c.md")
+    })
+
+    it("shows the home drive's file under agent-files/", () => {
+        for (const path of [
+            "drives/home/ui-note.md",
+            `${cwd}-drive-home/ui-note.md`,
+            `${cwd}-agent/ui-note.md`,
+        ])
+            expect(fileTarget(path, "home")).toBe("agent-files/ui-note.md")
+    })
+
+    it("names the drive file in the sentence of a write gate", () => {
+        const preview = describeApproval(
+            gate("write", {path: `${cwd}-drive-team-notes/ui-note.md`, content: "x"}),
+            undefined,
+            "home",
+        )
+        expect(preview.sentence).toContain("drives/team-notes/ui-note.md")
+    })
+})
+

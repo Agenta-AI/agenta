@@ -11,6 +11,7 @@
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {useDriveHomeSlug} from "@agenta/entity-ui/drive"
 import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
@@ -124,20 +125,24 @@ export const ApprovalCard = ({
 
     // A commit gate parses its whole delta + manifest, so memoize on the gate id (a gate's payload
     // is immutable) rather than re-parsing on every keystroke and `responding` toggle.
-    const base = useMemo(() => (current ? describeApproval(current) : null), [current?.approvalId])
+    const homeSlug = useDriveHomeSlug()
+    const base = useMemo(
+        () => (current ? describeApproval(current, undefined, homeSlug) : null),
+        [current?.approvalId, homeSlug],
+    )
     // The catalog answers late, so re-describe once it names the slug (#6349). Disabled on "".
     const sourceKey = base?.sourceKey ?? ""
     const {integration} = useToolIntegrationDetail(sourceKey)
     const appName = sourceKey ? integration?.name : undefined
     const preview = useMemo(
-        () => (current && appName ? describeApproval(current, appName) : base),
-        [current?.approvalId, appName, base],
+        () => (current && appName ? describeApproval(current, appName, homeSlug) : base),
+        [current?.approvalId, appName, homeSlug, base],
     )
     // A batch answers as a whole, so the rows list the pending ACTIONS rather than one gate's
     // changes — this is what replaced the peek popover.
     const items = useMemo(
-        () => (batched ? describeBatchItems(approvals) : (preview?.items ?? [])),
-        [batched, approvals, preview],
+        () => (batched ? describeBatchItems(approvals, homeSlug) : (preview?.items ?? [])),
+        [batched, approvals, homeSlug, preview],
     )
 
     if (!current || !preview) return null
