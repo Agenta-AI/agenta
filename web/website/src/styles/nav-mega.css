@@ -687,7 +687,7 @@ a.ag-mega__head:focus-visible svg {
 .ag-mm-item {
   display: flex;
   align-items: center;
-  min-height: 36px;
+  min-height: 44px;
   font: 500 14px/20px var(--font-sans);
   color: var(--lp-text);
   text-decoration: none;

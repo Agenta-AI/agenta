@@ -33,6 +33,7 @@ const stars = formatStars(await githubStars());
     const live = document.querySelector(".lp-demo-live");
     const side = frame && frame.querySelector(".r3-rs");
     if (!frame || !live || !side) return;
+    live.tabIndex = -1;
     const VIEWS = ["Home", "Agents", "Automations", "Skills", "Sessions"];
     const show = (on) => {
       frame.hidden = on;
@@ -66,6 +67,7 @@ const stars = formatStars(await githubStars());
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           act();
+          if (!live.hidden) live.focus();
         }
       });
     }

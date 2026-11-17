@@ -70,7 +70,7 @@
 /* ── tablet ──────────────────────────────────────────────────── */
 @media (max-width: 1167px) {
   /* The design hides the hero demo below 1167px; keep it, full width. */
-  html body .lp .r3 .r3-ag-hero .r3-ag-app-frame {
+  html body .lp .r3 .r3-ag-hero .r3-ag-app-frame:not([hidden]) {
     display: block !important;
     width: 100% !important;
     max-width: 100% !important;

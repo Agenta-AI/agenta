@@ -11,18 +11,16 @@ import "../../styles/landing/workinchat.css";
 
 <script>
   // No scroll-driven animations (Firefox): drive the keyframes from scroll.
-  if (!CSS.supports("animation-timeline: view()") && matchMedia("(min-width: 861px)").matches) {
+  if (!CSS.supports("animation-timeline: view()")) {
     const section = document.querySelector<HTMLElement>(".sx-hiw section.hw");
     const beats = section ? [...section.querySelectorAll<HTMLElement>('[style*="animation-timeline"]')] : [];
+    const desktop = matchMedia("(min-width: 861px)");
     if (section && beats.length) {
       const DURATION = 1000;
-      beats.forEach((el) => {
-        el.style.animationDuration = `${DURATION}ms`;
-        el.style.animationPlayState = "paused";
-      });
       let frame = 0;
       const update = () => {
         frame = 0;
+        if (!desktop.matches) return;
         const rect = section.getBoundingClientRect();
         const range = rect.height - window.innerHeight;
         const progress = range > 0 ? Math.min(1, Math.max(0, -rect.top / range)) : 1;
@@ -31,9 +29,18 @@ import "../../styles/landing/workinchat.css";
       const schedule = () => {
         if (!frame) frame = requestAnimationFrame(update);
       };
+      // Phones play the CSS loop, so hand the beats back when the screen narrows.
+      const apply = () => {
+        beats.forEach((el) => {
+          el.style.animationDuration = desktop.matches ? `${DURATION}ms` : "";
+          el.style.animationPlayState = desktop.matches ? "paused" : "";
+        });
+        update();
+      };
       window.addEventListener("scroll", schedule, { passive: true });
       window.addEventListener("resize", schedule, { passive: true });
-      update();
+      desktop.addEventListener("change", apply);
+      apply();
     }
   }
 </script>

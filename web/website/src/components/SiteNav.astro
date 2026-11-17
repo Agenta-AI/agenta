@@ -360,6 +360,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       trigger?.addEventListener("keydown", (e) => {
         if (e.key !== "ArrowDown") return;
         e.preventDefault();
+        closeAll(dd);
         setOpen(dd, true, "click");
         panel?.querySelector<HTMLElement>("a")?.focus();
       });

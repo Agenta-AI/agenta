@@ -298,10 +298,12 @@ export function deriveWorkspace(state, setState, onLive) {
         );
   const activeSession =
     sessions[activePlaygroundGroup?.sessionIndex ?? st.session ?? 0];
-  const activeTask = activePlaygroundGroup
-    ? (activePlaygroundGroup.tasks.find(isTask) ??
-      activePlaygroundGroup.tasks.find((task) => !task.live))
-    : null;
+  // A session opened from the Sessions list has no task and keeps its own thread.
+  const activeTask =
+    activePlaygroundGroup && st.playgroundTask
+      ? (activePlaygroundGroup.tasks.find(isTask) ??
+        activePlaygroundGroup.tasks.find((task) => !task.live))
+      : null;
   const ss = activeTask
     ? { ...activeSession, ...activeTask, steps: taskSteps(activeTask.steps) }
     : activeSession;

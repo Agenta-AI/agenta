@@ -416,3 +416,4 @@
 .r3 .r3-rs [data-lp-go]:focus-visible { outline:2px solid var(--lp-text); outline-offset:-2px; }
 .r3 .r3-ag-hero .r3-ag-app-frame[hidden], .lp-demo-live[hidden] { display:none !important; }
 .lp-demo-live { width:min(1120px,100%); position:relative; z-index:6; }
+.lp-demo-live:focus { outline:none; }
