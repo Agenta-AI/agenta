@@ -4,12 +4,12 @@
  * "mount" is a link that goes when the sandbox stops (`tests/utils/local-drive.ts`). A real
  * geesefs mount against a real store is pinned in `tests/integration/inprocess/sandbox-drive.test.ts`.
  */
-import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { EditDiffs } from "../../../src/engines/inprocess/tools/edit-diffs.ts";
 import { buildFileTools } from "../../../src/engines/inprocess/tools/file-tools.ts";
-import { DRIVE_UNREACHABLE_MESSAGE, geesefsMounter } from "../../../src/engines/inprocess/sandbox/sandbox-drive.ts";
+import { DRIVE_UNREACHABLE_MESSAGE, driveLinkBlockedMessage, geesefsMounter } from "../../../src/engines/inprocess/sandbox/sandbox-drive.ts";
 import { DaytonaCallTimeoutError } from "../../../src/engines/inprocess/sandbox/daytona-api.ts";
 import { readFile as sandboxReadFile, writeFile as sandboxWriteFile } from "../../../src/engines/inprocess/sandbox/sandbox-files.ts";
 import { Readable } from "node:stream";
@@ -158,7 +158,7 @@ describe("the start of a turn", () => {
     await ws.workspace.sandbox.delete();
   });
 
-  it("stops file commands on a later turn once the project drive's link was replaced by a folder, and leaves the folder", async () => {
+  it("keeps running commands on a later turn once the project drive's link was replaced by a folder, and leaves the folder", async () => {
     const ws = createTestWorkspace({ readOnlyProject: "prices" });
     expect((await ws.bash("echo first")).output).toContain("first");
     const link = join(ws.cwd, "drives", "prices");
@@ -167,8 +167,11 @@ describe("the start of a turn", () => {
     mkdirSync(link);
     writeFileSync(join(link, "kept.md"), "mine");
     ws.workspace.startTurn();
-    await expect(ws.bash("echo second")).rejects.toThrow(/drives\/prices\//);
+    expect((await ws.bash("echo second")).output).toContain("second");
+    expect(ws.workspace.takeDriveNotice()).toBe(driveLinkBlockedMessage("drives/prices"));
     expect(readFileSync(join(link, "kept.md"), "utf-8")).toBe("mine");
+    expect(ws.daytona.creates).toBe(1);
+    expect(ws.workspace.sandbox.stats.retired).toBe(0);
     await ws.workspace.sandbox.delete();
   });
 
@@ -209,6 +212,67 @@ describe("the start of a turn", () => {
     expect(geesefsMounter(() => {}).refreshCommand(["'/a'", "'/b'"])).toMatch(/^python3 -c .*\.invalidate.* '\/a' '\/b'$/s);
     expect(refresh).toContain(ws.inSandbox(ws.cwd));
     expect(refresh).toContain(ws.inSandbox(ws.agent));
+    expect(ws.daytona.creates).toBe(1);
+    await ws.workspace.sandbox.delete();
+  });
+});
+
+/**
+ * A session folder from before this release can hold a real `agent-files/` (the agent wrote there
+ * while the link was missing), and any session can hold a real `drives/<slug>/`. The link is then
+ * skipped: the folder is never replaced, moved or deleted, commands run on the same sandbox, and
+ * the agent is told once per turn.
+ */
+describe("a drive link that a real folder blocks", () => {
+  const blockedCases = [
+    { name: "agent-files", options: {}, folder: (ws: TestWorkspace) => join(ws.cwd, "agent-files") },
+    { name: "drives/prices", options: { readOnlyProject: "prices" }, folder: (ws: TestWorkspace) => join(ws.cwd, "drives", "prices") },
+  ];
+
+  for (const c of blockedCases) {
+    it(`brings the sandbox up, runs commands on it turn after turn, tells the agent, and leaves ${c.name}/ as it is`, async () => {
+      const ws = createTestWorkspace(c.options);
+      const folder = c.folder(ws);
+      rmSync(folder, { force: true });
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(join(folder, "notes.md"), "written while the link was missing\n");
+      const { call, text } = tools(ws);
+
+      expect((await ws.bash("echo first")).outcome).toEqual({ kind: "exited", exitCode: 0 });
+      const sandboxId = sandboxOf(ws).id;
+      expect(ws.workspace.takeDriveNotice()).toBe(driveLinkBlockedMessage(c.name));
+      // Told once per turn.
+      expect(text(await call("read", { path: `${c.name}/notes.md` }))).toContain("written while the link was missing");
+      expect(ws.workspace.takeDriveNotice()).toBeUndefined();
+
+      ws.workspace.startTurn();
+      const second = await ws.bash("echo second");
+      expect(second.output).toContain("second");
+      expect(ws.workspace.takeDriveNotice()).toBe(driveLinkBlockedMessage(c.name));
+
+      expect(ws.daytona.creates).toBe(1);
+      expect(sandboxOf(ws).id).toBe(sandboxId);
+      expect(ws.workspace.sandbox.stats.retired).toBe(0);
+      expect(lstatSync(folder).isDirectory()).toBe(true);
+      expect(readdirSync(folder)).toEqual(["notes.md"]);
+      expect(readFileSync(join(folder, "notes.md"), "utf-8")).toBe("written while the link was missing\n");
+      expect(ws.logs.filter((l) => l.includes(`${c.name} link failed`)).length).toBe(1);
+      await ws.workspace.sandbox.delete();
+    });
+  }
+
+  it("links the drive at the next turn once the user moved the folder away, and stops telling the agent", async () => {
+    const ws = createTestWorkspace();
+    const folder = join(ws.cwd, "agent-files");
+    rmSync(folder, { force: true });
+    mkdirSync(folder);
+    await ws.bash("true");
+    expect(ws.workspace.takeDriveNotice()).toBe(driveLinkBlockedMessage("agent-files"));
+    rmSync(folder, { recursive: true });
+    ws.workspace.startTurn();
+    await ws.bash("true");
+    expect(lstatSync(folder).isSymbolicLink()).toBe(true);
+    expect(ws.workspace.takeDriveNotice()).toBeUndefined();
     expect(ws.daytona.creates).toBe(1);
     await ws.workspace.sandbox.delete();
   });

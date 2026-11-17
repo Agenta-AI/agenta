@@ -73,9 +73,12 @@ export interface DriveMounter {
 export const DRIVE_UNREACHABLE_MESSAGE =
   "The agent's files could not be attached in the command sandbox (the file store cannot be reached from it), so nothing was read or changed. Try again later.";
 
-/** A drive whose link (`drives/<slug>` or `agent-files`) could not be made; the folder there is left as it is. */
+/**
+ * What the agent is told about a drive whose link (`drives/<slug>` or `agent-files`) could not be
+ * made. The folder there is left as it is, and commands still run.
+ */
 export function driveLinkBlockedMessage(linkName: string): string {
-  return `The drive at ${linkName}/ could not be attached in the command sandbox, usually because a folder of that name is already in the working directory, so nothing was read or changed. Ask the user to move or rename that folder in the session's files.`;
+  return `The drive at ${linkName}/ could not be attached in the command sandbox, usually because a folder of that name is already in the working directory. Files under ${linkName}/ are in that folder, not on the drive. Ask the user to move or rename that folder in the session's files.`;
 }
 
 /** The links that name `root` in the session folder. */
@@ -87,8 +90,8 @@ function linkNames(root: DriveRoot): string[] {
 }
 
 export class DriveUnreachableError extends Error {
-  constructor(detail: string, message: string = DRIVE_UNREACHABLE_MESSAGE) {
-    super(message);
+  constructor(detail: string) {
+    super(DRIVE_UNREACHABLE_MESSAGE);
     this.name = "DriveUnreachableError";
     this.cause = detail;
   }
@@ -169,6 +172,8 @@ export class SandboxDrive {
   private mounting: Promise<void> | undefined;
   /** Skill files whose mode is set on the current mount. */
   private readonly modesApplied = new Set<string>();
+  /** The links the last `link` could not make. */
+  private blocked = new Set<string>();
 
   constructor(
     roots: DriveRoot[],
@@ -342,21 +347,33 @@ export class SandboxDrive {
 
   /**
    * Make each root's links in the session folder. They are made again at the start of every turn,
-   * since a link can be replaced between turns. Throws `DriveUnreachableError` when a link is
-   * blocked: file commands stop, and what is at the link path is left as it is.
+   * since a link can be replaced between turns. A blocked link (a real folder, or a file with
+   * content, at its path) is left as it is and skipped: commands still run, and `blockedLinks`
+   * names it so the agent is told.
    */
   async link(sandbox: DaytonaSandbox, signal?: AbortSignal): Promise<void> {
     const cwd = this.options.cwd;
     if (!cwd) return;
     const exec = sandboxExec(sandbox, signal);
+    const blocked = new Set<string>();
     for (const r of this.roots) {
       for (const name of linkNames(r)) {
-        if (!(await linkDriveRemote(exec, this.inSandbox(cwd), name, this.inSandbox(r.root)).catch(() => false))) {
-          this.options.log(`[inprocess] ${name} link failed in ${cwd}`);
-          throw withPublicCode(new DriveUnreachableError(`${name} link failed`, driveLinkBlockedMessage(name)), "runner_error");
-        }
+        const linked = await linkDriveRemote(exec, this.inSandbox(cwd), name, this.inSandbox(r.root)).catch((err: unknown) => {
+          if (signal?.aborted) throw err;
+          return false;
+        });
+        if (linked) continue;
+        blocked.add(name);
+        // Logged once while it stays blocked: the link is tried again at every turn.
+        if (!this.blocked.has(name)) this.options.log(`[inprocess] ${name} link failed in ${cwd}; the drive is not linked there`);
       }
     }
+    this.blocked = blocked;
+  }
+
+  /** The links that the last attempt could not make, for example because a real folder is at their path. */
+  get blockedLinks(): string[] {
+    return [...this.blocked];
   }
 
   /** Set the mode of the skill files not yet set on this mount (they are on the drive, and this view shows them). */
