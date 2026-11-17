@@ -4266,7 +4266,7 @@ return 0
 
 
 # The idempotency namespace of `create_agent`, the agent tool that creates another agent.
-_CREATE_AGENT_NAMESPACE = "agent_tools.create_agent"
+_CREATE_AGENT_NAMESPACE = "other_agent_tools.create_agent"
 
 
 class SimpleWorkflowsService:
@@ -4909,22 +4909,24 @@ class SimpleWorkflowsService:
         operations: Optional[list] = None,
         #
         message: str,
-        idempotency_scope: str,
+        session_id: str,
         read_scope: AgentReadScope,
         first_agent_owner_user_id: Optional[UUID] = None,
-    ) -> tuple[SimpleWorkflow, str, List[CommitWarning]]:
+    ) -> tuple[SimpleWorkflow, str, List[CommitWarning], Visibility]:
         """A new agent from the "New agent" template, with an agent's operations applied.
 
         The operations run in memory, under the agent's commit scope, BEFORE anything is
         written, so one that fails creates nothing. The first saved revision then holds the
         template and the operations together, and ``message`` (plus the derived clauses) is
-        its commit message. Returns the agent, that message and the engine's warnings.
+        its commit message. Returns the agent, that message, the engine's warnings and the
+        visibility the agent got: without an owner it is project-visible, as a browser create
+        without one is, because a private agent nobody owns would be hidden from everyone.
 
-        The writes are the idempotent create, keyed by ``idempotency_scope`` and the
-        arguments: the same arguments in the same scope make one agent. A create that stops
-        part of the way is finished by the next call with the same arguments, not left
-        behind beside a second agent. A retry that finds an agent ``read_scope`` does not
-        show (its owner made it private) raises ``AgentReferenceUnresolved``.
+        The writes are the idempotent create, keyed by the person, the session and the
+        arguments: the same arguments from the same person in the same session make one
+        agent. A create that stops part of the way is finished by the next call with the
+        same arguments, not left behind beside a second agent. A retry that finds an agent
+        ``read_scope`` does not show, or an archived one, raises ``AgentReferenceUnresolved``.
 
         The fingerprint covers the name, the description and the operations, not the
         template data. A retry across a deploy that changed the "New agent" template
@@ -4943,6 +4945,15 @@ class SimpleWorkflowsService:
             )
             message = f"{message}; {derived}"
 
+        # The embed checks every commit runs, here before the first write: refused only at
+        # the content commit, they would leave the artifact, variant and blank revision
+        # behind, and the corrected call would make a second agent.
+        revision_data = WorkflowRevisionData(**data)
+        self.workflows_service._reject_non_embeddable_workflow_embeds(revision_data)
+        await self.workflows_service._reject_inconsistent_workflow_embeds(
+            project_id=project_id, data=revision_data
+        )
+
         fingerprint = fingerprint_of(
             {
                 "name": name,
@@ -4955,7 +4966,7 @@ class SimpleWorkflowsService:
             project_id=project_id,
             user_id=user_id,
             namespace=_CREATE_AGENT_NAMESPACE,
-            request_key=f"{idempotency_scope}:{fingerprint}",
+            request_key=f"{user_id}:{session_id}:{fingerprint}",
             request_fingerprint=fingerprint,
             component="agent",
             simple_workflow_create=SimpleWorkflowCreate(
@@ -4967,9 +4978,7 @@ class SimpleWorkflowsService:
             ),
             message=message,
             # The owner is saved with the artifact, in its transaction, so a create that
-            # stops after the artifact never leaves an ownerless agent for the retry. Without
-            # an owner the agent is project-visible, as a browser create without one is:
-            # a private agent nobody owns would be hidden from everyone.
+            # stops after the artifact never leaves an ownerless agent for the retry.
             access=(
                 AccessPolicy(
                     visibility=visibility,
@@ -4981,7 +4990,10 @@ class SimpleWorkflowsService:
             first_agent_owner_user_id=first_agent_owner_user_id,
             read_scope=read_scope,
         )
-        return outcome.workflow, message, warnings
+        applied = (
+            visibility if first_agent_owner_user_id is not None else Visibility.PROJECT
+        )
+        return outcome.workflow, message, warnings, applied
 
     async def fetch(
         self,

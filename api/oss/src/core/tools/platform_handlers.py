@@ -1750,7 +1750,10 @@ async def handle_create_agent(
     that stopped part of the way finishes the same agent. This handler reads the arguments,
     names the creator, and turns each failure into a refusal the model can act on.
     """
-    from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+    from oss.src.core.embeds.exceptions import (
+        EmbedReferenceInconsistentError,
+        NonEmbeddableWorkflowReferenceError,
+    )
     from oss.src.core.shared.exceptions import EntityCreationConflict
     from oss.src.core.workflows.change_set import ChangeSetError
     from oss.src.core.workflows.service import SimpleWorkflowsService
@@ -1811,7 +1814,12 @@ async def handle_create_agent(
             session_id=session_id,
         )
         try:
-            created, message, warnings = await SimpleWorkflowsService(
+            (
+                created,
+                message,
+                warnings,
+                applied_visibility,
+            ) = await SimpleWorkflowsService(
                 workflows_service=workflows_service
             ).create_agent(
                 project_id=project_id,
@@ -1821,17 +1829,25 @@ async def handle_create_agent(
                 visibility=visibility,
                 operations=operations,
                 message=f"Created {attribution}",
-                idempotency_scope=session_id,
+                session_id=session_id,
                 read_scope=read_scope,
                 first_agent_owner_user_id=first_agent_owner_user_id,
             )
         except AgentReferenceUnresolved as e:
-            # The retry key names an agent the caller cannot see: answered as if it were not
-            # there, and nothing about it is read or written.
+            # The retry key names an agent this person can no longer see, or an archived
+            # one: nothing about it is read, written or named.
             raise _agent_refusal(
-                "agent_not_found",
-                "No agent was created.",
+                "create_conflict",
+                "No agent was created: an earlier call with these arguments made an agent "
+                "that is archived or that you can no longer see.",
                 "Call create_agent again with a different name.",
+            ) from e
+        except EmbedReferenceInconsistentError as e:
+            raise _agent_refusal(
+                "inconsistent_embed_reference",
+                e.message,
+                "No agent was created. Look up the workflow by its slug, then send the "
+                "embed with that workflow's own id, or with the slug alone.",
             ) from e
         except ValidationError as e:
             raise _Refusal(_create_refusal(_commit_payload_refusal(e))) from e
@@ -1875,13 +1891,7 @@ async def handle_create_agent(
             "agent": _agent_summary(
                 created, project_id=project_id, workspace_id=workspace_id
             ),
-            # A run without a person cannot own an agent, so its agent is project-visible
-            # whatever it asked for.
-            "visibility": (
-                visibility
-                if first_agent_owner_user_id is not None
-                else Visibility.PROJECT
-            ).value,
+            "visibility": applied_visibility.value,
             "base_revision_id": str(created.revision_id),
             "message": message,
             "warnings": [w.model_dump(mode="json") for w in warnings],

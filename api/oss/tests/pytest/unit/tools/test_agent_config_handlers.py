@@ -831,10 +831,8 @@ class TestEditAgentConfig:
         assert other.content.code == own.content.code
         service.commit_workflow_revision.assert_not_awaited()
 
-    async def test_tools_integrations_and_agent_config_itself_are_editable(
-        self, service
-    ):
-        # Spec: adding an integration or turning on Agent config for the target commits.
+    async def test_tools_integrations_and_agenta_tools_are_editable(self, service):
+        # Spec: adding an integration or turning on an Agenta tool for the target commits.
         # How the `agenta_tools` key reaches the map is the engine's (test_change_set.py).
         operations = [
             {
@@ -857,7 +855,7 @@ class TestEditAgentConfig:
                     "agent",
                     {"list": "tools", "key": "agenta_tools"},
                     "tools",
-                    "edit_agent_config",
+                    "read_config",
                 ],
                 "value": "ask",
             },
@@ -1038,7 +1036,7 @@ class TestCreateAgent:
         )
         assert kwargs["project_id"] == PROJECT
         # Keyed by the session and the arguments, so a retry finishes the same agent.
-        assert kwargs["request_key"].startswith(f"{SESSION}:sha256:")
+        assert kwargs["request_key"].startswith(f"{USER}:{SESSION}:sha256:")
         content = result.content
         assert content["agent"]["name"] == "Invoice helper"
         assert content["agent"]["slug"] == "invoice-helper-0a1b2c3d"
@@ -1179,6 +1177,27 @@ class TestCreateAgent:
         request = create.await_args.kwargs["simple_workflow_create"]
         assert request.name == name.strip()
         assert request.description == description
+
+    async def test_an_embed_of_a_workflow_that_cannot_be_embedded_writes_nothing(
+        self, service, create
+    ):
+        embed = {
+            "@ag.embed": {"@ag.references": {"workflow": {"slug": "__ag__build_kit"}}}
+        }
+        operations = [
+            {
+                "operation": "set",
+                "target": ["parameters", "agent", "skills"],
+                "value": [embed],
+            }
+        ]
+
+        result = await _call(
+            handle_create_agent, service, **self._args(operations=operations)
+        )
+
+        assert result.content.code == "non_embeddable_reference"
+        create.assert_not_awaited()
 
     @pytest.mark.parametrize("visibility", ["public", "", 3])
     async def test_a_visibility_other_than_private_or_project_is_refused(
@@ -1489,7 +1508,7 @@ class TestCreateAgentRetry:
         )
 
         assert not result.ok
-        assert result.content.code == "agent_not_found"
+        assert result.content.code == "create_conflict"
         assert result.content.next_step
         answer = result.content.model_dump_json()
         assert "Private payroll agent" not in answer
