@@ -134,7 +134,7 @@ Agenta SHALL render a tool approval as a message with Approve and Deny buttons w
 
 #### Scenario: Card in plain words
 - **WHEN** the card shows the tool call's arguments
-- **THEN** each argument SHALL be one plain line such as `File path: note.txt`, never a JSON dump, and a path under the session's mount SHALL show relative to the mount, never as the server path. This rendering is shared, so every channel shows the same lines
+- **THEN** each argument SHALL be one plain line such as `File path: note.txt`, never a JSON dump, and a path under the session's mount SHALL show relative to the mount, never as the server path. An argument set to nothing SHALL show as `(empty)`, and a card that leaves anything out SHALL end with the truncation note. This rendering is shared, so every channel shows the same lines
 
 ### Requirement: Commands in conversation
 Discord SHALL support the in-conversation commands with the `!` sigil, `!new`, `!sessions` and `!use`. Agenta SHALL NOT register Discord slash commands in v1.

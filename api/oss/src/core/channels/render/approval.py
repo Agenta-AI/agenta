@@ -19,6 +19,9 @@ _MOUNT_ROOT = re.compile(
 
 _DETAILS_MAX_CHARS = 600
 _DETAILS_MAX_DEPTH = 3
+_SCALAR_MAX_CHARS = 2 * _DETAILS_MAX_CHARS
+# An argument the call sets to nothing: an empty `content` still writes a file.
+_EMPTY = "(empty)"
 _TRUNCATED = "[Truncated. Review the full request in Agenta.]"
 _UNAVAILABLE = "Arguments unavailable. Review this request in Agenta before approving."
 
@@ -78,69 +81,76 @@ def _field_name(key: Any) -> str:
     return words[:1].upper() + words[1:] if words else str(key)
 
 
-def _is_empty(value: Any) -> bool:
-    return value is None or value == "" or value == [] or value == {}
+class _Details:
+    """Plain lines for one call's arguments. `cut` records that something was
+    left out, so the card always says it is incomplete."""
 
+    def __init__(self) -> None:
+        self.cut = False
 
-def _scalar(value: Any) -> str:
-    if isinstance(value, bool):
-        return "yes" if value else "no"
-    # Only the first characters can be shown; cutting first also bounds the
-    # mount-root search on a large file body.
-    return strip_mount_roots(str(value)[: 2 * _DETAILS_MAX_CHARS]).strip()
+    def scalar(self, value: Any) -> str:
+        if value is None or value == "" or value == [] or value == {}:
+            return _EMPTY
+        if isinstance(value, bool):
+            return "yes" if value else "no"
+        text = str(value)
+        # Only the first characters can be shown; cutting first also bounds
+        # the mount-root search on a large file body.
+        if len(text) > _SCALAR_MAX_CHARS:
+            text = text[:_SCALAR_MAX_CHARS]
+            self.cut = True
+        return strip_mount_roots(text).strip() or _EMPTY
 
-
-def _field_lines(name: str, value: Any, *, indent: str, depth: int) -> List[str]:
-    if isinstance(value, dict):
-        nested = _dict_lines(value, indent=indent + "  ", depth=depth + 1)
-        return [f"{indent}{name}:", *nested] if nested else []
-    if isinstance(value, list):
-        items = [item for item in value if not _is_empty(item)]
-        if all(not isinstance(item, (dict, list)) for item in items):
-            text = ", ".join(t for t in (_scalar(item) for item in items) if t)
-            return [f"{indent}{name}: {text}"] if text else []
-        if depth >= _DETAILS_MAX_DEPTH:
-            return [f"{indent}{name}: …"]
-        lines = [f"{indent}{name}:"]
-        for item in items:
-            if isinstance(item, dict):
-                lines.extend(_dict_lines(item, indent=indent + "  ", depth=depth + 1))
-            elif isinstance(item, list):
-                lines.append(f"{indent}  …")
-            else:
-                lines.append(f"{indent}  {_scalar(item)}")
-        return lines
-    text = _scalar(value)
-    if not text:
-        return []
-    if "\n" in text:
-        return [f"{indent}{name}:", text]
-    return [f"{indent}{name}: {text}"]
-
-
-def _dict_lines(arguments: dict, *, indent: str, depth: int) -> List[str]:
-    if depth > _DETAILS_MAX_DEPTH:
+    def deeper(self, indent: str) -> List[str]:
+        self.cut = True
         return [f"{indent}…"]
-    lines: List[str] = []
-    for key, value in arguments.items():
-        if _is_empty(value):
-            continue
-        lines.extend(_field_lines(_field_name(key), value, indent=indent, depth=depth))
-    return lines
+
+    def field(self, name: str, value: Any, *, indent: str, depth: int) -> List[str]:
+        if isinstance(value, dict) and value:
+            return [f"{indent}{name}:", *self.dict(value, indent + "  ", depth + 1)]
+        if isinstance(value, list) and value:
+            if all(not isinstance(item, (dict, list)) for item in value):
+                text = ", ".join(self.scalar(item) for item in value)
+                return [f"{indent}{name}: {text}"]
+            if depth >= _DETAILS_MAX_DEPTH:
+                return [f"{indent}{name}:", *self.deeper(indent + "  ")]
+            lines = [f"{indent}{name}:"]
+            for item in value:
+                if isinstance(item, dict) and item:
+                    lines.extend(self.dict(item, indent + "  ", depth + 1))
+                elif isinstance(item, list) and item:
+                    lines.extend(self.deeper(indent + "  "))
+                else:
+                    lines.append(f"{indent}  {self.scalar(item)}")
+            return lines
+        text = self.scalar(value)
+        if "\n" in text:
+            return [f"{indent}{name}:", text]
+        return [f"{indent}{name}: {text}"]
+
+    def dict(self, arguments: dict, indent: str, depth: int) -> List[str]:
+        if depth > _DETAILS_MAX_DEPTH:
+            return self.deeper(indent)
+        lines: List[str] = []
+        for key, value in arguments.items():
+            lines.extend(
+                self.field(_field_name(key), value, indent=indent, depth=depth)
+            )
+        return lines
 
 
 def approval_details(arguments: Any) -> str:
     """The tool call's arguments in plain words, one per line ("File path:
     notes/a.md"), with secrets redacted and mount roots removed. Never the raw
     JSON: the person approving is often not technical. Empty when the call has
-    no arguments."""
+    no arguments. Anything left out ends the text with the truncation note."""
 
     if not isinstance(arguments, dict):
         return _UNAVAILABLE
-    text = "\n".join(
-        _dict_lines(redact_approval_arguments(arguments), indent="", depth=0)
-    )
+    details = _Details()
+    text = "\n".join(details.dict(redact_approval_arguments(arguments), "", 0))
     # Reserve room for HTML escaping and the title within provider message limits.
     if len(text) > _DETAILS_MAX_CHARS:
-        text = text[:_DETAILS_MAX_CHARS] + "\n" + _TRUNCATED
-    return text
+        text = text[:_DETAILS_MAX_CHARS]
+        details.cut = True
+    return f"{text}\n{_TRUNCATED}" if details.cut else text

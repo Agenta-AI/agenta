@@ -59,7 +59,10 @@ def test_nested_lists_and_flags_read_as_words():
             "empty": "",
         }
     )
-    assert text == "Command: ls -la\nDry run: no\nTags: a, b\nOptions:\n  Depth: 2"
+    assert text == (
+        "Command: ls -la\nDry run: no\nTags: a, b\nOptions:\n  Depth: 2\n"
+        "  Unused: (empty)\nEmpty: (empty)"
+    )
     assert "{" not in text and '"' not in text
 
 
@@ -99,3 +102,22 @@ def test_a_card_without_arguments_ends_with_its_scope_line():
     card = {**_CARD, "arguments": {}}
     assert _card_text(card).endswith("Deny prevents it.")
     assert discord_messages([card])[0]["content"].endswith("Deny prevents it.")
+
+
+def test_an_empty_value_is_shown_because_it_changes_what_the_call_does():
+    # writing empty content erases the file
+    assert approval_details({"file_path": "note.txt", "content": ""}) == (
+        "File path: note.txt\nContent: (empty)"
+    )
+
+
+def test_a_value_cut_before_display_always_carries_the_truncation_note():
+    text = approval_details({"command": "echo ok" + " " * 1200 + "; rm important.txt"})
+    assert text.startswith("Command: echo ok")
+    assert text.endswith("[Truncated. Review the full request in Agenta.]")
+
+
+def test_arguments_nested_too_deep_carry_the_truncation_note():
+    text = approval_details({"a": {"b": {"c": {"d": {"e": 1}}}}})
+    assert "E: 1" not in text
+    assert text.endswith("[Truncated. Review the full request in Agenta.]")
