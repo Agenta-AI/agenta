@@ -1,13 +1,13 @@
 /**
- * The drive, mounted in the conversation's command sandbox: the session folder and the agent
- * folder, at the runner's paths for them.
+ * The drive, mounted in the conversation's command sandbox: the session folder and every attached
+ * drive, at the runner's paths for them.
  *
  * The drive holds the only copy of the files, and every file tool and command runs here, on this
  * mount; the runner mounts nothing. So there is nothing to copy in either direction, and a sandbox
  * that is stopped, replaced or lost takes only its own disk with it.
  *
  * - The mount is the `daytona` provider's (`mountStorageRemote`), with credentials signed for these
- *   two prefixes, nothing else. Pi's conversation file is in a prefix of its own that only the
+ *   prefixes, nothing else. Pi's conversation file is in a prefix of its own that only the
  *   runner reaches, through the object store (`transcript-store.ts`), so no command can reach it,
  *   even with the credentials geesefs holds in the sandbox.
  * - Mounts do not survive a stop. They are made once per boot of a sandbox (`SandboxUse.boot`). A
@@ -24,8 +24,13 @@
  */
 import type { DaytonaSandbox } from "./daytona-api.ts";
 import type { SandboxUse } from "./command-sandbox.ts";
-import { linkAgentFilesRemote } from "../../sandbox_agent/agent-mount.ts";
-import { linkProjectDriveRemote, pruneProjectDriveLinksRemote } from "../../sandbox_agent/project-mount.ts";
+import {
+  DRIVES_DIR_NAME,
+  HOME_DRIVE_LINK_NAME,
+  linkDriveRemote,
+  pruneDriveLinksRemote,
+  seedHomeReadmeRemote,
+} from "../../sandbox_agent/run-drives.ts";
 import { withPublicCode } from "../../sandbox_agent/errors.ts";
 import { REFRESH_ROOTS_SCRIPT } from "../../sandbox_agent/turn-start-refresh.ts";
 import {
@@ -46,8 +51,8 @@ export interface DriveRoot {
   credentials: () => MountCredentials | null;
   /** Mounted read-only (`-o ro`). */
   readOnly?: boolean;
-  /** Which link in the session folder names this root: `agent-files` or `drives/<slug>`. */
-  link?: { kind: "agent" } | { kind: "project"; slug: string };
+  /** The links in the session folder that name this root: `drives/<slug>`, and `agent-files` for the home. */
+  link?: { slug?: string; home?: boolean };
 }
 
 /** What a set of roots mounts: a change needs a new sandbox, since a mount cannot be removed in place. */
@@ -68,9 +73,17 @@ export interface DriveMounter {
 export const DRIVE_UNREACHABLE_MESSAGE =
   "The agent's files could not be attached in the command sandbox (the file store cannot be reached from it), so nothing was read or changed. Try again later.";
 
-/** A project drive whose `drives/<slug>` link could not be made; the folder there is left as it is. */
-export function driveLinkBlockedMessage(slug: string): string {
-  return `The project drive drives/${slug}/ could not be attached in the command sandbox, usually because a folder of that name is already in the working directory, so nothing was read or changed. Ask the user to move or rename that folder in the session's files.`;
+/** A drive whose link (`drives/<slug>` or `agent-files`) could not be made; the folder there is left as it is. */
+export function driveLinkBlockedMessage(linkName: string): string {
+  return `The drive at ${linkName}/ could not be attached in the command sandbox, usually because a folder of that name is already in the working directory, so nothing was read or changed. Ask the user to move or rename that folder in the session's files.`;
+}
+
+/** The links that name `root` in the session folder. */
+function linkNames(root: DriveRoot): string[] {
+  return [
+    ...(root.link?.slug ? [`${DRIVES_DIR_NAME}/${root.link.slug}`] : []),
+    ...(root.link?.home ? [HOME_DRIVE_LINK_NAME] : []),
+  ];
 }
 
 export class DriveUnreachableError extends Error {
@@ -255,7 +268,7 @@ export class SandboxDrive {
   }
 
   /**
-   * Mount every root unless this boot of the sandbox has them, then link `agent-files` and set the
+   * Mount every root unless this boot of the sandbox has them, then make the drive links and set the
    * skill modes. Throws `DriveUnreachableError` when a root cannot be mounted, and `MountLostError`
    * when the mounts' credentials are about to expire (the sandbox must be replaced).
    */
@@ -304,10 +317,13 @@ export class SandboxDrive {
     if (results.some((ok) => !ok)) {
       throw withPublicCode(new DriveUnreachableError(`mounted ${results.filter(Boolean).length} of ${results.length} roots`), "runner_error");
     }
+    for (const r of roots) {
+      if (r.link?.home) await seedHomeReadmeRemote(sandboxExec(use.sandbox, signal), this.inSandbox(r.root), { log: this.options.log });
+    }
     await this.link(use.sandbox, signal);
     if (this.options.cwd) {
-      const listed = roots.flatMap((r) => (r.link?.kind === "project" ? [r.link.slug] : []));
-      await pruneProjectDriveLinksRemote(sandboxExec(use.sandbox, signal), this.inSandbox(this.options.cwd), listed, { log: this.options.log });
+      const slugs = roots.flatMap((r) => (r.link?.slug ? [r.link.slug] : []));
+      await pruneDriveLinksRemote(sandboxExec(use.sandbox, signal), this.inSandbox(this.options.cwd), { slugs, home: roots.some((r) => r.link?.home) }, { log: this.options.log });
     }
     this.modesApplied.clear();
     await this.applyModes(use.sandbox, signal);
@@ -319,18 +335,20 @@ export class SandboxDrive {
   }
 
   /**
-   * Make each root's link in the session folder. The project links are made again at the start of
-   * every turn, since a link can be replaced between turns. Throws `DriveUnreachableError` when a project drive's link is
+   * Make each root's links in the session folder. They are made again at the start of every turn,
+   * since a link can be replaced between turns. Throws `DriveUnreachableError` when a link is
    * blocked: file commands stop, and what is at the link path is left as it is.
    */
-  async link(sandbox: DaytonaSandbox, signal?: AbortSignal, opts: { projectsOnly?: boolean } = {}): Promise<void> {
+  async link(sandbox: DaytonaSandbox, signal?: AbortSignal): Promise<void> {
     const cwd = this.options.cwd;
     if (!cwd) return;
     const exec = sandboxExec(sandbox, signal);
     for (const r of this.roots) {
-      if (r.link?.kind === "agent" && !opts.projectsOnly) await linkAgentFilesRemote(exec, this.inSandbox(cwd), this.inSandbox(r.root), { log: this.options.log });
-      else if (r.link?.kind === "project" && !(await linkProjectDriveRemote(exec, this.inSandbox(cwd), r.link.slug, this.inSandbox(r.root), { log: this.options.log }))) {
-        throw withPublicCode(new DriveUnreachableError(`drives/${r.link.slug} link failed`, driveLinkBlockedMessage(r.link.slug)), "runner_error");
+      for (const name of linkNames(r)) {
+        if (!(await linkDriveRemote(exec, this.inSandbox(cwd), name, this.inSandbox(r.root)).catch(() => false))) {
+          this.options.log(`[inprocess] ${name} link failed in ${cwd}`);
+          throw withPublicCode(new DriveUnreachableError(`${name} link failed`, driveLinkBlockedMessage(name)), "runner_error");
+        }
       }
     }
   }

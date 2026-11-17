@@ -49,6 +49,8 @@ export interface MountCredentials {
    * then parks only if the run context supplied a scope, and refuses to park when neither does.
    */
   projectId?: string;
+  /** The mount's id, from the sign response's `mount` object. */
+  mountId?: string;
 }
 
 export interface SignMountDeps {

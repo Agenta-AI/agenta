@@ -35,7 +35,7 @@ import { EditDiffs } from "./tools/edit-diffs.ts";
 import { buildFileTools, type SandboxToolAccess } from "./tools/file-tools.ts";
 import { attachmentFiles } from "./workspace/attachment-files.ts";
 import type { ObjectStore } from "./workspace/drive-objects.ts";
-import { publishSkillSnapshot } from "./workspace/skill-snapshot.ts";
+import { publishDrivesReadme, publishSkillSnapshot } from "./workspace/skill-snapshot.ts";
 import { withPublicCode } from "../sandbox_agent/errors.ts";
 import type { SessionLedger } from "./session-ledger.ts";
 import { GATEWAY_CREDENTIALS_VALUE_ENV } from "../sandbox_agent/run-plan.ts";
@@ -152,6 +152,7 @@ export class InProcessHarnessHost {
       // The runner built the skill snapshot on its own disk; the sandbox reads it from the drive.
       this.sessionObjects = this.runtime.registry.objects(session.credentials);
       if (skillDir) workspace.prepareDrive(publishSkillSnapshot(cwd, skillDir, this.sessionObjects, this.log));
+      if (this.facts.drivesReadme !== undefined) workspace.prepareDrive(publishDrivesReadme(this.facts.drivesReadme, this.sessionObjects, this.log));
       this.workspace = workspace;
       return workspace;
     })();

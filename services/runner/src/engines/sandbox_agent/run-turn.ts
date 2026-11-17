@@ -72,11 +72,13 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
-import { linkAgentFiles } from "./agent-mount.ts";
-import { linkProjectDrive, linkProjectDriveRemote } from "./project-mount.ts";
-import { projectDriveAppendix } from "./platform-guidance.ts";
+import { driveAppendix } from "./platform-guidance.ts";
+import {
+  agentMountAppendix,
+  agentMountUnavailableAppendix,
+} from "./agent-mount-guidance.ts";
 import type { SandboxExec } from "./mount.ts";
-import { projectDrives } from "./run-drives.ts";
+import { linkRunDrive, linkRunDriveRemote } from "./run-drives.ts";
 import { refreshDriveViewsAtTurnStart } from "./turn-start-refresh.ts";
 import {
   recoverSubscriptionAuthFailure,
@@ -1450,43 +1452,36 @@ export async function runTurn(
         : undefined,
     });
 
-    // Repair `<cwd>/agent-files` if this session lost it. Once per turn, on EVERY turn: a warm
-    // reuse never re-acquires, so `mountLocalAgentCwd` — the only other place that links it — does
-    // not run, and a session that lost the link stayed broken for the life of its environment.
+    // Repair every drive link (`drives/<slug>`, and `agent-files` for the home drive) once per
+    // turn, on EVERY turn: a warm reuse never re-acquires, so a session that lost a link would
+    // stay broken for the life of its environment. `inprocess` repairs its links in the command
+    // sandbox at the first tool call of the turn (`conversation-workspace.ts`).
     //
     // Here rather than at the top of the function because of the INVARIANT above: no unconditional
     // I/O may delay `attachPermissionResponder`. This is the first point past it.
     //
-    // Per turn rather than per tool call, and that loses nothing. Writes made after a mid-turn
-    // deletion land on the session drive, which is durable, and the repair moves them onto the
-    // agent mount. They arrive one turn late instead of never, for one `lstat` per turn rather
-    // than one per tool call on a FUSE mount.
-    if (env.agentMountedPath && plan.driveOnRunner) {
-      const agentFilesReady = await linkAgentFiles(plan.workspace.cwd, env.agentMountedPath, {
-        log: logger,
-      });
-      if (!agentFilesReady) {
-        throw new Error("agent-files could not be linked to the durable agent mount");
-      }
-    }
-    // Same repair for each project drive's `drives/<slug>` link, in the sandbox on Daytona. The
-    // prompt's drive paragraph was written at acquire, so a link lost since then is told this turn.
+    // Per turn rather than per tool call: one `lstat` per link per turn rather than one per tool
+    // call on a FUSE mount. The prompt was written at acquire, so a link lost or regained since then
+    // is told this turn.
     if (plan.driveOnRunner || plan.isDaytona) {
-      for (const drive of projectDrives(env.drives)) {
+      for (const drive of env.drives) {
         if (!drive.mountedPath) continue;
         const linked = plan.driveOnRunner
-          ? await linkProjectDrive(plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger })
-          : await linkProjectDriveRemote(env.sandbox as SandboxExec, plan.workspace.cwd, drive.slug, drive.mountedPath, { log: logger });
-        // Tell the model when availability differs from what it was last told: lost, or back.
+          ? await linkRunDrive(plan.workspace.cwd, drive, drive.mountedPath, { log: logger })
+          : await linkRunDriveRemote(env.sandbox as SandboxExec, plan.workspace.cwd, drive, drive.mountedPath, { log: logger });
         const wasLinked = drive.linked;
         drive.linked = linked;
-        if (!linked || wasLinked === false) {
-          const notice = projectDriveAppendix({
-            slug: drive.slug,
-            access: drive.access,
-            mountedPath: linked ? drive.mountedPath : undefined,
-          }).text;
-          promptBlocks.unshift({ type: "text", text: `${notice}\n\n` });
+        if (linked && wasLinked !== false) continue;
+        const notices = [
+          ...(drive.isHome
+            ? [linked ? agentMountAppendix(drive.mountedPath) : agentMountUnavailableAppendix()]
+            : []),
+          ...(drive.slug
+            ? [driveAppendix({ slug: drive.slug, access: drive.access, mountedPath: linked ? drive.mountedPath : undefined })]
+            : []),
+        ];
+        for (const notice of notices.reverse()) {
+          promptBlocks.unshift({ type: "text", text: `${notice.text}\n\n` });
         }
       }
     }

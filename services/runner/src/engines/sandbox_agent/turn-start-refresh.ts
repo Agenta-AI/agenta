@@ -25,7 +25,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { InRunnerSandboxHandle } from "./runtime-contracts.ts";
-import { projectDrives, type RunDrive } from "./run-drives.ts";
+import type { RunDrive } from "./run-drives.ts";
 
 type Log = (message: string) => void;
 
@@ -48,11 +48,9 @@ export interface TurnStartViews {
   sandbox: unknown;
   /** Local provider: the durable cwd mount on the runner host. */
   mountedCwd: string | undefined;
-  /** The agent folder's mount (runner host locally, in-sandbox path on Daytona). */
-  agentMountedPath?: string | undefined;
   /** Daytona: set when the cwd mount in the sandbox succeeded. */
   installedMountExpiries: { cwd?: number };
-  /** The run's drives; each mounted project drive is refreshed too. */
+  /** The run's drives; each mounted writable drive is refreshed too. */
   drives?: readonly RunDrive[];
   /** Set by an acquire that mounted the drives fresh; the first turn clears it and skips the refresh. */
   driveViewsFresh?: boolean;
@@ -65,8 +63,8 @@ export interface TurnStartPlan {
 }
 
 /** A read-only mount refuses the refresh attribute, so a read drive keeps geesefs's own cache expiry. */
-function projectRoots(env: TurnStartViews): Array<string | undefined> {
-  return projectDrives(env.drives)
+function driveRoots(env: TurnStartViews): Array<string | undefined> {
+  return (env.drives ?? [])
     .filter((d) => d.access !== "read")
     .map((d) => d.mountedPath);
 }
@@ -85,7 +83,7 @@ export async function refreshDriveViewsAtTurnStart(env: TurnStartViews, plan: Tu
   const t0 = Date.now();
   try {
     if (plan.isDaytona) {
-      const roots = [env.installedMountExpiries.cwd !== undefined ? plan.workspace.cwd : undefined, env.agentMountedPath, ...projectRoots(env)].filter((p): p is string => !!p);
+      const roots = [env.installedMountExpiries.cwd !== undefined ? plan.workspace.cwd : undefined, ...driveRoots(env)].filter((p): p is string => !!p);
       const sandbox = env.sandbox as { runProcess?: (opts: { command: string; args: string[]; timeoutMs: number }) => Promise<unknown> } | undefined;
       if (roots.length === 0 || typeof sandbox?.runProcess !== "function") return;
       const result = await Promise.race([
@@ -95,7 +93,7 @@ export async function refreshDriveViewsAtTurnStart(env: TurnStartViews, plan: Tu
       const exitCode = (result as { exitCode?: unknown } | undefined)?.exitCode;
       if (typeof exitCode === "number" && exitCode !== 0) throw new Error(`a root was not refreshed (exit code ${exitCode})`);
     } else {
-      const roots = [env.mountedCwd, env.agentMountedPath, ...projectRoots(env)].filter((p): p is string => !!p);
+      const roots = [env.mountedCwd, ...driveRoots(env)].filter((p): p is string => !!p);
       if (roots.length === 0) return;
       await execFileAsync("python3", ["-c", REFRESH_ROOTS_SCRIPT, ...roots], { timeout: REFRESH_TIMEOUT_MS });
     }

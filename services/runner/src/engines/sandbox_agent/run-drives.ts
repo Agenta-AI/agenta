@@ -1,51 +1,79 @@
 /**
- * Which drives a run mounts, decided once from the request.
+ * Every drive a run attaches, by one code path: which drives, how each is signed, where it is
+ * mounted, and the links that put it in the working folder.
  *
- * The request's `drives` holds the configured entries (`AgentDrive`). This module turns them, with
- * `hasSessionDrive`, into what the runner signs, and after signing into one list of `RunDrive`
- * items that every later step reads: the mounts per backend, the links, the turn-start refresh,
- * the remount, the lease and the teardown. The session drive is not in the list: it is the working
- * folder itself, and it keeps its own fields (`mountCreds`, `mountedCwd`).
+ * The request's `drives` lists the attached drives by slug and `homeDrive` names the one that
+ * holds the agent's tools and app files. Each drive mounts beside the working folder at
+ * `<cwd>-drive-<slug>` and is linked into it at `drives/<slug>`; the home drive is also linked at
+ * `agent-files`. After signing, the drives become one list of `RunDrive` items that every later
+ * step reads: the mounts per backend, the links, the turn-start refresh, the remount, the lease
+ * and the teardown. The session drive is not in the list: it is the working folder itself, and it
+ * keeps its own fields (`mountCreds`, `mountedCwd`).
  *
- * A request without `drives` comes from an agent service older than drive sharing. It keeps the
- * old rule: the agent drive whenever the run has an artifact id.
+ * A request without `drives` comes from an older agent service, or from a configuration without
+ * the key. It keeps the old rule: the agent's drive found by the artifact id through the legacy
+ * sign route, mounted at `<cwd>-agent` and linked only at `agent-files`.
  */
+import { lstat, mkdir, readdir, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import type { AgentRunRequest, DriveAccess } from "../../protocol.ts";
-import type { MountCredentials } from "./mount.ts";
+import {
+  ensureDurableSymlink,
+  type EnsureDurableSymlinkDeps,
+} from "./durable-symlink.ts";
+import {
+  shellQuote,
+  type MountCredentials,
+  type SandboxExec,
+  type SignMountDeps,
+} from "./mount.ts";
+import { throwIfAcquireAborted } from "../../environment/acquire-abort.ts";
 
-/** The agent's own drive. Its credentials and mount state stay on `agentMountCreds` / `agentMountedPath`. */
-export interface AgentRunDrive {
-  kind: "agent";
-  access: "read-write";
-}
+/** The folder in the working folder that holds one link per drive, and the README. */
+export const DRIVES_DIR_NAME = "drives";
+/** The link to the home drive in the working folder. */
+export const HOME_DRIVE_LINK_NAME = "agent-files";
+export const DRIVES_README_PATH = `${DRIVES_DIR_NAME}/README.md`;
+export const HOME_README_NAME = "README.md";
+export const HOME_README_CONTENT = `This folder belongs to your agent.
+Files here persist across all sessions and runs of this agent.
+Your working directory persists only for the current session.
+Without a session, the working directory does not persist.
+Concurrent runs share this folder, so the last writer wins for each file.
+Tools you keep under .tools/ (static binaries in .tools/bin/, and a .tools/setup.sh that
+rebuilds environments on local disk) are restored before each session starts.
+`;
 
-export interface ProjectRunDrive {
-  kind: "project";
-  slug: string;
+export interface RunDrive {
+  /** The drive's slug; absent only for the legacy agent drive, found by `artifactId`. */
+  slug?: string;
+  /** Set only for the legacy agent drive. */
+  artifactId?: string;
   access: DriveAccess;
+  /** The home drive: linked at `agent-files`, holds `.tools/` and the README. */
+  isHome: boolean;
   /** Signed credentials; null when the sign failed, so the drive is not available this run. */
   credentials: MountCredentials | null;
   /** Set once the drive serves I/O in this environment; for `inprocess`, once it is a root. */
   mountedPath?: string;
   /**
-   * The acquire made the `drives/<slug>` link (`local`, `daytona`). Without it the drive is mounted
-   * but not available to the model. `inprocess` links in its command sandbox instead.
+   * The acquire made the drive's links (`local`, `daytona`). Without them the drive is mounted but
+   * not available to the model. `inprocess` links in its command sandbox instead.
    */
   linked?: boolean;
 }
-
-export type RunDrive = AgentRunDrive | ProjectRunDrive;
 
 /** What the request asks the runner to sign. */
 export interface DriveSelection {
   /** The session folder is a durable drive. */
   session: boolean;
-  /** The agent drive is listed (and the run has an artifact id to find it by). */
-  agent: boolean;
-  projects: Array<{ slug: string; access: DriveAccess }>;
+  /** No `drives` on the request: sign the agent's drive by the artifact id (legacy route). */
+  legacyAgentDrive: boolean;
+  drives: Array<{ slug: string; access: DriveAccess; isHome: boolean }>;
 }
 
-/** A slug is used as one path segment (`drives/<slug>`, `<cwd>-project-<slug>`). */
+/** A slug is used as one path segment (`drives/<slug>`, `<cwd>-drive-<slug>`). */
 function isSafeSlug(slug: unknown): slug is string {
   return (
     typeof slug === "string" &&
@@ -63,37 +91,521 @@ export function selectRunDrives(
   const sessionId = request.sessionId?.trim();
   const artifactId = request.runContext?.workflow?.artifact?.id?.trim();
   const entries = request.drives;
-  const projects: DriveSelection["projects"] = [];
+  const drives: DriveSelection["drives"] = [];
   for (const entry of entries ?? []) {
-    if (entry?.kind !== "project") continue;
-    if (!isSafeSlug(entry.slug)) {
-      log(`project drive skipped: slug is not a single path segment`);
+    if (!isSafeSlug(entry?.slug)) {
+      log(`drive skipped: slug is not a single path segment`);
       continue;
     }
-    if (projects.some((p) => p.slug === entry.slug)) continue;
-    projects.push({
+    if (drives.some((d) => d.slug === entry.slug)) continue;
+    const access: DriveAccess = entry.access === "read" ? "read" : "read-write";
+    drives.push({
       slug: entry.slug,
-      access: entry.access === "read" ? "read" : "read-write",
+      access,
+      isHome: request.homeDrive === entry.slug && access === "read-write",
     });
+  }
+  if (typeof request.homeDrive === "string" && !drives.some((d) => d.isHome)) {
+    log(`home drive skipped: slug=${request.homeDrive} is not a read-write entry of drives`);
   }
   return {
     session: request.hasSessionDrive !== false && !!sessionId,
-    agent:
-      !!artifactId &&
-      (entries === undefined || entries.some((e) => e?.kind === "agent")),
-    projects,
+    legacyAgentDrive: !!artifactId && entries === undefined,
+    drives,
   };
 }
 
-/** True when the request states an empty `drives` list: no agent drive and no project drive. */
+/** True when the request states an empty `drives` list: no drive at all. */
 export function drivesListedEmpty(request: AgentRunRequest): boolean {
   return Array.isArray(request.drives) && request.drives.length === 0;
 }
 
-export function projectDrives(
+export function homeDrive(
   drives: readonly RunDrive[] | undefined,
-): ProjectRunDrive[] {
-  return (drives ?? []).filter(
-    (d): d is ProjectRunDrive => d.kind === "project",
+): RunDrive | undefined {
+  return drives?.find((d) => d.isHome);
+}
+
+/**
+ * The home drive's state for the prompt: its path when it serves files at `agent-files`,
+ * `"unavailable"` when the run has one that could not be signed, mounted or linked, and undefined
+ * when the run has none.
+ */
+export function homeDriveStatus(
+  drives: readonly RunDrive[] | undefined,
+): { path: string } | "unavailable" | undefined {
+  const home = homeDrive(drives);
+  if (!home) return undefined;
+  return home.mountedPath && home.linked !== false
+    ? { path: home.mountedPath }
+    : "unavailable";
+}
+
+export function driveMountPath(cwd: string, slug: string): string {
+  return `${cwd}-drive-${slug}`;
+}
+
+/** Where `drive` mounts. The legacy agent drive keeps its old path. */
+export function runDriveMountPath(cwd: string, drive: RunDrive): string {
+  return drive.slug ? driveMountPath(cwd, drive.slug) : `${cwd}-agent`;
+}
+
+/** `kind=` in the degrade log lines: `drive_mount`, or `agent_mount` on the legacy path. */
+export function driveLogKind(drive: RunDrive): string {
+  return drive.slug ? "drive_mount" : "agent_mount";
+}
+
+/** Names the drive in log lines. */
+export function driveSubject(drive: RunDrive): string {
+  return drive.slug ? `slug=${drive.slug}` : `artifact=${drive.artifactId}`;
+}
+
+/** The links that name `drive` in the working folder, relative to it. */
+export function driveLinkNames(drive: RunDrive): string[] {
+  return [
+    ...(drive.slug ? [`${DRIVES_DIR_NAME}/${drive.slug}`] : []),
+    ...(drive.isHome ? [HOME_DRIVE_LINK_NAME] : []),
+  ];
+}
+
+function defaultLog(msg: string): void {
+  process.stderr.write(`[sandbox_agent/run-drives] ${msg}\n`);
+}
+
+function detail(err: unknown): string {
+  return String(err instanceof Error ? err.message : err).slice(0, 200);
+}
+
+// ---- Signing ------------------------------------------------------------------------------- //
+
+/**
+ * Call one mounts sign route, bounded to 10 s so a hung endpoint fails open (null) instead of
+ * stalling the acquire. `subject` names the drive in log lines.
+ */
+async function signMountCredentialsAt(
+  request: { url: string; method: "POST" },
+  subject: string,
+  deps: SignMountDeps,
+): Promise<MountCredentials | null> {
+  const log = deps.log ?? defaultLog;
+  const doFetch = deps.fetchImpl ?? fetch;
+  const timeoutSignal = AbortSignal.timeout(10_000);
+  const signal = deps.signal
+    ? AbortSignal.any([deps.signal, timeoutSignal])
+    : timeoutSignal;
+  try {
+    const res = await doFetch(request.url, {
+      method: request.method,
+      headers: {
+        "content-type": "application/json",
+        authorization: deps.authorization,
+      },
+      signal,
+    });
+    if (!res.ok) {
+      log(`sign HTTP ${res.status} ${subject} — running without this mount`);
+      return null;
+    }
+    const body = (await res.json()) as {
+      mount?: { id?: string; project_id?: string };
+      credentials?: {
+        endpoint?: string;
+        region?: string;
+        bucket?: string;
+        prefix?: string;
+        access_key?: string;
+        secret_key?: string;
+        session_token?: string;
+        expires_at?: string;
+      };
+    };
+    const c = body.credentials;
+    if (!c?.bucket || !c.prefix || !c.access_key || !c.secret_key) {
+      log(`sign returned no usable credentials ${subject}`);
+      return null;
+    }
+    return {
+      endpoint: c.endpoint,
+      region: c.region ?? "us-east-1",
+      bucket: c.bucket,
+      prefix: c.prefix,
+      accessKey: c.access_key,
+      secretKey: c.secret_key,
+      sessionToken: c.session_token,
+      expiresAt: c.expires_at,
+      projectId:
+        typeof body.mount?.project_id === "string"
+          ? body.mount.project_id
+          : undefined,
+      mountId: typeof body.mount?.id === "string" ? body.mount.id : undefined,
+    };
+  } catch (err) {
+    throwIfAcquireAborted(deps.signal);
+    log(`sign failed ${subject}: ${detail(err).slice(0, 160)}`);
+    return null;
+  }
+}
+
+/**
+ * Sign a drive by its slug. `isHome` asks the API to apply the home rule too; its refusal
+ * (403 `home_drive_not_allowed`) means no home for this run. Returns null on any refusal or failure:
+ * the run then goes on without that drive.
+ */
+export async function signMountCredentialsBySlug(
+  slug: string,
+  access: DriveAccess,
+  isHome: boolean,
+  deps: SignMountDeps,
+): Promise<MountCredentials | null> {
+  const query = `slug=${encodeURIComponent(slug)}&access=${encodeURIComponent(access)}${isHome ? "&is_home=true" : ""}`;
+  return signMountCredentialsAt(
+    { url: `${deps.apiBase}/mounts/sign?${query}`, method: "POST" },
+    `slug=${slug} access=${access}${isHome ? " home" : ""}`,
+    deps,
   );
+}
+
+/** The legacy route: the agent's drive found by the artifact id, for a request without `drives`. */
+export async function signAgentMountCredentials(
+  artifactId: string,
+  deps: SignMountDeps,
+  name: string = "default",
+): Promise<MountCredentials | null> {
+  return signMountCredentialsAt(
+    {
+      url: `${deps.apiBase}/mounts/agents/sign?artifact_id=${encodeURIComponent(artifactId)}&name=${encodeURIComponent(name)}`,
+      method: "POST",
+    },
+    `artifact=${artifactId} name=${name}`,
+    deps,
+  );
+}
+
+/** Sign `drive` again, by the route it was first signed with. */
+export function signRunDrive(
+  drive: RunDrive,
+  deps: SignMountDeps,
+  signers: {
+    signBySlug: typeof signMountCredentialsBySlug;
+    signAgent: typeof signAgentMountCredentials;
+  },
+): Promise<MountCredentials | null> {
+  return drive.slug
+    ? signers.signBySlug(drive.slug, drive.access, drive.isHome, deps)
+    : signers.signAgent(drive.artifactId!, deps);
+}
+
+// ---- Links --------------------------------------------------------------------------------- //
+
+/**
+ * Point `<cwd>/<name>` at `target`. Re-run on every turn: the link lives on the session folder,
+ * where geesefs turns a symlink into an empty file across a remount.
+ *
+ * A real folder, or a file with content, at the link path holds what was written there while the
+ * link was missing. It is never deleted or moved: the link fails, and the drive is not available
+ * there until a person clears it.
+ */
+async function linkInCwd(
+  cwd: string,
+  name: string,
+  target: string,
+  deps: EnsureDurableSymlinkDeps & { mkdir?: typeof mkdir },
+  log: (msg: string) => void,
+): Promise<boolean> {
+  const linkPath = join(cwd, name);
+  try {
+    if (name.includes("/")) {
+      await (deps.mkdir ?? mkdir)(join(cwd, DRIVES_DIR_NAME), { recursive: true });
+    }
+    const existing = await (deps.lstat ?? lstat)(linkPath).catch(
+      (err: NodeJS.ErrnoException) => {
+        if (err.code === "ENOENT") return undefined;
+        throw err;
+      },
+    );
+    if (existing?.isDirectory()) {
+      log(`${name} is a folder in ${cwd}; not replaced`);
+      return false;
+    }
+    // An empty file is what geesefs leaves of a link after a remount; a file with content is someone's.
+    if (existing?.isFile() && existing.size > 0) {
+      log(`${name} is a file with content in ${cwd}; not replaced`);
+      return false;
+    }
+  } catch (err) {
+    log(`${name} check failed in ${cwd}: ${detail(err)}`);
+    return false;
+  }
+  const outcome = await ensureDurableSymlink(linkPath, target, name, { ...deps, log });
+  return outcome !== "failed";
+}
+
+/** Make every link of `drive` in `cwd`. Returns whether all of them are in place. */
+export async function linkRunDrive(
+  cwd: string,
+  drive: RunDrive,
+  mountPath: string,
+  deps: EnsureDurableSymlinkDeps & { mkdir?: typeof mkdir } = {},
+): Promise<boolean> {
+  const log = deps.log ?? defaultLog;
+  let ok = true;
+  for (const name of driveLinkNames(drive)) {
+    if (!(await linkInCwd(cwd, name, mountPath, deps, log))) ok = false;
+  }
+  if (!ok) log(`mount degraded kind=${driveLogKind(drive)} cause=link_failed ${driveSubject(drive)}`);
+  return ok;
+}
+
+/** Remove the links of `drive` from `cwd` when they are links; anything else there stays. */
+export async function unlinkRunDrive(
+  cwd: string,
+  drive: RunDrive,
+  deps: { log?: (msg: string) => void } = {},
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  for (const name of driveLinkNames(drive)) {
+    try {
+      if ((await lstat(join(cwd, name))).isSymbolicLink()) await unlink(join(cwd, name));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        log(`${name} not removed: ${detail(err).slice(0, 160)}`);
+      }
+    }
+  }
+}
+
+/** The same link, made inside a remote sandbox, with the same rule for what is at the link path. */
+export async function linkDriveRemote(
+  sandbox: SandboxExec,
+  cwd: string,
+  name: string,
+  target: string,
+): Promise<boolean> {
+  const link = shellQuote(join(cwd, name));
+  const res = await sandbox.runProcess({
+    command: "sh",
+    args: [
+      "-c",
+      `mkdir -p ${shellQuote(join(cwd, DRIVES_DIR_NAME))} && { [ "$(readlink ${link} 2>/dev/null)" = ${shellQuote(target)} ] || { { [ -L ${link} ] || { [ ! -d ${link} ] && [ ! -s ${link} ]; }; } && rm -f ${link} && ln -s ${shellQuote(target)} ${link}; }; }`,
+    ],
+    timeoutMs: 30_000,
+  });
+  return res?.exitCode === 0;
+}
+
+/** Make every link of `drive` inside a remote sandbox. Returns whether all of them are in place. */
+export async function linkRunDriveRemote(
+  sandbox: SandboxExec,
+  cwd: string,
+  drive: RunDrive,
+  mountPath: string,
+  deps: { log?: (msg: string) => void } = {},
+): Promise<boolean> {
+  const log = deps.log ?? defaultLog;
+  let ok = true;
+  for (const name of driveLinkNames(drive)) {
+    try {
+      if (!(await linkDriveRemote(sandbox, cwd, name, mountPath))) {
+        log(`remote ${name} link failed in ${cwd}`);
+        ok = false;
+      }
+    } catch (err) {
+      log(`remote ${name} link failed in ${cwd}: ${detail(err)}`);
+      ok = false;
+    }
+  }
+  if (!ok) log(`mount degraded kind=${driveLogKind(drive)} cause=link_failed ${driveSubject(drive)}`);
+  return ok;
+}
+
+/** What the prune keeps: the `drives/<slug>` of every listed drive, and `agent-files` when there is a home. */
+export interface KeptLinks {
+  slugs: readonly string[];
+  home: boolean;
+}
+
+/** The prune's input for a run's drive list: every listed slug; `agent-files` only for a signed home. */
+export function keptLinks(drives: readonly RunDrive[]): KeptLinks {
+  return {
+    slugs: drives.flatMap((d) => (d.slug ? [d.slug] : [])),
+    home: drives.some((d) => d.isHome && !!d.credentials),
+  };
+}
+
+/** A link, or the empty file geesefs leaves of one. */
+function isLinkResidue(st: { isSymbolicLink(): boolean; isFile(): boolean; size: number }): boolean {
+  return st.isSymbolicLink() || (st.isFile() && st.size === 0);
+}
+
+/**
+ * Remove leftover links: `drives/<entry>` items the list no longer holds, and `agent-files` when the
+ * run has no home. Only a link, or the empty file geesefs leaves of one, is removed; a folder or a
+ * file with content (`drives/README.md` included) is someone's and stays.
+ */
+export async function pruneDriveLinks(
+  cwd: string,
+  keep: KeptLinks,
+  deps: { log?: (msg: string) => void } = {},
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  const candidates: string[] = [];
+  try {
+    const dir = join(cwd, DRIVES_DIR_NAME);
+    for (const entry of await readdir(dir)) {
+      if (!keep.slugs.includes(entry)) candidates.push(`${DRIVES_DIR_NAME}/${entry}`);
+    }
+  } catch {
+    // No `drives/` folder: nothing to prune there.
+  }
+  if (!keep.home) candidates.push(HOME_DRIVE_LINK_NAME);
+  for (const name of candidates) {
+    const path = join(cwd, name);
+    try {
+      if (!isLinkResidue(await lstat(path))) continue;
+      await unlink(path);
+      log(`removed stale ${name}`);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") continue;
+      log(`stale ${name} not removed: ${detail(err).slice(0, 160)}`);
+    }
+  }
+}
+
+/** The same cleanup inside a remote sandbox. */
+export async function pruneDriveLinksRemote(
+  sandbox: SandboxExec,
+  cwd: string,
+  keep: KeptLinks,
+  deps: { log?: (msg: string) => void } = {},
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  const residue = (e: string) => `{ [ -L ${e} ] || { [ -f ${e} ] && [ ! -s ${e} ]; }; }`;
+  const script =
+    `cd ${shellQuote(cwd)} 2>/dev/null || exit 0; keep_home="$1"; shift; ` +
+    `if [ "$keep_home" != 1 ] && ${residue(HOME_DRIVE_LINK_NAME)}; then rm -f ${HOME_DRIVE_LINK_NAME} && echo ${HOME_DRIVE_LINK_NAME}; fi; ` +
+    `cd ${DRIVES_DIR_NAME} 2>/dev/null || exit 0; ` +
+    `for e in * .[!.]*; do [ -e "$e" ] || [ -L "$e" ] || continue; ` +
+    `k=0; for s in "$@"; do [ "$s" = "$e" ] && k=1; done; [ "$k" = 1 ] && continue; ` +
+    `if ${residue('"$e"')}; then rm -f "$e" && echo "${DRIVES_DIR_NAME}/$e"; fi; done`;
+  try {
+    const res = (await sandbox.runProcess({
+      command: "sh",
+      args: ["-c", script, "sh", keep.home ? "1" : "0", ...keep.slugs],
+      timeoutMs: 30_000,
+    })) as { exitCode?: number; result?: string; stdout?: string } | undefined;
+    const removed = String(res?.result ?? res?.stdout ?? "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    for (const name of removed) log(`removed stale ${name}`);
+  } catch (err) {
+    log(`stale drive links cleanup failed in ${cwd}: ${detail(err).slice(0, 160)}`);
+  }
+}
+
+// ---- READMEs ------------------------------------------------------------------------------- //
+
+/**
+ * The text of `drives/README.md`: the drives mounted in this run, with their access, for the
+ * agent and for the person who opens the files pane.
+ */
+export function drivesReadme(drives: readonly RunDrive[]): string {
+  const rows = drives
+    .filter((d) => d.slug && d.mountedPath && d.linked !== false)
+    .map(
+      (d) =>
+        `| ${DRIVES_DIR_NAME}/${d.slug}/ | ${d.access === "read" ? "read only" : "read and write"} | ${d.isHome ? `Home drive. Also at ${HOME_DRIVE_LINK_NAME}/.` : ""} |`,
+    );
+  const list = rows.length
+    ? ["| Folder | Access | Note |", "| --- | --- | --- |", ...rows].join("\n")
+    : "No drives are attached to this agent.";
+  return `# Drives
+
+Each folder here is a drive: a folder of files that Agenta keeps after this
+conversation ends. This list comes from the agent's configuration.
+
+${list}
+
+Other agents with access to a drive may also write files in it. If two
+agents write the same file, the last write wins.
+
+Agenta writes this file again at the start of every conversation. Changes to
+it are not kept.
+`;
+}
+
+/** Write `drives/README.md` in `cwd`. Never throws. */
+export async function writeDrivesReadme(
+  cwd: string,
+  content: string,
+  deps: { log?: (msg: string) => void } = {},
+): Promise<void> {
+  try {
+    await mkdir(join(cwd, DRIVES_DIR_NAME), { recursive: true });
+    await writeFile(join(cwd, DRIVES_README_PATH), content);
+  } catch (err) {
+    (deps.log ?? defaultLog)(`${DRIVES_README_PATH} not written in ${cwd}: ${detail(err)}`);
+  }
+}
+
+/** Write `drives/README.md` inside a remote sandbox. Never throws. */
+export async function writeDrivesReadmeRemote(
+  sandbox: SandboxExec,
+  cwd: string,
+  content: string,
+  deps: { log?: (msg: string) => void } = {},
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  try {
+    const res = await sandbox.runProcess({
+      command: "sh",
+      args: [
+        "-c",
+        `mkdir -p ${shellQuote(join(cwd, DRIVES_DIR_NAME))} && printf %s ${shellQuote(content)} > ${shellQuote(join(cwd, DRIVES_README_PATH))}`,
+      ],
+      timeoutMs: 30_000,
+    });
+    if (res?.exitCode !== 0) log(`remote ${DRIVES_README_PATH} not written in ${cwd}: exit ${res?.exitCode}`);
+  } catch (err) {
+    log(`remote ${DRIVES_README_PATH} not written in ${cwd}: ${detail(err)}`);
+  }
+}
+
+/** Seed the home drive's README when it has none; an agent-edited README is kept. */
+export async function seedHomeReadme(
+  mountPath: string,
+  deps: { writeFile?: typeof writeFile; log?: (msg: string) => void } = {},
+): Promise<void> {
+  const readmePath = join(mountPath, HOME_README_NAME);
+  try {
+    // `wx` makes concurrent first-run seeds atomic without overwriting an agent-edited README.
+    await (deps.writeFile ?? writeFile)(readmePath, HOME_README_CONTENT, { flag: "wx" });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
+      (deps.log ?? defaultLog)(`README seed failed ${readmePath}: ${detail(err)}`);
+    }
+  }
+}
+
+/** The same seed inside a remote sandbox. */
+export async function seedHomeReadmeRemote(
+  sandbox: SandboxExec,
+  mountPath: string,
+  deps: { log?: (msg: string) => void } = {},
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  const readmePath = join(mountPath, HOME_README_NAME);
+  try {
+    const res = await sandbox.runProcess({
+      command: "sh",
+      args: [
+        "-c",
+        `[ -e ${shellQuote(readmePath)} ] || printf %s ${shellQuote(HOME_README_CONTENT)} > ${shellQuote(readmePath)}`,
+      ],
+      timeoutMs: 30_000,
+    });
+    if (res?.exitCode !== 0) log(`remote README seed failed ${readmePath}: exit ${res?.exitCode}`);
+  } catch (err) {
+    log(`remote README seed failed ${readmePath}: ${detail(err)}`);
+  }
 }

@@ -284,7 +284,11 @@ export function changedConfigFields(
 
 /** The drive settings a sandbox is set up with; a parked sandbox is reused only for the same ones. */
 export function driveIdentity(request: AgentRunRequest): string {
-  return JSON.stringify([request.drives ?? null, request.hasSessionDrive ?? null]);
+  return JSON.stringify([
+    request.drives ?? null,
+    request.homeDrive ?? null,
+    request.hasSessionDrive ?? null,
+  ]);
 }
 
 function configShape(request: AgentRunRequest) {
@@ -301,6 +305,7 @@ function configShape(request: AgentRunRequest) {
     // The drives are mounted at acquire, so a changed list or session setting needs a new
     // environment. Only when present, so a request without them keeps the identity it had.
     ...(request.drives !== undefined ? { drives: request.drives } : {}),
+    ...(request.homeDrive !== undefined ? { homeDrive: request.homeDrive } : {}),
     ...(request.hasSessionDrive !== undefined
       ? { hasSessionDrive: request.hasSessionDrive }
       : {}),
@@ -788,9 +793,8 @@ export function sandboxCredentialsRotated(
  */
 export interface InstalledMountExpiries {
   cwd?: number;
-  agent?: number;
-  /** Per project drive, by slug. */
-  projects?: Record<string, number | undefined>;
+  /** Per attached drive, by its mount path. */
+  drives?: Record<string, number | undefined>;
   /** The harness transcript folders, when no session drive bounds them (their earliest expiry). */
   transcripts?: number;
 }
@@ -801,9 +805,8 @@ export function installedMountLease(
 ): number | undefined {
   const values = [
     expiries.cwd,
-    expiries.agent,
     expiries.transcripts,
-    ...Object.values(expiries.projects ?? {}),
+    ...Object.values(expiries.drives ?? {}),
   ].filter((v): v is number => typeof v === "number");
   return values.length ? Math.min(...values) : undefined;
 }

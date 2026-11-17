@@ -11,7 +11,6 @@ import type {
   ExecutableToolGate,
   ExecutableToolVerdict,
 } from "../../tools/executable-tool-gate.ts";
-import { agentMountPath, signAgentMountCredentials } from "./agent-mount.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import {
   configureCodexHome,
@@ -53,10 +52,12 @@ import {
 } from "./subscription-login/files.ts";
 import { subscriptionPublishState } from "./subscription-login/publisher.ts";
 import { configFingerprint } from "./session-identity.ts";
-import { signProjectMountCredentials } from "./project-mount.ts";
 import {
-  projectDrives,
+  driveLogKind,
+  driveSubject,
   selectRunDrives,
+  signAgentMountCredentials,
+  signMountCredentialsBySlug,
   type RunDrive,
 } from "./run-drives.ts";
 import type {
@@ -118,25 +119,25 @@ export async function prepareEnvironmentSetup(
   const artifactId = request.runContext?.workflow?.artifact?.id?.trim();
   const signAgentMount =
     deps.signAgentMountCredentials ?? signAgentMountCredentials;
-  const signProjectMount =
-    deps.signProjectMountCredentials ?? signProjectMountCredentials;
+  const signMountBySlug =
+    deps.signMountCredentialsBySlug ?? signMountCredentialsBySlug;
   const signDeps = () => ({
     apiBase: apiBase(),
     authorization: runCred!,
     log: logger,
     signal,
   });
-  const [signedSession, agentMountCreds, ...projectCreds] = await Promise.all([
+  const [signedSession, legacyAgentCreds, ...driveCreds] = await Promise.all([
     presignedMount !== undefined
       ? presignedMount
       : selection.session && runCred
         ? signMount(sessionForMount!, signDeps())
         : null,
-    selection.agent && runCred
+    selection.legacyAgentDrive && runCred
       ? signAgentMount(artifactId!, signDeps())
       : null,
-    ...selection.projects.map((p) =>
-      runCred ? signProjectMount(p.slug, p.access, signDeps()) : null,
+    ...selection.drives.map((d) =>
+      runCred ? signMountBySlug(d.slug, d.access, d.isHome, signDeps()) : null,
     ),
   ]);
   // A presigned mount was signed before the request's drive list was read.
@@ -149,25 +150,17 @@ export async function prepareEnvironmentSetup(
       `mount degraded kind=session_cwd cause=sign_returned_no_mount session=${sessionForMount}`,
     );
   }
-  // A listed agent drive expects an agent mount; same structured degrade signal when unsigned.
-  if (selection.agent && !agentMountCreds) {
-    logger(
-      `mount degraded kind=agent_mount cause=sign_returned_no_mount artifact=${artifactId}`,
-    );
-  }
   const drives: RunDrive[] = [
-    ...(selection.agent ? [{ kind: "agent" as const, access: "read-write" as const }] : []),
-    ...selection.projects.map((p, i) => ({
-      kind: "project" as const,
-      slug: p.slug,
-      access: p.access,
-      credentials: projectCreds[i] ?? null,
-    })),
+    ...(selection.legacyAgentDrive
+      ? [{ artifactId, access: "read-write" as const, isHome: true, credentials: legacyAgentCreds }]
+      : []),
+    ...selection.drives.map((d, i) => ({ ...d, credentials: driveCreds[i] ?? null })),
   ];
-  for (const drive of projectDrives(drives)) {
+  // Same structured degrade signal per drive; a refused home sign means no home for this run.
+  for (const drive of drives) {
     if (!drive.credentials) {
       logger(
-        `mount degraded kind=project_mount cause=sign_returned_no_mount slug=${drive.slug}`,
+        `mount degraded kind=${driveLogKind(drive)} cause=sign_returned_no_mount ${driveSubject(drive)}`,
       );
     }
   }
@@ -211,9 +204,6 @@ export async function prepareEnvironmentSetup(
   if (!planResult.ok) return { ok: false as const, error: planResult.error };
   const plan = planResult.plan;
   const piSkillSnapshot = resolvePiSkillSnapshot(plan);
-  const agentMountDir = agentMountCreds
-    ? agentMountPath(plan.workspace.cwd)
-    : undefined;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
   // inherits NONE of the sidecar's own provider keys, so only the resolved
@@ -478,7 +468,6 @@ export async function prepareEnvironmentSetup(
       ? subscriptionPublishState(subscriptionForRun)
       : undefined,
     mountCreds,
-    agentMountCreds,
     drives,
     mountProjectId: mountCreds?.projectId,
     projectScopeId: projectScopeFor(request, mountCreds?.projectId)?.id,
@@ -491,7 +480,6 @@ export async function prepareEnvironmentSetup(
     continuityTurnIndex: undefined,
     sessionDestroyRequested: false,
     mountedCwd: undefined,
-    agentMountedPath: undefined,
     installedMountExpiries: {},
     durableCwdSafeToDelete: true,
     // Local runs get a plain rmSync cleanup for the throwaway cwd; Daytona has none on this host.
@@ -521,7 +509,6 @@ export async function prepareEnvironmentSetup(
   return {
     ok: true as const,
     acquireStartedAt,
-    agentMountDir,
     artifactId,
     binaryPath,
     deferredClientToolRelay,
@@ -547,7 +534,7 @@ export async function prepareEnvironmentSetup(
     sessionForMount,
     signAgentMount,
     signMount,
-    signProjectMount,
+    signMountBySlug,
     strictModel,
     timingLog,
   };
