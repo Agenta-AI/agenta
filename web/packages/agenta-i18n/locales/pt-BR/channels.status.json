@@ -10,6 +10,7 @@
     "clientSecretRejected": "Segredo do cliente rejeitado",
     "clientSecretRejectedUpdate": "Segredo do cliente rejeitado · atualize-o",
     "connectedTo": "Conectado a {{agent}}",
+    "discordIdle": "Converse com o agente no seu servidor do Discord",
     "pending": "Ainda não vinculado · conclua a conexão",
     "placesAndDms": "{{places}} + DMs",
     "slackIdle": "Converse com o agente no workspace da sua equipe",

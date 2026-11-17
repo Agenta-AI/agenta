@@ -8,6 +8,7 @@
     "clientSecretRejected": "客户端密钥被拒绝",
     "clientSecretRejectedUpdate": "客户端密钥被拒绝 · 请更新",
     "connectedTo": "已连接到 {{agent}}",
+    "discordIdle": "在你的 Discord 服务器中与 Agent 聊天",
     "pending": "尚未关联 · 请完成连接",
     "placesAndDms": "{{places}} + 私信",
     "slackIdle": "在团队的工作区中与 Agent 聊天",

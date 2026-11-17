@@ -33,6 +33,7 @@ const ADD_ANOTHER_TITLES: Record<ChannelPlatform, CatalogKey<typeof channelsPane
     slack: "channels.panel.addSlackWorkspace",
     telegram: "channels.panel.addTelegramBot",
     whatsapp: "channels.panel.addWhatsAppNumber",
+    discord: "channels.panel.addDiscordBot",
     teams: "channels.panel.addTeamsBot",
 }
 

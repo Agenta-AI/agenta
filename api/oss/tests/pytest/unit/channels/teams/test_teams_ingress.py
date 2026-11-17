@@ -15,6 +15,7 @@ from oss.src.core.channels.adapters.teams.capabilities import (
     fetch_teams_capabilities,
 )
 from oss.src.core.channels.dtos import ChannelConnection, ChannelKeyGrain
+from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.utils import compose_external_key
 
 from . import fake_teams as f
@@ -22,6 +23,11 @@ from . import payloads as p
 
 
 class FakeChannelsService:
+    # The shared store-and-enqueue step runs for real over this fake's
+    # record_inbox_event.
+    inbox_dispatch_task = None
+    record_and_enqueue_inbox_event = ChannelsService.record_and_enqueue_inbox_event
+
     def __init__(self) -> None:
         self.project_id = uuid4()
         self.connections: dict[UUID, ChannelConnection] = {}
@@ -88,9 +94,8 @@ def microsoft():
 def client(service, dispatch, microsoft):
     adapter = f.adapter_for(microsoft)
     registry = ChannelAdapterRegistry(adapters={"teams": adapter})
-    router = ChannelsIngressRouter(
-        channels_service=service, adapter_registry=registry, dispatch_task=dispatch
-    )
+    service.inbox_dispatch_task = dispatch
+    router = ChannelsIngressRouter(channels_service=service, adapter_registry=registry)
     app = FastAPI()
     app.include_router(router.router, prefix="/channels")
     app.include_router(router.router, prefix="/preview/channels")

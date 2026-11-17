@@ -8,6 +8,7 @@
     "clientSecretRejected": "クライアントシークレットが拒否されました",
     "clientSecretRejectedUpdate": "クライアントシークレットが拒否されました · 更新してください",
     "connectedTo": "{{agent}} に接続済み",
+    "discordIdle": "Discord サーバーでエージェントとチャット",
     "pending": "未連携 · 接続を完了してください",
     "placesAndDms": "{{places}} + DM",
     "slackIdle": "チームのワークスペースでエージェントとチャット",

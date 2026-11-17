@@ -4,6 +4,7 @@
     "allChats": "Alle Chats, in denen der Bot ist",
     "allGroups": "Alle Gruppen, in denen der Bot ist",
     "answersInHelp": "Wo er antwortet, wenn er erwähnt wird. Private Chats folgen dem Schalter oben.",
+    "answersInHelpChannels": "Wo er antwortet, wenn er erwähnt wird. Direktnachrichten folgen dem Schalter oben.",
     "answersInHelpSlack": "Wo er antwortet, wenn er erwähnt wird. Direktnachrichten folgen dem Schalter oben. Kanäle umfassen Gruppen-DMs.",
     "answersInHelpTeams": "Wo er antwortet, wenn er erwähnt wird. Direktnachrichten folgen dem Schalter oben.",
     "canPostHelpChannel": "Ob der Agent in einen anderen Kanal als die Unterhaltung posten darf, in der er antwortet. Seine Antworten dort bleiben unberührt.",

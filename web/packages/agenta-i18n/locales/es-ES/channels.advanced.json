@@ -4,6 +4,7 @@
     "allChats": "Todos los chats en los que está el bot",
     "allGroups": "Todos los grupos en los que está el bot",
     "answersInHelp": "Dónde responde cuando lo mencionan. Los chats privados siguen el interruptor de arriba.",
+    "answersInHelpChannels": "Dónde responde cuando lo mencionan. Los mensajes directos siguen el interruptor de arriba.",
     "answersInHelpSlack": "Dónde responde cuando lo mencionan. Los mensajes directos siguen el interruptor de arriba. Los canales incluyen los mensajes directos de grupo.",
     "answersInHelpTeams": "Dónde responde cuando lo mencionan. Los mensajes directos siguen el interruptor de arriba.",
     "canPostHelpChannel": "Si el agente puede publicar en un canal distinto de la conversación en la que responde. Sus respuestas allí no se ven afectadas.",

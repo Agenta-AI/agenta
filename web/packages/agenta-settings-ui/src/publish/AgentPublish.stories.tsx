@@ -80,6 +80,7 @@ export const SeveralConnections: Story = {
                 slack: slackHere,
                 telegram: telegramHere,
                 whatsapp: null,
+                discord: null,
                 teams: null,
                 agentConnections: {
                     slack: [
@@ -93,6 +94,7 @@ export const SeveralConnections: Story = {
                     ],
                     telegram: [telegramHere, telegramCustomHere],
                     whatsapp: [],
+                    discord: [],
                     teams: [],
                 },
             }}
@@ -104,7 +106,7 @@ export const SeveralConnections: Story = {
 export const TelegramOnAnotherAgent: Story = {
     render: () => (
         <PublishHost
-            initial={{slack: slackHere, telegram: telegramElsewhere, whatsapp: null, teams: null}}
+            initial={{slack: slackHere, telegram: telegramElsewhere, whatsapp: null, discord: null, teams: null}}
         />
     ),
 }
@@ -113,7 +115,7 @@ export const TelegramOnAnotherAgent: Story = {
 export const TelegramPending: Story = {
     render: () => (
         <PublishHost
-            initial={{slack: null, telegram: telegramPending, whatsapp: null, teams: null}}
+            initial={{slack: null, telegram: telegramPending, whatsapp: null, discord: null, teams: null}}
         />
     ),
 }

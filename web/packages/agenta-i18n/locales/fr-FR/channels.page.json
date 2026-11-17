@@ -4,6 +4,7 @@
     "connectPlatform": "Connecter {{platform}}",
     "disconnectMessage": "{{name}} cesse de répondre sur {{platform}}. Vous pourrez le reconnecter plus tard.",
     "disconnectTitle": "Déconnecter le canal",
+    "discordDescription": "Discutez avec un agent sur votre serveur Discord",
     "finishLinking": "Terminer la liaison",
     "intro": "Parlez à {{agent}} depuis les outils de messagerie que votre équipe utilise déjà.",
     "loading": "Chargement…",

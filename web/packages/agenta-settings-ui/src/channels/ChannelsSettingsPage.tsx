@@ -64,6 +64,7 @@ const PLATFORM_DESCRIPTIONS: Record<
     slack: "channels.page.slackDescription",
     telegram: "channels.page.telegramDescription",
     whatsapp: "channels.page.whatsappDescription",
+    discord: "channels.page.discordDescription",
     teams: "channels.page.teamsDescription",
 }
 

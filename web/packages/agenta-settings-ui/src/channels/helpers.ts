@@ -21,58 +21,63 @@ const t = createT(channelsLabelsCatalog, channelsStatusCatalog)
 export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
 
 /** Every platform, in the order the Channels card lists them. */
-export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp", "teams"]
+export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp", "discord", "teams"]
 
 const PLATFORM_LABELS: Record<ChannelPlatform, string> = {
     slack: "Slack",
     telegram: "Telegram",
     whatsapp: "WhatsApp",
+    discord: "Discord",
     teams: "Microsoft Teams",
 }
 
 export const platformLabel = (platform: ChannelPlatform): string => PLATFORM_LABELS[platform]
 
-type LabelKey = CatalogKey<typeof channelsLabelsCatalog | typeof channelsStatusCatalog>
+type HelperTextKey = CatalogKey<typeof channelsLabelsCatalog | typeof channelsStatusCatalog>
 
 /** The row subtitle of a platform with no connection. */
-const NOT_CONNECTED_SUBS: Record<ChannelPlatform, LabelKey> = {
+const NOT_CONNECTED_SUBS: Record<ChannelPlatform, HelperTextKey> = {
     slack: "channels.status.slackIdle",
     telegram: "channels.status.telegramIdle",
     whatsapp: "channels.status.whatsappIdle",
+    discord: "channels.status.discordIdle",
     teams: "channels.status.teamsIdle",
 }
 
 /** The row subtitle of a revoked connection: what the platform did, and what to do. */
-const REVOKED_SUBS: Record<ChannelPlatform, LabelKey> = {
+const REVOKED_SUBS: Record<ChannelPlatform, HelperTextKey> = {
     slack: "channels.status.appUninstalled",
     telegram: "channels.status.botTokenRevokedUpdate",
     whatsapp: "channels.status.accessTokenRejectedUpdate",
+    discord: "channels.status.botTokenRevokedUpdate",
     teams: "channels.status.clientSecretRejectedUpdate",
 }
 
 /** The short revoked text of a connection's line in a list. */
-const REVOKED_DETAILS: Record<ChannelPlatform, LabelKey> = {
+const REVOKED_DETAILS: Record<ChannelPlatform, HelperTextKey> = {
     slack: "channels.status.appUninstalled",
     telegram: "channels.status.botTokenRevoked",
     whatsapp: "channels.status.accessTokenRejected",
+    discord: "channels.status.botTokenRevoked",
     teams: "channels.status.clientSecretRejected",
 }
 
 /** A count of a platform's shared places. A Teams place is a team channel or a group chat. */
-const PLACE_COUNTS: Record<ChannelPlatform, LabelKey> = {
+const PLACE_COUNTS: Record<ChannelPlatform, HelperTextKey> = {
     slack: "channels.labels.channelCount",
     telegram: "channels.labels.groupCount",
     whatsapp: "channels.labels.groupCount",
+    discord: "channels.labels.channelCount",
     teams: "channels.labels.chatCount",
 }
 
 export const placeCount = (platform: ChannelPlatform, count: number): string =>
     t(PLACE_COUNTS[platform], {count})
 
-/** Whether the platform has channels (Slack, Teams) rather than only groups. Teams also has
- *  group chats, so its place words come from `placeCount` and the Teams copy. */
+/** Whether the platform has channels (Slack, Discord, Teams) rather than only groups. Teams also
+ *  has group chats, so its place words come from `placeCount` and the Teams copy. */
 export const hasChannels = (platform: ChannelPlatform): boolean =>
-    platform === "slack" || platform === "teams"
+    platform === "slack" || platform === "discord" || platform === "teams"
 
 /** How a connection's install is described: the shared Agenta one, or the customer's own. */
 export const installKindLabel = (connection: ChannelConnection): string => {
@@ -382,6 +387,7 @@ export const EMPTY_CONNECTIONS: ChannelConnections = {
     slack: null,
     telegram: null,
     whatsapp: null,
+    discord: null,
     teams: null,
 }
 
@@ -429,6 +435,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     },
     countHostedTelegramBindings: async () => 0,
     hostedSlackInstallUrl: async () => null,
+    discordInviteUrl: async () => null,
     teamsAppPackage: async () => null,
     connectCustom: async () => null,
     connectHere: async () => {},

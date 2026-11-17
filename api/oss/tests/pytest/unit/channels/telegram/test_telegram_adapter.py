@@ -528,7 +528,8 @@ def test_render_content_renders_the_approval_card_as_text():
     ]
     text, markup = render_content(content)
     assert "Approval needed: Write" in text
-    assert '"path": "/x"' in text
+    assert "Path: /x" in text
+    assert "{" not in text
     assert markup["inline_keyboard"][0][0]["callback_data"] == "approve"
 
 

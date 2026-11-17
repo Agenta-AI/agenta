@@ -41,6 +41,7 @@ import {
     disconnectSubject,
     errorMessage,
     formatConnectedOn,
+    hasChannels,
     platformLabel,
     slackInviteHandle,
 } from "./helpers"
@@ -110,6 +111,14 @@ const fallbackSecrets = (platform: ChannelPlatform): ChannelSetupField[] =>
                 required: true,
             },
         ],
+        discord: [
+            {
+                name: "bot_token",
+                label: tNow("channels.manage.botToken"),
+                secret: true,
+                required: true,
+            },
+        ],
         whatsapp: [
             {
                 name: "access_token",
@@ -153,6 +162,7 @@ const PLACES_TITLES: Record<ChannelPlatform, CatalogKey<typeof channelsManageCat
     slack: "channels.manage.channels",
     telegram: "channels.manage.groupChats",
     whatsapp: "channels.manage.groupChats",
+    discord: "channels.manage.channels",
     teams: "channels.manage.channelsAndGroupChats",
 }
 
@@ -192,7 +202,9 @@ export const ChannelManagePanel = ({
     const isSlack = connection.platform === "slack"
     const isTelegram = connection.platform === "telegram"
     const isWhatsApp = connection.platform === "whatsapp"
+    const isDiscord = connection.platform === "discord"
     const isTeams = connection.platform === "teams"
+    const channels = hasChannels(connection.platform)
     const name = platformLabel(connection.platform)
     const connectionId = connection.connectionId
     const handle = botHandle(connection, hostedHandle)
@@ -248,6 +260,41 @@ export const ChannelManagePanel = ({
             /* keep the stand-in names */
         }
     }, [actions, connectionId, name])
+
+    // What the empty place list says: how a place first appears. WhatsApp has no list.
+    const emptyPlaces: Record<ChannelPlatform, string | null> = {
+        slack: t("channels.manage.emptySlack", {handle: inviteHandle}),
+        telegram: t("channels.manage.emptyGroups", {handle}),
+        discord: `${t("channels.manage.emptyDiscord", {handle})} ${t("channels.manage.discordPrivateChannelHint")}`,
+        whatsapp: null,
+        teams: t("channels.manage.emptyTeams", {handle}),
+    }
+
+    // --- the Discord invite link, from the connection's setup document ---------- //
+    const [discordInviteUrl, setDiscordInviteUrl] = useState<string | null>(null)
+    const [discordInviteError, setDiscordInviteError] = useState<string | null>(null)
+    // Bumped by "Try again" to read the link again.
+    const [discordInviteAttempt, setDiscordInviteAttempt] = useState(0)
+    useEffect(() => {
+        // A revoked bot cannot join a server, so it gets no invite link.
+        if (!isDiscord || !connectionId || elsewhere || revoked) return
+        let cancelled = false
+        const fallback = tNow("channels.manage.loadInviteFailed")
+        setDiscordInviteError(null)
+        actions
+            .discordInviteUrl(connectionId)
+            .then((url) => {
+                if (cancelled) return
+                setDiscordInviteUrl(url)
+                if (!url) setDiscordInviteError(fallback)
+            })
+            .catch((e) => {
+                if (!cancelled) setDiscordInviteError(errorMessage(e, fallback))
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [isDiscord, connectionId, elsewhere, revoked, actions, discordInviteAttempt])
 
     // --- the picker behind "Add channel" --------------------------------------- //
     const [pickerOpen, setPickerOpen] = useState(false)
@@ -472,7 +519,7 @@ export const ChannelManagePanel = ({
             title: t(PLACES_TITLES[connection.platform]),
             help: isTeams
                 ? t("channels.manage.groupHelpTeams", {handle})
-                : isSlack
+                : channels
                   ? t("channels.manage.groupHelpSlack", {handle})
                   : t("channels.manage.groupHelp"),
         },
@@ -808,7 +855,9 @@ export const ChannelManagePanel = ({
                                 : isTeams
                                   ? t("channels.manage.microsoftRejectedSecret")
                                   : revokedOffersToken
-                                    ? t("channels.manage.telegramRevokedToken")
+                                    ? isDiscord
+                                        ? t("channels.manage.discordRevokedToken")
+                                        : t("channels.manage.telegramRevokedToken")
                                     : t("channels.manage.appUninstalled", {platform: name})}
                         </span>
                         <span className="text-[13px] text-muted-foreground">
@@ -821,9 +870,12 @@ export const ChannelManagePanel = ({
                                         agent: agentName,
                                     })
                                   : revokedOffersToken
-                                    ? t("channels.manage.revokedHelpTelegram", {
-                                          agent: agentName,
-                                      })
+                                    ? t(
+                                          isDiscord
+                                              ? "channels.manage.revokedHelpDiscord"
+                                              : "channels.manage.revokedHelpTelegram",
+                                          {agent: agentName},
+                                      )
                                     : t("channels.manage.revokedHelpApp", {
                                           agent: agentName,
                                       })}
@@ -879,12 +931,34 @@ export const ChannelManagePanel = ({
                         <span className="text-[13px] font-semibold text-foreground">
                             {isTeams
                                 ? t("channels.manage.channelsAndGroupChats")
-                                : isSlack
+                                : channels
                                   ? t("channels.manage.channelsItsIn")
                                   : isWhatsApp
                                     ? t("channels.manage.chats")
                                     : t("channels.manage.groups")}
                         </span>
+                        {discordInviteUrl ? (
+                            <Button variant="ghost" size="xs" asChild>
+                                <a
+                                    href={discordInviteUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    data-testid="channels-discord-invite-link"
+                                >
+                                    <Plus weight="bold" data-icon="inline-start" />
+                                    {t("channels.manage.addToServer")}
+                                </a>
+                            </Button>
+                        ) : discordInviteError ? (
+                            <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => setDiscordInviteAttempt((n) => n + 1)}
+                                data-testid="channels-discord-invite-retry"
+                            >
+                                {t("common.tryAgain")}
+                            </Button>
+                        ) : null}
                         {isSlack && !pickerOpen ? (
                             <Button
                                 variant="ghost"
@@ -897,6 +971,14 @@ export const ChannelManagePanel = ({
                             </Button>
                         ) : null}
                     </div>
+                    {discordInviteError ? (
+                        <Alert
+                            type="error"
+                            showIcon
+                            message={discordInviteError}
+                            data-testid="channels-discord-invite-error"
+                        />
+                    ) : null}
                     {spacesError ? <Alert type="error" showIcon message={spacesError} /> : null}
                     {places === null ? (
                         <div
@@ -1058,11 +1140,7 @@ export const ChannelManagePanel = ({
 
                     {isWhatsApp || places?.length !== 0 ? null : (
                         <span className="py-3 text-[13px] text-muted-foreground">
-                            {isSlack
-                                ? t("channels.manage.emptySlack", {handle: inviteHandle})
-                                : isTeams
-                                  ? t("channels.manage.emptyTeams", {handle})
-                                  : t("channels.manage.emptyGroups", {handle})}
+                            {emptyPlaces[connection.platform]}
                         </span>
                     )}
                 </div>

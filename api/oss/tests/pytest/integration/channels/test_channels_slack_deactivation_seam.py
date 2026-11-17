@@ -143,7 +143,7 @@ async def deactivation_seam(channels_scope, monkeypatch):
     app = FastAPI()
     app.include_router(
         ChannelsIngressRouter(
-            channels_service=service, adapter_registry=registry, dispatch_task=None
+            channels_service=service, adapter_registry=registry
         ).router,
         prefix="/channels",
     )

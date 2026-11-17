@@ -152,8 +152,9 @@ describe("the privacy control's channel state", () => {
         slack: rows[0] ?? null,
         telegram: null,
         whatsapp: null,
+        discord: null,
         teams: null,
-        agentConnections: {slack: rows, telegram: [], whatsapp: [], teams: []},
+        agentConnections: {slack: rows, telegram: [], whatsapp: [], discord: [], teams: []},
         allConnections: rows,
     })
     const render = (rows: ChannelConnection[]) =>
