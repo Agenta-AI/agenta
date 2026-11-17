@@ -1769,7 +1769,7 @@ class WorkflowsService:
         ):
             revision = self.static_catalog.retrieve_revision(id=artifact_id)
             agent = _agent_config(revision.data) if revision is not None else None
-            return agent is not None and agent.get("drives") is not None
+            return agent is not None and isinstance(agent.get("drives"), list)
         return await self.workflows_dao.has_revision_with_drives(
             project_id=project_id, artifact_id=artifact_id
         )

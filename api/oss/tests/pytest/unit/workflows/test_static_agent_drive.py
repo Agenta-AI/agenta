@@ -79,8 +79,8 @@ def access(monkeypatch) -> _Access:
 def _service(agent: dict):
     catalog = _catalog(agent)
     service = WorkflowsService(workflows_dao=AsyncMock(), static_catalog=catalog)
-    service.fetch_workflow = AsyncMock(return_value=None)
     dao = InMemoryMountsDAO()
+    dao.fetch_mount_by_agent_id = AsyncMock(wraps=dao.fetch_mount_by_agent_id)
     service.set_mount_lookup(MountsService(mounts_dao=dao))
     artifact_id = catalog.retrieve_revision(slug=AGENT_SLUG).workflow_id
     return service, dao, artifact_id
@@ -121,13 +121,13 @@ async def test_a_later_run_finds_the_drive_with_one_lookup(world, access):
         {"drives": [{"slug": DRIVE_SLUG}], "home_drive": None}
     )
     await _mint(service, world, artifact_id)
-    service.fetch_workflow.reset_mock()
+    dao.fetch_mount_by_agent_id.reset_mock()
 
     await _mint(service, world, artifact_id)
 
     assert dao.create_agent_calls == 1
     assert len(dao.mounts) == 1
-    service.fetch_workflow.assert_not_awaited()
+    assert dao.fetch_mount_by_agent_id.await_count == 1
 
 
 async def test_a_user_drive_with_a_similar_slug_does_not_break_it(world, access):
@@ -182,7 +182,7 @@ async def test_a_stored_agent_costs_no_lookup(world, access):
 
     assert await _mint(service, world, stored_agent) == stored_agent
     assert dao.create_agent_calls == 0
-    assert dao.mounts == {}
+    dao.fetch_mount_by_agent_id.assert_not_awaited()
 
 
 async def test_a_failed_create_does_not_fail_the_mint(world, access):
