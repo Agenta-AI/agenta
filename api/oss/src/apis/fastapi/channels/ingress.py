@@ -728,7 +728,9 @@ class ChannelsIngressRouter:
         project_id, connection_id, connection = candidate
 
         # Raises ChannelSignatureInvalid on failure -- caught by the decorator,
-        # which answers 401 with no verification detail.
+        # which answers 401 with no verification detail -- or
+        # ChannelSignatureUnavailable when the check cannot run now, which
+        # answers 503.
         external_id = await adapter.verify_signature(
             request=request_context,
             connection=connection,
