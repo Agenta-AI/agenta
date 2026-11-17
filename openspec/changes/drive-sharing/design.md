@@ -1,503 +1,673 @@
-# Design: drive sharing
+# Design: drive sharing with one kind of drive
 
-All file and line references point to `origin/main` at commit `8d6f0dff68` (13 November 2026). "Measured" means I read it in that code. "Proposed" means a choice of this design. 
+Every "today" statement points to code at the heads of the open pull requests: API, SDK and runner at commit `81804cc34d` (the head of the runner pull request #8316, which contains the API and SDK work of #8315), and web at commit `33f0ee01b2` (the head of #8319). Paths are relative to the repository root.
+
+Each statement carries one of three marks:
+
+- **Measured**: read in the code, with a citation.
+- **Decided**: a product decision (listed below).
+- **Proposed**: a choice of this design, open to review.
 
 ## Words used in this design
 
-- **Drive**: a folder of files that the platform keeps in an object store. In the API and the runner a drive is a **mount**: a row of the `mounts` table plus a key prefix in the store. The configuration and the user-facing text say "drive"; the API and the runner code say "mount" (see "Names per layer" in Decision 2).
-- **The `drives` list**: the list in an agent configuration. Its entries are the agent's own drive and project drives, never the session drive.
-- **Root** (`DriveRoot` in the `inprocess` code): one folder that the command sandbox mounts. A session drive, an agent drive and a project drive are each one root.
-- **Mount**: the act of making a drive appear as a normal folder, so that normal file tools (`cat`, `rg`, an editor) work on it. The code also calls the row a "mount".
-- **Sandbox**: the machine or container where the agent's shell commands run.
-- **Runner**: the Node.js service in `services/runner` that runs one agent turn. For a Python developer: it plays the role that a worker process plays in a job queue. The Python agent service decides what to run, and the runner runs it.
-- **Backend** (the code says "sandbox provider"): where the sandbox is. The code knows three: `local`, `daytona` and `inprocess` (`services/runner/src/config/runner-config.ts:20`).
-- **Harness**: the coding agent program that the runner drives, for example Pi or Claude Code.
-- **FUSE** (Filesystem in Userspace): a Linux feature that lets a normal program serve a folder. Every file read or write in the folder becomes a call into that program.
-- **geesefs**: the FUSE program that the runner uses. It serves an object store prefix as a folder.
-- **STS** (Security Token Service): the object store service that issues temporary credentials. The API asks it for a key pair that works only for one prefix and only for a limited time.
+- **Drive**: a folder of files that the platform keeps in an object store between conversations. In the API and the runner a drive is a **mount**: a row of the `mounts` table plus a key prefix in the store. The configuration and user-facing text say "drive"; the API and runner code say "mount" (see "Names per layer").
+- **Object store**: a storage service that keeps each file as one object under a key (Amazon S3, SeaweedFS).
+- **Mount** (the act): make a drive appear as a normal folder, so that normal file tools (`cat`, an editor) work on it. The runner uses **geesefs**, a program that serves an object store prefix as a folder through **FUSE** (a Linux feature that lets a normal program serve a folder).
+- **Runner**: the Node.js service in `services/runner` that runs one agent turn. For a Python developer: it plays the role of a worker process in a job queue. The Python **agent service** decides what to run and sends the runner a run request; the runner runs it.
+- **Sandbox**: the machine where the agent's shell commands run. There are three kinds (the code says "sandbox provider"): `local` (the runner's own machine), `daytona` (a cloud machine per conversation) and `inprocess` (the agent program runs inside the runner; only its shell commands go to a cloud machine) (`services/runner/src/config/runner-config.ts:20`).
+- **Harness**: the coding agent program that the runner drives, for example Pi, Claude Code or Codex.
+- **Working folder**: the folder where the agent's commands run during one conversation. With a session drive, it is that drive.
+- **Session drive**: the drive that holds the working folder of one conversation.
+- **Home drive**: the one attached drive that the configuration names in `home_drive`. The platform keeps the agent's saved tools, app files, template files and README there, and links it at `agent-files/`.
+- **Link**: a symbolic link, a file system entry that points to another path.
+- **Visibility**: who may open an agent or a drive. Shared (stored as `project`) means every project member whose role allows the action. Private (stored as `private`) means only the owner.
+- **Access**: what a run may do with an attached drive: `read-write` or `read`. This design never uses "access" for visibility.
+- **Principal**: who a request or a run acts for: a person, an API key, or a channel installation (a chat channel binding).
 - **Revision**: one saved version of an agent configuration.
 
-## Product decisions this design builds on
+## Product decisions this design builds on (Decided)
 
-- Each agent configuration holds one list `drives`, with every durable drive the agent mounts. The agent's own drive is an entry of that list.
-- Each configuration also states whether the agent has a session drive.
-- Current agents are migrated so that their configuration states exactly what they have today: a session drive and their own drive.
-- A drive can be attached read-only in the first version, enforced by the storage credentials and by the mount.
-- A configuration that names a drive that does not exist is refused at save. A drive is created first, then attached.
-- An agent cannot add a drive to its own configuration.
-- Project drives show in the session files pane like the agent's own drive. Other UI is out of scope.
+1. There is one kind of drive. The agent's own drive is an ordinary drive. A drive belongs to the project, has a slug, and has its own visibility (who may open it).
+2. The unified design replaces the two-kind design (entries `{ "kind": "agent" }` and `{ "kind": "project", ... }`) before any of the open pull requests merges.
+3. The configuration lists drives as `{ "slug", "access" }` entries. An optional pointer `home_drive` names the one attached drive that holds the agent's saved tools (`.tools/`), app files (`.apps/`), template files and README.
+4. Every attached drive appears in the working folder at `drives/<slug>/` (like `/mnt` on Linux). `agent-files` is a link to the home drive (like a home folder), for old and new agents. An agent with no home drive has no `agent-files/`. The platform writes `drives/README.md` at every start, from the configuration, for the agent and the person.
+5. A drive is shared or private, the same two states agents have. A shared agent can attach only shared drives. A personal agent can attach shared drives and its owner's private drives. When a personal agent becomes shared, its drives must become shared.
+6. When a personal agent becomes shared, the same action makes its private drives shared, and the response lists them. (Rejected option: refuse the change until the drives are shared by hand.)
+7. A drive is created when an agent is created (new agent or copy). A new agent gets one drive of its own by default: created with the agent, named after the agent, with the agent's visibility, listed in the configuration and set as home. A template or a person can remove it. (Rejected option: no drive by default.)
+8. The migration gives every existing agent drive a slug, lists it in the stored configuration and sets it as home, so nothing changes for existing agents and their users.
+9. `has_session_drive` stays a boolean. The session folder is the working folder and is not a drive entry.
+10. Read-only access is enforced by the storage credentials and by the mount. A save that names a missing drive is refused (a drive is created first, then attached). An agent cannot change its own drives with its commit tool. The app shows drives in the session files pane; other screens are out of scope. Two releases: release 1 reads a configuration without the keys as today's behavior; release 2 rewrites stored configurations in place.
 
-## Short answers
+## Context: how it works today
 
-1. **How does it look in the configuration?** Every agent states all its drives in one list, `drives`, The agent's own drive is an entry, `{ "kind": "agent" }`, and a project drive is an entry with its slug, `{ "kind": "project", "slug": "price-lists", "access": "read" }`. The configuration also states whether the agent has a session drive, with `has_session_drive`. See Decisions 1 to 3.
-2. **Do we need to migrate our current agents?** Yes. After the migration every agent configuration holds `drives` with exactly its own drive and states that it has a session drive. The plan has two releases: the first ships the field with a default for a configuration that lacks it, and the second rewrites every stored agent revision. See "Migration". (Proposed)
-3. **How does the flow in the runner look, local versus Daytona versus in-process?** On `local` the runner host mounts the drives before the harness starts. On `daytona` the sandbox mounts them while the runner sets the sandbox up. On `inprocess` the command sandbox mounts them at the first tool call. After the change the runner mounts the agent's own drive because the list names it, not by a special rule, and an agent with an empty list gets no durable drive. See the figures under "Context" and Decision 6. (Measured today, Proposed after)
-4. **Does it run in parallel, or does it get slow?** The mounts already run at the same time on all three backends; only the credential requests run one after the other today. The change signs and mounts every drive at the same time. One mount in a sandbox takes about 0.6 s (Measured on `inprocess`), so one to three extra drives should add well under one second to a cold start (estimate). See Decision 9.
+### Production today, and what the open pull requests added (Measured)
 
-## Context
+In production an agent run gets two drives by fixed rules. The session drive comes from the conversation id, and the agent's own drive comes from the agent's id. No configuration field names either one. The open pull requests added a `drives` list with two kinds of entries, `{ "kind": "agent" }` and `{ "kind": "project", "slug": ..., "access": ... }` (`sdks/python/agenta/sdk/agents/dtos.py:407-436`), and the default template writes `"drives": [{"kind": "agent"}]` for every new agent (`sdks/python/agenta/sdk/utils/types.py:1583-1584`). None of this is merged.
 
-### The drive model in the API (Measured)
-
-- **Table.** A drive is a row of `mounts` (`api/oss/src/dbs/postgres/mounts/dbes.py:13-50`). The primary key is `(project_id, id)`. A unique constraint holds `(project_id, slug)` (`dbes.py:23-27`). The row has `session_id`, `agent_id`, `purpose` and `storage_prefix` (`api/oss/src/dbs/postgres/mounts/dbas.py:29-51`). The row is deleted with its project (`dbes.py:17-21`).
-- **Where the files are.** The key prefix is `mounts/<organization_id>/<mount_id>` for drives created by version 0.125.0 or later (`api/oss/src/core/mounts/types.py:12-39`).
-- **Three scopes.** `MountScope` holds `session_id` and `agent_id`; neither set means a project drive (`api/oss/src/core/mounts/dtos.py:56-61`).
-  - A **session drive** is the working folder of one session. The service creates it on demand with a reserved slug (`api/oss/src/core/mounts/service.py:515-547`).
-  - An **agent drive** is one durable drive per agent artifact, with the reserved slug `__ag__agent__<artifact_id>__<name>` and the name `default` (`service.py:128-148`, `service.py:576-601`).
-  - A **project drive** is any row with no session and no agent. `POST /mounts/` creates one (`api/oss/src/apis/fastapi/mounts/router.py:196-204`, `router.py:404-431`). A caller may not use the reserved prefix `__ag__` (`service.py:151-154`, `service.py:486-487`).
-- **What a project drive is used for today.** Nothing in the product. The only caller of `create_mount` is the route itself (`router.py:424`). No web code lists mounts (`queryMounts` appears only in the generated client). The runner signs only the session drive and the agent drive (`services/runner/src/engines/sandbox_agent/mount.ts:83`, `services/runner/src/engines/sandbox_agent/agent-mount.ts:57`).
-- **Routes.** `POST /mounts/`, `POST /mounts/query`, `POST /mounts/agents/sign`, `POST /mounts/agents/query`, `GET` and `PUT /mounts/{id}`, `POST /mounts/{id}/sign`, archive and unarchive, and the file routes under `/mounts/{id}/files` (`router.py:196-373`). The session drive is signed at `POST /sessions/mounts/sign` (`api/oss/src/apis/fastapi/sessions/router.py:2519-2558`).
-- **Access rules.** Every route first checks a project permission: `VIEW_MOUNTS`, `EDIT_MOUNTS` or `USE_MOUNTS` (`router.py:375-382`). The editor role holds all three; the viewer role holds `VIEW_MOUNTS` only (`api/oss/src/core/access/permissions/types.py:226`, `types.py:253-254`). Then `allow_mount` checks the scope: a session drive follows its session, an agent drive follows its agent, and a **project drive is allowed to every project member with the permission** (`api/oss/src/apis/fastapi/sharing/utils.py:468-499`).
-- **Credentials.** The API asks the store's STS for a key pair limited by an inline policy to one prefix (`api/oss/src/core/store/storage.py:292-346`, `storage.py:348-384`). The policy always allows read, write and delete (`storage.py:316-326`). SeaweedFS gets `AssumeRoleWithWebIdentity`; a remote S3 store gets `GetFederationToken` (`storage.py:386-470`). The lifetime is `AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS`, 43,200 s (12 hours) by default, so that it covers the runner's 11-hour run limit (`api/oss/src/utils/env.py:1862-1874`). The docstring of `sign_mount_credentials` still says the credentials "expire in minutes" (`service.py:1108-1114`); the setting is the truth.
-- **Writes through the API.** A write can carry `If-Match` (only over a known version) or `If-None-Match: *` (only create) (`service.py:1778-1806`). Writes through a mount carry no such condition.
-- **History.** On the bundled SeaweedFS store the API turns on bucket versioning and keeps old versions for 30 days (`storage.py:203-247`, `env.py:1793-1801`). On a remote S3 bucket the API never turns versioning on (`storage.py:211-213`). No route or screen lists or restores old versions.
-
-### The agent configuration today (Measured)
-
-- The configuration is `parameters.agent` of a workflow revision. It holds `instructions`, `llm`, `tools`, `mcps`, `skills`, and the nested `harness`, `runner` and `sandbox` sections (`sdks/python/agenta/sdk/utils/types.py:1522-1567`).
-- **No field names a drive.** `AgentTemplate` has no drive or mount field (`sdks/python/agenta/sdk/agents/dtos.py:812-858`).
-- The three nested sections accept only fixed keys, and an unknown key fails the run with HTTP 400 (`dtos.py:1563-1572`). The flat definition keys stay open: `from_params` reads the known keys and ignores the rest (`dtos.py:906-944`).
-- The editor schema `AgentTemplateSchema` forbids unknown keys (`types.py:1270-1284`). Only the template compiler validates against it (`api/oss/src/core/agent_templates/compiler.py:144-150`).
-- The vault middleware recognizes an agent run only when every key of `parameters.agent` is a known template key (`sdks/python/agenta/sdk/middlewares/running/vault.py:604-657`). A new top-level key therefore needs a change there, or an agent run is not recognized as one.
-- The agent's own commit tool may write `parameters.agent` but not `harness.kind`, `harness.permissions`, `runner.permissions`, `sandbox.kind`, `sandbox.permissions` or `sandbox.credentials` (`api/oss/src/core/workflows/change_set.py:569-581`).
-
-### How a run learns which drives to mount today (Measured)
-
-- The runner derives both drives from the run request. The session drive comes from `sessionId`, the agent drive from `runContext.workflow.artifact.id` (`services/runner/src/engines/sandbox_agent/environment-setup.ts:87-128`).
-- The runner calls the API with the run's credential, the `authorization` header of the run (`services/runner/src/engines/sandbox_agent/runtime-policy.ts:32-38`). The credential never enters the harness environment (`services/runner/src/environment/runtime-lifecycle.ts:181`). So the model inside the sandbox cannot sign a drive by itself.
-- The agent artifact id is part of the fingerprint that decides whether a parked sandbox can serve the next turn (`services/runner/src/engines/sandbox_agent/session-identity.ts:285-295`).
-
-### The runner flow per backend today (Measured)
-
-The three backends differ in one fact: who runs geesefs (`runner-config.ts:28-49`).
-
-| Backend | Who mounts | When | Where the session folder is |
+| Folder | What the agent sees | How it is found | Who may open it |
 |---|---|---|---|
-| `local` | the runner host | before the harness starts | `/var/lib/agenta/<prefix>` |
-| `daytona` | the Daytona sandbox | while the runner sets the sandbox up | `/home/sandbox/agenta/<prefix>` |
-| `inprocess` | the command sandbox (a Daytona sandbox for shell commands) | at the first tool call of each sandbox boot | `/home/sandbox/agenta/<prefix>` |
+| Session drive | its working folder | by the conversation id | whoever may open the conversation |
+| The agent's own drive | `agent-files/` | by the agent's id; created at the first run | whoever may open the agent |
+| Project drive (open pull requests only) | `drives/<slug>/` | by a slug in the configuration | every project member with the permission |
 
-The roots come from `services/runner/src/engines/sandbox_agent/run-plan.ts:439-457` and `environment-setup.ts:132-146`. The agent drive sits beside the session folder at `<session folder>-agent`, and a symbolic link `agent-files` in the session folder points to it (`agent-mount.ts:21-39`, `agent-mount.ts:237-260`).
+### The drive row in the API (Measured)
 
-:::figure local-today
-:::
+- A drive is a row of `mounts`. The key is `(project_id, id)` and a unique constraint holds `(project_id, slug)` (`api/oss/src/dbs/postgres/mounts/dbes.py:13-27`). The row has bare `session_id` and `agent_id` columns, with no foreign key (`api/oss/src/dbs/postgres/mounts/dbas.py:29-45`), and an index on `(project_id, agent_id)` that is not unique (`dbes.py:44-49`).
+- The files live under `mounts/<organization_id>/<mount_id>` (`api/oss/src/core/mounts/types.py:30-39`). The prefix is written once at insert and does not depend on the slug (`api/oss/src/dbs/postgres/mounts/dao.py:114-127`). **A slug can change without moving any file.**
+- The agent's own drive has the reserved slug `__ag__agent__<artifact id>__default` and stores `agent_id` (`api/oss/src/core/mounts/service.py:137-157`, `service.py:604-630`). `get_or_create_agent_mount` is an upsert keyed on the slug (`dao.py:129-144`). The sign route `POST /mounts/agents/sign` calls it, so the first run creates the drive (`api/oss/src/apis/fastapi/mounts/router.py:484-510`). An agent that never ran has no drive row.
+- A project drive is a row with no session and no agent. `POST /mounts/` creates it; a caller may not use the reserved prefix `__ag__` (`service.py:179-182`, `service.py:503-516`). `fetch_project_mount` refuses a reserved slug and a row with `agent_id` (`service.py:962-979`). `POST /mounts/projects/sign?slug=&access=` signs it, read-only for `access=read` (`router.py:512-540`).
+- Credentials: the API asks the store for a key pair limited by an inline policy to one prefix; `read_only` signs credentials that can read and list but not write (`service.py:1149-1188`).
 
-On `local`:
+### The visibility rules today (Measured)
 
-1. The runner asks the API for credentials of the session folder (`environment-setup.ts:87-101`, `mount.ts:76-141`). Then, after that answer, it asks for credentials of the agent drive, with a 10-second limit (`environment-setup.ts:111-122`, `agent-mount.ts:46-68`). The two requests run one after the other.
-2. The runner host starts one geesefs process per drive, both at the same time (`services/runner/src/engines/sandbox_agent/environment.ts:760-782`). geesefs runs as a child process; the credentials ride its environment, never its command line (`mount.ts:273-281`, `mount.ts:431-485`).
-3. The runner waits until each folder answers, polling every 50 to 100 ms for up to 15 s (`mount.ts:327-347`, `mount.ts:458-464`). The code says geesefs "mounts within ~1s normally" (`mount.ts:458`).
-4. After the agent drive is up, the runner writes a `README.md` if none exists, links `agent-files`, sets `AGENTA_AGENT_MOUNT_DIR` and adds a paragraph to the prompt (`services/runner/src/environment/mount-lifecycle.ts:275-307`, `mount-lifecycle.ts:162-204`).
-5. A failed sign does not stop the run. The run goes on with a throwaway folder and the runner logs `mount degraded kind=session_cwd` or `kind=agent_mount` (`environment-setup.ts:102-128`). A failed geesefs mount logs `mount failed ... running on ephemeral cwd` and the run goes on (`mount.ts:545-548`); when the runner cannot confirm the detach of a dead mount, it throws and the run fails (`mount.ts:539-544`, `environment.ts:781`).
-6. Each later turn drops geesefs's one-minute cache of the store at the start (`services/runner/src/engines/sandbox_agent/turn-start-refresh.ts:1-24`).
-7. A broken mount (`ENOTCONN`, "transport endpoint is not connected") is signed again and mounted again, a limited number of times (`mount-lifecycle.ts:321-420`).
-8. At the end the runner unmounts with `fusermount -uz` and deletes the folder only after it confirms the mount is gone (`mount.ts:561-598`, `environment.ts:602-640`).
+- An agent is `private` or `project`. Table `agent_access`, key `(project_id, artifact_id)`, columns `visibility` and `owner_user_id`; no row means project-visible with no owner (`api/oss/src/dbs/postgres/sharing/dbes.py:17-52`).
+- Rule A1: no row, or `project`: only the role decides. Rule A2: `private`: only the human owner, or the owner's channel binding when the action is `RUN_WORKFLOWS` on its own channel turn (`api/oss/src/core/sharing/service.py:173-206`).
+- `allow_mount` checks a drive by its scope: a session drive follows its session, a drive with `agent_id` follows its agent (A1, A2), and a project drive is open to every member with the permission (`api/oss/src/apis/fastapi/sharing/utils.py:468-499`).
+- `POST /mounts/agents/sign` checks `USE_MOUNTS` on the agent (`router.py:492-497`). `POST /mounts/projects/sign` (open pull request) checks only the role (`router.py:523`). `POST /mounts/` takes a caller-supplied `agent_id` (`router.py:424-436`).
+- **A channel turn of a private agent gets no agent drive.** The A2 exception covers only `RUN_WORKFLOWS` (`service.py:196-205`), and the sign route asks for `USE_MOUNTS` (`router.py:492-497`). So the sign answers not found and the runner logs `mount degraded kind=agent_mount` and runs without the drive (`services/runner/src/engines/sandbox_agent/environment-setup.ts:151-155`). This comes from reading the code; no test covers it.
+- An API key never passes A2 (`service.py:1129-1136`). A private agent's conversation can be shared with a Participant, but he cannot send a turn, and he sees nothing of the agent drive (`router.py:550-556`).
+- Only the active human owner changes an agent's visibility; the change writes only the `agent_access` row (`api/oss/src/core/sharing/service.py:568-592`, `815-866`). `SharingService` never reads revisions (`service.py:122-127`); the sharing router has the workflows service and reads the head revision for its disclosure (`api/oss/src/apis/fastapi/sharing/router.py:451-461`).
 
-One limit matters for sharing: on `local`, one mount namespace holds the mounts of every concurrent session on the host (`run-plan.ts:443-445`). A process on that host can reach other sessions' folders by path. The `local` backend therefore does not isolate drives from each other today, for any kind of drive.
+### Where an agent is created (Measured)
 
-:::figure daytona-today
-:::
+All paths run in the API process. No worker creates agents, and no route copies an agent into a new artifact.
 
-On `daytona`:
+| Path | Function | What it creates |
+|---|---|---|
+| Workflow create | `WorkflowsService.create_workflow` (`api/oss/src/core/workflows/service.py:1680`) | artifact; `agent_access` row when it is an agent with an owner |
+| Simple workflow create | `create_simple_workflow` (`api/oss/src/apis/fastapi/workflows/router.py:2655`) | artifact, variant, first revision |
+| First agent revision | `commit_workflow_revision` (`service.py:3291`) then `_ensure_first_agent_access` (`service.py:3374`, `3395-3418`) | revision; a project-visible `agent_access` row owned by the request's person when none exists |
+| Application create, simple application create | `api/oss/src/apis/fastapi/applications/router.py` (`create_application`, simple create) | artifact, revision through the same commit |
+| Variant fork | `fork_workflow_variant` (`service.py:2201`) | a new variant in the same artifact: same agent, same drive |
+| Agent template load | `AgentTemplateLoader.load` (`api/oss/src/core/agent_templates/loader.py:436-500`) | artifact, revision, a session; then writes the template's files into the agent drive (`loader.py:495`, `api/oss/src/core/mounts/service.py:677-798`) |
+| Static catalog agents | reserved `__ag__*` ids resolved in code (`api/oss/src/core/workflows/static_catalog.py:522`) | nothing in the database; their drive is per project |
 
-1. The runner signs the two drives one after the other, as on `local`.
-2. The runner creates or reattaches the sandbox (`environment.ts:907-929`).
-3. The sandbox mounts the session folder (with the harness's transcript folder) and the agent drive at the same time (`environment.ts:1115-1290`). Each mount is one shell script in the sandbox: detach, create the folder, start geesefs in the background, and probe until the folder answers, for up to 10 s, inside a 60-second limit for the call (`mount.ts:747-806`, `mount.ts:841-910`).
-4. When the store is not public, the sandbox reaches it through a tunnel; with no tunnel the mount is refused (`environment.ts:1098-1153`, `environment.ts:1219-1241`). The model is told only about a refused agent drive (`environment.ts:1230-1240`); a refused session folder is a log line for the operator (`environment.ts:1145-1153`).
-5. After the agent drive is up, the sandbox gets the `README.md`, the `agent-files` link (only after the session folder is up) and the prompt paragraph (`environment.ts:1250-1270`).
-6. A failed mount returns false, the runner detaches the dead mount, and the run goes on (`mount.ts:877-909`).
-7. A parked sandbox keeps its mounts for the next turn (`environment.ts:583-603`). The lease of the sandbox is the earliest credential expiry of its mounts (`session-identity.ts:778-791`), and the runner reuses the sandbox only while that lease covers the run limit plus 60 s (`services/runner/src/lifecycle/session-coordinator.ts:347-349`).
+Every path that stores a revision passes through `commit_workflow_revision`, which already runs the drive save check (`service.py:3328-3331`, `service.py:535-554`).
 
-:::figure inprocess-today
-:::
+### How the folders are laid out today (Measured)
 
-On `inprocess` (Pi runs inside the runner process; only shell commands go to a Daytona sandbox):
+The layout is the same on the three sandbox kinds; only the machine that mounts differs.
 
-1. The runner signs the two drives one after the other, as on the other backends.
-2. The runner mounts nothing at setup. It records the two folders and their credentials for the command sandbox (`environment.ts:785-800`, `environment.ts:864-888`).
-3. At the first tool call of a sandbox boot, the sandbox mounts every folder at the same time (`services/runner/src/engines/inprocess/sandbox/sandbox-drive.ts:237-288`). The code measured "about 0.6 s of calls" per mount (`sandbox-drive.ts:271`). The first tool call of a conversation takes about 2.7 s with a new sandbox and its mounts (`openspec/changes/spike-pi-inprocess-runner/findings.md:13`).
-4. If any folder cannot be mounted, the tool call fails with a sentence and chat keeps working (`sandbox-drive.ts:58-67`, `sandbox-drive.ts:264-279`).
-5. Every command first checks that each folder is still mounted, and refuses to run when one is not (`sandbox-drive.ts:178-193`).
-6. When the mount credentials expire within 10 minutes and fresher ones exist, the runner replaces the sandbox (`sandbox-drive.ts:69-78`, `sandbox-drive.ts:242-253`), because `fusermount -u` does not work inside a Daytona sandbox (`sandbox-drive.ts:13-17`).
-7. The runner writes its own files (Pi's conversation file, the skill snapshot) through the object store API, not through a mount (`services/runner/src/engines/inprocess/workspace/drive-objects.ts:1-5`).
+```
+<root>/mounts/<organization>/
+  <session>/                          the working folder (session drive)
+    AGENTS.md, .claude/, .codex/      written by the platform at every start
+    attachments/                      files the user sent in the chat
+    agent-files -> <session>-agent    a link
+    drives/notes -> <session>-project-notes   a link per project drive (open pull requests)
+  <session>-agent/                    the agent's own drive, mounted beside
+  <session>-project-notes/            each project drive, mounted beside
+```
 
-### Read-only today (Measured)
+| Sandbox kind | Who mounts | When | Root |
+|---|---|---|---|
+| `local` | the runner's machine | before the agent program starts | `/var/lib/agenta` |
+| `daytona` | the cloud machine | while the runner sets the machine up | `/home/sandbox/agenta` |
+| `inprocess` | the cloud machine for shell commands | at the first tool call after each start of that machine | `/home/sandbox/agenta` |
 
-- The STS policy has no read-only form; it always grants `PutObject` and `DeleteObject` (`storage.py:316-326`).
-- The runner passes no read-only flag to geesefs (`mount.ts:247-271`).
-- The API has a read level only for the scope tokens of HTML apps in the browser (`api/oss/src/apis/fastapi/mounts/models.py:133`, `router.py:665-705`). Mount credentials carry no access level (`dtos.py:147-163`).
-- The sandbox permission has a field `filesystem: "readonly"`, but the runner does not enforce it on any backend (`services/runner/src/protocol.ts:355-372`).
-- So no read-only mount exists today.
+Evidence: roots `services/runner/src/engines/sandbox_agent/run-plan.ts:440-457`; agent drive path `agent-mount.ts:37-39`; project drive path `project-mount.ts:30-32`; local mounts before the harness starts `services/runner/src/environment/mount-lifecycle.ts:27-38`; daytona mounts during setup `engines/sandbox_agent/environment.ts:1314-1444`; inprocess mounts at the first tool call `engines/inprocess/sandbox/sandbox-drive.ts:13`, `297`, `326-338`.
 
-### Two writers on one drive today (Measured)
+**Why the drives sit beside the working folder and are linked into it** (Measured). The reason is in decision D3 of the original agent drive design, which the runner code still names (`agent-mount.ts:1-4`) but which is no longer in the tree. It rejected two other placements: a fixed path per agent collides when two conversations of one agent run at the same time on `local`, where one mount namespace holds every session (`run-plan.ts:443-445`); and a folder inside the working folder puts one FUSE mount inside another, which nobody has measured with geesefs. The link exists so that the agent finds the drive when it lists its working folder, the first thing every harness does. The cost: geesefs turns a link into an empty file after a remount (`durable-symlink.ts:1-13`), so the runner repairs links every turn. On `daytona` the `agent-files` link is made once at setup (`environment.ts:1351-1366`) and is not repaired per turn, because the repair is gated on the runner's own machine (`run-turn.ts:1464`); project links are repaired on both (`run-turn.ts:1474-1479`).
 
-- Two sessions of one agent already share its agent drive. The `README.md` that the runner writes says: "Concurrent runs share this folder, so the last writer wins for each file." (`agent-mount.ts:28`).
-- geesefs keeps what it saw of the store for one minute. The runner drops that cache at the start of each turn, but not during a turn (`turn-start-refresh.ts:4-23`).
-- A close of a file starts its upload but does not wait for it; a writer that needs its data in the store at once must call `fsync` (`mount.ts:241-246`).
-- Not verified in this repo (general behavior of object stores and geesefs): a write replaces the whole object, so two agents that append to one file lose one append; a folder rename is a copy and a delete per file, not one atomic step; file locks do not reach across two mounts.
+**The link rules differ by kind today** (Measured). A real `agent-files` folder is emptied into the agent drive (`agent-mount.ts:219-249`). A real `drives/<slug>` folder, or a file with content, is never replaced (`project-mount.ts:60-108`), and leftover project links are pruned (`project-mount.ts:161-193`, `environment.ts:836-838`, `environment.ts:1442-1444`).
 
-### The web app today (Measured)
+### What the agent's own drive is used for (Measured)
 
-- The session files pane shows two origins: the session folder and the agent drive, folded in under `agent-files/` (`web/packages/agenta-entities/src/drive/useSessionDrive.ts:28-65`).
-- The agent overview shows the newest files of the agent drive (`web/mobile/src/features/agents/AgentDriveCard.tsx`).
-- The platform prompt tells the agent to link only files in its working folder or in `agent-files/`, because the person cannot open any other path (`sdks/python/agenta/sdk/agents/platform_instructions.py:170-175`).
-- No screen lists or opens a project drive.
+| Use | What it does | Evidence |
+|---|---|---|
+| Memory | The platform text tells every agent to keep durable files in `agent-files/` | `sdks/python/agenta/sdk/agents/platform_instructions.py:170-193` |
+| Saved tools | The runner copies `agent-files/.tools/bin/` into each new conversation and runs `.tools/setup.sh` under the `allow` posture | `services/runner/src/engines/sandbox_agent/agent-tools-setup.ts:1-43`; cache keyed by project and agent id, `agent-tools-cache.ts:61-74` |
+| Apps | Starters, layout and registry in `agent-files/.apps/`; `list_starters` finds the drive by the agent id and creates it if absent | `api/oss/src/core/apps/service.py:36-39`; `api/oss/src/core/apps/handlers.py:220-230` |
+| Template files | Written into the agent drive found by the workflow id when an agent is created from a template | `api/oss/src/core/agent_templates/loader.py:495`; `api/oss/src/core/mounts/service.py:677-798` |
+| README | Written into the drive if absent; not found on `inprocess` | `agent-mount.ts:22-31` |
+| `AGENTA_AGENT_MOUNT_DIR` | Set on `local` only; nothing reads it | `mount-lifecycle.ts:194-201` |
+| Prompt paragraph | "Your durable agent folder, `agent-files/` ..." | `engines/sandbox_agent/agent-mount-guidance.ts:39-106`; `platform-guidance.ts:83-102`, `172-182` |
+| Agent page card | Lists the 5 newest files of the drive found by the agent id; "This agent has no drive yet." | `web/mobile/src/features/agents/AgentDriveCard.tsx:41`, `73` |
+| Files pane | Folds the drive under `agent-files/`; maps tool paths under `<session>-agent` | `web/packages/agenta-entities/src/drive/useSessionDrive.ts:40-78`; `web/packages/agenta-entities/src/session/core/fileActivity.ts:108-109`, `175` |
 
+Most uses need to know **which drive is this agent's**, and today they answer with the agent's id. Only the prompt texts and the web fold need the name `agent-files`. None needs a different kind of storage.
 
-### Where agent configurations are stored, and how their shape changed before (Measured)
+### What the session folder holds (Measured)
 
-- An agent configuration is the `data` of a row in `workflow_revisions` (`api/oss/src/dbs/postgres/workflows/dbes.py:85`), a `JSON` column (`api/oss/src/dbs/postgres/shared/dbas.py:201-207`). A revision is immutable after its commit; each save adds a revision with a random slug and the next version number of its variant (`api/oss/src/core/workflows/service.py:3400`, `api/oss/src/dbs/postgres/git/dao.py:2159-2168`). An agent revision carries `flags.is_agent` (`service.py:3323`).
-- Every writer of a revision (the commit route, an agent's own commit tool, simple create and edit) passes through `commit_workflow_revision`, which refuses two narrow shapes of agent configuration (unreadable instructions, a malformed organization connection) before it stores them (`service.py:3393-3398`, `service.py:308-370`). Those checks sit in `_build_revision_commit`, which is documented as pure and free of input and output (`service.py:3343-3348`); a check that reads the database goes in the async body of `commit_workflow_revision`. The harness kind check (`service.py:280-306`) runs only on the commit route (`service.py:3053`). The commit route answers such a refusal with HTTP 422, "the configuration in it is not" committable (`api/oss/src/apis/fastapi/workflows/router.py:2047-2050`).
-- The repo has four precedents for a change of stored shape:
-  - **Rewrite stored revisions in place.** `oss000000010` backfilled `flags` on every row of `workflow_revisions`, and kept a side table of what it added so that a downgrade can undo it (`api/oss/databases/postgres/migrations/core_oss/versions/oss000000010_backfill_workflow_revision_flags.py:1-60`). `oss000000041` rewrote the `data` JSON of MCP endpoint rows in place (`oss000000041_move_mcp_credential_header_to_binding.py:1-70`).
-  - **Tolerate the old shape at read time.** A legacy `gateway` tool entry, which "no migration ever rewrote", is coerced or dropped when the configuration is parsed (`sdks/python/agenta/sdk/agents/dtos.py:865-870`).
-  - **Refuse the old shape at read time.** A pre-migration flat template fails with a named 400 (`dtos.py:1556-1561`, `dtos.py:1575-1604`).
-  - **Break and recreate.** The MCP configuration redesign declared old revisions invalid, with no migration (`docs/design/agent-workflows/projects/mcp-configuration-redesign/migration.md:1-19`).
-- I found no migration that rewrote `parameters.agent` inside stored revisions.
-- A database migration runs before any new pod starts, and the old code runs against the migrated data for the whole rollout (`api/AGENTS.md`, section "Migration gate"). The repo's rule for a change that old code cannot read is "expand and contract": add the new shape in one release, and remove the old one in a later release (same section).
-
-### Agents with no drive today (Measured)
-
-- An agent drive row exists only after the agent's first run: the sign route creates it on first use (`api/oss/src/core/mounts/service.py:576-601`, `api/oss/src/apis/fastapi/mounts/router.py:473-499`). An agent that never ran has no drive row.
-- A run with no agent artifact id gets no agent drive, and a run with no session id gets a throwaway working folder (`services/runner/src/engines/sandbox_agent/environment-setup.ts:87-146`). The runner already handles both cases.
-- The platform instructions describe `agent-files/` to every agent without a condition (`sdks/python/agenta/sdk/agents/platform_instructions.py:156-175`). Only a failed or refused mount changes the text, through the runner's "not available this turn" paragraph (`services/runner/src/engines/sandbox_agent/agent-mount-guidance.ts:84-93`).
+The instructions file, the harness settings and skills (rewritten at every start, `engines/sandbox_agent/workspace.ts:56-162`), the Codex and Pi conversation history, attachments and apps built with the app tool. On `inprocess` the runner needs the session drive to pass skills and attachments to the cloud machine, so a run without one is refused with `session_drive_required` (`environment-setup.ts:97-108`). This change does not touch it.
 
 ## Goals / Non-Goals
 
 Goals:
 
-- Every agent configuration states all its drives: its own drive, the project drives it uses, and whether it has a session drive.
-- Each project drive entry is read-write or read-only.
-- Every backend mounts the drives that the configuration names, and only those, at the same time.
-- A run mounts only drives of its own project. Session drives stay private as they are.
-- Current agents are migrated so that their configuration states exactly what they have today, and they run exactly as today.
-- Several agents of one project can share one drive, and an agent that does not list it gets no access to it.
+- One kind of drive, with its own visibility, that covers: a support agent with no memory, a crew that writes one folder, today's agent with its own folder, and a drive that exists before any conversation.
+- Existing agents keep their files at `agent-files/`, with the same text in their instructions and templates, at every step of the rollout.
+- A private drive never reaches a principal that may not use it, whatever a configuration says.
+- One runner code path for every drive on every sandbox kind.
 
-Non-goals (deliberately not built):
+Non-goals:
 
-- Any web screen to create, attach or browse drives beyond the session files pane.
-- A history of each file, a restore screen, or a difference view.
-- Links between files, or an index that the platform keeps.
-- A platform-defined "save" operation or file format for shared drives.
-- Locks, merges or conflict detection for writes through a mount.
-- Drives that belong to an organization or that span projects.
-- Mounting another agent's own drive.
-- A quota per drive, search inside files, or access rules per folder inside a drive.
+- Screens to create, attach, browse or share drives, except the session files pane and the agent page card.
+- Drives shared with named people, drives across projects, artifacts (favorites that point into drives).
+- A route to change a drive's visibility directly. A drive changes visibility only through its agent (Decision 4).
+- The session folder as a backup of the cloud machine's disk. `has_session_drive` stays as it is.
+- Locks, merges, quotas, file history screens.
 
 ## Decisions
 
-### Decision 1: Every agent lists its drives in its configuration (decided)
+### Decision 1: the model and the configuration shape
 
-Each agent configuration holds one list, `drives`, with every drive the agent mounts. The alternatives were every project drive on every agent by default, and a table of attachments outside the configuration. The list keeps every resource of an agent in its configuration, beside `tools`, `mcps` and `skills`.
-
-An agent that does not list a drive does not get it. Who may change an agent's list is decided by who may commit its configuration (Decision 5).
-
-### Decision 2: The shape of a drive entry, classified by role
+Before (open pull requests):
 
 ```json
-"drives": [
-  { "kind": "agent" },
-  { "kind": "project", "slug": "price-lists", "access": "read" }
-]
+{
+  "has_session_drive": true,
+  "drives": [
+    { "kind": "agent" },
+    { "kind": "project", "slug": "price-lists", "access": "read" }
+  ]
+}
+```
+
+After (Decided shape):
+
+```json
+{
+  "has_session_drive": true,
+  "drives": [
+    { "slug": "quote-agent-files" },
+    { "slug": "price-lists", "access": "read" }
+  ],
+  "home_drive": "quote-agent-files"
+}
+```
+
+The cases from the goals:
+
+```json
+// support agent: reads knowledge, keeps nothing
+{ "has_session_drive": true,
+  "drives": [ { "slug": "support-playbook", "access": "read" } ],
+  "home_drive": null }
+
+// a crew of three agents: all three have this
+{ "has_session_drive": true,
+  "drives": [ { "slug": "crew-notes" } ], "home_drive": "crew-notes" }
+
+// an agent created before this change, after the migration
+{ "has_session_drive": true,
+  "drives": [ { "slug": "quote-agent-files" } ], "home_drive": "quote-agent-files" }
 ```
 
 | Field | What it is | Who sets it | When it changes | Role |
 |---|---|---|---|---|
-| `drives` | every durable drive this agent mounts | the platform at creation; a person, or an agent that edits other agents' configurations | per revision | definition of the agent's resources, beside `tools`, `mcps` and `skills` |
-| `drives[].kind` | which kind of drive: `"agent"` (the agent's own drive) or `"project"` (a drive of the project) | same | per revision | a reference: it says how the drive is found |
-| `drives[].slug` | the name of a project drive; required for `"project"`, absent for `"agent"` | same | per revision | a reference |
-| `drives[].access` | `"read-write"` (default) or `"read"` | same | per revision | policy: what the run may do with the drive |
+| `drives` | the drives this agent attaches | the API at creation; a person, or a tool that edits other agents' configurations | per revision | definition of the agent's resources, beside `tools`, `mcps`, `skills` |
+| `drives[].slug` | which drive; the drive's unique name in the project | same | per revision | reference |
+| `drives[].access` | `"read-write"` (default) or `"read"` | same | per revision | policy: what the run may do |
+| `home_drive` | which attached drive holds tools, apps, template files and README; `null` for none | same | per revision, rarely | reference with a role (a pointer into `drives`) |
+| `has_session_drive` | whether the working folder persists between turns | same | per revision, rarely | configuration of the workspace (Decided, unchanged) |
 
-Choices inside the shape (Proposed):
+What is not on the entry (Proposed): no `kind` (there is one kind), no `path` (every drive appears at `drives/<slug>/`, Decided), no id (the slug is the stable reference inside a project, and it is readable in a configuration). The entry rules, owned by one SDK function `validate_agent_drives` as today (`dtos.py:444-503`):
 
-- **`kind`, not `scope`.** The value says which kind of drive the entry is, as `harness.kind` and `sandbox.kind` do in the same configuration. The repo's naming conventions record `scope` on `llm.connection` as a shipped exception not to copy into new references, and the mounts API already uses "scope" for an access grant (the app scope token). The values `agent` and `project` are the owner kinds of `MountScope` (`api/oss/src/core/mounts/dtos.py:56-61`).
-- **The agent's own drive is `{ "kind": "agent" }`, resolved at run time from the agent's artifact id**, as the runner finds it today (`environment-setup.ts:111-122`). The entry names no id. Three reasons: an agent that never ran has no drive row yet (`service.py:576-601`), so an id could not be written for it; a copied agent gets its own new drive, as today, because the copy has a new artifact id; and the agent drive keeps its privacy rule, which follows the agent (`sharing/utils.py:493-498`).
-- **Other ways to name the own drive, rejected:**
+- `drives` is a list of at most 8 objects; each has a non-empty `slug` that is one path segment (no `/`, `\`, NUL, `.` or `..`, as the runner already requires, `services/runner/src/engines/sandbox_agent/run-drives.ts:48-57`), each slug at most once, and `access` `"read"` or `"read-write"`.
+- `home_drive` is absent, `null`, or the slug of an entry with `"read-write"` access. A read-only home cannot hold saved tools or app files.
+- An unknown key on an entry, including `kind`, is refused. The two-kind shape never shipped, so no stored data holds it.
+
+`validate_home_drive` is a second small SDK function, called by the same two places (parse and save).
+
+What an absent key means (Proposed, from Decided item 10):
+
+| Configuration | Meaning in release 1 and later |
+|---|---|
+| no `drives` key | today's behavior: the agent's drive found by the agent's id, at `agent-files/` (the agent service sends no `drives` on the wire) |
+| `"drives": []` | no drive at all; no `agent-files/` |
+| `drives` without `home_drive` key | no home drive (same as `null`) |
+
+A configuration without `drives` exists only in revisions stored before release 1. The new API fills the keys when it stores or reads such a revision and the agent has a drive row (Decision 5), so the legacy meaning reaches the runner only for an agent without a drive row.
+
+Options for the shape of an entry:
 
 | Option | Trade-off |
 |---|---|
-| **A. `{ "kind": "agent" }`, found by artifact id at run time** | Works for agents that never ran; a copy gets a new drive; privacy unchanged. The entry does not say which row it is. |
-| B. The drive's id, `{ "id": "<mount id>" }` | Exact. An agent that never ran has no id to write, and a copied agent would share the original's drive. |
-| C. Turn each agent drive into a project drive with a readable slug | One kind of drive for all. A project drive is open to every project member (`sharing/utils.py:478-499`), so a private agent's files would become visible to the whole project. |
+| **A. `{ slug, access }` and a separate `home_drive` pointer** | One shape for every entry. The home is a role, not a kind, so a crew can point at one drive. Needs a rule that the pointer names an entry. |
+| B. Keep `kind: agent` beside `kind: project` | No migration of slugs. Two code paths in every layer, and an agent drive cannot be shared or named by another agent. Rejected by Decided item 1. |
+| C. `{ slug, access, path }` with a free path | Old agents could keep `agent-files` as a path. Every consumer needs path rules; Decided item 4 fixes the paths. |
 
-- **One agent entry at most** in version 1. The API already supports several named agent drives (`service.py:576-601` takes a `name`), so a `name` field can come later without a break.
-- **The values of `access`** are the ones the mounts API already uses for app scope tokens, `"read"` and `"read-write"` (`api/oss/src/apis/fastapi/mounts/models.py:133`). That model names the field `level`; the shipped name is not copied, because `access` says what it is. The sandbox setting `sandbox.permissions.filesystem` (`"on"`, `"readonly"`, `"off"`) is a different, unenforced setting with its own values; the two are not merged.
-- **One slug at most once.** Two entries for one slug would mount two times on one path. The rules refuse it.
-- **Paths are fixed.** The agent's own drive stays at `agent-files/`, as today; a project drive appears at `drives/<slug>/`. No `path` field in version 1.
-- **At most 8 entries.**
-- **One owner for the entry rules.** One SDK function, `validate_agent_drives`, holds the rules: `kind` values, `slug` required for `project` and absent for `agent`, at most one `agent` entry, each slug once, `access` values, at most 8 entries. `AgentTemplate` parsing calls it (a named HTTP 400 at run time, as for other configuration errors, `dtos.py:945-954`), and the commit check calls it (HTTP 422, Decision 4). The commit already follows this pattern for instructions: `_reject_unreadable_agent_instructions` calls the SDK's `validate_agent_instructions` (`api/oss/src/core/workflows/service.py:307-330`).
-- **An empty list is allowed.** The agent then has no durable drive at all (Decision 6, "An empty list").
+**Chosen: A** (Decided items 1 and 3).
 
-Complete examples (Proposed):
+### Decision 2: the home pointer
 
-An agent as it is today, after the migration:
+With one kind of drive, an agent can have two writable drives, or none. Saved tools, app files, template files and the README need exactly one place.
 
-```json
-{
-  "instructions": { "agents_md": "You draft quotes." },
-  "llm": { "provider": "openai", "model": "gpt-5.5" },
-  "has_session_drive": true,
-  "drives": [ { "kind": "agent" } ],
-  "harness": { "kind": "pi_core" },
-  "sandbox": { "kind": "daytona" }
-}
+| Option | Trade-off |
+|---|---|
+| **A. An optional pointer `home_drive`** | Explicit, one line. Any read-write drive the visibility rule allows can be home (Decision 5); two shared agents can share one. An agent without it has no saved tools and no app files. |
+| B. A rule: the first writable drive is home | Nothing to configure, but the order of a list carries meaning, and moving an entry changes behavior without notice. |
+| C. No home: look in every writable drive | No setting, but one agent could run a `setup.sh` that another agent put into a shared drive. |
+
+**Chosen: A** (Decided item 3). Every consumer of "the agent's own drive" reads the home drive after this change (Proposed):
+
+| Consumer today | After |
+|---|---|
+| `.tools/` restore (`agent-tools-setup.ts:1-43`) | from the home drive; cache key is the drive's mount id, not the agent id (`agent-tools-cache.ts:61-74`) |
+| README seed (`agent-mount.ts:22-31`) | into the home drive, on all three sandbox kinds (`inprocess` gets it too) |
+| Apps tools `list_starters` and `create_app` (`api/oss/src/core/apps/handlers.py:220-230`; today they check only `VIEW_WORKFLOWS` on the agent argument, `api/oss/src/apis/fastapi/tools/router.py:374-388`) | the home drive named in the configuration of the run, after the drive visibility check with the run's principal (Decision 4); a configuration without `drives` uses the legacy lookup by the agent id with the same check. Never creates a drive. |
+| Template files (`loader.py:495`) | only into a drive created in the same creation action (Decision 6); never into an existing drive. A seed path that starts with `agent-files/` is written without that prefix (today it would land in `agent-files/agent-files/`, `api/oss/src/core/agent_templates/parser.py:144-167`) |
+| `AGENTA_AGENT_MOUNT_DIR` (`mount-lifecycle.ts:194-201`) | removed; nothing reads it |
+| Link recovery that moves files (`agent-mount.ts:219-249`) | removed: the runner never moves files into a drive; a real folder at `agent-files` blocks the link and the agent is told |
+
+### Decision 3: the folder structure, and why links stay
+
+After the change (Decided item 4, Proposed paths):
+
+```
+<session>/                                   the working folder
+  AGENTS.md, attachments/, ...               as today
+  drives/
+    README.md                                written by the platform at every start
+    price-lists -> <session>-drive-price-lists               read-only
+    quote-agent-files -> <session>-drive-quote-agent-files
+  agent-files -> <session>-drive-quote-agent-files           the home drive
+<session>-drive-price-lists/                 one real mount per drive, beside
+<session>-drive-quote-agent-files/
 ```
 
-Two agents that both read one price list drive:
+The home drive is mounted once and linked twice. An agent with no home drive has no `agent-files` link. A configuration without `drives` (release 1, before the migration) mounts the agent's drive found by its id and links it only at `agent-files`, as today.
 
-```json
-// agent A
-{ "has_session_drive": true,
-  "drives": [ { "kind": "agent" },
-              { "kind": "project", "slug": "price-lists", "access": "read" } ] }
-// agent B
-{ "has_session_drive": true,
-  "drives": [ { "kind": "agent" },
-              { "kind": "project", "slug": "price-lists", "access": "read" } ] }
-```
+The mount path changes from `<session>-agent` and `<session>-project-<slug>` to one pattern, `<session>-drive-<slug>` (Proposed). One pattern means one code path and one rule in the web tool-path mapping. The old suffix `-agent` stays readable in the web, because recorded tool paths stay in the database forever (`run-plan.ts:450-452` states the same for an older root).
 
-An agent with no durable drive at all:
+Layouts considered:
 
-```json
-{ "has_session_drive": false, "drives": [] }
-```
+| Option | Trade-off |
+|---|---|
+| **A. Mount beside, link inside, for all drives** | The mechanism that runs in production today. All mounts run in parallel because none waits for another. The cost is link repair at every turn. |
+| B. Mount each drive as a real folder inside the working folder | No links to repair. But `rm -rf *` in the working folder walks into every drive and deletes its files; with links it removes only the link. A recursive delete that walked into mounted drives wiped data once (`run-plan.ts:443-445`). One FUSE mount inside another has never been measured with geesefs, and each drive mount would wait for the working folder mount. |
+| C. One folder per run with `work/` and `drives/` side by side | No links and no nesting. But the agent no longer sees its drives when it lists its working folder, chat file links are relative to the working folder (`platform_instructions.py:186-191`), and it is not verified that every harness accepts paths outside its working folder. |
 
-Three agents that share a working folder, and a fourth that must not see it:
+**Chosen: A** (Decided item 4).
 
-```json
-// three agents that share "team-notes"
-{ "has_session_drive": true,
-  "drives": [ { "kind": "agent" },
-              { "kind": "project", "slug": "team-notes" } ] }
-// the fourth agent: no "team-notes" entry
-{ "has_session_drive": true, "drives": [ { "kind": "agent" } ] }
-```
+The link rules that the open pull requests wrote for project drives apply to every link, `agent-files` included (Proposed):
 
-Names per layer. The configuration, its wire mirror, the user-facing folders and the save errors say "drive". The stored row, the sign routes, the sign functions and the mount paths say "mount". In the runner, `drives` on the request holds only configured entries (`AgentDrive`); the resolved list holds `RunDrive` items; the `inprocess` facts field that holds `DriveRoot` objects is renamed `roots`, so `drives` never means two sets in one module.
+1. Never replace a real folder, or a file with content, at a link path. The drive is then not available, and the agent is told why.
+2. Replace an empty file (what geesefs leaves of a link) or a wrong link.
+3. Remove leftover links under `drives/` that the configuration no longer lists, and a leftover `agent-files` link when there is no home drive. Never remove anything else.
+4. Repair every link at the start of every turn, on all three sandbox kinds.
 
-| Layer | Session drive | Agent drive (today) | Project drive (new) |
+### Decision 4: the visibility rule, and where each check runs
+
+**Storage** (Proposed). A new table `mount_visibility`, a sibling of `agent_access`: primary key `(project_id, mount_id)`, columns `visibility` (`private` or `project`) and `owner_user_id`, a foreign key `(project_id, mount_id)` to `mounts` with cascade, a foreign key to `projects` with cascade, the check constraint `ck_mount_visibility_value` (`visibility IN ('private', 'project')`), the check constraint `ck_mount_visibility_private_owner` (a private row has an owner), and the index `ix_mount_visibility_project_id_owner_user_id`. The table is named for what it holds, the visibility. Its sibling `agent_access` keeps its shipped name; it is recorded as an existing naming exception and not renamed here. In this design the word "access" means only read or read-write.
+
+One difference from `agent_access`, on purpose: `owner_user_id` may be null. An ownerless shared drive is a row with `visibility = 'project'` and no owner. Every drive that the API creates or that the migration touches gets a row, so a row is always explicit (Proposed). A missing row exists only in two cases, both before release 2:
+
+- a row with `agent_id` that is not migrated yet: it follows its agent (the legacy branch below);
+- a drive that an older API pod created with `POST /mounts/` during the release 1 rollout: it reads as shared, which is what that API meant, and release 2 writes its row.
+
+| Option | Trade-off |
+|---|---|
+| **A. A `mount_visibility` table like `agent_access`** | Same rules, same code shape, same cache pattern. One more table. |
+| B. Columns on `mounts` | No new table. A different shape than agents, so the rule code cannot be shared, and every `mounts` query carries visibility columns. |
+| C. A drive follows the agent that created it | No new storage. A drive could not serve several agents of different visibility, and it would change visibility silently with one agent (Decided item 1 gives a drive its own visibility). |
+
+**Chosen: A.**
+
+**The rule** (Proposed, from Decided item 5). Drives use the one entry that agents and sessions use: `SharingService.evaluate(principal, action, project_id, resource, context)`, which dispatches on `resource.kind` (`api/oss/src/core/sharing/service.py:141-171`). The design adds `ResourceKind.MOUNT` (`api/oss/src/core/access/dtos.py:164-166`), a helper `mount_resource(mount_id)` beside `agent_resource` and `session_resource` (`api/oss/src/apis/fastapi/sharing/utils.py:96-101`), and the rule `_evaluate_mount`, which `evaluate` calls for that kind. Today `evaluate` returns None (allow) for a kind it does not know (`service.py:151-171`); for `MOUNT` it must never fall through to allow. HTTP routes reach it through `allow_mount`, which calls `allow_resource` with `mount_resource`; internal callers (apps tools, save check) call `evaluate` with the same resource. There is no second public entry. Its rules, D1 and D2, are built like A1 and A2 (`service.py:173-206`):
+
+- D1: visibility `project`: the role decides (`VIEW_MOUNTS` to read, `EDIT_MOUNTS` to write, `USE_MOUNTS` to sign).
+- D2: visibility `private`: only the human owner, with one exception for channel turns (below).
+- Legacy branch: a row with `agent_id` and no `mount_visibility` row follows its agent with A1 and A2, as `allow_mount` does today (`api/oss/src/apis/fastapi/sharing/utils.py:493-498`). It keeps a private agent's drive private until release 2 writes its row.
+- A session drive keeps its session rules (`utils.py:483-492`).
+
+**What `agent_id` on a drive row means** (Proposed). After this change it means "the agent this drive was created with". Only two readers use it: the legacy sign route for older runners (Decision 11) and the migration. It is not an input to the visibility rule after release 2. `POST /mounts/` refuses a caller-supplied `agent_id` (today it accepts one, `api/oss/src/apis/fastapi/mounts/router.py:424-436`).
+
+**The agent of a run** (Proposed). The channel exception and the home rule need to know which agent a run executes. Today the run credential does not say it: it carries the run envelope (principal, restrictions, authority, run context, sender, approver; `api/oss/src/core/access/principals.py:43-75`) and the `run_accounts` claim (`api/oss/src/middlewares/auth.py:1575-1596`), and nothing names the agent. The run context's `run_id` comes from the caller's `meta.run_id` (`api/oss/src/core/workflows/service.py:3822-3830`), so it is not a trusted source. `POST /mounts/agents/sign` learns the agent from its `artifact_id` query parameter (`api/oss/src/apis/fastapi/mounts/router.py:484-510`).
+
+The design adds one claim, `run_agent_id`, beside `run_accounts`. `_prepare_invoke` writes it when it mints the run credential (`service.py:3783`, `3839-3860`), from the workflow it resolved itself (`resolved_revision.workflow_id`, the value it already passes to `sign_run_accounts`, `service.py:3851-3857`), never from caller meta or references. One function reads it: `run_agent_id_of_request(request) -> Optional[UUID]`. The sign routes take the agent from it only. A child run gets its own credential from its own invoke, with its own agent, and is never resolved through its parent. Triggers and evaluations go through the same invoke, so they carry the claim too. A credential without the claim (no agent run, or minted by an older API pod) gives no channel exception and no home sign.
+
+**The channel exception** (Proposed). Today a channel turn of a private agent is refused its agent drive (Measured above; not verified live). D2 lets a channel turn sign a private drive only when all of these hold:
+
+1. the principal is a channel installation on its own channel turn;
+2. the run's agent (`run_agent_id_of_request`) is private;
+3. that agent's owner, the binding's creator and the drive's owner are the same person;
+4. the action is `USE_MOUNTS`.
+
+A child run of a channel turn does not get it (its own credential is not a channel turn), and the save check never applies it: an installation that edits an agent is not a saver who may use the owner's private drives. Consequence, stated in the channel binding docs: a private agent on a channel can read its listed drives, so anyone in that channel can ask it about their files. This is the same exposure that the A2 exception already gives for the agent's instructions and tools.
+
+**Where each check runs** (Proposed). The rule is enforced at the drive; the save check only stops configurations that cannot work.
+
+| Where | Check |
+|---|---|
+| `allow_mount`: every by-id route (files read, write, upload, download, export, delete, edit, archive, app scope, `POST /mounts/{id}/sign`) and the `POST /mounts/query` filter (`api/oss/src/apis/fastapi/mounts/router.py:393-402`, `450-480`) | `evaluate` with `mount_resource` |
+| `POST /mounts/sign?slug=&access=` (Decision 7) | role `USE_MOUNTS`, then `evaluate`. A private drive the caller may not use answers 404, the same answer as a missing drive. With `is_home=true`, also `check_home_drive` |
+| `POST /mounts/agents/sign`, legacy (Decision 11) | the agent from `run_agent_id_of_request`, which must equal the `artifact_id` parameter; the agent check as today; the legacy condition; `evaluate`; then `check_home_drive`, because this route always signs a home |
+| `POST /mounts/agents/query` (`router.py:544-560`) | the agent check as today, then `evaluate` |
+| Apps tools `list_starters`, `create_app` (`api/oss/src/core/apps/handlers.py:220-230`) | `evaluate` with the run's principal before any read or write; a denied drive reads as "no drive" |
+| Template loader (`api/oss/src/core/agent_templates/loader.py:495`) | writes only into the drive created in the same action (Decision 6) |
+| Save (`commit_workflow_revision`, `api/oss/src/core/workflows/service.py:3328`) | Decision 5 |
+| Agent visibility change (`api/oss/src/apis/fastapi/sharing/router.py:200-224`) | below |
+
+**The home rule** (Proposed). One function owns it: `SharingService.check_home_drive(agent_policy, mount_policy) -> Optional[reason]`. The rule: when the agent is private, its home drive must be private to the agent's owner; a shared agent has no extra condition (case j). It needs only the agent's id, visibility and owner; it does not read any revision. Four places call it: the save check (Decision 5), `POST /mounts/sign` with `is_home=true`, the legacy route (which always signs a home), and the change of an agent to `private`.
+
+The save check warns early, but a drive's visibility can change after the save, for example when another agent that uses the same home becomes shared (case k). So the rule runs again each time a run signs its home drive. The runner signs the home drive with `is_home=true`. The API takes the agent from `run_agent_id_of_request` and calls `check_home_drive`; a refusal, or a credential without the claim, answers HTTP 403 with the code `home_drive_not_allowed`. The runner then runs without a home: no `.tools/` restore, no `agent-files` link, and the agent is told its home drive is not available.
+
+The run's principal is checked at sign time. So a wrong configuration cannot leak a private drive: a teammate's run of an agent that lists the owner's private drive gets 404, and the runner mounts nothing.
+
+**Credentials outlive a change of rule** (Measured: 12 hours by default, `api/oss/src/utils/env.py:1860-1866`). A signed drive stays usable until its credentials expire, even when the owner leaves, the agent is transferred, the drive is removed from the configuration, or the drive or agent is archived. On `daytona` and `inprocess` the keys sit in the cloud machine with the agent. This design does not shorten the lifetime. The follow-up pull request that signs again on each warm turn must unmount a drive whose new sign fails, remove its link, and tell the agent it is not available in the same turn (Proposed).
+
+**The case table** (Decided rule; Proposed placement):
+
+| Case | Today | What happens | Where it is enforced |
 |---|---|---|---|
-| Table and DTO | `mounts` row, `MountScope(session_id=...)` | `mounts` row, `MountScope(agent_id=...)` | `mounts` row, `MountScope()` |
-| API service | `get_or_create_session_mount` | `fetch_agent_mount` | `fetch_project_mount(slug)` |
-| API route | `POST /sessions/mounts/sign` | `POST /mounts/agents/sign` (`sign_agent_mount_credentials`) | `POST /mounts/projects/sign` (`sign_project_mount_credentials`) |
-| API errors at save | `invalid_session_drive` | none | `drive_not_found`, `invalid_drive_entry` |
-| Configuration | `has_session_drive` | `{ "kind": "agent" }` | `{ "kind": "project", "slug": ..., "access": ... }` |
-| Run request (wire) | `hasSessionDrive` | `drives: [{ kind: "agent" }]` | `drives: [{ kind: "project", slug, access }]` |
-| Types | none | `AgentDrive` (one configuration entry, in the SDK and in `protocol.ts`); `RunDrive` (one item of the runner's resolved list) | same types |
-| Runner file and functions | `mount.ts`, `signSessionMountCredentials` | `agent-mount.ts`, `signAgentMountCredentials`, `agentMountPath(cwd)` = `<cwd>-agent` | `project-mount.ts`, `signProjectMountCredentials`, `projectMountPath(cwd, slug)` = `<cwd>-project-<slug>` |
-| Runner log kind and timing stage | `kind=session_cwd`, stage `mounts` / `local_mounts` | `kind=agent_mount`, stage `agent_mount` | `kind=project_mount`, stage `project_mounts` |
-| Folder in the session | the working folder itself | `agent-files/` | `drives/<slug>/` |
-| Web | `FileOrigin` `"session"` | `FileOrigin` `"agent"` | `FileOrigin` `"project"` |
+| (a) A personal agent lists its owner's private drive | the agent drive follows the agent through A2 | Works. Only the owner can run the agent, and the owner may use the drive. | sign route, D2 |
+| (b) Someone adds a private drive to a shared agent | only "the slug exists" is checked (`service.py:535-554`) | Save refused: `drive_not_shared` when the saver owns the drive, `drive_not_found` when he does not | save check |
+| (b2) A personal agent's home drive is shared | | Save refused: `home_drive_not_allowed` (422). A shared home would let any member plant `.tools/` code that runs in the owner's private runs. | save check |
+| (c) A personal agent becomes shared | only `agent_access` changes (`api/oss/src/core/sharing/service.py:568-592`) | The same action makes shared the private drives the agent lists that the acting owner owns, and the response lists them (Decided item 6). If it lists a private drive of another owner, the action is refused with `drive_not_owned` and names the slug. | visibility route |
+| (c2) A shared agent becomes personal | | Allowed; its drives stay shared. If its home drive is shared, the action is refused with HTTP 409 `home_drive_not_allowed` until the home is changed (see below). | visibility route |
+| (d) A personal agent's conversation is shared with a viewer or Participant | he reads the session drive, not the agent drive (`router.py:550-556`) | He sees the session folder, and a drive only if it is shared. Same as today for the home drive. | `evaluate`, query filter |
+| (e1) A schedule or subscription run of a personal agent, created by the owner | allowed by A2 | Uses shared drives and the owner's private drives | sign route, D2 |
+| (e2) A run by an API key | an API key never passes A2 | Uses shared drives only. An API key cannot run a personal agent. | sign route, D2 |
+| (e3) A channel turn of a personal agent, by the owner's binding | allowed to run; agent drive refused (Measured above) | Allowed to sign the owner's private drives under the conditions above; a child run is not | sign route, D2 exception |
+| (f) Two owners want one drive for their personal agents | not possible; a project drive is open to all | They use a shared drive, as a non-home entry. Sharing with named people does not exist. | none |
+| (g) The owner leaves the project | the private agent and its drive lock (`api/oss/src/dbs/postgres/sharing/dbes.py:18-23`) | The private drive locks with the personal agent. Shared drives are not affected. Signed credentials work until they expire. | D2: a departed owner fails the member check |
+| (h) An agent is archived | signing its drive fails (`service.py:577-602`) | The drive is independent. Other agents that list it keep using it. The legacy route keeps today's refusal. | sign routes |
+| (i) A personal agent is transferred to another member | only `agent_access` changes | Its private drives stay with the old owner. The new owner's runs do not get them; the agent is told they are not available. The next save is refused until he removes or replaces them, and the new owner cannot share them through the visibility change (case c). | sign route, save check, visibility route |
+| (k) Two personal agents of one owner share a private home drive, and one becomes shared | | The action shares the drive (case c); the disclosure before the change names the other agent that lists it. The other agent's runs then fail the home rule at sign and run without a home; its next save is refused with `home_drive_not_allowed`. | visibility route, home rule at sign |
+| (j) A shared agent has a shared home drive | members who can write the agent's drive can already plant `.tools/` code (Measured: the agent drive follows A1) | Unchanged: the same members can write the shared home. | none |
 
-The run request carries the configuration's entries as `drives`, with `access` filled in on project entries (`"read-write"` when absent), and the session setting as `hasSessionDrive` (the wire is camelCase, as `sandboxPermission` and `runContext` are). Both fields are optional on the wire: a request without `drives` comes from an older agent service (Decision 12). The agent entry carries no id; the runner finds the agent drive from `runContext.workflow.artifact.id`, as today. The folder names `agent-files` and `drives` are set by the runner (`AGENT_FILES_LINK_NAME` and a new `PROJECT_DRIVES_DIR_NAME`); the web fold, the platform instructions and the prompt guidance follow it.
+**The visibility change** (Decided item 6, Proposed mechanics). `POST /workflows/{id}/sharing/visibility` with `project` reads the latest revision of every variant of the agent through the same fill as every other read (Decision 5), so a revision without keys shows the agent's own drive (the router already reads revisions, `api/oss/src/apis/fastapi/sharing/router.py:451-461`). It collects the private drives they list. If one of them is owned by someone other than the acting owner, it refuses with HTTP 409, code `drive_not_owned`, and names the slug. Otherwise it writes `project` on those `mount_visibility` rows in the same transaction as the agent row, under the agent's lock (`api/oss/src/core/sharing/service.py:815-866`). The response field `drives_made_shared` lists the slugs. The disclosure that the router builds before the change lists the same drives and the other agents that list them, so the person sees before the change that those agents now use a shared drive.
 
-### Decision 3: How the configuration states the session drive (decided in the design review: S1, `has_session_drive`)
+The change to `private` reads revisions through the same fill and refuses with HTTP 409 `home_drive_not_allowed` when `check_home_drive` fails for the home drive of any variant's latest revision. The person first sets a private home or `null` (Proposed).
 
-Two shapes were possible: a setting beside the list, or an entry of the list with kind session.
+| Option for case (c) | Trade-off |
+|---|---|
+| **A. The same action shares the owner's drives and lists them** | One step for the person; nothing is shared without the disclosure and the response naming it. |
+| B. Refuse until the drives are shared by hand | Nothing implicit, but no screen for drives exists, so only the API could do it. |
 
-**Status: decided in the design review loop: shape S1, a boolean `has_session_drive` beside `drives`.** The reasoning, by the `design-interfaces` questions:
+**Chosen: A** (Decided item 6), limited to drives the acting owner owns.
 
-1. *What is the field?* Whether the working folder of a session is kept in the store between turns. It is not a folder the agent attaches; it is where the run works. Its absence changes the working directory, not the list of folders under it.
-2. *Who sets it, and when?* The same owner as `drives` (the platform at creation, a person or an agent that edits configurations), per revision. Same owner and lifecycle, so it sits next to `drives` at the top level of the agent configuration, not inside `harness`, `runner` or `sandbox`.
-3. *What role?* Configuration of the run's workspace. The entries of `drives` are references to resources (which drive, with which access). A child must answer the same question as its parent; a session entry answers a different question ("does my working folder persist") and would sit in a list that answers "which drives does this agent attach".
-4. *Invalid combinations.* With S2, `{ "kind": "session", "slug": "x" }`, `{ "kind": "session", "access": "read" }` and two session entries are all expressible and each needs its own refusal rule. With S1 a boolean cannot express any of them.
-5. *Will it grow?* No second option is in sight. A plain boolean is enough; it does not get an `{ "enabled": ... }` wrapper before a second option exists.
-6. *Name.* `has_session_drive`. It keeps the noun of `drives` and of the product's words ("session drive"), and the `has_` prefix makes it read as a switch, not as a drive object next to a list of drive objects. An earlier proposal was `have_session_drives`; the singular is right, because a run has at most one session drive. The first name, `session_drive`, changed in the design review: a reviewer showed that a reader who knows `drives` holds objects guesses that `session_drive` holds one too.
+### Decision 5: the save refusals
 
-The cost of S1 is that a reader looks at two keys to see all storage of an agent. The two keys sit next to each other, so the cost is small.
+Every commit of an agent revision passes through `commit_workflow_revision` (`api/oss/src/core/workflows/service.py:3291`). The check runs in its async body, as today (`service.py:3328-3331`), and answers HTTP 422 with the agent-facing envelope `{code, message, retryable, next_step, details}` that the existing drive errors use (`service.py:535-554`). The agent's own commit tool gets the same envelope as an error result (HTTP 200 with `STATUS_CODE_ERROR`), as today.
 
-A configuration without `has_session_drive` reads as `true` (today's behavior).
-
-What a session drive is today: the working folder of one session, kept in the store and mounted as the working directory of every run of that session (`service.py:515-547`, `environment-setup.ts:87-146`). Today every agent run with a session id has one.
-
-| | Shape S1: a setting beside the list | Shape S2: an entry in the list |
+| Code | When | `next_step` (Proposed text) |
 |---|---|---|
-| Example | `"has_session_drive": true`  | `{ "kind": "session" }` in `drives` |
-| What the field is | whether the working folder of a session persists | one more drive of the agent, with no slug |
-| Who sets it, when | same people, per revision | same |
-| Role (design-interfaces) | configuration of the run's workspace: it decides what the working directory is | a resource of the agent, like the other entries |
-| For | The session drive is not a folder under the working directory; it IS the working directory. A separate field keeps one meaning per field, and needs no rule such as "at most one session entry, never a slug". | One list answers "where do this agent's files persist". Uses the owner kinds of the API's `MountScope` (session, agent, project) as `kind` values. `access` could later apply to it. |
-| Against | Two places describe storage. A reader must look at both. | The entry behaves unlike the others: no slug, no path under `drives/`, at most one, and `"read"` access would make no sense for a working folder. Validation needs special rules. |
+| `invalid_drive_entry` | an entry breaks the rules of Decision 1 | "Correct parameters.agent.drives as the message says, then commit again." |
+| `invalid_home_drive` | `home_drive` is not `null` and names no entry, or names a read entry | "Set home_drive to the slug of a read-write entry of drives, or to null." |
+| `invalid_session_drive` | `has_session_drive` is not a boolean | unchanged |
+| `drive_not_found` | a slug names no active non-session drive in the project, or a private drive the saver may not use | "Create the drive with POST /mounts/, then commit again." |
+| `drive_not_shared` | the agent is shared and an entry names a private drive the saver owns | "Make the agent private, or attach a shared drive." |
+| `home_drive_not_allowed` | `check_home_drive` fails: the agent is private and `home_drive` names a shared drive, or a private drive of another owner | "Set home_drive to a private drive you own, or to null. Attach shared drives without making them home." |
 
+The check calls `evaluate` with the saver's principal and no channel exception, and `check_home_drive` for the home. It reaches the mounts service through the callable that the composition root sets, because the mounts service depends on the workflows service. Today the callable is `set_project_mount_lookup` (`service.py:528-533`); it is renamed `set_mount_lookup`, stored as `_mount_lookup`, and wraps `fetch_mount_by_slug`.
 
-Whatever the shape, the behavior is the same (Proposed):
+**No new revision without the keys** (Proposed). One pure function owns the fill: `fill_agent_drive_keys(agent_config, own_drive, agent_policy) -> agent_config`. It runs only when `drives` is absent. It adds `has_session_drive: true`. It adds the agent's own drive (the row found by `agent_id`) as the only entry and as home only when the home rule allows it for the agent's current visibility: a shared agent and a shared drive, or a private agent and a private drive of its owner. Otherwise, or when the agent has no drive row, it writes `drives: []` and `home_drive: null`. An own drive without a `mount_visibility` row (before release 2) follows its agent, so the rule always holds for it and the fill keeps today's behavior. A commit through the new API calls it before the checks, so it never stores an agent revision without `drives`; a first revision with no drive row instead goes through creation (Decision 6). The API calls it when it reads an agent revision that lacks the keys (`_normalize_revision_for_read`, `service.py:852`), so the agent service receives the keys for older revisions too, for example one that an environment still points to. The visibility change and the change to `private` read revisions through the same read path. A filled configuration can name the own drive by its reserved slug before release 2; the sign route accepts it (Decision 7).
 
-- On: as today. A run with a session id mounts the session drive as its working folder.
-- Off, on `local` and `daytona`: the run works in a throwaway working folder, the path the runner already takes for a run with no session id (`environment-setup.ts:129-157`). Files there last until the sandbox is gone.
-- Off, on `inprocess`: refused in version 1. The in-process harness host needs the session drive to open the session and to publish skill files (`services/runner/src/engines/inprocess/harness-host.ts:135-139`). The runner fails such a run at once with the error code `session_drive_required`, whose message says the `inprocess` backend needs the session drive. Every agent has the session drive on today, so no current agent is affected. A throwaway workspace for `inprocess` is later work, if someone needs it.
-- The harness's own transcript folders (`mount.ts:143-189`) keep the conversation going between turns. They are runner internals and stay as they are in both cases.
+The agent's own commit tool cannot change `drives` or `has_session_drive` today (`api/oss/src/core/workflows/change_set.py:580-581`); `home_drive` joins that list (Decided item 10).
 
-### Decision 4: A project drive is created first, and a save that names a missing drive is refused (decided)
+### Decision 6: drive creation with the agent
 
-Refusing the save keeps every stored configuration runnable, so a tool that edits configurations gets a clear error at once instead of a broken run later.
+One function owns creation: `MountsService.create_agent_drive(project_id, artifact, visibility)`. The commit hook and the legacy sign route (Decision 11) call it. The slug rule is a pure function, `agent_drive_slug(agent_slug, taken_slugs)`, that it calls. The release 2 migration does not call app services; it carries its own frozen copy of the slug rule (Proposed).
 
-- **Create.** A project drive is created through the API before any configuration names it. `POST /mounts/` already does it: a body with a slug and no session and no agent creates a project drive (`api/oss/src/apis/fastapi/mounts/router.py:196-204`, `router.py:404-431`). It needs `EDIT_MOUNTS` (`router.py:412`), refuses the reserved prefix `__ag__` (`service.py:486-487`), and answers 409 when the slug is taken (`router.py:122-125`). The API needs no new route to create a drive. A screen to create one is out of scope.
-- **Refuse the save.** `commit_workflow_revision`, which every writer passes through (`service.py:3393-3398`), gets one more check. First it calls the SDK's `validate_agent_drives` (Decision 2); a broken rule answers `invalid_drive_entry`, and a `has_session_drive` that is not a boolean answers `invalid_session_drive`. Then each `"project"` entry must name a project drive that exists in the same project and is not archived; a missing one answers `drive_not_found`. A failed check raises a domain error that the router answers with HTTP 422, the status the route uses for every "not committable" configuration (`router.py:2047-2050`), in the agent-facing error envelope that the sibling `InvalidAgentHarnessError.to_detail()` uses (`api/oss/src/core/workflows/types.py:99-119`). Proposed body: `{"code": "drive_not_found", "message": "The drive 'price-lists' does not exist in this project.", "retryable": false, "next_step": "Create the drive with POST /mounts/, then commit again.", "details": {"field": "parameters.agent.drives[1].slug", "value": "price-lists"}}`.
-- **Layering.** The mounts service already depends on the workflows service (`api/oss/src/core/mounts/service.py:549-574`), so the workflows service cannot import the mounts service back. The check reads the `mounts` table through a narrow lookup (for example a callable that wraps `MountsService.fetch_project_mount`; there is no second "exists" lookup) that the workflows service receives at construction. The implementation session picks the exact seam.
-- **At run time** the sign route never creates a project drive. A drive deleted or archived after the save is skipped by the run, which logs it and tells the model (Decision 6).
+The API creates the agent's drive in `commit_workflow_revision`, just before it stores the first agent revision of an artifact. Every creation path in the table above stores its first revision through this function, so one hook covers them: workflow create followed by a commit, simple create, application create, the template loader, and a future copy action. A variant fork stores a revision of an artifact that already has a drive, so it creates none.
 
-### Decision 5: The sign route and the access rules
+The hook runs when the revision is an agent revision (`flags.is_agent`), no `mounts` row has this artifact in `agent_id`, and the configuration does not opt out through `home_drive`:
 
-The agent's own drive keeps its route, `POST /mounts/agents/sign` (`router.py:473-499`). A new route signs a project drive (Proposed): `POST /mounts/projects/sign?slug=<slug>&access=<read|read-write>`, operation id `sign_project_mount_credentials`, beside `POST /mounts/agents/sign` (`sign_agent_mount_credentials`). The route segment names the owner kind, as `agents` does.
+| `home_drive` in the first revision | What the API does |
+|---|---|
+| key absent (default template, older clients) | creates one drive, appends `{ "slug": <new slug> }` to `drives` (creating the list if absent), sets `home_drive` to it |
+| `null` | creates no drive (a support agent, or a template that removes it) |
+| a slug | creates no drive; the agent uses that existing drive as home, if the save check allows it |
 
-1. Checks the project permission `USE_MOUNTS`, as both sign routes do today (`router.py:482`, `router.py:637`).
-2. Refuses a reserved slug (`service.py:151-154`), so the route can never reach a session drive or an agent drive.
-3. Looks the slug up in the project of the request only. The `mounts` key is `(project_id, id)` (`dbes.py:22`), so another project's drive cannot match.
-4. Finds a row with no session and no agent; an absent or archived row answers 404. It creates nothing.
-5. Signs credentials for the drive's prefix: read and write for `"read-write"`, read only for `"read"` (Decision 7).
+The new drive (Decided item 7, Proposed details):
 
-`access` applies only to project entries in version 1. The agent's own drive is always read-write, as today, so `POST /mounts/agents/sign` does not change. A read-only agent drive would also be unsafe during a rollout: an older runner or an older API would mount it writable (Decision 12).
+- Slug: `agent_drive_slug`: `<agent slug>-files`, made safe as one path segment, with `-2`, `-3` ... on a collision in the project. Name: the agent's name.
+- `agent_id`: the artifact id (meaning above).
+- Visibility: an explicit `mount_visibility` row equal to the visibility the agent will have. The hook runs before the revision is stored, and `_ensure_first_agent_access` runs after (`service.py:3374`), so the hook reads the same inputs: the agent's existing `agent_access` row, or else the row that `_ensure_first_agent_access` will write (project-visible, owned by the request's person), or else `project` with no owner.
+- Idempotent: the unique index `uq_mounts_project_id_agent_id` (Migration, release 1) makes the create an upsert keyed on the agent id, so a retried commit reuses the row.
 
-Who may do what (Proposed):
+**Template files** (Proposed). The loader writes template files only into a drive created in the same load. When the template's first revision names an existing drive as home, or `null`, the loader writes no files and reports the skipped files in its answer. A template cannot write into a drive that other agents use.
 
-- **Attach a drive to an agent**: anyone who may commit a revision of that agent. Attaching is an edit of the configuration.
-- **Mount a drive in a run**: the run's principal needs `USE_MOUNTS` in the project, as for the agent drive today.
-- **Isolation**: the runner signs only the drives that the run request lists, and the service builds that list from the revision it runs. The run credential stays out of the sandbox (`runtime-lifecycle.ts:181`), so a model cannot sign another drive. Each STS credential covers one prefix (`storage.py:292-346`), so the credentials that geesefs holds in the sandbox reach only the drives this run mounts.
-- **Session drives stay private as they are.** The new route cannot sign them, and `allow_mount` keeps its rules (`sharing/utils.py:468-499`).
-- **People in the web app**: a project drive keeps today's rule; every project member with `VIEW_MOUNTS` can read it and with `EDIT_MOUNTS` can change it (`sharing/utils.py:478-499`).
+A copy of an agent gets its own new drive when the copy action leaves `home_drive` out of the copied configuration. No copy route exists today (Measured above); the rule is written down for the one that comes.
 
-The sign route does not load the revision to check that it names the slug. The principal who runs the agent may already sign any project drive through `POST /mounts/{id}/sign` (`router.py:632-661`), so the check would add a database read per sign and no protection against that principal. The check that matters, "the model gets only the drives its configuration names", lives in the runner and in the per-prefix credentials.
+| Option for when the drive is created | Trade-off |
+|---|---|
+| **A. At the first agent revision, in the API** | The drive exists before any conversation; the configuration can name it; one hook covers every path. |
+| B. At the first run, as today | No change at creation. The configuration cannot name a drive that does not exist yet. |
+| C. In each client (web, template loader) | No API hook. Every client must repeat it. |
 
-The `local` backend keeps its known limit: one mount namespace for all sessions on the host (`run-plan.ts:443-445`). The guarantee above holds on `daytona` and `inprocess`, where each conversation has its own sandbox.
+**Chosen: A.**
 
-### Decision 6: The runner flow after the change
+### Decision 7: the sign route
 
-:::figure flow-after
-:::
+The open pull request added `POST /mounts/projects/sign`. With one kind of drive, "project" is no longer a kind of drive; it stays only as a visibility value. The route moves (Proposed):
 
-The runner mounts exactly what the list names. It resolves the drives of a run once, into one list, and every consumer reads that list: the backend handoff, the turn-start cache refresh, the `ENOTCONN` remount, the credential expiry and the teardown. Today two places rebuild their own lists of session and agent drive (`services/runner/src/engines/inprocess/harness-host.ts:148`, `services/runner/src/engines/sandbox_agent/turn-start-refresh.ts:92-101`); both read the resolved list after the change. Only the agent drive's own setup (its `README.md`, the `.tools` restore) stays specific to it. The agent's own drive is mounted because the list holds `{ "kind": "agent" }`, not because the run has an artifact id. For every backend (Proposed):
+| Option | Trade-off |
+|---|---|
+| A. Keep `POST /mounts/projects/sign?slug=` | Built and reviewed. The path keeps a removed kind name, and a reader guesses that other kinds exist. |
+| **B. `POST /mounts/sign?slug=&access=`** | The same resource as `POST /mounts/{mount_id}/sign`, addressed by slug instead of id; no kind in the path. Not shipped yet, so the rename costs nothing. |
+| C. Sign by id only, `POST /mounts/{id}/sign` | Exists, but always read-write (`router.py:673-702`), and the configuration holds slugs. |
 
-1. The service reads `drives` and `has_session_drive` from the revision and puts both on the run request, next to `runContext`. 
-2. The runner sends every credential request at the same time: the session drive (when on), the agent drive (when listed) and one per project drive. Today the first two run one after the other (`environment-setup.ts:87-122`).
-3. The agent drive mounts where it does today, at `<session folder>-agent`, linked as `agent-files` (`agent-mount.ts:21-39`). Each project drive mounts at `<session folder>-project-<slug>`, a sibling path, and a link `drives/<slug>` in the session folder points to it. Every link is renewed on every turn, because geesefs turns links into empty files across remounts (`agent-mount.ts:237-241`).
-4. All mounts of the run start at the same time, in the same group as today's mounts.
-5. A drive whose credentials cannot be signed is skipped. A signed drive whose mount fails follows each backend's rule of today for a failed agent drive (`local` and `daytona` go on without it; `inprocess` refuses file commands until the next boot). The run goes on, the runner logs `mount degraded kind=<agent_mount|project_mount>`, and the prompt says that drive is not available this turn, as it does today for a refused agent drive (`agent-mount-guidance.ts:84-93`).
-6. The prompt lists each drive with its path and access, and says how shared writes behave (Decision 8).
-7. The drive list and `has_session_drive` join the fingerprint, so a changed list starts a new sandbox instead of reusing one with old mounts (`session-identity.ts:285-295`).
-8. The credential lease of the environment becomes the earliest expiry over all its mounts (`session-identity.ts:778-791`).
-9. A run request with no `drives` field (an older agent service) gets today's behavior: session drive when the run has a session id, and the agent drive when it has an artifact id. The runner keeps this one rule for version skew only.
+**Chosen: B.** Operation id `sign_mount_credentials_by_slug`, beside `sign_mount_credentials` (by id); the service lookup is `MountsService.fetch_mount_by_slug`. The route is registered before the `/{mount_id}` routes, as the fixed sub-paths are today (`router.py:214`). The naming rules ask for one pattern for every kind and one name per concept; this route is that pattern.
 
-Per backend:
+1. Role `USE_MOUNTS`, then `evaluate` (Decision 4). A denied drive answers 404.
+2. `fetch_mount_by_slug` excludes session drives by their `session_id`, not by the slug prefix. Rows with `agent_id` are signable by slug, including existing agent drives that still have a reserved `__ag__agent__...` slug before release 2; they pass the same visibility rule as any drive. Today `fetch_project_mount` refuses reserved slugs and rows with `agent_id` (`service.py:962-979`). The reserved-prefix refusal stays on creation only (`service.py:179-182`, `503-516`).
+3. `access=read` signs read-only credentials, and the runner mounts read-only, as built and measured live (Decided item 10).
+4. `is_home=true` (a boolean query parameter, named by the `is_<adjective>` rule) asks for `check_home_drive` (Decision 4). The runner sets it only for the home drive.
 
-- **`local`**: the runner host mounts each listed drive before the harness starts (`mount-lifecycle.ts:206-319`). The `ENOTCONN` remount covers every drive. Teardown unmounts them and deletes the mount points only after it confirms the unmount.
-- **`daytona`**: the sandbox mounts each listed drive in the same group as the session drive (`environment.ts:1281-1284`). A parked sandbox keeps them.
-- **`inprocess`**: each listed drive that was signed becomes one root (`DriveRoot`) of the command sandbox (`environment.ts:885-888`). Today any root that fails to mount fails every file command with a sentence, and chat keeps working (`sandbox-drive.ts:277-279`). That rule stays: a partial mount would let commands write into a plain folder left where a drive should be. A drive that could not be signed is not a root, so it does not block commands; the prompt says it is not available.
+`POST /mounts/agents/sign` stays only for runners older than this change (Decision 11).
 
-:::figure backends-after
-:::
+### Decision 8: the runner flow
 
-**An empty list** (Proposed). The runner signs and mounts no durable drive. It creates no `agent-files` link, sets no `AGENTA_AGENT_MOUNT_DIR`, and skips the restore of `agent-files/.tools/` (for example `environment.ts:1288-1300`). The prompt tells the model that no agent or project drive is attached, and separately how long its working folder lasts: for the session when the session drive is on, and only until the sandbox is removed when it is off. The platform instructions, which today describe `agent-files/` to every agent (`platform_instructions.py:156-175`), get one variant for an agent without an agent drive.
+**The wire** (Proposed). The agent service sends `drives: [{ slug, access }]` (access filled in), `homeDrive` (a slug or `null`), and `hasSessionDrive`. A request without `drives` comes from an older agent service, or from a configuration without the key; the runner keeps today's rule: the session drive when there is a session id, and the agent's drive through the legacy route when there is an artifact id, linked at `agent-files` (`run-drives.ts:59-86`). The runner parses the request with a plain JSON cast, so an older runner ignores the new fields (`services/runner/src/server.ts:1922`).
 
-### Decision 7: Read-only drives now, enforced by the credentials and the mount (decided)
+**One code path** (Proposed). One module replaces `agent-mount.ts` and `project-mount.ts` for signing, paths and links.
 
-| Option | How | Trade-off |
+1. Resolve the run's drives once, into one list of `RunDrive { slug, access, isHome, credentials, mountedPath, linked }` that every later step reads (setup, links, turn-start refresh, remount, credential lease, teardown), as the open pull request already does for project drives (`run-drives.ts:1-12`).
+2. Send every sign request at the same time: the session drive, and one `POST /mounts/sign` per drive, with `is_home=true` for the home drive (`environment-setup.ts:129-141`). A refused home sign means no home for this run.
+3. Mount every signed drive at `<working folder>-drive-<slug>`, read-only for `read`, in the same parallel group as the session drive.
+4. After the session drive is up: link `drives/<slug>` for each drive, link `agent-files` to the home drive, prune leftovers, write `drives/README.md`.
+5. For the home drive: seed its `README.md` if absent, restore `.tools/` from it.
+6. Prompt: the platform text and the environment notes (Decision 10).
+7. Every turn: repair every link (Decision 3 rules), on all three sandbox kinds. Today `agent-files` is not repaired on `daytona` (`run-turn.ts:1464`).
+8. The drive list and `homeDrive` join the fingerprint that decides whether a parked sandbox can serve the next turn (`engines/sandbox_agent/session-identity.ts`).
+9. A drive whose sign fails is skipped, logged as `mount degraded kind=drive_mount slug=<slug>`, and the agent is told it is not available. If the home drive is skipped, there is no `agent-files/` this turn and no tool restore. Every drive on this path logs `kind=drive_mount`; `kind=agent_mount` stays only on the legacy path.
+
+**Per sandbox kind** (Proposed; the "who mounts, when" table does not change):
+
+| Step | `local` | `daytona` | `inprocess` |
+|---|---|---|---|
+| Who mounts | the runner's machine, before the harness starts (`mount-lifecycle.ts:27-38`) | the cloud machine, during setup (`environment.ts:1379-1444`) | the command machine, at the first tool call of each boot (`sandbox-drive.ts:297`) |
+| Links made | by the runner after the session mount | by a shell script in the machine | in `link()` of the command machine (`sandbox-drive.ts:326-338`) |
+| Links repaired | every turn (`run-turn.ts:1464-1479`) | every turn, `agent-files` included (new) | every turn, `agent-files` included (today only project links, `sandbox-drive.ts:321-338`) |
+| A drive fails to mount | run continues without it | run continues without it | file commands refused with a sentence that names the drive, chat keeps working, as today for any root |
+| `drives/README.md` | written by the runner | written in the machine | written through the store, as the skill snapshot is (`engines/inprocess/workspace/skill-snapshot.ts:1-8`) |
+
+### Decision 9: `drives/README.md`
+
+The platform writes it at every start, from the run's drive list, before the agent's first turn. It is for the agent and for the person who opens the files pane. It lists only the drives mounted in this run. Proposed text, for the "quote" agent above:
+
+```markdown
+# Drives
+
+Each folder here is a drive: a folder of files that Agenta keeps after this
+conversation ends. This list comes from the agent's configuration.
+
+| Folder | Access | Note |
+| --- | --- | --- |
+| drives/quote-agent-files/ | read and write | Home drive. Also at agent-files/. |
+| drives/price-lists/ | read only | |
+
+Other agents with access to a drive may also write files in it. If two
+agents write the same file, the last write wins.
+
+Agenta writes this file again at the start of every conversation. Changes to
+it are not kept.
+```
+
+With no drives mounted, the table is replaced by "No drives are attached to this agent." The prune rule never removes the file, because it is a file with content (`project-mount.ts:161-193`).
+
+Accepted exposures (Proposed): a viewer of a shared conversation can read the slugs listed in this file, also those of private drives he cannot open. Slugs are unique per project (`api/oss/src/dbs/postgres/mounts/dbes.py:23-27`), so a create that conflicts (HTTP 409) reveals that a slug exists. Neither reveals any file.
+
+### Decision 10: the prompt texts
+
+- With a home drive, the platform text stays word for word as today: the passages that name `agent-files/` (`sdks/python/agenta/sdk/agents/platform_instructions.py:170-264`) still describe the home drive (Decided item 4).
+- Without a home drive, the existing variant without the agent drive is used (`platform_instructions.py:350-373`).
+- When the list holds other drives, one paragraph (Proposed, replaces `PROJECT_DRIVES_GUIDANCE`, `platform_instructions.py:377-383`): "The drives attached to you are folders under `drives/` in your working directory, one per drive. `drives/README.md` lists them with their access. They keep their files after this conversation. You can link a file in a drive like any other file: `[prices.csv](drives/price-lists/prices.csv)`."
+- The runner's environment notes name each drive with its absolute path and access. For a read-write drive: "Other agents with access to this drive may also write files here. If two agents write the same file, the last write wins. Prefer adding new files to editing existing ones. Never delete a folder you did not create." For a read drive: "`drives/<slug>/` is read-only for you." For a drive that is not available: "`drives/<slug>/` is not available in this conversation." The texts never call a drive "shared" because it is writable; "shared" means only the visibility.
+- `AGENTA_AGENT_MOUNT_DIR` is not set any more.
+
+### Decision 11: version skew
+
+The runner, the API and the agent service deploy separately. An older part is today's production code (none of the open pull requests merged). The rule (Proposed): **an older part may lose a drive, but it must never gain write access and never cause a drive to be created against the configuration.**
+
+**Rollout order for release 1** (Proposed): agent service, then runner, then API, then web.
+
+- The agent service goes first because the vault middleware of an older agent service treats a run as an agent run only when every key of `parameters.agent` is known (`sdks/python/agenta/sdk/middlewares/running/vault.py:604-659`). It must know `drives` and `home_drive` before any configuration holds them.
+- The runner goes before the API because the API is the first part that writes explicit drive configurations (at agent creation). Until then every request carries no `drives`, and the new runner uses the legacy route, which the older API serves as today.
+- The web goes last because it reads the new keys.
+
+**The legacy route** `POST /mounts/agents/sign?artifact_id=` (Proposed). An older runner sends only the artifact id. The route takes the agent from `run_agent_id_of_request` and answers 404 when the parameter names another agent or the credential has no claim. It signs, and may create the drive with `create_agent_drive`, only for an agent that has **no stored revision with a `drives` key**. It then finds the row by `agent_id` (never by the slug), applies `evaluate`, and, because it always signs a home, `check_home_drive`. For every other agent it answers 404 and creates nothing. It does not try to infer which revision a run uses. The "has any revision a `drives` key" test runs on every legacy sign, so it is one indexed query.
+
+Consequence: every commit through the new API writes the keys, and release 2 writes them into every stored revision. So after release 2 the legacy route always refuses, and it is deleted in the release after. An older runner loses the drives of every agent that has an explicit configuration. The rollout order (runner before API) keeps that window empty in practice.
+
+| Option for the legacy route | Trade-off |
+|---|---|
+| A. Read the agent's latest revisions and sign only the read-write home | Older runners keep more drives. A second source of drive selection that guesses the revision, and can be wrong for a deployed older revision. |
+| **B. Sign only for agents with no revision that has a `drives` key** | One plain condition; an older runner can lose a drive, never gain one; the route can be deleted after release 2. |
+| C. Remove the route now | Clean. Every older runner loses every agent's files during release 1. |
+
+**Chosen: B.**
+
+| Parts (new / old) | What happens | Outcome |
 |---|---|---|
-| **A. Read-only credentials and a read-only mount** | The STS policy allows only `GetObject`, `GetObjectAttributes` and the scoped `ListBucket`; geesefs mounts with `-o ro` | A write fails at once with "read-only file system", and even a process that reads the credentials out of geesefs cannot write. One more policy form and one more flag. |
-| B. A read-only mount only | geesefs `-o ro`, read-write credentials | The credentials sit in the geesefs process in the sandbox (`sandbox-drive.ts:10-12`; `mount.ts:9-12` says a same-user process can read them on `local`). A model with a shell could write with them. |
-| C. A rule in the prompt only | The prompt says "do not write" | Nothing stops a write. |
-| D. Not now | Ship read-write only | Smaller first step. Agents that only read would hold write access. |
+| new agent service, old runner and API | Stored configurations have no `drives`; the agent service sends none; the runner works as today | today's behavior |
+| new agent service and runner, old API | No `drives` on requests; the new runner uses the legacy route, which the old API serves as today | today's behavior |
+| all new | full behavior | |
+| new API and agent service, old runner (out of order) | The old runner ignores `drives` and signs the legacy route; the API signs only for agents with no revision that has a `drives` key | loses the drives of agents with explicit configurations; never gains write access |
+| new API, old agent service (out of order) | A new agent's stored keys make the old vault miss the agent run | blocked by the order |
+| new runner with `drives`, old API (out of order) | Every `POST /mounts/sign` fails; every drive is not available | fails closed |
+| old API pod during the release 1 rollout signs an agent created by a new pod | The old pod upserts by the reserved slug; `uq_mounts_project_id_agent_id` refuses a second row; the sign fails; the run continues without `agent-files/` | fails closed, no empty duplicate |
+| any older runner after release 2 | Every revision has a `drives` key, so the legacy route answers 404 | the run has no `agent-files/`; fails closed; not part of the ordered rollout |
+| old API pod during the API rollout | Old pods decide the by-id file routes and the `POST /mounts/query` filter for a row with `agent_id` by its agent (`api/oss/src/apis/fastapi/sharing/utils.py:493-498`), and ignore `mount_visibility`. A drive whose visibility a new pod changed apart from its agent (for example a private own drive of an agent that became shared) is judged by the agent on old pods until they drain. A run whose credential an old pod minted has no `run_agent_id` claim, so a new pod refuses its home sign and legacy sign. | accepted: a short window until old pods drain |
+| old web, new API | The files pane reads the agent's drive through `POST /mounts/agents/query`, found by `agent_id` | `agent-files/` works; other drives not shown |
 
-**Chosen: A.** The credentials are the boundary; the mount flag gives the agent a clear error instead of a write that geesefs accepts and the store later refuses. Both parts are small. Per backend the enforcement is the same. The three backends build their geesefs arguments from one builder (`mount.ts:247-271`) and each adds its own flags (`local` adds `-f`, `mount.ts:428`; `daytona` runs it in the background, `mount.ts:852`; `inprocess` adds `--enable-perms` and `--read-retry-attempts`, `sandbox-drive.ts:108`), so `-o ro` goes in the shared builder: on the runner host for `local`, in the sandbox for `daytona` and `inprocess`.
+### Decision 12: the web
 
-Two points need a check during the build (not verified): that geesefs accepts `-o ro`, and that SeaweedFS honors a session policy without `PutObject` (its prefix scoping is already tested by the API's acceptance tests).
+- **Files pane** (Proposed). The pane reads `drives` and `home_drive` from the session's agent revision (it already reads the configuration in `projectDrives.ts:31-46`, which is renamed `drives.ts`, without the removed kind), resolves the slugs with `POST /mounts/query` and the `slugs` filter (`api/oss/src/dbs/postgres/mounts/dao.py:348-349`), and folds each drive under `drives/<slug>/`. The home drive is shown once, under `agent-files/`, and its `drives/<slug>/` entry is hidden. A configuration without `drives` keeps today's lookup by the agent id (`agentDrive.ts:13-31`). A slug that does not resolve (missing, or a private drive the viewer may not use) is not shown.
+- **Origins.** `FileOrigin` becomes `"session" | "home" | "drive"`; a `"drive"` path carries its slug (today `"session" | "agent" | "project"`, `useSessionDrive.ts:45`).
+- **Tool paths.** The mapping matches `-drive-<slug>` first: a tool path under `<session>-drive-<slug>` maps to that drive, and the home slug maps to `agent-files/`. Only then does the old `-agent` suffix map to `agent-files/`, for recorded sessions (`fileActivity.ts:108-109`, `175`). Without this order, `<session>-drive-support-agent` would match the old suffix.
+- **Chat links** to `drives/<slug>/...` and `agent-files/...` open the file, as built.
+- **Agent page card.** The card lists the drives from the agent's latest revision, with the home drive first, and works before the first conversation because the drive is created with the agent. For a configuration without `drives`, it keeps today's lookup.
 
-### Decision 8: Two writers at once, and what agents are told
+For a backend developer: the pane is a function of (configuration, list of drive rows, list of files per row); the change is in that function, not in new routes.
 
-What version 1 promises (Proposed). It starts simple and adds rules only when a problem shows.
+## Names per layer
 
-- Each file is one object. A write replaces the whole file. When two runs write one file, the last upload wins. No locks and no merges.
-- A run sees another run's change after the writer's upload has completed and the reader's cache has refreshed. Closing a file starts its upload but does not wait for it (`mount.ts:241-246`); the reader's cache refreshes at the start of each turn, best effort (`turn-start-refresh.ts:4-23`, `turn-start-refresh.ts:107`), and otherwise within one minute. No stronger promise, so no new coordination.
-- On the bundled store, an overwritten or deleted file can be recovered from the store's versions for 30 days, by an operator, not in the product (`storage.py:203-247`).
-
-The prompt paragraph for each shared drive says (Proposed): "`drives/<slug>/` is shared with other agents of this project, and they can write it at the same time. A write replaces the whole file, and the last write wins. Prefer adding new files to editing shared ones. Never delete a folder you did not create." For a read-only drive: "`drives/<slug>/` is read-only for you."
-
-
-
-### Decision 9: Keeping it fast
-
-- **Sign at the same time** (Proposed). Today the runner waits for the session sign before it sends the agent sign. After the change all signs go out together. The added time of more drives is then about one sign, not one per drive.
-- **Mount at the same time** (Measured today, kept). All three backends already mount their folders at the same time (`environment.ts:776-779`, `environment.ts:1281-1284`, `sandbox-drive.ts:271-272`). Shared drives join the same group.
-- **Lazy mount stays where it is.** `inprocess` already mounts at the first tool call. On `local` the harness environment is fixed before the harness starts (`environment.ts:801-804`). `daytona` already uploads a new system prompt after the agent mount (`mount-lifecycle.ts:171-193`), but a lazy mount would still add a mount step inside the turn. Not in version 1.
-- **A limit of 8 drives per agent** (Proposed). Each drive is one sign and one geesefs process.
-
-
-Expected added cold-start time (estimate, not measured): one mount in a sandbox takes about 0.6 s (Measured on `inprocess`, `sandbox-drive.ts:271`), and on `local` the code expects about 1 s (`mount.ts:458`). Because the extra mounts run beside the session mount, one to three extra drives should add between 0.1 s and 0.5 s of wall time, from more parallel work in one sandbox. Signing in parallel removes one round trip that runs one after the other today. The runner already logs the stages `local_mounts`, `mounts` and `agent_mount` (`environment.ts:780`, `environment.ts:1206`, `environment.ts:1277`); a `project_mounts` stage lets the release measure the real number.
-
-### Decision 10: The agent's own commit tool cannot change `drives` (decided)
-
-Add `["parameters", "agent", "drives"]`, and `has_session_drive`, to the refused paths of `AGENT_COMMIT_SCOPE` (`change_set.py:569-581`), next to the sandbox permissions. An agent cannot give itself a drive that a person or the platform did not give it.
-
-### Decision 11: The session files pane shows project drives (decided)
-
-The session files pane folds each project drive of the session in under `drives/<slug>/`, as it folds the agent drive under `agent-files/` today (`useSessionDrive.ts:28-65`), and a chat link to a path under `drives/<slug>/` opens the file. The pane learns the project drives from the `drives` list of the agent's configuration, which it already loads for the session, and resolves each slug to its mount with `POST /mounts/query` and a new optional `slugs` filter on `MountQuery` (today the query filters only by session and agent, `api/oss/src/dbs/postgres/mounts/dao.py:338-346`). A slug with no active mount is not shown. The platform prompt allows such links (`platform_instructions.py:170-175`). No other web work is in scope.
-
-### Decision 12: Version skew between the API, the agent service and the runner
-
-The runner and the agent service do not always run the same version. Each pair below must work (Proposed):
-
-| New part | Old part | What happens |
-|---|---|---|
-| runner | API | The new project sign route answers 404. The runner skips the project drive, logs it, and tells the model. Fails closed. |
-| API | runner | The old runner ignores `drives`. It mounts the session drive and the agent drive by its old rule and never mounts a project drive. Fails closed for project drives; an agent whose list omits its own drive still gets it, as today, until the runner is updated. |
-| agent service | runner | Same as the row above: the old runner ignores the new wire fields. A test pins that the run request parse accepts unknown fields. |
-| runner | agent service | No `drives` on the request. The runner applies today's rule (Decision 6, step 9). |
-| stored configuration with `drives` | old agent service | The old SDK does not read `drives` (`dtos.py:906-944`), but the vault middleware stops recognizing the run as an agent run, because it accepts only known top-level keys (`sdks/python/agenta/sdk/middlewares/running/vault.py:604-657`), so the run gets the old vault path. (Separately, the API's template compiler validates catalog templates against the editor schema, `compiler.py:144-150`; it ships with the API and learns the keys in the same release.) |
-
-Because `access: "read"` exists only on project entries, and only a new runner against a new API mounts a project drive, no version pair mounts a read drive writable.
-
-Rollout order for release 1: the API first, then the runner, then the agent service. No configuration with the new keys is saved before the agent service runs release 1; the save check and the editor schema ship with the API, and the default template that writes the keys ships with the agent service, so the order holds when each part deploys in this order. The backfill of stored revisions (release 2) must not run before every agent service knows the keys. A database migration runs before the new pods start (`api/AGENTS.md`, "Migration gate"), so the backfill cannot ship in the same release as the code that reads it.
+| Concept | Configuration | Wire | SDK | API | Runner | Web | User-facing |
+|---|---|---|---|---|---|---|---|
+| a drive | `drives[]` entry | `drives[]` | `AgentDrive(slug, access)` | `mounts` row, `Mount` | `RunDrive` | `"drive"` origin | drive |
+| its name | `slug` | `slug` | `slug` | `slug` | `slug` | `slug` | the folder `drives/<slug>/` |
+| access (read or read-write) | `access` | `access` | `access` | query `access` | `access`, geesefs `-o ro` | `access` | "read only", "read and write" |
+| visibility (who may open) | | | | `mount_visibility.visibility` (`private`, `project`); the sibling `agent_access` is an existing naming exception | | | private, shared |
+| home sign | | | | query `is_home=true`; `SharingService.check_home_drive`; error `home_drive_not_allowed` (403 at sign, 422 at save, 409 at the visibility change) | `isHome` | | "home drive not available" |
+| save lookup | | | | `set_mount_lookup`, `_mount_lookup`, `fetch_mount_by_slug` | | | |
+| home | `home_drive` | `homeDrive` | `home_drive`, `validate_home_drive` | `home_drive` | `RunDrive.isHome` | `"home"` origin | `agent-files/`, "home drive" |
+| session drive | `has_session_drive` | `hasSessionDrive` | `has_session_drive` | `get_or_create_session_mount` | `mountedCwd` | `"session"` origin | the working folder |
+| visibility rule | | | | `SharingService.evaluate` with `ResourceKind.MOUNT` (`_evaluate_mount`, `mount_resource`), reached by `allow_mount` | | | |
+| the agent of a run | | | | claim `run_agent_id` (written in `_prepare_invoke`), read by `run_agent_id_of_request` | | | |
+| key fill, slug rule | | | | `fill_agent_drive_keys`, `agent_drive_slug` (pure; the migration has frozen copies) | | | |
+| agent's drive creation | | | | `MountsService.create_agent_drive` | | | |
+| created with agent | | | | `mounts.agent_id` (legacy route and migration only) | | | |
+| sign by slug | | | | `POST /mounts/sign` (`sign_mount_credentials_by_slug`), `fetch_mount_by_slug` | `signMountCredentialsBySlug` | | |
+| legacy sign | | | | `POST /mounts/agents/sign` (`sign_agent_mount_credentials`) | `signAgentMountCredentials` | | |
+| mount path | | | | | `driveMountPath(cwd, slug)` = `<cwd>-drive-<slug>` | suffix `-drive-<slug>` | |
+| folders | | | | | `DRIVES_DIR_NAME` `drives`, `HOME_DRIVE_LINK_NAME` `agent-files` | same | `drives/`, `agent-files/` |
+| log | | | | | `kind=drive_mount`, stage `drive_mounts`; `kind=agent_mount` on the legacy path only | | |
+| save errors | | | `InvalidAgentDrivesError` | `invalid_drive_entry`, `invalid_home_drive`, `drive_not_found`, `drive_not_shared`, `home_drive_not_allowed` | | | message text |
+| visibility change | | | | `drives_made_shared`; errors `drive_not_owned` (409), `home_drive_not_allowed` (409) | | | |
+| schema | | | | `mount_visibility`, `uq_mounts_project_id_agent_id`, `ck_mount_visibility_value`, `ck_mount_visibility_private_owner`, `ix_mount_visibility_project_id_owner_user_id` | | | |
 
 ## Risks / Trade-offs
 
-- **A recursive delete in a shared drive hits every agent that shares it.** One run's recursive delete already removed whole drives once on `local`, through a shared mount root (`run-plan.ts:443-445` names the data loss). Read-only access is the defense for agents that only read. Store versions are the recovery on the bundled store; a remote bucket has them only if its operator turned versioning on (`storage.py:211-213`).
-- **`local` does not isolate drives between sessions** (`run-plan.ts:443-445`). The rule "an agent that does not list a drive cannot reach it" holds on `daytona` and `inprocess`. On `local` it holds for what the agent is told and for its configured paths, not against a process that walks the host's mount root.
-- **Last write wins can lose an edit** when two agents edit one file in the same minute. The prompt rule (new files over shared edits) makes it rare.
-- **The backfill rewrites history.** Old revisions change their stored content, not their meaning: each gets exactly the drives it already had. A revision that a deployed environment points to is rewritten too, which is the point.
-- **A deleted or archived drive breaks no saved configuration.** The save check runs at commit; later the run skips the drive and says so.
+- **The visibility rule decides who reads whose files.** It got a security review on this design; the code gets one too (task 0.2). The legacy branch must follow the agent, or a private agent's drive would read as shared before release 2.
+- **Code in a home drive runs in every run that uses it.** `.tools/setup.sh` and `.tools/bin` run inside the agent's runs. The rule "a personal agent's home is a private drive of its owner" (case b2) keeps other members' code out of private runs. A shared agent with a shared home has the same exposure as today (case j).
+- **Credentials outlive a change of rule** for up to 12 hours (Decision 4).
+- **Older runners lose drives** of agents with explicit configurations, and after release 2 all drives (Decision 11). The ordered rollout avoids it; the legacy route is deleted in the release after release 2.
+- **The read-time fill** changes what the agent service sees for an older revision: it gains `drives` and `home_drive` naming the drive it already used, so its behavior stays the same.
+- **A private agent on a channel** can read its listed drives for anyone in that channel (Decision 4, channel exception).
+- **The unique index on `(project_id, agent_id)`** fails the release 1 migration if duplicate rows exist. Only the name `default` is used today (`services/runner/src/engines/sandbox_agent/agent-mount.ts:49-59`), so none are expected; count on a copy of production data first (task 1.2).
+- **Rollout window.** Agents created while old and new API pods both serve can run once without `agent-files/` (Decision 11). No data is lost and no empty drive is created.
+- **Link repair no longer moves files.** Files written into a real `agent-files` folder (after a lost link) stay in the session folder, and the agent is told the home drive is not available. Today the runner moves them (`agent-mount.ts:219-249`).
+- **Transfer of a personal agent** (case i) leaves its private drives with the old owner.
+- **A recursive delete in a drive hits every agent that uses it.** Read access is the defense for agents that only read. On the bundled store, overwritten files can be recovered by an operator for 30 days.
+- **`local` does not isolate drives between sessions** (`run-plan.ts:443-445`). The visibility rule holds for what a run is signed; on `local` a process can still walk the host's mount root.
+- **Last write wins** can lose an edit when two agents edit one file in the same minute.
 
 ## Migration
 
-Target state: every stored agent revision holds `has_session_drive` set to on, and `"drives": [{ "kind": "agent" }]`. Both describe exactly what the agent has today.
+Two releases, by the repo's "expand and contract" rule (`api/AGENTS.md`, "Migration gate"): a database migration runs before the new pods start, and old code runs against the migrated data during the rollout.
 
-Options (Proposed):
+**Release 1, expand (schema migration in #8315)** (Proposed):
 
-| Option | How | Trade-off |
+1. Create `mount_visibility` with its constraints and index (Decision 4).
+2. Write a `mount_visibility` row (`project`, no owner) for every existing drive with no session and no agent. Older API pods do not read the table, so this is safe.
+3. Check that no two rows of `mounts` share `(project_id, agent_id)`; stop with a clear message if any do.
+4. Create the unique index `uq_mounts_project_id_agent_id` on `(project_id, agent_id) WHERE agent_id IS NOT NULL`, replacing `ix_mounts_project_id_agent_id` (`dbes.py:44-49`).
+
+No agent drive row changes. Existing agent drives keep their reserved slugs and follow their agents through the legacy branch.
+
+| Step | Old runner sees | Old API sees | Old agent service sees |
+|---|---|---|---|
+| 1-4 done, old code everywhere | today | today; its upsert by slug never conflicts, because no row was renamed | today |
+| new agent service | today | today | (new) |
+| new runner | (new) | serves the legacy route as today | none left |
+| new API | none left | old pods during the rollout: may fail a sign for an agent created by a new pod (Decision 11) | none left |
+| new web | | none left | |
+
+**Release 2, contract (data migration in #8317)** (Proposed). It ships only after every API pod and agent service runs release 1. One alembic data migration, idempotent, no-op downgrade, in batches:
+
+1. For each `mounts` row with `agent_id`, a reserved `__ag__agent__` slug, and an artifact in the database (static catalog agents are skipped), write a readable unique slug `<agent slug>-files` (with `-2`, `-3` on a collision). The storage prefix does not change, so every file stays where it is. `agent_id` stays.
+2. For each such row without a `mount_visibility` row, write one from the agent's `agent_access` row (visibility and owner), or `project` with no owner when the agent has none.
+3. For each non-archived agent artifact with no drive row (it never ran), insert one: a row with a readable slug, `agent_id`, the storage prefix rule of `mounts`, and a `mount_visibility` row copied from the agent.
+4. Write `mount_visibility` rows (`project`, no owner) for drives without a row that older API pods created during the release 1 rollout.
+5. For each agent revision (`flags.is_agent`) whose `data.parameters.agent` lacks a key: add `has_session_drive: true`; add `drives: [{ "slug": <the artifact's drive slug> }]` and `home_drive: <that slug>` when `drives` is absent (the frozen fill; after steps 1 and 2 the own drive has the agent's visibility, so the home rule holds). A revision that states `drives` keeps it. Read `data` as text and merge in Python, because the `jsonb` cast refuses some stored JSON (the approach of the open backfill pull request); write it back as `json`.
+
+6. In every agent revision that names a renamed slug (in `drives` or `home_drive`), including references saved explicitly during release 1 by the fill, replace it with the new slug.
+
+The migration does not call app services such as `create_agent_drive` or `fill_agent_drive_keys`; it carries its own frozen copy of the slug rule and the fill, so it does what it did on the day it was written.
+
+After release 2 every non-session drive has a `mount_visibility` row, and `agent_id` is no longer an input to the visibility rule.
+
+| Step | Old runner (production) sees | API, agent service (release 1) see |
 |---|---|---|
-| A. Rewrite stored revisions in place | An alembic data migration in `core_oss` adds the two keys to `data.parameters.agent` of every agent revision that lacks them, idempotent, with a no-op downgrade | Every stored configuration, including old ones that environments point to, states its drives. Old code must already know the keys (Decision 12), so it needs a release before it. Changes the stored content of old revisions. |
-| B. Commit one new revision per agent | The platform commits a new revision with the two keys to each agent's variants | Keeps old revisions untouched. Adds one revision per variant, moves every head, can collide with the playground's auto-commit (`base_revision_id` conflicts), and leaves environments that point to old revisions without the keys. |
-| C. A default at read time only | A configuration without `drives` is read as `[{ "kind": "agent" }]` with the session drive on | No data change and no rollout risk. Stored configurations never state their drives, but he asked that they do. |
+| 1 | the legacy route finds the row by `agent_id` and signs while the agent has no revision with a `drives` key | finds by `agent_id`; signs by the new slug once a configuration names it |
+| 2, 4 | no change | the rule reads the row; same answer as before |
+| 3 | its first run finds the new row by `agent_id` and does not create another | same |
+| 5 | the legacy route answers 404 from now on (every revision has the key); the route is deleted in the next release | sends `drives` and `homeDrive`; the runner mounts the same drive at `drives/<slug>/` and `agent-files/` |
 
-**Recommended: C, then A, in two releases** (Proposed). It is the repo's "expand and contract" rule (`api/AGENTS.md`, "Migration gate"):
+After release 2, every stored configuration states its drives, and the read-time default remains only for clients that send a configuration without the keys.
 
-1. **Release 1, expand.** Ship the field everywhere (API save check, SDK, vault keys, editor schema, runner, files pane). The SDK reads a configuration without `drives` as `[{ "kind": "agent" }]` with the session drive on, which is today's behavior. The default template for new agents (`sdks/python/agenta/sdk/utils/types.py:1522-1567`) and the playground editor write both keys on every save, so new and edited agents state them at once.
-2. **Release 2, contract.** An alembic data migration rewrites every stored agent revision that lacks the keys, in place, as in option A. It only adds missing keys and keeps any value a revision already states, so a second run changes nothing. Its downgrade does nothing: a database is never rolled back on a failed deploy (`api/AGENTS.md`, "Migration gate"), and release 1 code reads the added keys, so no rollback needs them removed. No side table. After it, every agent configuration states its drives. The read-time default stays only for configurations that callers of the API send without the keys, so a client that never heard of drives gets today's behavior.
+| Option | Trade-off |
+|---|---|
+| **A. Rename slugs and write revisions in release 2; table, rows and index in release 1** | No old API pod ever runs against a renamed row; every step keeps files findable by `agent_id`. Two releases. |
+| B. Everything in release 1 | One release. Old API pods during the rollout upsert by the reserved slug, which no longer exists, and create an empty second drive for every running agent. |
+| C. Never rename; let configurations name reserved slugs | No rename. Configurations hold unreadable slugs, and the reserved namespace stops protecting session drives. |
 
-Agents with no drive row today (agents that never ran) need nothing special: `{ "kind": "agent" }` names no row, and the first run creates the drive as today (`service.py:576-601`).
-
-No table changes: a project drive is a `mounts` row with no session and no agent, which the table already allows (`dbas.py:29-51`).
+**Chosen: A.**
 
 ## Tests
 
-Each suite below runs with the commands in the root `AGENTS.md` (`py-run-tests` in `api` and `sdks/python`) and in `services/runner/AGENTS.md` (`pnpm test`).
+Run with `py-run-tests` in `api` and `sdks/python`, `pnpm test` in `services/runner`, and the web unit tests.
 
-- API unit tests (`api/oss/tests/pytest/unit/mounts/`, `api/oss/tests/pytest/unit/` for workflows): the read-only policy holds no write or delete action; the project sign route refuses reserved slugs, another project's drive, missing and archived drives, and never creates one; the commit refuses a missing drive with 422 and the code `drive_not_found`, more than 8 entries, a project entry without a slug, and two agent entries; the agent's own commit refuses `drives` and `has_session_drive`.
-- API acceptance tests (`api/oss/tests/pytest/acceptance/mounts/`): read-only credentials can read and list but cannot put or delete on the test store.
-- Migration test (release 2): the backfill adds the keys to agent revisions only, leaves revisions that have them unchanged, and a second run changes nothing.
-- SDK unit tests: `AgentTemplate` parses `drives` and `has_session_drive`, with the read-time default for a configuration without them; the wire golden fixtures and `test_wire_contract.py`; the vault middleware recognizes a template with the new keys; `AgentTemplateSchema` accepts them; the default template writes them.
-- Runner unit tests: all signs start before the first answer arrives; a list without the agent entry mounts no agent drive and creates no `agent-files` link; an empty list gives the "no agent or project drive" prompt; `has_session_drive` off gives a throwaway folder on `local` and `daytona` and a named refusal on `inprocess`; a request without `drives` keeps today's behavior; geesefs gets `-o ro` for a read drive; each backend mounts each listed drive; `inprocess` keeps working when a non-session root fails; the fingerprint changes with the list; `tests/unit/wire-contract.test.ts`; an unknown wire field is ignored by an older parse.
-- Runner integration test: `services/runner/tests/integration/inprocess/sandbox-drive.test.ts` with three roots, one failing.
-- Web unit tests: the third origin in `useSessionDrive.ts`.
-- Live check on the development stack, once per backend: two agents share a drive and see each other's files after the upload and a cache refresh; a write to a read drive fails; an agent without a project entry has no `drives/` folder; an agent with an empty list has no `agent-files/`; the cold-start time with two project drives against none.
+- **SDK**: entry rules (slug, access, duplicates, 8 entries, `kind` refused); `home_drive` rules; absent keys read as legacy and produce no `drives` on the wire; wire golden fixtures with `drives`, `homeDrive`, `hasSessionDrive`; vault recognizes `home_drive`; editor schema; the default template has no `drives` key.
+- **API unit**: `_evaluate_mount` through `evaluate` (and no allow for an unknown kind), D1, D2, the legacy branch, each condition of the channel exception, the child-run refusal; every case of the table in Decision 4; the save codes, `home_drive_not_allowed` included; the visibility change (shares only the acting owner's drives, `drive_not_owned`, the refusal to make an agent private with a shared home); drive creation on each path (create plus commit, simple create, template load; fork creates none; `home_drive` null or a slug creates none; a retry creates one); the visibility row of a new drive; template files only into a drive created in the same load; `POST /mounts/` refuses `agent_id`; the legacy route signs only for agents with no revision that has a `drives` key and never creates otherwise; `check_home_drive` from each of its four callers, including a credential without `run_agent_id`; `run_agent_id` is written from the resolved workflow and never from caller meta; a child run carries its own agent; `fetch_mount_by_slug` signs a reserved agent slug and never a session row; the commit and read fills, including the fill of `drives: []` when the home rule does not allow the own drive; `POST /mounts/sign` signs rows with `agent_id`; the apps tools call `evaluate`.
+- **API acceptance**: read-only credentials read and list, and fail to put and delete; a private drive is 404 for another member and for an API key.
+- **Migrations**: release 1 table, rows, index, and the duplicate check; release 2 on a database with legacy rows, never-run agents, private and ownerless agents, static catalog ids, revisions with and without keys, and stored JSON that the `jsonb` cast refuses; a second run changes nothing.
+- **Runner unit**: one sign per drive, all at once; mount paths `<cwd>-drive-<slug>`; `agent-files` links to the home drive and is absent without one; link rules (real folder kept, empty file replaced, leftovers pruned, README kept); per-turn repair on each sandbox kind; `drives/README.md` lists only mounted drives; `.tools` restore from the home drive; legacy request uses the legacy route; log kinds; fingerprint includes `drives` and `homeDrive`.
+- **Runner integration**: `tests/integration/inprocess/sandbox-drive.test.ts` with three roots, one the home drive, one failing.
+- **Web unit**: the fold with a home drive, other drives, a hidden duplicate, an unresolved slug, a legacy configuration; tool-path mapping for `-drive-<slug>` (including a slug that ends in `-agent`) and the old `-agent`.
+- **Live**, once per sandbox kind: an existing agent before and after release 2 finds its files at `agent-files/`; a crew shares a drive; a read drive refuses writes; a support agent has no `agent-files/`; a personal agent's private drive is not available to a teammate's run; a channel turn of a personal agent gets its home drive; an older runner cannot mount a drive the configuration made read-only.
 
-## Size
+## What could not be verified
 
-About 1,400 lines of code and 1,200 lines of tests (estimate): API 330 (sign route, save check, read-only policy, backfill), SDK 200, runner 600, web 250. One engineer needs six to eight working days; three parallel lanes (API with SDK, runner, web) need three to four days, plus the second release for the backfill.
-
-## What I could not verify
-
-- The real time of one sign call and of a mount on `daytona` or `local`: the code logs them, but I did not read production logs.
-- Whether geesefs accepts `-o ro`, and whether SeaweedFS honors a session policy without write actions.
-- Whether the runner ignores an unknown field on the run request at run time.
-- How geesefs behaves when two mounts write one file within its upload window, beyond "the last upload wins".
-- Whether the Daytona API runs several commands in one sandbox at the same speed as one.
-- How many stored agent revisions the backfill touches, and how long it runs on the largest database. The migration test and a count on a copy of the data answer it before release 2.
-- Whether the playground editor drops keys it does not know when it saves a configuration; if it does, release 1 must teach it both keys before any agent states them.
+- That a channel turn of a private agent is refused its agent drive today. It comes from reading the code.
+- That every run path, child runs, triggers and evaluations included, mints its run credential through `_prepare_invoke`, so every agent run carries `run_agent_id`.
+- That every agent run reads its revision through `_normalize_revision_for_read`, so the read-time fill reaches the agent service.
+- That no two `mounts` rows share an agent id in production data.
+- That every harness behaves the same with two links to one mount (`agent-files` and `drives/<home slug>`).
+- How many agent revisions and drive rows release 2 touches, and how long it runs on the largest database.
+- Whether the playground editor keeps `home_drive` when it saves.
