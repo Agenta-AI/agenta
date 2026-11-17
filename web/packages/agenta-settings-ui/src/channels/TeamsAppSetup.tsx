@@ -1,10 +1,11 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import {Alert, Button, Spinner} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 
 import {downloadSetupDocument, errorMessage} from "./helpers"
-import {TEAMS_APP_STEPS} from "./teamsSetupCopy"
 import type {ChannelConnection, ChannelsActions} from "./types"
 import {CopyField} from "./WhatsAppWebhook"
 
@@ -19,9 +20,9 @@ export const TeamsAppSetup = ({
     connection: ChannelConnection
     actions: ChannelsActions
 }) => {
+    const t = useT(channelsTeamsCatalog)
     const [downloading, setDownloading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const {endpoint, install} = TEAMS_APP_STEPS
 
     // The package is read only on click: the zip is large, and most visits never need it.
     const download = async () => {
@@ -30,9 +31,10 @@ export const TeamsAppSetup = ({
         setError(null)
         try {
             const document = await actions.teamsAppPackage(connection.connectionId)
-            if (!document || !downloadSetupDocument(document)) setError(TEAMS_APP_STEPS.loadError)
+            if (!document || !downloadSetupDocument(document))
+                setError(t("channels.teams.loadError"))
         } catch (e) {
-            setError(errorMessage(e, TEAMS_APP_STEPS.loadError))
+            setError(errorMessage(e, t("channels.teams.loadError")))
         } finally {
             setDownloading(false)
         }
@@ -41,16 +43,16 @@ export const TeamsAppSetup = ({
     return (
         <div className="flex flex-col gap-5" data-testid="channels-teams-app">
             <div className="flex flex-col gap-2">
-                <span className={TITLE}>{endpoint.title}</span>
-                <p className={BODY}>{endpoint.body}</p>
+                <span className={TITLE}>{t("channels.teams.endpointTitle")}</span>
+                <p className={BODY}>{t("channels.teams.endpointBody")}</p>
                 <CopyField
-                    label={endpoint.label}
+                    label={t("channels.teams.endpointLabel")}
                     value={connection.webhookUrl ?? ""}
                     testId="channels-teams-endpoint"
                 />
             </div>
             <div className="flex flex-col gap-2">
-                <span className={TITLE}>{install.title}</span>
+                <span className={TITLE}>{t("channels.teams.installTitle")}</span>
                 <div>
                     <Button
                         variant="outline"
@@ -64,7 +66,7 @@ export const TeamsAppSetup = ({
                         ) : (
                             <DownloadSimple data-icon="inline-start" />
                         )}
-                        {install.download}
+                        {t("channels.teams.download")}
                     </Button>
                 </div>
                 {error ? (
@@ -75,8 +77,8 @@ export const TeamsAppSetup = ({
                         data-testid="channels-teams-download-error"
                     />
                 ) : null}
-                <p className={BODY}>{install.upload}</p>
-                <p className={BODY}>{install.noUpload}</p>
+                <p className={BODY}>{t("channels.teams.upload")}</p>
+                <p className={BODY}>{t("channels.teams.noUpload")}</p>
             </div>
         </div>
     )

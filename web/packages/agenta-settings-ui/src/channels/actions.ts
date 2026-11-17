@@ -1,9 +1,9 @@
 import {createT} from "@agenta/i18n"
 import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
+import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 
 import {hasChannels, platformLabel} from "./helpers"
-import {TEAMS_APP_STEPS} from "./teamsSetupCopy"
 import type {
     ChannelAudiencePerson,
     ChannelBehaviorState,
@@ -26,7 +26,7 @@ import type {
     HostedTelegramLink,
 } from "./types"
 
-const t = createT(channelsActionsCatalog, channelsLabelsCatalog)
+const t = createT(channelsActionsCatalog, channelsLabelsCatalog, channelsTeamsCatalog)
 
 /**
  * Builds the real `ChannelsActions` for one agent page on top of the generated channels
@@ -917,7 +917,7 @@ export const buildAgentChannelsActions = ({
     const teamsAppPackage = async (connectionId: string): Promise<ChannelSetupDocument | null> => {
         const res = await client
             .fetchChannelConnectionSetup({connection_id: connectionId}, scope())
-            .catch(rethrow(TEAMS_APP_STEPS.loadError))
+            .catch(rethrow(t("channels.teams.loadError")))
         return setupDocumentOf(asRecord(asRecord(res).setup))
     }
 

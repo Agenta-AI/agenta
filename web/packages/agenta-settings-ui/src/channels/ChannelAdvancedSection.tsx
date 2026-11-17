@@ -198,9 +198,7 @@ const AnswersInRow = ({
         >
             <span className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-medium text-colorText">{title}</span>
-                <span className={HELP}>
-                    {t(keys.answersInHelp)}
-                </span>
+                <span className={HELP}>{t(keys.answersInHelp)}</span>
             </span>
             {error ? <Alert type="error" showIcon message={error} /> : null}
             {behavior === null ? (
@@ -208,9 +206,7 @@ const AnswersInRow = ({
                     <Spinner size="small" /> {t("channels.labels.loading")}
                 </div>
             ) : !behavior.group ? (
-                <span className={HELP}>
-                    {t(keys.switchedOff)}
-                </span>
+                <span className={HELP}>{t(keys.switchedOff)}</span>
             ) : (
                 <>
                     <RadioGroup
@@ -221,14 +217,8 @@ const AnswersInRow = ({
                     >
                         {(
                             [
-                                [
-                                    "all",
-                                    t(keys.all),
-                                ],
-                                [
-                                    "only",
-                                    t(keys.only),
-                                ],
+                                ["all", t(keys.all)],
+                                ["only", t(keys.only)],
                             ] as const
                         ).map(([value, label]) => (
                             <label
@@ -411,9 +401,7 @@ export const ChannelAdvancedSection = ({
                                     <span className="text-[13px] font-medium text-colorText">
                                         {t("channels.advanced.canPostOutside")}
                                     </span>
-                                    <span className={HELP}>
-                                        {t(keys.canPostHelp)}
-                                    </span>
+                                    <span className={HELP}>{t(keys.canPostHelp)}</span>
                                 </span>
                                 <Switch
                                     size="sm"
@@ -507,9 +495,7 @@ export const ChannelAdvancedSection = ({
                                             ))
                                         )}
                                         {draft.length === 0 ? (
-                                            <span className={HELP}>
-                                                {t(keys.noneCheckedRead)}
-                                            </span>
+                                            <span className={HELP}>{t(keys.noneCheckedRead)}</span>
                                         ) : null}
                                         <div className="flex justify-end">
                                             <Button

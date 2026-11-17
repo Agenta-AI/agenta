@@ -4,6 +4,7 @@ import {useT, createT, type CatalogKey} from "@agenta/i18n"
 import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
 import channelsManageCatalog from "@agenta/i18n/catalogs/channels.manage"
+import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
@@ -185,6 +186,7 @@ export const ChannelManagePanel = ({
         channelsActionsCatalog,
         channelsLabelsCatalog,
         channelsManageCatalog,
+        channelsTeamsCatalog,
         commonCatalog,
     )
     const isSlack = connection.platform === "slack"
@@ -1077,7 +1079,7 @@ export const ChannelManagePanel = ({
             {/* --- where Teams delivers messages, and the app to install (Teams only) --- */}
             {isTeams ? (
                 <div className="flex flex-col gap-2">
-                    <span className={SECTION_TITLE}>Teams app</span>
+                    <span className={SECTION_TITLE}>{t("channels.teams.appSection")}</span>
                     <TeamsAppSetup connection={connection} actions={actions} />
                 </div>
             ) : null}

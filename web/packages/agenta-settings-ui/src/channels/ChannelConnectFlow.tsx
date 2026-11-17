@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {richText, useT, createT} from "@agenta/i18n"
 import channelsConnectCatalog from "@agenta/i18n/catalogs/channels.connect"
+import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
@@ -48,12 +49,7 @@ import {platformLogo} from "./icons"
 import {PanelFooter} from "./PanelFooter"
 import {QrCode} from "./qr"
 import {TeamsAppSetup} from "./TeamsAppSetup"
-import {
-    ENTRA_ADMIN_CENTER_URL,
-    TEAMS_APP_STEPS,
-    TEAMS_CONNECT_STEPS,
-    TEAMS_DEVELOPER_PORTAL_URL,
-} from "./teamsSetupCopy"
+import {ENTRA_ADMIN_CENTER_URL, TEAMS_DEVELOPER_PORTAL_URL} from "./teamsSetupCopy"
 import type {
     ChannelConnection,
     ChannelInstallMode,
@@ -325,7 +321,7 @@ export const ChannelConnectFlow = ({
     onConnected,
     pollIntervalMs = 2500,
 }: ChannelConnectFlowProps) => {
-    const t = useT(channelsConnectCatalog, commonCatalog)
+    const t = useT(channelsConnectCatalog, channelsTeamsCatalog, commonCatalog)
     const agentName = agentNameProp ?? t("channels.connect.yourAgent")
     const isSlack = platform === "slack"
     const isTelegram = platform === "telegram"
@@ -954,10 +950,10 @@ export const ChannelConnectFlow = ({
                 </Button>
             )
     } else if (isTeams) {
-        note = "Your bot answers only as this agent. Other bots stay connected."
+        note = t("channels.connect.telegramCustomNote")
         cta = created ? (
             <Button onClick={() => void onConnected()} data-testid="channels-teams-done">
-                Done
+                {t("common.done")}
             </Button>
         ) : (
             <Button
@@ -965,7 +961,7 @@ export const ChannelConnectFlow = ({
                 onClick={() => void submitCustom()}
                 data-testid="channels-connect-custom"
             >
-                {saving ? "Connecting…" : "Connect bot"}
+                {saving ? t("common.connecting") : t("channels.connect.connectBot")}
             </Button>
         )
     } else if (isWhatsApp) {
@@ -1360,8 +1356,8 @@ export const ChannelConnectFlow = ({
                             index={1}
                             total={4}
                             active={!tokenEntered}
-                            title={TEAMS_CONNECT_STEPS.register.title}
-                            body={TEAMS_CONNECT_STEPS.register.body}
+                            title={t("channels.teams.registerTitle")}
+                            body={t("channels.teams.registerBody")}
                         >
                             <div>
                                 <Button variant="outline" size="sm" asChild>
@@ -1371,7 +1367,7 @@ export const ChannelConnectFlow = ({
                                         rel="noreferrer"
                                     >
                                         <ArrowSquareOut data-icon="inline-start" />
-                                        {TEAMS_CONNECT_STEPS.register.link}
+                                        {t("channels.teams.registerLink")}
                                     </a>
                                 </Button>
                             </div>
@@ -1380,15 +1376,15 @@ export const ChannelConnectFlow = ({
                             index={2}
                             total={4}
                             active={false}
-                            title={TEAMS_CONNECT_STEPS.secret.title}
-                            body={TEAMS_CONNECT_STEPS.secret.body}
+                            title={t("channels.teams.secretTitle")}
+                            body={t("channels.teams.secretBody")}
                         />
                         <StepRow
                             index={3}
                             total={4}
                             active={false}
-                            title={TEAMS_CONNECT_STEPS.tenant.title}
-                            body={TEAMS_CONNECT_STEPS.tenant.body}
+                            title={t("channels.teams.tenantTitle")}
+                            body={t("channels.teams.tenantBody")}
                         >
                             <div>
                                 <Button variant="outline" size="sm" asChild>
@@ -1398,7 +1394,7 @@ export const ChannelConnectFlow = ({
                                         rel="noreferrer"
                                     >
                                         <ArrowSquareOut data-icon="inline-start" />
-                                        {TEAMS_CONNECT_STEPS.tenant.link}
+                                        {t("channels.teams.tenantLink")}
                                     </a>
                                 </Button>
                             </div>
@@ -1407,8 +1403,8 @@ export const ChannelConnectFlow = ({
                             index={4}
                             total={4}
                             active={tokenEntered}
-                            title={TEAMS_CONNECT_STEPS.paste.title}
-                            body={TEAMS_CONNECT_STEPS.paste.body}
+                            title={t("channels.teams.pasteTitle")}
+                            body={t("channels.teams.pasteBody")}
                         >
                             {renderFields()}
                             {!setup && !setupLoading ? (
@@ -1421,7 +1417,7 @@ export const ChannelConnectFlow = ({
                                             setSetupAttempt((n) => n + 1)
                                         }}
                                     >
-                                        Try again
+                                        {t("common.tryAgain")}
                                     </Button>
                                 </div>
                             ) : null}
@@ -1442,7 +1438,7 @@ export const ChannelConnectFlow = ({
                             data-testid="channels-teams-connected"
                         >
                             <Check size={14} weight="bold" className="text-colorSuccess" />
-                            {TEAMS_APP_STEPS.connected}
+                            {t("channels.teams.connected")}
                         </div>
                         <TeamsAppSetup connection={created} actions={actions} />
                     </div>
