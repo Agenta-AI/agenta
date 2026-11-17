@@ -1,0 +1,13 @@
+{
+    "titleCreate": "新規作成",
+    "titleSaveAs": "名前を付けて保存",
+    "titleSave": "保存",
+    "missingName": "保存できません：名前または種類がありません",
+    "name": "名前",
+    "namePlaceholder": "名前を入力...",
+    "saveAsNewCopy": "新しいコピーとして保存",
+    "original": "元の名前：<name>{{name}}</name>",
+    "saveFailed": "保存に失敗しました",
+    "saved": "保存しました",
+    "save": "保存"
+}

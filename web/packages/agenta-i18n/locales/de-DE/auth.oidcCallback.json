@@ -1,0 +1,6 @@
+{
+    "backToSignIn": "Zurück zur Anmeldung",
+    "codeUsed": "Dieser Anmeldelink wurde bereits verwendet. Melden Sie sich erneut an.",
+    "securityCheckFailed": "Die Sicherheitsprüfung ist fehlgeschlagen. Versuchen Sie es erneut.",
+    "signedInButAppFailed": "Sie sind angemeldet, aber die App konnte nicht geöffnet werden. Versuchen Sie es erneut."
+}

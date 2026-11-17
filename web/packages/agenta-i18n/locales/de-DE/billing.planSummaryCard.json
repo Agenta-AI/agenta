@@ -1,0 +1,11 @@
+{
+    "cancelSubscription": "Abonnement kündigen",
+    "changePlan": "Tarif ändern",
+    "contactUs": "Kontaktieren Sie uns zu Ihrem Tarif",
+    "creditsAMonth": "{{credits}} Credits pro Monat",
+    "currentPlan": "Aktueller Tarif",
+    "renews": "Verlängert sich am {{date}}",
+    "trialEnded": "Testzeitraum am {{date}} beendet",
+    "trialEnds": "Testzeitraum endet am {{date}}",
+    "upgradePlan": "Tarif upgraden"
+}

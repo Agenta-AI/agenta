@@ -1,0 +1,9 @@
+{
+    "addEmail": "メールアドレスを入力してください。",
+    "checking": "確認中…",
+    "continue": "続行",
+    "emailAddress": "メールアドレス",
+    "emailPlaceholder": "メールアドレスを入力",
+    "somethingWentWrong": "問題が発生しました。もう一度お試しください。",
+    "validEmail": "有効なメールアドレスを入力してください。"
+}

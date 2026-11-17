@@ -1,0 +1,6 @@
+{
+    "audienceNote": "En un agente compartido, todas las personas de {{project}} pueden leer sus conversaciones de {{platform}} en Agenta, incluidos los mensajes directos. En un agente privado, las conversaciones nuevas son privadas para su propietario.",
+    "off": "Desactivado",
+    "offIn": "Desactivado · en {{places}}",
+    "turnOn": "Activar"
+}

@@ -32,6 +32,8 @@ import {
     type TestcaseDataConfig,
     type TestcaseTableRow,
 } from "@agenta/entities/testcase"
+import {useT} from "@agenta/i18n"
+import testcaseCatalog from "@agenta/i18n/catalogs/entityUi.testcase"
 import {CellContentPopover, SmartCellContent, TextCellContent} from "@agenta/ui/cell-renderers"
 import {
     ColumnVisibilityMenuTrigger,
@@ -175,14 +177,15 @@ function TestcaseCellValue({value, popover}: {value: unknown; popover: boolean})
 
 /** The left-edge marker of a row with unsaved edits, or of a new row. */
 function EditedRowMarker({row}: {row: TestcaseTableRow}) {
+    const t = useT(testcaseCatalog)
     const draft = useAtomValue(testcase.atoms.draft(row.id))
     if (!row.__isNew && !draft) return null
     return (
         <span
             className="pointer-events-none absolute inset-0 border-0 border-l-[3px] border-solid border-colorWarning bg-colorWarningBg"
-            title="Unsaved changes"
+            title={t("entityUi.testcase.unsavedChanges")}
         >
-            <span className="sr-only">Unsaved changes</span>
+            <span className="sr-only">{t("entityUi.testcase.unsavedChanges")}</span>
         </span>
     )
 }
@@ -210,6 +213,7 @@ export function TestcaseTable({
     cellPopover = false,
     markEditedRows = false,
 }: TestcaseTableProps) {
+    const t = useT(testcaseCatalog)
     // Testcase-specific row data resolver:
     // All rows (identity-only) look up data from the entity's .data property.
     // Note: This is a fallback - getCellValue is the primary accessor.
@@ -323,7 +327,7 @@ export function TestcaseTable({
             loadNextPage={config.useLocal ? undefined : loadNextPage}
             typeChips={typeChips}
             renderCell={renderCell}
-            emptyMessage="No testcases found"
+            emptyMessage={t("entityUi.testcase.noTestcases")}
         />
     )
 }

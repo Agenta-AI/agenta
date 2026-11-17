@@ -25,6 +25,8 @@ import {
     templateConnections,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import detailCatalog from "@agenta/i18n/catalogs/home.templateDetail"
 import {pageContentWidthClass, pageGutterClass} from "@agenta/ui/components/page-width"
 import {
     EnhancedButton,
@@ -95,6 +97,7 @@ export const TemplateDetail = ({
     layout = "toolbar",
 }: TemplateDetailProps) => {
     // Which shell to BUILD. Declared above the early return, because hooks cannot follow one.
+    const t = useT(detailCatalog)
     const wide = useMediaQuery("(min-width: 1024px)")
     // An absent template only means "unknown key" once the catalogue has loaded; before that it
     // means "not yet", and after a failed read it means "could not tell".
@@ -120,7 +123,7 @@ export const TemplateDetail = ({
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center p-6">
                 <LoadError
-                    title="Could not load this template"
+                    title={t("home.templateDetail.loadError")}
                     onRetry={() => refetchTemplates()}
                 />
             </div>
@@ -130,7 +133,7 @@ export const TemplateDetail = ({
     if (!template) {
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-                <EmptyState image="simple" description="Template not found" />
+                <EmptyState image="simple" description={t("home.templateDetail.notFound")} />
             </div>
         )
     }
@@ -148,7 +151,7 @@ export const TemplateDetail = ({
             className="inline-flex w-fit items-center gap-1 text-xs !text-colorTextSecondary"
         >
             <ArrowLeftIcon size={14} />
-            All templates
+            {t("home.templateDetail.allTemplates")}
         </Link>
     )
 
@@ -180,7 +183,7 @@ export const TemplateDetail = ({
             loading={busy}
             onClick={() => onUseTemplate(template)}
         >
-            Use this template
+            {t("home.templateDetail.use")}
             <ArrowRightIcon size={14} />
         </EnhancedButton>
     )
@@ -188,7 +191,9 @@ export const TemplateDetail = ({
     const providerLabel = (slug: string) => PROVIDERS[slug]?.label ?? slug
     /** "GitHub or GitLab" — the slot named by everything that satisfies it. */
     const slotLabel = (slot: (typeof slots)[number]) =>
-        [slot.primary.slug, ...(slot.alternatives ?? [])].map(providerLabel).join(" or ")
+        [slot.primary.slug, ...(slot.alternatives ?? [])]
+            .map(providerLabel)
+            .reduce((first, second) => t("home.templateDetail.slotOr", {first, second}))
 
     const requiredSlots = slots.filter((slot) => slot.required)
     const optionalSlots = slots.filter((slot) => !slot.required)
@@ -197,7 +202,7 @@ export const TemplateDetail = ({
         <>
             {requiredSlots.length ? (
                 <section className="flex flex-col gap-2">
-                    <SectionLabel>Connections it uses</SectionLabel>
+                    <SectionLabel>{t("home.templateDetail.connectionsUsed")}</SectionLabel>
                     {requiredSlots.map((slot) => (
                         <DetailRow
                             key={slot.primary.slug}
@@ -212,7 +217,7 @@ export const TemplateDetail = ({
 
             {optionalSlots.length ? (
                 <section className="flex flex-col gap-2">
-                    <SectionLabel>Optional connections</SectionLabel>
+                    <SectionLabel>{t("home.templateDetail.optionalConnections")}</SectionLabel>
                     {optionalSlots.map((slot) => (
                         <DetailRow
                             key={slot.primary.slug}
@@ -225,7 +230,7 @@ export const TemplateDetail = ({
 
             {template.triggerDescription ? (
                 <section className="flex flex-col gap-2">
-                    <SectionLabel>Also included</SectionLabel>
+                    <SectionLabel>{t("home.templateDetail.alsoIncluded")}</SectionLabel>
                     <DetailRow
                         icon={
                             <LightningIcon
@@ -234,7 +239,7 @@ export const TemplateDetail = ({
                                 className="shrink-0 text-colorTextTertiary"
                             />
                         }
-                        label="Trigger"
+                        label={t("home.templateDetail.trigger")}
                         detail={template.triggerDescription}
                     />
                 </section>
@@ -250,14 +255,17 @@ export const TemplateDetail = ({
         <div className="flex min-w-0 flex-col gap-6">
             {template.example ? (
                 <section className="flex flex-col gap-2">
-                    <SectionLabel>Example session</SectionLabel>
+                    <SectionLabel>{t("home.templateDetail.exampleSession")}</SectionLabel>
                     <div className="box-border flex flex-col gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4">
                         <span className="w-fit self-end rounded-lg bg-colorFillTertiary px-3 py-1.5 text-sm text-colorText">
                             {template.example.prompt}
                         </span>
 
                         <span className="text-xs text-colorTextTertiary">
-                            {template.name} · {template.example.steps.length} steps
+                            {t("home.templateDetail.exampleSteps", {
+                                name: template.name,
+                                total: template.example.steps.length,
+                            })}
                         </span>
                         <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
                             {template.example.steps.map((step) => (
@@ -295,7 +303,7 @@ export const TemplateDetail = ({
                     </div>
                     {/* Say what it is. */}
                     <span className="text-xs text-colorTextTertiary">
-                        An example of how this template runs — not a recorded session.
+                        {t("home.templateDetail.exampleNote")}
                     </span>
                 </section>
             ) : null}
@@ -307,7 +315,7 @@ export const TemplateDetail = ({
                 )}
             >
                 <section className="flex min-w-0 flex-col gap-2">
-                    <SectionLabel>Instructions · AGENTS.md</SectionLabel>
+                    <SectionLabel>{t("home.templateDetail.instructions")}</SectionLabel>
                     {/* The cap is a desktop concern; a scroller nested in a phone's own scroll is
                         a trap, and the instructions are short enough to read inline there. */}
                     <div className="box-border rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4 lg:max-h-[420px] lg:overflow-auto">
@@ -323,7 +331,7 @@ export const TemplateDetail = ({
 
                 {tools.length ? (
                     <section className="flex min-w-0 flex-col gap-2">
-                        <SectionLabel>Tools it can call</SectionLabel>
+                        <SectionLabel>{t("home.templateDetail.tools")}</SectionLabel>
                         <div className="box-border flex flex-col rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-2">
                             {tools.map((tool) => (
                                 <div
@@ -357,7 +365,7 @@ export const TemplateDetail = ({
                 <div className="box-border flex shrink-0 items-center gap-2 border-x-0 border-b border-t-0 border-solid border-colorBorderSecondary px-3 py-2">
                     <Link
                         href={allTemplatesHref}
-                        aria-label="All templates"
+                        aria-label={t("home.templateDetail.allTemplates")}
                         className="flex size-8 shrink-0 items-center justify-center !text-colorTextSecondary"
                     >
                         <ArrowLeftIcon size={18} />

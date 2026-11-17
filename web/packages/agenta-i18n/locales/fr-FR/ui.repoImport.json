@@ -1,0 +1,5 @@
+{
+    "scanRepository": "Analyser le dépôt",
+    "repositoryUrl": "URL du dépôt",
+    "scanFailed": "L’analyse a échoué. Vérifiez l’URL et que le dépôt est public."
+}

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import triggerSharedCatalog from "@agenta/i18n/catalogs/entityUi.triggerShared"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} from "@agenta/ui/ui"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
@@ -175,13 +177,13 @@ export function RunVersionField({
     revisionAdapter,
     revisionPlaceholder,
     onRevisionSelect,
-    revisionHint = "Runs one exact variant + revision.",
+    revisionHint: revisionHintProp,
     envOptions,
     envLoading,
     environmentSlug,
     onEnvironmentChange,
     envNotFound,
-    envHint = "Follows the revision deployed to an environment.",
+    envHint: envHintProp,
     railWidth = "w-[116px]",
 }: {
     bindMode: RunVersionBindMode
@@ -199,6 +201,9 @@ export function RunVersionField({
     /** Left-rail width (Tailwind class). Override to align with a sibling section's rail. */
     railWidth?: string
 }) {
+    const t = useT(triggerSharedCatalog)
+    const revisionHint = revisionHintProp ?? t("entityUi.triggerShared.revisionHint")
+    const envHint = envHintProp ?? t("entityUi.triggerShared.envHint")
     const revisionPicker = (
         <>
             <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
@@ -217,8 +222,8 @@ export function RunVersionField({
     return (
         <SectionRail
             items={[
-                {value: "revision", label: "Pinned"},
-                {value: "environment", label: "Deployed"},
+                {value: "revision", label: t("entityUi.triggerShared.pinned")},
+                {value: "environment", label: t("entityUi.triggerShared.deployed")},
             ]}
             value={bindMode}
             onChange={(v) => onBindModeChange(v as RunVersionBindMode)}
@@ -236,7 +241,9 @@ export function RunVersionField({
                         onValueChange={(slug) => onEnvironmentChange?.(slug)}
                     >
                         <SelectTrigger className="w-full max-w-prose">
-                            <SelectValue placeholder="Select an environment" />
+                            <SelectValue
+                                placeholder={t("entityUi.triggerShared.selectEnvironment")}
+                            />
                             {envLoading ? <Spinner size="small" /> : null}
                         </SelectTrigger>
                         <SelectContent>
@@ -247,7 +254,7 @@ export function RunVersionField({
                             ))}
                             {(envOptions ?? []).length === 0 && (
                                 <div className="px-3 py-2 text-xs text-[var(--ag-colorTextDescription)]">
-                                    {envNotFound ?? "No data"}
+                                    {envNotFound ?? t("entityUi.triggerShared.noData")}
                                 </div>
                             )}
                         </SelectContent>

@@ -1,0 +1,14 @@
+{
+    "cannotBeUndone": "Esta acción no se puede deshacer.",
+    "dangerZone": "Zona de peligro",
+    "deleteAccount": "Eliminar cuenta",
+    "deleteAccountDescription": "Elimina tu cuenta, todas las organizaciones de las que eres propietario y todos sus espacios de trabajo, proyectos, aplicaciones y datos. Se cerrará tu sesión de inmediato.",
+    "deleteCallout": "Elimina de forma permanente tu cuenta y todas las organizaciones de las que eres propietario, incluidos todos los espacios de trabajo, proyectos, aplicaciones y datos.",
+    "email": "Correo electrónico",
+    "emailHint": "Se usa para iniciar sesión y para las invitaciones a organizaciones.",
+    "profile": "Perfil",
+    "typeToConfirm": "Escribe <code>{{email}}</code> para confirmar:",
+    "username": "Nombre de usuario",
+    "usernameHint": "Cómo apareces en las listas de miembros y en los registros de auditoría.",
+    "yourEmail": "Tu correo electrónico"
+}

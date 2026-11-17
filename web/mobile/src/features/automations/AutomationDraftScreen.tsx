@@ -5,6 +5,8 @@ import {
     AutomationTriggerDrawers,
     useAutomationCreate,
 } from "@agenta/automation-ui"
+import {useT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
@@ -24,6 +26,7 @@ export const AutomationDraftScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const t = useT(automationsScreensCatalog)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
@@ -38,14 +41,17 @@ export const AutomationDraftScreen = ({
 
     return (
         <>
-            <PageTitle title="Automations" context="New automation" />
+            <PageTitle
+                title={t("automations.screens.pageTitle")}
+                context={t("automations.screens.newAutomation")}
+            />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
                         <AutomationScreenHeader
                             workspaceId={workspaceId}
                             projectId={projectId}
-                            title="New automation"
+                            title={t("automations.screens.newAutomation")}
                             backHref={`${base}/automations`}
                         />
                     }
@@ -62,7 +68,7 @@ export const AutomationDraftScreen = ({
                                         variant="outline"
                                         onClick={() => void router.push(`${base}/automations`)}
                                     >
-                                        Cancel
+                                        {t("automations.screens.cancel")}
                                     </Button>
                                     {/* Always pressable. A press with something missing does
                                         not create; it turns the missing fields red, which is
@@ -76,7 +82,7 @@ export const AutomationDraftScreen = ({
                                                 its first run — long enough that a button which
                                                 only greys out reads as broken. */}
                                         {state.saving ? <Spinner data-icon="inline-start" /> : null}
-                                        Create automation
+                                        {t("automations.screens.createAutomation")}
                                     </Button>
                                 </div>
                             }

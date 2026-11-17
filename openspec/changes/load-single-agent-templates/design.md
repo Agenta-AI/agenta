@@ -72,7 +72,7 @@ The loader performs this sequence:
 9. The session input service atomically claims and fingerprints the full first-message invocation. The session start service binds it to deterministic session and execution ids, starts the exact revision, and confirms the durable execution row.
 10. The route returns the same identifiers on a same-key replay.
 
-The detailed file-by-file and test-first sequence is in [the implementation plan](../../../docs/superpowers/plans/2026-09-20-load-single-agent-templates.md).
+The detailed file-by-file and test-first sequence is in [the implementation plan](../../../docs/design/plans/2026-09-20-load-single-agent-templates.md).
 
 ### Keep one agent in the current package contract
 

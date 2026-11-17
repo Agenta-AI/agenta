@@ -1,6 +1,8 @@
 /** The info marker: an explanation behind a hover/focus tooltip, next to whatever it explains. */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import drawerSharedCatalog from "@agenta/i18n/catalogs/entityUi.drawerShared"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Info} from "@phosphor-icons/react"
 
@@ -14,13 +16,14 @@ export function HelpTip({
     children: ReactNode
     side?: "top" | "right" | "bottom" | "left"
 }) {
+    const t = useT(drawerSharedCatalog)
     return (
         <TooltipProvider delayDuration={200}>
             <Tooltip>
                 <TooltipTrigger asChild>
                     <button
                         type="button"
-                        aria-label={`About ${label}`}
+                        aria-label={t("entityUi.drawerShared.about", {label})}
                         className="inline-flex shrink-0 cursor-help items-center justify-center rounded-sm border-0 bg-transparent p-0 leading-none text-colorTextDescription outline-none hover:text-colorTextSecondary focus-visible:text-colorTextSecondary focus-visible:shadow-[0_0_0_2px_var(--ag-controlOutline)]"
                     >
                         <Info className="size-[13px]" aria-hidden="true" />

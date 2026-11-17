@@ -6,23 +6,29 @@
  * a git repo AND the toggle is on, animating open/closed like the file grid.
  */
 import {type RepoInfo} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {AnimatePresence, motion} from "motion/react"
 
 import {MetaRow} from "./fileMeta"
 
 export function DriveRepoMetaList({info, expanded}: {info: RepoInfo; expanded?: boolean}) {
+    const t = useT(drivePreviewCatalog)
     if (!info.isRepo) return null
 
     // Same grid + MetaRow styling as the file metadata block, so the two read as one system.
     const grid = (
         <dl className="grid grid-cols-[4.5rem_1fr] gap-x-4 gap-y-1.5 text-xs">
             <MetaRow
-                label="Branch"
-                value={info.branch ?? (info.detached ? "detached HEAD" : undefined)}
+                label={t("entityUi.drivePreview.branch")}
+                value={
+                    info.branch ??
+                    (info.detached ? t("entityUi.drivePreview.detachedHead") : undefined)
+                }
             />
-            <MetaRow label="Commit" value={info.shortSha ?? undefined} />
+            <MetaRow label={t("entityUi.drivePreview.commit")} value={info.shortSha ?? undefined} />
             <MetaRow
-                label="Remote"
+                label={t("entityUi.drivePreview.remote")}
                 value={
                     info.remote ? (
                         info.remote.href ? (

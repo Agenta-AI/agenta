@@ -7,6 +7,8 @@ import {
     relativeFetchTime,
     type ModelOption,
 } from "@agenta/entities/secret"
+import {richText, useT} from "@agenta/i18n"
+import providerConnectionCatalog from "@agenta/i18n/catalogs/entityUi.providerConnection"
 import {Tag} from "@agenta/ui"
 import {Button, Checkbox, InputAffix} from "@agenta/ui/ui"
 import {ArrowClockwise, MagnifyingGlass, Plus} from "@phosphor-icons/react"
@@ -43,6 +45,7 @@ const ActiveModelsSection = ({
     refetching,
     readOnly = false,
 }: ActiveModelsSectionProps) => {
+    const t = useT(providerConnectionCatalog)
     const [search, setSearch] = useState("")
     const [showAll, setShowAll] = useState(false)
 
@@ -79,10 +82,16 @@ const ActiveModelsSection = ({
         <section className="flex shrink-0 flex-col gap-2">
             <div className="flex shrink-0 items-baseline justify-between gap-2">
                 <span className="font-medium text-colorText">
-                    Active models{" "}
-                    <span className="font-normal text-colorTextTertiary">
-                        — {activeModelsCount(activeCount, options.length)}
-                    </span>
+                    {richText(
+                        t("entityUi.providerConnection.activeModelsSummary", {
+                            summary: activeModelsCount(activeCount, options.length),
+                        }),
+                        {
+                            muted: (text) => (
+                                <span className="font-normal text-colorTextTertiary">{text}</span>
+                            ),
+                        },
+                    )}
                 </span>
                 {readOnly ? null : (
                     <div className="flex items-center gap-2 text-field-sm">
@@ -92,10 +101,10 @@ const ActiveModelsSection = ({
                             className="h-auto px-0"
                             onClick={onSelectAll}
                         >
-                            Select all
+                            {t("entityUi.providerConnection.selectAll")}
                         </Button>
                         <Button variant="link" size="sm" className="h-auto px-0" onClick={onClear}>
-                            Clear
+                            {t("entityUi.providerConnection.clear")}
                         </Button>
                     </div>
                 )}
@@ -106,7 +115,9 @@ const ActiveModelsSection = ({
                     className="shrink-0"
                     placeholder={
                         options.length
-                            ? `Search ${options.length} models or add an ID`
+                            ? t("entityUi.providerConnection.searchModels", {
+                                  total: options.length,
+                              })
                             : manualPlaceholder
                     }
                     prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
@@ -131,10 +142,12 @@ const ActiveModelsSection = ({
                     >
                         <Plus size={14} className="shrink-0 text-colorTextTertiary" />
                         <span className="min-w-0 truncate">
-                            Add <span className="font-mono">{term}</span>
+                            {richText(t("entityUi.providerConnection.addTerm", {term}), {
+                                mono: (text) => <span className="font-mono">{text}</span>,
+                            })}
                         </span>
                         <span className="ml-auto shrink-0 text-field-xs text-colorTextTertiary">
-                            Enter
+                            {t("entityUi.providerConnection.enterKey")}
                         </span>
                     </button>
                 ) : null}
@@ -142,7 +155,7 @@ const ActiveModelsSection = ({
                 {visible.length === 0 ? (
                     canAdd ? null : (
                         <p className="m-0 px-2 py-3 text-colorTextSecondary">
-                            No models yet. Type a model ID above to add it.
+                            {t("entityUi.providerConnection.noModelsYet")}
                         </p>
                     )
                 ) : (
@@ -169,11 +182,15 @@ const ActiveModelsSection = ({
                                 </span>
                                 {option.isDefault ? (
                                     <span className="shrink-0 text-field-xs text-colorTextTertiary">
-                                        Recommended
+                                        {t("entityUi.providerConnection.recommended")}
                                     </span>
                                 ) : null}
                                 {option.unavailable ? (
-                                    <Tag size="small" tone="warning" label="unavailable" />
+                                    <Tag
+                                        size="small"
+                                        tone="warning"
+                                        label={t("entityUi.providerConnection.unavailable")}
+                                    />
                                 ) : null}
                             </label>
                         ))}
@@ -190,7 +207,7 @@ const ActiveModelsSection = ({
                             className="h-auto px-0"
                             onClick={() => setShowAll(true)}
                         >
-                            Show all {matching.length}
+                            {t("entityUi.providerConnection.showAll", {total: matching.length})}
                         </Button>
                     ) : (
                         <span />
@@ -198,7 +215,9 @@ const ActiveModelsSection = ({
                     {fetchedAt ? (
                         <span className="flex items-center gap-1 text-colorTextTertiary">
                             <ArrowClockwise size={13} />
-                            Fetched {relativeFetchTime(fetchedAt)} ·
+                            {t("entityUi.providerConnection.fetched", {
+                                time: relativeFetchTime(fetchedAt),
+                            })}
                             {onRefetch ? (
                                 <Button
                                     variant="link"
@@ -207,7 +226,7 @@ const ActiveModelsSection = ({
                                     onClick={onRefetch}
                                     disabled={refetching}
                                 >
-                                    Re-fetch
+                                    {t("entityUi.providerConnection.refetch")}
                                 </Button>
                             ) : null}
                         </span>

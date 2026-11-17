@@ -1,0 +1,19 @@
+{
+    "authenticationFailed": "La autenticación falló. Inténtalo de nuevo.",
+    "characterN": "Carácter {{number}}",
+    "codeExpired": "Este código ha caducado. Solicita uno nuevo más abajo.",
+    "codeVerified": "Código verificado",
+    "couldNotSendNewCode": "No se pudo enviar un código nuevo. Inténtalo de nuevo.",
+    "enterAllCharacters": "Introduce los 6 caracteres del código.",
+    "incorrectCode_one": "Ese código no es correcto. Queda {{count}} intento.",
+    "incorrectCode_many": "Ese código no es correcto. Quedan {{count}} intentos.",
+    "incorrectCode_other": "Ese código no es correcto. Quedan {{count}} intentos.",
+    "newCodeSent": "Código nuevo enviado.",
+    "oneTimeCode": "Código de un solo uso",
+    "openInbox": "Abre {{inbox}} para encontrar tu código",
+    "resendCode": "Reenviar código",
+    "resendCodeIn": "Reenviar código · {{time}}",
+    "sentTo": "Enviado a {{email}}",
+    "useDifferentEmail": "Usar otro correo electrónico",
+    "verifying": "Verificando…"
+}

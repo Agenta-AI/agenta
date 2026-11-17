@@ -74,46 +74,27 @@
 .auth-preview-ring-dot {
     box-shadow: inset 0 0 0 1.25px var(--ag-colorTextTertiary);
 }
-.auth-preview-pending {
-    box-shadow: inset 0 0 0 1.25px var(--ag-colorBorder);
-}
-.auth-preview-success {
-    color: var(--ag-colorSuccess);
-}
-.auth-preview-success-bg {
-    background-color: var(--ag-colorSuccess);
-}
-.auth-preview-running-bg {
-    background-color: var(--ag-hero-action-bg);
-}
 .auth-preview-cta {
     background-color: var(--ag-colorBgSpotlight);
     color: var(--ag-colorTextLightSolid);
 }
-.auth-preview-feature {
-    background-color: var(--ag-colorFillQuaternary);
-    box-shadow: 0 0 0 1px var(--ag-colorBorderSecondary);
+.auth-preview-row {
+    box-shadow: inset 0 0 0 1px var(--ag-colorSplit);
 }
-.auth-preview-card,
-.auth-preview-tag {
-    background-color: var(--ag-colorBgContainer);
-    box-shadow: 0 0 0 1px var(--ag-colorBorderSecondary);
-}
-.auth-preview-divider {
-    border-top: 1px solid var(--ag-colorSplit);
-}
-/* App logos keep their brand colors, so their tiles stay white in both themes. */
-.auth-preview-app {
-    display: inline-flex;
-    width: 30px;
-    height: 30px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background-color: var(--ag-colorWhite);
+.auth-preview-open {
     box-shadow:
-        0 0 0 1px var(--ag-colorBorderSecondary),
+        inset 0 0 0 1px var(--ag-colorBorderSecondary),
         var(--ag-boxShadowTertiary);
+}
+.auth-preview-line {
+    background-color: var(--ag-colorBorderSecondary);
+}
+.auth-preview-node {
+    background-color: var(--ag-colorBgContainer);
+    box-shadow: inset 0 0 0 1px var(--ag-colorBorderSecondary);
+}
+.auth-preview-tile {
+    background-color: var(--ag-colorFillTertiary);
 }
 
 /* ── Motion ──────────────────────────────────────────────────────────────────
@@ -240,12 +221,6 @@
 }
 .auth-otp-pop {
     animation: auth-pop 0.15s ease both;
-}
-.auth-preview-enter {
-    animation: auth-fade-up 0.4s ease both;
-}
-.auth-preview-check {
-    animation: auth-fade-up 0.25s ease both;
 }
 
 @media (prefers-reduced-motion: reduce) {

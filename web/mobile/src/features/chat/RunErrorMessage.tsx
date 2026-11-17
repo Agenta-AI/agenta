@@ -9,16 +9,17 @@ import {
     STARTER_CREDIT_CODES,
     SUBSCRIPTION_LOGIN_CODES,
 } from "@agenta/chat/components"
-import {
-    AGENT_NEEDS_SETUP_CODE,
-    AGENT_NEEDS_SETUP_TITLE,
-    MODEL_NEEDS_SETUP_MESSAGE,
-} from "@agenta/entities/workflow"
+import {AGENT_NEEDS_SETUP_CODE} from "@agenta/entities/workflow"
+import {agentNeedsSetupTitle, modelNeedsSetupMessage} from "@agenta/entity-ui/needs-setup"
+import {createT} from "@agenta/i18n"
+import chatMobileRunErrorCatalog from "@agenta/i18n/catalogs/chat.mobileRunError"
 import {Coins, CreditCard, Key, SignIn} from "@phosphor-icons/react"
 
 import {proseClassName} from "./AssistantMarkdown"
 import {formatRunError} from "./runError"
 import type {RunErrorRecoveryAction} from "./RunErrorRecovery"
+
+const tNow = createT(chatMobileRunErrorCatalog)
 
 /** Errors the model provider returned itself, worded by the runner or the gateway. */
 const PROVIDER_ERROR_CODES = new Set(["provider_error", "upstream_error", "upstream_rejected"])
@@ -61,9 +62,9 @@ export const describeRunFailure = ({
     // The model needs setup: the banner's words; the banner above the composer is the way out.
     if (code === AGENT_NEEDS_SETUP_CODE) {
         return {
-            paragraphs: [MODEL_NEEDS_SETUP_MESSAGE],
+            paragraphs: [modelNeedsSetupMessage()],
             quote: null,
-            failure: {label: AGENT_NEEDS_SETUP_TITLE, detail: text},
+            failure: {label: agentNeedsSetupTitle(), detail: text},
             recoveries: [],
         }
     }
@@ -89,23 +90,23 @@ export const describeRunFailure = ({
 
     const addKey: RunErrorRecoveryAction = {
         icon: Key,
-        title: "Use your own provider key",
-        description: "OpenAI, Anthropic or another provider.",
-        cta: "Add key",
+        title: tNow("chat.mobileRunError.useOwnKey"),
+        description: tNow("chat.mobileRunError.ownKeyDescription"),
+        cta: tNow("chat.mobileRunError.addKey"),
         target: {kind: "providers"},
     }
     const buyCredits: RunErrorRecoveryAction = {
         icon: Coins,
-        title: "Top up your credits",
-        description: "A credit pack for your organization.",
-        cta: "Buy credits",
+        title: tNow("chat.mobileRunError.topUpCredits"),
+        description: tNow("chat.mobileRunError.creditPackDescription"),
+        cta: tNow("chat.mobileRunError.buyCredits"),
         target: {kind: "buy-credits"},
     }
     const seePlans = (description: string): RunErrorRecoveryAction => ({
         icon: CreditCard,
-        title: "Compare plans",
+        title: tNow("chat.mobileRunError.comparePlans"),
         description,
-        cta: "See plans",
+        cta: tNow("chat.mobileRunError.seePlans"),
         target: {kind: "plans"},
     })
 
@@ -114,33 +115,37 @@ export const describeRunFailure = ({
         if (onSignIn && has(SUBSCRIPTION_LOGIN_CODES)) {
             return {
                 icon: SignIn,
-                title: "Reconnect your subscription",
-                description: "Sign in again or paste a new token.",
-                cta: "Open AI providers",
+                title: tNow("chat.mobileRunError.reconnectSubscription"),
+                description: tNow("chat.mobileRunError.signInAgain"),
+                cta: tNow("chat.mobileRunError.openAiProviders"),
                 target: {kind: "route", onClick: onSignIn},
             }
         }
         if (can.providers && has(OWN_KEY_CODES)) return addKey
         if (can.buyCredits && has(BUY_CREDITS_CODES)) return buyCredits
-        if (can.plans && planLimitTitle(code)) return seePlans("A higher plan raises this limit.")
+        if (can.plans && planLimitTitle(code))
+            return seePlans(tNow("chat.mobileRunError.higherPlanRaises"))
         if (kind === "credits" && provider) {
             return {
                 icon: Coins,
-                title: `Add credits on ${provider.name}`,
-                description: "Top up there, then try again.",
-                cta: `Open ${provider.name}`,
+                title: tNow("chat.mobileRunError.addCreditsOn", {provider: provider.name}),
+                description: tNow("chat.mobileRunError.topUpThere"),
+                cta: tNow("chat.mobileRunError.openProvider", {provider: provider.name}),
                 target: {kind: "external", href: provider.billingUrl},
             }
         }
         if (can.providers && (kind === "credits" || kind === "key")) {
             return {
                 icon: Key,
-                title: "Check your provider key",
+                title: tNow("chat.mobileRunError.checkProviderKey"),
                 description:
                     kind === "credits"
-                        ? "Top up at the provider, or swap the key."
-                        : "Replace the key the provider rejected.",
-                cta: kind === "credits" ? "Open providers" : "Update key",
+                        ? tNow("chat.mobileRunError.topUpAtProvider")
+                        : tNow("chat.mobileRunError.replaceRejectedKey"),
+                cta:
+                    kind === "credits"
+                        ? tNow("chat.mobileRunError.openProviders")
+                        : tNow("chat.mobileRunError.updateKey"),
                 target: {kind: "providers", providerKind: provider?.kind},
             }
         }
@@ -154,15 +159,22 @@ export const describeRunFailure = ({
         const credits = can.buyCredits
             ? buyCredits
             : can.plans
-              ? seePlans("Paid plans include monthly credits.")
+              ? seePlans(tNow("chat.mobileRunError.paidPlansInclude"))
               : null
         const key = can.providers ? addKey : null
-        const more = can.buyCredits ? "Buy more credits" : "Upgrade your plan"
         const remedy =
             credits && key
-                ? `${more}, or add your own provider key to keep going.`
+                ? tNow(
+                      can.buyCredits
+                          ? "chat.mobileRunError.buyMoreAndKey"
+                          : "chat.mobileRunError.upgradeAndKey",
+                  )
                 : credits
-                  ? `${more} to keep going.`
+                  ? tNow(
+                        can.buyCredits
+                            ? "chat.mobileRunError.buyMoreToContinue"
+                            : "chat.mobileRunError.upgradeToContinue",
+                    )
                   : paragraphs.slice(1).join(" ")
         const [lead = ""] = paragraphs[0].split(/(?<=[.!?])\s+/)
         shown = [lead, remedy].filter(Boolean)
@@ -176,7 +188,11 @@ export const describeRunFailure = ({
         paragraphs: shown,
         quote,
         failure: {
-            label: title ?? (notSent ? "Message not sent" : "Run stopped"),
+            label:
+                title ??
+                (notSent
+                    ? tNow("chat.mobileRunError.messageNotSent")
+                    : tNow("chat.mobileRunError.runStopped")),
             detail: raw,
         },
         onRetry: retry ? onRetry : undefined,

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import drawerCatalog from "@agenta/i18n/catalogs/observabilityUi.traceDrawerLoading"
 import {LoadError} from "@agenta/ui/components/presentational"
 import type {DynamicOptionsLoadingProps} from "next/dynamic"
 
@@ -8,11 +10,16 @@ import {SkeletonBlock} from "../primitives/SkeletonBlock"
  * `TraceDrawerContent`, so the content replaces it without a shift. If the code fails to load,
  * it offers a retry instead of loading forever.
  */
-const TraceDrawerContentSkeleton = ({error, retry}: DynamicOptionsLoadingProps) =>
-    error ? (
-        <LoadError title="Couldn't load the trace" onRetry={retry} />
+const TraceDrawerContentSkeleton = ({error, retry}: DynamicOptionsLoadingProps) => {
+    const t = useT(drawerCatalog)
+    return error ? (
+        <LoadError title={t("observabilityUi.traceDrawerLoading.loadFailed")} onRetry={retry} />
     ) : (
-        <div className="h-full w-full flex flex-col" role="status" aria-label="Loading trace">
+        <div
+            className="h-full w-full flex flex-col"
+            role="status"
+            aria-label={t("observabilityUi.traceDrawerLoading.loadingTrace")}
+        >
             <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
                 <SkeletonBlock className="h-6 max-w-[240px]" />
             </div>
@@ -23,5 +30,6 @@ const TraceDrawerContentSkeleton = ({error, retry}: DynamicOptionsLoadingProps) 
             </div>
         </div>
     )
+}
 
 export default TraceDrawerContentSkeleton

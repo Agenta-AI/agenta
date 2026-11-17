@@ -44,6 +44,7 @@ import {
 import {useDraftSave} from "./useDraftSave"
 import type {OnboardingModel} from "./useOnboardingModel"
 import {useOnboardingNav} from "./useOnboardingNav"
+import {useQuestionText} from "./useQuestionText"
 
 export interface OnboardingFlowProps {
     /** The page's own path, `/w/<workspace>/p/<project>/onboarding`; steps hang off it. */
@@ -117,6 +118,7 @@ export const OnboardingFlow = ({
     }, [redirect, canonical, navigate])
 
     const presets = useMotionPresets()
+    const questionText = useQuestionText()
     const [shown, setShown] = useState({step, direction: 1, moved: false})
     if (shown.step !== step) {
         setShown({step, direction: stepIndex(step) > stepIndex(shown.step) ? 1 : -1, moved: true})
@@ -186,8 +188,9 @@ export const OnboardingFlow = ({
         return (
             <OnboardingQuestion
                 headingId={onboardingHeadingId(id)}
-                title={asked.title}
-                subtitle={asked.subtitle}
+                questionId={id}
+                title={questionText.title(id)}
+                subtitle={questionText.subtitle(id)}
                 choices={asked.choices}
                 multiple={asked.multiple}
                 value={draft.answers[id]}

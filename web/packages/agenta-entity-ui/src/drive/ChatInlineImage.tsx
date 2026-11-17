@@ -2,6 +2,8 @@ import {memo, useMemo, useState, type ReactNode} from "react"
 
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {mountFileContentQueryFamily, sessionMountsQueryFamily} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import drivePreviewCatalog from "@agenta/i18n/catalogs/entityUi.drivePreview"
 import {useInView} from "@agenta/shared/hooks"
 import {ArrowsOutSimple, DownloadSimple, Image as ImageIcon} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -55,6 +57,7 @@ function useSvgPreview(file: {mountId: string; path: string}) {
 }
 
 function ChatInlineImageImpl({candidate}: {candidate: string}) {
+    const t = useT(drivePreviewCatalog)
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId()
     const mountsPending = useAtomValue(sessionMountsQueryFamily(sessionId)).isPending
@@ -126,7 +129,7 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
         >
             <button
                 type="button"
-                aria-label={`Expand ${name}`}
+                aria-label={t("entityUi.drivePreview.expandName", {name})}
                 onClick={expand}
                 className="flex min-w-0 max-w-full cursor-zoom-in border-0 bg-transparent p-0"
             >
@@ -150,7 +153,7 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
             <div className={CORNER_ACTION}>
                 <button
                     type="button"
-                    aria-label={`Expand ${name}`}
+                    aria-label={t("entityUi.drivePreview.expandName", {name})}
                     onClick={expand}
                     className={CORNER_BUTTON}
                 >
@@ -158,7 +161,7 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
                 </button>
                 <button
                     type="button"
-                    aria-label={`Download ${name}`}
+                    aria-label={t("entityUi.drivePreview.downloadName", {name})}
                     onClick={() => void download(target.mount, target.path)}
                     className={CORNER_BUTTON}
                 >

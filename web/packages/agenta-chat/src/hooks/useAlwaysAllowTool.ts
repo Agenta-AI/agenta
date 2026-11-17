@@ -8,6 +8,8 @@ import {
     withHarnessToolAllow,
     withToolPermission,
 } from "@agenta/entity-ui/tool-permission"
+import {createT} from "@agenta/i18n"
+import chatSlashCommandsCatalog from "@agenta/i18n/catalogs/chat.slashCommands"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -79,6 +81,8 @@ export function foldPermissions(
  * config pane (mobile) simply have no consumer — the write itself is the behavior. `revoke` is the
  * exact inverse (`"ask"` for tools, `allowed:false` for harness rules).
  */
+const tNow = createT(chatSlashCommandsCatalog)
+
 export function useAlwaysAllowTool(entityId?: string) {
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId ?? ""), [entityId]),
@@ -145,12 +149,12 @@ export function useAlwaysAllowTool(entityId?: string) {
                 origin: "approval-dock",
                 summary:
                     granted.length > 1
-                        ? `Always allow ${granted.length} tools`
-                        : `Always allow ${granted[0]}`,
+                        ? tNow("chat.slashCommands.alwaysAllowMany", {count: granted.length})
+                        : tNow("chat.slashCommands.alwaysAllowOne", {name: granted[0]}),
                 // Friendly display (matches the approval card) — a gateway tool's raw name is a slug.
                 label:
                     granted.length > 1
-                        ? `${granted.length} tools`
+                        ? tNow("chat.slashCommands.toolsCount", {count: granted.length})
                         : resolveToolDisplay(granted[0]).activity.running,
                 toolNames: granted,
                 at: Date.now(),

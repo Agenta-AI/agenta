@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {type SessionExpansion, type SessionStream} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import sessionsStatusCatalog from "@agenta/i18n/catalogs/sessions.status"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
@@ -85,6 +87,7 @@ export const useSessionCardList = ({
     withPinned = false,
     lowPriority = false,
 }: UseSessionCardListArgs) => {
+    const t = useT(sessionsStatusCatalog)
     const [extraRows, setExtraRows] = useState(0)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -178,14 +181,18 @@ export const useSessionCardList = ({
         if (waitingRows.length > 0)
             result.push({
                 key: "waiting",
-                label: "Waiting for your input",
+                label: t("sessions.status.waitingForInput"),
                 rows: waitingRows.map(vm),
             })
         if (pinnedRows.length > 0)
-            result.push({key: "pinned", label: "Pinned", rows: pinnedRows.map(vm)})
+            result.push({
+                key: "pinned",
+                label: t("sessions.status.pinned"),
+                rows: pinnedRows.map(vm),
+            })
         result.push({
             key: "recent",
-            label: grouped && recentRows.length > 0 ? "Recent" : undefined,
+            label: grouped && recentRows.length > 0 ? t("sessions.status.recent") : undefined,
             rows: recentRows.map(vm),
         })
         return {
@@ -204,6 +211,7 @@ export const useSessionCardList = ({
         withPinned,
         pinnedSet,
         pendingBySession,
+        t,
     ])
 
     const canShowMore = !isEmpty && (listRows.length > shownCount || Boolean(listQuery.hasNextPage))

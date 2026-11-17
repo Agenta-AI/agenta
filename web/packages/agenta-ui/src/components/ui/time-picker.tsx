@@ -16,6 +16,8 @@
  */
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Clock} from "@phosphor-icons/react"
 
 import {Button} from "./button"
@@ -119,6 +121,7 @@ function TimePicker({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: TimePickerProps) {
+    const t = useT(uiControlsCatalog)
     const [open, setOpen] = React.useState(false)
     const current = parse(value)
 
@@ -167,14 +170,14 @@ function TimePicker({
             <PopoverContent align="start" className="w-auto p-2">
                 <div className="flex gap-1">
                     <Column
-                        label="Hour"
+                        label={t("ui.controls.hour")}
                         options={hours}
                         selected={current?.hour ?? null}
                         onPick={(hour) => emit({hour})}
                     />
                     <span className="my-1 w-px shrink-0 bg-[var(--ag-colorBorderSecondary)]" />
                     <Column
-                        label="Min"
+                        label={t("ui.controls.minute")}
                         options={minutes}
                         selected={current?.minute ?? null}
                         onPick={(minute) => emit({minute})}

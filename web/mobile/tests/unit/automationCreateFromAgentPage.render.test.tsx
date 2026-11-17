@@ -60,13 +60,18 @@ vi.mock("@agenta/entities/gatewayTrigger", async () => {
         ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/cron")),
         ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/messageInputs")),
         ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/scheduleBuilder")),
+        ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/scheduleText")),
+        ...(await import("../../../packages/agenta-entities/src/gatewayTrigger/core/scheduleText")),
         triggerScheduleDrawerAtom: mocks.scheduleDrawer,
         triggerSubscriptionDrawerAtom: mocks.subscriptionDrawer,
         useTriggerSchedule: () => ({schedule: null, create: mocks.createSchedule}),
         useTriggerSubscription: () => ({subscription: null, create: vi.fn()}),
     }
 })
-vi.mock("@agenta/entity-ui/gatewayTrigger", () => ({buildTriggerReferences: () => ({})}))
+vi.mock("@agenta/entity-ui/gatewayTrigger", async () => ({
+    ...(await import("../../../packages/agenta-entity-ui/src/gatewayTrigger/scheduleText")),
+    buildTriggerReferences: () => ({}),
+}))
 vi.mock("@agenta/ui/app-message", () => ({message: {success: vi.fn(), error: vi.fn()}}))
 vi.mock("@agenta/ui/drawer", () => ({
     EnhancedDrawer: ({children, footer}: {children: ReactNode; footer?: ReactNode}) =>

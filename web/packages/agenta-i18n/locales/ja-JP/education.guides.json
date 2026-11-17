@@ -1,0 +1,21 @@
+{
+    "agentsBody": "仕事の内容を説明し、必要なアプリを接続して、フィードバックで改善します。うまく動いたらチームと共有できます。",
+    "agentsHeadline": "会話しながらエージェントを作る",
+    "agentsHowItWorks": "エージェントの仕組み",
+    "automationsBody": "自動化は、指示しなくてもエージェントを実行します。スケジュールに沿って、または接続したアプリで何かが起きたときに動きます。",
+    "automationsHeadline": "エージェントをバックグラウンドで働かせる",
+    "automationsHowItWorks": "自動化の仕組み",
+    "loadTemplatesError": "テンプレートを読み込めませんでした",
+    "readDocs": "ドキュメントを読む",
+    "sessionsBody": "エージェントとのチャットはそれぞれセッションです。中断したところから再開し、横断して検索し、モデルやツールの呼び出しをすべて確認できます。",
+    "sessionsHeadline": "エージェントとのすべての会話を 1 か所に",
+    "sessionsHowItWorks": "セッションの仕組み",
+    "skillsBody": "AGENTS.md、スキル、MCP サーバーでエージェントを定義します。エージェントのエコシステムにあるスキルや MCP サーバーを Agenta に取り込めます。",
+    "skillsHeadline": "チームの仕事の進め方をエージェントに教える",
+    "skillsHowItWorks": "スキルの仕組み",
+    "startFromTemplate": "テンプレートから始める",
+    "viewAllTemplates": "すべてのテンプレートを見る",
+    "walkthrough": "{{title}}のウォークスルー",
+    "watch": "{{title}}を見る",
+    "watchVideo": "動画を見る"
+}

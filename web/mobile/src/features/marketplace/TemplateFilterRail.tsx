@@ -1,9 +1,16 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import marketplaceCatalog from "@agenta/i18n/catalogs/marketplace.page"
 import {Button, Checkbox} from "@agenta/ui/ui"
 
 import {AppTile} from "./AppTile"
-import type {AppFacet, FacetCount, MarketplaceFilter} from "./marketplaceView"
+import {
+    categoryText,
+    type AppFacet,
+    type FacetCount,
+    type MarketplaceFilter,
+} from "./marketplaceView"
 import {SectionLabel} from "./SectionLabel"
 
 const APPS_SHOWN = 6
@@ -20,6 +27,7 @@ export const TemplateFilterRail = ({
     categories: FacetCount[]
     apps: AppFacet[]
 }) => {
+    const t = useT(marketplaceCatalog)
     const [showAllApps, setShowAllApps] = useState(false)
     // A checked app stays listed even when it falls past the cut.
     const shownApps = showAllApps
@@ -36,7 +44,7 @@ export const TemplateFilterRail = ({
         <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-0.5">
                 <SectionLabel id="template-category-label" className="px-2.5">
-                    Category
+                    {t("marketplace.page.category")}
                 </SectionLabel>
                 <div
                     role="radiogroup"
@@ -55,7 +63,7 @@ export const TemplateFilterRail = ({
                                 onClick={() => onChange({...filter, category: item.value})}
                                 className="w-full justify-between"
                             >
-                                <span className="min-w-0 truncate">{item.label}</span>
+                                <span className="min-w-0 truncate">{categoryText(item.value)}</span>
                                 <span className="text-muted-foreground shrink-0 text-xs">
                                     {item.count}
                                 </span>
@@ -73,7 +81,7 @@ export const TemplateFilterRail = ({
                 >
                     <div className="flex items-center justify-between pr-2.5">
                         <SectionLabel id="template-apps-label" className="px-2.5">
-                            Apps
+                            {t("marketplace.page.apps")}
                         </SectionLabel>
                         {filter.apps.length ? (
                             <Button
@@ -81,7 +89,7 @@ export const TemplateFilterRail = ({
                                 size="xs"
                                 onClick={() => onChange({...filter, apps: []})}
                             >
-                                Clear
+                                {t("marketplace.page.clear")}
                             </Button>
                         ) : null}
                     </div>
@@ -115,7 +123,9 @@ export const TemplateFilterRail = ({
                                 onClick={() => setShowAllApps((value) => !value)}
                                 className="self-start"
                             >
-                                {showAllApps ? "Show fewer" : `Show all ${apps.length}`}
+                                {showAllApps
+                                    ? t("marketplace.page.showFewer")
+                                    : t("marketplace.page.showAll", {count: apps.length})}
                             </Button>
                         ) : null}
                     </div>

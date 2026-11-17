@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {LayoutGrid, List} from "lucide-react"
 
 import {Segmented, type SegmentedOption} from "../components/ui/segmented"
@@ -22,6 +24,7 @@ export const ListTableViewToggle = ({
     onChange: (next: ListTableView) => void
     className?: string
 }) => {
+    const t = useT(commonCatalog)
     const options = useMemo<SegmentedOption[]>(
         () => [
             {value: "list", icon: <List size={14} aria-hidden />, "aria-label": "List"},
@@ -31,7 +34,7 @@ export const ListTableViewToggle = ({
     )
     return (
         <Segmented
-            aria-label="View"
+            aria-label={t("common.view")}
             options={options}
             value={value}
             onChange={(next) => onChange(next as ListTableView)}

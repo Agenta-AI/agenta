@@ -6,6 +6,9 @@
 import type {ComponentType, ReactNode} from "react"
 
 import {readMcpConnectionSlug} from "@agenta/entities/mcpEndpoint"
+import {createT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
+import itemDescriptorsCatalog from "@agenta/i18n/catalogs/entityUi.itemDescriptors"
 import {Compass, HardDrives, Wrench} from "@phosphor-icons/react"
 
 import {McpServerFormView} from "../McpServerFormView"
@@ -25,6 +28,8 @@ import {
     isStaticSkill,
     type ItemDescriptor,
 } from "./itemDescriptors"
+
+const t = createT(configItemsCatalog, itemDescriptorsCatalog)
 
 export type ItemKind = "tool" | "mcp" | "skill"
 
@@ -78,7 +83,9 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         field: "tools",
         icon: <Wrench size={16} />,
         noun: "tool",
-        emptyLabel: "No tools yet",
+        get emptyLabel() {
+            return t("entityUi.configItems.noToolsYet")
+        },
         describe: describeTool,
         FormView: ToolFormView,
         // Only the two-pane parameter editor wants width and its own padding.
@@ -88,7 +95,10 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
             // A subagent's header is the agent's NAME. describeTool would call it a workflow.
             if (isReferenceTool(draft)) return describeSubagent(draft).name
             const name = describeTool(draft).name
-            return name && name !== "Tool" ? name : "New tool"
+            const fn = draft.function as Record<string, unknown> | undefined
+            // An unnamed function tool shows the generic fallback, so it reads as a new one.
+            const unnamedFunction = !!fn && typeof fn === "object" && !fn.name
+            return name && !unnamedFunction ? name : t("entityUi.configItems.newTool")
         },
         // Function, workflow-reference, and gateway ACTION tools (either encoding) have a
         // structured Form. Bare builtin/provider tools (a naked `type`) stay JSON-only, and so
@@ -115,10 +125,13 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         field: "mcps",
         icon: <HardDrives size={16} />,
         noun: "server",
-        emptyLabel: "No MCP servers yet",
+        get emptyLabel() {
+            return t("entityUi.configItems.noMcpServersYet")
+        },
         describe: describeMcp,
         FormView: McpServerFormView,
-        drawerTitle: (draft) => String(draft.name ?? "").trim() || "New MCP server",
+        drawerTitle: (draft) =>
+            String(draft.name ?? "").trim() || t("entityUi.configItems.newMcpServer"),
         jsonOnly: () => false,
         isReadOnly: () => false,
         // An empty reference, not an empty server: the form picks one, it does not author
@@ -141,15 +154,17 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         field: "skills",
         icon: <Compass size={16} />,
         noun: "skill",
-        emptyLabel: "No skills yet",
+        get emptyLabel() {
+            return t("entityUi.configItems.noSkillsYet")
+        },
         describe: describeSkill,
         FormView: DownloadableSkillFormView,
         // Wider than the default 600 — the skill drawer is two-pane (Files + editor).
         drawerWidth: () => 760,
         drawerTitle: (draft) =>
             isEmbedRefSkill(draft)
-                ? "Skill reference"
-                : String(draft.name ?? "").trim() || "New skill",
+                ? t("entityUi.itemDescriptors.skillReference")
+                : String(draft.name ?? "").trim() || t("entityUi.configItems.newSkill"),
         jsonOnly: (draft) => isEmbedRefSkill(draft),
         isReadOnly: (item) => isStaticSkill(item),
         createSeed: () => ({name: "", description: "", body: ""}),

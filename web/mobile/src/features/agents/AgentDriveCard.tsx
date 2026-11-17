@@ -15,6 +15,8 @@ import {
     driveQuickLookAtomFamily,
     sessionFilesPaneOpenAtomFamily,
 } from "@agenta/entity-ui/drive"
+import {useT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {useAtomValue, useStore} from "jotai"
 
 import {useStartBlankSession} from "../chat/useStartBlankSession"
@@ -35,6 +37,7 @@ const fileDetail = (file: MountFile): string | null =>
 
 /** The agent's own drive. Opening a file starts a session with the docked pane on it. */
 export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string}) => {
+    const t = useT(agentsOverview)
     const store = useStore()
     const startBlank = useStartBlankSession(base)
 
@@ -60,17 +63,15 @@ export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string})
 
     return (
         <AgentOverviewCard
-            title="Files"
-            action={mountId ? "Open files" : undefined}
+            title={t("agents.overview.filesTitle")}
+            action={mountId ? t("agents.overview.openFiles") : undefined}
             onAction={() => openDrive(null)}
         >
             {isPending ? (
                 <AgentOverviewCardSkeleton rows={3} />
             ) : rows.length === 0 ? (
                 <p className="m-0 py-2 text-[13px] text-muted-foreground">
-                    {mountId
-                        ? "This agent isn't carrying any files yet."
-                        : "This agent has no drive yet."}
+                    {mountId ? t("agents.overview.filesEmpty") : t("agents.overview.driveEmpty")}
                 </p>
             ) : (
                 rows.map((file) => (

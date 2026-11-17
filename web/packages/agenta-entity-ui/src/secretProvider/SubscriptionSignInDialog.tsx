@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {subscriptionConnectMethod, type ProviderConnection} from "@agenta/entities/secret"
+import {useT} from "@agenta/i18n"
+import subscriptionSignInCatalog from "@agenta/i18n/catalogs/entityUi.subscriptionSignIn"
 import {
     Button,
     Dialog,
@@ -38,6 +40,7 @@ export interface SubscriptionSignInDialogProps {
 }
 
 const CopyCode = ({code}: {code: string}) => {
+    const t = useT(subscriptionSignInCatalog)
     const [copied, setCopied] = useState(false)
     useEffect(() => {
         if (!copied) return
@@ -48,7 +51,7 @@ const CopyCode = ({code}: {code: string}) => {
         <button
             type="button"
             onClick={() => void navigator.clipboard?.writeText(code).then(() => setCopied(true))}
-            aria-label="Copy the sign-in code"
+            aria-label={t("entityUi.subscriptionSignIn.copySignInCode")}
             className="group flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/40 px-4 py-5 transition-colors hover:bg-muted"
         >
             <span className="select-all font-mono text-[26px] font-semibold tracking-[0.25em] text-foreground">
@@ -56,7 +59,9 @@ const CopyCode = ({code}: {code: string}) => {
             </span>
             <span className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-foreground">
                 {copied ? <Check size={14} /> : <Copy size={14} />}
-                {copied ? "Copied" : "Copy"}
+                {copied
+                    ? t("entityUi.subscriptionSignIn.copied")
+                    : t("entityUi.subscriptionSignIn.copy")}
             </span>
         </button>
     )
@@ -72,6 +77,7 @@ const DeviceSignInDialog = ({
     onRemove,
     organization,
 }: SubscriptionSignInDialogProps) => {
+    const t = useT(subscriptionSignInCatalog)
     const signIn = useSubscriptionSignIn({
         provider,
         connection,
@@ -108,7 +114,7 @@ const DeviceSignInDialog = ({
     // The projects of an existing connection save without a sign-in; Done also ends one.
     const saveProjects = draft.changed ? (
         <Button variant="outline" disabled={draft.saving} onClick={() => void draft.apply(close)}>
-            Done
+            {t("entityUi.subscriptionSignIn.done")}
         </Button>
     ) : null
     // A finished sign-in waits on the vault refresh before the connection reads ready.
@@ -126,12 +132,14 @@ const DeviceSignInDialog = ({
                     ) : null}
                     <div className="flex flex-col gap-1">
                         <DialogTitle className="text-base font-medium leading-snug">
-                            {succeeded ? `${name} connected` : `Connect ${name}`}
+                            {succeeded
+                                ? t("entityUi.subscriptionSignIn.nameConnected", {name})
+                                : t("entityUi.subscriptionSignIn.connectName", {name})}
                         </DialogTitle>
                         <DialogDescription className="text-sm text-colorTextDescription">
                             {succeeded
-                                ? statusLine || "Agents can run on this subscription."
-                                : `Sign in with your ${name} subscription to run agents on it.`}
+                                ? statusLine || t("entityUi.subscriptionSignIn.agentsCanRun")
+                                : t("entityUi.subscriptionSignIn.signInWithSubscription", {name})}
                         </DialogDescription>
                     </div>
                 </DialogHeader>
@@ -139,7 +147,10 @@ const DeviceSignInDialog = ({
                 {pending ? (
                     <div className="flex flex-col gap-4">
                         <ol className="m-0 flex list-none flex-col p-0">
-                            <SignInStep index={1} title={`Open ${name}`}>
+                            <SignInStep
+                                index={1}
+                                title={t("entityUi.subscriptionSignIn.openName", {name})}
+                            >
                                 <a
                                     href={pending.verificationUri}
                                     target="_blank"
@@ -150,18 +161,24 @@ const DeviceSignInDialog = ({
                                     <ArrowSquareOut size={12} />
                                 </a>
                             </SignInStep>
-                            <SignInStep index={2} title="Enter this code" last>
+                            <SignInStep
+                                index={2}
+                                title={t("entityUi.subscriptionSignIn.enterThisCode")}
+                                last
+                            >
                                 <CopyCode code={pending.userCode} />
                             </SignInStep>
                         </ol>
                         <div className="flex items-center justify-between gap-3 text-xs">
                             {/* Shimmers while the poll runs; plain text under reduced motion. */}
                             <span className="bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_45%,var(--ag-colorTextQuaternary)_90%)] bg-clip-text text-colorTextSecondary motion-safe:animate-text-shimmer motion-safe:bg-[length:240%_100%] motion-safe:text-transparent">
-                                Waiting for you to sign in
+                                {t("entityUi.subscriptionSignIn.waitingForSignIn")}
                             </span>
                             {pending.expiresAt ? (
                                 <span className="tabular-nums text-muted-foreground">
-                                    Expires in {countdownLabel(pending.expiresAt, now)}
+                                    {t("entityUi.subscriptionSignIn.expiresIn", {
+                                        time: countdownLabel(pending.expiresAt, now),
+                                    })}
                                 </span>
                             ) : null}
                         </div>
@@ -174,7 +191,7 @@ const DeviceSignInDialog = ({
                 ) : succeeded ? (
                     <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-3 text-sm text-colorSuccess">
                         <CheckCircle size={18} weight="fill" />
-                        Ready. Pick a {name} model in any agent.
+                        {t("entityUi.subscriptionSignIn.readyPickModel", {name})}
                     </div>
                 ) : null}
 
@@ -202,7 +219,7 @@ const DeviceSignInDialog = ({
                 {lostPoll && !isReady ? (
                     <p className="m-0 flex items-center gap-1.5 text-xs text-colorWarning">
                         <WarningCircle size={14} />
-                        Agenta lost track of that sign-in. Check {name}, then sign in again.
+                        {t("entityUi.subscriptionSignIn.lostTrack", {name})}
                     </p>
                 ) : null}
                 {error ? (
@@ -225,18 +242,18 @@ const DeviceSignInDialog = ({
                                 onClose()
                             }}
                         >
-                            Remove
+                            {t("entityUi.subscriptionSignIn.remove")}
                         </Button>
                     ) : null}
                     {pending ? (
                         <>
                             <Button variant="outline" onClick={close}>
-                                Cancel
+                                {t("entityUi.subscriptionSignIn.cancel")}
                             </Button>
                             {saveProjects}
                             <Button asChild>
                                 <a href={pending.verificationUri} target="_blank" rel="noreferrer">
-                                    Open {name}
+                                    {t("entityUi.subscriptionSignIn.openName", {name})}
                                     <ArrowSquareOut size={14} />
                                 </a>
                             </Button>
@@ -244,23 +261,27 @@ const DeviceSignInDialog = ({
                     ) : succeeded ? (
                         <>
                             <Button variant="outline" onClick={() => void connect()}>
-                                Sign in again
+                                {t("entityUi.subscriptionSignIn.signInAgain")}
                             </Button>
                             <Button
                                 disabled={draft.saving}
                                 onClick={() => void draft.apply(onClose)}
                             >
-                                Done
+                                {t("entityUi.subscriptionSignIn.done")}
                             </Button>
                         </>
                     ) : (
                         <>
                             <Button variant="outline" onClick={close}>
-                                Cancel
+                                {t("entityUi.subscriptionSignIn.cancel")}
                             </Button>
                             {saveProjects}
                             <Button disabled={starting || settling} onClick={() => void connect()}>
-                                {starting ? "Starting…" : settling ? "Finishing…" : "Try again"}
+                                {starting
+                                    ? t("entityUi.subscriptionSignIn.starting")
+                                    : settling
+                                      ? t("entityUi.subscriptionSignIn.finishing")
+                                      : t("entityUi.subscriptionSignIn.tryAgain")}
                             </Button>
                         </>
                     )}

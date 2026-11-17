@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {cva, type VariantProps} from "class-variance-authority"
 import {CircleAlert, CircleCheck, Info, TriangleAlert, X} from "lucide-react"
 
@@ -76,6 +78,7 @@ export function Alert({
     action,
     ...props
 }: AlertProps) {
+    const t = useT(commonCatalog)
     const resolvedType = type ?? "info"
     const hasDescription = Boolean(description)
     // antd: banner defaults showIcon to true unless explicitly set.
@@ -133,7 +136,7 @@ export function Alert({
                 <button
                     type="button"
                     data-slot="alert-close"
-                    aria-label="Close"
+                    aria-label={t("common.close")}
                     onClick={onClose}
                     className="flex size-4 shrink-0 translate-y-0.5 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-muted-foreground transition-colors hover:text-foreground [&_svg]:size-4"
                 >

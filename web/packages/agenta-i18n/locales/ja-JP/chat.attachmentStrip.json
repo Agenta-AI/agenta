@@ -1,0 +1,6 @@
+{
+    "pause": "{{name}} を一時停止",
+    "play": "{{name}} を再生",
+    "view": "{{name}} を表示",
+    "viewMore_other": "さらに {{count}} 件のファイルを表示"
+}

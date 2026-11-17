@@ -175,8 +175,22 @@ async def watch_event_stream(
     polls rather than lengthening the wait.
     """
     pubsub = pubsub_factory()
+    subscribed = False
     try:
-        await pubsub.subscribe(channel)
+        try:
+            await pubsub.subscribe(channel)
+        except Exception as exc:
+            # The subscriber pool is at its cap, or Redis is down. End the stream
+            # with the reconnect delay so the client retries later; an exception
+            # here would only become an ASGI error and an immediate reconnect.
+            log.warning(
+                "[WATCH] pubsub subscribe failed, stream closed",
+                channel=channel,
+                error=repr(exc),
+            )
+            yield retry_frame(retry_milliseconds)
+            return
+        subscribed = True
         yield retry_frame(retry_milliseconds)
         yield ready_frame()
         poll_seconds = min(heartbeat_seconds, _SHUTDOWN_POLL_SECONDS)
@@ -204,14 +218,17 @@ async def watch_event_stream(
     finally:
         # Two independent attempts: a failing unsubscribe must not skip the close, or the
         # connection outlives the disconnected client.
-        try:
-            await pubsub.unsubscribe(channel)
-        except Exception as exc:  # pragma: no cover — teardown is best-effort
-            log.warning(
-                "[WATCH] pubsub unsubscribe failed",
-                channel=channel,
-                error=repr(exc),
-            )
+        # Unsubscribing a pubsub that never subscribed would take a new connection
+        # from the pool only to send UNSUBSCRIBE; with the pool full it fails.
+        if subscribed:
+            try:
+                await pubsub.unsubscribe(channel)
+            except Exception as exc:  # pragma: no cover — teardown is best-effort
+                log.warning(
+                    "[WATCH] pubsub unsubscribe failed",
+                    channel=channel,
+                    error=repr(exc),
+                )
         try:
             await pubsub.aclose()
         except Exception as exc:  # pragma: no cover — teardown is best-effort

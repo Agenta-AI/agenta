@@ -8,7 +8,11 @@
 import type {ReactNode} from "react"
 
 import type {ChangeSection} from "@agenta/entities/workflow/commitDiff"
+import {createT} from "@agenta/i18n"
+import entityTypesCatalog from "@agenta/i18n/catalogs/entityUi.entityTypes"
 import type {Atom, WritableAtom} from "jotai"
+
+const tEntityTypes = createT(entityTypesCatalog)
 
 // ============================================================================
 // ENTITY TYPES
@@ -412,16 +416,7 @@ export function getEntityTypeLabel(
     count: number,
     casing: LabelCase = "capitalize",
 ): string {
-    const labels: Record<EntityType, [string, string]> = {
-        testset: ["Testset", "Testsets"],
-        revision: ["Revision", "Revisions"],
-        variant: ["Variant", "Variants"],
-        evaluator: ["Evaluator", "Evaluators"],
-        application: ["Application", "Applications"],
-        simpleQueue: ["Annotation queue", "Annotation queues"],
-    }
-
-    const [singular, plural] = labels[type]
-    const label = count === 1 ? singular : plural
+    // English keeps its own rule: singular for exactly one, plural otherwise.
+    const label = tEntityTypes(`entityUi.entityTypes.${type}`, {count: count === 1 ? 1 : 2})
     return casing === "lowercase" ? label.toLowerCase() : label
 }

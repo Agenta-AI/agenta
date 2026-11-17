@@ -3,6 +3,8 @@ import {useCallback, useRef, useState} from "react"
 import {groupAnnotationsByReferenceId, queryAllAnnotations} from "@agenta/entities/annotation/dto"
 import type {Chunk, Transform} from "@agenta/entities/etl"
 import {exportMatchingTraces} from "@agenta/entities/trace/etl"
+import {createT, formatNumber} from "@agenta/i18n"
+import exportCatalog from "@agenta/i18n/catalogs/observabilityUi.export"
 import {
     buildTraceQueryParams,
     createAdaptiveTracePageFetcher,
@@ -55,6 +57,8 @@ interface MetricValue {
     average?: number
     latest?: boolean
 }
+
+const tNow = createT(exportCatalog)
 
 /** Mirrors the cell: booleans read as their latest value, numbers as the average. */
 export const formatEvaluatorMetrics = (
@@ -191,7 +195,7 @@ export const useTracesExport = ({
             writer = await createExportWriter({filename, headers: csvHeaders})
         } catch (error) {
             console.error(error)
-            message.error({content: "Could not start the export.", key: exportKey})
+            message.error({content: tNow("observabilityUi.export.couldNotStart"), key: exportKey})
             return
         }
         if (writer === PICKER_CANCELLED) return
@@ -201,7 +205,7 @@ export const useTracesExport = ({
 
         setIsExporting(true)
         message.loading({
-            content: "Preparing export",
+            content: tNow("observabilityUi.export.preparing"),
             key: exportKey,
             duration: 0,
         })
@@ -224,9 +228,10 @@ export const useTracesExport = ({
             signal: controller.signal,
             onRateLimitPause: (delayMs) => {
                 message.loading({
-                    content:
-                        `Rate limited — pausing for ${Math.ceil(delayMs / 1000)}s` +
-                        ` (exported ${lastRowCount.toLocaleString()} rows so far)`,
+                    content: tNow("observabilityUi.export.rateLimited", {
+                        seconds: Math.ceil(delayMs / 1000),
+                        rows: formatNumber(lastRowCount),
+                    }),
                     key: exportKey,
                     duration: 0,
                 })
@@ -270,7 +275,9 @@ export const useTracesExport = ({
                 onProgress: ({rows}) => {
                     lastRowCount = rows
                     message.loading({
-                        content: `Exporting ${rows.toLocaleString()} rows`,
+                        content: tNow("observabilityUi.export.exporting", {
+                            rows: formatNumber(rows),
+                        }),
                         key: exportKey,
                         duration: 0,
                     })
@@ -283,7 +290,7 @@ export const useTracesExport = ({
 
             if (!rowCount) {
                 message.info({
-                    content: "No traces to export",
+                    content: tNow("observabilityUi.export.nothingToExport"),
                     key: exportKey,
                 })
                 return
@@ -291,13 +298,17 @@ export const useTracesExport = ({
 
             if (limitReached) {
                 message.warning({
-                    content: `Export limit reached. Downloaded first ${rowCount.toLocaleString()} rows.`,
+                    content: tNow("observabilityUi.export.limitReached", {
+                        rows: formatNumber(rowCount),
+                    }),
                     key: exportKey,
                     duration: 5,
                 })
             } else {
                 message.success({
-                    content: `Exported ${rowCount.toLocaleString()} rows`,
+                    content: tNow("observabilityUi.export.exported", {
+                        rows: formatNumber(rowCount),
+                    }),
                     key: exportKey,
                 })
             }
@@ -307,7 +318,7 @@ export const useTracesExport = ({
 
             if ((error as Error).name === "AbortError") {
                 message.info({
-                    content: "Export cancelled",
+                    content: tNow("observabilityUi.export.cancelled"),
                     key: exportKey,
                 })
 
@@ -316,7 +327,7 @@ export const useTracesExport = ({
 
             console.error("Export error:", error)
             message.error({
-                content: "Export failed",
+                content: tNow("observabilityUi.export.failed"),
                 key: exportKey,
             })
         } finally {

@@ -13,6 +13,8 @@ import importPlugin from "eslint-plugin-import"
 import eslintPluginPrettier from "eslint-plugin-prettier/recommended"
 import tseslint from "typescript-eslint"
 
+import {i18nGuardConfigs} from "./eslint-i18n-guard.mjs"
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -208,6 +210,8 @@ const config = [
             ],
         },
     },
+    // Lint runs from each package folder, which is where ESLint resolves `files` from.
+    ...i18nGuardConfigs(process.cwd()),
     {
         ignores: ["**/dist/**", "**/node_modules/**", "**/*.d.ts"],
     },

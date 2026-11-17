@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
 import {executionItemController} from "@agenta/playground"
 import type {ChatMessage, SimpleChatMessage} from "@agenta/playground"
 import {
@@ -20,6 +22,8 @@ export interface UseChatTurnParams {
     entityId: string
     turnId: string
 }
+
+const tNow = createT(chatCatalog)
 
 /**
  * The view model of one chat turn: its run state, the assistant and tool messages, the reply
@@ -71,7 +75,7 @@ export function useChatTurn({entityId, turnId}: UseChatTurnParams) {
         return {
             id: `error-${turnId}-${entityId || "session"}`,
             role: "Error",
-            content: errorMessage ?? "Error",
+            content: errorMessage ?? tNow("playground.chat.errorFallback"),
         }
     }, [lastAssistantMessage, fallbackAssistantMessage, status, turnId, entityId, errorMessage])
 

@@ -1,0 +1,11 @@
+{
+    "aboutHarnesses": "Über Harnesses",
+    "harnessExplainer": "Ein Harness ist die Laufzeitumgebung, die das Modell ausführt – dasselbe Modell kann über mehrere Harnesses verfügbar sein.",
+    "inputLabel": "Eingabe:",
+    "manageProviders": "Modellanbieter verwalten",
+    "models": "Modelle",
+    "outputLabel": "Ausgabe:",
+    "providers": "Anbieter",
+    "selectProvider": "Anbieter auswählen",
+    "via": "über"
+}

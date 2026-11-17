@@ -588,6 +588,9 @@ class WireRunRequest(_WireModel):
     # Session-owned (detached) turn identity: the runner uses these to own the alive lock and
     # persist the transcript independently of any client connection. Omitted on ad-hoc runs.
     turn_id: Optional[str] = Field(default=None, alias="turnId")
+    # turn_id above is the execution id. session_turn_id is the session turn that execution
+    # belongs to; it differs from turn_id only on an approval resume. Omitted otherwise.
+    session_turn_id: Optional[str] = Field(default=None, alias="sessionTurnId")
     project_id: Optional[str] = Field(default=None, alias="projectId")
     # Stable id of the durable continuation command that caused this run. The runner admits one
     # execution per id even when delivery is retried.

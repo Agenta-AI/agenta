@@ -9,6 +9,8 @@
  *
  * Styling uses antd semantic tokens (`--ag-color*`) + the `@agenta/ui` `Tag` only — dark-safe.
  */
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {Tag} from "@agenta/ui/components/presentational"
 
 export interface SchemaTreeProps {
@@ -49,6 +51,7 @@ function childSchema(def: Record<string, unknown>): Record<string, unknown> | nu
 }
 
 function SchemaRows({node, depth}: {node: Record<string, unknown>; depth: number}) {
+    const t = useT(schemaControlsCatalog)
     const props = isRecord(node.properties) ? node.properties : {}
     const required = Array.isArray(node.required) ? (node.required as unknown[]) : []
     const entries = Object.entries(props)
@@ -80,11 +83,11 @@ function SchemaRows({node, depth}: {node: Record<string, unknown>; depth: number
                                     tone="red"
                                     className="m-0 px-1.5 py-0 text-[12px] leading-[18px]"
                                 >
-                                    required
+                                    {t("entityUi.schemaControls.required")}
                                 </Tag>
                             ) : (
                                 <span className="text-[12px] text-[var(--ag-colorTextTertiary)]">
-                                    optional
+                                    {t("entityUi.schemaControls.optional")}
                                 </span>
                             )}
                         </div>
@@ -105,7 +108,8 @@ function SchemaRows({node, depth}: {node: Record<string, unknown>; depth: number
     )
 }
 
-export function SchemaTree({schema, emptyText = "No declared fields", className}: SchemaTreeProps) {
+export function SchemaTree({schema, emptyText, className}: SchemaTreeProps) {
+    const t = useT(schemaControlsCatalog)
     const node = isRecord(schema) ? schema : null
     const props = node && isRecord(node.properties) ? node.properties : {}
     const description = typeof node?.description === "string" ? node.description : ""
@@ -113,7 +117,7 @@ export function SchemaTree({schema, emptyText = "No declared fields", className}
     if (Object.keys(props).length === 0) {
         return (
             <div className={`text-xs text-[var(--ag-colorTextTertiary)] ${className ?? ""}`}>
-                {emptyText}
+                {emptyText ?? t("entityUi.schemaControls.noDeclaredFields")}
             </div>
         )
     }

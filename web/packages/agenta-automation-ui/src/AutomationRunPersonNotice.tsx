@@ -17,6 +17,8 @@ import {
     retrievedWorkflowRevisionFamilyKey,
 } from "@agenta/entities/workflow"
 import {PersonalAccountsCard, personalSetupItems} from "@agenta/entity-ui/onboarding"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {userAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
@@ -26,13 +28,6 @@ import {
     saveChangesRunPerson,
     type PrincipalRefLike,
 } from "./runPersonNotice"
-
-/** Drafts for the owner's text pass. */
-export const RUN_PERSON_COPY = {
-    title: "This automation will run as you",
-    body: "When you save, it runs with your own accounts for the items that use each person's own account.",
-    missing: "Not set up for you yet:",
-} as const
 
 export const AutomationRunPersonNotice = ({
     automation,
@@ -44,6 +39,7 @@ export const AutomationRunPersonNotice = ({
     draftAgentId: string | null
     dirty: boolean
 }) => {
+    const t = useT(automationsEditorCatalog)
     const viewer = useAtomValue(userAtom)
     const principal = (automation.raw as {principal?: PrincipalRefLike | null}).principal
     const changesRunPerson = dirty && saveChangesRunPerson(principal, viewer?.id)
@@ -82,15 +78,15 @@ export const AutomationRunPersonNotice = ({
             className="mt-[30px] flex flex-col gap-1.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] p-3"
         >
             <span className="text-xs font-medium text-[var(--ag-colorText)]">
-                {RUN_PERSON_COPY.title}
+                {t("automations.editor.personTitle")}
             </span>
             <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                {RUN_PERSON_COPY.body}
+                {t("automations.editor.personBody")}
             </span>
             {items.length > 0 && workflowId ? (
                 <>
                     <span className="pt-1 text-xs text-[var(--ag-colorTextSecondary)]">
-                        {RUN_PERSON_COPY.missing}
+                        {t("automations.editor.personMissing")}
                     </span>
                     <PersonalAccountsCard
                         bare
