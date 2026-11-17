@@ -665,10 +665,10 @@ class WorkflowsService:
             visibility=visibility,
         )
 
-    def _static_agent_drive(self, artifact_id: UUID) -> Optional[Tuple[str, str]]:
-        """The slug and name of a static catalog agent's own drive: the first ``drives``
-        entry its catalog configuration lists under ``is_static_agent_drive_slug``, named
-        after the catalog revision. None for any other agent. No read."""
+    def _static_agent_drive_slug(self, artifact_id: UUID) -> Optional[str]:
+        """The slug of a static catalog agent's own drive: the first ``drives`` entry its
+        catalog configuration lists under ``is_static_agent_drive_slug``. None for any
+        other agent. No read."""
         if self.static_catalog is None or not self.static_catalog.is_static_id(
             artifact_id
         ):
@@ -677,7 +677,7 @@ class WorkflowsService:
         if revision is None:
             return None
         drives = (_agent_config(revision.data) or {}).get("drives")
-        slug = next(
+        return next(
             (
                 entry["slug"]
                 for entry in (drives if isinstance(drives, list) else [])
@@ -687,7 +687,6 @@ class WorkflowsService:
             ),
             None,
         )
-        return (slug, revision.name or slug) if slug is not None else None
 
     async def ensure_static_agent_drive(
         self,
@@ -699,8 +698,8 @@ class WorkflowsService:
         """Create the own drive of a static catalog agent at its first run in the
         project, shared with no owner. A static agent is never committed, so the commit
         never creates it. Every later run costs one lookup; any other agent costs none."""
-        drive = self._static_agent_drive(artifact_id)
-        if drive is None:
+        slug = self._static_agent_drive_slug(artifact_id)
+        if slug is None:
             return
         lookup = self._require_mount_lookup()
         if (
@@ -715,13 +714,13 @@ class WorkflowsService:
         )
         if user_id is None:
             return
-        slug, name = drive
         await lookup.create_agent_drive(
             project_id=project_id,
             user_id=user_id,
             artifact_id=str(artifact_id),
             agent_slug=None,
-            agent_name=name,
+            # The drive is named after the agent, as an agent's own drive is.
+            agent_name=self.static_catalog.retrieve_revision(id=artifact_id).name,
             visibility=OWNERLESS_PROJECT_POLICY,
             slug=slug,
         )
