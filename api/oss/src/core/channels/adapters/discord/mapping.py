@@ -333,11 +333,12 @@ def escape_markdown(text: str) -> str:
 # Code (a fenced block, unclosed to the end, or an inline span between equal
 # backtick runs) is skipped; outside it, a Markdown link `[text](target)` or
 # `[text](target "title")`, with one level of nested brackets in the text and
-# of parentheses in the target. Every repeat is bounded, so a long line of
-# unmatched `[` or backticks costs linear time.
+# of parentheses in the target. Every repeat is bounded, and a backtick run
+# is matched whole from its first backtick only (possessive, never shortened),
+# so a long line of unmatched `[` or backticks costs linear time.
 _CODE_OR_LINK = re.compile(
     r"(?P<code>^[ \t]*```[^\n]*(?:\n.*?(?:^[ \t]*```[^\n]*$|\Z)|\Z)"
-    r"|(?P<ticks>`+)[^\n]{1,2000}?(?<!`)(?P=ticks)(?!`))"
+    r"|(?<!`)(?P<ticks>`++)[^\n]{1,2000}?(?<!`)(?P=ticks)(?!`))"
     r"|\[(?P<text>(?:[^\[\]\n]|\[[^\[\]\n]{0,500}\]){1,500})\]"
     r"\((?P<target>(?:[^()\s]|\([^()\s]{0,500}\)){1,2048})"
     r"(?:[ \t]+\"[^\"\n]{0,500}\")?\)",

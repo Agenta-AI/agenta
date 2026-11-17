@@ -311,7 +311,13 @@ def test_unmatched_brackets_and_backticks_stay_fast():
 
     from oss.src.core.channels.adapters.discord.mapping import plain_relative_links
 
-    for text in ("[" * 200_000, "`a" * 100_000, "[a" * 100_000, "[a](" * 50_000):
+    for text in (
+        "[" * 200_000,
+        "x" + "`" * 200_000,
+        "`a" * 100_000,
+        "[a" * 100_000,
+        "[a](" * 50_000,
+    ):
         started = time.monotonic()
         assert plain_relative_links(text) == text
         assert time.monotonic() - started < 2
