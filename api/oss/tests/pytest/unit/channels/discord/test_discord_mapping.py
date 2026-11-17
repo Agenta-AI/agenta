@@ -292,3 +292,26 @@ def test_absolute_links_and_code_keep_their_markdown():
     # an unclosed fence runs to the end, as Discord shows it
     assert plain_relative_links("```\n[o](o.md)") == "```\n[o](o.md)"
     assert plain_relative_links("[mail](mailto:a@example.com)") == "mail"
+
+
+def test_link_forms_and_backtick_runs():
+    from oss.src.core.channels.adapters.discord.mapping import plain_relative_links
+
+    assert plain_relative_links("`` `[a](a.md)` `` and [b](b.md)") == (
+        "`` `[a](a.md)` `` and b"
+    )
+    assert plain_relative_links("[note](notes/a(b).md)") == "note"
+    assert plain_relative_links('[note](note.md "Title")') == "note"
+    assert plain_relative_links("[read [note]](note.md)") == "read [note]"
+    assert plain_relative_links("[d](https://x.io/a(b))") == "[d](https://x.io/a(b))"
+
+
+def test_unmatched_brackets_and_backticks_stay_fast():
+    import time
+
+    from oss.src.core.channels.adapters.discord.mapping import plain_relative_links
+
+    for text in ("[" * 200_000, "`a" * 100_000, "[a" * 100_000, "[a](" * 50_000):
+        started = time.monotonic()
+        assert plain_relative_links(text) == text
+        assert time.monotonic() - started < 2
