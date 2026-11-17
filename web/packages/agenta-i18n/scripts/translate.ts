@@ -30,7 +30,7 @@ import type {Catalog} from "./catalog.ts"
 export const DEFAULT_MODEL = "claude-sonnet-5-5"
 const BATCH_SIZE = 40
 
-/** Translation memory: namespace, then key inside it, then sha256 of the English text. */
+/** Translation memory: namespace, then key inside it, then the short sha256 (first 12 hex characters) of the English text. */
 export type Meta = Record<string, Catalog>
 
 export interface Item {

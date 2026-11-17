@@ -102,8 +102,11 @@ export function samePlaceholders(en: string, translated: string): boolean {
     )
 }
 
+/** Length of the stored source hash: the first 12 hex characters of the sha256 digest. */
+export const HASH_LENGTH = 12
+
 export function sha256(text: string): string {
-    return createHash("sha256").update(text).digest("hex")
+    return createHash("sha256").update(text).digest("hex").slice(0, HASH_LENGTH)
 }
 
 /** Splits "invite_other" into ["invite", "other"]; a non-plural key returns [key, null]. */
