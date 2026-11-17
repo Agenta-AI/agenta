@@ -311,6 +311,27 @@ describe("a command whose runner died (Codex R9-1, accepted with this guard)", (
     expect(running("sleep 31[.]7")).toBe("");
   }, 10_000);
 
+  it("keeps the grace a Stop gives between TERM and KILL", async () => {
+    const base = mkdtempSync(join(tmpdir(), "term-grace-"));
+    const attempt = join(base, "attempt");
+    const ready = join(base, "ready.txt");
+    const saved = join(base, "saved.txt");
+    // The command needs 0.5 s after TERM to save its state. The Stop script waits up to 1 s before KILL.
+    const command = `trap 'sleep 0.5; echo saved > ${saved}; exit 0' TERM; : > ${ready}; sleep 31.9 & wait`;
+    execSync(launchScript(attempt, command, base, join(base, "out.log"), [], 30));
+    for (let i = 0; i < 250 && !existsSync(ready); i += 1) await sleep(20);
+    const pg = Number(readFileSync(join(attempt, "pgid"), "utf8").trim());
+    process.kill(-pg, "SIGTERM");
+    // Without the grace, KILL follows at once and the file never appears.
+    for (let i = 0; i < 150 && !existsSync(saved); i += 1) await sleep(20);
+    expect(existsSync(saved)).toBe(true);
+    try {
+      process.kill(-pg, "SIGKILL");
+    } catch {
+      // The group is already gone.
+    }
+  }, 10_000);
+
   it("lives at most its own timeout, or the tool-call limit, plus a grace the runner's own timeout comes before", () => {
     expect(commandLifetimeSeconds(10, 1_800_000)).toBe(70);
     expect(commandLifetimeSeconds(undefined, 1_800_000)).toBe(1_860);
