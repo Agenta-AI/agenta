@@ -520,8 +520,7 @@ _CONFIG_SCHEMA_REFERENCE = (
     _CONFIG_SCHEMA_INTRO_ORDERED + _CONFIG_SCHEMA_FIELDS + _CONFIG_SCHEMA_COMMIT_ORDERED
 )
 
-# The field chapter alone, for an agent that edits other agents' configurations with its
-# own tools rather than its own with `commit_revision`.
+# The field chapter alone, without the self-edit commit steps.
 AGENT_CONFIG_FIELDS_REFERENCE = (
     "# The agent config, field by field\n" + _CONFIG_SCHEMA_FIELDS
 )

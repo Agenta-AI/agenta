@@ -166,4 +166,4 @@ def test_manage_skill_bundles_the_config_field_reference():
     skills = {skill["name"]: skill for skill in _agent()["skills"]}
     files = {f["path"]: f["content"] for f in skills["manage-project-agents"]["files"]}
 
-    assert files["references/config-fields.md"] == AGENT_CONFIG_FIELDS_REFERENCE
+    assert files["references/config-fields.md"].endswith(AGENT_CONFIG_FIELDS_REFERENCE)

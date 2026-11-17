@@ -74,6 +74,13 @@ someone else. Say that you cannot see it.
 the conversation.
 """
 
+# The field reference speaks to an agent that changes itself.
+_CONFIG_FIELDS_PREFACE = """\
+> In this reference, "you" and "your" mean the agent you create or change, not you. Its \
+`harness` is the one `read_agent_config` returns. Its instructions describe that agent.
+
+"""
+
 MANAGE_PROJECT_AGENTS_SKILL = SkillTemplate(
     name="manage-project-agents",
     description=(
@@ -128,7 +135,7 @@ agent, or change yourself. When the person asks for one of these, say that you c
     files=[
         SkillFile(
             path="references/config-fields.md",
-            content=AGENT_CONFIG_FIELDS_REFERENCE,
+            content=_CONFIG_FIELDS_PREFACE + AGENT_CONFIG_FIELDS_REFERENCE,
         )
     ],
 )
