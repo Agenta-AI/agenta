@@ -1,6 +1,8 @@
 import {useMemo} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 import {AutomationRunRow} from "./AutomationRunRow"
 import {runGroups, type RunGrouping} from "./runListView"
@@ -41,7 +43,9 @@ export const AutomationRunList = ({
     onSelect: (delivery: TriggerDelivery) => void
     onRetry?: () => void
 }) => {
-    const groups = useMemo(() => runGroups(runs, grouping), [grouping, runs])
+    const t = useT(automationsModelCatalog)
+    // The group labels are text, so the groups are cut again when the language changes.
+    const groups = useMemo(() => runGroups(runs, grouping), [grouping, runs, t])
 
     // `ag-scroll-quiet`: the bar stays invisible until the pointer is in the column. A permanent
     // one sat over the times and clipped them to "17:0".

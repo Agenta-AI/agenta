@@ -8,6 +8,8 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
+import {useT} from "@agenta/i18n"
+import schemaControlsCatalog from "@agenta/i18n/catalogs/entityUi.schemaControls"
 import {formatEnumLabel} from "@agenta/shared/utils"
 import {SimpleDropdownSelect} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
@@ -103,11 +105,13 @@ export const EnumSelectControl = memo(function EnumSelectControl({
     description,
     withTooltip = true,
     disabled = false,
-    placeholder = "Select...",
+    placeholder: placeholderProp,
     allowClear = false,
     variant = "select",
     className,
 }: EnumSelectControlProps) {
+    const t = useT(schemaControlsCatalog)
+    const placeholder = placeholderProp ?? t("entityUi.schemaControls.selectPlaceholder")
     // Get options from override or schema
     const options = useMemo(() => {
         if (overrideOptions && overrideOptions.length > 0) {

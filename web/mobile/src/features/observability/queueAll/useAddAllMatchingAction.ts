@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import queueAllCatalog from "@agenta/i18n/catalogs/observability.queueAll"
 import type {Filter, SortResult} from "@agenta/observability"
 import type {AddActionsDropdownProps} from "@agenta/observability-ui"
 import {useRouter} from "next/router"
@@ -33,6 +35,7 @@ export const useAddAllMatchingAction = ({
     traceTabs,
     hasTraces,
 }: Args): AddActionsDropdownProps["queueAllMatchingAction"] => {
+    const t = useT(queueAllCatalog)
     const allowed = useTraceActionAccess(projectId, "edit_evaluation_queues")
     const queuesView = useDeveloperViewEnabled("annotation-queues") === true
     const router = useRouter()
@@ -54,7 +57,7 @@ export const useAddAllMatchingAction = ({
                   void router.push(`/w/${workspaceId}/p/${projectId}/annotations/${queueId}`)
             : undefined
         return {
-            label: "Add all matching filter to queue",
+            label: t("observability.queueAll.actionLabel"),
             disabled: !hasTraces,
             onBeforeOpen: () =>
                 narrowed ||
@@ -85,6 +88,7 @@ export const useAddAllMatchingAction = ({
         queuesView,
         router,
         sort,
+        t,
         traceTabs,
         workspaceId,
     ])

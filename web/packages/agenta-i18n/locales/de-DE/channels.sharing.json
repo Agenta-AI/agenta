@@ -1,0 +1,6 @@
+{
+    "audienceNote": "Bei einem geteilten Agenten kann jede Person in {{project}} dessen {{platform}}-Unterhaltungen in Agenta lesen, auch Direktnachrichten. Bei einem privaten Agenten sind neue Unterhaltungen nur für den Eigentümer sichtbar.",
+    "off": "Aus",
+    "offIn": "Aus · in {{places}}",
+    "turnOn": "Einschalten"
+}

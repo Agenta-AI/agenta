@@ -1,0 +1,16 @@
+{
+    "rateLimitReached": "Rate limit reached",
+    "quotaReached": "You have reached your monthly quota limit. Please try again later or upgrade your plan.",
+    "noTracesFound": "No traces found",
+    "adjustTraces": "Try adjusting your filters or time range to view traces.",
+    "demoAlt": "Observability demo showing trace visualization",
+    "noTracesYet": "No traces yet",
+    "onboardingDescription": "Add a few lines of code to start capturing traces from your LLM application. Monitor latency, token usage, and debug issues with detailed insights.",
+    "setUpTracing": "Set Up Tracing",
+    "learnMore": "Learn More",
+    "noSessionsFound": "No sessions found",
+    "adjustSessions": "Try adjusting your filters or time range to view sessions.",
+    "noSessionsObserved": "No sessions observed",
+    "sessionsDescription": "Sessions allow you to track multi-turn conversations with your LLM application including the intermediate steps.",
+    "gettingStartedSessions": "Getting started with sessions"
+}

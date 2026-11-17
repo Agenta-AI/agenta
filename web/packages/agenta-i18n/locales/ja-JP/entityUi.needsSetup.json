@@ -1,0 +1,12 @@
+{
+    "agentTitle": "このエージェントは設定が必要です",
+    "label": "設定が必要",
+    "modelMessage": "このエージェントを実行するには、先にモデルを設定してください。",
+    "modelPlaceholder": "メッセージを送信するにはモデルを設定してください",
+    "reasonNotAvailable": "利用できなくなりました",
+    "reasonNotChosen": "アカウントが選択されていません",
+    "reasonNotFound": "このプロジェクトに見つかりません",
+    "reasonNotShared": "このプロジェクトと共有されていません",
+    "reasonSignInExpired": "サインインの有効期限が切れました",
+    "reasonTurnedOff": "オフ"
+}

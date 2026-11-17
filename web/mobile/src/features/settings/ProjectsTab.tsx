@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsProjectsTabCatalog from "@agenta/i18n/catalogs/settings.projectsTab"
 import {ProjectsPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -27,6 +30,7 @@ import {useSettingsOrg} from "./useSettingsOrg"
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
 export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const t = useT(commonCatalog, settingsProjectsTabCatalog)
     const router = useRouter()
     const queryClient = useQueryClient()
     const {projects: query} = useSettingsOrg(workspaceId)
@@ -61,10 +65,10 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
             renderCreateDialog={({open, onClose, onSubmit, pending}) => (
                 <NameDialog
                     open={open}
-                    title="New project"
-                    description="Projects group your agents, datasets and deployments."
-                    placeholder="Project name"
-                    submitLabel="Create"
+                    title={t("settings.projectsTab.newTitle")}
+                    description={t("settings.projectsTab.newDescription")}
+                    placeholder={t("settings.projectsTab.namePlaceholder")}
+                    submitLabel={t("common.create")}
                     pending={pending}
                     onClose={onClose}
                     onSubmit={(name) => onSubmit({name})}
@@ -77,17 +81,22 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 >
                     <AlertDialogContent>
                         <AlertDialogHeader>
-                            <AlertDialogTitle>Delete project</AlertDialogTitle>
-                            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                            <AlertDialogTitle>
+                                {t("settings.projectsTab.deleteTitle")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t("common.thisCannotBeUndone")}
+                            </AlertDialogDescription>
                         </AlertDialogHeader>
                         <p className="m-0 text-sm">
-                            Permanently deletes {project?.project_name}, including all of its
-                            agents, datasets and deployments.
+                            {t("settings.projectsTab.deleteBody", {
+                                name: project?.project_name ?? "",
+                            })}
                         </p>
                         <AlertDialogFooter>
                             <AlertDialogCancel asChild>
                                 <Button variant="outline" onClick={onClose} disabled={pending}>
-                                    Cancel
+                                    {t("common.cancel")}
                                 </Button>
                             </AlertDialogCancel>
                             {/* The page closes it once the delete lands. */}
@@ -100,7 +109,9 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                                         onSubmit()
                                     }}
                                 >
-                                    {pending ? "Deleting…" : "Delete project"}
+                                    {pending
+                                        ? t("settings.projectsTab.deleting")
+                                        : t("settings.projectsTab.deleteTitle")}
                                 </Button>
                             </AlertDialogAction>
                         </AlertDialogFooter>

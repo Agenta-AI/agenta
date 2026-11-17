@@ -1,0 +1,23 @@
+{
+    "formatBoolean": "Booléen (vrai/faux)",
+    "formatContinuous": "Continu (plage numérique)",
+    "formatCategorical": "Catégoriel (options prédéfinies)",
+    "enterJsonSchema": "Saisissez le schéma JSON...",
+    "responseFormat": "Format de réponse",
+    "responseFormatTooltip": "Choisissez le format des résultats de l’évaluation",
+    "booleanInfo": "L’évaluateur donnera une réponse vraie (1) ou fausse (0) selon les critères de retour.",
+    "minimum": "Minimum",
+    "minimumTooltip": "La valeur minimale de la plage de score numérique",
+    "maximum": "Maximum",
+    "maximumTooltip": "La valeur maximale de la plage de score numérique",
+    "categories": "Catégories",
+    "categoriesTooltip": "Définissez les valeurs de catégorie possibles pour l’évaluation",
+    "add": "Ajouter",
+    "name": "Nom",
+    "categoryName": "Nom de la catégorie {{number}}",
+    "description": "Description",
+    "categoryDescription": "Description de la catégorie {{number}}",
+    "removeCategory": "Supprimer la catégorie {{number}}",
+    "includeReasoning": "Inclure le raisonnement",
+    "includeReasoningTooltip": "Si cette option est activée, l’évaluateur fournira aussi un commentaire expliquant le score"
+}

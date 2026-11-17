@@ -1,0 +1,14 @@
+{
+    "change": "更改",
+    "completeSecurityCheck": "请完成安全检查。",
+    "continueWith": "使用 {{provider}} 继续",
+    "failureRateLimited": "尝试次数过多。请等待一分钟后重试。",
+    "failureServer": "我们这边的登录服务出现问题。请稍后重试。",
+    "failureUnavailable": "此处不支持密码登录。请使用其他登录方式。",
+    "failureUnknown": "出了点问题。请重试。",
+    "failureUnreachable": "暂时无法连接到 Agenta。请检查网络连接后重试。",
+    "lastUsed": "上次使用",
+    "noMethodsConfigured": "未配置任何身份验证方式",
+    "redirectingTo": "正在跳转到 {{provider}}…",
+    "securityCheckFailed": "安全检查失败。请重试。"
+}

@@ -1,0 +1,11 @@
+{
+    "copyError": "Não foi possível copiar. Selecione a chave acima e copie-a",
+    "copyKey": "Copiar chave",
+    "createError": "Não foi possível criar a chave",
+    "deleteBody": "As requisições assinadas com esta chave deixam de funcionar imediatamente.",
+    "deleteError": "Não foi possível excluir a chave",
+    "deleteTitle": "Excluir chave de API",
+    "revealDescription": "Exibida uma única vez. Não será possível recuperá-la depois que você fechar isto.",
+    "revealTitle": "Salve sua chave de API",
+    "workspacePending": "Seu espaço de trabalho ainda está carregando. Tente novamente em instantes."
+}

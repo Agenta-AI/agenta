@@ -1,0 +1,8 @@
+{
+    "emptyObject": "（空对象）",
+    "emptyArray": "（空数组）",
+    "removeRow": "删除第 {{index}} 行",
+    "addRow": "添加行",
+    "numberPlaceholder": "输入数值",
+    "valuePlaceholder": "输入值"
+}

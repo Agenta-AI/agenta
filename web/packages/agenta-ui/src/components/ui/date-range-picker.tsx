@@ -1,5 +1,8 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {dayjs} from "@agenta/shared/utils/dateTime"
 import {CalendarBlank, X} from "@phosphor-icons/react"
 import {ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight} from "lucide-react"
@@ -108,6 +111,7 @@ export function DateRangeCalendar({
     hideClear = false,
     className,
 }: DateRangeCalendarProps) {
+    const t = useT(listControlsCatalog, commonCatalog)
     const start = React.useMemo(() => fromWire(value.startTime), [value.startTime])
     const end = React.useMemo(() => fromWire(value.endTime), [value.endTime])
     const min = React.useMemo(() => fromWire(minDate), [minDate])
@@ -284,7 +288,7 @@ export function DateRangeCalendar({
                                     type="button"
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Previous year"
+                                    aria-label={t("ui.listControls.previousYear")}
                                     onClick={() => setViewMonth((m) => m.subtract(1, "year"))}
                                 >
                                     <ChevronsLeft className="size-3" />
@@ -293,7 +297,7 @@ export function DateRangeCalendar({
                                     type="button"
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Previous month"
+                                    aria-label={t("ui.listControls.previousMonth")}
                                     onClick={() => setViewMonth((m) => m.subtract(1, "month"))}
                                 >
                                     <ChevronLeft className="size-3" />
@@ -311,7 +315,7 @@ export function DateRangeCalendar({
                                     type="button"
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Next month"
+                                    aria-label={t("ui.listControls.nextMonth")}
                                     onClick={() => setViewMonth((m) => m.add(1, "month"))}
                                 >
                                     <ChevronRight className="size-3" />
@@ -320,7 +324,7 @@ export function DateRangeCalendar({
                                     type="button"
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Next year"
+                                    aria-label={t("ui.listControls.nextYear")}
                                     onClick={() => setViewMonth((m) => m.add(1, "year"))}
                                 >
                                     <ChevronsRight className="size-3" />
@@ -436,7 +440,9 @@ export function DateRangeCalendar({
                                     htmlFor={`${rid}-${side}`}
                                     className="text-field-sm text-muted-foreground"
                                 >
-                                    {side === "start" ? "Start time" : "End time"}
+                                    {side === "start"
+                                        ? t("ui.listControls.startTime")
+                                        : t("ui.listControls.endTime")}
                                 </label>
                                 <input
                                     id={`${rid}-${side}`}
@@ -456,7 +462,9 @@ export function DateRangeCalendar({
             {hideClear ? null : (
                 <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-border pt-2">
                     <span className="text-field-sm text-placeholder">
-                        {awaitingEnd ? "Pick an end date" : "Pick a start date"}
+                        {awaitingEnd
+                            ? t("ui.listControls.pickEndDate")
+                            : t("ui.listControls.pickStartDate")}
                     </span>
                     <Button
                         type="button"
@@ -465,7 +473,7 @@ export function DateRangeCalendar({
                         disabled={!start && !end}
                         onClick={() => emit({})}
                     >
-                        Clear
+                        {t("common.clear")}
                     </Button>
                 </div>
             )}
@@ -498,7 +506,7 @@ export function DateRangePicker({
     value = EMPTY_RANGE,
     onChange,
     format = DISPLAY_FORMAT,
-    placeholder = "Select a date range",
+    placeholder: placeholderProp,
     allowClear = true,
     disabled = false,
     invalid = false,
@@ -516,6 +524,8 @@ export function DateRangePicker({
     "aria-labelledby": ariaLabelledby,
     ...calendarProps
 }: DateRangePickerProps) {
+    const t = useT(listControlsCatalog, commonCatalog)
+    const placeholder = placeholderProp ?? t("ui.listControls.selectDateRange")
     const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
     const open = openProp ?? uncontrolledOpen
 
@@ -610,7 +620,7 @@ export function DateRangePicker({
                                 type="button"
                                 tabIndex={-1}
                                 data-date-range-clear
-                                aria-label="Clear date range"
+                                aria-label={t("ui.listControls.clearDateRange")}
                                 className={cn(
                                     "absolute inset-0 flex cursor-pointer items-center justify-center border-0 bg-transparent p-0 opacity-0 transition-opacity hover:text-foreground",
                                     "group-hover:opacity-100 group-focus-within:opacity-100",
@@ -630,7 +640,7 @@ export function DateRangePicker({
             <PopoverContent
                 align="start"
                 container={container}
-                aria-label={ariaLabel ?? "Date range"}
+                aria-label={ariaLabel ?? t("ui.listControls.dateRange")}
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 className={cn("p-0 font-portal", contentClassName)}
             >

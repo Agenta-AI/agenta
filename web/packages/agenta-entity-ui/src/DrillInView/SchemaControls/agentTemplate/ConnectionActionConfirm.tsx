@@ -1,6 +1,8 @@
 /** Confirms a destructive connection verb (revoke, delete) inside the integration drawer. */
 import {useState} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import integrationDrawerCatalog from "@agenta/i18n/catalogs/entityUi.integrationDrawer"
 import {
     Button,
     Dialog,
@@ -15,16 +17,28 @@ import {
 export type ConnectionAction = "revoke" | "delete"
 
 // Settings' own wording, so the same verb reads the same in both places.
-const COPY: Record<ConnectionAction, {title: string; body: string; confirm: string}> = {
+type IntegrationDrawerKey = CatalogKey<typeof integrationDrawerCatalog>
+
+const COPY: Record<
+    ConnectionAction,
+    {
+        title: IntegrationDrawerKey
+        body: IntegrationDrawerKey
+        confirm: IntegrationDrawerKey
+        failed: IntegrationDrawerKey
+    }
+> = {
     revoke: {
-        title: "Revoke connection",
-        body: "This will mark the connection as invalid. You can refresh it later to reactivate.",
-        confirm: "Revoke",
+        title: "entityUi.integrationDrawer.revokeTitle",
+        body: "entityUi.integrationDrawer.revokeBody",
+        confirm: "entityUi.integrationDrawer.revoke",
+        failed: "entityUi.integrationDrawer.revokeFailed",
     },
     delete: {
-        title: "Delete connection",
-        body: "Are you sure you want to delete this connection? This action is irreversible.",
-        confirm: "Delete",
+        title: "entityUi.integrationDrawer.deleteTitle",
+        body: "entityUi.integrationDrawer.deleteBody",
+        confirm: "entityUi.integrationDrawer.delete",
+        failed: "entityUi.integrationDrawer.deleteFailed",
     },
 }
 
@@ -42,6 +56,7 @@ export function ConnectionActionConfirm({
     onConfirm: () => Promise<void>
     onClose: () => void
 }) {
+    const t = useT(integrationDrawerCatalog)
     const [working, setWorking] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const copy = COPY[action]
@@ -56,10 +71,8 @@ export function ConnectionActionConfirm({
                 className="max-w-[400px]"
             >
                 <DialogHeader>
-                    <DialogTitle>
-                        {copy.title}: {name}
-                    </DialogTitle>
-                    <DialogDescription>{copy.body}</DialogDescription>
+                    <DialogTitle>{t(copy.title, {name})}</DialogTitle>
+                    <DialogDescription>{t(copy.body)}</DialogDescription>
                 </DialogHeader>
                 {error ? (
                     <p role="alert" className="m-0 text-sm text-colorError">
@@ -68,7 +81,7 @@ export function ConnectionActionConfirm({
                 ) : null}
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>
-                        Cancel
+                        {t("entityUi.integrationDrawer.cancel")}
                     </Button>
                     <LoadingButton
                         variant="destructive"
@@ -81,16 +94,13 @@ export function ConnectionActionConfirm({
                                 onClose()
                             } catch (cause) {
                                 // Stays open with the reason, so the user knows nothing changed.
-                                setError(
-                                    (cause as Error)?.message ||
-                                        `Couldn't ${action} this connection.`,
-                                )
+                                setError((cause as Error)?.message || t(copy.failed))
                             } finally {
                                 setWorking(false)
                             }
                         }}
                     >
-                        {copy.confirm}
+                        {t(copy.confirm)}
                     </LoadingButton>
                 </DialogFooter>
             </DialogContent>

@@ -1,0 +1,18 @@
+{
+    "copyId": "Copier l’ID de l’organisation",
+    "copyIdFailed": "Impossible de copier l’ID",
+    "current": "Actuelle",
+    "delete": "Supprimer l’organisation",
+    "emptyDescription": "Une organisation regroupe vos espaces de travail, vos projets et les personnes qui y travaillent.",
+    "emptyTitle": "Aucune organisation pour le moment",
+    "idCopied": "ID de l’organisation copié",
+    "leave": "Quitter l’organisation",
+    "member": "Membre",
+    "newOrganization": "Nouvelle organisation",
+    "organization": "Organisation",
+    "organizationActions": "Actions de l’organisation",
+    "organizationName": "Nom de l’organisation",
+    "owner": "Propriétaire",
+    "switchTo": "Basculer vers cette organisation",
+    "transferOwnership": "Transférer la propriété"
+}

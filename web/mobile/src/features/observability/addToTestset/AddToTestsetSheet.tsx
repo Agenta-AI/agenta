@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import addToTestsetCatalog from "@agenta/i18n/catalogs/observability.addToTestset"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
     Alert,
@@ -39,6 +41,7 @@ export const AddToTestsetSheet = ({
     spanIds: readonly string[]
     onClose: () => void
 }) => {
+    const t = useT(addToTestsetCatalog)
     const form = useAddToTestsetForm({spanIds, onSaved: onClose})
     const [confirming, setConfirming] = useState(false)
     const isNew = form.target?.kind === "new"
@@ -52,20 +55,25 @@ export const AddToTestsetSheet = ({
     const body = () => {
         if (form.status === "loading") return <AddToTestsetSkeleton />
         if (form.status === "error") {
-            return <LoadError title="Couldn't load the selected spans" onRetry={form.retrySpans} />
+            return (
+                <LoadError
+                    title={t("observability.addToTestset.selectedSpansLoadFailed")}
+                    onRetry={form.retrySpans}
+                />
+            )
         }
         return (
             <>
                 {form.spanCount > 1 ? (
                     <p className="text-muted-foreground m-0 text-sm">
-                        {form.spanCount} spans selected
+                        {t("observability.addToTestset.spansSelected", {count: form.spanCount})}
                     </p>
                 ) : null}
                 {form.differentStructure ? (
                     <Alert
                         type="warning"
                         showIcon
-                        message="Some of the selected spans have a different structure than the others."
+                        message={t("observability.addToTestset.differentStructure")}
                     />
                 ) : null}
                 <TestsetTargetField
@@ -98,9 +106,9 @@ export const AddToTestsetSheet = ({
                     </>
                 ) : null}
                 <label className="flex flex-col gap-1 text-sm">
-                    Commit message (optional)
+                    {t("observability.addToTestset.commitMessage")}
                     <Textarea
-                        placeholder="Describe your changes..."
+                        placeholder={t("observability.addToTestset.commitMessagePlaceholder")}
                         maxLength={500}
                         value={form.message}
                         onChange={(event) => form.setMessage(event.target.value)}
@@ -117,44 +125,51 @@ export const AddToTestsetSheet = ({
                 className="w-full max-sm:inset-0 max-sm:rounded-none sm:w-[640px] sm:max-w-[calc(100vw-1rem)]"
             >
                 <SheetHeader>
-                    <SheetTitle>Add to test set</SheetTitle>
+                    <SheetTitle>{t("observability.addToTestset.sheetTitle")}</SheetTitle>
                 </SheetHeader>
                 <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 py-5">
                     {body()}
                 </div>
                 <SheetFooter className="flex-row justify-end gap-2">
                     <Button variant="outline" onClick={onClose} disabled={form.saving}>
-                        Cancel
+                        {t("observability.addToTestset.cancel")}
                     </Button>
                     <LoadingButton
                         loading={form.saving}
                         disabled={!form.canSubmit}
                         onClick={() => (form.needsConfirm ? setConfirming(true) : save())}
                     >
-                        {isNew ? "Create" : "Commit"}
+                        {isNew
+                            ? t("observability.addToTestset.create")
+                            : t("observability.addToTestset.commit")}
                     </LoadingButton>
                 </SheetFooter>
             </SheetContent>
             <AlertDialog open={confirming} onOpenChange={setConfirming}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Add new columns to test set</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {t("observability.addToTestset.confirmTitle")}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            You are about to add new columns to the {testsetName} test set. This
-                            will create a new revision.
+                            {t("observability.addToTestset.confirmDescription", {
+                                name: testsetName,
+                            })}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                        New columns:
+                        {t("observability.addToTestset.newColumns")}
                         {form.newColumns.map((column) => (
                             <Badge key={column}>{column}</Badge>
                         ))}
                     </div>
                     <AlertDialogFooter>
                         <AlertDialogCancel asChild>
-                            <Button variant="outline">Cancel</Button>
+                            <Button variant="outline">
+                                {t("observability.addToTestset.cancel")}
+                            </Button>
                         </AlertDialogCancel>
-                        <Button onClick={save}>Confirm</Button>
+                        <Button onClick={save}>{t("observability.addToTestset.confirm")}</Button>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

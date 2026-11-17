@@ -1,0 +1,9 @@
+{
+    "copyFailed": "No hemos podido copiarlo. Selecciona el secreto de arriba y cópialo",
+    "copySecret": "Copiar secreto",
+    "deleteBody": "Agenta dejará de entregar eventos a {{url}}.",
+    "deleteFailed": "No se ha podido eliminar la suscripción",
+    "deleteTitle": "Eliminar suscripción",
+    "secretDescription": "Solo se muestra una vez. Lo necesitas para verificar que las solicitudes entrantes proceden de Agenta.",
+    "secretTitle": "Guarda el secreto de tu webhook"
+}

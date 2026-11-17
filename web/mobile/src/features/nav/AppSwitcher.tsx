@@ -6,6 +6,8 @@ import {
     workflowDetailQueryAtomFamily,
     type Workflow,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {WorkflowPickerView, type WorkflowPickerEntry} from "@agenta/navigation-ui"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -51,6 +53,7 @@ export const AppSwitcher = ({
     appId: string
     collapsed: boolean
 }) => {
+    const t = useT(navigationCatalog)
     const router = useRouter()
     const [open, setOpenState] = useState(false)
     const [listWanted, setListWanted] = useState(false)
@@ -113,7 +116,7 @@ export const AppSwitcher = ({
             onOpenChange={setOpen}
             entries={entries}
             onSelect={onSelect}
-            ariaLabel="Switch app"
+            ariaLabel={t("navigation.items.switchApp")}
             triggerContent={
                 <AppIdentity
                     name={name}

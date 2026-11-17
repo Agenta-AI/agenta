@@ -1,0 +1,14 @@
+{
+    "agentWaiting": "Agent 正在等你",
+    "cancel": "取消",
+    "checkingHow": "正在检查此工具包的连接方式…",
+    "connect": "连接",
+    "connectFirst": "请先连接 {{label}}",
+    "connectPrompt": "连接 <name>{{name}}</name>，让你的 Agent 使用它的工具",
+    "connecting": "正在连接 {{name}}…请在弹出窗口中完成登录。",
+    "connectionFailed": "连接失败。",
+    "connectionPosition": "第 {{position}} 个连接，共 {{total}} 个",
+    "dismissFailed": "无法忽略这个连接请求。",
+    "notNow": "暂不",
+    "retry": "重试"
+}

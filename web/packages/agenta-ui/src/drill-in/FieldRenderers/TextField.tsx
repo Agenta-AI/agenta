@@ -5,6 +5,10 @@
  * Uses EditorProvider/SharedEditor/FieldHeader from @agenta/ui.
  */
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
+
 import {FieldHeader} from "@agenta/ui/components/presentational"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -21,6 +25,7 @@ export function TextField({
     setValue,
     valueMode,
 }: TextFieldProps) {
+    const t = useT(uiDrillInCatalog, commonCatalog)
     const editorId = `drill-field-${fieldKey}`
     // For null values, use empty string; otherwise get text mode value
     const isNull = dataType === "null" || item.value === null
@@ -48,7 +53,7 @@ export function TextField({
                 id={editorId}
                 initialValue={textValue}
                 handleChange={handleChange}
-                placeholder={`Enter ${item.name}...`}
+                placeholder={t("ui.drillIn.enterField", {name: item.name})}
                 editorType="border"
                 className="overflow-hidden"
                 disableDebounce

@@ -7,11 +7,15 @@
  */
 import {useCallback, useRef, useState} from "react"
 
+import {createT, richText, useT} from "@agenta/i18n"
+import skillFormCatalog from "@agenta/i18n/catalogs/entityUi.skillTemplate"
 import {cn} from "@agenta/ui/styles"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {UploadSimple} from "@phosphor-icons/react"
 
 import {parseSkillFromDataTransfer, parseSkillFromFileList, type ParsedSkill} from "./skillUpload"
+
+const tNow = createT(skillFormCatalog)
 
 export interface SkillUploadZoneProps {
     onParsed: (skill: ParsedSkill) => void
@@ -19,6 +23,7 @@ export interface SkillUploadZoneProps {
 }
 
 export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
+    const t = useT(skillFormCatalog)
     const inputRef = useRef<HTMLInputElement>(null)
     const [over, setOver] = useState(false)
     const [busy, setBusy] = useState(false)
@@ -32,7 +37,7 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
                 const skill = await parse()
                 onParsed(skill)
             } catch {
-                setError("Couldn't read that — drop a skill folder, a .zip, or a .skill file.")
+                setError(tNow("entityUi.skillTemplate.couldNotRead"))
             } finally {
                 setBusy(false)
             }
@@ -69,15 +74,16 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
                 <UploadSimple size={20} className="text-[var(--ag-c-586673)]" />
             )}
             <div className="text-xs text-[var(--ag-c-586673)]">
-                Drag a skill folder, <span className="font-mono">.zip</span>, or{" "}
-                <span className="font-mono">.skill</span> here
+                {richText(t("entityUi.skillTemplate.dragHint"), {
+                    mono: (text) => <span className="font-mono">{text}</span>,
+                })}
             </div>
             <Button
                 variant="outline"
                 onClick={() => inputRef.current?.click()}
                 disabled={disabled || busy}
             >
-                Browse files
+                {t("entityUi.skillTemplate.browseFiles")}
             </Button>
             {error ? <div className="text-xs text-colorError">{error}</div> : null}
             <input

@@ -1,0 +1,15 @@
+{
+    "allowReads": "Allow reads",
+    "alwaysAllowMany": "Always allow {{count}} tools",
+    "alwaysAllowOne": "Always allow {{name}}",
+    "commands": "Commands",
+    "modelDescription": "Switch the model for this agent",
+    "modelSetTo": "Model set to {{label}}",
+    "modelSetToHarness": "Model set to {{label}} · {{harness}}",
+    "newDescription": "Start a fresh session with this agent",
+    "permissionsDescription": "Set what the agent may do before it must ask",
+    "permissionsSetTo": "Permissions set to {{label}}",
+    "skills": "Skills",
+    "tools": "Tools",
+    "toolsCount": "{{count}} tools"
+}

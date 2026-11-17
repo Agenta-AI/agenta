@@ -19,6 +19,8 @@ import {
     type RefObject,
 } from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import toolSelectorCatalog from "@agenta/i18n/catalogs/entityUi.toolSelector"
 import type {GatewayToolsBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
@@ -43,6 +45,8 @@ import {
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, type ToolObj} from "./toolUtils"
+
+const tNow = createT(toolSelectorCatalog)
 
 // ============================================================================
 // TYPES
@@ -423,6 +427,7 @@ function BuiltinToolsPane({
     onAddTool: ToolSelectorPopoverProps["onAddTool"]
     onRemoveBuiltinTool?: ToolSelectorPopoverProps["onRemoveBuiltinTool"]
 }) {
+    const t = useT(toolSelectorCatalog)
     const filteredTools = useMemo(() => {
         const q = rightSearch.trim().toLowerCase()
         if (!q) return provider.tools
@@ -468,8 +473,12 @@ function BuiltinToolsPane({
                 <InputAffix
                     variant="ghost"
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
-                    placeholder={`Search ${provider.providerLabel} tools`}
-                    aria-label={`Search ${provider.providerLabel} tools`}
+                    placeholder={t("entityUi.toolSelector.searchProviderTools", {
+                        provider: provider.providerLabel,
+                    })}
+                    aria-label={t("entityUi.toolSelector.searchProviderTools", {
+                        provider: provider.providerLabel,
+                    })}
                     value={rightSearch}
                     onValueChange={onRightSearchChange}
                     allowClear
@@ -504,7 +513,11 @@ function BuiltinToolsPane({
                     <div className="py-6">
                         <EmptyState
                             image="simple"
-                            description={<span className="text-xs">No tools found</span>}
+                            description={
+                                <span className="text-xs">
+                                    {t("entityUi.toolSelector.noToolsFound")}
+                                </span>
+                            }
                         />
                     </div>
                 )}
@@ -564,6 +577,7 @@ function GatewayActionsPane({
     onRemoveTool?: ToolSelectorPopoverProps["onRemoveTool"]
     showMessage?: (content: string, type?: "success" | "error" | "info") => void
 }) {
+    const t = useT(toolSelectorCatalog)
     const {
         actions,
         total,
@@ -633,7 +647,7 @@ function GatewayActionsPane({
                 })
             } catch (error) {
                 console.error("Failed to add gateway tool action", error)
-                showMessage?.("Failed to load tool action schema", "error")
+                showMessage?.(tNow("entityUi.toolSelector.failedToLoadSchema"), "error")
             } finally {
                 setPendingActionKey(null)
             }
@@ -659,13 +673,15 @@ function GatewayActionsPane({
                 <InputAffix
                     variant="ghost"
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
-                    placeholder="Search actions"
-                    aria-label="Search actions"
+                    placeholder={t("entityUi.toolSelector.searchActions")}
+                    aria-label={t("entityUi.toolSelector.searchActions")}
                     value={rightSearch}
                     onValueChange={onRightSearchChange}
                     allowClear
                 />
-                <div className="mt-1 text-[12px] text-zinc-400">{total} actions</div>
+                <div className="mt-1 text-[12px] text-zinc-400">
+                    {t("entityUi.toolSelector.actionCount", {count: total})}
+                </div>
             </div>
 
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-1">
@@ -677,7 +693,11 @@ function GatewayActionsPane({
                     <div className="py-6">
                         <EmptyState
                             image="simple"
-                            description={<span className="text-xs">No actions found</span>}
+                            description={
+                                <span className="text-xs">
+                                    {t("entityUi.toolSelector.noActionsFound")}
+                                </span>
+                            }
                         />
                     </div>
                 ) : (
@@ -767,6 +787,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     defaultOpen,
     container,
 }: ToolSelectorPopoverProps) {
+    const t = useT(toolSelectorCatalog)
     const {showMessage, gatewayTools: gatewayToolsFromContext, workflowReference} = useDrillInUI()
 
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
@@ -861,15 +882,18 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                         value={leftSearch}
                         onValueChange={setLeftSearch}
                         prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
-                        placeholder="Search integrations"
-                        aria-label="Search integrations"
+                        placeholder={t("entityUi.toolSelector.searchIntegrations")}
+                        aria-label={t("entityUi.toolSelector.searchIntegrations")}
                         allowClear
                     />
                 </div>
 
                 <div className="flex-1 min-h-0 overflow-y-auto p-1 flex flex-col gap-1">
                     <div>
-                        <SectionHeader icon={<Sparkle size={12} />} title="Built-in tools" />
+                        <SectionHeader
+                            icon={<Sparkle size={12} />}
+                            title={t("entityUi.toolSelector.builtInTools")}
+                        />
                         <div className="flex flex-col gap-0.5">
                             {builtinProviderGroups.map((group) => (
                                 <HoverableRow
@@ -902,7 +926,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
 
                             {builtinProviderGroups.length === 0 && (
                                 <div className="px-2 py-2 text-xs text-zinc-400">
-                                    No built-in matches
+                                    {t("entityUi.toolSelector.noBuiltInMatches")}
                                 </div>
                             )}
                         </div>
@@ -912,12 +936,12 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                         <div>
                             <SectionHeader
                                 icon={<Plus size={12} />}
-                                title="Third-party tools"
+                                title={t("entityUi.toolSelector.thirdPartyTools")}
                                 right={
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        aria-label="Browse third-party tools"
+                                        aria-label={t("entityUi.toolSelector.browseThirdParty")}
                                         onClick={handleOpenCatalog}
                                         className="h-5"
                                     >
@@ -933,7 +957,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                     </div>
                                 ) : gatewayConnections.length === 0 ? (
                                     <div className="px-2 py-2 text-xs text-zinc-400">
-                                        No connected tools
+                                        {t("entityUi.toolSelector.noConnectedTools")}
                                     </div>
                                 ) : (
                                     gatewayConnections.map((connection) => {
@@ -985,12 +1009,12 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                     <div>
                         <SectionHeader
                             icon={<Code size={12} />}
-                            title="Custom tools"
+                            title={t("entityUi.toolSelector.customTools")}
                             right={
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Create in-line function tool"
+                                    aria-label={t("entityUi.toolSelector.createInlineTool")}
                                     onClick={handleCreateInline}
                                     className="h-5"
                                 >
@@ -999,7 +1023,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                             }
                         />
                         <div className="px-2 pb-1 text-xs text-zinc-400">
-                            Create in-line function tool
+                            {t("entityUi.toolSelector.createInlineTool")}
                         </div>
                     </div>
 
@@ -1007,12 +1031,12 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                         <div>
                             <SectionHeader
                                 icon={<GraphIcon size={12} />}
-                                title="Reference a workflow"
+                                title={t("entityUi.toolSelector.referenceWorkflow")}
                                 right={
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        aria-label="Reference a workflow"
+                                        aria-label={t("entityUi.toolSelector.referenceWorkflow")}
                                         onClick={handleOpenReferenceSelector}
                                         className="h-5"
                                     >
@@ -1021,7 +1045,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                 }
                             />
                             <div className="px-2 pb-1 text-xs text-zinc-400">
-                                Run a workflow as a tool
+                                {t("entityUi.toolSelector.runWorkflowAsTool")}
                             </div>
                         </div>
                     )}
@@ -1052,7 +1076,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 ) : (
                     <div className="h-full flex items-center justify-center px-4 text-center">
                         <span className="text-xs text-colorTextDescription">
-                            Hover a provider or connected integration to browse tools.
+                            {t("entityUi.toolSelector.hoverToBrowse")}
                         </span>
                     </div>
                 )}
@@ -1078,7 +1102,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 {trigger ?? (
                     <Button variant="outline" size="sm" disabled={disabled}>
                         <Plus size={14} />
-                        Tool
+                        {t("entityUi.toolSelector.tool")}
                     </Button>
                 )}
             </PopoverTrigger>
@@ -1088,7 +1112,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 container={container}
                 side="bottom"
                 align="start"
-                aria-label="Add a tool"
+                aria-label={t("entityUi.toolSelector.addTool")}
                 className="w-auto rounded-none border-0 bg-transparent p-0 shadow-none"
             >
                 {content}

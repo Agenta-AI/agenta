@@ -1,5 +1,8 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
     CalendarBlank,
@@ -40,28 +43,33 @@ export const AutomationRunFilterMenu = ({
     view: RunListView
     onChange: (view: RunListView) => void
 }) => {
+    const t = useT(automationsEditorCatalog, automationsModelCatalog)
     const sections = useMemo<FilterMenuSection[]>(
         () => [
             {
                 key: "status",
-                label: "Status",
+                label: t("automations.editor.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: view.status,
                 options: [
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("automations.editor.filterAll"),
+                        icon: <SquaresFour size={ICON} />,
+                    },
                     {
                         value: "ok",
-                        label: "Succeeded",
+                        label: t("automations.model.outcomeSucceeded"),
                         icon: <CheckCircle size={ICON} className="text-success" />,
                     },
                     {
                         value: "bad",
-                        label: "Failed",
+                        label: t("automations.model.outcomeFailed"),
                         icon: <WarningCircle size={ICON} className="text-destructive" />,
                     },
                     {
                         value: "pending",
-                        label: "Running",
+                        label: t("automations.model.outcomeRunning"),
                         icon: <Circle size={ICON} className="text-muted-foreground" />,
                     },
                 ],
@@ -69,37 +77,65 @@ export const AutomationRunFilterMenu = ({
             },
             {
                 key: "type",
-                label: "Type",
+                label: t("automations.editor.filterType"),
                 icon: <Lightning size={ICON} />,
                 value: view.type,
                 options: [
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("automations.editor.filterAll"),
+                        icon: <SquaresFour size={ICON} />,
+                    },
                     {
                         value: "scheduled",
-                        label: "Scheduled",
+                        label: t("automations.model.runTypeScheduled"),
                         icon: <ClockClockwise size={ICON} />,
                     },
-                    {value: "event", label: "Event", icon: <Lightning size={ICON} />},
-                    {value: "test", label: "Test run", icon: <Flask size={ICON} />},
+                    {
+                        value: "event",
+                        label: t("automations.model.runTypeEvent"),
+                        icon: <Lightning size={ICON} />,
+                    },
+                    {
+                        value: "test",
+                        label: t("automations.model.runTest"),
+                        icon: <Flask size={ICON} />,
+                    },
                 ],
                 onChange: (next) => onChange({...view, type: next as RunTypeFilter}),
             },
             {
                 key: "group",
-                label: "Group by",
+                label: t("automations.editor.filterGroupBy"),
                 icon: <Rows size={ICON} />,
                 block: "sort",
                 value: view.group,
                 options: [
-                    {value: "day", label: "Day", icon: <CalendarBlank size={ICON} />},
-                    {value: "status", label: "Status", icon: <Waveform size={ICON} />},
-                    {value: "type", label: "Type", icon: <Lightning size={ICON} />},
-                    {value: "none", label: "None", icon: <Minus size={ICON} />},
+                    {
+                        value: "day",
+                        label: t("automations.editor.groupDay"),
+                        icon: <CalendarBlank size={ICON} />,
+                    },
+                    {
+                        value: "status",
+                        label: t("automations.editor.filterStatus"),
+                        icon: <Waveform size={ICON} />,
+                    },
+                    {
+                        value: "type",
+                        label: t("automations.editor.filterType"),
+                        icon: <Lightning size={ICON} />,
+                    },
+                    {
+                        value: "none",
+                        label: t("automations.editor.groupNone"),
+                        icon: <Minus size={ICON} />,
+                    },
                 ],
                 onChange: (next) => onChange({...view, group: next as RunGrouping}),
             },
         ],
-        [onChange, view],
+        [onChange, t, view],
     )
 
     return (
@@ -109,7 +145,7 @@ export const AutomationRunFilterMenu = ({
             // does not hang off the rule beside it. The flyouts keep their default side —
             // Radix flips them when the column leaves no room.
             align="end"
-            searchPlaceholder="Search filters and group…"
+            searchPlaceholder={t("automations.editor.searchFilters")}
             label={null}
             size="sm"
             // Ghost: it sits beside a heading rather than in a toolbar, and a bordered box

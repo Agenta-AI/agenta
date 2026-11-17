@@ -5,6 +5,8 @@
  * Uses `commitModalActionLabelAtom` for the action word (e.g., "Commit" or "Create").
  */
 
+import {richText, useT} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {useAtomValue} from "jotai"
 
 import {
@@ -25,20 +27,25 @@ export function EntityCommitTitle() {
     const entityName = useAtomValue(commitModalEntityNameAtom)
     const originalEntityName = useAtomValue(commitModalOriginalEntityNameAtom)
     const actionLabel = useAtomValue(commitModalActionLabelAtom)
+    const t = useT(commitModalCatalog)
+    // "Commit" is the default action word; a host's own word is shown as it is.
+    const action = actionLabel === "Commit" ? t("entityUi.commitModal.commit") : actionLabel
+    const bold = {b: (text: string) => <span className="font-semibold">{text}</span>}
 
     if (!entity) {
-        return (
-            <span>
-                {actionLabel} <span className="font-semibold">Changes</span>
-            </span>
-        )
+        return <span>{richText(t("entityUi.commitModal.titleChanges", {action}), bold)}</span>
     }
 
     const displayName = actionLabel === "Commit" ? originalEntityName : entityName
 
     return (
         <span>
-            {actionLabel} <span className="font-semibold">{displayName || "Changes"}</span>
+            {richText(
+                displayName
+                    ? t("entityUi.commitModal.titleName", {action, name: displayName})
+                    : t("entityUi.commitModal.titleChanges", {action}),
+                bold,
+            )}
         </span>
     )
 }

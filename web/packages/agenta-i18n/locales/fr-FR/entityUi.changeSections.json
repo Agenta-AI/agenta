@@ -1,0 +1,9 @@
+{
+    "showMore_one": "Afficher {{count}} de plus",
+    "showMore_many": "Afficher {{count}} de plus",
+    "showMore_other": "Afficher {{count}} de plus",
+    "viewFullDiff": "Voir toutes les différences",
+    "lineCount_one": "{{count}} ligne",
+    "lineCount_many": "{{count}} lignes",
+    "lineCount_other": "{{count}} lignes"
+}

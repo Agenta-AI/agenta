@@ -1,0 +1,16 @@
+{
+    "toolsCount_one": "{{count}} outil",
+    "toolsCount_many": "{{count}} outils",
+    "toolsCount_other": "{{count}} outils",
+    "skillsCount_one": "{{count}} skill",
+    "skillsCount_many": "{{count}} skills",
+    "skillsCount_other": "{{count}} skills",
+    "toolsAndSkills": "{{tools}} · {{skills}}",
+    "agent": "Agent",
+    "tomorrowAt": "demain {{time}}",
+    "unassignedAgent": "Agent non attribué",
+    "eventAutomation": "Automatisation par événement",
+    "onEvent": "sur événement",
+    "firesOn": "Se déclenche sur {{eventKey}}",
+    "firesWhenEventArrives": "Se déclenche à l’arrivée de son événement"
+}

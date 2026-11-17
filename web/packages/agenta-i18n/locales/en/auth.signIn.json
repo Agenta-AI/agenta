@@ -1,0 +1,21 @@
+{
+    "codeHeading": "Check your inbox",
+    "codeSubheading": "Enter the 6-character code we sent to your email.",
+    "continueWithSso": "Continue with SSO ({{provider}})",
+    "headingNew": "Welcome to Agenta",
+    "headingReturning": "Welcome back",
+    "noAuthMethods": "No sign-in method is enabled on this deployment. Contact your administrator.",
+    "noMethodForEmail": "This email has no sign-in method here. Try another address.",
+    "otpHeading": "Get a sign-in code",
+    "otpSubheading": "We will email a one-time code to this address.",
+    "passwordHeading": "Enter your password",
+    "passwordSubheading": "New to Agenta? The password you choose here creates your account.",
+    "providerUnreachable": "Could not reach that provider. Try again.",
+    "redirectingTo": "Redirecting to {{provider}}…",
+    "signedInButAppFailed": "Signed in, but the app could not open. Try again.",
+    "ssoHeading": "Sign in with SSO",
+    "ssoSubheading": "Your organization manages sign-in for this email.",
+    "subheadingNew": "Sign in or create an account.",
+    "subheadingReturning": "Sign in to continue to your workspace.",
+    "termsNotice": "By continuing, you agree to Agenta's <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>."
+}

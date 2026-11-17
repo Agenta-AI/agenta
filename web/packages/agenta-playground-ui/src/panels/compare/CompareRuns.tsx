@@ -1,6 +1,8 @@
 import {useMemo, type ReactNode} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {executionController, executionItemController} from "@agenta/playground"
 import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
@@ -24,6 +26,7 @@ export interface CompareRunsProps {
  * turn (chat). The first revision's prompt decides the variable syntax, as in the single view.
  */
 export const CompareRuns = ({revisionIds, renderTraceFooter}: CompareRunsProps) => {
+    const t = useT(panelsCatalog)
     const isChat = useAtomValue(executionController.selectors.isChatMode)
     const rowIds = useAtomValue(executionItemController.selectors.executionRowIds) as string[]
     const addRow = useSetAtom(executionItemController.actions.addRow)
@@ -67,7 +70,7 @@ export const CompareRuns = ({revisionIds, renderTraceFooter}: CompareRunsProps) 
                 <div className={`${LEAD_COLUMN} border-r-0 bg-transparent px-3 py-3`}>
                     <Button variant="outline" size="sm" onClick={() => addRow()}>
                         <Plus />
-                        Test case
+                        {t("playground.panels.testCase")}
                     </Button>
                 </div>
             )}

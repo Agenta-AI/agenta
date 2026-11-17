@@ -1,0 +1,21 @@
+{
+    "policySummary": "Politique · {{policy}}",
+    "unsavedGroupChanges": "Ce groupe contient des modifications non enregistrées.",
+    "selectModel": "Sélectionnez un modèle…",
+    "sandboxSummary": "Bac à sable : {{kind}}",
+    "sandbox": "Bac à sable",
+    "policy": "Politique",
+    "attachedCount_one": "{{count}} associé",
+    "attachedCount_many": "{{count}} associés",
+    "attachedCount_other": "{{count}} associés",
+    "noneAttached": "Aucun associé",
+    "executionEnvironment": "Environnement d’exécution",
+    "executionCaptionShort": "Où s’exécutent les outils et le code de l’agent.",
+    "customSecrets": "Secrets personnalisés",
+    "execution": "Exécution",
+    "executionCaption": "Où s’exécutent les outils et le code de l’agent, et ce à quoi ce bac à sable peut accéder.",
+    "secretsCaption": "Identifiants que cet agent peut utiliser pendant son travail. {{summary}}.",
+    "agentaTools": "Outils Agenta",
+    "buildKit": "Kit de création",
+    "advanced": "Avancé"
+}

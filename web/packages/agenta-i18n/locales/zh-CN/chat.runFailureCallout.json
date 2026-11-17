@@ -1,0 +1,15 @@
+{
+    "addYourKey": "添加你的密钥",
+    "buyCredits": "购买额度",
+    "messageNotSent": "消息未发送",
+    "modelUnavailable": "你的组织无法使用此模型",
+    "openAiProviders": "打开 AI 供应商",
+    "outOfCredits": "你的额度已用完",
+    "plansAndBilling": "套餐与账单",
+    "runFailed": "Agent 运行失败",
+    "showLess": "收起",
+    "showMore": "展开更多",
+    "taskTookTooLong": "此任务耗时过长",
+    "tooManyTasks": "同时运行的任务过多",
+    "tryAgain": "重试"
+}

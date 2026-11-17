@@ -1,0 +1,12 @@
+{
+    "title": "模板",
+    "subtitle": "从成熟的 Agent 开始：查看它的功能，连接所需的服务，然后打开 Playground。",
+    "searchPlaceholder": "搜索模板…",
+    "all": "全部",
+    "loadError": "无法加载模板",
+    "sectionCount_other": "{{count}} 个模板",
+    "noMatch": "没有与“{{query}}”匹配的模板。",
+    "noneInCategory": "{{category}} 下没有模板。",
+    "clearSearch": "清除搜索",
+    "showAll": "显示全部模板"
+}

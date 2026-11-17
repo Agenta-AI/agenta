@@ -1,0 +1,23 @@
+{
+    "approval": "审批",
+    "archived": "已归档",
+    "automationRuns": "自动化运行",
+    "ended": "已结束",
+    "eventSubscription": "事件订阅",
+    "idle": "空闲",
+    "input": "输入",
+    "missingEventSubscription": "缺少事件订阅",
+    "missingSchedule": "缺少定时任务",
+    "multiple": "多项",
+    "pinned": "已置顶",
+    "pinnedCount": "已置顶 {{count}}",
+    "readyToResume": "可继续",
+    "recent": "最近",
+    "running": "运行中",
+    "schedule": "定时任务",
+    "toolCall": "工具调用",
+    "untitledSession": "未命名会话",
+    "waiting": "等待中",
+    "waitingForInput": "等待你的输入",
+    "waitingOnYou": "等待你"
+}
