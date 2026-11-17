@@ -162,7 +162,7 @@ describe("remote discovery helpers", () => {
         command: "sh",
         args: [
           "-c",
-          `[ -e '/home/sandbox/run-drive-home/README.md' ] || [ -L '/home/sandbox/run-drive-home/README.md' ] || printf %s '${HOME_README_CONTENT}' > '/home/sandbox/run-drive-home/README.md'`,
+          `set -C; [ -e '/home/sandbox/run-drive-home/README.md' ] || [ -L '/home/sandbox/run-drive-home/README.md' ] || printf %s '${HOME_README_CONTENT}' 2>/dev/null > '/home/sandbox/run-drive-home/README.md' || [ -e '/home/sandbox/run-drive-home/README.md' ]`,
         ],
         timeoutMs: 30_000,
       },

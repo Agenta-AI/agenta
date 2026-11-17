@@ -46,8 +46,11 @@ placeholder. This needs a Daytona API key that may manage Secrets, and it can be
 
 ### What Daytona runs share with each other
 
-Nothing. Each run gets its own sandbox, so one user's agent cannot see another user's agent, its
-files, or its model key. Sandboxes are reused across the turns of one session only.
+Nothing by default. Each run gets its own sandbox, so one user's agent cannot see another user's
+agent, its files, or its model key. Sandboxes are reused across the turns of one session only. A
+drive that two agents list is the exception: both sandboxes mount the same files, because the
+configuration asks for it. Sandbox isolation does not stop access to a drive the configuration
+lists.
 
 ### When to use it
 

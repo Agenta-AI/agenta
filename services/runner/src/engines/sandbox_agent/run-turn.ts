@@ -1463,12 +1463,16 @@ export async function runTurn(
     // Per turn rather than per tool call: one `lstat` per link per turn on `local`, and one
     // remote command per link per turn on `daytona`, rather than one per tool call. The prompt
     // was written at acquire, so a link lost or regained since then is told this turn.
+    // A Claude slash command must lead the prompt (see the superseded-turn note above), so its
+    // notices wait: `drive.linked` keeps its old value, and the next turn sends them.
+    const deferDriveNotices = plan.acpAgent === "claude" && promptText.trimStart().startsWith("/");
     if (plan.driveOnRunner || plan.isDaytona) {
       for (const drive of env.drives) {
         if (!drive.mountedPath) continue;
         const linked = plan.driveOnRunner
           ? await linkRunDrive(plan.workspace.cwd, drive, drive.mountedPath, { log: logger })
           : await linkRunDriveRemote(env.sandbox as SandboxExec, plan.workspace.cwd, drive, drive.mountedPath, { log: logger });
+        if (deferDriveNotices) continue;
         const wasLinked = drive.linked;
         drive.linked = linked;
         if (linked && wasLinked !== false) continue;

@@ -137,7 +137,7 @@ class AgentPolicyWriteResult(BaseModel):
     drives_made_shared: List[str] = []
 
 
-class MountAccess(BaseModel):
+class MountVisibility(BaseModel):
     """One drive's scope and its `mount_visibility` row (`policy` None: no row)."""
 
     mount_id: UUID
@@ -179,8 +179,12 @@ class ShareDisclosure(BaseModel):
     always true; the UI owns their text."""
 
     connections: List[DisclosedConnection]
-    # The private drives the agent lists, by slug: making the agent shared shares them.
+    # The private drives the agent lists, by slug. Making the agent shared shares the
+    # acting owner's drives among them; a private drive of another member blocks it.
     private_drives: List[str] = []
+    # The other agents, by name, that use one of `private_drives`: after the change they
+    # use a shared drive, and a private one among them loses that drive as its home.
+    agents_using_private_drives: List[str] = []
     turns_use_run_credentials: bool = True
     files_and_tool_results_shared: bool = True
     trace_readers_can_read: bool = True
@@ -229,11 +233,11 @@ class CachedAgentAccess(BaseModel):
     policy: Optional[AccessPolicy] = None
 
 
-class CachedMountAccess(BaseModel):
-    """Namespace `sharing_mount_access`, key (project_id, mount_id). Only a row is
+class CachedMountVisibility(BaseModel):
+    """Namespace `sharing_mount_visibility`, key (project_id, mount_id). Only a row is
     cached, never "no row"."""
 
-    access: Optional[MountAccess] = None
+    mount: Optional[MountVisibility] = None
 
 
 class CachedSessionAccess(BaseModel):

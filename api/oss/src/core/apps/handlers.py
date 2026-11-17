@@ -20,8 +20,6 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 from oss.src.core.access.context import get_request_access
-from oss.src.core.access.dtos import ResourceKind, ResourceRef
-from oss.src.core.access.permissions.types import Permission
 from oss.src.core.apps.service import AGENT_STARTERS_DIR, AppsError, AppsService
 from oss.src.core.mounts.dtos import Mount
 from oss.src.core.mounts.types import MountError
@@ -264,7 +262,8 @@ async def _home_drive(
 ) -> Optional[Mount]:
     """The home drive the run's agent configuration names (the variant's latest
     revision), or for a configuration without `drives` the drive created with the agent.
-    Never created here. A drive the run's principal may not use reads as no drive."""
+    Never created here. A drive the run's principal may not use reads as no drive, and
+    a variant that names no revision of this agent reads as no drive."""
     if artifact_id is None:
         return None
     mount: Optional[Mount] = None
@@ -277,8 +276,12 @@ async def _home_drive(
             if workflows_service is not None and variant_id is not None
             else None
         )
+        if variant_id is not None and (
+            revision is None or getattr(revision, "workflow_id", None) != artifact_id
+        ):
+            return None
         agent = _revision_agent(revision, artifact_id=artifact_id)
-        if agent is not None and "drives" in agent:
+        if agent is not None and agent.get("drives") is not None:
             home_slug = agent.get("home_drive")
             if isinstance(home_slug, str) and home_slug:
                 mount = await mounts_service.fetch_mount_by_slug(
@@ -290,7 +293,21 @@ async def _home_drive(
             )
     except MountError:
         return None
-    if mount is None or not await _run_may_use(project_id=project_id, mount=mount):
+    if mount is None:
+        return None
+    sharing = get_sharing_service()
+    access = get_request_access()
+    if not await sharing.may_use_mount(
+        project_id=project_id,
+        mount_id=mount.id,
+        context=(
+            access.envelope.context
+            if access is not None and access.envelope is not None
+            else None
+        ),
+    ) or await sharing.home_drive_refusal(
+        project_id=project_id, artifact_id=artifact_id, mount_id=mount.id
+    ):
         return None
     return mount
 
@@ -302,17 +319,3 @@ def _revision_agent(revision: Any, *, artifact_id: UUID) -> Optional[Dict[str, A
     parameters = getattr(data, "parameters", None) if data is not None else None
     agent = parameters.get("agent") if isinstance(parameters, dict) else None
     return agent if isinstance(agent, dict) else None
-
-
-async def _run_may_use(*, project_id: UUID, mount: Mount) -> bool:
-    access = get_request_access()
-    if access is None:
-        return False
-    reason = await get_sharing_service().evaluate(
-        principal=access.principal,
-        action=Permission.USE_MOUNTS,
-        project_id=project_id,
-        resource=ResourceRef(kind=ResourceKind.MOUNT, id=str(mount.id)),
-        context=access.envelope.context if access.envelope is not None else None,
-    )
-    return reason is None

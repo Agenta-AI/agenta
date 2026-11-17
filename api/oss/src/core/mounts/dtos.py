@@ -55,7 +55,7 @@ class MountEdit(Identifier, Header):
 
 class MountScope(BaseModel):
     """Which mount a check names: by `id`, or (for a mount not created yet) by the
-    session it will belong to. Set at creation and never changed."""
+    session it will belong to."""
 
     id: Optional[UUID] = None
     session_id: Optional[str] = None

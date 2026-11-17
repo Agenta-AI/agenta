@@ -37,6 +37,7 @@ from oss.src.core.git.types import (
 from oss.src.core.workflows.service import (
     WorkflowsService,
     _reject_unreadable_agent_instructions,
+    new_agent_policy,
 )
 
 # Resolution is now handled by EmbedsService
@@ -1098,7 +1099,9 @@ class SimpleApplicationsService:
         # artifact, variant, and blank revision behind.
         _reject_unreadable_agent_instructions(simple_application_create.data)
         await self.applications_service.workflows_service.reject_unusable_agent_drives(
-            project_id=project_id, data=simple_application_create.data
+            project_id=project_id,
+            data=simple_application_create.data,
+            new_agent_policy=new_agent_policy(None, is_agent=False),
         )
 
         simple_application_flags = (
@@ -1384,7 +1387,9 @@ class SimpleApplicationsService:
                 application_revision_data = latest_application_revision.data
 
             await self.applications_service.workflows_service.reject_unusable_agent_drives(
-                project_id=project_id, data=application_revision_data
+                project_id=project_id,
+                data=application_revision_data,
+                artifact_id=application.id,
             )
 
         application_edit = ApplicationEdit(

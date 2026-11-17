@@ -42,7 +42,7 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.sharing.disclosure import build_share_disclosure
 from oss.src.core.sharing.dtos import (
-    MountAccess,
+    MountVisibility,
     SessionGrantInput,
     SessionSharingChange,
     SessionSharingState,
@@ -215,6 +215,9 @@ class SharingRouter:
         await self._require_agent(request, artifact_id=workflow_id)
 
         drives, homes = await self._listed_drives(request, artifact_id=workflow_id)
+        # Built before the change, so it names the private drives the change shares and
+        # the other agents that use them.
+        disclosure = await self._agent_disclosure(request, artifact_id=workflow_id)
         state = await self.sharing_service.set_agent_visibility(
             **await _write_scope(request),
             artifact_id=workflow_id,
@@ -222,14 +225,11 @@ class SharingRouter:
             drives=drives,
             home_drives=homes,
         )
-        return AgentSharingResponse(
-            sharing=state,
-            disclosure=await self._agent_disclosure(request, artifact_id=workflow_id),
-        )
+        return AgentSharingResponse(sharing=state, disclosure=disclosure)
 
     async def _listed_drives(
         self, request: Request, *, artifact_id: UUID
-    ) -> Tuple[List[MountAccess], List[MountAccess]]:
+    ) -> Tuple[List[MountVisibility], List[MountVisibility]]:
         """The drives the agent's latest revisions list, and their home drives."""
 
         project_id = _project_id(request)
@@ -243,7 +243,7 @@ class SharingRouter:
         home_ids = {mount.id for mount in home_mounts}
         drives, homes = [], []
         for mount in mounts:
-            access = await self.sharing_service.fetch_mount_access_cached(
+            access = await self.sharing_service.fetch_mount_visibility_cached(
                 project_id=project_id, mount_id=mount.id
             )
             if access is None:
@@ -491,15 +491,29 @@ class SharingRouter:
         disclosure = build_share_disclosure(
             parameters=getattr(data, "parameters", None)
         )
+        project_id = _project_id(request)
         drives, _ = await self._listed_drives(request, artifact_id=artifact_id)
         private_drives = []
         for drive in drives:
             policy = await self.sharing_service.mount_policy(
-                project_id=_project_id(request), access=drive
+                project_id=project_id, mount=drive
             )
             if policy.visibility == Visibility.PRIVATE and drive.slug:
                 private_drives.append(drive.slug)
-        return disclosure.model_copy(update={"private_drives": sorted(private_drives)})
+        agents = await self.workflows_service.fetch_agents_using_drives(
+            project_id=project_id,
+            artifact_id=artifact_id,
+            slugs=private_drives,
+            read_scope=await self.sharing_service.agent_read_scope(
+                principal=_request_access().principal
+            ),
+        )
+        return disclosure.model_copy(
+            update={
+                "private_drives": sorted(private_drives),
+                "agents_using_private_drives": agents,
+            }
+        )
 
     async def _session_disclosure(
         self, request: Request, *, session_id: str
