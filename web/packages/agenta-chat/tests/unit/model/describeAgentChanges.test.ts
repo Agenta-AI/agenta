@@ -70,14 +70,12 @@ describe("describeCreateAgent", () => {
     })
 
     it("says who will see the new agent", () => {
-        expect(
-            describeCreateAgent({name: "Invoice helper", visibility: "project"})?.sentence,
-        ).toBe(
+        expect(describeCreateAgent({name: "Invoice helper", visibility: "project"})?.sentence).toBe(
             "Create the agent Invoice helper from the default setup. Everyone in this project will see it.",
         )
-        expect(
-            describeCreateAgent({name: "Invoice helper", visibility: "private"})?.sentence,
-        ).toBe("Create the agent Invoice helper from the default setup. Only you will see it.")
+        expect(describeCreateAgent({name: "Invoice helper", visibility: "private"})?.sentence).toBe(
+            "Create the agent Invoice helper from the default setup. Only you will see it.",
+        )
     })
 })
 

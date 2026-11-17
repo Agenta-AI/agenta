@@ -127,17 +127,25 @@ def _history(authed_api, variant_id):
 @pytest.mark.usefixtures("agents")
 class TestAnAgentCreatesListsReadsAndEditsAnother:
     def test_the_new_agent_is_listed_once(self, authed_api, agents):
-        ok, content = _call(
-            authed_api, "list_agents", caller_agent_id=agents["caller"]["id"]
-        )
+        # Every page: the project can hold more agents than one page.
+        listed_agents, cursor = [], None
+        while True:
+            arguments = {"caller_agent_id": agents["caller"]["id"]}
+            if cursor:
+                arguments["cursor"] = cursor
+            ok, content = _call(authed_api, "list_agents", **arguments)
+            assert ok, content
+            listed_agents += content["agents"]
+            cursor = content.get("cursor")
+            if not cursor:
+                break
 
-        assert ok, content
-        ids = [agent["id"] for agent in content["agents"]]
+        ids = [agent["id"] for agent in listed_agents]
         assert ids.count(agents["target"]["agent"]["id"]) == 1
         assert agents["caller"]["id"] in ids
         listed = next(
             agent
-            for agent in content["agents"]
+            for agent in listed_agents
             if agent["id"] == agents["target"]["agent"]["id"]
         )
         assert listed["slug"] == agents["target"]["agent"]["slug"]

@@ -1383,15 +1383,22 @@ _TEMPLATE_INSTRUCTIONS_WARNING = CommitWarning(
 
 
 def _sets_instructions(operations: Optional[list]) -> bool:
-    """Whether any operation writes the instructions or a block that holds them."""
+    """Whether any operation writes the instructions: at or under them, or through a block
+    that holds them with a value that carries them (a `merge` of `parameters.agent` that
+    adds only `skills` leaves the template's instructions)."""
     instructions = ["parameters", "agent", "instructions"]
     for operation in operations or []:
         target = operation.get("target") if isinstance(operation, dict) else None
-        if isinstance(target, list) and (
-            target[: len(instructions)] == instructions
-            or instructions[: len(target)] == target
-        ):
+        if not isinstance(target, list):
+            continue
+        if target[: len(instructions)] == instructions:
             return True
+        if instructions[: len(target)] == target:
+            value = operation.get("value")
+            for key in instructions[len(target) :]:
+                value = value.get(key) if isinstance(value, dict) else None
+            if value is not None:
+                return True
     return False
 
 
@@ -1596,10 +1603,21 @@ async def handle_read_agent_config(
             action=Permission.VIEW_WORKFLOWS,
         ):
             raise _not_found(parsed["agent"].strip())
-        try:
-            outcome = read_revision_config(
-                head, path=parsed.get("path"), max_bytes=parsed.get("max_bytes")
+        path, max_bytes = parsed.get("path"), parsed.get("max_bytes")
+        if path is not None and not isinstance(path, list):
+            raise _ArgumentsRefused(
+                "`path` must be a list of segments.",
+                next_step='Send `path` as a list, e.g. ["parameters","agent","llm"].',
             )
+        if max_bytes is not None and (
+            isinstance(max_bytes, bool) or not isinstance(max_bytes, int)
+        ):
+            raise _ArgumentsRefused(
+                "`max_bytes` must be a whole number.",
+                next_step="Send `max_bytes` as a number, or omit it.",
+            )
+        try:
+            outcome = read_revision_config(head, path=path, max_bytes=max_bytes)
         except ReadConfigError as e:
             raise _Refusal(AgentError(**e.to_detail())) from e
     except _Refusal as e:

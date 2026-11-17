@@ -691,6 +691,22 @@ class TestReadAgentConfig:
             project_id=PROJECT, agent_id=TARGET, action=Permission.VIEW_WORKFLOWS
         )
 
+    @pytest.mark.parametrize(
+        "over", [{"max_bytes": "1024"}, {"max_bytes": True}, {"path": "parameters"}]
+    )
+    async def test_a_malformed_path_or_limit_is_an_argument_refusal(
+        self, service, over
+    ):
+        result = await _call(
+            handle_read_agent_config,
+            service,
+            agent="invoice-helper-k3x9",
+            caller_agent_id=str(CALLER),
+            **over,
+        )
+
+        assert result.content.code == "invalid_arguments"
+
     async def test_a_value_over_the_limit_lists_children(self, service):
         head = _head()
         head.data.parameters["agent"]["instructions"]["agents_md"] = "x" * 4096
@@ -1245,6 +1261,42 @@ class TestCreateAgent:
 
         assert create.await_args.kwargs["access"] is None
         assert result.content["visibility"] == "project"
+
+    async def test_a_merge_that_leaves_the_instructions_keeps_the_warning(
+        self, service, create
+    ):
+        operations = [
+            {
+                "operation": "merge",
+                "target": ["parameters", "agent"],
+                "value": {"llm": {"model": "gpt-5.5"}},
+            }
+        ]
+
+        result = await _call(
+            handle_create_agent, service, **self._args(operations=operations)
+        )
+
+        assert [w["code"] for w in result.content["warnings"]] == [
+            "template_instructions"
+        ]
+
+    async def test_a_merge_that_carries_the_instructions_drops_the_warning(
+        self, service, create
+    ):
+        operations = [
+            {
+                "operation": "merge",
+                "target": ["parameters", "agent"],
+                "value": {"instructions": {"agents_md": "You do invoices."}},
+            }
+        ]
+
+        result = await _call(
+            handle_create_agent, service, **self._args(operations=operations)
+        )
+
+        assert result.content["warnings"] == []
 
     async def test_a_name_is_required(self, service, create):
         result = await _call(handle_create_agent, service, **self._args(name="  "))
