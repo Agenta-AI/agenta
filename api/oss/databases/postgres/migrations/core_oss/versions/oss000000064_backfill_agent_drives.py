@@ -12,7 +12,8 @@ service runs release 1. Data only, no schema change.
 | 5 | In every agent revision, a reserved agent slug in `drives` or `home_drive` becomes the drive's slug, and missing keys are added: `has_session_drive: true`, and when `drives` is absent, the agent's own drive as the only entry and as home if the home rule allows it, else `drives: []` and `home_drive: null`. |
 
 A static catalog agent has no artifact in the database: its drive keeps its reserved slug
-and gets no visibility row. A stated JSON null counts as absent. The slug rule and the
+and gets no visibility row. A stated JSON null counts as absent, except in `home_drive`,
+where a stated value (null included) is kept, as the app's fill keeps it. The slug rule and the
 fill are frozen copies, not imports, so this revision does what it did when it was
 written. A second run changes nothing.
 
@@ -147,7 +148,7 @@ Key = Tuple[UUID, str]
 def _drive_slug(agent_slug: Optional[str], taken: Set[str]) -> str:
     """Frozen slug rule: `<agent slug>-files` as one path segment, unique in the project."""
     base = re.sub(r"[^a-z0-9]+", "-", (agent_slug or "").lower()).strip("-")
-    base = f"{base or 'agent'}-files"
+    base = f"{base[:60].strip('-') or 'agent'}-files"
     slug, suffix = base, 2
     while slug in taken:
         slug, suffix = f"{base}-{suffix}", suffix + 1
@@ -209,10 +210,10 @@ def _merged(
             and _home_allowed(policy, own[1])
         ):
             agent["drives"] = [{"slug": own[0]}]
-            agent["home_drive"] = own[0]
+            agent.setdefault("home_drive", own[0])
         else:
             agent["drives"] = []
-            agent["home_drive"] = None
+            agent.setdefault("home_drive", None)
         changed = True
     return json.dumps(data) if changed else None
 
@@ -255,7 +256,7 @@ def _name_drives(connection) -> Tuple[int, int]:
                 "id": mount_id,
                 "id_text": str(mount_id),
                 "slug": slug,
-                "name": name or agent_slug,
+                "name": name or agent_slug or "Agent files",
                 "agent_id": str(artifact_id),
                 "now": now,
                 "created_by_id": created_by_id,

@@ -302,6 +302,8 @@ async def _run():
             "no_data": await db.revision(quote, None),
         }
         untouched_before = {name: await db.data(r) for name, r in untouched.items()}
+        # a stated home_drive is kept when drives is filled, null included
+        stated_home = await db.revision(quote, _data({"home_drive": None}))
         stated_before = await db.data(stated_empty)
 
         counts = await _backfill(revision)
@@ -310,7 +312,7 @@ async def _run():
             "created": 1,
             "agent_visibility": 4,
             "project_visibility": 1,
-            "revisions": 11,
+            "revisions": 12,
         }
 
         # renamed in creation order, past the project drive that holds the slug
@@ -396,6 +398,11 @@ async def _run():
         # the home rule refuses a private drive as home of a shared agent
         assert (await db.data(crossed_bare))["parameters"]["agent"] == no_drive
         assert await db.data(stated_empty) == stated_before
+        assert (await db.data(stated_home))["parameters"]["agent"] == {
+            "has_session_drive": True,
+            "drives": [{"slug": "quote-agent-files-2"}],
+            "home_drive": None,
+        }
         for name, revision_id in untouched.items():
             assert await db.data(revision_id) == untouched_before[name], name
 
@@ -423,6 +430,9 @@ def test_drive_slug_rule():
     assert rule("Quote_Agent v2", set()) == "quote-agent-v2-files"
     assert rule("__", set()) == "agent-files"
     assert rule("a", {"a-files", "a-files-2"}) == "a-files-3"
+    # the base is cut to 60 characters, without a trailing dash
+    assert rule("a" * 70, set()) == "a" * 60 + "-files"
+    assert rule("a" * 59 + "-b", set()) == "a" * 59 + "-files"
 
 
 def test_home_rule():
