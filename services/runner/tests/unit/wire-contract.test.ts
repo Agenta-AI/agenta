@@ -128,10 +128,11 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.hasSessionDrive, true);
     assert.deepEqual(selectRunDrives(req), {
       session: !!req.sessionId?.trim(),
-      agent: !!req.runContext?.workflow?.artifact?.id?.trim(),
-      projects: [
-        { slug: "price-lists", access: "read" },
-        { slug: "team-notes", access: "read-write" },
+      legacyAgentDrive: false,
+      drives: [
+        { slug: "quote-agent-files", access: "read-write", isHome: true },
+        { slug: "price-lists", access: "read", isHome: false },
+        { slug: "team-notes", access: "read-write", isHome: false },
       ],
     });
   });
@@ -141,7 +142,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.deepEqual(req.drives, []);
     assert.equal(req.homeDrive, null);
     assert.equal(req.hasSessionDrive, false);
-    assert.deepEqual(selectRunDrives(req), { session: false, agent: false, projects: [] });
+    assert.deepEqual(selectRunDrives(req), { session: false, legacyAgentDrive: false, drives: [] });
   });
 
   it("claude request: a legacy configuration sends no drives and no home", () => {
@@ -149,6 +150,10 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.drives, undefined);
     assert.equal("homeDrive" in req, false);
     assert.equal(req.hasSessionDrive, true);
+    assert.equal(
+      selectRunDrives(req).legacyAgentDrive,
+      !!req.runContext?.workflow?.artifact?.id?.trim(),
+    );
   });
 
   it("attachment request: carries the resource handle and resolved modalities", () => {

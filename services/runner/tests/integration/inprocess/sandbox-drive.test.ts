@@ -153,12 +153,12 @@ describe.skipIf(!endpoint || !hasGeesefs)("the command sandbox's view of the dri
     expect(await stored("cmd/mod.txt")).toBe("a\nmore\n");
   }, 60_000);
 
-  it("mounts three roots (session, agent, read-only project drive) with their links, and fails on a root that cannot mount", async () => {
+  it("mounts three roots (session, home drive, read-only drive) with their links, and fails on a root that cannot mount", async () => {
     const cwd = join(base, "three", "w");
     const roots = [
       { root: cwd, credentials: () => creds("project/three-session") },
-      { root: `${cwd}-agent`, credentials: () => creds("project/three-agent"), link: { kind: "agent" as const } },
-      { root: `${cwd}-project-prices`, credentials: () => creds("project/three-prices"), link: { kind: "project" as const, slug: "prices" }, readOnly: true },
+      { root: `${cwd}-drive-home`, credentials: () => creds("project/three-home"), link: { slug: "home", home: true } },
+      { root: `${cwd}-drive-prices`, credentials: () => creds("project/three-prices"), link: { slug: "prices" }, readOnly: true },
     ];
     await s3.send(new PutObjectCommand({ Bucket: bucket, Key: "project/three-prices/list.csv", Body: "a,1\n" }));
     const drive = new SandboxDrive(roots, geesefsMounter(log, async (storeEndpoint) => storeEndpoint), { cwd, log });
@@ -169,16 +169,18 @@ describe.skipIf(!endpoint || !hasGeesefs)("the command sandbox's view of the dri
       const write = await sh(`echo x > ${cwd}/drives/prices/new.csv`);
       expect(write.exitCode).not.toBe(0);
       expect(write.output).toMatch(/read-only/i);
-      expect((await sh(`echo y > ${cwd}/agent-files/note.md && sync -f ${cwd}-agent`)).exitCode).toBe(0);
+      expect((await sh(`echo y > ${cwd}/agent-files/note.md && sync -f ${cwd}-drive-home`)).exitCode).toBe(0);
+      expect(readFileSync(join(cwd, "drives", "home", "note.md"), "utf-8")).toBe("y\n");
+      expect(readFileSync(join(cwd, "agent-files", "README.md"), "utf-8")).toMatch(/^This folder belongs to your agent\./);
 
       const broken = new SandboxDrive(
-        [...roots.slice(0, 2), { ...roots[2]!, root: `${cwd}-project-gone`, credentials: () => ({ ...creds("project/gone"), bucket: "no-such-bucket" }) }],
+        [...roots.slice(0, 2), { ...roots[2]!, root: `${cwd}-drive-gone`, credentials: () => ({ ...creds("project/gone"), bucket: "no-such-bucket" }) }],
         geesefsMounter(log, async (storeEndpoint) => storeEndpoint),
         { cwd, log },
       );
       await expect(broken.ensure({ sandbox: here, boot: 2 } as unknown as SandboxUse)).rejects.toBeInstanceOf(DriveUnreachableError);
     } finally {
-      for (const r of [...roots.map((x) => x.root), `${cwd}-project-gone`]) await unmountStorage(r, { log }).catch(() => {});
+      for (const r of [...roots.map((x) => x.root), `${cwd}-drive-gone`]) await unmountStorage(r, { log }).catch(() => {});
     }
   }, 120_000);
 

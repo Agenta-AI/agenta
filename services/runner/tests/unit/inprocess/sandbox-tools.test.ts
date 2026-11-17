@@ -139,7 +139,7 @@ describe("a command's changes", () => {
 });
 
 describe("the start of a turn", () => {
-  it("repairs a missing project link once when concurrent reads start a turn, and keeps the sandbox", async () => {
+  it("repairs every link once (agent-files and drives/<slug>) when concurrent reads start a turn, and keeps the sandbox", async () => {
     const ws = createTestWorkspace({ readOnlyProject: "prices" });
     const { call, text } = tools(ws);
     expect((await ws.bash("echo first")).output).toContain("first");
@@ -153,7 +153,7 @@ describe("the start of a turn", () => {
     const reads = await Promise.all(["a.md", "b.md", "a.md"].map((path) => call("read", { path })));
     expect(reads.map((r) => text(r).trim())).toEqual(["a", "b", "a"]);
     expect(lstatSync(link).isSymbolicLink()).toBe(true);
-    expect(sandbox.commands.slice(before).filter((c) => c.includes("ln -s")).length).toBe(1);
+    expect(sandbox.commands.slice(before).filter((c) => c.includes("ln -s")).length).toBe(2);
     expect(ws.daytona.creates).toBe(1);
     await ws.workspace.sandbox.delete();
   });
@@ -172,7 +172,7 @@ describe("the start of a turn", () => {
     await ws.workspace.sandbox.delete();
   });
 
-  it("keeps running commands on later turns with a read-only project drive, whose view it does not refresh", async () => {
+  it("keeps running commands on later turns with a read-only drive, whose view it does not refresh", async () => {
     const ws = createTestWorkspace({ readOnlyProject: "prices" });
     expect((await ws.bash("echo first")).output).toContain("first");
     for (const turn of ["second", "third"]) {
@@ -181,7 +181,7 @@ describe("the start of a turn", () => {
       expect((await ws.bash(`echo ${turn}`)).output).toContain(turn);
       const refresh = sandboxOf(ws).commands.slice(before).find((c) => c.includes(": refresh-view"));
       expect(refresh).toContain(ws.inSandbox(ws.cwd));
-      expect(refresh).not.toContain("-project-prices");
+      expect(refresh).not.toContain("-drive-prices");
     }
     await ws.workspace.sandbox.delete();
   });
@@ -201,10 +201,14 @@ describe("the start of a turn", () => {
     ws.workspace.startTurn();
     expect(text(await call("read", { path: "from-pane.md" }))).toContain("uploaded");
     const since = sandbox.commands.slice(before);
-    expect(since[0]).toContain(": refresh-view");
+    // The turn's link repair runs first, then the one refresh.
+    const refreshAt = since.findIndex((c) => c.includes(": refresh-view"));
+    expect(refreshAt).toBeGreaterThan(0);
+    expect(since.slice(0, refreshAt).every((c) => c.includes("ln -s"))).toBe(true);
+    const refresh = since[refreshAt] ?? "";
     expect(geesefsMounter(() => {}).refreshCommand(["'/a'", "'/b'"])).toMatch(/^python3 -c .*\.invalidate.* '\/a' '\/b'$/s);
-    expect(since[0]).toContain(ws.inSandbox(ws.cwd));
-    expect(since[0]).toContain(ws.inSandbox(ws.agent));
+    expect(refresh).toContain(ws.inSandbox(ws.cwd));
+    expect(refresh).toContain(ws.inSandbox(ws.agent));
     expect(ws.daytona.creates).toBe(1);
     await ws.workspace.sandbox.delete();
   });

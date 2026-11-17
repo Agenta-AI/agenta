@@ -50,40 +50,43 @@ function fakeMounter(failing: Set<string> = new Set()) {
 
 const roots = (): DriveRoot[] => [
   { root: "/w", credentials: () => CREDS },
-  { root: "/w-agent", credentials: () => CREDS, link: { kind: "agent" } },
-  { root: "/w-project-prices", credentials: () => CREDS, link: { kind: "project", slug: "prices" }, readOnly: true },
+  { root: "/w-drive-home", credentials: () => CREDS, link: { slug: "home", home: true } },
+  { root: "/w-drive-prices", credentials: () => CREDS, link: { slug: "prices" }, readOnly: true },
 ];
 
 const use = (sandbox: DaytonaSandbox, boot = 1) => ({ sandbox, boot }) as unknown as SandboxUse;
 
-describe("SandboxDrive with project drives", () => {
-  it("mounts every root at once, the read drive read-only, and links agent-files and drives/<slug>", async () => {
+describe("SandboxDrive with drives", () => {
+  it("mounts every root at once, the read drive read-only, seeds the home README, and links agent-files and drives/<slug>", async () => {
     const commands: string[] = [];
     const { mounter, mounts } = fakeMounter();
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
     await drive.ensure(use(fakeSandbox(commands)));
     expect(mounts).toEqual([
       { path: "/w", readOnly: false },
-      { path: "/w-agent", readOnly: false },
-      { path: "/w-project-prices", readOnly: true },
+      { path: "/w-drive-home", readOnly: false },
+      { path: "/w-drive-prices", readOnly: true },
     ]);
-    expect(commands.some((c) => c.includes("'/w/agent-files'"))).toBe(true);
-    expect(commands.some((c) => c.includes("'/w/drives/prices'") && c.includes("'/w-project-prices'"))).toBe(true);
-    expect(drive.mountChecks.map((m) => m.root)).toEqual(["/w", "/w-agent", "/w-project-prices"]);
+    expect(commands.some((c) => c.includes("'/w/agent-files'") && c.includes("'/w-drive-home'"))).toBe(true);
+    expect(commands.some((c) => c.includes("'/w/drives/home'") && c.includes("'/w-drive-home'"))).toBe(true);
+    expect(commands.some((c) => c.includes("'/w-drive-home/README.md'"))).toBe(true);
+    expect(commands.some((c) => c.includes("'/w-drive-prices/README.md'"))).toBe(false);
+    expect(commands.some((c) => c.includes("'/w/drives/prices'") && c.includes("'/w-drive-prices'"))).toBe(true);
+    expect(drive.mountChecks.map((m) => m.root)).toEqual(["/w", "/w-drive-home", "/w-drive-prices"]);
   });
 
-  it("cleans stale drives/ entries at each mount, keeping the listed project drives", async () => {
+  it("cleans stale links at each mount, keeping the listed drives and agent-files for a home", async () => {
     const commands: string[] = [];
     const { mounter } = fakeMounter();
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
     await drive.ensure(use(fakeSandbox(commands)));
     const prune = commands.find((c) => c.includes("for e in"));
-    expect(prune).toContain("'/w/drives'");
-    expect(prune).toMatch(/'sh' 'prices'$/);
+    expect(prune).toContain("/w'\"'\"' 2>/dev/null || exit 0");
+    expect(prune).toMatch(/'sh' '1' 'home' 'prices'$/);
   });
 
   it("keeps today's rule: a root that fails to mount fails the file command", async () => {
-    const { mounter } = fakeMounter(new Set(["/w-project-prices"]));
+    const { mounter } = fakeMounter(new Set(["/w-drive-prices"]));
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
     await expect(drive.ensure(use(fakeSandbox([])))).rejects.toBeInstanceOf(DriveUnreachableError);
   });
@@ -94,14 +97,35 @@ describe("SandboxDrive with project drives", () => {
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
     const err = await drive.ensure(use(sandbox)).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(DriveUnreachableError);
-    expect((err as Error).message).toBe(driveLinkBlockedMessage("prices"));
+    expect((err as Error).message).toBe(driveLinkBlockedMessage("drives/prices"));
+    expect((err as Error).message).toBe(
+      "The drive at drives/prices/ could not be attached in the command sandbox, usually because a folder of that name is already in the working directory, so nothing was read or changed. Ask the user to move or rename that folder in the session's files.",
+    );
     expect(drive.mountedOn("sbx-1", 1)).toBe(false);
+  });
+
+  it("stops file commands the same way when a folder blocks the agent-files link of the home drive", async () => {
+    const { mounter } = fakeMounter();
+    const sandbox = fakeSandbox([], "'/w/agent-files'");
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
+    const err = await drive.ensure(use(sandbox)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DriveUnreachableError);
+    expect((err as Error).message).toBe(driveLinkBlockedMessage("agent-files"));
+  });
+
+  it("repairs every link, agent-files included, when asked at the start of a turn", async () => {
+    const commands: string[] = [];
+    const { mounter } = fakeMounter();
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
+    await drive.link(fakeSandbox(commands));
+    expect(commands.filter((c) => c.includes("ln -s")).length).toBe(3);
+    expect(commands.some((c) => c.includes("'/w/agent-files'"))).toBe(true);
   });
 
   it("refreshes only the writable roots: a read-only mount refuses the refresh attribute", () => {
     const { mounter } = fakeMounter();
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
-    expect(drive.refreshCommand).toBe(": refresh '/w' '/w-agent'");
+    expect(drive.refreshCommand).toBe(": refresh '/w' '/w-drive-home'");
     drive.setRoots(roots().slice(2));
     expect(drive.refreshCommand).toBe(": refresh ");
   });
@@ -117,7 +141,7 @@ describe("SandboxDrive with project drives", () => {
     await expect(drive.ensure(use(sandbox))).rejects.toBeInstanceOf(MountLostError);
     // The next boot mounts the new set.
     await drive.ensure(use(sandbox, 2));
-    expect(drive.rootPaths).toEqual(["/w", "/w-agent"]);
+    expect(drive.rootPaths).toEqual(["/w", "/w-drive-home"]);
   });
 
   it("keeps each root's access and link when the credentials are detached", async () => {
@@ -125,6 +149,6 @@ describe("SandboxDrive with project drives", () => {
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
     drive.detachCredentials();
     await drive.ensure(use(fakeSandbox([])));
-    expect(mounts.find((m) => m.path === "/w-project-prices")?.readOnly).toBe(true);
+    expect(mounts.find((m) => m.path === "/w-drive-prices")?.readOnly).toBe(true);
   });
 });
