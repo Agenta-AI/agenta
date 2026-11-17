@@ -82,6 +82,11 @@ class TestTheRuleNamesTheField:
             "string or mapping"
         ]
 
+    def test_a_tool_type_that_is_not_text_is_refused_not_raised(self):
+        assert _issues(_agent(tools=[{"type": []}])) == [
+            "parameters.agent.tools[0] is invalid: Unsupported tool configuration shape"
+        ]
+
     def test_a_problem_outside_the_lists_carries_the_parsers_reason(self):
         (issue,) = _issues(_agent(model="gpt-5.5"))
         assert "pre-migration flat key 'model'" in issue

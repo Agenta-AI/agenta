@@ -132,7 +132,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
             if action:
                 data["action"] = action
 
-    if data.get("type") in {
+    if isinstance(data.get("type"), str) and data.get("type") in {
         "builtin",
         "gateway",
         "gateway_connection",

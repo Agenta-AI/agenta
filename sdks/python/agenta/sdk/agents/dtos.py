@@ -75,7 +75,7 @@ def _is_legacy_gateway_entry(entry: Any) -> bool:
     ``composio`` is the same shape under its older name: ``coerce_tool_config`` renames it
     before it parses, so a refusal for either spelling names the same legacy entry.
     """
-    if not isinstance(entry, dict) or entry.get("type") not in {"gateway", "composio"}:
+    if not isinstance(entry, dict) or entry.get("type") not in ("gateway", "composio"):
         return False
     if entry.get("provider_action"):
         return True
