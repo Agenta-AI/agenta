@@ -1,6 +1,7 @@
 {
     "addDiscordBot": "Add a Discord bot",
     "addSlackWorkspace": "Add a Slack workspace",
+    "addTeamsBot": "Add a Teams bot",
     "addTelegramBot": "Add a Telegram bot",
     "addWhatsAppNumber": "Add a WhatsApp number",
     "agent": "Agent",

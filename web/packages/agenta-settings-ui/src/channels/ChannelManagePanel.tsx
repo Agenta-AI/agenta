@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {useT, createT} from "@agenta/i18n"
+import {useT, createT, type CatalogKey} from "@agenta/i18n"
 import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
 import channelsManageCatalog from "@agenta/i18n/catalogs/channels.manage"
+import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     Alert,
@@ -26,7 +27,7 @@ import {
     Warning,
 } from "@phosphor-icons/react"
 
-import {nameSpacesFrom} from "./actions"
+import {chatTypeOf, nameSpacesFrom} from "./actions"
 import {ChannelAdvancedSection} from "./ChannelAdvancedSection"
 import {ChannelPeopleSection} from "./ChannelPeopleSection"
 import {
@@ -47,6 +48,7 @@ import {
 import {platformLogo} from "./icons"
 import {PanelFooter} from "./PanelFooter"
 import {channelSharingCopy} from "./sharingCopy"
+import {TeamsAppSetup} from "./TeamsAppSetup"
 import type {
     ChannelBehaviorState,
     ChannelConnection,
@@ -145,15 +147,33 @@ const fallbackSecrets = (platform: ChannelPlatform): ChannelSetupField[] =>
                 required: true,
             },
         ],
+        teams: [
+            {
+                name: "client_secret",
+                label: tNow("channels.manage.clientSecretValue"),
+                secret: true,
+                required: true,
+            },
+        ],
     })[platform]
+
+/** The name of a platform's shared places, as the "group" switch says it. */
+const PLACES_TITLES: Record<ChannelPlatform, CatalogKey<typeof channelsManageCatalog>> = {
+    slack: "channels.manage.channels",
+    telegram: "channels.manage.groupChats",
+    whatsapp: "channels.manage.groupChats",
+    discord: "channels.manage.channels",
+    teams: "channels.manage.channelsAndGroupChats",
+}
 
 /** A discovered place's stable identity: its kind and platform address. */
 const candidateKey = (candidate: ChannelSpaceCandidate): string =>
     `${candidate.kind}:${JSON.stringify(candidate.externalLocator)}`
 
-const spaceIcon = (kind: ChannelSpaceKind, channels: boolean) => {
-    if (kind === "private") return <ChatCircle size={15} />
-    return channels ? <Hash size={15} /> : <UsersThree size={15} />
+const spaceIcon = (kind: ChannelSpaceKind, platform: ChannelPlatform) => {
+    const type = chatTypeOf(kind, platform)
+    if (type === "dm") return <ChatCircle size={15} />
+    return type === "channel" ? <Hash size={15} /> : <UsersThree size={15} />
 }
 
 const SECTION_TITLE = "pb-1 text-[13px] font-semibold text-foreground"
@@ -176,12 +196,14 @@ export const ChannelManagePanel = ({
         channelsActionsCatalog,
         channelsLabelsCatalog,
         channelsManageCatalog,
+        channelsTeamsCatalog,
         commonCatalog,
     )
     const isSlack = connection.platform === "slack"
     const isTelegram = connection.platform === "telegram"
     const isWhatsApp = connection.platform === "whatsapp"
     const isDiscord = connection.platform === "discord"
+    const isTeams = connection.platform === "teams"
     const channels = hasChannels(connection.platform)
     const name = platformLabel(connection.platform)
     const connectionId = connection.connectionId
@@ -245,6 +267,7 @@ export const ChannelManagePanel = ({
         telegram: t("channels.manage.emptyGroups", {handle}),
         discord: `${t("channels.manage.emptyDiscord", {handle})} ${t("channels.manage.discordPrivateChannelHint")}`,
         whatsapp: null,
+        teams: t("channels.manage.emptyTeams", {handle}),
     }
 
     // --- the Discord invite link, from the connection's setup document ---------- //
@@ -493,10 +516,12 @@ export const ChannelManagePanel = ({
         },
         {
             key: "group",
-            title: channels ? t("channels.manage.channels") : t("channels.manage.groupChats"),
-            help: channels
-                ? t("channels.manage.groupHelpSlack", {handle})
-                : t("channels.manage.groupHelp"),
+            title: t(PLACES_TITLES[connection.platform]),
+            help: isTeams
+                ? t("channels.manage.groupHelpTeams", {handle})
+                : channels
+                  ? t("channels.manage.groupHelpSlack", {handle})
+                  : t("channels.manage.groupHelp"),
         },
     ]
     // WhatsApp is one-to-one only: there is no group chat to switch.
@@ -827,27 +852,33 @@ export const ChannelManagePanel = ({
                         <span className="text-[13px] font-medium text-foreground">
                             {isWhatsApp
                                 ? t("channels.manage.metaRejectedToken")
-                                : revokedOffersToken
-                                  ? isDiscord
-                                      ? t("channels.manage.discordRevokedToken")
-                                      : t("channels.manage.telegramRevokedToken")
-                                  : t("channels.manage.appUninstalled", {platform: name})}
+                                : isTeams
+                                  ? t("channels.manage.microsoftRejectedSecret")
+                                  : revokedOffersToken
+                                    ? isDiscord
+                                        ? t("channels.manage.discordRevokedToken")
+                                        : t("channels.manage.telegramRevokedToken")
+                                    : t("channels.manage.appUninstalled", {platform: name})}
                         </span>
                         <span className="text-[13px] text-muted-foreground">
                             {isWhatsApp
                                 ? t("channels.manage.revokedHelpWhatsApp", {
                                       agent: agentName,
                                   })
-                                : revokedOffersToken
-                                  ? t(
-                                        isDiscord
-                                            ? "channels.manage.revokedHelpDiscord"
-                                            : "channels.manage.revokedHelpTelegram",
-                                        {agent: agentName},
-                                    )
-                                  : t("channels.manage.revokedHelpApp", {
+                                : isTeams
+                                  ? t("channels.manage.revokedHelpTeams", {
                                         agent: agentName,
-                                    })}
+                                    })
+                                  : revokedOffersToken
+                                    ? t(
+                                          isDiscord
+                                              ? "channels.manage.revokedHelpDiscord"
+                                              : "channels.manage.revokedHelpTelegram",
+                                          {agent: agentName},
+                                      )
+                                    : t("channels.manage.revokedHelpApp", {
+                                          agent: agentName,
+                                      })}
                         </span>
                         {revokedOffersToken ? (
                             tokenOpen ? null : (
@@ -898,11 +929,13 @@ export const ChannelManagePanel = ({
                 <div className="flex flex-col pt-5">
                     <div className="flex items-center justify-between pb-1">
                         <span className="text-[13px] font-semibold text-foreground">
-                            {channels
-                                ? t("channels.manage.channelsItsIn")
-                                : isWhatsApp
-                                  ? t("channels.manage.chats")
-                                  : t("channels.manage.groups")}
+                            {isTeams
+                                ? t("channels.manage.channelsAndGroupChats")
+                                : channels
+                                  ? t("channels.manage.channelsItsIn")
+                                  : isWhatsApp
+                                    ? t("channels.manage.chats")
+                                    : t("channels.manage.groups")}
                         </span>
                         {discordInviteUrl ? (
                             <Button variant="ghost" size="xs" asChild>
@@ -961,7 +994,7 @@ export const ChannelManagePanel = ({
                                 data-testid="channels-space"
                             >
                                 <span className="flex flex-none text-muted-foreground">
-                                    {spaceIcon(space.kind, channels)}
+                                    {spaceIcon(space.kind, connection.platform)}
                                 </span>
                                 <span
                                     className={`flex-1 truncate text-sm ${
@@ -1056,7 +1089,10 @@ export const ChannelManagePanel = ({
                                                         aria-label={candidate.displayName}
                                                     />
                                                     <span className="flex flex-none text-muted-foreground">
-                                                        {spaceIcon(candidate.kind, channels)}
+                                                        {spaceIcon(
+                                                            candidate.kind,
+                                                            connection.platform,
+                                                        )}
                                                     </span>
                                                     <span className="flex-1 truncate text-[13px] text-foreground">
                                                         {candidate.displayName}
@@ -1118,6 +1154,14 @@ export const ChannelManagePanel = ({
                 </div>
             ) : null}
 
+            {/* --- where Teams delivers messages, and the app to install (Teams only) --- */}
+            {isTeams ? (
+                <div className="flex flex-col gap-2">
+                    <span className={SECTION_TITLE}>{t("channels.teams.appSection")}</span>
+                    <TeamsAppSetup connection={connection} actions={actions} />
+                </div>
+            ) : null}
+
             {/* --- who may message it, and its credentials --- */}
             {hasPeople || canUpdateToken ? (
                 <div className="flex flex-col">
@@ -1139,7 +1183,9 @@ export const ChannelManagePanel = ({
                                         ? t("channels.manage.appCredentials")
                                         : isWhatsApp
                                           ? t("channels.manage.accessToken")
-                                          : t("channels.manage.botToken")}
+                                          : isTeams
+                                            ? t("channels.manage.clientSecret")
+                                            : t("channels.manage.botToken")}
                                 </span>
                                 <span className="tracking-widest text-[13px] text-muted-foreground">
                                     ••••••••••••

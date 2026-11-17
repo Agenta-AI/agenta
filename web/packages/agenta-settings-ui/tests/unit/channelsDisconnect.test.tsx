@@ -124,11 +124,19 @@ const openAndDisconnect = async () => {
 
 it("closes the panel when the backend archived the row but answered with an error", async () => {
     const disconnect = vi.fn().mockRejectedValue(new Error("Internal Server Error"))
-    const reload = vi.fn().mockResolvedValue({slack: null, telegram: null, whatsapp: null})
+    const reload = vi
+        .fn()
+        .mockResolvedValue({
+            slack: null,
+            telegram: null,
+            whatsapp: null,
+            discord: null,
+            teams: null,
+        })
     await act(async () =>
         root.render(
             <Host
-                initial={{slack: SLACK, telegram: null, whatsapp: null}}
+                initial={{slack: SLACK, telegram: null, whatsapp: null, discord: null, teams: null}}
                 actions={{...NOOP_ACTIONS, disconnect, reload}}
             />,
         ),
@@ -143,11 +151,19 @@ it("closes the panel when the backend archived the row but answered with an erro
 
 it("shows a failed disconnect next to the Disconnect button when the row is still there", async () => {
     const disconnect = vi.fn().mockRejectedValue(new Error("Could not disconnect."))
-    const reload = vi.fn().mockResolvedValue({slack: SLACK, telegram: null, whatsapp: null})
+    const reload = vi
+        .fn()
+        .mockResolvedValue({
+            slack: SLACK,
+            telegram: null,
+            whatsapp: null,
+            discord: null,
+            teams: null,
+        })
     await act(async () =>
         root.render(
             <Host
-                initial={{slack: SLACK, telegram: null, whatsapp: null}}
+                initial={{slack: SLACK, telegram: null, whatsapp: null, discord: null, teams: null}}
                 actions={{...NOOP_ACTIONS, disconnect, reload}}
             />,
         ),
@@ -165,11 +181,19 @@ it("shows a failed disconnect next to the Disconnect button when the row is stil
 
 it("closes the panel after a clean disconnect", async () => {
     const disconnect = vi.fn().mockResolvedValue(undefined)
-    const reload = vi.fn().mockResolvedValue({slack: null, telegram: null, whatsapp: null})
+    const reload = vi
+        .fn()
+        .mockResolvedValue({
+            slack: null,
+            telegram: null,
+            whatsapp: null,
+            discord: null,
+            teams: null,
+        })
     await act(async () =>
         root.render(
             <Host
-                initial={{slack: SLACK, telegram: null, whatsapp: null}}
+                initial={{slack: SLACK, telegram: null, whatsapp: null, discord: null, teams: null}}
                 actions={{...NOOP_ACTIONS, disconnect, reload}}
             />,
         ),
@@ -198,7 +222,7 @@ it("lists each of the agent's connections on a platform and disconnects only the
     const reload = vi.fn().mockResolvedValue({
         slack: null,
         telegram: TELEGRAM_B,
-        agentConnections: {slack: [], telegram: [TELEGRAM_B], whatsapp: []},
+        agentConnections: {slack: [], telegram: [TELEGRAM_B], whatsapp: [], teams: []},
     })
     await act(async () =>
         root.render(
@@ -206,7 +230,13 @@ it("lists each of the agent's connections on a platform and disconnects only the
                 initial={{
                     slack: null,
                     telegram: TELEGRAM_A,
-                    agentConnections: {slack: [], telegram: [TELEGRAM_A, TELEGRAM_B], whatsapp: []},
+                    agentConnections: {
+                        slack: [],
+                        telegram: [TELEGRAM_A, TELEGRAM_B],
+                        whatsapp: [],
+                        discord: [],
+                        teams: [],
+                    },
                 }}
                 actions={{...NOOP_ACTIONS, disconnect, reload}}
             />,
@@ -247,7 +277,13 @@ it("opens the manage view of the connection picked in the list", async () => {
                 initial={{
                     slack: null,
                     telegram: TELEGRAM_A,
-                    agentConnections: {slack: [], telegram: [TELEGRAM_A, TELEGRAM_B], whatsapp: []},
+                    agentConnections: {
+                        slack: [],
+                        telegram: [TELEGRAM_A, TELEGRAM_B],
+                        whatsapp: [],
+                        discord: [],
+                        teams: [],
+                    },
                 }}
                 actions={{...NOOP_ACTIONS, disconnect}}
             />,

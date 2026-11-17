@@ -5,6 +5,7 @@
     "anotherAgent": "別のエージェント",
     "answersNowhere": "どこでも応答しません",
     "channelCount_other": "{{count}} 件のチャンネル",
+    "chatCount_other": "{{count}} 件のチャット",
     "directMessages": "ダイレクトメッセージ",
     "dms": "DM",
     "dmsAndPlaces": "DM と {{places}}",

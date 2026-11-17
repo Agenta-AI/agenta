@@ -22,6 +22,7 @@ import {
     slackCustomHere,
     slackHere,
     slackRevoked,
+    teamsHere,
     telegramCustomHere,
     telegramElsewhere,
     telegramHere,
@@ -229,6 +230,11 @@ export const ConnectedDiscordBot: Story = {
 /** Discord: the invite link does not load, so the panel offers a retry. */
 export const DiscordInviteLinkFails: Story = {
     render: () => <ManageHost connection={discordHere} options={{discordInviteUrl: null}} />,
+}
+
+/** The customer's own Teams bot: the messaging endpoint and the app download stay findable. */
+export const ConnectedTeams: Story = {
+    render: () => <ManageHost connection={teamsHere} />,
 }
 
 /** One switch is off, so the agent answers direct messages only. */

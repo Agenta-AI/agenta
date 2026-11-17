@@ -39,6 +39,7 @@ vi.mock("@agenta/settings-ui", async (importOriginal) => {
                     telegram: null,
                     whatsapp: null,
                     discord: null,
+                    teams: null,
                 }
             },
         }),

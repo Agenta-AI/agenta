@@ -13,6 +13,7 @@
     "noAgentYet": "暂无 Agent",
     "notLinkedYet": "尚未关联",
     "slackDescription": "在 Slack 中提及 Agent 或给它发私信",
+    "teamsDescription": "在 Microsoft Teams 中与 Agent 聊天",
     "telegramDescription": "通过托管机器人或你自己的机器人与 Agent 对话",
     "title": "渠道",
     "unknownAgent": "未知 Agent",

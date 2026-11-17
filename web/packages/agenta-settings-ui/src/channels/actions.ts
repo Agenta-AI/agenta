@@ -1,6 +1,7 @@
 import {createT} from "@agenta/i18n"
 import channelsActionsCatalog from "@agenta/i18n/catalogs/channels.actions"
 import channelsLabelsCatalog from "@agenta/i18n/catalogs/channels.labels"
+import channelsTeamsCatalog from "@agenta/i18n/catalogs/channels.teams"
 
 import {hasChannels, platformLabel} from "./helpers"
 import type {
@@ -13,6 +14,7 @@ import type {
     ChannelPerson,
     ChannelPlatform,
     ChannelReadableChannel,
+    ChannelSetupDocument,
     ChannelSetupIdentity,
     ChannelSetupInfo,
     ChannelSpace,
@@ -24,7 +26,7 @@ import type {
     HostedTelegramLink,
 } from "./types"
 
-const t = createT(channelsActionsCatalog, channelsLabelsCatalog)
+const t = createT(channelsActionsCatalog, channelsLabelsCatalog, channelsTeamsCatalog)
 
 /**
  * Builds the real `ChannelsActions` for one agent page on top of the generated channels
@@ -97,7 +99,7 @@ export const channelKey = (platform: ChannelPlatform, hosted: boolean): string =
     platform === "telegram" ? (hosted ? "telegram_hosted" : "telegram") : platform
 
 const platformOf = (channel: string): ChannelPlatform | null =>
-    (["telegram", "slack", "whatsapp", "discord"] as const).find((platform) =>
+    (["telegram", "slack", "whatsapp", "discord", "teams"] as const).find((platform) =>
         channel.startsWith(platform),
     ) ?? null
 
@@ -153,7 +155,8 @@ export const toolSettingsOf = (agent: Row): ChannelToolSettings => {
 /** The platform id in a space locator: a Slack `channel`, a Telegram `chat_id`, a Discord
  * `channel_id`. */
 export const locatorId = (locator: Row): string | null => {
-    const value = locator.channel ?? locator.chat_id ?? locator.channel_id
+    const value =
+        locator.channel ?? locator.chat_id ?? locator.channel_id ?? locator.conversation_id
     if (typeof value === "number" && Number.isFinite(value)) return String(value)
     return asString(value)
 }
@@ -204,9 +207,12 @@ export const nameSpacesFrom = (
     })
 }
 
-/** The card's chat type for a space kind: only "is it a DM" changes the row's copy. */
+/** The chat type of a space kind: a DM, a channel or a group. It picks the row's copy and
+ *  icon. On Teams, only a team channel is a channel. */
 export const chatTypeOf = (kind: ChannelSpaceKind, platform: ChannelPlatform): ChannelChatType => {
     if (kind === "private") return "dm"
+    // A Teams group chat stays a group: only a team channel is a channel.
+    if (platform === "teams") return kind === "topic" ? "channel" : "group"
     return hasChannels(platform) ? "channel" : "group"
 }
 
@@ -253,6 +259,19 @@ export const mapConnectionRow = (row: Row): ChannelConnection | null => {
     }
 }
 
+/** The setup document of a setup response, or null when it has none. */
+export const setupDocumentOf = (setup: Row): ChannelSetupDocument | null => {
+    const document = setup.document
+    if (!document || typeof document !== "object") return null
+    const row = asRecord(document)
+    return {
+        format: asString(row.format),
+        content: asString(row.content),
+        filename: asString(row.filename),
+        link: asString(row.link),
+    }
+}
+
 /** A readable message from a rejected client call. */
 export const clientErrorMessage = (error: unknown, fallback: string): string => {
     const record = asRecord(error)
@@ -286,12 +305,19 @@ export const connectionsForAgent = (
         const here = c.agent === undefined || c.agent?.id === appId ? 4 : 0
         return here + (c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0)
     }
-    const out: ChannelConnections = {slack: null, telegram: null, whatsapp: null, discord: null}
+    const out: ChannelConnections = {
+        slack: null,
+        telegram: null,
+        whatsapp: null,
+        discord: null,
+        teams: null,
+    }
     const mine: Record<ChannelPlatform, ChannelConnection[]> = {
         slack: [],
         telegram: [],
         whatsapp: [],
         discord: [],
+        teams: [],
     }
     for (const connection of rows) {
         const current = out[connection.platform]
@@ -311,6 +337,7 @@ export const connectionsForAgent = (
         telegram: lead("telegram"),
         whatsapp: lead("whatsapp"),
         discord: lead("discord"),
+        teams: lead("teams"),
     }
     out.allConnections = rows
     return out
@@ -831,7 +858,7 @@ export const buildAgentChannelsActions = ({
             .catch(rethrow(t("channels.actions.loadSetupFailed", {platform})))
         const setup = asRecord(asRecord(res).setup)
         return {
-            manifest: asString(asRecord(setup.document).content),
+            manifest: setupDocumentOf(setup)?.content ?? null,
             fields: asArray(setup.fields).map((field) => ({
                 name: asString(field.name) ?? "",
                 label: asString(field.label) ?? asString(field.name) ?? "",
@@ -870,9 +897,19 @@ export const buildAgentChannelsActions = ({
             if (field.secret) credentials[field.name] = value
             else data[field.name] = value
         }
+        // Teams verification discovers no name, and the app package takes the connection's
+        // name as the bot's, so a Teams connection is named after the agent it answers as.
+        const name = platform === "teams" && appId ? resolveAgentName(appId) : null
         const res = await client
             .createChannelConnection(
-                {connection: {channel: channelKey(platform, false), data, credentials}},
+                {
+                    connection: {
+                        channel: channelKey(platform, false),
+                        ...(name ? {name} : {}),
+                        data,
+                        credentials,
+                    },
+                },
                 scope(),
             )
             .catch(
@@ -895,6 +932,14 @@ export const buildAgentChannelsActions = ({
             .fetchChannelConnectionSetup({connection_id: connectionId}, scope())
             .catch(rethrow(t("channels.actions.loadInviteFailed")))
         return asString(asRecord(asRecord(asRecord(res).setup).document).link)
+    }
+
+    /** The Teams app package is the connection's setup document, built from its app id. */
+    const teamsAppPackage = async (connectionId: string): Promise<ChannelSetupDocument | null> => {
+        const res = await client
+            .fetchChannelConnectionSetup({connection_id: connectionId}, scope())
+            .catch(rethrow(t("channels.teams.loadError")))
+        return setupDocumentOf(asRecord(asRecord(res).setup))
     }
 
     const connectHere = async (platform: ChannelPlatform, connectionId: string) =>
@@ -947,6 +992,7 @@ export const buildAgentChannelsActions = ({
             return hostedSlackInstallUrl(id)
         },
         discordInviteUrl,
+        teamsAppPackage,
         connectCustom,
         connectHere,
         disconnect,
