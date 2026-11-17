@@ -2,7 +2,7 @@
 
 ### Requirement: An agent configuration lists its drives by slug
 
-The agent configuration at `parameters.agent` SHALL hold a list `drives` of at most 8 entries, each `{ "slug": ..., "access": ... }` with a non-empty slug that is one path segment, each slug at most once, and an `access` of `"read-write"` (default) or `"read"`, and an entry with any other key SHALL be refused.
+The agent configuration at `parameters.agent` SHALL hold a list `drives` of at most 8 entries, each `{ "slug": ..., "access": ... }` with a non-empty slug that is one path segment and not `README.md` (any case; `drives/README.md` is the platform's file), each slug at most once, and an `access` of `"read-write"` (default) or `"read"`, and an entry with any other key SHALL be refused.
 
 #### Scenario: A drive entry
 
@@ -297,6 +297,11 @@ A commit through the API SHALL fill `has_session_drive`, `drives` and `home_driv
 
 - **WHEN** the agent service reads an agent revision stored before release 1, and the agent has a drive row
 - **THEN** the revision it receives holds `drives` and `home_drive` naming that drive
+
+#### Scenario: An older revision of an agent with no drive is read
+
+- **WHEN** the agent service reads an agent revision stored before release 1, and the agent has no drive row
+- **THEN** the revision it receives has no `drives` key, so the run uses the legacy route
 
 #### Scenario: The fill obeys the home rule
 

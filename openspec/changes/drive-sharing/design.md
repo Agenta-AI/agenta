@@ -204,7 +204,7 @@ The cases from the goals:
 
 What is not on the entry (Proposed): no `kind` (there is one kind), no `path` (every drive appears at `drives/<slug>/`, Decided), no id (the slug is the stable reference inside a project, and it is readable in a configuration). The entry rules, owned by one SDK function `validate_agent_drives` as today (`dtos.py:444-503`):
 
-- `drives` is a list of at most 8 objects; each has a non-empty `slug` that is one path segment (no `/`, `\`, NUL, `.` or `..`, as the runner already requires, `services/runner/src/engines/sandbox_agent/run-drives.ts:48-57`), each slug at most once, and `access` `"read"` or `"read-write"`.
+- `drives` is a list of at most 8 objects; each has a non-empty `slug` that is one path segment (no `/`, `\`, NUL, `.` or `..`, as the runner already requires, `services/runner/src/engines/sandbox_agent/run-drives.ts:48-57`, and not `README.md` in any case, because `drives/README.md` is the file of Decision 9), each slug at most once, and `access` `"read"` or `"read-write"`.
 - `home_drive` is absent, `null`, or the slug of an entry with `"read-write"` access. A read-only home cannot hold saved tools or app files.
 - An unknown key on an entry, including `kind`, is refused. The two-kind shape never shipped, so no stored data holds it.
 
@@ -626,7 +626,7 @@ No agent drive row changes. Existing agent drives keep their reserved slugs and 
 2. For each such row without a `mount_visibility` row, write one from the agent's `agent_access` row (visibility and owner), or `project` with no owner when the agent has none.
 3. For each non-archived agent artifact with no drive row (it never ran), insert one: a row with a readable slug, `agent_id`, the storage prefix rule of `mounts`, and a `mount_visibility` row copied from the agent.
 4. Write `mount_visibility` rows (`project`, no owner) for drives without a row that older API pods created during the release 1 rollout.
-5. For each agent revision (`flags.is_agent`) whose `data.parameters.agent` lacks a key: add `has_session_drive: true`; add `drives: [{ "slug": <the artifact's drive slug> }]` and `home_drive: <that slug>` when `drives` is absent (the frozen fill; after steps 1 and 2 the own drive has the agent's visibility, so the home rule holds). A revision that states `drives` keeps it. Read `data` as text and merge in Python, because the `jsonb` cast refuses some stored JSON (the approach of the open backfill pull request); write it back as `json`.
+5. For each agent revision (`flags.is_agent`) whose `data.parameters.agent` lacks a key: add `has_session_drive: true`; add `drives: [{ "slug": <the artifact's drive slug> }]` and `home_drive: <that slug>` when `drives` is absent and the home rule allows the own drive for the agent's current visibility; otherwise add `drives: []` and `home_drive: null` (the frozen fill of `fill_agent_drive_keys`, Decision 5; the own drive can fail the rule after case (k), when another agent's visibility change made it shared). A revision that states `drives` keeps it. Read `data` as text and merge in Python, because the `jsonb` cast refuses some stored JSON (the approach of the open backfill pull request); write it back as `json`.
 
 6. In every agent revision that names a renamed slug (in `drives` or `home_drive`), including references saved explicitly during release 1 by the fill, replace it with the new slug.
 

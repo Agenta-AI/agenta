@@ -210,7 +210,7 @@ The drive appears in the agent's working folder at `drives/<slug>/`. The home dr
 
 ### Several agents on one drive
 
-Any number of agents in the project can list the same drive, each with its own access. An agent that does not list the drive does not mount it and gets no credentials for it. A private drive is mounted only in the runs of its owner; a run of anyone else does not get it.
+Any number of agents in the project can list the same drive, each with its own access. An agent that does not list the drive does not mount it and gets no credentials for it. A private drive is mounted only in the runs of its owner; a run of anyone else does not get it. One exception: the owner's own channel installation runs the owner's personal agent with the private drives that agent lists, so people in that channel can ask about those files. See [Connect an agent to Slack](/guides/connect-slack).
 
 When agents write the same drive:
 
