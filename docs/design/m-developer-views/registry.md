@@ -86,10 +86,23 @@ the user to /w and the views follow their stage, as before beta developer mode e
 `isBetaDeveloperModeEnabled()` in `@agenta/shared/api` reads it. The local dev env files set it
 to `true`.
 
+## One gate in beta developer mode
+
+With beta developer mode active, every view in the registry is on: pages, nav links, feature
+gates and every cross link (Overview, Open in playground, the prompt row click). Nothing on
+the developer side checks `stage` for that user, and Preferences shows no preview switches
+(they would change nothing). A view added to the registry needs no extra step to appear.
+
+Stages, the preview switches and `AGENTA_DEVELOPER_VIEWS` stay for users without beta
+developer mode (and for deployments that do not offer it, such as production). They are the
+only place `stage` is read. Do not read `stage` in a screen or a cross link: ask
+`useDeveloperViewEnabled(id)`.
+
 ## Helpers (`features/developer/developerViewAccess.ts`)
 
 - `isDeveloperViewEnabled(view, {previewOptedIn, forcedIds})`: the pure rule.
 - `useDeveloperViewEnabled(viewId)`: `true`, `false`, or `null` until the signed-in user is
+  Under beta developer mode it is `true` for every view in the registry.
   known. The first render is always `null`, so the answer never differs from the prerendered
   HTML.
 - `useEnabledDeveloperViews()`: the views the nav shows.

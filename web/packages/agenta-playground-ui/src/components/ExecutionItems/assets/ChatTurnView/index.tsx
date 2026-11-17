@@ -13,9 +13,9 @@ import {TurnMessageAdapter} from "@agenta/playground-ui/adapters"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useChatTurn} from "../../../../hooks/useChatTurn"
+import {usePlaygroundNodeLabels} from "../../../../hooks/usePlaygroundNodeLabels"
 import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
 import {extractDisplayEntries} from "../../../shared/EvaluatorFieldGrid/utils"
-import {usePlaygroundNodeLabels} from "../ExecutionRow/shared"
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 import TypingIndicator from "../TypingIndicator"
 

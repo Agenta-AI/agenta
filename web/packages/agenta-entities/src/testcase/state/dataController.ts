@@ -58,7 +58,7 @@ import {
     createEntityDataController,
     type EntityDataConfigBase,
 } from "../../shared/createEntityDataController"
-import {extractColumnsFromData, type Column} from "../core"
+import {extractColumnsWithAccessor, type Column} from "../core"
 
 import {testcaseMolecule} from "./molecule"
 import {testcasePaginatedStore, type TestcaseTableRow} from "./paginatedStore"
@@ -207,16 +207,24 @@ const columnsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
             return config.localColumnKeys.map((key) => ({key, label: key}))
         }
 
-        // Get rows first
-        const rows = get(rowsAtomFamily(config))
+        // The first rows of the whole list, so a search does not hide columns, plus every row the
+        // search matches, so a matching row past the sample still shows its columns.
+        const sample = get(
+            rowsAtomFamily(config.searchTerm ? {...config, searchTerm: undefined} : config),
+        ).slice(0, 20)
+        if (config.searchTerm) {
+            const sampled = new Set(sample.map((row) => row.id))
+            for (const row of get(rowsAtomFamily(config))) {
+                if (!sampled.has(row.id)) sample.push(row)
+            }
+        }
 
         // Extract columns from entity data (testcase.data)
         // We need to look up entity data for each row since rows are identity-only.
         // In server mode the read subscribes to the entity, which carries the pending column
         // renames, adds and removals, so the headers follow a column edit at once.
         const dataObjects: Record<string, unknown>[] = []
-        for (const row of rows.slice(0, 20)) {
-            // Sample first 20 rows
+        for (const row of sample) {
             const entity = config.useLocal
                 ? testcaseMolecule.get.data(row.id)
                 : get(testcaseEntityAtomFamily(row.id))
@@ -225,7 +233,10 @@ const columnsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
             }
         }
 
-        return extractColumnsFromData(dataObjects)
+        // Each object is already row data, so a user column named `id` or `data` stays a column.
+        return extractColumnsWithAccessor(dataObjects, (data) => data, {
+            sampleSize: dataObjects.length,
+        })
     })
 }, areConfigsEqual)
 

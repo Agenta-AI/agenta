@@ -129,19 +129,25 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
         }
 
         // For local drafts, edits may be baked into the clone (no draft atom).
-        // Use the full entity data as the effective current state.
         const isLocal = isLocalDraftId(revisionId)
-        if (!isLocal) {
-            const draft = store.get(workflowDraftAtomFamily(revisionId))
-            if (!draft) {
-                return {hasDraft: false, patch: null, sourceRevisionId: revisionId}
-            }
+        const draft = store.get(workflowDraftAtomFamily(revisionId))
+        if (!isLocal && !draft) {
+            return {hasDraft: false, patch: null, sourceRevisionId: revisionId}
         }
 
-        // Effective current data (clone + draft overlay) vs source server baseline.
-        const localData = store.get(workflowEntityAtomFamily(revisionId))
+        // Effective current data (clone or server, then the draft overlay) vs the server
+        // baseline, both in the STORED shape. The entity atom is the display shape: an
+        // evaluator's flat parameters come out nested (`prompt.messages`), and a patch taken from
+        // it would be applied over the flat server data on restore, so a reload showed the
+        // evaluator's raw schema form and lost the edit.
         const remoteData = store.get(workflowServerDataSelectorFamily(revisionId))
-        const localRec = (localData?.data ?? {}) as Record<string, unknown>
+        const baseData = isLocal
+            ? store.get(workflowLocalServerDataAtomFamily(revisionId))
+            : remoteData
+        const localRec = {
+            ...((baseData?.data ?? {}) as Record<string, unknown>),
+            ...((draft?.data ?? {}) as Record<string, unknown>),
+        }
         const remoteRec = (remoteData?.data ?? {}) as Record<string, unknown>
 
         // Shallow diff over every data key, with parameters diffed at its own level.

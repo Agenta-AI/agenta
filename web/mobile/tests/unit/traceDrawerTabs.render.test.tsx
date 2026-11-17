@@ -82,8 +82,9 @@ describe("trace drawer tabs on /m", () => {
     it("shows the span's inputs and outputs on the Overview tab", async () => {
         await mount(<OverviewTabItem activeTrace={span} />)
 
-        // The panels arrive with the drill-in slot, which loads on demand.
-        await vi.waitFor(() => expect(host.textContent).toContain("inputs"))
+        // The panels arrive with the drill-in slot, and their Pretty JSON body with its own
+        // slot; both load on demand.
+        await vi.waitFor(() => expect(host.textContent).toContain("What is the capital of Peru?"))
         const text = host.textContent ?? ""
         expect(text).toContain("What is the capital of Peru?")
         expect(text).toContain("outputs")

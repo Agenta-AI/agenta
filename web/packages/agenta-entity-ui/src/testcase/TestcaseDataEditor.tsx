@@ -159,6 +159,8 @@ export function TestcaseDataEditor({
     getDefaultValueForType,
     rootViewMode: controlledRootViewMode,
     collapseSignal: controlledCollapseSignal,
+    fieldOrder = "sorted",
+    fieldControls = true,
 }: TestcaseDataEditorProps) {
     const isRootViewControlled = controlledRootViewMode !== undefined
     const [uncontrolledRootViewMode, setUncontrolledRootViewMode] = useState<RootViewMode>("text")
@@ -194,8 +196,8 @@ export function TestcaseDataEditor({
     )
 
     const getRootItems = useCallback(
-        () => getTestcaseRootItems(resolvedValue, columns),
-        [columns, resolvedValue],
+        () => getTestcaseRootItems(resolvedValue, columns, fieldOrder),
+        [columns, fieldOrder, resolvedValue],
     )
 
     const defaultValueForType = useCallback(
@@ -254,8 +256,8 @@ export function TestcaseDataEditor({
                 valueMode="native"
                 rootTitle="Root"
                 editable={editable}
-                showAddControls={editable && !columns?.length}
-                showDeleteControls={editable && !columns?.length}
+                showAddControls={editable && !columns?.length && fieldControls}
+                showDeleteControls={editable && !columns?.length && fieldControls}
                 initialPath={initialPath}
                 onPathChange={onPathChange}
                 columnOptions={

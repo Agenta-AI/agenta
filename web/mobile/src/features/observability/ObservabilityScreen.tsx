@@ -1,7 +1,12 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
 import {useObservability} from "@agenta/observability"
-import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
+import {
+    ObservabilityRangePicker,
+    ObservabilityToolbar,
+    useAutoRefresh,
+} from "@agenta/observability-ui"
 import {AddActionsDropdown, DeleteTraceModal, deleteTraceModalAtom} from "@agenta/observability-ui"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
@@ -17,7 +22,8 @@ import {projectHomeUrl} from "@/lib/context"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useProjectPermissionState} from "../context/useProjectPermission"
-import {canDeveloperViewBeEnabled, useDeveloperViewEnabled} from "../developer/developerViewAccess"
+import {useDeveloperViewEnabled} from "../developer/developerViewAccess"
+import {useRouteAppId} from "../developer/useRouteAppId"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -32,6 +38,7 @@ import {SessionsTable} from "./SessionsTable"
 import {TracesFilters} from "./TracesFilters"
 import {TracesList} from "./TracesList"
 import {TracesTable} from "./TracesTable"
+import {useObservabilityTab, type ObservabilityTab} from "./useObservabilityTab"
 import {useTracesExportBinding} from "./useTracesExportBinding"
 
 // Loaded on the first session opened, so the page everyone opens does not carry the drawer.
@@ -39,8 +46,6 @@ const ObservabilitySessionDrawer = dynamic(
     () => import("./sessionDrawer/ObservabilitySessionDrawer"),
     {ssr: false},
 )
-
-type ObservabilityTab = "traces" | "sessions"
 
 /**
  * Project-wide observability.
@@ -81,14 +86,17 @@ const ObservabilityContent = ({
     projectId,
     appFilterEnabled,
     routeAppId,
+    showAppFilter,
 }: {
     workspaceId: string
     projectId: string
     appFilterEnabled: boolean
     routeAppId: string | null
+    /** False inside the app menu: the app comes from the path. */
+    showAppFilter: boolean
 }) => {
     useBindProjectContext(projectId)
-    const [tab, setTab] = useState<ObservabilityTab>("traces")
+    const [tab, setTab] = useObservabilityTab()
     // This whole screen is trace content. A role without `view_spans` reads none of it, so the
     // route itself leads back to the project rather than to a page of refusals.
     const router = useRouter()
@@ -114,13 +122,24 @@ const ObservabilityContent = ({
     const bodyRef = useRef<HTMLDivElement | null>(null)
 
     // The selection lives in the shared atom: the toolbar's Delete button reads it to enable.
-    const {fetchTraces, traces, selectedRowKeys, setSelectedRowKeys, filters, sort, traceTabs} =
-        useObservability()
+    const {
+        fetchTraces,
+        fetchAnnotations,
+        traces,
+        selectedRowKeys,
+        setSelectedRowKeys,
+        filters,
+        sort,
+        traceTabs,
+    } = useObservability()
     // Not `useSessions()`: that would load sessions and their spans on the Traces tab too.
     const queryClient = useQueryClient()
 
     // Swallow the refetch results: the toolbar only needs the promise to settle.
-    const {onExport, isExporting} = useTracesExportBinding()
+    const {onExport, isExporting, canExportData} = useTracesExportBinding(
+        projectId,
+        appFilterEnabled ? routeAppId : null,
+    )
     const openDeleteModal = useSetAtom(deleteTraceModalAtom)
     // Rows are keyed by span id; delete and the queue take trace ids.
     const traceIds = useMemo(
@@ -147,13 +166,18 @@ const ObservabilityContent = ({
     )
 
     const onRefresh = useCallback(async () => {
-        if (tab === "traces") await fetchTraces()
-        else
+        // As in the old app: the annotations reload with the traces, and the evaluator list too,
+        // so a new score shows in its evaluator column.
+        if (tab === "traces") {
+            await Promise.all([fetchAnnotations(), fetchTraces()])
+            invalidateEvaluatorsListCache()
+        } else
             await Promise.all([
                 queryClient.invalidateQueries({queryKey: ["sessions"]}),
                 queryClient.invalidateQueries({queryKey: ["session_spans"]}),
             ])
-    }, [tab, fetchTraces, queryClient])
+    }, [tab, fetchAnnotations, fetchTraces, queryClient])
+    const autoRefresh = useAutoRefresh(onRefresh)
 
     return (
         <>
@@ -180,10 +204,11 @@ const ObservabilityContent = ({
                     >
                         <ObservabilityToolbar
                             componentType={tab}
-                            onRefresh={onRefresh}
+                            onRefresh={autoRefresh.refresh}
+                            refreshTrigger={autoRefresh.refreshTrigger}
                             sortSlot={<ObservabilityRangePicker />}
                             filtersSlot={
-                                appFilterEnabled ? (
+                                showAppFilter ? (
                                     <>
                                         {tracesFilters}
                                         <ObservabilityAppFilter
@@ -196,7 +221,7 @@ const ObservabilityContent = ({
                                     tracesFilters
                                 )
                             }
-                            onExport={tab === "traces" ? onExport : undefined}
+                            onExport={tab === "traces" && canExportData ? onExport : undefined}
                             isExporting={isExporting}
                             onDelete={tab === "traces" && showsTable ? onDelete : undefined}
                             actionsSlot={
@@ -274,24 +299,19 @@ export const ObservabilityScreen = ({
     workspaceId: string
     projectId: string
 }) => {
-    const router = useRouter()
     const appFilterView = useDeveloperViewEnabled("observability-app-filter")
     const appFilterEnabled = appFilterView === true
-    const routeAppId = typeof router.query.app === "string" ? router.query.app : null
+    const {appId: routeAppId, fromPath} = useRouteAppId()
     useObservabilityAppScope(appFilterEnabled ? routeAppId : null)
 
-    if (
-        appFilterView === null &&
-        routeAppId !== null &&
-        canDeveloperViewBeEnabled("observability-app-filter")
-    )
-        return null
+    if (appFilterView === null && routeAppId !== null) return null
     return (
         <ObservabilityContent
             workspaceId={workspaceId}
             projectId={projectId}
             appFilterEnabled={appFilterEnabled}
             routeAppId={routeAppId}
+            showAppFilter={appFilterEnabled && !fromPath}
         />
     )
 }

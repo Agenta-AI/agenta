@@ -143,9 +143,18 @@ afterEach(() => {
 })
 
 describe("scenarios tab", () => {
-    it("Each row shows its index, status and one column group per run step", async () => {
+    it("Each row shows its index, status, the test set values, each evaluator metric and the app metrics", async () => {
         await mount()
-        expect(headers()).toEqual(["#", "Status", "Test set capitals", "Exact Match"])
+        expect(headers()).toEqual([
+            "#",
+            "Status",
+            "Test set capitals",
+            "Exact Match · success",
+            "Cost",
+            "Duration",
+            "Tokens",
+            "Errors",
+        ])
         const rows = host.querySelectorAll('[role="button"]')
         expect(rows).toHaveLength(3)
         expect(rows[0].textContent).toContain("1")
@@ -165,7 +174,7 @@ describe("scenarios tab", () => {
         primeWorkflowArtifactCacheImperative([{id: "ev-1", name: "Capital match"}] as never)
         await settle()
         await settle()
-        expect(headers().slice(2)).toEqual(["World capitals", "Capital match"])
+        expect(headers().slice(2, 4)).toEqual(["World capitals", "Capital match · success"])
     })
 
     it("A missing value shows a dash", async () => {

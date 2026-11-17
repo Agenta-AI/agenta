@@ -104,9 +104,13 @@ describe("overview charts", () => {
     it("Fewer than three radar axes shows the insufficient metrics empty state, not a loader", () => {
         render(
             createElement(RunRadarCard, {
-                runId: RUN_ID,
-                runName: "Capitals check",
-                metrics: [invocationMetric("duration", {mean: 1, max: 2})],
+                runs: [
+                    {
+                        id: RUN_ID,
+                        name: "Capitals check",
+                        metrics: [invocationMetric("duration", {mean: 1, max: 2})],
+                    },
+                ],
                 pending: false,
             }),
         )
@@ -115,12 +119,16 @@ describe("overview charts", () => {
 
         render(
             createElement(RunRadarCard, {
-                runId: RUN_ID,
-                runName: "Capitals check",
-                metrics: [
-                    evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
-                    invocationMetric("duration", {mean: 1, max: 2}),
-                    invocationMetric("cost", {mean: 0.001, max: 0.002}),
+                runs: [
+                    {
+                        id: RUN_ID,
+                        name: "Capitals check",
+                        metrics: [
+                            evaluatorMetric("attributes.ag.data.outputs.score", NUMERIC),
+                            invocationMetric("duration", {mean: 1, max: 2}),
+                            invocationMetric("cost", {mean: 0.001, max: 0.002}),
+                        ],
+                    },
                 ],
                 pending: false,
             }),
@@ -266,6 +274,74 @@ describe("overview charts", () => {
         expect(line.yDomain).toEqual([0, 1])
         // The score metric has no points yet.
         expect(host.textContent).toContain("Exact match metrics are on the way")
+    })
+
+    it("An online run's card shows the whole run's value, not the newest minute", () => {
+        const point = (minute: number, trueCount: number, count: number) => ({
+            timestamp: Date.UTC(2026, 9, 30, 9, minute),
+            stats: {
+                type: "binary",
+                frequency: [
+                    {value: true, count: trueCount},
+                    {value: false, count: count - trueCount},
+                ],
+            },
+        })
+        render(
+            createElement(MetricCardsSection, {
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: true,
+                metrics: [
+                    evaluatorMetric(
+                        "attributes.ag.data.outputs.score",
+                        {
+                            type: "binary",
+                            count: 88,
+                            frequency: [
+                                {value: true, count: 84},
+                                {value: false, count: 4},
+                            ],
+                        },
+                        {temporal: [point(0, 30, 30), point(10, 0, 2)]},
+                    ),
+                ],
+                hasEvaluators: true,
+                pending: false,
+                error: null,
+            }),
+        )
+        expect(host.textContent).toContain("Capitals check: 95.45%")
+        expect(host.textContent).not.toContain("0.00%")
+    })
+
+    it("An online run with no run-wide value shows no value, not the newest minute", () => {
+        const latest = {
+            type: "binary",
+            frequency: [
+                {value: true, count: 0},
+                {value: false, count: 2},
+            ],
+        }
+        render(
+            createElement(MetricCardsSection, {
+                runId: RUN_ID,
+                runName: "Capitals check",
+                online: true,
+                metrics: [
+                    evaluatorMetric("attributes.ag.data.outputs.score", latest, {
+                        statsAreRunWide: false,
+                        temporal: [{timestamp: Date.UTC(2026, 9, 30, 9, 0), stats: latest}],
+                    }),
+                ],
+                hasEvaluators: true,
+                pending: false,
+                error: null,
+            }),
+        )
+        expect(charts.line).toHaveLength(1)
+        expect(host.textContent).not.toContain("Capitals check:")
+        expect(host.textContent).not.toContain("0.00%")
     })
 
     it("An online categorical metric draws one line per value", () => {

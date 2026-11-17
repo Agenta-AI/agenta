@@ -75,8 +75,14 @@ export const ArchivedEvaluatorRowCells = ({
                     />
                 </span>
             )}
+            {narrow || !automatic ? null : (
+                <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
+                    {row.message ?? "—"}
+                </span>
+            )}
             <span className="flex justify-end" onClick={(event) => event.stopPropagation()}>
                 <EvaluatorRowMenu
+                    copy={{revisionId: row.id, slug: row.slug}}
                     onOpen={onOpen}
                     openLabel="Open details"
                     onRestore={onRestore}

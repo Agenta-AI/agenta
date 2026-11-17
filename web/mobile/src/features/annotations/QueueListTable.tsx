@@ -5,6 +5,8 @@ import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {useRouter} from "next/router"
 
+import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
+
 import {QueueRowCells} from "./QueueRowCells"
 import type {QueueToDelete} from "./useQueueDelete"
 
@@ -42,8 +44,8 @@ const WIDE_MIN_WIDTH = 1100
 const NARROW_MIN_WIDTH = 0
 
 /**
- * The queues in the shared list frame. A row opens the queue; the menu offers Open, Copy ID and,
- * for a reader who may delete queues, Delete.
+ * The queues in the shared list frame. A row opens the queue; the menu offers Open, View Results,
+ * Copy ID and, for a reader who may delete queues, Delete.
  */
 export const QueueListTable = ({
     rows,
@@ -64,6 +66,10 @@ export const QueueListTable = ({
     const narrow = !useMediaQuery(WIDE_QUERY)
     const open = (row: SimpleQueueTableRow) =>
         void router.push(`${base}/annotations/${row.id}`).catch(() => undefined)
+    // The results page is the evaluations view; without it the item would open a page not found.
+    const resultsEnabled = useDeveloperViewEnabled("evaluations") === true
+    const viewResults = (row: SimpleQueueTableRow) =>
+        void router.push(`${base}/evaluations/results/${row.run_id}`).catch(() => undefined)
 
     return (
         <ListTable
@@ -80,6 +86,7 @@ export const QueueListTable = ({
                     narrow={narrow}
                     canDelete={canDelete}
                     onOpen={open}
+                    onViewResults={resultsEnabled ? viewResults : undefined}
                     onDelete={onDelete}
                 />
             )}

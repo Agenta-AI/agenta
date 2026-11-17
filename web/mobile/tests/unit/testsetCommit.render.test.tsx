@@ -4,8 +4,7 @@ import {act, useState} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {buildChangesDiff} from "@/features/testsets/detail/changesDiff"
-import {rowChangeText} from "@/features/testsets/detail/CommitTestsetDialog"
+import {changeText} from "@/features/testsets/detail/CommitTestsetDialog"
 import {TestsetToolbar} from "@/features/testsets/detail/TestsetToolbar"
 
 const router = vi.hoisted(() => ({
@@ -29,10 +28,6 @@ vi.mock("next/router", () => ({
 vi.mock("next/dynamic", () => ({default: () => () => null}))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {success: vi.fn(), error: vi.fn(), info: vi.fn(), loading: vi.fn(() => vi.fn())},
-}))
-vi.mock("@/features/testsets/detail/changesDiff", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@/features/testsets/detail/changesDiff")>()),
-    useChangesDiff: () => null,
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -71,7 +66,6 @@ const fakeEditor = (over: Partial<Editor> = {}): Editor => ({
         hasChanges: true,
     },
     isSaving: false,
-    columnEditBlocked: "Save or discard your row changes first",
     addRow: vi.fn(() => "new-1"),
     discard: vi.fn(),
     commit: vi.fn(async () => "rev-9"),
@@ -89,7 +83,6 @@ describe("Testset toolbar, commit and leave prompt", () => {
                 <>
                     <ToolbarHost
                         editor={editor}
-                        routeId="rev-2"
                         base="/w/ws/p/pr"
                         canEdit={canEdit}
                         revisions={{latestVersion: 5, load: vi.fn(), status: revisionStatus}}
@@ -153,13 +146,22 @@ describe("Testset toolbar, commit and leave prompt", () => {
         expect(document.body.textContent).not.toContain("→")
     })
 
-    it("The commit dialog lists only non-zero change counts", async () => {
-        expect(rowChangeText({updatedTestcases: 2, newTestcases: 0, deletedTestcases: 1})).toBe(
+    it("The commit dialog lists only non-zero change counts, columns included", async () => {
+        const none = {
+            updatedTestcases: 0,
+            newTestcases: 0,
+            deletedTestcases: 0,
+            renamedColumns: 0,
+            addedColumns: 0,
+            deletedColumns: 0,
+        }
+        expect(changeText({...none, updatedTestcases: 2, deletedTestcases: 1})).toBe(
             "2 modified, 1 deleted",
         )
-        expect(
-            rowChangeText({updatedTestcases: 0, newTestcases: 0, deletedTestcases: 0}),
-        ).toBeNull()
+        expect(changeText({...none, renamedColumns: 1, addedColumns: 2})).toBe(
+            "1 column renamed, 2 columns added",
+        )
+        expect(changeText(none)).toBeNull()
 
         await mount(fakeEditor())
         await click("Commit")
@@ -240,13 +242,8 @@ describe("Testset toolbar, commit and leave prompt", () => {
         expect(button("Import")?.disabled).toBe(true)
     })
 
-    it("Import is off while rows have unsaved changes, as column changes are", async () => {
+    it("Import stays on while there are unsaved changes, as in the old app", async () => {
         await mount(fakeEditor())
-        expect(button("Import")?.disabled).toBe(true)
-    })
-
-    it("Import opens the import step when nothing is unsaved", async () => {
-        await mount(fakeEditor({hasUnsavedChanges: false, columnEditBlocked: null}))
         expect(button("Import")?.disabled).toBe(false)
         await click("Import")
         expect(onImport).toHaveBeenCalledTimes(1)
@@ -275,7 +272,6 @@ describe("Testset toolbar, commit and leave prompt", () => {
             root.render(
                 <ToolbarHost
                     editor={editor}
-                    routeId="rev-2"
                     base="/w/ws/p/pr"
                     canEdit
                     revisions={{latestVersion: 5, load: vi.fn(), status: "ready"}}
@@ -285,37 +281,5 @@ describe("Testset toolbar, commit and leave prompt", () => {
         )
         await click("Add row")
         expect(onRowAdded).toHaveBeenCalledWith("new-1")
-    })
-})
-
-describe("Commit preview", () => {
-    it("builds both sides of the preview and counts the changes", () => {
-        const diff = buildChangesDiff({
-            updated: [{id: "a", before: {q: "old"}, after: {q: "new"}}],
-            added: [{id: "new-1", after: {q: "fresh"}}],
-            deleted: [{id: "b", before: {q: "gone"}}],
-            columns: {
-                added: ["country"],
-                removed: [],
-                renamed: [{oldKey: "q", newKey: "question"}],
-            },
-        })
-        expect(diff?.count).toBe(5)
-        expect(diff?.original).toEqual({rows: {a: {q: "old"}, b: {q: "gone"}}, columns: ["q"]})
-        expect(diff?.modified).toEqual({
-            rows: {a: {q: "new"}, "new row 1": {q: "fresh"}},
-            columns: ["question", "country"],
-        })
-    })
-
-    it("returns nothing when nothing changed", () => {
-        expect(
-            buildChangesDiff({
-                updated: [],
-                added: [],
-                deleted: [],
-                columns: {added: [], removed: [], renamed: []},
-            }),
-        ).toBeNull()
     })
 })

@@ -125,7 +125,12 @@ export const RunOnSelector = ({
                     <CaretDown aria-hidden size={12} className="text-muted-foreground" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-[min(460px,calc(100vw-32px))] p-1.5">
+            <PopoverContent
+                // Renders outside the page: `data-playground` gives it the playground's colours.
+                data-playground
+                align="start"
+                className="w-[min(460px,calc(100vw-32px))] p-1.5"
+            >
                 <p className="m-0 px-2.5 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     What should the evaluator run on?
                 </p>

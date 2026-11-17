@@ -93,10 +93,10 @@ describe("runDisplayStatus", () => {
         flags: {is_live: true, ...flags},
     })
 
-    it("A live run that is not active and not closed reads Paused", () => {
-        expect(runDisplayStatus(live({is_active: false, is_closed: false}))).toBe("paused")
-        expect(humanizeRunStatus(runDisplayStatus(live({is_active: false})) ?? "")).toBe("Paused")
-        expect(runStatusTone("paused")).toBe("default")
+    it("A live run that is not active and not closed reads Stopped", () => {
+        expect(runDisplayStatus(live({is_active: false, is_closed: false}))).toBe("stopped")
+        expect(humanizeRunStatus(runDisplayStatus(live({is_active: false})) ?? "")).toBe("Stopped")
+        expect(runStatusTone("stopped")).toBe("default")
     })
 
     it("An active or closed live run keeps its own status", () => {

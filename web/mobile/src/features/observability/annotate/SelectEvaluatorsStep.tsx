@@ -1,15 +1,29 @@
 import {useState} from "react"
 
 import type {Workflow} from "@agenta/entities/workflow"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {Alert, Button, Checkbox, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
+import {PlusIcon} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import {SelectEvaluatorsEmpty} from "./states/SelectEvaluatorsEmpty"
 import {SelectEvaluatorsError} from "./states/SelectEvaluatorsError"
 import {SelectEvaluatorsSkeleton} from "./states/SelectEvaluatorsSkeleton"
 
+// The create form is its own chunk: it downloads only when a user creates an evaluator here.
+const CreateEvaluatorFlow = dynamic(
+    () =>
+        import("../../evaluators/create/CreateEvaluatorFlow").then(
+            (module) => module.CreateEvaluatorFlow,
+        ),
+    {ssr: false},
+)
+
 /**
  * The Select Evaluators step: a searchable check list of the project's human evaluators. An
- * evaluator the user already annotated with stays checked and cannot be removed.
+ * evaluator the user already annotated with stays checked and cannot be removed. In beta
+ * developer mode "Create evaluator" opens the human evaluator form and selects the new one.
  */
 export const SelectEvaluatorsStep = ({
     evaluators,
@@ -31,10 +45,28 @@ export const SelectEvaluatorsStep = ({
     evaluatorsHref: string | null
 }) => {
     const [search, setSearch] = useState("")
+    const canCreate = useAtomValue(betaDeveloperModeActiveAtom)
+    const [creating, setCreating] = useState(false)
+    // A new evaluator is selected at once; the list shows it when it loads again.
+    const createFlow = creating ? (
+        <CreateEvaluatorFlow
+            kind="human"
+            onClose={() => setCreating(false)}
+            onCreated={(created) => onChange([...selected, created.slug])}
+        />
+    ) : null
+    const onCreate = canCreate ? () => setCreating(true) : undefined
 
     if (isLoading) return <SelectEvaluatorsSkeleton />
     if (loadFailed && evaluators.length === 0) return <SelectEvaluatorsError onRetry={onRetry} />
-    if (evaluators.length === 0) return <SelectEvaluatorsEmpty evaluatorsHref={evaluatorsHref} />
+    if (evaluators.length === 0) {
+        return (
+            <>
+                <SelectEvaluatorsEmpty evaluatorsHref={evaluatorsHref} onCreate={onCreate} />
+                {createFlow}
+            </>
+        )
+    }
 
     const term = search.trim().toLowerCase()
     const shown = evaluators.filter(
@@ -58,12 +90,21 @@ export const SelectEvaluatorsStep = ({
                     }
                 />
             ) : null}
-            <SearchInput
-                placeholder="Search"
-                aria-label="Search evaluators"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-            />
+            <div className="flex items-center gap-2">
+                <SearchInput
+                    className="min-w-0 flex-1"
+                    placeholder="Search"
+                    aria-label="Search evaluators"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                />
+                {onCreate ? (
+                    <Button variant="outline" size="sm" onClick={onCreate}>
+                        <PlusIcon aria-hidden />
+                        Create evaluator
+                    </Button>
+                ) : null}
+            </div>
             {shown.length === 0 ? (
                 <p className="m-0 py-6 text-center text-sm text-muted-foreground">
                     No results found
@@ -97,6 +138,7 @@ export const SelectEvaluatorsStep = ({
                     })}
                 </ul>
             )}
+            {createFlow}
         </div>
     )
 }

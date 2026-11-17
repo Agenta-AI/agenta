@@ -78,6 +78,35 @@ describe("selectEvaluators", () => {
         expect(active.map((entry) => entry.workflow.id)).toEqual(["live"])
     })
 
+    it("Live evaluators are sorted by their latest revision, newest first", () => {
+        const workflows = [workflow("first"), workflow("second"), workflow("third")]
+        const latest = byWorkflow([
+            [
+                "first",
+                {
+                    ...revision("r1", "agenta:builtin:auto_exact_match:v0"),
+                    created_at: "2026-01-01T00:00:00Z",
+                },
+            ],
+            [
+                "second",
+                {
+                    ...revision("r2", "agenta:builtin:auto_exact_match:v0"),
+                    created_at: "2026-03-01T00:00:00Z",
+                },
+            ],
+            [
+                "third",
+                {
+                    ...revision("r3", "agenta:builtin:auto_exact_match:v0"),
+                    created_at: "2026-02-01T00:00:00Z",
+                },
+            ],
+        ])
+        const result = selectEvaluators(workflows, latest, {category: "automatic", mode: "active"})
+        expect(result.map((entry) => entry.workflow.id)).toEqual(["second", "third", "first"])
+    })
+
     it("A workflow without a latest revision is left out", () => {
         const result = selectEvaluators([workflow("a")], new Map(), {
             category: "automatic",

@@ -71,6 +71,25 @@ export {
     type EvaluatorListMode,
 } from "./selectEvaluators"
 
+// Which templates a create picker offers
+export {
+    ALL_EVALUATOR_TEMPLATES_TAB,
+    CREATABLE_EVALUATOR_TEMPLATE_KEYS,
+    buildEvaluatorTemplateTabs,
+    evaluatorTemplateCategories,
+    filterEvaluatorTemplates,
+    selectCreatableEvaluatorTemplates,
+    type EvaluatorTemplateTab,
+} from "./evaluatorTemplateCatalog"
+
+// The feedback fields of a human evaluator
+export {
+    CHOICE_FEEDBACK_TYPES,
+    HUMAN_FEEDBACK_TYPES,
+    NUMERIC_FEEDBACK_TYPES,
+    humanEvaluatorMetricsFromSchema,
+} from "./humanEvaluatorMetrics"
+
 // API parameter types
 export type {
     WorkflowListParams,

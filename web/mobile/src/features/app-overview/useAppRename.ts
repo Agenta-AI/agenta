@@ -83,6 +83,8 @@ export const useAppRename = ({projectId, app}: {projectId: string; app: Workflow
 
     return {
         descriptionState,
+        /** The app names the duplicate check reads are still loading. */
+        namesLoading: apps.isPending,
         storedName,
         storedDescription,
         createdAt: artifact.data?.created_at ?? null,

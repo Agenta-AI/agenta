@@ -1,0 +1,21 @@
+{
+    "addDescription": "After adding the provider, enable it to verify the connection.",
+    "addProvider": "Add provider",
+    "addTitle": "Add SSO provider",
+    "clientId": "Client ID",
+    "clientSecret": "Client secret",
+    "clientSecretHint": "The stored secret is never shown. Leave blank to keep it.",
+    "editDescription": "Saving settings clears validation and deactivates the provider. Enable it again after saving.",
+    "editTitle": "Edit SSO provider",
+    "enterClientSecret": "Enter the client secret",
+    "invalidSlug": "Use only lowercase letters (a-z) and hyphens (-) for the slug",
+    "issuerAndClientRequired": "Issuer URL and client ID are required",
+    "issuerUrl": "Issuer URL",
+    "saveFailed": "Could not save the provider",
+    "saveProvider": "Save provider",
+    "saving": "Saving…",
+    "scopes": "Scopes",
+    "scopesHint": "Separate scopes with commas",
+    "slug": "Slug",
+    "slugHint": "Lowercase letters and hyphens only"
+}

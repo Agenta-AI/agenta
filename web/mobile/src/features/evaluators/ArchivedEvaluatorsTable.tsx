@@ -19,6 +19,7 @@ const AUTOMATIC_COLUMNS = [
     col("tags", "Tags", "minmax(140px,1.5fr)"),
     col("archivedAt", "Archived at", "minmax(110px,1fr)"),
     ARCHIVED_BY,
+    col("message", "Commit message", "minmax(140px,1.5fr)"),
     ACTIONS,
 ]
 const HUMAN_COLUMNS = [
@@ -63,7 +64,7 @@ export const ArchivedEvaluatorsTable = ({
     return (
         <ListTable
             columns={columns}
-            minWidth={narrow ? 300 : 800}
+            minWidth={narrow ? 300 : category === "human" ? 800 : 940}
             stickyHeader
             loading={isLoading}
             groups={[{key: "all", label: null, rows}]}

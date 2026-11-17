@@ -1,4 +1,4 @@
-import {SkillAvatar} from "@agenta/skills-ui"
+import {SkillMark} from "@agenta/ui/agent-icon"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillArchivedTag} from "./SkillArchivedTag"
@@ -28,9 +28,9 @@ export const SkillCardBody = ({
 }) => (
     <>
         <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
-            <SkillAvatar origin={row.origin} slug={row.slug} />
-            <span className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-foreground">
-                {row.slug}
+            <SkillMark />
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+                {row.title}
             </span>
             <span
                 className="flex shrink-0 items-center gap-1.5"

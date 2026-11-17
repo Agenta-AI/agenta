@@ -77,7 +77,13 @@ export const RevisionMenu = ({
                 Revert Changes
             </DropdownMenuItem>
             {onDelete ? (
-                <DropdownMenuItem variant="destructive" disabled={!canDelete} onSelect={onDelete}>
+                <DropdownMenuItem
+                    variant="destructive"
+                    // The menu renders outside the page, where /m has no `text-error` colour.
+                    className="text-destructive [&_svg]:text-destructive"
+                    disabled={!canDelete}
+                    onSelect={onDelete}
+                >
                     <Trash aria-hidden size={14} />
                     <MenuLabel hint={deleteHint}>Delete</MenuLabel>
                 </DropdownMenuItem>

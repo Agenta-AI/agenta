@@ -287,7 +287,12 @@ describe("Testset header", () => {
                 onSave={onSave}
             />,
         )
-        const input = document.querySelector<HTMLInputElement>('input[aria-label="Test set name"]')
+        // The field is found by its visible label, as a reader finds it.
+        const label = Array.from(document.querySelectorAll("label")).find(
+            (element) => element.textContent === "Name",
+        )
+        const input = document.getElementById(label?.htmlFor ?? "") as HTMLInputElement | null
+        expect(input?.value).toBe("Refund questions")
         const save = () =>
             Array.from(document.querySelectorAll("button")).find((b) => b.textContent === "Save")
         expect(save()?.disabled).toBe(false)

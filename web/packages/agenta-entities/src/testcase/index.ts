@@ -47,6 +47,7 @@ export {
     // Constants
     SYSTEM_FIELDS,
     isSystemField,
+    isInternalDataField,
     // Column extraction utilities
     COLUMN_EXTRACTION_MAX_DEPTH,
     DEFAULT_SAMPLE_SIZE,

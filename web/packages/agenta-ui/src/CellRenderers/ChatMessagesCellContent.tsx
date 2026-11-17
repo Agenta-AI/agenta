@@ -5,7 +5,8 @@ import {getAttachments} from "@agenta/shared/utils"
 
 import ImagePreview from "../components/presentational/attachments/ImagePreview"
 
-import {DEFAULT_ROLE_COLOR_CLASS, ROLE_COLOR_CLASSES} from "./constants"
+import {DEFAULT_ROLE_COLOR_CLASS} from "./constants"
+import {useRoleColorClasses} from "./roleColorClasses"
 import {
     extractChatMessages,
     normalizeChatMessages,
@@ -118,7 +119,7 @@ const SingleMessage = memo(
             [contentString, truncate, maxLines, maxChars],
         )
         const roleColorClass =
-            ROLE_COLOR_CLASSES[message.role.toLowerCase()] ?? DEFAULT_ROLE_COLOR_CLASS
+            useRoleColorClasses()[message.role.toLowerCase()] ?? DEFAULT_ROLE_COLOR_CLASS
 
         return (
             <section key={`${keyPrefix}-${index}`} className="w-full flex flex-col gap-1 text-xs">

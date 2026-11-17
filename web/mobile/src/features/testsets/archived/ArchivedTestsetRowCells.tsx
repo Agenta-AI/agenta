@@ -8,7 +8,7 @@ import {
     DropdownMenuTrigger,
     Spinner,
 } from "@agenta/ui/ui"
-import {ArrowCounterClockwise, DotsThreeVertical, Eye} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, DotsThreeVertical, Eye, Hash} from "@phosphor-icons/react"
 
 import {formatTestsetDate} from "../list/formatTestsetDate"
 
@@ -31,6 +31,7 @@ export const ArchivedTestsetRowCells = ({
     busy,
     canRestore,
     onOpen,
+    onCopyId,
 }: {
     row: ArchivedTestsetRow
     projectId: string
@@ -41,6 +42,8 @@ export const ArchivedTestsetRowCells = ({
     /** Restoring needs `edit_testsets`; without it the menu keeps View details only. */
     canRestore: boolean
     onOpen: () => void
+    /** Absent hides Copy ID (developer mode only). */
+    onCopyId?: () => void
 }) => {
     const {restore, restoring} = useRestoreTestset(projectId)
 
@@ -109,6 +112,12 @@ export const ArchivedTestsetRowCells = ({
                                 >
                                     <ArrowCounterClockwise aria-hidden size={14} />
                                     Restore
+                                </DropdownMenuItem>
+                            ) : null}
+                            {onCopyId ? (
+                                <DropdownMenuItem onSelect={onCopyId}>
+                                    <Hash aria-hidden size={14} />
+                                    Copy ID
                                 </DropdownMenuItem>
                             ) : null}
                         </DropdownMenuContent>

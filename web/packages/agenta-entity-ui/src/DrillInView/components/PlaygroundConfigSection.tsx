@@ -234,7 +234,9 @@ function PlaygroundConfigSection({
     // Without this, switching Form → YAML/JSON after a revision change renders
     // the SharedEditor with stale/empty content for one frame until the useEffect
     // fires. The code editor may not properly re-hydrate from that empty initial state.
-    const prevViewModeRef = useRef(viewMode)
+    // Starts at "form", so a section that mounts in JSON or YAML fills its editor on the first
+    // render too. Filled only by the effect below, a read-only editor stayed empty.
+    const prevViewModeRef = useRef<ConfigViewMode>("form")
     if (viewMode !== "form" && prevViewModeRef.current !== viewMode) {
         const next =
             viewMode === "yaml"

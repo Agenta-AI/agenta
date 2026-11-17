@@ -228,6 +228,8 @@ afterEach(() => {
     host.remove()
     document.body.innerHTML = ""
     store.set(playgroundController.actions.resetAll)
+    // Leaving keeps the edits of a saved revision; the next test starts without them.
+    store.set(workflowMolecule.actions.discard, "rev-1")
     vi.restoreAllMocks()
 })
 

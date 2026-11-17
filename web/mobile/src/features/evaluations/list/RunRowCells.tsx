@@ -1,3 +1,5 @@
+import {lazy, Suspense} from "react"
+
 import {
     deriveEvaluationKind,
     EVALUATION_KIND_LABELS,
@@ -6,18 +8,29 @@ import {
     runStatusTone,
     type EvaluationRun,
     type EvaluationRunKind,
+    type RunListColumns,
     type RunStatusTone,
 } from "@agenta/entities/evaluationRun"
 import {UserAuthorLabel} from "@agenta/entities/shared"
-import {testsetMolecule} from "@agenta/entities/testset"
-import {appWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {FormattedDate} from "@agenta/ui/components/presentational"
 import {Badge, type BadgeProps} from "@agenta/ui/ui"
-import {useAtomValue} from "jotai"
 
+import {useInView} from "../../annotations/useInView"
+
+import {RunApplicationCell} from "./RunApplicationCell"
 import {readRunReferences, runDisplayName} from "./runReferences"
 import {RunRowMenu} from "./RunRowMenu"
+import {RunTestsetCell} from "./RunTestsetCell"
 import type {RunRowActions} from "./useRunRowActions"
+
+// The metric and query cells (the metric bar, the stats and the trace filter labels) load in their
+// own chunk the first time a wide row draws them. Phones never draw them, so they never load it.
+const RunMetricCells = lazy(() =>
+    import("./RunMetricCells").then((module) => ({default: module.RunMetricCells})),
+)
+const RunQueryCell = lazy(() =>
+    import("./RunQueryCell").then((module) => ({default: module.RunQueryCell})),
+)
 
 const KIND_BADGE: Record<EvaluationRunKind, NonNullable<BadgeProps["variant"]>> = {
     auto: "geekblue",
@@ -55,36 +68,41 @@ export const RunKindBadge = ({run}: {run: EvaluationRun}) => {
     return <Badge variant={KIND_BADGE[kind]}>{EVALUATION_KIND_LABELS[kind]}</Badge>
 }
 
-const AppName = ({appId}: {appId: string | null}) => {
-    const apps = useAtomValue(appWorkflowsListQueryStateAtom)
-    const app = appId ? apps.data.find((entry) => entry.id === appId) : undefined
-    return <>{app ? app.name || app.slug || "—" : "—"}</>
-}
-
-const TestsetName = ({testsetId}: {testsetId: string | null}) => {
-    // The empty id keeps the hook count steady for a run with no test set.
-    const testset = useAtomValue(testsetMolecule.selectors.data(testsetId ?? ""))
-    return <>{testsetId ? testset?.name || "—" : "—"}</>
-}
+const MetricCellsPlaceholder = ({columns}: {columns: RunListColumns}) => (
+    <>
+        {[
+            ...columns.evaluators.flatMap((group) => group.columns.map((column) => column.id)),
+            ...columns.invocation.map((column) => column.id),
+        ].map((id) => (
+            <span key={id} />
+        ))}
+    </>
+)
 
 const muted = "block truncate text-[13px] text-muted-foreground"
 
 /**
  * One run's cells, in column order. A phone shows Status, Name (with the kind and the date
- * under it) and the menu. The project page adds the Application column.
+ * under it) and the menu. A wider screen shows the columns of the tab: the kind on All, the test
+ * set, query and app the runs use (the project page only for the app), one cell per evaluator
+ * metric, cost, duration, tokens and errors, then the date and the author. The query and the
+ * metrics load once the row is near the screen.
  */
 export const RunRowCells = ({
     run,
     narrow,
+    columns,
     showApplication,
     actions,
 }: {
     run: EvaluationRun
     narrow: boolean
+    columns: RunListColumns
     showApplication: boolean
     actions: RunRowActions
 }) => {
     const refs = readRunReferences(run)
+    const {ref, inView} = useInView<HTMLSpanElement>()
     const menu = (
         // The menu's own clicks are not the row's: without this each press also opens the run.
         <span
@@ -121,20 +139,30 @@ export const RunRowCells = ({
             <span className="flex">
                 <RunStatusDot status={runDisplayStatus(run)} />
             </span>
-            <span className="block truncate text-[14px] font-medium text-foreground">
+            <span ref={ref} className="block truncate text-[14px] font-medium text-foreground">
                 {runDisplayName(run)}
             </span>
-            <span className="flex">
-                <RunKindBadge run={run} />
-            </span>
-            {showApplication ? (
-                <span className={muted}>
-                    <AppName appId={refs.applicationId} />
+            {columns.showKind ? (
+                <span className="flex">
+                    <RunKindBadge run={run} />
                 </span>
             ) : null}
-            <span className={muted}>
-                <TestsetName testsetId={refs.testsetId} />
-            </span>
+            {columns.references.map((reference) =>
+                reference === "testset" ? (
+                    <RunTestsetCell key={reference} refs={refs} />
+                ) : reference === "query" ? (
+                    <Suspense key={reference} fallback={<span />}>
+                        <RunQueryCell queryRevisionId={refs.queryRevisionId} inView={inView} />
+                    </Suspense>
+                ) : showApplication ? (
+                    <RunApplicationCell key={reference} refs={refs} />
+                ) : null,
+            )}
+            {/* One empty cell per metric column while the chunk loads, so the later cells stay
+                in their columns. */}
+            <Suspense fallback={<MetricCellsPlaceholder columns={columns} />}>
+                <RunMetricCells run={run} columns={columns} inView={inView} />
+            </Suspense>
             <span className={muted}>
                 <FormattedDate date={run.created_at} format={DATE_FORMAT} fallback="—" />
             </span>

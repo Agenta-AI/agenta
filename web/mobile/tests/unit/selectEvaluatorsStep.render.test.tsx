@@ -6,10 +6,26 @@
 import {act, useState} from "react"
 
 import type {Workflow} from "@agenta/entities/workflow"
+import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
+const gate = vi.hoisted(() => ({beta: false}))
+vi.mock("@agenta/shared/state", async (original) => {
+    const {atom} = await import("jotai")
+    return {...(await original<object>()), betaDeveloperModeActiveAtom: atom(() => gate.beta)}
+})
+// The create flow is a separate chunk: a stand-in that "creates" Tone 2 at once.
+vi.mock("next/dynamic", () => ({
+    default:
+        () =>
+        ({onCreated}: {onCreated: (created: {slug: string}) => void}) => (
+            <button type="button" onClick={() => onCreated({slug: "tone-2"})}>
+                Save new evaluator
+            </button>
+        ),
+}))
 vi.mock("next/link", () => ({
     default: ({href, children}: {href: string; children: React.ReactNode}) => (
         <a href={href}>{children}</a>
@@ -27,8 +43,9 @@ const EVALUATORS = [
 let host: HTMLDivElement
 let root: Root
 
+let store = createStore()
 const render = async (node: React.ReactNode) => {
-    await act(async () => root.render(node))
+    await act(async () => root.render(<Provider store={store}>{node}</Provider>))
 }
 const rows = () =>
     Array.from(host.querySelectorAll("[data-testid=evaluator-row]")).map((row) => row.textContent)
@@ -55,20 +72,25 @@ const Step = (props: {
 }) => {
     const [selected, setSelected] = useState<string[]>([])
     return (
-        <SelectEvaluatorsStep
-            evaluators={props.evaluators ?? EVALUATORS}
-            isLoading={props.isLoading ?? false}
-            loadFailed={props.loadFailed ?? false}
-            onRetry={props.onRetry ?? (() => undefined)}
-            selected={selected}
-            lockedSlugs={props.lockedSlugs ?? []}
-            onChange={setSelected}
-            evaluatorsHref={props.evaluatorsHref ?? null}
-        />
+        <>
+            <output data-testid="selected">{selected.join(",")}</output>
+            <SelectEvaluatorsStep
+                evaluators={props.evaluators ?? EVALUATORS}
+                isLoading={props.isLoading ?? false}
+                loadFailed={props.loadFailed ?? false}
+                onRetry={props.onRetry ?? (() => undefined)}
+                selected={selected}
+                lockedSlugs={props.lockedSlugs ?? []}
+                onChange={setSelected}
+                evaluatorsHref={props.evaluatorsHref ?? null}
+            />
+        </>
     )
 }
 
 beforeEach(() => {
+    gate.beta = false
+    store = createStore()
     window.localStorage.clear()
     host = document.createElement("div")
     document.body.append(host)
@@ -81,7 +103,31 @@ afterEach(async () => {
     vi.restoreAllMocks()
 })
 
+const buttonByText = (text: string) =>
+    Array.from(host.querySelectorAll("button")).find((button) => button.textContent?.includes(text))
+
 describe("select evaluators step", () => {
+    it("Without beta developer mode there is no Create evaluator", async () => {
+        await render(<Step />)
+        expect(buttonByText("Create evaluator")).toBeUndefined()
+        await render(<Step evaluators={[]} />)
+        expect(buttonByText("Create evaluator")).toBeUndefined()
+    })
+
+    it("In beta developer mode Create evaluator makes a human evaluator and selects it", async () => {
+        gate.beta = true
+        await render(<Step />)
+        await act(async () => buttonByText("Create evaluator")?.click())
+        await act(async () => buttonByText("Save new evaluator")?.click())
+        expect(host.querySelector("[data-testid=selected]")?.textContent).toBe("tone-2")
+    })
+
+    it("With no evaluators yet, beta developer mode offers to create the first one", async () => {
+        gate.beta = true
+        await render(<Step evaluators={[]} />)
+        expect(buttonByText("Create evaluator")).toBeDefined()
+    })
+
     it("Search filters evaluators by name", async () => {
         await render(<Step />)
         expect(rows()).toHaveLength(2)

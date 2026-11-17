@@ -17,13 +17,26 @@ const VIEW_MODES: {value: ConfigViewMode; label: string}[] = [
     {value: "yaml", label: "YAML"},
 ]
 
+/**
+ * The revision details beside the switcher. They keep their size and the switcher's name truncates
+ * instead, so the draft tag is never covered by the buttons. In a narrow panel (the compare view)
+ * the version, "Last modified" and the deployment dots drop out, as in the old playground; the
+ * draft tag stays (it is the menu trigger, not a plain badge).
+ */
+const NARROW_DETAILS = [
+    "shrink-0 gap-2",
+    "max-sm:[&_.environment-badges]:hidden",
+    "@max-[32rem]/config-header:[&_.environment-badges]:hidden",
+    "@max-[32rem]/config-header:[&_[data-slot=badge]]:hidden",
+].join(" ")
+
 export interface ConfigPanelHeaderProps {
     revisionId: string
     viewMode: ConfigViewMode
     onViewModeChange: (mode: ConfigViewMode) => void
     /** Picks another revision. It shows the variant name, so the details leave the name out. */
     switcher?: ReactNode
-    /** The host's buttons (Deploy, Commit, menu), before the view switch. */
+    /** The host's buttons (Deploy, Commit, menu), after the view switch, as in the old playground. */
     actions?: ReactNode
 }
 
@@ -66,8 +79,10 @@ export const ConfigPanelHeader = ({
     const isLatest = revisionId === latestId
 
     return (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-1 border-b border-border bg-background px-3 max-sm:min-h-12 max-sm:py-1.5 sm:sticky sm:top-0 sm:z-10 sm:h-12 sm:flex-nowrap sm:gap-2 sm:px-4">
-            <div className="flex min-w-0 items-center gap-1 text-sm">
+        <div className="@container/config-header flex shrink-0 flex-wrap items-center justify-between gap-1 border-b border-border bg-background px-3 max-sm:min-h-12 max-sm:py-1.5 sm:sticky sm:top-0 sm:z-10 sm:h-12 sm:flex-nowrap sm:gap-2 sm:px-4">
+            {/* The details shrink first (the switcher name truncates). Only in a very narrow pane,
+                once they reach their minimum, do the buttons on the right shrink and scroll. */}
+            <div className="flex min-w-[5.5rem] items-center gap-1 overflow-hidden text-sm">
                 {!isLocalDraft ? switcher : null}
                 {isLocalDraft ? (
                     <>
@@ -80,7 +95,7 @@ export const ConfigPanelHeader = ({
                     </>
                 ) : (
                     <VariantDetailsWithStatus
-                        className="min-w-0 gap-2 max-sm:[&_.environment-badges]:hidden"
+                        className={NARROW_DETAILS}
                         hideName={Boolean(switcher)}
                         variantName={name}
                         revision={version}
@@ -94,13 +109,12 @@ export const ConfigPanelHeader = ({
                     />
                 )}
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-                {actions}
+            <div className="ml-auto flex min-w-0 shrink-[0.001] items-center gap-1 overflow-x-auto sm:gap-2 [&>*]:shrink-0">
                 <Select
                     value={viewMode}
                     onValueChange={(value) => onViewModeChange(value as ConfigViewMode)}
                 >
-                    <SelectTrigger size="sm" aria-label="Config view" className="w-24 shrink-0">
+                    <SelectTrigger size="sm" aria-label="Config view" className="h-7 w-24 shrink-0">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -111,6 +125,7 @@ export const ConfigPanelHeader = ({
                         ))}
                     </SelectContent>
                 </Select>
+                {actions}
             </div>
         </div>
     )

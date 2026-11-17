@@ -283,10 +283,10 @@ describe("run details page", () => {
         expect(posted.filter((url) => !url.endsWith("/query"))).toEqual([])
     })
 
-    it("Pausing an active online run calls stop and shows Evaluation stopped", async () => {
+    it("Stopping an active online run calls stop and shows Evaluation stopped", async () => {
         const id = serveRun({status: "running", live: true, active: true})
         await mount()
-        await act(async () => buttonNamed("Pause")?.click())
+        await act(async () => buttonNamed("Stop")?.click())
         await flush()
         expect(http.post).toHaveBeenCalledWith(
             `https://agenta.test/api/simple/evaluations/${id}/stop`,
@@ -305,12 +305,12 @@ describe("run details page", () => {
         expect(toast.success).not.toHaveBeenCalled()
     })
 
-    it("A reader without edit rights sees no Pause button", async () => {
+    it("A reader without edit rights sees no Stop button", async () => {
         permission.allowed = false
         serveRun({status: "running", live: true, active: true})
         await mount()
         expect(host.textContent).toContain("Capitals check")
-        expect(buttonNamed("Pause")).toBeUndefined()
+        expect(buttonNamed("Stop")).toBeUndefined()
     })
 
     it("An unknown run shows not found", async () => {

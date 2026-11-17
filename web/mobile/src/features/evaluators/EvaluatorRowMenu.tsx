@@ -12,8 +12,11 @@ import {
     Copy,
     DotsThreeVertical,
     Eye,
+    DesktopIcon,
     GearSix,
+    PencilSimple,
 } from "@phosphor-icons/react"
+import Link from "next/link"
 
 const copyText = async (text: string, what: string) => {
     try {
@@ -26,27 +29,26 @@ const copyText = async (text: string, what: string) => {
 }
 
 /**
- * The row's kebab. The active list offers Configure, Archive and the two copies; the archived list
- * offers Open details and Restore. Archive and Restore need `edit_evaluators`: without it the
- * caller passes no handler and the item is not drawn.
- *
- * Configure only opens the read-only drawer for now. Editing an evaluator comes with the
- * evaluator playground.
+ * The row's kebab. The active list offers Configure (Edit for a human evaluator), Archive and the
+ * two copies; the archived list offers Open details and Restore. Archive and Restore need
+ * `edit_evaluators`: without it the caller passes no handler and the item is not drawn.
  */
 export const EvaluatorRowMenu = ({
     copy,
     onOpen,
     openLabel,
+    overviewHref,
     onArchive,
     onRestore,
     restoring = false,
 }: {
-    /** What the copy items put on the clipboard. The archived list has no copy items. */
+    /** What the copy items put on the clipboard. */
     copy?: {revisionId: string; slug: string | null}
-    /** Absent for a human evaluator in the active list: editing one comes later. */
     onOpen?: () => void
-    /** "Configure" in the active list of automatic evaluators, "Open details" otherwise. */
-    openLabel?: "Configure" | "Open details"
+    /** "Configure" or "Edit" in the active list, "Open details" in the archived list. */
+    openLabel?: "Configure" | "Edit" | "Open details"
+    /** The evaluator's Overview page, in beta developer mode only. */
+    overviewHref?: string | null
     onArchive?: () => void
     onRestore?: () => void
     restoring?: boolean
@@ -64,8 +66,26 @@ export const EvaluatorRowMenu = ({
         <DropdownMenuContent align="end" className="w-max min-w-[160px]">
             {onOpen ? (
                 <DropdownMenuItem onSelect={onOpen}>
-                    {openLabel === "Configure" ? <GearSix size={16} /> : <Eye size={16} />}
+                    {openLabel === "Configure" ? (
+                        <GearSix size={16} />
+                    ) : openLabel === "Edit" ? (
+                        <PencilSimple size={16} />
+                    ) : (
+                        <Eye size={16} />
+                    )}
                     {openLabel}
+                </DropdownMenuItem>
+            ) : null}
+            {overviewHref ? (
+                <DropdownMenuItem asChild>
+                    <Link
+                        href={overviewHref}
+                        prefetch={false}
+                        className="text-foreground no-underline"
+                    >
+                        <DesktopIcon size={16} />
+                        Overview
+                    </Link>
                 </DropdownMenuItem>
             ) : null}
             {copy ? (

@@ -4,6 +4,7 @@ import {
     createTestset,
     fetchLatestRevision,
     fetchRevisionColumnKeys,
+    fetchRevisionsList,
     invalidateRevisionsListCache,
     invalidateTestsetCache,
     invalidateTestsetsListCache,
@@ -24,10 +25,18 @@ import {useAtomValue} from "jotai"
 
 import {useSelectedSpansData} from "./useSelectedSpansData"
 
+/** `revisionId` null means the latest revision, read again right before the save. */
 export type AddToTestsetTarget =
     | {kind: "new"}
-    | {kind: "existing"; testsetId: string; name: string}
+    | {kind: "existing"; testsetId: string; name: string; revisionId: string | null}
     | null
+
+/** One revision the user can add rows to, newest first. */
+export interface TestsetRevisionOption {
+    id: string
+    version: number
+    createdAt: string | null
+}
 
 /** One mapping row. `isNewColumn` says the column field is a name input, not a pick. */
 export interface MappingRow {
@@ -62,7 +71,11 @@ interface State {
 }
 
 const targetKey = (target: AddToTestsetTarget) =>
-    target ? (target.kind === "new" ? "new" : target.testsetId) : null
+    target
+        ? target.kind === "new"
+            ? "new"
+            : `${target.testsetId}:${target.revisionId ?? "latest"}`
+        : null
 
 const reducer = (state: State, action: Action): State => {
     switch (action.type) {
@@ -99,9 +112,9 @@ const isConflict = (cause: unknown) =>
 /**
  * The state of the add-to-test-set sheet and its save.
  *
- * The rows always go to the LATEST revision of an existing test set: the save reads the latest
- * revision id again right before the commit, so a commit made while the sheet was open is not
- * dropped. Nothing is written until `submit`.
+ * The rows go to the revision the user picked, the latest by default. For the latest the save
+ * reads the latest revision id again right before the commit, so a commit made while the sheet
+ * was open is not dropped. Nothing is written until `submit`.
  */
 export const useAddToTestsetForm = ({
     spanIds,
@@ -120,13 +133,35 @@ export const useAddToTestsetForm = ({
 
     const {target} = state
     const testsetId = target?.kind === "existing" ? target.testsetId : null
+    const pickedRevisionId = target?.kind === "existing" ? target.revisionId : null
+
+    const revisionsQuery = useQuery({
+        queryKey: ["add-to-testset-revisions", projectId, testsetId],
+        queryFn: async (): Promise<TestsetRevisionOption[]> => {
+            const response = await fetchRevisionsList({projectId, testsetId: testsetId ?? ""})
+            const revisions = response.testset_revisions.map((raw) => ({
+                id: raw.id,
+                version: Number(raw.version ?? 0),
+                createdAt: raw.created_at ?? raw.date ?? null,
+            }))
+            // v0 is the empty start of a test set; the picker lists it only when it is alone.
+            const committed = revisions.filter((revision) => revision.version > 0)
+            return (committed.length ? committed : revisions).sort((a, b) => b.version - a.version)
+        },
+        enabled: Boolean(projectId && testsetId),
+        staleTime: Infinity,
+        gcTime: 0,
+        retry: false,
+    })
 
     const columnsQuery = useQuery({
-        queryKey: ["add-to-testset-columns", projectId, testsetId],
+        queryKey: ["add-to-testset-columns", projectId, testsetId, pickedRevisionId],
         queryFn: async () => {
-            const revision = await fetchLatestRevision({projectId, testsetId: testsetId ?? ""})
-            if (!revision) throw new Error("The test set has no revision")
-            return fetchRevisionColumnKeys({projectId, revisionId: revision.id})
+            const revisionId =
+                pickedRevisionId ??
+                (await fetchLatestRevision({projectId, testsetId: testsetId ?? ""}))?.id
+            if (!revisionId) throw new Error("The test set has no revision")
+            return fetchRevisionColumnKeys({projectId, revisionId})
         },
         enabled: Boolean(projectId && testsetId),
         // Read once per pick: a background refresh could only fail and hide the mappings. The
@@ -184,7 +219,12 @@ export const useAddToTestsetForm = ({
             }),
         [spans.spansData, state.mappings],
     )
-    const previewColumns = useMemo(() => Object.keys(previewRows[0] ?? {}), [previewRows])
+    // An existing test set shows its own columns too, so the preview reads as the rows to come.
+    const previewColumns = useMemo(() => {
+        const mapped = Object.keys(previewRows[0] ?? {})
+        if (target?.kind !== "existing" || mapped.length === 0) return mapped
+        return [...new Set([...columnKeys, ...mapped])]
+    }, [columnKeys, previewRows, target?.kind])
 
     const hasCompleteMapping = state.mappings.some((row) => row.path.trim() && row.column.trim())
     const targetReady = target?.kind === "new" ? Boolean(newName.trim()) : columnsStatus === "ready"
@@ -221,12 +261,14 @@ export const useAddToTestsetForm = ({
                         : "Test set created successfully",
                 )
             } else {
-                const latest = await fetchLatestRevision({projectId, testsetId: target.testsetId})
-                if (!latest) throw new Error("The test set has no revision")
+                const baseRevisionId =
+                    target.revisionId ??
+                    (await fetchLatestRevision({projectId, testsetId: target.testsetId}))?.id
+                if (!baseRevisionId) throw new Error("The test set has no revision")
                 await patchRevision({
                     projectId,
                     testsetId: target.testsetId,
-                    baseRevisionId: latest.id,
+                    baseRevisionId,
                     message: note || undefined,
                     operations: {
                         rows: {add: rows.map((data) => ({data}))},
@@ -270,6 +312,17 @@ export const useAddToTestsetForm = ({
         pathOptions,
         target,
         setTarget: (next: AddToTestsetTarget) => dispatch({type: "target", target: next}),
+        revisions: {
+            status: !testsetId
+                ? ("idle" as const)
+                : revisionsQuery.data
+                  ? ("ready" as const)
+                  : revisionsQuery.isError
+                    ? ("error" as const)
+                    : ("loading" as const),
+            options: revisionsQuery.data ?? [],
+            retry: () => void revisionsQuery.refetch(),
+        },
         newName,
         setNewName,
         columns: {

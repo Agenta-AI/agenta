@@ -265,4 +265,35 @@ describe("PromptsScreen", () => {
 
         expect(router.push).toHaveBeenCalledWith("/w/ws/p/project-1/apps/p1/playground")
     })
+
+    it("With the overview view on a prompt row menu offers Open, which goes to the overview", () => {
+        enabledViews.add("app-overview")
+        mount()
+        openMenu(bodyRows()[1].querySelector("[aria-label='Actions']") as Element)
+        const items = [...document.querySelectorAll<HTMLElement>("[role=menuitem]")]
+        expect(items.map((item) => item.textContent)).toEqual(["Open", "Rename", "Move", "Archive"])
+
+        act(() => items[0].click())
+
+        expect(router.push).toHaveBeenCalledWith("/w/ws/p/project-1/apps/p1/overview")
+    })
+
+    it("A row click goes to the overview when only the overview view is on", () => {
+        enabledViews.add("app-overview")
+        mount()
+
+        act(() => bodyRows()[1].click())
+
+        expect(router.push).toHaveBeenCalledWith("/w/ws/p/project-1/apps/p1/overview")
+    })
+
+    it("A row click still goes to the playground when both views are on", () => {
+        enabledViews.add("playground")
+        enabledViews.add("app-overview")
+        mount()
+
+        act(() => bodyRows()[1].click())
+
+        expect(router.push).toHaveBeenCalledWith("/w/ws/p/project-1/apps/p1/playground")
+    })
 })

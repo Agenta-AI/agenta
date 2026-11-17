@@ -8,6 +8,9 @@ import {
     isWebhookDrawerOpenAtom,
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsWebhooksCatalog from "@agenta/i18n/catalogs/settings.webhooks"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
@@ -63,12 +66,12 @@ interface WebhookRow extends WebhookSubscription {
     key: string
 }
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Name", width: "minmax(0,2fr)"},
-    {key: "url", label: "Target", width: "minmax(0,2fr)"},
-    {key: "events", label: "Events", width: "minmax(0,1.4fr)"},
-    {key: "status", label: "Status", width: "minmax(0,0.8fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
+    {key: "name", label: t("common.name"), width: "minmax(0,2fr)"},
+    {key: "url", label: t("settings.webhooks.target"), width: "minmax(0,2fr)"},
+    {key: "events", label: t("settings.webhooks.events"), width: "minmax(0,1.4fr)"},
+    {key: "status", label: t("common.status"), width: "minmax(0,0.8fr)"},
+    {key: "actions", label: t("common.actions"), srOnly: true, width: "32px"},
 ]
 const PHONE_KEYS = ["name", "status", "actions"]
 
@@ -85,6 +88,7 @@ export const WebhooksPage = ({
     renderDeleteDialog,
     renderSecretReveal,
 }: WebhooksPageProps) => {
+    const t = useT(commonCatalog, settingsWebhooksCatalog)
     const [{data: webhooks, isPending: isLoading}] = useAtom(webhooksAtom)
     const setIsDrawerOpen = useSetAtom(isWebhookDrawerOpenAtom)
     const setEditingWebhook = useSetAtom(editingWebhookAtom)
@@ -143,14 +147,16 @@ export const WebhooksPage = ({
             setTogglingId(webhook.id)
             try {
                 await setWebhookActive({id: webhook.id, active: next})
-                message.success(next ? "Webhook resumed" : "Webhook paused")
+                message.success(
+                    next ? t("settings.webhooks.resumed") : t("settings.webhooks.paused"),
+                )
             } catch {
-                message.error("Failed to update webhook")
+                message.error(t("settings.webhooks.updateFailed"))
             } finally {
                 setTogglingId(null)
             }
         },
-        [setWebhookActive],
+        [setWebhookActive, t],
     )
 
     const handleModalSuccess = useCallback(() => {
@@ -162,12 +168,15 @@ export const WebhooksPage = ({
         return (webhooks ?? []).map((webhook) => ({...webhook, key: webhook.id}))
     }, [webhooks])
 
-    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const {columns, shows} = usePhoneColumns(
+        useMemo(() => columnsFor(t), [t]),
+        PHONE_KEYS,
+    )
 
     const subscribe = renderDrawer ? (
         <Button onClick={handleCreate} disabled={isLoading}>
             <Plus size={14} />
-            Subscribe
+            {t("settings.webhooks.subscribe")}
         </Button>
     ) : null
 
@@ -186,8 +195,8 @@ export const WebhooksPage = ({
                 empty={
                     <SettingsEmpty
                         icon={getSettingsSidebarIcon("webhooks")}
-                        title="No webhooks yet"
-                        description="Subscribe an endpoint to receive workflow events as signed HTTP requests."
+                        title={t("settings.webhooks.emptyTitle")}
+                        description={t("settings.webhooks.emptyDescription")}
                         action={subscribe}
                     />
                 }
@@ -227,15 +236,19 @@ export const WebhooksPage = ({
                             ) : null}
                             <StatusIndicator
                                 tone={isWebhookActive(record) ? "success" : "default"}
-                                label={isWebhookActive(record) ? "Active" : "Paused"}
+                                label={
+                                    isWebhookActive(record)
+                                        ? t("common.active")
+                                        : t("settings.webhooks.pausedStatus")
+                                }
                                 className="min-w-0 text-[13px]"
                             />
                             <SettingsRowMenu
-                                label="Webhook actions"
+                                label={t("settings.webhooks.webhookActions")}
                                 items={[
                                     {
                                         key: "active",
-                                        label: "Active",
+                                        label: t("common.active"),
                                         checked: isWebhookActive(record),
                                         disabled: togglingId === record.id,
                                         onClick: () => void handleToggle(record),
@@ -243,14 +256,14 @@ export const WebhooksPage = ({
                                     {type: "divider"},
                                     {
                                         key: "test",
-                                        label: "Test",
+                                        label: t("settings.webhooks.test"),
                                         icon: <Play size={14} />,
                                         disabled: testingWebhookId !== null,
                                         onClick: () => handleTestWebhook(record),
                                     },
                                     {
                                         key: "edit",
-                                        label: "Edit",
+                                        label: t("common.edit"),
                                         icon: <PencilSimpleLine size={14} />,
                                         // The form is the host's drawer; without one this opens nothing.
                                         hidden: !renderDrawer,
@@ -259,7 +272,7 @@ export const WebhooksPage = ({
                                     {type: "divider"},
                                     {
                                         key: "delete",
-                                        label: "Delete",
+                                        label: t("common.delete"),
                                         icon: <Trash size={14} />,
                                         danger: true,
                                         hidden: !renderDeleteDialog,

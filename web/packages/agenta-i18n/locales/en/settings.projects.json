@@ -1,0 +1,22 @@
+{
+    "copyId": "Copy project ID",
+    "copyIdFailed": "Couldn't copy the project ID",
+    "createFailed": "Unable to create project",
+    "created": "Project created",
+    "current": "Current",
+    "default": "Default",
+    "defaultUpdated": "Default project updated",
+    "deleteFailed": "Unable to delete project",
+    "deleteProject": "Delete project",
+    "deleted": "Project deleted",
+    "emptyDescription": "Create a project to organize your agents, datasets, and deployments.",
+    "emptyTitle": "No projects in this workspace yet",
+    "idCopied": "Project ID copied",
+    "newProject": "New project",
+    "projectActions": "Project actions",
+    "projectName": "Project name",
+    "renameFailed": "Unable to rename project",
+    "setAsDefault": "Set as default",
+    "setDefaultFailed": "Unable to set default",
+    "switchTo": "Switch to this project"
+}

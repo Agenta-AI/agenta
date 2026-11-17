@@ -71,27 +71,32 @@ export const AddToTestsetSheet = ({
                 <TestsetTargetField
                     target={form.target}
                     onTargetChange={form.setTarget}
+                    revisions={form.revisions}
                     newName={form.newName}
                     onNewNameChange={form.setNewName}
                 />
-                <MappingRows
-                    hasTarget={Boolean(form.target)}
-                    isNewTestset={isNew}
-                    columnsStatus={form.columns.status}
-                    columns={form.columns.keys}
-                    onRetryColumns={form.columns.retry}
-                    pathOptions={form.pathOptions}
-                    mappings={form.mappings}
-                    duplicates={form.duplicates}
-                    onEdit={form.editMapping}
-                    onAdd={form.addMapping}
-                    onRemove={form.removeMapping}
-                />
-                <MappingPreview
-                    spanCount={form.spanCount}
-                    columns={form.previewColumns}
-                    rows={form.previewRows}
-                />
+                {/* As in the old app, mapping and preview follow once a test set is chosen. */}
+                {form.target ? (
+                    <>
+                        <MappingRows
+                            isNewTestset={isNew}
+                            columnsStatus={form.columns.status}
+                            columns={form.columns.keys}
+                            onRetryColumns={form.columns.retry}
+                            pathOptions={form.pathOptions}
+                            mappings={form.mappings}
+                            duplicates={form.duplicates}
+                            onEdit={form.editMapping}
+                            onAdd={form.addMapping}
+                            onRemove={form.removeMapping}
+                        />
+                        <MappingPreview
+                            spanCount={form.spanCount}
+                            columns={form.previewColumns}
+                            rows={form.previewRows}
+                        />
+                    </>
+                ) : null}
                 <label className="flex flex-col gap-1 text-sm">
                     Commit message (optional)
                     <Textarea

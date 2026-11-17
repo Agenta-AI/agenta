@@ -18,6 +18,10 @@ export interface ScenarioServerState {
     failMetrics: boolean
     /** True: results point at traces, and the traces request fails. */
     failTraces: boolean
+    /** Scenarios the evaluator scored false; the others score true. */
+    failing: string[]
+    /** True: each scenario's metrics hold the cost, duration, tokens and errors of the app call. */
+    appMetrics: boolean
     calls: {url: string; body: unknown}[]
 }
 
@@ -32,9 +36,21 @@ export function newServerState(patch: Partial<ScenarioServerState> = {}): Scenar
         scored: true,
         failMetrics: false,
         failTraces: false,
+        failing: [],
+        appMetrics: false,
         calls: [],
         ...patch,
     }
+}
+
+const one = (value: number) => ({type: "numeric/continuous", count: 1, mean: value, sum: value})
+
+/** The app call's metrics of every scenario: $0.000012, 522 ms, 128 tokens, no error. */
+export const APP_METRICS = {
+    "attributes.ag.metrics.costs.cumulative.total": one(0.000012),
+    "attributes.ag.metrics.duration.cumulative": one(522),
+    "attributes.ag.metrics.tokens.cumulative.total": one(128),
+    "attributes.ag.metrics.errors.cumulative": one(0),
 }
 
 export const countries = ["France", "Japan", "Chile", "Kenya", "Peru", "Norway"]
@@ -143,9 +159,10 @@ export function answerRequest(
                             [COLUMN_PATH]: {
                                 type: "binary",
                                 count: 1,
-                                freq: [{value: true, count: 1}],
+                                freq: [{value: !state.failing.includes(id), count: 1}],
                             },
                         },
+                        ...(state.appMetrics ? {app: APP_METRICS} : {}),
                     },
                 })),
             },

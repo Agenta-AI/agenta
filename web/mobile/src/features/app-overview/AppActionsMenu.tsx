@@ -28,17 +28,21 @@ const RenameAppDialog = dynamic(
 /**
  * The actions of the app on its overview: Rename, Copy Slug, and Archive. Rename and Archive need
  * `edit_workflows`, so a reader sees only Copy Slug, and no menu at all for an app with no slug.
+ * An evaluator gets Copy Slug only: archiving one must first check the evaluation runs that use it,
+ * which the Evaluators list does.
  */
 export const AppActionsMenu = ({
     projectId,
     app,
     base,
+    evaluator = false,
 }: {
     projectId: string
     app: Workflow
     base: string
+    evaluator?: boolean
 }) => {
-    const canEdit = useProjectPermission(projectId, "edit_workflows")
+    const canEdit = useProjectPermission(projectId, "edit_workflows") && !evaluator
     const [renameOpen, setRenameOpen] = useState(false)
     const {confirm, modal} = useConfirmModal()
     const archive = useAppArchive({projectId, appId: app.id, base})
@@ -64,7 +68,12 @@ export const AppActionsMenu = ({
         <>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button type="button" size="icon-sm" variant="ghost" aria-label="App actions">
+                    <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={evaluator ? "Evaluator actions" : "App actions"}
+                    >
                         <DotsThreeVertical aria-hidden className="size-4" weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>

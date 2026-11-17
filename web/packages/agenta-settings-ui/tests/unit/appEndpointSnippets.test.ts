@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     buildAppEndpointParams,
     buildFetchConfigSnippets,
+    buildFetchVariantConfigSnippets,
     buildInvokeAppSnippets,
 } from "../../src/publish/snippets/appEndpoint"
 
@@ -260,5 +261,57 @@ describe("fetch config snippets", () => {
         expect(snippets.bash).toContain('"slug": "prod-eu"')
         expect(snippets.bash).toContain('"slug": "capital"')
         expect(snippets.typescript).toContain('getConfig("capital", "prod-eu")')
+    })
+})
+
+describe("snippets for one variant version", () => {
+    const variant = {slug: "verbose", version: 5}
+
+    it("Invoke params name the variant and its version instead of an environment", () => {
+        const params = JSON.parse(
+            buildAppEndpointParams({
+                inputs: [{key: "country"}],
+                environmentSlug: "none",
+                isChat: false,
+                appSlug: "capital",
+                variant,
+            }),
+        )
+        expect(params.references).toEqual({
+            application: {slug: "capital"},
+            application_variant: {slug: "verbose"},
+            application_revision: {version: "5"},
+        })
+    })
+
+    it("Fetch config asks for the variant version, with the key the reader gave", () => {
+        const snippets = buildFetchVariantConfigSnippets({
+            apiUrl: "https://host/api",
+            appSlug: "capital",
+            variant,
+            apiKey: "ak-1",
+        })
+        expect(snippets.python).toContain('variant_slug="verbose"')
+        expect(snippets.python).toContain("variant_version=5")
+        expect(snippets.python).toContain('"AGENTA_API_KEY"] = "ak-1"')
+        for (const lang of LANGS) {
+            expect(snippets[lang]).not.toContain("environment")
+        }
+        const curlBody = JSON.parse(snippets.bash.split("-d '")[1].replace(/'\n$/, ""))
+        expect(curlBody).toEqual({
+            application_ref: {slug: "capital"},
+            application_variant_ref: {slug: "verbose"},
+            application_revision_ref: {version: "5"},
+        })
+        expect(snippets.typescript).toContain("'Authorization': \"ApiKey ak-1\"")
+    })
+
+    it("Without a key the placeholder stays", () => {
+        const snippets = buildFetchVariantConfigSnippets({
+            apiUrl: "https://h/api",
+            appSlug: "a",
+            variant,
+        })
+        expect(snippets.python).toContain("YOUR_API_KEY")
     })
 })

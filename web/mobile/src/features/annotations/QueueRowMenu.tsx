@@ -8,23 +8,26 @@ import {
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
 import {copyToClipboard} from "@agenta/ui/utils"
-import {ArrowSquareOut, Copy, DotsThreeVertical, Trash} from "@phosphor-icons/react"
+import {ArrowSquareOut, ChartBar, Copy, DotsThreeVertical, Trash} from "@phosphor-icons/react"
 
 import type {QueueToDelete} from "./useQueueDelete"
 
 /**
- * The row's actions. Delete shows only to a reader who may delete queues; the dialog and the
+ * The row's actions: Open, View Results (as in the old app), Copy ID and Delete. Delete shows only to a reader who may delete queues; the dialog and the
  * request belong to `useQueueDelete`, so the menu only names the queue.
  */
 export const QueueRowMenu = ({
     queue,
     canDelete,
     onOpen,
+    onViewResults,
     onDelete,
 }: {
     queue: QueueToDelete
     canDelete: boolean
     onOpen: () => void
+    /** Opens the evaluation results of the queue's run; absent when there is nothing to open. */
+    onViewResults?: () => void
     onDelete: (queue: QueueToDelete) => void
 }) => (
     <DropdownMenu>
@@ -44,6 +47,12 @@ export const QueueRowMenu = ({
                 <ArrowSquareOut aria-hidden size={14} />
                 Open
             </DropdownMenuItem>
+            {onViewResults ? (
+                <DropdownMenuItem onSelect={onViewResults}>
+                    <ChartBar aria-hidden size={14} />
+                    View Results
+                </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem
                 onSelect={() => {

@@ -50,7 +50,16 @@ export const TestcaseEditorDrawerContent = ({
     )
 
     return (
-        <div className="flex h-full w-full flex-col overflow-hidden [&_.drill-in-breadcrumb]:pl-4 [&_.drill-in-field-content]:px-4 [&_.drill-in-field-content]:pt-2">
+        <div
+            className={[
+                "flex h-full w-full flex-col overflow-hidden [&_.drill-in-breadcrumb]:pl-4 [&_.drill-in-field-content]:px-4 [&_.drill-in-field-content]:pt-2",
+                // As in the old app: a text box is as tall as its text (the shared editor theme
+                // sets 150px, which this app loads unlayered), and message text uses the normal
+                // font, not the code face.
+                "[&_.editor-input]:!min-h-[34px]",
+                "[&_.editor-input.markdown-view>.editor-code]:![font-family:inherit] [&_.editor-input.markdown-view>.editor-code]:!m-0 [&_.editor-input.markdown-view>.editor-code]:!bg-transparent [&_.editor-input.markdown-view>.editor-code]:!p-0",
+            ].join(" ")}
+        >
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
                 {isNewRow && rootViewMode === "form" ? (
                     <p className="m-4 mb-0 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
@@ -68,6 +77,10 @@ export const TestcaseEditorDrawerContent = ({
                     features={{typeChips: true, rootViewMode: false, columnMapping: false}}
                     rootViewMode={rootViewMode}
                     collapseSignal={collapseSignal}
+                    // Fields follow the test set column order, and change only through the
+                    // column actions, as in the old app.
+                    fieldOrder="data"
+                    fieldControls={false}
                 />
             </div>
         </div>

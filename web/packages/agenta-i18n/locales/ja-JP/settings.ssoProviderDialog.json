@@ -1,0 +1,21 @@
+{
+    "addDescription": "プロバイダーを追加した後、有効にして接続を確認してください。",
+    "addProvider": "プロバイダーを追加",
+    "addTitle": "SSO プロバイダーを追加",
+    "clientId": "クライアント ID",
+    "clientSecret": "クライアントシークレット",
+    "clientSecretHint": "保存済みのシークレットは表示されません。変更しない場合は空欄のままにしてください。",
+    "editDescription": "設定を保存すると検証がクリアされ、プロバイダーが無効になります。保存後にもう一度有効にしてください。",
+    "editTitle": "SSO プロバイダーを編集",
+    "enterClientSecret": "クライアントシークレットを入力",
+    "invalidSlug": "スラッグには小文字 (a-z) とハイフン (-) のみを使用してください",
+    "issuerAndClientRequired": "発行者 URL とクライアント ID は必須です",
+    "issuerUrl": "発行者 URL",
+    "saveFailed": "プロバイダーを保存できませんでした",
+    "saveProvider": "プロバイダーを保存",
+    "saving": "保存中…",
+    "scopes": "スコープ",
+    "scopesHint": "スコープはカンマで区切ってください",
+    "slug": "スラッグ",
+    "slugHint": "小文字とハイフンのみ"
+}

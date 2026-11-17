@@ -58,6 +58,8 @@ export interface ArchivedTestsetsTableProps {
     canRestore: boolean
     isBusy: (id: string) => boolean
     onOpen: (row: ArchivedTestsetRow) => void
+    /** Absent hides Copy ID (developer mode only). */
+    onCopyId?: (row: ArchivedTestsetRow) => void
 }
 
 /** The archived test sets in the shared list frame. A row opens the latest revision. */
@@ -69,6 +71,7 @@ export const ArchivedTestsetsTable = ({
     canRestore,
     isBusy,
     onOpen,
+    onCopyId,
 }: ArchivedTestsetsTableProps) => {
     // Asked as "wide?" because the shared hook starts false before it reads the viewport.
     const narrow = !useMediaQuery(WIDE_QUERY)
@@ -92,6 +95,7 @@ export const ArchivedTestsetsTable = ({
                     busy={isBusy(row.id)}
                     canRestore={canRestore}
                     onOpen={() => onOpen(row)}
+                    onCopyId={onCopyId ? () => onCopyId(row) : undefined}
                 />
             )}
         />

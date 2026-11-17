@@ -183,3 +183,60 @@ describe("Upload step of the create dialog", () => {
         expect(push).not.toHaveBeenCalled()
     })
 })
+
+describe("Upload step opened with a file dropped elsewhere", () => {
+    let root: Root
+    let host: HTMLDivElement
+    let client: QueryClient
+
+    afterEach(() => {
+        act(() => root.unmount())
+        host.remove()
+        client.clear()
+        vi.unstubAllGlobals()
+    })
+
+    it("The playground's dropped file is ready to name and upload to the host", async () => {
+        const sent = stubFetchHttp(() => ({
+            data: {testset: {id: "t-new", revision_id: "rev-1"}},
+        }))
+        const onCreated = vi.fn()
+        host = document.createElement("div")
+        document.body.append(host)
+        root = createRoot(host)
+        client = new QueryClient()
+        act(() =>
+            root.render(
+                <QueryClientProvider client={client}>
+                    <UploadTestsetStep
+                        projectId="pr"
+                        base={BASE}
+                        onClose={vi.fn()}
+                        onPendingChange={vi.fn()}
+                        onCreated={onCreated}
+                        initialFile={new File(["country\nPeru"], "capitals.csv")}
+                    />
+                </QueryClientProvider>,
+            ),
+        )
+        await until(() =>
+            expect(host.querySelector<HTMLInputElement>("#upload-testset-name")?.value).toBe(
+                "capitals",
+            ),
+        )
+        expect(host.textContent).toContain("capitals.csv")
+
+        const create = Array.from(host.querySelectorAll("button")).find(
+            (button) => button.textContent === "Create test set",
+        )!
+        await act(async () => create.click())
+        await until(() => expect(onCreated).toHaveBeenCalled())
+
+        const [request] = sent.filter((item) => item.method === "POST")
+        expect(request.form?.file_type).toBe("csv")
+        expect(request.form?.testset_name).toBe("capitals")
+        expect((request.form?.file as File).name).toBe("capitals.csv")
+        // The playground loads the new test set itself: the test set page does not open.
+        expect(push).not.toHaveBeenCalled()
+    })
+})

@@ -9,25 +9,27 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {router, viewEnabled, canEnable} = vi.hoisted(() => ({
+const {router, viewEnabled, fetchTraces, fetchAnnotations, permissions} = vi.hoisted(() => ({
+    fetchTraces: vi.fn(async () => undefined),
+    fetchAnnotations: vi.fn(async () => undefined),
+    permissions: {current: {} as Record<string, boolean>},
     router: {
         pathname: "/w/[workspace_id]/p/[project_id]/observability",
         query: {} as Record<string, string>,
         replace: vi.fn(),
     },
     viewEnabled: {current: false as boolean | null},
-    canEnable: {current: true},
 }))
 
 vi.mock("next/router", () => ({useRouter: () => router}))
 vi.mock("@/features/developer/developerViewAccess", () => ({
     useDeveloperViewEnabled: () => viewEnabled.current,
-    canDeveloperViewBeEnabled: () => canEnable.current,
 }))
 vi.mock("@agenta/observability", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@agenta/observability")>()),
     useObservability: () => ({
-        fetchTraces: vi.fn(),
+        fetchTraces,
+        fetchAnnotations,
         traces: [],
         selectedRowKeys: [],
         setSelectedRowKeys: vi.fn(),
@@ -37,13 +39,45 @@ vi.mock("@agenta/observability", async (importOriginal) => ({
     useSessions: () => ({refetchSessions: vi.fn()}),
 }))
 vi.mock("@agenta/observability-ui", () => ({
+    useAutoRefresh: (refresh: () => Promise<void>) => ({refresh, refreshTrigger: 0}),
     ObservabilityRangePicker: () => null,
     AddActionsDropdown: () => null,
     DeleteTraceModal: () => null,
     deleteTraceModalAtom: {},
-    ObservabilityToolbar: ({filtersSlot}: {filtersSlot?: ReactNode}) => <div>{filtersSlot}</div>,
+    ObservabilityToolbar: ({
+        filtersSlot,
+        onRefresh,
+        onExport,
+    }: {
+        filtersSlot?: ReactNode
+        onRefresh: () => Promise<void>
+        onExport?: () => void
+    }) => (
+        <div>
+            <button onClick={() => void onRefresh()}>refresh</button>
+            {onExport ? <button onClick={onExport}>export</button> : null}
+            {filtersSlot}
+        </div>
+    ),
 }))
-vi.mock("@agenta/ui", () => ({PageLayout: ({children}: {children: ReactNode}) => <>{children}</>}))
+vi.mock("@agenta/ui", () => ({
+    PageLayout: ({
+        children,
+        headerTabsProps,
+    }: {
+        children: ReactNode
+        headerTabsProps: {items: {key: string}[]; onChange: (key: string) => void}
+    }) => (
+        <>
+            {headerTabsProps.items.map((item) => (
+                <button key={item.key} onClick={() => headerTabsProps.onChange(item.key)}>
+                    {`tab ${item.key}`}
+                </button>
+            ))}
+            {children}
+        </>
+    ),
+}))
 vi.mock("@agenta/ui/hooks", () => ({useIsNarrowScreen: () => false}))
 vi.mock("jotai", async (importOriginal) => {
     const actual = await importOriginal<typeof import("jotai")>()
@@ -64,12 +98,18 @@ vi.mock("@/features/nav/AppShell", () => ({
 }))
 vi.mock("@/features/nav/NavDrawer", () => ({NavDrawer: () => null}))
 vi.mock("@/features/observability/SessionsList", () => ({SessionsList: () => null}))
-vi.mock("@/features/observability/SessionsTable", () => ({SessionsTable: () => null}))
+vi.mock("@/features/observability/SessionsTable", () => ({
+    SessionsTable: () => <div>sessions table</div>,
+}))
 vi.mock("@/features/observability/TracesFilters", () => ({TracesFilters: () => null}))
 vi.mock("@/features/observability/TracesList", () => ({TracesList: () => null}))
 vi.mock("@/features/observability/TracesTable", () => ({TracesTable: () => null}))
 vi.mock("@/features/observability/useTracesExportBinding", () => ({
-    useTracesExportBinding: () => ({onExport: vi.fn(), isExporting: false}),
+    useTracesExportBinding: () => ({
+        onExport: vi.fn(),
+        isExporting: false,
+        canExportData: permissions.current.export !== false,
+    }),
 }))
 vi.mock("@/features/observability/ObservabilityAppFilter", () => ({
     ObservabilityAppFilter: ({
@@ -115,7 +155,6 @@ describe("ObservabilityScreen app filter", () => {
         router.query = {workspace_id: "ws", project_id: "pr"}
         router.replace.mockClear()
         viewEnabled.current = true
-        canEnable.current = true
         window.history.replaceState(null, "", "/")
         store = createStore()
         store.set(queryClientAtom, queryClient)
@@ -151,16 +190,6 @@ describe("ObservabilityScreen app filter", () => {
         mount()
 
         expect(host.innerHTML).toBe("")
-        expect(store.get(observabilityScopeAtom)).toEqual({appId: null, routeAppId: null})
-    })
-
-    it("A view that cannot be on renders the content at once, without waiting for the user", () => {
-        viewEnabled.current = null
-        canEnable.current = false
-        router.query = {...router.query, app: "app-1"}
-        mount()
-
-        expect(host.innerHTML).not.toBe("")
         expect(store.get(observabilityScopeAtom)).toEqual({appId: null, routeAppId: null})
     })
 
@@ -200,5 +229,46 @@ describe("ObservabilityScreen app filter", () => {
         mount()
 
         expect(store.get(observabilityScopeAtom)).toEqual({appId: "app-1", routeAppId: "app-1"})
+    })
+
+    it("Refresh reloads the annotations with the traces", async () => {
+        fetchTraces.mockClear()
+        fetchAnnotations.mockClear()
+        mount()
+        await click("refresh")
+        expect(fetchTraces).toHaveBeenCalledTimes(1)
+        expect(fetchAnnotations).toHaveBeenCalledTimes(1)
+    })
+
+    it("Export shows only to a role that may export data", () => {
+        permissions.current = {export: false}
+        mount()
+        expect(host.textContent).not.toContain("export")
+        act(() => root.unmount())
+        root = createRoot(host)
+        permissions.current = {}
+        mount()
+        expect(host.textContent).toContain("export")
+    })
+
+    it("The Sessions tab is kept in the URL", async () => {
+        mount()
+        expect(host.textContent).not.toContain("sessions table")
+        await click("tab sessions")
+        expect(router.replace).toHaveBeenCalledWith(
+            {
+                pathname: router.pathname,
+                query: {workspace_id: "ws", project_id: "pr", tab: "sessions"},
+            },
+            undefined,
+            {shallow: true},
+        )
+
+        // A reload or a link with the param opens Sessions.
+        act(() => root.unmount())
+        root = createRoot(host)
+        router.query = {...router.query, tab: "sessions"}
+        mount()
+        expect(host.textContent).toContain("sessions table")
     })
 })

@@ -18,6 +18,12 @@ const fixture = vi.hoisted(() => ({
     copy: vi.fn(),
     success: vi.fn(),
     wide: true,
+    evaluationsView: true,
+}))
+
+vi.mock("@/features/developer/developerViewAccess", () => ({
+    useDeveloperViewEnabled: (id: string) =>
+        id === "evaluations" ? fixture.evaluationsView : null,
 }))
 
 vi.mock("@agenta/entities/simpleQueue", async () => {
@@ -120,6 +126,7 @@ beforeEach(() => {
     fixture.copy.mockReset().mockResolvedValue(true)
     fixture.success.mockReset()
     fixture.wide = true
+    fixture.evaluationsView = true
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -180,6 +187,22 @@ describe("the annotation queues table", () => {
         expect(fixture.copy).toHaveBeenCalledWith("q-1")
         expect(fixture.success).toHaveBeenCalledWith("Copied")
         expect(fixture.push).not.toHaveBeenCalled()
+    })
+
+    it("View Results opens the evaluation results of the queue's run", async () => {
+        await mount([row({run_id: "run-7"})])
+        const results = Array.from(host.querySelectorAll("button")).find(
+            (b) => b.textContent === "View Results",
+        )
+        await act(async () => results?.click())
+        expect(fixture.push).toHaveBeenCalledWith("/w/ws/p/proj/evaluations/results/run-7")
+    })
+
+    it("View Results is not in the menu without the evaluations view", async () => {
+        fixture.evaluationsView = false
+        await mount([row({run_id: "run-7"})])
+        expect(buttons()).toContain("Copy ID")
+        expect(buttons()).not.toContain("View Results")
     })
 
     it("Delete is not in the menu without edit rights", async () => {

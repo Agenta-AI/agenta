@@ -6,7 +6,6 @@ import {ArchivePromptDialog} from "../../../mobile/src/features/prompts/dialogs/
 import {DeleteFolderDialog} from "../../../mobile/src/features/prompts/dialogs/DeleteFolderDialog"
 import {FolderNameDialog} from "../../../mobile/src/features/prompts/dialogs/FolderNameDialog"
 import {MoveToFolderDialog} from "../../../mobile/src/features/prompts/dialogs/MoveToFolderDialog"
-import {RenamePromptDialog} from "../../../mobile/src/features/prompts/dialogs/RenamePromptDialog"
 
 const FOLDERS: Folder[] = [
     {id: "support", name: "Support", slug: "support"},
@@ -94,17 +93,6 @@ export const DeleteFolder: Story = {
 
 export const ArchivePrompt: Story = {
     render: () => <ArchivePromptDialog open promptName="Welcome email" {...handlers} />,
-}
-
-export const RenamePrompt: Story = {
-    render: () => (
-        <RenamePromptDialog
-            open
-            initialName="Welcome email"
-            initialDescription="Sent on the first day."
-            {...handlers}
-        />
-    ),
 }
 
 export const Pending: Story = {

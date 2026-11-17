@@ -33,7 +33,7 @@ export const PromptRowMenu = ({
 }) => {
     const copy = promptsCopy.menu
     const isFolder = row.kind === "folder"
-    if (!isFolder && !canWrite) return null
+    if (!isFolder && !canWrite && !actions.openOverview) return null
 
     return (
         <DropdownMenu>
@@ -49,6 +49,11 @@ export const PromptRowMenu = ({
             <DropdownMenuContent align="end" className="w-max min-w-[160px]">
                 {row.kind === "folder" ? (
                     <DropdownMenuItem onSelect={() => actions.openFolder(row)}>
+                        <FolderOpenIcon size={16} />
+                        {copy.open}
+                    </DropdownMenuItem>
+                ) : actions.openOverview ? (
+                    <DropdownMenuItem onSelect={() => actions.openOverview?.(row)}>
                         <FolderOpenIcon size={16} />
                         {copy.open}
                     </DropdownMenuItem>

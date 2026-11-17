@@ -11,6 +11,7 @@ import {PromptsBreadcrumb} from "./PromptsBreadcrumb"
 import {promptsCopy} from "./promptsCopy"
 import {PromptsList} from "./PromptsList"
 import {PromptsEmpty} from "./states/PromptsEmpty"
+import type {NewPromptAction} from "./useCreatePrompt"
 import type {PromptsEmptyKind} from "./usePromptsBrowser"
 
 /**
@@ -31,7 +32,10 @@ export const PromptsView = ({
     rowActions,
     onOpenFolder,
     openDialog,
+    newPrompt,
+    onSetupWorkflow,
     onRetry,
+    toolbarActions,
 }: {
     chain: Folder[]
     siblingsOf: (parentId: string | null) => Folder[]
@@ -46,7 +50,12 @@ export const PromptsView = ({
     rowActions: PromptRowActions
     onOpenFolder: (id: string | null) => void
     openDialog: (dialog: PromptsDialog) => void
+    /** New prompt in the folder menu; null without developer mode. */
+    newPrompt: NewPromptAction | null
+    onSetupWorkflow: (() => void) | null
     onRetry: () => void
+    /** Controls at the toolbar's right edge, beside the search box. */
+    toolbarActions?: ReactNode
 }): ReactNode => (
     <>
         <PromptsBreadcrumb
@@ -55,11 +64,14 @@ export const PromptsView = ({
             canEditFolders={canEditFolders}
             onOpenFolder={onOpenFolder}
             openDialog={openDialog}
+            newPrompt={newPrompt}
+            onSetupWorkflow={onSetupWorkflow}
         />
         <ListTableToolbar
             search={search}
             onSearchChange={onSearchChange}
             searchPlaceholder={promptsCopy.searchPlaceholder}
+            actions={toolbarActions}
         />
         {isError ? (
             <LoadError framed title={promptsCopy.states.loadErrorTitle} onRetry={onRetry} />

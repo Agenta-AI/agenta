@@ -124,7 +124,7 @@ function fakeGatedTurn() {
 describe("interaction row credential rotation", () => {
   it("writes a late gate's interaction row with the current credential", async () => {
     const fake = fakeGatedTurn();
-    await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credential: fake.credential });
+    await runSandboxAgent(fake.request, undefined, undefined, fake.deps, { credentialLease: { credential: fake.credential, seed: INITIAL } });
     await vi.waitFor(() => assert.ok(interactionPosts.length > 0, "the gate wrote no interaction row"));
     const create = interactionPosts.filter((post) => post.path === `${API_BASE}/sessions/interactions/`);
     assert.ok(create.length > 0, "the gate wrote no interaction row");

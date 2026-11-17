@@ -24,7 +24,7 @@ export interface ConfigPanelProps {
     onViewModeChange: (mode: ConfigViewMode) => void
     /** The revision picker shown in the header. */
     switcher?: ReactNode
-    /** Buttons shown in the header, before the view switch. */
+    /** Buttons shown in the header, after the view switch. */
     actions?: ReactNode
     /** Shows the wand on each prompt section; called with the prompt's key in the config. */
     onRefinePrompt?: (promptKey: string) => void

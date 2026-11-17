@@ -30,6 +30,7 @@ export {
     // Constants
     SYSTEM_FIELDS,
     isSystemField,
+    isInternalDataField,
 } from "./schema"
 
 // Types

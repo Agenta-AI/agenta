@@ -124,6 +124,8 @@ export interface RunMetricEntry {
     evaluatorSlug: string | null
     /** The run-level stats; for an online run with no static row, the latest point's stats. */
     stats: MetricStats | null
+    /** True when `stats` come from the run-wide row, false when they are the latest point's. */
+    statsAreRunWide: boolean
     /** Online runs: one point per timestamped row, oldest first. Empty otherwise. */
     temporal: TemporalMetricPoint[]
 }
@@ -174,8 +176,36 @@ function sumCounts(all: (MetricStats | null)[]): MetricStats | null {
     }
 }
 
-/** The error points of several evaluators, added up per timestamp, oldest first. */
-function sumPoints(all: TemporalMetricPoint[][]): TemporalMetricPoint[] {
+/**
+ * What several evaluators spend on one trace: their totals add up (a trace runs every evaluator)
+ * and divide by the number of traces, the largest count. An evaluator that skipped some traces
+ * adds only what it spent. When an evaluator has no count, the means add up and there is no
+ * total; when one also has no mean, there is no average.
+ */
+function sumPerTrace(all: (MetricStats | null)[]): MetricStats | null {
+    const stats = all.filter((entry): entry is MetricStats => entry !== null)
+    if (stats.length === 0) return null
+    const type = stats[0].type
+    if (stats.every((entry) => entry.count !== undefined)) {
+        const count = Math.max(...stats.map((entry) => entry.count ?? 0))
+        const totals = stats.map((entry) => entry.sum ?? (entry.mean ?? 0) * (entry.count ?? 0))
+        const sum = totals.reduce((acc, total) => acc + total, 0)
+        return count > 0 ? {type, mean: sum / count, sum, count} : {type, sum, count}
+    }
+    const means = stats.map(
+        (entry) =>
+            entry.mean ??
+            (entry.sum !== undefined && entry.count ? entry.sum / entry.count : undefined),
+    )
+    if (means.some((mean) => mean === undefined)) return {type}
+    return {type, mean: means.reduce<number>((acc, mean) => acc + (mean ?? 0), 0)}
+}
+
+/** The points of several evaluators, combined per timestamp, oldest first. */
+function sumPoints(
+    all: TemporalMetricPoint[][],
+    combine: (stats: (MetricStats | null)[]) => MetricStats | null = sumCounts,
+): TemporalMetricPoint[] {
     const byTime = new Map<number, (MetricStats | null)[]>()
     for (const points of all) {
         for (const {timestamp, stats} of points) {
@@ -185,7 +215,7 @@ function sumPoints(all: TemporalMetricPoint[][]): TemporalMetricPoint[] {
     return [...byTime.entries()]
         .sort(([a], [b]) => a - b)
         .flatMap(([timestamp, stats]) => {
-            const summed = sumCounts(stats)
+            const summed = combine(stats)
             return summed ? [{timestamp, stats: summed}] : []
         })
 }
@@ -214,8 +244,10 @@ export function buildRunMetricCatalog(
             return stats ? [{timestamp, stats}] : []
         })
 
+    const runWideStats = (stepKey: string, metricKey: string) =>
+        normalizeMetricStats(staticData[stepKey]?.[metricKey])
     const statsFor = (stepKey: string, metricKey: string, temporal: TemporalMetricPoint[]) =>
-        normalizeMetricStats(staticData[stepKey]?.[metricKey]) ?? temporal.at(-1)?.stats ?? null
+        runWideStats(stepKey, metricKey) ?? temporal.at(-1)?.stats ?? null
 
     const steps = run?.data?.steps ?? []
     const entries: RunMetricEntry[] = []
@@ -237,6 +269,7 @@ export function buildRunMetricCatalog(
                 evaluatorId: step.references?.evaluator?.id ?? null,
                 evaluatorSlug: step.references?.evaluator?.slug ?? null,
                 stats,
+                statsAreRunWide: runWideStats(step.key, metricKey) !== null,
                 temporal,
             })
         }
@@ -251,21 +284,29 @@ export function buildRunMetricCatalog(
         staticData[key]?.[metricKey] !== undefined ||
         timed.some(({data}) => data[key]?.[metricKey] !== undefined)
     for (const {id, metricKey, label} of INVOCATION_METRICS) {
-        const candidates = id === "errors" ? errorKeys : invocationKeys
+        // A live run calls no app: what it spends per trace (cost, time, tokens) is its evaluators'.
+        const fromEvaluators = invocationKeys.length === 0
+        const candidates = id === "errors" || fromEvaluators ? errorKeys : invocationKeys
         const stepKeys = candidates.filter((key) => hasMetric(key, metricKey))
         const stepKey = stepKeys[0] ?? null
-        // Several failing evaluators: their totals and their time series both add up.
-        const combined = id === "errors" && stepKeys.length > 1
+        // Several evaluators: errors add up as totals, and cost, time and tokens per trace. Several
+        // app steps report cost, time and tokens from the first one, as the old app does.
+        const combined = stepKeys.length > 1 && (id === "errors" || fromEvaluators)
+        const combine = id === "errors" ? sumCounts : sumPerTrace
         const temporal = combined
-            ? sumPoints(stepKeys.map((key) => pointsFor(key, metricKey)))
+            ? sumPoints(
+                  stepKeys.map((key) => pointsFor(key, metricKey)),
+                  combine,
+              )
             : stepKey
               ? pointsFor(stepKey, metricKey)
               : []
         const stats = combined
-            ? sumCounts(stepKeys.map((key) => statsFor(key, metricKey, pointsFor(key, metricKey))))
+            ? combine(stepKeys.map((key) => statsFor(key, metricKey, pointsFor(key, metricKey))))
             : stepKey
               ? statsFor(stepKey, metricKey, temporal)
               : null
+        const statsKeys = combined ? stepKeys : stepKey ? [stepKey] : []
         entries.push({
             id,
             kind: "invocation",
@@ -275,6 +316,9 @@ export function buildRunMetricCatalog(
             evaluatorId: null,
             evaluatorSlug: null,
             stats,
+            statsAreRunWide:
+                statsKeys.length > 0 &&
+                statsKeys.every((key) => runWideStats(key, metricKey) !== null),
             temporal,
         })
     }

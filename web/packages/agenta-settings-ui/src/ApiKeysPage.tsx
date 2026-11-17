@@ -1,3 +1,8 @@
+import {useMemo} from "react"
+
+import {formatLocale, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsApiKeysCatalog from "@agenta/i18n/catalogs/settings.apiKeys"
 import {getSettingsSidebarIcon, type ApiKeyRow} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
@@ -20,24 +25,26 @@ export interface ApiKeysPageProps {
     onDelete: (prefix: string) => void
 }
 
-const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : "—")
+const formatDate = (value?: string | null) =>
+    value ? new Date(value).toLocaleDateString(formatLocale()) : "—"
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "prefix", label: "API key", width: "minmax(0,2fr)"},
-    {key: "created_at", label: "Created", width: "minmax(0,1fr)"},
-    {key: "expiration_date", label: "Expires", width: "minmax(0,1fr)"},
-    {key: "last_used_at", label: "Last used", width: "minmax(0,1.4fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
+    {key: "prefix", label: t("settings.apiKeys.apiKey"), width: "minmax(0,2fr)"},
+    {key: "created_at", label: t("common.created"), width: "minmax(0,1fr)"},
+    {key: "expiration_date", label: t("settings.apiKeys.expires"), width: "minmax(0,1fr)"},
+    {key: "last_used_at", label: t("settings.apiKeys.lastUsed"), width: "minmax(0,1.4fr)"},
+    {key: "actions", label: t("common.actions"), srOnly: true, width: "32px"},
 ]
 const PHONE_KEYS = ["prefix", "expiration_date", "actions"]
 
 const ExpiresCell = ({value}: {value?: string | null}) => {
+    const t = useT(commonCatalog, settingsApiKeysCatalog)
     const date = value ? new Date(value) : null
-    if (!date) return <span className="text-muted-foreground">Never</span>
+    if (!date) return <span className="text-muted-foreground">{t("settings.apiKeys.never")}</span>
     return date < new Date() ? (
-        <StatusIndicator tone="error" label="Expired" />
+        <StatusIndicator tone="error" label={t("settings.apiKeys.expired")} />
     ) : (
-        <span>{date.toLocaleDateString()}</span>
+        <span>{date.toLocaleDateString(formatLocale())}</span>
     )
 }
 
@@ -56,21 +63,19 @@ export const ApiKeysPage = ({
     onCreate,
     onDelete,
 }: ApiKeysPageProps) => {
-    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const t = useT(commonCatalog, settingsApiKeysCatalog)
+    const {columns, shows} = usePhoneColumns(
+        useMemo(() => columnsFor(t), [t]),
+        PHONE_KEYS,
+    )
     if (!canView) {
-        return (
-            <Alert
-                type="warning"
-                showIcon
-                message="You do not have access to API Keys in this project."
-            />
-        )
+        return <Alert type="warning" showIcon message={t("settings.apiKeys.noAccess")} />
     }
 
     const generate = canEdit ? (
         <Button disabled={creating || listing} onClick={onCreate}>
             <Plus size={14} />
-            Generate key
+            {t("settings.apiKeys.generateKey")}
         </Button>
     ) : null
 
@@ -88,8 +93,8 @@ export const ApiKeysPage = ({
                 empty={
                     <SettingsEmpty
                         icon={getSettingsSidebarIcon("apiKeys")}
-                        title="No API keys yet"
-                        description="Generate a key to authenticate requests to the Agenta API from your code, CI jobs, and SDKs."
+                        title={t("settings.apiKeys.emptyTitle")}
+                        description={t("settings.apiKeys.emptyDescription")}
                         action={generate}
                     />
                 }
@@ -105,16 +110,16 @@ export const ApiKeysPage = ({
                         {shows("last_used_at") ? (
                             <span className="truncate text-muted-foreground">
                                 {record.last_used_at
-                                    ? new Date(record.last_used_at).toLocaleString()
-                                    : "Never used"}
+                                    ? new Date(record.last_used_at).toLocaleString(formatLocale())
+                                    : t("settings.apiKeys.neverUsed")}
                             </span>
                         ) : null}
                         <SettingsRowMenu
-                            label="Key actions"
+                            label={t("settings.apiKeys.keyActions")}
                             items={[
                                 {
                                     key: "delete",
-                                    label: "Delete key",
+                                    label: t("settings.apiKeys.deleteKey"),
                                     icon: <Trash size={14} />,
                                     danger: true,
                                     hidden: !canEdit,

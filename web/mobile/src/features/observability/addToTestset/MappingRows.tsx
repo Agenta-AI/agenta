@@ -8,7 +8,6 @@ import {CREATE_NEW, type ColumnsStatus, type MappingRow} from "./useAddToTestset
  * columns yet, so each row names its column. An existing one offers its columns, or a new name.
  */
 export const MappingRows = ({
-    hasTarget,
     isNewTestset,
     columnsStatus,
     columns,
@@ -20,7 +19,6 @@ export const MappingRows = ({
     onAdd,
     onRemove,
 }: {
-    hasTarget: boolean
     isNewTestset: boolean
     columnsStatus: ColumnsStatus
     columns: readonly string[]
@@ -36,13 +34,6 @@ export const MappingRows = ({
     const paths = pathOptions.map((path) => ({value: path, label: path, searchValue: path}))
 
     const body = () => {
-        if (!hasTarget) {
-            return (
-                <p className="text-muted-foreground m-0 text-sm">
-                    Select a test set above to start mapping fields
-                </p>
-            )
-        }
         if (columnsStatus === "loading") {
             return (
                 <div className="flex flex-col gap-2" aria-busy="true">

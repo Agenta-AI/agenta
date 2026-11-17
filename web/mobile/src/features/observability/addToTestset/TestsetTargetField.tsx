@@ -4,17 +4,35 @@ import {invalidateTestsetsListCache, testsetsListAtom} from "@agenta/entities/te
 import {Alert, Button, Combobox, Input} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
-import {CREATE_NEW, type AddToTestsetTarget} from "./useAddToTestsetForm"
+import {
+    CREATE_NEW,
+    type AddToTestsetTarget,
+    type TestsetRevisionOption,
+} from "./useAddToTestsetForm"
 
-/** Step 1: an existing test set to append to, or a new one and its name. */
+const revisionLabel = (revision: TestsetRevisionOption, latest: boolean) => {
+    const date = revision.createdAt ? new Date(revision.createdAt).toLocaleDateString() : null
+    return [`v${revision.version}`, date, latest ? "latest" : null].filter(Boolean).join(" · ")
+}
+
+/**
+ * Step 1: an existing test set to append to, and its revision (the latest by default), or a new
+ * test set and its name.
+ */
 export const TestsetTargetField = ({
     target,
     onTargetChange,
+    revisions,
     newName,
     onNewNameChange,
 }: {
     target: AddToTestsetTarget
     onTargetChange: (target: AddToTestsetTarget) => void
+    revisions: {
+        status: "idle" | "loading" | "error" | "ready"
+        options: readonly TestsetRevisionOption[]
+        retry: () => void
+    }
     newName: string
     onNewNameChange: (name: string) => void
 }) => {
@@ -36,7 +54,25 @@ export const TestsetTargetField = ({
         if (!next) return onTargetChange(null)
         if (next === CREATE_NEW) return onTargetChange({kind: "new"})
         const testset = list.data.find((item) => item.id === next)
-        if (testset) onTargetChange({kind: "existing", testsetId: testset.id, name: testset.name})
+        if (testset) {
+            onTargetChange({
+                kind: "existing",
+                testsetId: testset.id,
+                name: testset.name,
+                revisionId: null,
+            })
+        }
+    }
+
+    const latestId = revisions.options[0]?.id
+    const revisionOptions = revisions.options.map((revision) => {
+        const label = revisionLabel(revision, revision.id === latestId)
+        return {value: revision.id, label, searchValue: label}
+    })
+    const selectRevision = (next: string | undefined) => {
+        if (target?.kind !== "existing" || !next) return
+        // The latest stays "latest", so a commit made meanwhile is still the base at save time.
+        onTargetChange({...target, revisionId: next === latestId ? null : next})
     }
 
     return (
@@ -77,6 +113,34 @@ export const TestsetTargetField = ({
                     onChange={(event) => onNewNameChange(event.target.value)}
                     autoFocus
                 />
+            ) : null}
+            {target?.kind === "existing" ? (
+                revisions.status === "error" ? (
+                    <Alert
+                        type="error"
+                        showIcon
+                        message="Couldn't load the revisions"
+                        action={
+                            <Button variant="outline" size="sm" onClick={revisions.retry}>
+                                Try again
+                            </Button>
+                        }
+                    />
+                ) : (
+                    <Combobox
+                        aria-label="Revision"
+                        options={revisionOptions}
+                        value={target.revisionId ?? latestId}
+                        onChange={selectRevision}
+                        placeholder={
+                            revisions.status === "loading"
+                                ? "Loading revisions..."
+                                : "Select revision"
+                        }
+                        loading={revisions.status === "loading"}
+                        emptyText="No revisions found"
+                    />
+                )
             ) : null}
         </section>
     )

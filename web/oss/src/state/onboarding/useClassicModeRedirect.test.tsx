@@ -153,8 +153,17 @@ describe("useClassicModeRedirect", () => {
                 expect(cookieAtNavigation).toEqual(["0"])
             })
 
-            it(`${label}, beta on: stays on a /w page that /m lacks`, async () => {
+            it(`${label}, beta on: a /w developer page goes to the matching /m page`, async () => {
                 await openW("/w/ws-1/p/proj-1/evaluations", {developerMode, beta: true})
+
+                expect(replace).toHaveBeenCalledWith("/m/w/ws-1/p/proj-1/evaluations")
+            })
+
+            it(`${label}, beta on: stays on a /w page that /m lacks`, async () => {
+                await openW("/w/ws-1/p/proj-1/evaluations/results/compare", {
+                    developerMode,
+                    beta: true,
+                })
 
                 expect(replace).not.toHaveBeenCalled()
             })

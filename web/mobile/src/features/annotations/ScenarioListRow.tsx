@@ -9,6 +9,7 @@ import {ScenarioItemCell} from "./ScenarioItemCell"
 import type {EvaluatorColumn} from "./scenarioListColumns"
 import {ScenarioRowMenu} from "./ScenarioRowMenu"
 import {ScenarioStatusBadge} from "./ScenarioStatusBadge"
+import {ScenarioTraceIOCell} from "./ScenarioTraceIOCell"
 import type {ScenarioRow} from "./useScenarioRows"
 
 const DOT_COLOR: Record<StatusTone, string> = {
@@ -38,6 +39,7 @@ const OwnClicks = ({children, className}: {children: ReactNode; className?: stri
 export const ScenarioListRow = ({
     row,
     columns,
+    traceIO,
     narrow,
     selected,
     onSelectedChange,
@@ -46,6 +48,8 @@ export const ScenarioListRow = ({
 }: {
     row: ScenarioRow
     columns: EvaluatorColumn[]
+    /** A trace queue: inputs and outputs columns after the item (wide screens only). */
+    traceIO: boolean
     narrow: boolean
     selected: boolean
     onSelectedChange: (selected: boolean) => void
@@ -87,6 +91,12 @@ export const ScenarioListRow = ({
         ) : (
             <>
                 <ScenarioItemCell scenarioId={row.scenarioId} />
+                {traceIO ? (
+                    <>
+                        <ScenarioTraceIOCell scenarioId={row.scenarioId} part="inputs" />
+                        <ScenarioTraceIOCell scenarioId={row.scenarioId} part="outputs" />
+                    </>
+                ) : null}
                 {columns.map((column) => (
                     <ScenarioEvaluatorCell
                         key={column.key}

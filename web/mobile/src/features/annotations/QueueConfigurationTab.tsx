@@ -1,5 +1,6 @@
 import {annotationSessionController, queueKindLabel} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
+import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
 import {Badge} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -8,6 +9,7 @@ import {QueueAssignees} from "./QueueAssignees"
 import {QueueConfigField} from "./QueueConfigField"
 import {QueueConfigSection} from "./QueueConfigSection"
 import {QueueDeleteCard} from "./QueueDeleteCard"
+import {QueueDetailsForm} from "./QueueDetailsForm"
 import {QueueEvaluatorCard} from "./QueueEvaluatorCard"
 
 const ReadOnlyEditor = dynamic(() => import("./ReadOnlyEditor").then((m) => m.ReadOnlyEditor), {
@@ -17,19 +19,21 @@ const ReadOnlyEditor = dynamic(() => import("./ReadOnlyEditor").then((m) => m.Re
 const NO_VALUE = <span className="text-muted-foreground">—</span>
 
 /**
- * The queue's settings, read only. The API has no route that edits a queue, so a name or
- * description field here could only change a local copy that a reload throws away.
+ * The queue's settings. In beta developer mode a user who may edit queues can change the name
+ * and description and delete the queue; everyone else reads them.
  */
 export const QueueConfigurationTab = ({
     queueId,
-    canDelete,
+    canEdit,
     listHref,
 }: {
     queueId: string
-    canDelete: boolean
+    /** The user may edit and delete queues in this project. */
+    canEdit: boolean
     listHref: string
 }) => {
     const queue = useAtomValue(simpleQueueMolecule.selectors.data(queueId))
+    const beta = useAtomValue(betaDeveloperModeActiveAtom)
     const evaluatorRevisionIds = useAtomValue(
         annotationSessionController.selectors.evaluatorRevisionIds(),
     )
@@ -42,17 +46,29 @@ export const QueueConfigurationTab = ({
             <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4 px-4">
                 <QueueConfigSection title="General">
                     <div className="flex flex-col gap-3 p-4">
-                        <QueueConfigField label="Name">{queue?.name || NO_VALUE}</QueueConfigField>
-                        <QueueConfigField label="Description">
-                            {description ? (
-                                <ReadOnlyEditor
-                                    id="queue-configuration-description"
-                                    value={description}
-                                />
-                            ) : (
-                                NO_VALUE
-                            )}
-                        </QueueConfigField>
+                        {beta && canEdit ? (
+                            <QueueDetailsForm
+                                queueId={queueId}
+                                savedName={queue?.name ?? ""}
+                                savedDescription={queue?.description ?? ""}
+                            />
+                        ) : (
+                            <>
+                                <QueueConfigField label="Name">
+                                    {queue?.name || NO_VALUE}
+                                </QueueConfigField>
+                                <QueueConfigField label="Description">
+                                    {description ? (
+                                        <ReadOnlyEditor
+                                            id="queue-configuration-description"
+                                            value={description}
+                                        />
+                                    ) : (
+                                        NO_VALUE
+                                    )}
+                                </QueueConfigField>
+                            </>
+                        )}
                         <QueueConfigField label="Type">
                             {kindLabel ? (
                                 <Badge variant={kind === "traces" ? "blue" : "green"}>
@@ -87,7 +103,7 @@ export const QueueConfigurationTab = ({
                         </QueueConfigField>
                     </div>
                 </QueueConfigSection>
-                {canDelete ? (
+                {canEdit ? (
                     <QueueDeleteCard
                         queueId={queueId}
                         queueName={queue?.name}

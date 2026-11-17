@@ -301,13 +301,20 @@ export async function queryTestsetsPage(params: {
     cursor?: string | null
     name?: string
     includeArchived?: boolean
+    /** Only test sets created at or after this ISO time. The server windows by creation time. */
+    createdAfter?: string
 }): Promise<{testsets: Testset[]; nextCursor: string | null}> {
-    const {projectId, limit, cursor, name, includeArchived = false} = params
+    const {projectId, limit, cursor, name, includeArchived = false, createdAfter} = params
     const trimmedName = name?.trim()
 
     const data = await getTestsetsClient().queryTestsets(
         {
-            windowing: {limit, order: "descending", ...(cursor ? {next: cursor} : {})},
+            windowing: {
+                limit,
+                order: "descending",
+                ...(cursor ? {next: cursor} : {}),
+                ...(createdAfter ? {oldest: createdAfter} : {}),
+            },
             include_archived: includeArchived,
             ...(trimmedName ? {testset: {name: trimmedName}} : {}),
         },
