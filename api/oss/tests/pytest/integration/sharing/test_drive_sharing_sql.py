@@ -371,3 +371,102 @@ async def test_sharing_waits_for_a_transfer_and_reads_the_new_owner():
         with pytest.raises(SharingConflict):
             await share
         assert await _visibility(project_id, legacy) is None
+
+
+async def _new_revision(artifact_id: UUID, project_id: UUID, *, agent_config: dict):
+    """A newer revision on the agent's first variant."""
+
+    variant_id = (
+        await fetch_all(
+            "SELECT id FROM workflow_variants WHERE project_id = :p "
+            "AND artifact_id = :a ORDER BY created_at LIMIT 1",
+            {"p": project_id, "a": artifact_id},
+        )
+    )[0]["id"]
+    await execute(
+        "INSERT INTO workflow_revisions (project_id, artifact_id, variant_id, id, "
+        "slug, author, flags, data, created_at) VALUES (:p, :a, :v, :r, :s, :p, "
+        "CAST('{\"is_agent\": true}' AS jsonb), CAST(:d AS json), "
+        "now() + interval '1 second')",
+        {
+            "p": project_id,
+            "a": artifact_id,
+            "v": variant_id,
+            "r": uuid4(),
+            "s": f"r-{uuid4()}",
+            "d": json.dumps({"parameters": {"agent": agent_config}}),
+        },
+    )
+
+
+async def test_the_channel_check_reads_the_drives_the_agent_lists():
+    """`agent_lists_drive`: the latest revision of a live variant lists the drive by its
+    slug or by its reserved alias, or the drive is the agent's own and that revision
+    states no `drives`."""
+    async with seeded("alice") as org:
+        project_id = org.project_ids[0]
+        alice = org.user_ids["alice"]
+        sharing = _sharing()
+
+        async def lists(agent: UUID, mount_id: UUID) -> bool:
+            mount = await sharing.fetch_mount_visibility(
+                project_id=project_id, mount_id=mount_id
+            )
+            return await sharing.agent_lists_drive(
+                project_id=project_id, artifact_id=agent, mount=mount
+            )
+
+        notes = await _drive(project_id, slug="notes", policy=_private(alice))
+        prices = await _drive(project_id, slug="prices", policy=_private(alice))
+
+        lister = await _agent(
+            project_id,
+            name="Lister",
+            policy=_private(alice),
+            agent_config={"drives": [{"slug": "notes"}], "home_drive": None},
+        )
+        assert await lists(lister, notes) is True
+        assert await lists(lister, prices) is False
+
+        # Only the latest revision of a variant counts.
+        dropped = await _agent(
+            project_id,
+            name="Dropped",
+            policy=_private(alice),
+            agent_config={"drives": [{"slug": "notes"}], "home_drive": None},
+        )
+        await _new_revision(dropped, project_id, agent_config={"drives": []})
+        assert await lists(dropped, notes) is False
+
+        # Another live variant that lists the drive counts; a deleted one does not.
+        await _variant(
+            dropped, project_id, agent_config={"drives": [{"slug": "prices"}]}
+        )
+        assert await lists(dropped, prices) is True
+        await execute(
+            "UPDATE workflow_variants SET deleted_at = now() "
+            "WHERE project_id = :p AND artifact_id = :a AND slug LIKE 'v-%'",
+            {"p": project_id, "a": dropped},
+        )
+        assert await lists(dropped, prices) is False
+
+        # The own drive of an agent whose revision states no `drives` (the read fill).
+        legacy = await _agent(project_id, name="Legacy", policy=_private(alice))
+        own = await _drive(project_id, slug="legacy-files", agent_id=legacy)
+        assert await lists(legacy, own) is True
+        assert await lists(lister, own) is False
+        await _new_revision(legacy, project_id, agent_config={"drives": []})
+        assert await lists(legacy, own) is False
+
+        # A revision that names the own drive of another agent by its reserved alias.
+        reserved = await _agent(
+            project_id,
+            name="Reserved",
+            policy=_private(alice),
+            agent_config={
+                "drives": [{"slug": f"__ag__agent__{legacy}__default"}],
+                "home_drive": None,
+            },
+        )
+        assert await lists(reserved, own) is True
+        assert await lists(reserved, notes) is False
