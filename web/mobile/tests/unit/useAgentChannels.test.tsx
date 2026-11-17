@@ -71,18 +71,47 @@ describe("useAgentChannels", () => {
         expect(latest.loadError).toBeNull()
     })
 
-    it("shows the error once every retry of the first read failed", async () => {
+    it("keeps loading for about a minute of retries, then shows the error", async () => {
         vi.useFakeTimers()
         reload.mockRejectedValue(new Error("Bad Gateway"))
 
         await act(async () => root.render(<Probe />))
-        await act(async () => vi.advanceTimersByTimeAsync(1000 + 2000))
+        // An API restart takes about 35 seconds: still loading, no error, at 40 seconds.
+        await act(async () => vi.advanceTimersByTimeAsync(40_000))
+        expect(latest.loading).toBe(true)
         expect(latest.loadError).toBeNull()
 
-        await act(async () => vi.advanceTimersByTimeAsync(4000))
-        expect(reload).toHaveBeenCalledTimes(4)
+        await act(async () => vi.advanceTimersByTimeAsync(20_000))
+        expect(reload).toHaveBeenCalledTimes(7)
         expect(latest.loading).toBe(false)
         expect(latest.loadError).toBe("Could not load Channels. Try again.")
+    })
+
+    it("reads again with the loading state when the panel opens after a failed read", async () => {
+        vi.useFakeTimers()
+        reload.mockRejectedValue(new Error("Bad Gateway"))
+        await act(async () => root.render(<Probe />))
+        await act(async () => vi.advanceTimersByTimeAsync(60_000))
+        expect(latest.loadError).not.toBeNull()
+
+        // The API is back.
+        let answer!: (value: object) => void
+        reload.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+        await act(async () => latest.readAgainIfFailed())
+        expect(reload).toHaveBeenCalledTimes(8)
+        expect(latest.loading).toBe(true)
+        expect(latest.loadError).toBeNull()
+
+        await act(async () => answer({}))
+        expect(latest.loading).toBe(false)
+        expect(latest.loadError).toBeNull()
+    })
+
+    it("does not read again on open when the last read worked", async () => {
+        await act(async () => root.render(<Probe />))
+        await act(async () => latest.readAgainIfFailed())
+
+        expect(reload).toHaveBeenCalledTimes(1)
     })
 
     it("stops retrying once another read ran", async () => {
