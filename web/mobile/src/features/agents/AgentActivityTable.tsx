@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentsActivity from "@agenta/i18n/catalogs/agents.activity"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {
     rowsFromPages,
@@ -24,11 +26,21 @@ import {
 import {AgentActivityEmpty} from "./states/AgentActivityEmpty"
 
 /** The sessions page's phone columns: the title takes the row, the time sits against the kebab. */
-const columnsFor = (tab: AgentActivityTab): ListTableColumn[] => [
-    {key: "title", label: tab === "runs" ? "Run" : "Session", width: "minmax(160px,1fr)"},
-    {key: "updated", label: "Updated", width: "64px", headerClassName: "text-right"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+const columnsFor = (tab: AgentActivityTab, t: Translate): ListTableColumn[] => [
+    {
+        key: "title",
+        label: tab === "runs" ? t("agents.activity.columnRun") : t("agents.activity.columnSession"),
+        width: "minmax(160px,1fr)",
+    },
+    {
+        key: "updated",
+        label: t("agents.activity.columnUpdated"),
+        width: "64px",
+        headerClassName: "text-right",
+    },
+    {key: "actions", label: t("agents.activity.columnActions"), srOnly: true, width: "24px"},
 ]
+type Translate = ReturnType<typeof useT<[typeof agentsActivity]>>
 const MIN_WIDTH = 272
 
 /**
@@ -51,8 +63,9 @@ export const AgentActivityTable = ({
     onClearSearch: () => void
     onResetView: () => void
 }) => {
+    const t = useT(agentsActivity)
     const policy = useMemo(() => agentActivityPolicy(view.tab), [view.tab])
-    const columns = useMemo(() => columnsFor(view.tab), [view.tab])
+    const columns = useMemo(() => columnsFor(view.tab, t), [view.tab, t])
     const list = useSessionsList({
         agentId,
         activityFloor,
@@ -105,7 +118,7 @@ export const AgentActivityTable = ({
     const agentHasRows = rowsFromPages(probe.data?.pages).length > 0
 
     if (list.isError)
-        return <LoadError framed title="Could not load sessions" onRetry={list.refetch} />
+        return <LoadError framed title={t("agents.activity.loadError")} onRetry={list.refetch} />
 
     return (
         <div aria-busy={list.isPlaceholder || undefined}>

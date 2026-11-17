@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Info} from "@phosphor-icons/react"
 import {cva, type VariantProps} from "class-variance-authority"
 
@@ -103,6 +105,7 @@ function Field({
     children,
     className,
 }: FieldProps) {
+    const t = useT(uiControlsCatalog)
     const autoId = React.useId()
     const child = React.isValidElement<{
         id?: string
@@ -182,7 +185,7 @@ function Field({
                                     <button
                                         type="button"
                                         data-slot="field-tooltip-trigger"
-                                        aria-label="More information"
+                                        aria-label={t("ui.controls.moreInformation")}
                                         className="box-border inline-flex cursor-help border-0 bg-transparent p-0 font-[inherit] text-colorTextDescription"
                                     >
                                         <Info className="size-3" aria-hidden="true" />

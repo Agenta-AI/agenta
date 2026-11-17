@@ -26,6 +26,8 @@
 
 import {useCallback, useId, useMemo, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import formViewCatalog from "@agenta/i18n/catalogs/entityUi.formView"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
@@ -115,6 +117,7 @@ interface ObjectRowsProps {
 }
 
 function ObjectRows({obj, depth, editable, onChange, schema}: ObjectRowsProps) {
+    const t = useT(formViewCatalog)
     const properties = (schema as {properties?: Record<string, unknown>} | null)?.properties
 
     // Iterate the SCHEMA's keys as the canonical source of truth when
@@ -131,7 +134,7 @@ function ObjectRows({obj, depth, editable, onChange, schema}: ObjectRowsProps) {
     const keys: string[] = properties ? [...schemaKeys, ...extraKeys] : valueKeys
 
     if (keys.length === 0) {
-        return <span style={styles.emptyHint}>(empty object)</span>
+        return <span style={styles.emptyHint}>{t("entityUi.formView.emptyObject")}</span>
     }
 
     const updateKey = (key: string, next: unknown) => {
@@ -287,6 +290,7 @@ function cloneTemplate(template: unknown): unknown {
  * "form-array editor" piece.
  */
 function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
+    const t = useT(formViewCatalog)
     // Derive the row template + per-row schema FROM THIS array's local
     // items schema — not from a global template passed down. This is
     // what makes nested array-of-objects (e.g. `repos[i].contributors`)
@@ -310,7 +314,7 @@ function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
     return (
         <div style={styles.arrayStack}>
             {arr.length === 0 && !editable ? (
-                <span style={styles.emptyHint}>(empty array)</span>
+                <span style={styles.emptyHint}>{t("entityUi.formView.emptyArray")}</span>
             ) : null}
             {arr.map((item, idx) => (
                 <FormField
@@ -332,7 +336,7 @@ function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label={`Remove row ${idx}`}
+                                aria-label={t("entityUi.formView.removeRow", {index: idx})}
                                 onClick={() => removeIndex(idx)}
                                 style={styles.arrayRowRemove}
                             >
@@ -345,7 +349,7 @@ function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
             {editable ? (
                 <Button variant="dashed" size="sm" onClick={addRow} style={styles.arrayAddRow}>
                     <Plus size={14} />
-                    Add row
+                    {t("entityUi.formView.addRow")}
                 </Button>
             ) : null}
         </div>
@@ -375,6 +379,7 @@ function FieldBody({
     schema,
     labelId,
 }: FieldBodyProps): ReactNode {
+    const t = useT(formViewCatalog)
     if (kind === "object") {
         return (
             <NestedRail>
@@ -418,7 +423,7 @@ function FieldBody({
                 value={value as number}
                 disabled={!editable}
                 onChange={(next) => onChange(next ?? 0)}
-                placeholder="Enter number value"
+                placeholder={t("entityUi.formView.numberPlaceholder")}
                 // Pre-migration the 13px rode root `fontSize` and the inner input inherited
                 // it; the @agenta/ui inner input pins its own ramp, so target it directly.
                 className="[&_input]:text-[13px]"
@@ -470,6 +475,7 @@ interface StringLeafEditorProps {
 }
 
 function StringLeafEditor({value, mode, editable, onChange}: StringLeafEditorProps) {
+    const t = useT(formViewCatalog)
     // For text/markdown we show the raw string; for json/yaml we try to
     // parse the string as JSON and re-stringify into the target language,
     // falling back to the raw string when the value isn't valid JSON.
@@ -543,7 +549,7 @@ function StringLeafEditor({value, mode, editable, onChange}: StringLeafEditorPro
             disableDebounce
             disabled={!editable}
             state={editable ? undefined : "readOnly"}
-            placeholder="Enter a value"
+            placeholder={t("entityUi.formView.valuePlaceholder")}
             editorProps={{
                 codeOnly: isCode,
                 language: isCode ? mode : undefined,

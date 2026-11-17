@@ -23,6 +23,8 @@
 
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import templateFormatCatalog from "@agenta/i18n/catalogs/entityUi.templateFormat"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn} from "@agenta/ui/ui"
 
 import {
@@ -48,6 +50,7 @@ export function TemplateFormatPicker({
     disabled,
     className,
 }: TemplateFormatPickerProps) {
+    const t = useT(templateFormatCatalog)
     const resolvedValue = (value as TemplateFormat | null | undefined) ?? DEFAULT_TEMPLATE_FORMAT
     const options = useMemo(() => buildTemplateFormatOptions(resolvedValue), [resolvedValue])
 
@@ -62,7 +65,7 @@ export function TemplateFormatPicker({
             {/* role=combobox takes no name from content — the visible value text doesn't name it. */}
             <SelectTrigger
                 size="sm"
-                aria-label="Prompt syntax"
+                aria-label={t("entityUi.templateFormat.promptSyntax")}
                 className={cn("w-auto min-w-[180px]", className)}
             >
                 <SelectValue />

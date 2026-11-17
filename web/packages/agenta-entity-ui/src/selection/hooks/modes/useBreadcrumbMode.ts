@@ -24,6 +24,7 @@ import {
     searchTermFamily,
     setSearchTermFamily,
 } from "../../state/selectionState"
+import {tSelection} from "../../text"
 import type {
     EntitySelectionAdapter,
     EntitySelectionResult,
@@ -292,7 +293,9 @@ export function useBreadcrumbMode<TSelection = EntitySelectionResult>(
         return hierarchyLevels[state.currentLevel]
     }, [hierarchyLevels, state.currentLevel])
 
-    const currentLevelLabel = currentLevelConfig ? getLevelLabel(currentLevelConfig) : "items"
+    const currentLevelLabel = currentLevelConfig
+        ? getLevelLabel(currentLevelConfig)
+        : tSelection("entityUi.selection.items")
 
     const supportsPagination = useMemo(() => {
         if (!paginated || !currentLevelConfig) return false

@@ -1,6 +1,8 @@
 import {useEffect, useState, type FormEvent} from "react"
 
-import {AUTH_FAILURE_COPY, classifyAuthFailure, signInDetailed, signUpDetailed} from "@agenta/auth"
+import {classifyAuthFailure, signInDetailed, signUpDetailed} from "@agenta/auth"
+import {useT} from "@agenta/i18n"
+import emailPasswordCatalog from "@agenta/i18n/catalogs/auth.emailPasswordForm"
 import {
     Input,
     InputGroup,
@@ -15,6 +17,7 @@ import {Check, Eye, EyeSlash} from "@phosphor-icons/react"
 import {FIELD_CLASS, KEYCAP_CLASS} from "./classes"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSecurityAdapter, AuthSuccessPayload} from "./types"
+import {useAuthFailureText} from "./useAuthFailureText"
 import {useShake} from "./useShake"
 
 export interface EmailPasswordFormProps {
@@ -43,6 +46,8 @@ export const EmailPasswordForm = ({
     mode = "sign-in-or-up",
     security,
 }: EmailPasswordFormProps) => {
+    const t = useT(emailPasswordCatalog)
+    const failureText = useAuthFailureText()
     const [email, setEmail] = useState(initialEmail ?? "")
     const [password, setPassword] = useState("")
     const [isLoading, setIsLoading] = useState(false)
@@ -58,19 +63,24 @@ export const EmailPasswordForm = ({
         security?.stampToken(token)
         const outcome = await signUpDetailed(email.trim(), password)
         if (outcome.kind === "ok") {
-            setMessage({message: "Verification successful", type: "success"})
+            setMessage({
+                message: t("auth.emailPasswordForm.verificationSuccessful"),
+                type: "success",
+            })
             setSignedIn(true)
             await onSuccess({user: outcome.user, createdNewRecipeUser: true})
         } else if (outcome.kind === "field-error") {
             setMessage({
-                message: outcome.emailExists ? "Invalid email or password" : outcome.message,
+                message: outcome.emailExists
+                    ? t("auth.emailPasswordForm.invalidEmailOrPassword")
+                    : outcome.message,
                 type: "error",
             })
         } else if (outcome.kind === "not-allowed") {
             setMessage({message: outcome.message, type: "error"})
         } else {
             const failure = outcome.kind === "error" ? outcome.failure : "unknown"
-            setMessage({message: AUTH_FAILURE_COPY[failure], type: "error"})
+            setMessage({message: failureText(failure), type: "error"})
         }
     }
 
@@ -79,7 +89,9 @@ export const EmailPasswordForm = ({
         if (isLoading) return
         if (!email.trim() || !password) {
             setMessage({
-                message: !email.trim() ? "Please add your email." : "Please add your password.",
+                message: !email.trim()
+                    ? t("auth.emailPasswordForm.addEmail")
+                    : t("auth.emailPasswordForm.addPassword"),
                 type: "error",
             })
             return
@@ -97,7 +109,10 @@ export const EmailPasswordForm = ({
 
             const outcome = await signInDetailed(email.trim(), password)
             if (outcome.kind === "ok") {
-                setMessage({message: "Verification successful", type: "success"})
+                setMessage({
+                    message: t("auth.emailPasswordForm.verificationSuccessful"),
+                    type: "success",
+                })
                 setSignedIn(true)
                 await onSuccess({user: outcome.user})
             } else if (outcome.kind === "wrong-credentials") {
@@ -105,7 +120,7 @@ export const EmailPasswordForm = ({
                 let retryToken: string | null = null
                 if (security) {
                     setMessage({
-                        message: "Please complete the security check again to continue.",
+                        message: t("auth.emailPasswordForm.completeSecurityCheckAgain"),
                         type: "error",
                     })
                     retryToken = await security.refreshToken()
@@ -115,13 +130,13 @@ export const EmailPasswordForm = ({
             } else if (outcome.kind === "field-error" || outcome.kind === "not-allowed") {
                 setMessage({message: outcome.message, type: "error"})
             } else {
-                setMessage({message: AUTH_FAILURE_COPY[outcome.failure], type: "error"})
+                setMessage({message: failureText(outcome.failure), type: "error"})
             }
         } catch (error) {
             // Report through the caller's channel when there is one; otherwise the form
             // still has to say something, or the failure is invisible.
             if (onAuthError) onAuthError(error)
-            else setMessage({message: AUTH_FAILURE_COPY[classifyAuthFailure(error)], type: "error"})
+            else setMessage({message: failureText(classifyAuthFailure(error)), type: "error"})
         } finally {
             security?.clearToken()
             setIsLoading(false)
@@ -136,9 +151,9 @@ export const EmailPasswordForm = ({
             <Input
                 type="email"
                 autoComplete="username"
-                aria-label="Email address"
+                aria-label={t("auth.emailPasswordForm.emailAddress")}
                 aria-invalid={invalid}
-                placeholder="Enter your email address"
+                placeholder={t("auth.emailPasswordForm.emailPlaceholder")}
                 value={email}
                 readOnly={lockEmail}
                 tabIndex={lockEmail ? -1 : undefined}
@@ -150,9 +165,9 @@ export const EmailPasswordForm = ({
                 <InputGroupInput
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
-                    aria-label="Password"
+                    aria-label={t("auth.emailPasswordForm.password")}
                     aria-invalid={invalid}
-                    placeholder="Password"
+                    placeholder={t("auth.emailPasswordForm.password")}
                     value={password}
                     autoFocus={lockEmail}
                     className="h-full px-3 text-base md:text-sm"
@@ -162,7 +177,11 @@ export const EmailPasswordForm = ({
                     <InputGroupButton
                         size="icon-xs"
                         className="size-7 text-muted-foreground hover:text-foreground"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={
+                            showPassword
+                                ? t("auth.emailPasswordForm.hidePassword")
+                                : t("auth.emailPasswordForm.showPassword")
+                        }
                         onClick={() => setShowPassword((shown) => !shown)}
                     >
                         {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
@@ -178,7 +197,11 @@ export const EmailPasswordForm = ({
             >
                 <span key={signedIn ? "done" : isLoading ? "busy" : "idle"} className="auth-swap">
                     {signedIn ? <Check size={16} /> : null}
-                    {signedIn ? "Signed in" : isLoading ? "Signing in…" : "Continue with password"}
+                    {signedIn
+                        ? t("auth.emailPasswordForm.signedIn")
+                        : isLoading
+                          ? t("auth.emailPasswordForm.signingIn")
+                          : t("auth.emailPasswordForm.continueWithPassword")}
                 </span>
             </LoadingButton>
             {message.type === "error" && <ShowErrorMessage info={message} />}

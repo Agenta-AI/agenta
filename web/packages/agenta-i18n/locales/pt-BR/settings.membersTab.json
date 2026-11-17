@@ -1,0 +1,15 @@
+{
+    "invalidEmail": "Digite um endereço de e-mail válido",
+    "inviteDescription": "Eles entram nesta organização assim que aceitarem.",
+    "inviteError": "Não foi possível enviar o convite",
+    "inviteTitle": "Convidar membros",
+    "loadError": "Não foi possível carregar os membros desta organização",
+    "removeConfirm": "Remover {{name}}?",
+    "removeDescription": "Essa pessoa perde o acesso a esta organização.",
+    "removeError": "Não foi possível remover o membro",
+    "removeTitle": "Remover membro",
+    "removing": "Removendo…",
+    "roleError": "Não foi possível alterar a função",
+    "sendInvitation": "Enviar convite",
+    "sending": "Enviando…"
+}

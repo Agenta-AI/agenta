@@ -16,6 +16,13 @@
     "projectActions": "プロジェクトの操作",
     "projectName": "プロジェクト名",
     "renameFailed": "プロジェクトの名前を変更できません",
+    "roleAdmin": "管理者",
+    "roleAnnotator": "アノテーター",
+    "roleDeveloper": "開発者",
+    "roleEditor": "編集者",
+    "roleMember": "メンバー",
+    "roleOwner": "オーナー",
+    "roleViewer": "閲覧者",
     "setAsDefault": "デフォルトに設定",
     "setDefaultFailed": "デフォルトに設定できません",
     "switchTo": "このプロジェクトに切り替え"

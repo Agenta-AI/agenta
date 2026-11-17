@@ -1,5 +1,7 @@
 import {useMemo, useRef, useState, type KeyboardEvent} from "react"
 
+import {useT} from "@agenta/i18n"
+import filtersCatalog from "@agenta/i18n/catalogs/observabilityUi.filters"
 import {Badge, Popover, PopoverAnchor, PopoverContent, selectTriggerVariants} from "@agenta/ui/ui"
 import {XIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -48,6 +50,7 @@ export function FilterTagsInput({
     container,
     "aria-label": ariaLabel,
 }: FilterTagsInputProps) {
+    const t = useT(filtersCatalog)
     const [query, setQuery] = useState("")
     const [open, setOpen] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
@@ -142,7 +145,9 @@ export function FilterTagsInput({
                             {!disabled && (
                                 <button
                                     type="button"
-                                    aria-label={`Remove ${String(entry)}`}
+                                    aria-label={t("observabilityUi.filters.removeItem", {
+                                        name: String(entry),
+                                    })}
                                     className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-placeholder hover:text-foreground"
                                     onClick={(event) => {
                                         event.stopPropagation()

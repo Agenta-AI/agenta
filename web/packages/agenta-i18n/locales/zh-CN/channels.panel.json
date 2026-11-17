@@ -3,7 +3,7 @@
     "addTelegramBot": "添加 Telegram 机器人",
     "addWhatsAppNumber": "添加 WhatsApp 号码",
     "agent": "Agent",
-    "agentLive": "{{name}} · {{count}} 个在线",
+    "agentLive_other": "{{name}} · {{count}} 个在线",
     "chooseAgent": "选择负责回复的 Agent",
     "connectChannel": "连接渠道",
     "connectPlatform": "连接 {{platform}}",

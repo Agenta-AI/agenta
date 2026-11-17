@@ -1,6 +1,9 @@
 /** The product panel beside the sign-in form on wide screens. */
 import {memo, useLayoutEffect, useRef, useState, useSyncExternalStore} from "react"
 
+import {useT} from "@agenta/i18n"
+import sideBannerCatalog from "@agenta/i18n/catalogs/auth.sideBanner"
+
 import {ProductPreview} from "./ProductPreview"
 import {REPO, useGithubStars} from "./useGithubStars"
 
@@ -57,6 +60,7 @@ const useFrameFit = () => {
 }
 
 const AuthSideBanner = () => {
+    const t = useT(sideBannerCatalog)
     const [stageRef, {scale, height}] = useFrameFit()
     const wide = useWide()
     const stars = useGithubStars(wide)
@@ -70,10 +74,10 @@ const AuthSideBanner = () => {
                     className="inline-flex h-6 items-center gap-1.5 self-start rounded-full border border-solid border-border bg-background px-3 text-xs text-muted-foreground no-underline outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]"
                 >
                     <GithubMark />
-                    Open source · {stars}
+                    {t("auth.sideBanner.openSource")} · {stars}
                 </a>
                 <h2 className="auth-headline m-0 max-w-[520px] text-balance text-[clamp(28px,3vw,40px)] min-[2400px]:max-w-[880px] min-[2400px]:text-[clamp(40px,1.7vw,64px)] font-semibold leading-[1.15] tracking-[-0.02em] text-foreground">
-                    Agents that run while you work on something else
+                    {t("auth.sideBanner.headline")}
                 </h2>
             </div>
             <div ref={stageRef} className="relative min-h-0 flex-1" aria-hidden>

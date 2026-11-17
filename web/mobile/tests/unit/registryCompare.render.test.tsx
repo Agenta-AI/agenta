@@ -19,12 +19,17 @@ vi.mock("@agenta/entities/workflow", () => ({
         },
     },
 }))
-vi.mock("jotai", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("jotai")>()),
-    useAtomValue: (atom: {id: string}) => ({
-        data: {parameters: {prompt: atom.id.replace("revision:", "")}},
-    }),
-}))
+vi.mock("jotai", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("jotai")>()
+    return {
+        ...actual,
+        // Only the revision selectors are faked; other atoms (the language) read for real.
+        useAtomValue: (atom: {id?: string}) =>
+            typeof atom.id === "string" && atom.id.startsWith("revision:")
+                ? {data: {parameters: {prompt: atom.id.replace("revision:", "")}}}
+                : actual.useAtomValue(atom as Parameters<typeof actual.useAtomValue>[0]),
+    }
+})
 vi.mock("@agenta/entities/shared", () => ({
     UserAuthorLabel: () => createElement("span", null, "Alex"),
 }))

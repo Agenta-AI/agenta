@@ -1,0 +1,21 @@
+{
+    "chatMessage": "Mensagem de chat",
+    "commands": "Comandos",
+    "dismiss": "dispensar",
+    "enterInsert": "inserir",
+    "enterOpen": "abrir",
+    "enterRun": "executar",
+    "enterSend": "enviar",
+    "navigate": "navegar",
+    "newline": "Quebra de linha",
+    "noCommand": "Nenhum comando ou habilidade corresponde a “{{query}}”",
+    "noMatchFor": "Nenhuma correspondência para “{{query}}”",
+    "openItem": "Abrir {{item}}",
+    "pasteBlocked": "Colagem bloqueada. Isso excederia o limite de {{max}} caracteres em {{over}} caracteres ({{total}} no total). Reduza o conteúdo colado e tente novamente.",
+    "pastingLarge": "Colando conteúdo grande…",
+    "send": "Enviar",
+    "sending": "Enviando",
+    "stop": "Parar",
+    "stopping": "Parando",
+    "typeMessage": "Digite uma mensagem…"
+}

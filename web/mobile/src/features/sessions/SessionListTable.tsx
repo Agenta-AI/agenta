@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import sessionsMobileListCatalog from "@agenta/i18n/catalogs/sessions.mobileList"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {sessionSearchAtom, useSessionPins, useSessionsList} from "@agenta/sessions/state"
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
@@ -15,6 +17,8 @@ import {SessionRowCells} from "./SessionRowCells"
 import {SessionsNoMatch} from "./states/SessionsNoMatch"
 import {useProjectHasSessions} from "./useProjectHasSessions"
 
+const tNow = createT(sessionsMobileListCatalog)
+
 /**
  * The columns, shared by the header row and every body row so the two can never drift.
  *
@@ -28,7 +32,9 @@ import {useProjectHasSessions} from "./useProjectHasSessions"
  */
 const SESSION_COLUMN: ListTableColumn = {
     key: "session",
-    label: "Session",
+    get label() {
+        return tNow("sessions.mobileList.columnSession")
+    },
     width: "minmax(160px,2fr)",
 }
 /**
@@ -40,13 +46,17 @@ const SESSION_COLUMN: ListTableColumn = {
  */
 const updatedColumn = (width: string): ListTableColumn => ({
     key: "updated",
-    label: "Updated",
+    get label() {
+        return tNow("sessions.mobileList.columnUpdated")
+    },
     width,
     headerClassName: "text-right",
 })
 const ACTIONS_COLUMN: ListTableColumn = {
     key: "actions",
-    label: "Actions",
+    get label() {
+        return tNow("sessions.mobileList.columnActions")
+    },
     srOnly: true,
     width: "24px",
 }
@@ -54,8 +64,20 @@ const ACTIONS_COLUMN: ListTableColumn = {
 // title: a column there would cost the title the width it needs to be a title.
 const WIDE_COLUMNS: ListTableColumn[] = [
     SESSION_COLUMN,
-    {key: "status", label: "Status", width: "minmax(110px,1fr)"},
-    {key: "agent", label: "Agent", width: "minmax(120px,1fr)"},
+    {
+        key: "status",
+        get label() {
+            return tNow("sessions.mobileList.status")
+        },
+        width: "minmax(110px,1fr)",
+    },
+    {
+        key: "agent",
+        get label() {
+            return tNow("sessions.mobileList.agent")
+        },
+        width: "minmax(120px,1fr)",
+    },
     updatedColumn("96px"),
     ACTIONS_COLUMN,
 ]
@@ -112,6 +134,7 @@ export const SessionListTable = ({
     /** Undoes every facet, the grouping and the search. */
     onResetView: () => void
 }) => {
+    const t = useT(sessionsMobileListCatalog)
     const list = useSessionsList({
         activityFloor,
         // Release contract: the human list hides automation runs; the Type filter's "Automation
@@ -170,12 +193,16 @@ export const SessionListTable = ({
             const agentId = run.rows[0]?.agentId
             if (!agentId || !agentNames.has(agentId)) return null
             return (
-                <SimpleTooltip title={`New session with ${run.label}`}>
+                <SimpleTooltip
+                    title={t("sessions.mobileList.newSessionWith", {agent: run.label ?? ""})}
+                >
                     <Button
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`New session with ${run.label}`}
+                        aria-label={t("sessions.mobileList.newSessionWith", {
+                            agent: run.label ?? "",
+                        })}
                         className="size-6 text-muted-foreground hover:text-foreground"
                         onClick={() => onNewSession(agentId)}
                     >
@@ -184,11 +211,13 @@ export const SessionListTable = ({
                 </SimpleTooltip>
             )
         },
-        [agentNames, group, onNewSession],
+        [agentNames, group, onNewSession, t],
     )
 
     if (list.isError)
-        return <LoadError framed title="Could not load sessions" onRetry={list.refetch} />
+        return (
+            <LoadError framed title={t("sessions.mobileList.loadFailed")} onRetry={list.refetch} />
+        )
 
     return (
         // Say that these rows are a previous query's while a new one resolves. Typing in the

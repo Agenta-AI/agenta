@@ -1075,6 +1075,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
@@ -1152,6 +1155,9 @@ importers:
       '@agenta/auth':
         specifier: workspace:../agenta-auth
         version: link:../agenta-auth
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/ui':
         specifier: workspace:../agenta-ui
         version: link:../agenta-ui
@@ -1183,6 +1189,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/sessions-ui':
         specifier: workspace:../agenta-sessions-ui
         version: link:../agenta-sessions-ui
@@ -1232,6 +1241,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/playground':
         specifier: workspace:../agenta-playground
         version: link:../agenta-playground
@@ -1471,6 +1483,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/sessions-ui':
         specifier: workspace:../agenta-sessions-ui
         version: link:../agenta-sessions-ui
@@ -1649,6 +1664,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/observability':
         specifier: workspace:../agenta-observability
         version: link:../agenta-observability
@@ -1774,6 +1792,9 @@ importers:
 
   packages/agenta-navigation-ui:
     dependencies:
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/navigation':
         specifier: workspace:../agenta-navigation
         version: link:../agenta-navigation
@@ -1872,6 +1893,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/observability':
         specifier: workspace:../agenta-observability
         version: link:../agenta-observability
@@ -2000,6 +2024,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/playground':
         specifier: workspace:../agenta-playground
         version: link:../agenta-playground
@@ -2074,6 +2101,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
@@ -2111,6 +2141,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/sessions':
         specifier: workspace:../agenta-sessions
         version: link:../agenta-sessions
@@ -2297,6 +2330,9 @@ importers:
 
   packages/agenta-shared:
     dependencies:
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@tanstack/query-persist-client-core':
         specifier: 5.100.9
         version: 5.100.9
@@ -2404,6 +2440,9 @@ importers:
       '@agenta/entity-ui':
         specifier: workspace:../agenta-entity-ui
         version: link:../agenta-entity-ui
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
@@ -2456,6 +2495,9 @@ importers:
 
   packages/agenta-ui:
     dependencies:
+      '@agenta/i18n':
+        specifier: workspace:../agenta-i18n
+        version: link:../agenta-i18n
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared

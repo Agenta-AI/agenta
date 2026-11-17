@@ -12,6 +12,7 @@ import {
 import {requestPasswordReset, updateUsername, useProfile} from "@agenta/entities/profile"
 import {useT} from "@agenta/i18n"
 import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMemberRolesCatalog from "@agenta/i18n/catalogs/settings.memberRoles"
 import settingsMembersTabCatalog from "@agenta/i18n/catalogs/settings.membersTab"
 import {MembersPage} from "@agenta/settings-ui"
 import {betaDeveloperModeActiveAtom} from "@agenta/shared/state"
@@ -53,7 +54,7 @@ import {useSettingsOrg} from "./useSettingsOrg"
 
 /** Mobile binding for Members: invite and remove as dialogs, your own name renamed in place. */
 export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsTabProps) => {
-    const t = useT(commonCatalog, settingsMembersTabCatalog)
+    const t = useT(commonCatalog, settingsMemberRolesCatalog, settingsMembersTabCatalog)
     const {user: signedInUser} = useProfile()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(routeWorkspaceId)
     const members = org.data?.default_workspace?.members ?? []
@@ -263,7 +264,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                                 <SelectContent>
                                     {offeredRoles.map((entry) => (
                                         <SelectItem key={entry} value={entry}>
-                                            {memberRoleLabel(entry)}
+                                            {memberRoleLabel(entry, t)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

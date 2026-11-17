@@ -3,6 +3,7 @@
     "authentication": "認証",
     "authorizationHeader": "Authorization ヘッダー",
     "authorizationHint": "すべてのリクエストで Authorization ヘッダーとして送信されます。",
+    "authorizationPlaceholder": "Bearer …",
     "configurationDeployed": "設定のデプロイ完了",
     "description": "Agenta はイベントをエンドポイントに POST し、失敗した場合は再試行します。",
     "editTitle": "サブスクリプションを編集",
@@ -16,5 +17,6 @@
     "saving": "保存中…",
     "signatureHint": "Agenta は各リクエストにシークレットで署名します。シークレットは登録後に一度だけ表示されます。",
     "signedPayload": "署名付きペイロード",
-    "subscribe": "登録"
+    "subscribe": "登録",
+    "urlPlaceholder": "https://example.com/hooks/agenta"
 }

@@ -1,0 +1,15 @@
+{
+    "start": "Inicio",
+    "startsRightAway": "Empieza de inmediato",
+    "end": "Fin",
+    "neverEnds": "No termina nunca",
+    "windowHint": "Las horas están en UTC. Deja cualquiera de los dos vacío para no poner límite: un inicio en el futuro retrasa la primera ejecución y un fin en el pasado detiene la programación.",
+    "messagePlaceholder": "Resume las incidencias de soporte de ayer y publica el resumen en #ops.",
+    "richerInputsSchedule": "Esta programación envía un conjunto de entradas más completo que un solo mensaje; si escribes aquí, se sustituirán.",
+    "sentEveryRun": "Se envía al agente en cada ejecución.",
+    "inputsNotValidJson": "Las entradas no son un JSON válido",
+    "inputsNotValidJsonSentence": "Las entradas no son un JSON válido.",
+    "runInPlayground": "Ejecutar en el Playground",
+    "createScheduleFirst": "Crea primero la programación para ejecutarla",
+    "agentWillReceive": "El agente recibirá"
+}

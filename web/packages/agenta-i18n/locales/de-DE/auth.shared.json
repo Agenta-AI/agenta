@@ -1,0 +1,14 @@
+{
+    "change": "Ändern",
+    "completeSecurityCheck": "Bitte schließen Sie die Sicherheitsprüfung ab.",
+    "continueWith": "Mit {{provider}} fortfahren",
+    "failureRateLimited": "Zu viele Versuche. Bitte warten Sie eine Minute und versuchen Sie es dann erneut.",
+    "failureServer": "Bei der Anmeldung gibt es auf unserer Seite ein Problem. Bitte versuchen Sie es gleich erneut.",
+    "failureUnavailable": "Die Anmeldung mit Passwort ist hier nicht verfügbar. Bitte nutzen Sie eine andere Anmeldemethode.",
+    "failureUnknown": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+    "failureUnreachable": "Agenta ist gerade nicht erreichbar. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    "lastUsed": "Zuletzt verwendet",
+    "noMethodsConfigured": "Es sind keine Authentifizierungsmethoden konfiguriert",
+    "redirectingTo": "Weiterleitung zu {{provider}}…",
+    "securityCheckFailed": "Die Sicherheitsprüfung ist fehlgeschlagen. Bitte versuchen Sie es erneut."
+}

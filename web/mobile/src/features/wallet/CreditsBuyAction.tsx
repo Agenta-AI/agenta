@@ -1,5 +1,8 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import billingTopupsCatalog from "@agenta/i18n/catalogs/billing.topups"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {
     BuyCreditsDialog,
     readTopUpReturn,
@@ -26,6 +29,7 @@ export const CreditsBuyAction = ({
     /** Where a checkout refused for the plan sends the payer. */
     onUpgrade: () => void
 }) => {
+    const t = useT(commonCatalog, billingTopupsCatalog)
     const router = useRouter()
     const offer = useTopUpOffer({projectId})
     const entry = topUpEntry(offer.data?.status)
@@ -70,7 +74,7 @@ export const CreditsBuyAction = ({
                 <SettingsPageActions>
                     <Button onClick={() => setPickerOpen(true)}>
                         <Plus size={14} />
-                        Buy credits
+                        {t("billing.topups.buyCredits")}
                     </Button>
                 </SettingsPageActions>
             ) : null}
@@ -84,9 +88,9 @@ export const CreditsBuyAction = ({
             ) : null}
             {loadFailed ? (
                 <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-[13px]">
-                    Could not load credit packs.
+                    {t("billing.topups.loadError")}
                     <Button size="sm" variant="outline" onClick={() => void offer.refetch()}>
-                        Retry
+                        {t("common.retry")}
                     </Button>
                 </div>
             ) : null}

@@ -11,11 +11,13 @@
     "invalidSlug": "标识只能使用小写字母（a-z）和连字符（-）",
     "issuerAndClientRequired": "Issuer URL 和 Client ID 为必填项",
     "issuerUrl": "Issuer URL",
+    "issuerUrlPlaceholder": "https://idp.example.com",
     "saveFailed": "无法保存供应商",
     "saveProvider": "保存供应商",
     "saving": "正在保存…",
     "scopes": "Scopes",
     "scopesHint": "多个 scope 用逗号分隔",
     "slug": "标识",
-    "slugHint": "仅限小写字母和连字符"
+    "slugHint": "仅限小写字母和连字符",
+    "slugPlaceholder": "okta"
 }

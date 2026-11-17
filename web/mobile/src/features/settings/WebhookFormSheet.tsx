@@ -176,7 +176,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                             type="url"
                             value={url}
                             onChange={(event) => setUrl(event.target.value)}
-                            placeholder="https://example.com/hooks/agenta"
+                            placeholder={t("settings.webhookFormSheet.urlPlaceholder")}
                             autoComplete="off"
                             spellCheck={false}
                         />
@@ -243,7 +243,9 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                             <Input
                                 value={authValue}
                                 onChange={(event) => setAuthValue(event.target.value)}
-                                placeholder="Bearer …"
+                                placeholder={t(
+                                    "settings.webhookFormSheet.authorizationPlaceholder",
+                                )}
                                 autoComplete="off"
                                 spellCheck={false}
                                 className="font-mono"

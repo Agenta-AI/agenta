@@ -2,6 +2,8 @@ import {useCallback} from "react"
 
 import {type Automation, useAutomation} from "@agenta/automation-ui"
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
+import {createT, useT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {message} from "@agenta/ui/app-message"
 import {
     Button,
@@ -17,8 +19,10 @@ import {useRouter} from "next/router"
 import {useStartTaskSession} from "../chat/useStartTaskSession"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
-import {testRunBlockedReason} from "./AutomationTestRunButton"
+import {TEST_RUN_BLOCKED_TEXT, testRunBlockedReason} from "./AutomationTestRunButton"
 import {runNowText} from "./runNowText"
+
+const tNow = createT(automationsScreensCatalog)
 
 /**
  * The automation's own actions — everything that acts on the row rather than on a field.
@@ -52,6 +56,7 @@ export const AutomationActionsMenu = ({
      */
     onLeave?: (url: string) => void
 }) => {
+    const t = useT(automationsScreensCatalog)
     const router = useRouter()
     const {remove, setActive} = useAutomation(automation.id, automation.kind)
     const startTask = useStartTaskSession(base)
@@ -61,9 +66,13 @@ export const AutomationActionsMenu = ({
         const next = !automation.isActive
         try {
             await setActive(automation.id, next)
-            message.success(next ? "Automation switched on" : "Automation switched off")
+            message.success(
+                next
+                    ? tNow("automations.screens.switchedOn")
+                    : tNow("automations.screens.switchedOff"),
+            )
         } catch {
-            message.error("Couldn't change this automation")
+            message.error(tNow("automations.screens.changeFailed"))
         }
     }, [automation.id, automation.isActive, setActive])
 
@@ -72,8 +81,8 @@ export const AutomationActionsMenu = ({
         // A menu item has no disabled-with-tooltip state, so the detail button's reasons surface
         // as a toast instead.
         const blocked = testRunBlockedReason({agentId: automation.agentId, instruction})
-        if (blocked || !automation.agentId) {
-            message.error(blocked)
+        if (blocked !== null || !automation.agentId) {
+            if (blocked !== null) message.error(tNow(TEST_RUN_BLOCKED_TEXT[blocked]))
             return
         }
         const text = await runNowText(automation)
@@ -86,13 +95,11 @@ export const AutomationActionsMenu = ({
 
     const onDelete = useCallback(() => {
         confirm({
-            title: "Delete this automation?",
-            message:
-                `“${automation.name}” stops running and leaves your list. ` +
-                "Its past runs stay in your history.",
+            title: tNow("automations.screens.deleteTitle"),
+            message: tNow("automations.screens.deleteMessage", {name: automation.name}),
             onOk: async () => {
                 await remove(automation.id)
-                message.success("Automation deleted")
+                message.success(tNow("automations.screens.deleted"))
                 const list = `${base}/automations`
                 if (onLeave) onLeave(list)
                 else void router.push(list).catch(() => undefined)
@@ -113,7 +120,7 @@ export const AutomationActionsMenu = ({
                         // height, or the pair reads as one control and a smaller afterthought.
                         size={surface === "list" ? "icon-xs" : "icon-sm"}
                         variant="ghost"
-                        aria-label="Automation actions"
+                        aria-label={t("automations.screens.actionsAria")}
                         className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                     >
                         {/* Bigger than the box would give it: three small dots read smaller than
@@ -131,7 +138,7 @@ export const AutomationActionsMenu = ({
                         <>
                             <DropdownMenuItem onSelect={() => void onTestRun()}>
                                 <Play aria-hidden size={14} />
-                                Run now
+                                {t("automations.screens.runNow")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                                 onSelect={() =>
@@ -144,7 +151,7 @@ export const AutomationActionsMenu = ({
                                 {/* The history is a view of the automation rather than a route,
                                     so the screen is asked to open on it. The row promises runs;
                                     landing on the config would make the reader find them. */}
-                                Run history
+                                {t("automations.screens.runHistory")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => void onToggle()}>
                                 {automation.isActive ? (
@@ -152,14 +159,16 @@ export const AutomationActionsMenu = ({
                                 ) : (
                                     <Play aria-hidden size={14} />
                                 )}
-                                {automation.isActive ? "Deactivate" : "Activate"}
+                                {automation.isActive
+                                    ? t("automations.screens.deactivate")
+                                    : t("automations.screens.activate")}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                         </>
                     ) : null}
                     <DropdownMenuItem variant="destructive" onSelect={onDelete}>
                         <Trash aria-hidden size={14} />
-                        Delete
+                        {t("automations.screens.delete")}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

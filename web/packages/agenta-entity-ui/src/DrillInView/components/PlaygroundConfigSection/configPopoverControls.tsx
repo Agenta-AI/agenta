@@ -12,6 +12,8 @@
  */
 import type {ReactElement, ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import {
     Select,
     SelectContent,
@@ -57,6 +59,7 @@ export function ConfigSelect({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: ConfigSelectProps) {
+    const t = useT(playgroundConfigCatalog)
     const showClear = !!allowClear && value != null && value !== "" && !disabled
     return (
         <span className="group/select relative block w-full">
@@ -97,7 +100,7 @@ export function ConfigSelect({
             {showClear ? (
                 <button
                     type="button"
-                    aria-label="Clear selection"
+                    aria-label={t("entityUi.playgroundConfig.clearSelection")}
                     onClick={(e) => {
                         e.stopPropagation()
                         onChange(null)

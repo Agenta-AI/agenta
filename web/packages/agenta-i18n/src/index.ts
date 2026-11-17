@@ -3,6 +3,7 @@ import {Fragment, createElement, type ReactNode} from "react"
 import {getActiveLanguage} from "./language"
 
 export {
+    createEnglishT,
     createT,
     defineCatalog,
     loadWithText,
@@ -38,6 +39,16 @@ export const formatDate = (date: Date | number, options?: Intl.DateTimeFormatOpt
 
 export const formatNumber = (value: number, options?: Intl.NumberFormatOptions): string =>
     new Intl.NumberFormat(formatLocale(), options).format(value)
+
+/**
+ * A relative time ("vor 5 Min.", "5分钟前") in the chosen language. Negative values are in the
+ * past. Defaults to the short style: "narrow" drops the words in French ("-5 min").
+ */
+export const formatRelativeTime = (
+    value: number,
+    unit: Intl.RelativeTimeFormatUnit,
+    options: Intl.RelativeTimeFormatOptions = {style: "short", numeric: "auto"},
+): string => new Intl.RelativeTimeFormat(formatLocale(), options).format(value, unit)
 
 /**
  * Renders `<name>text</name>` tags in translated text as elements, so a sentence with a link

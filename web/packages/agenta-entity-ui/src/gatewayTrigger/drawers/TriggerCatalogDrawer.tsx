@@ -24,6 +24,8 @@ import {
     type TriggerCatalogIntegration,
     type TriggerConnection,
 } from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import triggerConnectCatalog from "@agenta/i18n/catalogs/entityUi.triggerConnect"
 import {useAtom, useSetAtom} from "jotai"
 
 import {
@@ -107,6 +109,7 @@ export default function TriggerCatalogDrawer({
     defaultBoundLabel,
     playgroundEntityId,
 }: Props) {
+    const t = useT(triggerConnectCatalog)
     const [open, setOpen] = useAtom(triggerCatalogDrawerOpenAtom)
     const setIntegrationsSearch = useSetAtom(triggerIntegrationsSearchAtom)
     const setEventsSearch = useSetAtom(triggerEventsSearchAtom)
@@ -183,11 +186,14 @@ export default function TriggerCatalogDrawer({
 
     const config: CatalogConfig<TriggerCatalogIntegration, TriggerCatalogEvent, TriggerConnection> =
         {
-            title: (selected) => (selected ? "Choose an event" : "Add an app trigger"),
-            appsSearchPlaceholder: "Search integrations…",
-            itemsSearchPlaceholder: "Search events…",
-            connectionsHint: "Pick an event to create a trigger — no setup needed.",
-            emptyItemsText: "This app has no triggers",
+            title: (selected) =>
+                selected
+                    ? t("entityUi.triggerConnect.chooseAnEvent")
+                    : t("entityUi.triggerConnect.addAppTrigger"),
+            appsSearchPlaceholder: t("entityUi.triggerConnect.searchIntegrations"),
+            itemsSearchPlaceholder: t("entityUi.triggerConnect.searchEvents"),
+            connectionsHint: t("entityUi.triggerConnect.connectionsHint"),
+            emptyItemsText: t("entityUi.triggerConnect.noTriggers"),
             onPickItem: handlePickEvent,
             // Items-view "Connect" split-menu: open a chosen connection's full events list.
             onConnectionMenu: (conn) =>

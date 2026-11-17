@@ -11,6 +11,7 @@ import type {ReactNode} from "react"
 import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {useT} from "@agenta/i18n"
 import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
+import settingsAuditEventTypesCatalog from "@agenta/i18n/catalogs/settings.auditEventTypes"
 import {dayjs} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {
@@ -22,6 +23,8 @@ import {
     SheetTitle,
 } from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
+
+import {localDate, localFromNow} from "../shared/localDate"
 
 import {ActorCell} from "./AuditEventCells"
 import {eventTypeLabel} from "./eventTypeLabels"
@@ -105,7 +108,7 @@ export const AuditEventDrawer = ({
     names,
     currentUserId,
 }: AuditEventDrawerProps) => {
-    const t = useT(settingsAuditCatalog)
+    const t = useT(settingsAuditCatalog, settingsAuditEventTypesCatalog)
     const event = useAtomValue(eventByIdAtomFamily(eventId ?? ""))
 
     // Actor/count live in `attributes`; the top-level request fields are left unset by the backend.
@@ -121,13 +124,26 @@ export const AuditEventDrawer = ({
                 <SheetHeader>
                     <SheetTitle className="truncate">
                         {event
-                            ? eventTypeLabel(event.event_type)
+                            ? eventTypeLabel(event.event_type, t)
                             : t("settings.audit.eventDetails")}
                     </SheetTitle>
                     {event && at ? (
                         <SheetDescription title={at.format("YYYY-MM-DD HH:mm:ss.SSS")}>
                             <span className="font-mono">{event.event_type}</span> ·{" "}
-                            {at.format("MMM D, YYYY · HH:mm:ss")} · {at.fromNow()}
+                            {localDate(
+                                at.toDate(),
+                                {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    second: "2-digit",
+                                    hour12: false,
+                                },
+                                () => at.format("MMM D, YYYY · HH:mm:ss"),
+                            )}{" "}
+                            · {localFromNow(at.toDate(), () => at.fromNow())}
                         </SheetDescription>
                     ) : null}
                 </SheetHeader>

@@ -11,6 +11,8 @@
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {useT} from "@agenta/i18n"
+import chatApprovalCardCatalog from "@agenta/i18n/catalogs/chat.approvalCard"
 import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
@@ -76,6 +78,7 @@ export const ApprovalCard = ({
     const count = approvals.length
     const batched = count > 1
 
+    const t = useT(chatApprovalCardCatalog)
     const [detailsOpen, setDetailsOpen] = useState(false)
     // Which detail rows are expanded from their one-line preview to the full text.
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
@@ -219,9 +222,9 @@ export const ApprovalCard = ({
                 <span className="text-xs font-medium text-colorText">
                     {answered
                         ? recoverable
-                            ? "Answer saved, retry needed"
-                            : "Answered, waiting for the agent"
-                        : "Needs your approval"}
+                            ? t("chat.approvalCard.answerSavedRetry")
+                            : t("chat.approvalCard.answeredWaiting")
+                        : t("chat.approvalCard.needsApproval")}
                 </span>
             </div>
 
@@ -248,8 +251,13 @@ export const ApprovalCard = ({
                         />
                         {/* The count sits in the label so the size is known before opening. */}
                         {detailsOpen
-                            ? "Hide the details"
-                            : `${batched ? "See what runs" : "See what changes"} (${items.length})`}
+                            ? t("chat.approvalCard.hideDetails")
+                            : t(
+                                  batched
+                                      ? "chat.approvalCard.seeWhatRuns"
+                                      : "chat.approvalCard.seeWhatChanges",
+                                  {count: items.length},
+                              )}
                     </button>
                     <HeightCollapse open={detailsOpen}>
                         <div className="flex max-h-[196px] flex-col overflow-y-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary">
@@ -318,7 +326,9 @@ export const ApprovalCard = ({
                                     aria-labelledby={alwaysAllowLabelId}
                                     className="shrink-0"
                                 />
-                                <span id={alwaysAllowLabelId}>Always auto-approve</span>
+                                <span id={alwaysAllowLabelId}>
+                                    {t("chat.approvalCard.alwaysAutoApprove")}
+                                </span>
                             </label>
                         ) : null}
                         <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -329,7 +339,7 @@ export const ApprovalCard = ({
                                     className={`text-colorTextSecondary ${touchCls}`}
                                     onClick={() => setSteerOpen(true)}
                                 >
-                                    Redirect
+                                    {t("chat.approvalCard.redirect")}
                                 </Button>
                             ) : null}
                             <LoadingButton
@@ -340,7 +350,9 @@ export const ApprovalCard = ({
                                 onClick={deny}
                                 aria-keyshortcuts={shortcutAria("approval.deny")}
                             >
-                                {batched && onDenyAll ? "Deny all" : "Deny"}
+                                {batched && onDenyAll
+                                    ? t("chat.approvalCard.denyAll")
+                                    : t("chat.approvalCard.deny")}
                                 {/* Decorative: the button's own label already names the action. */}
                                 {showKeys ? (
                                     <ShortcutKeys
@@ -357,7 +369,9 @@ export const ApprovalCard = ({
                                 onClick={approve}
                                 aria-keyshortcuts={shortcutAria("approval.approve")}
                             >
-                                {batched ? "Approve all" : "Approve"}
+                                {batched
+                                    ? t("chat.approvalCard.approveAll")
+                                    : t("chat.approvalCard.approve")}
                                 {showKeys ? (
                                     <ShortcutKeys
                                         id="approval.approve"
@@ -378,8 +392,7 @@ export const ApprovalCard = ({
                 <HeightCollapse open={steerOpen} fade inert>
                     <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
                         <span className="text-xs text-colorTextSecondary">
-                            Deny this step and tell the agent what to do instead — your note runs as
-                            the next message.
+                            {t("chat.approvalCard.steerHint")}
                         </span>
                         <AutosizeTextarea
                             ref={steerInputRef}
@@ -387,7 +400,7 @@ export const ApprovalCard = ({
                             autoSize={{minRows: 2, maxRows: 6}}
                             value={steerMessage}
                             onChange={(e) => setSteerMessage(e.target.value)}
-                            placeholder="e.g. write to staging, not prod — or ask for something else entirely"
+                            placeholder={t("chat.approvalCard.steerPlaceholder")}
                             disabled={responding}
                             className="text-xs hover:border-colorBorder focus:border-colorBorder focus:shadow-none"
                         />
@@ -398,7 +411,7 @@ export const ApprovalCard = ({
                                 className={touchCls}
                                 onClick={() => setSteerOpen(false)}
                             >
-                                Cancel
+                                {t("chat.approvalCard.cancel")}
                             </Button>
                             {/* Default, not primary: Approve is the card's single primary. */}
                             <Button
@@ -414,7 +427,7 @@ export const ApprovalCard = ({
                                     })
                                 }}
                             >
-                                Deny &amp; send
+                                {t("chat.approvalCard.denyAndSend")}
                             </Button>
                         </div>
                     </div>
@@ -424,8 +437,8 @@ export const ApprovalCard = ({
             {answered ? (
                 <p role="status" aria-live="polite" className="m-0 text-xs text-colorTextSecondary">
                     {recoverable
-                        ? "The answer is saved. Send your next message to retry the continuation."
-                        : "The answer is saved. Waiting for the agent’s next update…"}
+                        ? t("chat.approvalCard.answerSavedRetryHint")
+                        : t("chat.approvalCard.answerSavedWaiting")}
                 </p>
             ) : null}
             {errorText ? (

@@ -1,0 +1,10 @@
+{
+    "allowAll": "Tout autoriser",
+    "allowAllHelp": "Chaque outil s’exécute sans demander",
+    "allowReads": "Autoriser les lectures",
+    "allowReadsHelp": "Les lectures s’exécutent, les écritures demandent",
+    "ask": "Demander",
+    "askHelp": "Une personne approuve chaque appel d’outil",
+    "denyAll": "Tout refuser",
+    "denyAllHelp": "Chaque appel d’outil est refusé"
+}

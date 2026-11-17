@@ -1,0 +1,8 @@
+{
+    "failed": "审批失败。",
+    "failedStatus": "审批失败（HTTP {{status}}）。",
+    "noLongerPending": "此审批已不再待处理：请刷新后重试。",
+    "noneFound": "找不到待处理的审批：这一轮可能已经继续。",
+    "oneExecutionOnly": "“全部审批”只能回复来自同一次执行的审批。",
+    "resumeFailed": "继续运行失败。"
+}

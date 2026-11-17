@@ -1,8 +1,4 @@
 import en from "../../locales/en/channels.advanced.json"
 import {defineCatalog} from "../catalog"
 
-export default defineCatalog(
-    "channels.advanced",
-    en,
-    (language) => import(`../../locales/${language}/channels.advanced.json`),
-)
+export default defineCatalog("channels.advanced", en)

@@ -10,6 +10,7 @@
     "emptyBody": "通过 URL 连接服务器。你只需登录或添加一次密钥，之后此项目中的 Agent 就可以添加它，并选择允许它运行的内容。",
     "emptyTitle": "尚未连接 MCP 服务器",
     "notSignedIn": "未登录",
+    "oauth": "OAuth",
     "removeFailed": "移除 MCP 服务器失败。",
     "removeMessage": "{{name}} 将从此项目中移除。配置为使用它的 Agent 将停止工作，之后重新连接会创建新的连接。",
     "removeTitle": "移除服务器",

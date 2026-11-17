@@ -9,6 +9,8 @@
  */
 import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
+import {useT} from "@agenta/i18n"
+import chatChatComposerCatalog from "@agenta/i18n/catalogs/chat.chatComposer"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {
@@ -142,6 +144,7 @@ export const ChatComposer = ({
     fileMentions,
     fallback,
 }: ChatComposerProps) => {
+    const t = useT(chatChatComposerCatalog)
     const {
         uploadsEnabled,
         files,
@@ -237,7 +240,7 @@ export const ChatComposer = ({
                         />
                     ) : (
                         <span role="status" className="text-xs text-colorTextSecondary">
-                            Listening…
+                            {t("chat.chatComposer.listening")}
                         </span>
                     )
                 }
@@ -253,17 +256,17 @@ export const ChatComposer = ({
                 placeholder={
                     placeholder ??
                     (quotes.length > 0
-                        ? "What should change about the quoted part?"
+                        ? t("chat.chatComposer.placeholderQuoted")
                         : waitingOnUser
                           ? // The parked interaction is docked directly above, so point at it rather
                             // than describing the wait in the abstract.
-                            "Answer above, or type a message instead"
+                            t("chat.chatComposer.placeholderWaiting")
                           : !hasTurns
-                            ? "What should we work on?"
+                            ? t("chat.chatComposer.placeholderFirst")
                             : // An ongoing session carries the key hints here instead of as chips.
                               hasKeyboard
-                              ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                              : "Ask the agent…")
+                              ? t("chat.chatComposer.placeholderKeyboard")
+                              : t("chat.chatComposer.placeholderTouch"))
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
@@ -294,10 +297,12 @@ export const ChatComposer = ({
                             <SimpleTooltip
                                 title={
                                     !uploadsEnabled
-                                        ? "Attach files coming soon"
+                                        ? t("chat.chatComposer.attachComingSoon")
                                         : atMax
-                                          ? `Up to ${limits.maxCount} files`
-                                          : "Attach files"
+                                          ? t("chat.chatComposer.attachUpTo", {
+                                                count: limits.maxCount,
+                                            })
+                                          : t("chat.chatComposer.attachFiles")
                                 }
                             >
                                 <Button
@@ -309,7 +314,7 @@ export const ChatComposer = ({
                                     onFocus={(e) => {
                                         if (!e.relatedTarget) e.preventDefault()
                                     }}
-                                    aria-label="Attach files"
+                                    aria-label={t("chat.chatComposer.attachFiles")}
                                 >
                                     <Paperclip size={16} />
                                 </Button>
@@ -318,7 +323,7 @@ export const ChatComposer = ({
                         {/* Design puts the quote count on the action row, not over the chips. */}
                         {quotes.length > 0 ? (
                             <span className="ml-1 text-[11px] text-colorTextTertiary">
-                                {quotes.length} {quotes.length === 1 ? "quote" : "quotes"} attached
+                                {t("chat.chatComposer.quotesAttached", {count: quotes.length})}
                             </span>
                         ) : null}
                     </div>

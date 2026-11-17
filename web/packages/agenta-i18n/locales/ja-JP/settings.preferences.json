@@ -1,5 +1,6 @@
 {
     "appearance": "外観",
+    "beta": "Beta",
     "betaDeveloperMode": "新しいベータ版の開発者モードを使用",
     "betaDeveloperModeDescription": "開発者モードをクラシックアプリで開かずに新しいアプリのまま使い、開発者セクションを表示します。",
     "channelDebug": "チャネルのデバッグ",

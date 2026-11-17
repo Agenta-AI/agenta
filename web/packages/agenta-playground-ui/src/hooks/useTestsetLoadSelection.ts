@@ -6,6 +6,8 @@ import {
     testcaseMolecule,
     type TestcaseDataConfig,
 } from "@agenta/entities/testcase"
+import {useT} from "@agenta/i18n"
+import testsetsCatalog from "@agenta/i18n/catalogs/playground.testsets"
 import {useAtomValue, useStore} from "jotai"
 
 import type {TestsetLoadPayload} from "./useTestsetMenuModel"
@@ -39,6 +41,7 @@ export const useTestsetLoadSelection = ({
     singleSelect,
     searchTerm,
 }: UseTestsetLoadSelectionParams) => {
+    const t = useT(testsetsCatalog)
     const store = useStore()
     const isEdit = mode === "edit"
     // Edit mode starts from the rows the playground shows; "Manage" seeded that draft.
@@ -92,9 +95,9 @@ export const useTestsetLoadSelection = ({
 
     const confirmLabel = isEdit
         ? viewingConnected
-            ? "Update Selection"
-            : "Import Selected"
-        : "Load Selected"
+            ? t("playground.testsets.updateSelection")
+            : t("playground.testsets.importSelected")
+        : t("playground.testsets.loadSelected")
     const canConfirm = !selectionDisabled && !!selectedRevisionId && selectedIds.length > 0
 
     /** The payload to act on. The draft goes first, uncommitted: the caller decides. */

@@ -233,6 +233,8 @@ export const SecretFormSheet = ({
                             onChange={(event) => setValue(event.target.value)}
                             rows={format === CustomSecretFormat.Json ? 6 : 3}
                             spellCheck={false}
+                            // A sample value (JSON or a key prefix), not words to translate.
+                            // eslint-disable-next-line agenta-i18n/no-hardcoded-text
                             placeholder={
                                 format === CustomSecretFormat.Json
                                     ? '{\n  "key": "value"\n}'

@@ -114,10 +114,15 @@ const CLOUD_PLATFORMS = PROVIDER_CATALOG.filter(
     (entry) => entry.secretKind === SecretKind.CustomProvider,
 )
 
+/** A provider's title as shown; the OpenAI-compatible kind's name is translated. */
+export const providerTitle = (kind: string, title: string, t: ReturnType<typeof useT>): string =>
+    kind === "custom" ? t("settings.providers.customEndpoint") : title
+
 const catalogDescription = (
     entry: ProviderCatalogEntry,
     t: ReturnType<typeof useT>,
 ): string | undefined => {
+    if (entry.kind === "custom") return t("settings.providers.customEndpointHint")
     if (entry.subtitle) return entry.subtitle
     if (entry.secretKind === SecretKind.ProviderKey) return t("settings.providers.apiKey")
     const fields = FORM_FIELDS_BY_KIND[entry.kind]
@@ -356,10 +361,12 @@ export const ProvidersPanel = ({
         const catalogRow = (entry: ProviderCatalogEntry): SettingsCatalogItem => ({
             key: entry.kind,
             logo: <ProviderLogo kind={entry.kind} />,
-            name: entry.title,
+            name: providerTitle(entry.kind, entry.title, t),
             description: catalogDescription(entry, t),
             status: "available",
-            statusLabel: t("settings.providers.connectName", {name: entry.title}),
+            statusLabel: t("settings.providers.connectName", {
+                name: providerTitle(entry.kind, entry.title, t),
+            }),
             onOpen: () => setDrawerTarget({kind: entry.kind}),
         })
 

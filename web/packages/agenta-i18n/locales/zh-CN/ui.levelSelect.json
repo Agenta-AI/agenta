@@ -1,0 +1,10 @@
+{
+    "loadError": "加载条目时出错",
+    "loading": "加载中...",
+    "noItems": "未找到条目",
+    "otherGroup": "其他",
+    "selectItem": "选择条目...",
+    "selectLabel": "选择{{label}}...",
+    "selectLabelFirst": "请先选择{{label}}",
+    "selectPreviousFirst": "请先选择上一级"
+}

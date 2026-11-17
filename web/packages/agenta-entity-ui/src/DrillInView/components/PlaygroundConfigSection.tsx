@@ -18,6 +18,8 @@
 import {memo, useMemo, useCallback, useEffect, useRef, useState} from "react"
 
 import {workflowDraftConsumedAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import playgroundConfigCatalog from "@agenta/i18n/catalogs/entityUi.playgroundConfig"
 import type {DataPath} from "@agenta/shared/utils"
 import type {MoleculeDrillInAdapter} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -71,6 +73,7 @@ function PlaygroundConfigSection({
     stickyHeaderTop = 48,
     loadingFallback,
 }: PlaygroundConfigSectionProps) {
+    const t = useT(playgroundConfigCatalog)
     const {llmProviderConfig} = useDrillInUI()
 
     const mol = moleculeAdapter ?? defaultAdapter
@@ -391,11 +394,10 @@ function PlaygroundConfigSection({
             >
                 <div className="flex flex-col items-center gap-2 text-center max-w-[320px]">
                     <span className="text-sm font-medium text-[var(--ag-rgba-051729-65)]">
-                        No configuration needed
+                        {t("entityUi.playgroundConfig.noConfigNeeded")}
                     </span>
                     <span className="text-xs text-[var(--ag-rgba-051729-45)]">
-                        This evaluator runs with default settings. You can use it directly without
-                        any additional configuration.
+                        {t("entityUi.playgroundConfig.evaluatorDefaults")}
                     </span>
                 </div>
             </div>
@@ -422,7 +424,9 @@ function PlaygroundConfigSection({
                         <SharedEditor
                             key={`${viewMode}-${discardVersionRef.current}`}
                             editorType="border"
-                            placeholder={`Enter ${viewMode.toUpperCase()} configuration…`}
+                            placeholder={t("entityUi.playgroundConfig.enterConfiguration", {
+                                format: viewMode.toUpperCase(),
+                            })}
                             initialValue={rawEditorValue}
                             value={rawEditorValue}
                             handleChange={handleRawEditorChange}
@@ -456,7 +460,9 @@ function PlaygroundConfigSection({
                             className="flex items-center w-full px-3 py-2 bg-[var(--ag-surface-section-header)] border-0 border-b border-solid border-colorBorderSecondary sticky z-[2]"
                             style={{top: stickyHeaderTop}}
                         >
-                            <span className="capitalize font-medium text-sm">Config</span>
+                            <span className="capitalize font-medium text-sm">
+                                {t("entityUi.playgroundConfig.config")}
+                            </span>
                         </div>
                     )}
                     <MoleculeDrillInView
@@ -464,7 +470,7 @@ function PlaygroundConfigSection({
                         entityId={revisionId}
                         molecule={drillInAdapter}
                         editable={!disabled && !useServerData}
-                        rootTitle="Configuration"
+                        rootTitle={t("entityUi.playgroundConfig.configuration")}
                         showBreadcrumb={false}
                         collapsible={false}
                         slots={drillInSlots}

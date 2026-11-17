@@ -7,6 +7,7 @@ import {
     catalogVersionAtom,
     loadCatalog,
     loadCatalogs,
+    namespaceLoader,
     registeredCount,
     registeredSince,
     registerCatalog,
@@ -30,13 +31,14 @@ export type CatalogKey<C> = C extends TypedCatalog<infer K> ? K : never
 
 /**
  * Declares one small catalog. Its English is a static import, so it ships in the same chunk as
- * the screen that uses it. `load` is one function for all other languages; the bundler makes
- * one chunk per language file. A missing file rejects, and the screen shows English.
+ * the screen that uses it. Other languages load from `locales/<language>/<namespace>.json`, one
+ * chunk per file; `load` replaces that loader in tests. A missing file rejects, and the screen
+ * shows English.
  */
 export const defineCatalog = <NS extends string, EN extends Catalog>(
     namespace: NS,
     en: EN,
-    load: CatalogLoader,
+    load: CatalogLoader = namespaceLoader(namespace),
 ): TypedCatalog<`${NS}.${BaseKey<keyof EN & string>}`> => {
     const entry: CatalogEntry = {namespace, en, load}
     registerCatalog(entry)
@@ -67,6 +69,15 @@ export const createT =
     <C extends CatalogEntry[]>(...catalogs: C): Translator<C> =>
     (key, values) =>
         translate(getActiveLanguage(), key, values, catalogs)
+
+/**
+ * A `t` that always answers in English, for text that is saved to the API or sent to a third
+ * party (a generated name, a default label). Never use it for text that is only displayed.
+ */
+export const createEnglishT =
+    <C extends CatalogEntry[]>(...catalogs: C): Translator<C> =>
+    (key, values) =>
+        translate(DEFAULT_LANGUAGE, key, values, catalogs)
 
 /** A `t` for components; it changes, and the component re-renders, when the language does. */
 export const useT = <C extends CatalogEntry[]>(...catalogs: C): Translator<C> => {

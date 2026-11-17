@@ -1,0 +1,9 @@
+{
+    "automations": "Automações",
+    "recentFiles": "Arquivos recentes",
+    "addAutomation": "Adicionar automação",
+    "automationStarter": "Quero uma automação que",
+    "createManually": "Criar manualmente",
+    "runOnScheduleOrEvent": "Executar em um agendamento ou evento",
+    "workingFilesHint": "Os arquivos de trabalho do agente: tudo o que ele lê e grava durante uma execução. Abra uma conversa para navegar por eles aqui; a pasta permanente do agente aparecerá como subpasta quando o armazenamento no nível do agente chegar."
+}

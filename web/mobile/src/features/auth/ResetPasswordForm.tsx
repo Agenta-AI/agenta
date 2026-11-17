@@ -1,9 +1,11 @@
 import {useState, type FormEvent} from "react"
 
-import {ShowErrorMessage, FIELD_CLASS, KEYCAP_CLASS} from "@agenta/auth-ui"
+import {ShowErrorMessage, FIELD_CLASS, KEYCAP_CLASS, useAuthFailureText} from "@agenta/auth-ui"
+import {useT} from "@agenta/i18n"
+import resetCatalog from "@agenta/i18n/catalogs/auth.resetPassword"
 import {Input, LoadingButton} from "@agenta/ui/ui"
 
-import {AUTH_FAILURE_COPY, submitNewPasswordDetailed} from "@/lib/auth"
+import {submitNewPasswordDetailed} from "@/lib/auth"
 
 export interface ResetPasswordFormProps {
     onDone: () => void
@@ -12,6 +14,8 @@ export interface ResetPasswordFormProps {
 
 /** New password twice, then one submit; SuperTokens reads the token from the page URL. */
 export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProps) => {
+    const t = useT(resetCatalog)
+    const failureText = useAuthFailureText()
     const [password, setPassword] = useState("")
     const [confirm, setConfirm] = useState("")
     const [error, setError] = useState<string | null>(null)
@@ -20,8 +24,8 @@ export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProp
     const submit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         if (saving) return
-        if (!password) return setError("Enter a new password.")
-        if (password !== confirm) return setError("The passwords do not match.")
+        if (!password) return setError(t("auth.resetPassword.enterNewPassword"))
+        if (password !== confirm) return setError(t("auth.resetPassword.passwordsDoNotMatch"))
         setError(null)
         setSaving(true)
         const outcome = await submitNewPasswordDetailed(password)
@@ -29,19 +33,19 @@ export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProp
         if (outcome.kind === "ok") onDone()
         else if (outcome.kind === "invalid-link") onInvalidLink()
         else if (outcome.kind === "field-error") setError(outcome.message)
-        else setError(AUTH_FAILURE_COPY[outcome.failure])
+        else setError(failureText(outcome.failure))
     }
 
-    const invalid = error ? true : undefined
+    const invalid = error !== null ? true : undefined
 
     return (
         <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
             <Input
                 type="password"
                 autoComplete="new-password"
-                aria-label="New password"
+                aria-label={t("auth.resetPassword.newPassword")}
                 aria-invalid={invalid}
-                placeholder="New password"
+                placeholder={t("auth.resetPassword.newPassword")}
                 value={password}
                 autoFocus
                 size="lg"
@@ -54,9 +58,9 @@ export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProp
             <Input
                 type="password"
                 autoComplete="new-password"
-                aria-label="Confirm new password"
+                aria-label={t("auth.resetPassword.confirmNewPassword")}
                 aria-invalid={invalid}
-                placeholder="Confirm new password"
+                placeholder={t("auth.resetPassword.confirmNewPassword")}
                 value={confirm}
                 size="lg"
                 className={FIELD_CLASS}
@@ -66,9 +70,9 @@ export const ResetPasswordForm = ({onDone, onInvalidLink}: ResetPasswordFormProp
                 }}
             />
             <LoadingButton type="submit" size="lg" loading={saving} className={KEYCAP_CLASS}>
-                {saving ? "Saving…" : "Set password"}
+                {saving ? t("auth.resetPassword.saving") : t("auth.resetPassword.setPassword")}
             </LoadingButton>
-            {error ? <ShowErrorMessage info={{message: error, type: "error"}} /> : null}
+            {error !== null ? <ShowErrorMessage info={{message: error, type: "error"}} /> : null}
         </form>
     )
 }

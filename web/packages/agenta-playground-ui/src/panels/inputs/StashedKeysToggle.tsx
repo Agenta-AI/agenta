@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import inputsCatalog from "@agenta/i18n/catalogs/playground.inputs"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
 import type {StashedPath} from "../../utils/variableShape"
@@ -25,13 +27,13 @@ export interface StashedKeysToggleProps {
  * inside a list the user already opened.
  */
 export const StashedKeysToggle = ({variableName, paths}: StashedKeysToggleProps) => {
+    const t = useT(inputsCatalog)
     const [open, setOpen] = useState(false)
     if (paths.length === 0) return null
 
-    const noun = `nested key${paths.length === 1 ? "" : "s"}`
     const summary = open
-        ? `${paths.length} unused ${noun} (not referenced by the prompt)`
-        : `${paths.length} unused ${noun} hidden because the prompt does not reference them.`
+        ? t("playground.inputs.unusedKeysOpen", {count: paths.length})
+        : t("playground.inputs.unusedKeysClosed", {count: paths.length})
 
     return (
         <div className="flex min-w-0 flex-col gap-1">

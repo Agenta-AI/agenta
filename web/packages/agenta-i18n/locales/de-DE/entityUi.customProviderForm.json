@@ -1,0 +1,22 @@
+{
+    "configureProvider": "Anbieter konfigurieren",
+    "howToUse": "Verwendung",
+    "cancel": "Abbrechen",
+    "submit": "Absenden",
+    "selectProvider": "Bitte wählen Sie einen Anbieter aus",
+    "enterName": "Bitte geben Sie einen Namen ein",
+    "nameInvalid": "Der Name darf nur Buchstaben, Ziffern, Unterstriche oder Bindestriche ohne Leerzeichen enthalten.",
+    "nameMatchesDefault": "Der Name darf nicht mit einem Standardanbieter übereinstimmen. Bitte wählen Sie einen anderen Namen.",
+    "enterField": "Bitte geben Sie {{field}} ein",
+    "invalidJson": "Muss gültiges JSON sein",
+    "addModelName": "Bitte fügen Sie einen Modellnamen hinzu",
+    "addModelBeforeSubmit": "Bitte fügen Sie vor dem Absenden einen Modellnamen hinzu",
+    "validationError": "Validierungsfehler",
+    "somethingWrong": "Etwas ist schiefgelaufen! Bitte versuchen Sie es mit den richtigen Zugangsdaten erneut.",
+    "provider": "Anbieter",
+    "models": "Modelle",
+    "add": "Hinzufügen",
+    "noCustomModels": "Keine benutzerdefinierten Modelle konfiguriert",
+    "enterModelName": "Modellnamen eingeben",
+    "removeModel": "Modell entfernen"
+}

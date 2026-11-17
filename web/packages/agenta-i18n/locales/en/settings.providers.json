@@ -10,6 +10,8 @@
     "claudeHint": "Paste a token from Claude Code",
     "cloudPlatforms": "Cloud platforms",
     "connectName": "Connect {{name}}",
+    "customEndpoint": "OpenAI-compatible endpoint",
+    "customEndpointHint": "Self-hosted or proxied models that speak the OpenAI API",
     "deleted": "{{name}} deleted.",
     "keySaved": "Key saved",
     "modelProviders": "Model providers",

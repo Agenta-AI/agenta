@@ -1,6 +1,10 @@
 import {useCallback, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import {message} from "@agenta/ui/app-message"
+
+const tNow = createT(sessionsRowsCatalog)
 
 export interface InlineRenameOptions {
     /** The name as it stands, used to seed the draft and to skip a no-op commit. */
@@ -36,7 +40,7 @@ export interface InlineRename {
 export const useInlineRename = ({
     current,
     onCommit,
-    errorText = "Couldn't rename this session",
+    errorText = tNow("sessions.rows.renameFailed"),
     allowEmpty = false,
 }: InlineRenameOptions): InlineRename => {
     const [renaming, setRenaming] = useState(false)

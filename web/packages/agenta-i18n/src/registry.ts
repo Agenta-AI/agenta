@@ -14,6 +14,29 @@ export interface CatalogEntry {
     load: CatalogLoader
 }
 
+interface LanguageModule {
+    loadNamespace: (namespace: string) => Promise<{default: Catalog}>
+}
+
+/**
+ * One loader module per language. A catalog carries only its namespace, not a loader of its own,
+ * so a page does not ship a map of every language file of every catalog it uses.
+ */
+const LANGUAGE_MODULES: Record<TranslatedLanguage, () => Promise<LanguageModule>> = {
+    "zh-CN": () => import("./languages/zh-CN"),
+    "ja-JP": () => import("./languages/ja-JP"),
+    "es-ES": () => import("./languages/es-ES"),
+    "pt-BR": () => import("./languages/pt-BR"),
+    "de-DE": () => import("./languages/de-DE"),
+    "fr-FR": () => import("./languages/fr-FR"),
+}
+
+/** The loader of a catalog file in `locales/<language>/<namespace>.json`. */
+export const namespaceLoader =
+    (namespace: string): CatalogLoader =>
+    (language) =>
+        LANGUAGE_MODULES[language]().then((module) => module.loadNamespace(namespace))
+
 const registered: CatalogEntry[] = []
 const loaded = new Map<string, Catalog>()
 const pending = new Map<string, Promise<void>>()

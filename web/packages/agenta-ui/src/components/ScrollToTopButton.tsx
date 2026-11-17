@@ -1,5 +1,7 @@
 import {type RefObject, useEffect, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {ArrowUp} from "@phosphor-icons/react"
 
 import {Button} from "./ui/button"
@@ -9,6 +11,7 @@ interface ScrollToTopButtonProps {
 }
 
 export default function ScrollToTopButton({scrollRef}: ScrollToTopButtonProps) {
+    const t = useT(uiControlsCatalog)
     const [visible, setVisible] = useState(false)
 
     useEffect(() => {
@@ -29,7 +32,7 @@ export default function ScrollToTopButton({scrollRef}: ScrollToTopButtonProps) {
             <Button
                 size="icon"
                 variant="outline"
-                aria-label="Scroll to top"
+                aria-label={t("ui.controls.scrollToTop")}
                 className="rounded-control-round pointer-events-auto shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
                 onClick={() => scrollRef.current?.scrollTo({top: 0, behavior: "smooth"})}
             >

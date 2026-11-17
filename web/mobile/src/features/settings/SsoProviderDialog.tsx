@@ -154,7 +154,7 @@ export const SsoProviderDialog = ({
                         <Input
                             autoFocus={!isEdit}
                             value={slug}
-                            placeholder="okta"
+                            placeholder={t("settings.ssoProviderDialog.slugPlaceholder")}
                             className="font-mono"
                             onChange={(event) => setSlug(event.target.value)}
                         />
@@ -171,7 +171,7 @@ export const SsoProviderDialog = ({
                     <Field label={t("settings.ssoProviderDialog.issuerUrl")}>
                         <Input
                             value={issuerUrl}
-                            placeholder="https://idp.example.com"
+                            placeholder={t("settings.ssoProviderDialog.issuerUrlPlaceholder")}
                             onChange={(event) => setIssuerUrl(event.target.value)}
                         />
                     </Field>

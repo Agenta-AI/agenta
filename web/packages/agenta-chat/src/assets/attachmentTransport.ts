@@ -1,9 +1,13 @@
 import {safeParseWithLogging} from "@agenta/entities/shared"
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {isAxiosError, isCancel} from "axios"
 import {z} from "zod"
 
 import {DEFAULT_ATTACHMENT_LIMITS, formatBytes, kindForType} from "./attachmentRules"
+
+const tNow = createT(chatMessagesCatalog)
 
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
@@ -26,7 +30,7 @@ export class AttachmentUploadError extends Error {
     readonly retryAfterSeconds?: number
 
     constructor(
-        message = "Couldn't upload the file. Try again.",
+        message = tNow("chat.messages.uploadFailedRetry"),
         {
             retryable = true,
             retryAfterSeconds,
@@ -79,31 +83,36 @@ const errorForResponse = (error: unknown, file: File): AttachmentUploadError => 
             const limit = formatBytes(
                 serverLimitBytes(error.response.data) ?? DEFAULT_ATTACHMENT_LIMITS.maxBytes[kind],
             )
-            const label = kind === "other" ? "file" : kind
-            return new AttachmentUploadError(`This file exceeds the ${limit} ${label} limit.`, {
-                retryable: false,
-            })
+            const exceeded =
+                kind === "image"
+                    ? "chat.messages.exceedsLimitImage"
+                    : kind === "audio"
+                      ? "chat.messages.exceedsLimitAudio"
+                      : kind === "document"
+                        ? "chat.messages.exceedsLimitDocument"
+                        : "chat.messages.exceedsLimitFile"
+            return new AttachmentUploadError(tNow(exceeded, {limit}), {retryable: false})
         }
         case 422:
-            return new AttachmentUploadError("This file isn't valid.", {retryable: false})
+            return new AttachmentUploadError(tNow("chat.messages.invalidFile"), {retryable: false})
         case 429:
-            return new AttachmentUploadError("This session's attachment quota is full.", {
+            return new AttachmentUploadError(tNow("chat.messages.quotaFull"), {
                 retryable: false,
             })
         case 409: {
             const retryIn = retryAfterSeconds(error.response.headers?.["retry-after"])
             if (retryIn !== undefined) {
                 return new AttachmentUploadError(
-                    `This file is already uploading. Retry in ${retryIn}s.`,
+                    tNow("chat.messages.alreadyUploading", {seconds: retryIn}),
                     {retryAfterSeconds: retryIn},
                 )
             }
-            return new AttachmentUploadError("This upload conflicts with an earlier file.", {
+            return new AttachmentUploadError(tNow("chat.messages.uploadConflict"), {
                 retryable: false,
             })
         }
         case 404:
-            return new AttachmentUploadError("This backend does not support attachments yet.", {
+            return new AttachmentUploadError(tNow("chat.messages.backendNoAttachments"), {
                 retryable: false,
             })
         default:
@@ -223,7 +232,7 @@ export async function uploadFileToSessionDrive({
         if (signal?.aborted || isCancel(error)) throw error
         if (error instanceof AttachmentUploadError) throw error
         if (isAxiosError(error) && error.response?.status === 413) {
-            throw new AttachmentUploadError("This file is too large to upload.", {
+            throw new AttachmentUploadError(tNow("chat.messages.tooLargeToUpload"), {
                 retryable: false,
             })
         }

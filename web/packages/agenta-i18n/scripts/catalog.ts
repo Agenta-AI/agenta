@@ -16,7 +16,7 @@ export const TARGET_LANGUAGES = ["zh-CN", "ja-JP", "es-ES", "pt-BR", "de-DE", "f
  * Languages still being written: check.ts accepts a catalog file they do not have yet. A file they
  * have is checked in full. Remove a language from this list when all its files are in.
  */
-export const LANGUAGES_IN_PROGRESS = ["es-ES", "pt-BR", "de-DE", "fr-FR"]
+export const LANGUAGES_IN_PROGRESS: string[] = []
 
 /** Every supported language except English, plus any other language folder in locales/. */
 export function targetLanguages(localesDir: string): string[] {
@@ -102,8 +102,11 @@ export function samePlaceholders(en: string, translated: string): boolean {
     )
 }
 
+/** Length of the stored source hash: the first 12 hex characters of the sha256 digest. */
+export const HASH_LENGTH = 12
+
 export function sha256(text: string): string {
-    return createHash("sha256").update(text).digest("hex")
+    return createHash("sha256").update(text).digest("hex").slice(0, HASH_LENGTH)
 }
 
 /** Splits "invite_other" into ["invite", "other"]; a non-plural key returns [key, null]. */

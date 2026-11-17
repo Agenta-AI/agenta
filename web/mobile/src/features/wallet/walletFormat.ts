@@ -1,4 +1,5 @@
-import {formatLocale} from "@agenta/i18n"
+import {formatLocale, formatNumber, type CatalogKey, type TranslationValues} from "@agenta/i18n"
+import type walletCreditsCatalog from "@agenta/i18n/catalogs/wallet.credits"
 import type {AnalyticsColor} from "@agenta/observability-ui/analytics"
 
 const MUSD_PER_USD = 1_000_000
@@ -7,14 +8,20 @@ export const MUSD_PER_CREDIT = 10_000
 
 /** Dollars to the cent: "$19.98". */
 export const formatUsd = (musd: number): string =>
-    `$${(musd / MUSD_PER_USD).toLocaleString(undefined, {
+    `$${formatNumber(musd / MUSD_PER_USD, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     })}`
 
 /** Credits, the unit people see: "1,234.5". */
 export const formatCredits = (musd: number): string =>
-    (musd / MUSD_PER_CREDIT).toLocaleString(undefined, {maximumFractionDigits: 1})
+    formatNumber(musd / MUSD_PER_CREDIT, {maximumFractionDigits: 1})
+
+/** A `t` that holds the credits catalog. */
+export type CreditsT = (
+    key: CatalogKey<typeof walletCreditsCatalog>,
+    values?: TranslationValues,
+) => string
 
 /** How each credit kind reads on its tile: a short name, its chart color, and when it runs out. */
 interface CreditKind {
@@ -23,36 +30,52 @@ interface CreditKind {
     lasts: (endTime: string | null) => string
 }
 
-const until = (endTime: string | null) =>
-    endTime ? `Valid until ${formatDate(endTime)}` : "No expiry"
+type CreditsKey = CatalogKey<typeof walletCreditsCatalog>
 
-const CREDIT_KINDS: Record<string, CreditKind> = {
-    plan_allowance: {
-        label: "Monthly",
-        color: "series4",
-        lasts: (end) => (end ? `Resets ${formatDate(end)}` : "Monthly"),
-    },
-    daily_free: {label: "Daily free", color: "series3", lasts: () => "Resets daily"},
-    signup_grant: {label: "Signup bonus", color: "series1", lasts: until},
-    starter_credits: {label: "Starter credits", color: "series5", lasts: until},
-    purchase: {label: "Purchased", color: "series2", lasts: until},
-    promotion: {label: "Promotion", color: "success", lasts: until},
-    referral_bonus: {label: "Referral bonus", color: "series5", lasts: until},
-    contribution_award: {label: "Contribution award", color: "series3", lasts: until},
-    goodwill: {label: "Goodwill", color: "series1", lasts: until},
-    correction: {label: "Correction", color: "other", lasts: until},
+/** The kinds this view knows: the key of each name and its chart color. */
+const CREDIT_KINDS: Record<string, {label: CreditsKey; color: AnalyticsColor}> = {
+    plan_allowance: {label: "wallet.credits.kindMonthly", color: "series4"},
+    daily_free: {label: "wallet.credits.kindDailyFree", color: "series3"},
+    signup_grant: {label: "wallet.credits.kindSignupBonus", color: "series1"},
+    starter_credits: {label: "wallet.credits.kindStarterCredits", color: "series5"},
+    purchase: {label: "wallet.credits.purchased", color: "series2"},
+    promotion: {label: "wallet.credits.kindPromotion", color: "success"},
+    referral_bonus: {label: "wallet.credits.kindReferralBonus", color: "series5"},
+    contribution_award: {label: "wallet.credits.kindContributionAward", color: "series3"},
+    goodwill: {label: "wallet.credits.kindGoodwill", color: "series1"},
+    correction: {label: "wallet.credits.kindCorrection", color: "other"},
 }
 
 /** A kind this view does not know reads as its own words, colored as "other". */
-export const creditKind = (kind: string): CreditKind => {
-    const known = CREDIT_KINDS[kind]
-    if (known) return known
-    const words = kind.replace(/_/g, " ").trim()
-    return {
-        label: words ? words[0].toUpperCase() + words.slice(1) : "Credits",
-        color: "other",
-        lasts: until,
+export const creditKind = (kind: string, t: CreditsT): CreditKind => {
+    const until = (endTime: string | null) =>
+        endTime
+            ? t("wallet.credits.validUntil", {date: formatDate(endTime)})
+            : t("wallet.credits.noExpiry")
+    const known = Object.hasOwn(CREDIT_KINDS, kind) ? CREDIT_KINDS[kind] : undefined
+    if (!known) {
+        const words = kind.replace(/_/g, " ").trim()
+        return {
+            label: words
+                ? words[0].toUpperCase() + words.slice(1)
+                : t("wallet.credits.kindFallback"),
+            color: "other",
+            lasts: until,
+        }
     }
+    const label = t(known.label)
+    if (kind === "plan_allowance") {
+        return {
+            label,
+            color: known.color,
+            lasts: (end) =>
+                end ? t("wallet.credits.resets", {date: formatDate(end)}) : t(known.label),
+        }
+    }
+    if (kind === "daily_free") {
+        return {label, color: known.color, lasts: () => t("wallet.credits.resetsDaily")}
+    }
+    return {label, color: known.color, lasts: until}
 }
 
 export const formatDate = (iso: string): string =>

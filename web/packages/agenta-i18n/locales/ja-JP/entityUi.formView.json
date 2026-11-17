@@ -1,0 +1,8 @@
+{
+    "emptyObject": "（空のオブジェクト）",
+    "emptyArray": "（空の配列）",
+    "removeRow": "{{index}} 行目を削除",
+    "addRow": "行を追加",
+    "numberPlaceholder": "数値を入力",
+    "valuePlaceholder": "値を入力"
+}

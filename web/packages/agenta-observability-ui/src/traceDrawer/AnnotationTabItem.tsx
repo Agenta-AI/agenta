@@ -2,6 +2,8 @@ import {useMemo} from "react"
 
 import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {evaluatorsListDataAtom, resolveOutputSchemaProperties} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {getStringOrJson} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 
@@ -15,6 +17,7 @@ import {getAnnotationTableColumns} from "./getAnnotationTableColumns"
 import NoTraceAnnotations from "./NoTraceAnnotations"
 
 const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
+    const t = useT(spanCatalog)
     const evaluators = useAtomValue(evaluatorsListDataAtom)
 
     // Last minute changes to display multiselect values in the table. This is not the best way to do it but it works for now.
@@ -106,14 +109,14 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
             <SimpleTable<{key: string; value: unknown}>
                 columns={[
                     {
-                        title: "User",
+                        title: t("observabilityUi.traceSpan.noteUser"),
                         key: "user",
                         dataIndex: "key",
                         render: (_value, note) => <div>{note.key}</div>,
                         width: 152,
                     },
                     {
-                        title: "Note",
+                        title: t("observabilityUi.traceSpan.noteNote"),
                         key: "text",
                         dataIndex: "value",
                         render: (_value, note) => {
@@ -153,12 +156,18 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
                                 </EvaluatorDetailsPopover>
 
                                 <span className="text-colorTextSecondary capitalize">
-                                    {kind} evaluator
+                                    {kind === "human"
+                                        ? t("observabilityUi.traceSpan.evaluatorHuman")
+                                        : kind === "auto"
+                                          ? t("observabilityUi.traceSpan.evaluatorAuto")
+                                          : kind === "custom"
+                                            ? t("observabilityUi.traceSpan.evaluatorCustom")
+                                            : t("observabilityUi.traceSpan.evaluatorOther", {kind})}
                                 </span>
                             </div>
 
                             <SimpleTable
-                                columns={getAnnotationTableColumns(slug, annotations)}
+                                columns={getAnnotationTableColumns(slug, annotations, t)}
                                 bordered
                                 expandedRowRender={renderNotes}
                                 dataSource={annotations}

@@ -76,6 +76,7 @@ clients/python/tests/results/
 !.husky/
 !.husky/**
 !.coderabbit.yaml
+!.gitattributes
 !web/packages/agenta-i18n/locales/.meta/
 !web/packages/agenta-i18n/locales/.meta/**
 
