@@ -7,7 +7,7 @@
     "statusPending2": "Cargando tu espacio de trabajo",
     "statusReturning1": "Cargando tus agentes",
     "statusReturning2": "Restaurando las sesiones recientes",
-    "tip1": "Puedes hablar con tus agentes en Slack, Telegram o WhatsApp.",
+    "tip1": "Puedes hablar con tus agentes en Slack, Telegram, WhatsApp y Discord.",
     "tip2": "Corrige a un agente una vez y lo recordará la próxima vez.",
     "tip3": "Cada sesión se ejecuta en su propio sandbox, aislada de las demás.",
     "tip4": "Los agentes pueden ejecutarse según una programación o cuando ocurre algo en una app conectada.",

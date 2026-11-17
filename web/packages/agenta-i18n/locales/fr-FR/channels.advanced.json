@@ -3,6 +3,7 @@
     "allChannels": "Tous les canaux où se trouve le bot",
     "allGroups": "Tous les groupes où se trouve le bot",
     "answersInHelp": "Où il répond quand il est mentionné. Les conversations privées suivent l’interrupteur ci-dessus.",
+    "answersInHelpChannels": "Où il répond quand il est mentionné. Les messages directs suivent l’interrupteur ci-dessus.",
     "answersInHelpSlack": "Où il répond quand il est mentionné. Les messages directs suivent l’interrupteur ci-dessus. Les canaux incluent les messages directs de groupe.",
     "canPostHelpChannel": "Indique si l’agent peut publier dans un autre canal que la conversation où il répond. Ses réponses y restent inchangées.",
     "canPostHelpGroup": "Indique si l’agent peut publier dans un autre groupe que la conversation où il répond. Ses réponses y restent inchangées.",

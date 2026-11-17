@@ -8,7 +8,7 @@ import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Alert, Button, Checkbox, RadioGroup, RadioGroupItem, Spinner, Switch} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
-import {errorMessage} from "./helpers"
+import {errorMessage, hasChannels} from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelPlatform,
@@ -64,10 +64,10 @@ const HELP = "text-xs leading-normal text-colorTextSecondary"
  * channel the bot joins later stays off until it is checked.
  */
 const AnswersInRow = ({
-    isSlack,
+    platform,
     answersIn,
 }: {
-    isSlack: boolean
+    platform: ChannelPlatform
     answersIn: ChannelAnswersInProps
 }) => {
     const t = useT(
@@ -77,6 +77,8 @@ const AnswersInRow = ({
         commonCatalog,
     )
     const {behavior, channels, onSave, busy = false} = answersIn
+    const isSlack = platform === "slack"
+    const inChannels = hasChannels(platform)
     const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
     const [draft, setDraft] = useState<string[]>(stored ?? [])
@@ -117,7 +119,7 @@ const AnswersInRow = ({
         setDraft(stored ?? [])
     }
 
-    const title = isSlack
+    const title = inChannels
         ? t("channels.advanced.channelsAnswersIn")
         : t("channels.advanced.groupsAnswersIn")
 
@@ -131,7 +133,9 @@ const AnswersInRow = ({
                 <span className={HELP}>
                     {isSlack
                         ? t("channels.advanced.answersInHelpSlack")
-                        : t("channels.advanced.answersInHelp")}
+                        : inChannels
+                          ? t("channels.advanced.answersInHelpChannels")
+                          : t("channels.advanced.answersInHelp")}
                 </span>
             </span>
             {error ? <Alert type="error" showIcon message={error} /> : null}
@@ -141,7 +145,7 @@ const AnswersInRow = ({
                 </div>
             ) : !behavior.group ? (
                 <span className={HELP}>
-                    {isSlack
+                    {inChannels
                         ? t("channels.advanced.channelsSwitchedOff")
                         : t("channels.advanced.groupsSwitchedOff")}
                 </span>
@@ -157,13 +161,13 @@ const AnswersInRow = ({
                             [
                                 [
                                     "all",
-                                    isSlack
+                                    inChannels
                                         ? t("channels.advanced.allChannels")
                                         : t("channels.advanced.allGroups"),
                                 ],
                                 [
                                     "only",
-                                    isSlack
+                                    inChannels
                                         ? t("channels.advanced.onlyTheseChannels")
                                         : t("channels.advanced.onlyTheseGroups"),
                                 ],
@@ -188,7 +192,7 @@ const AnswersInRow = ({
                         >
                             {channels.length === 0 ? (
                                 <span className="text-xs text-colorTextTertiary">
-                                    {isSlack
+                                    {inChannels
                                         ? t("channels.advanced.noChannelYet")
                                         : t("channels.advanced.noGroupYet")}
                                 </span>
@@ -216,10 +220,10 @@ const AnswersInRow = ({
                             )}
                             <span className={HELP}>
                                 {draft.length === 0
-                                    ? isSlack
+                                    ? inChannels
                                         ? t("channels.advanced.noChannelCheckedAnswers")
                                         : t("channels.advanced.noGroupCheckedAnswers")
-                                    : isSlack
+                                    : inChannels
                                       ? t("channels.advanced.channelJoinsLater")
                                       : t("channels.advanced.groupJoinsLater")}
                             </span>
@@ -254,7 +258,7 @@ export const ChannelAdvancedSection = ({
         channelsLabelsCatalog,
         commonCatalog,
     )
-    const isSlack = platform === "slack"
+    const inChannels = hasChannels(platform)
     const [open, setOpen] = useState(false)
     const [settings, setSettings] = useState<ChannelToolSettings | null>(null)
     const [choice, setChoice] = useState<Choice>("all")
@@ -356,7 +360,7 @@ export const ChannelAdvancedSection = ({
                                         {t("channels.advanced.canPostOutside")}
                                     </span>
                                     <span className={HELP}>
-                                        {isSlack
+                                        {inChannels
                                             ? t("channels.advanced.canPostHelpChannel")
                                             : t("channels.advanced.canPostHelpGroup")}
                                     </span>
@@ -378,14 +382,14 @@ export const ChannelAdvancedSection = ({
                                     <span className="text-[13px] font-medium text-colorText">
                                         {t("channels.advanced.canSearchRead")}
                                     </span>
-                                    {isSlack ? null : (
+                                    {platform === "telegram" ? (
                                         <span
                                             className={HELP}
                                             data-testid="channels-advanced-telegram-help"
                                         >
                                             {t("channels.advanced.telegramReadHelp")}
                                         </span>
-                                    )}
+                                    ) : null}
                                 </span>
                                 <RadioGroup
                                     value={choice}
@@ -428,7 +432,7 @@ export const ChannelAdvancedSection = ({
                                         ) : channels.length === 0 ? (
                                             channelsError ? null : (
                                                 <span className="text-xs text-colorTextTertiary">
-                                                    {isSlack
+                                                    {inChannels
                                                         ? t("channels.advanced.noChannelYet")
                                                         : t("channels.advanced.noGroupYet")}
                                                 </span>
@@ -456,7 +460,7 @@ export const ChannelAdvancedSection = ({
                                         )}
                                         {draft.length === 0 ? (
                                             <span className={HELP}>
-                                                {isSlack
+                                                {inChannels
                                                     ? t("channels.advanced.noChannelCheckedRead")
                                                     : t("channels.advanced.noGroupCheckedRead")}
                                             </span>
@@ -481,7 +485,7 @@ export const ChannelAdvancedSection = ({
                                 ) : null}
                             </div>
                             {answersIn ? (
-                                <AnswersInRow isSlack={isSlack} answersIn={answersIn} />
+                                <AnswersInRow platform={platform} answersIn={answersIn} />
                             ) : null}
                         </div>
                     )}

@@ -3,6 +3,7 @@
     "allChannels": "机器人所在的所有频道",
     "allGroups": "机器人所在的所有群组",
     "answersInHelp": "被提及时在哪里回复。私聊遵循上方的开关。",
+    "answersInHelpChannels": "被提及时在哪里回复。私信遵循上方的开关。",
     "answersInHelpSlack": "被提及时在哪里回复。私信遵循上方的开关。频道包括群组私信。",
     "canPostHelpChannel": "Agent 是否可以在其回复的对话以外的频道中发帖。它在对话中的回复不受影响。",
     "canPostHelpGroup": "Agent 是否可以在其回复的对话以外的群组中发帖。它在对话中的回复不受影响。",
