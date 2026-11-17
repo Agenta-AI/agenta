@@ -269,19 +269,19 @@ A configuration without `drives` comes from an agent saved before these fields e
 A drive is shared or private, the same two states an agent has. A shared drive is open to every project member whose role allows the action. A private drive is open only to its owner.
 
 - A shared agent can attach only shared drives.
-- A personal agent can attach shared drives and its owner's private drives.
-- When a personal agent becomes shared, its owner's private drives that it lists become shared in the same action. The response lists them in `drives_made_shared`. If the agent lists a private drive of another member, the change is refused with HTTP `409` and the code `drive_not_owned`.
+- A private agent can attach shared drives and its owner's private drives.
+- When a private agent becomes shared, its owner's private drives that it lists become shared in the same action. The response lists them in `drives_made_shared`. If the agent lists a private drive of another member, the change is refused with HTTP `409` and the code `drive_not_owned`.
 
 A run gets a drive only when the person or key that runs it may use the drive. A drive that the run may not use is not mounted, and the agent is told that the drive is not available.
 
 ## home_drive
 
-The slug of the attached drive that holds the agent's saved tools (`.tools/`), app files (`.apps/`), template files and README. The home drive also appears at `agent-files/`, so the agent finds its files at the same path as before drives were configurable. `null`, or no `home_drive` key, means no home drive: the agent has no `agent-files/`, no saved tools and no app files.
+The slug of the attached drive that holds the agent's saved tools (`.tools/`), app files (`.apps/`), template files and README. The home drive also appears at `agent-files/`, so the agent finds its files at the same path as before drives were configurable. `null` means no home drive: the agent has no `agent-files/`, no saved tools and no app files. When a configuration has no `home_drive` key, Agenta fills it: at creation it creates the agent's own drive and sets it as home, and for an agent saved before these fields existed it uses the agent's own drive (see [drives](#drives)). Otherwise, a configuration that states `drives` without `home_drive` has no home drive.
 
 Rules:
 
 - `home_drive` names an entry of `drives` with `"read-write"` access.
-- A personal agent's home drive is a private drive of the agent's owner. A shared home drive would let other members put tools in the owner's private runs. A shared agent has no extra condition.
+- A private agent's home drive is a private drive of the agent's owner. A shared home drive would let other members put tools in the owner's private runs. A shared agent has no extra condition.
 
 An agent that reads a shared price list and keeps its own notes:
 
@@ -319,7 +319,7 @@ Saving a revision checks these fields. A failed check returns HTTP `422` and sto
 | `invalid_session_drive`  | `has_session_drive` is not `true` or `false`.                                                |
 | `drive_not_found`        | An entry names no active drive in the project, or a private drive you may not use.          |
 | `drive_not_shared`       | The agent is shared and an entry names your private drive.                                   |
-| `home_drive_not_allowed` | The agent is personal and its home drive is not a private drive of the agent's owner.       |
+| `home_drive_not_allowed` | The agent is private and its home drive is not a private drive of the agent's owner.       |
 
 The response names the field that failed:
 
