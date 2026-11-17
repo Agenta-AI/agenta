@@ -6,6 +6,7 @@ from typing import Any, Mapping, Sequence
 
 from pydantic import ValidationError
 
+from ..config_errors import config_issues
 from .errors import MCPConfigurationError
 from .models import MCPServerConfig
 
@@ -20,6 +21,7 @@ def parse_mcp_server_config(
             "Invalid MCP server configuration: "
             f"{exc.errors(include_url=False, include_input=False)}",
             value=value,
+            issues=config_issues(exc),
         ) from exc
 
 
@@ -35,5 +37,6 @@ def parse_mcp_server_configs(
                 str(exc),
                 index=index,
                 value=value,
+                issues=exc.issues,
             ) from exc
     return parsed
