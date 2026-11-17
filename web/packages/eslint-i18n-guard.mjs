@@ -1,8 +1,9 @@
 /**
  * Lint guard against hardcoded user-visible English in /m and the @agenta/* packages.
  *
- * The rule `agenta-i18n/no-hardcoded-text` reports a JSX text node, or a string given to
- * one of the text props below, when the string has a letter. Move the string into a
+ * The rule `agenta-i18n/no-hardcoded-text` reports a JSX text node, a string literal in a JSX
+ * child expression (`{ok ? "Saved" : "Failed"}`), or a string given to one of the text props
+ * below, when the string has a letter. Move the string into a
  * catalog (see web/packages/agenta-i18n/README.md) and read it with `useT`.
  *
  * Severity: "warn" everywhere. "error" only inside the folders in ERROR_FOLDERS. A phase
@@ -18,8 +19,7 @@ const WEB_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
  * relative to `web/`. Add your folder here when its strings are all in catalogs.
  *
  * A few files in translated folders still hold a hardcoded string and are left out of the
- * globs: the release notes WhatsNewDialog.tsx and ReleaseFeatureVideo.tsx in education,
- * audit/AuditEventDrawer.tsx, the auth AgentaBrand.tsx, and in navigation-ui
+ * globs: audit/AuditEventDrawer.tsx, the auth AgentaBrand.tsx, and in navigation-ui
  * SessionSearchPalette.tsx, SidebarLogo.tsx and releaseItems.tsx.
  */
 export const ERROR_FOLDERS = [
@@ -30,7 +30,7 @@ export const ERROR_FOLDERS = [
     "mobile/src/features/automations",
     "mobile/src/features/chat",
     "mobile/src/features/context",
-    "mobile/src/features/education/!(WhatsNewDialog|ReleaseFeatureVideo).tsx",
+    "mobile/src/features/education",
     "mobile/src/features/home",
     "mobile/src/features/marketplace",
     "mobile/src/features/nav",
@@ -136,6 +136,7 @@ const noHardcodedText = {
         schema: [],
         messages: {
             text: "Hardcoded user-visible text. Move it to a locale catalog and read it with useT().",
+            child: "Hardcoded user-visible text in a JSX expression. Move it to a locale catalog and read it with useT().",
             prop: 'Hardcoded text in the "{{name}}" prop. Move it to a locale catalog and read it with useT().',
         },
     },
@@ -143,6 +144,14 @@ const noHardcodedText = {
         return {
             JSXText(node) {
                 if (isUserText(node.value)) context.report({node, messageId: "text"})
+            },
+            // A child expression: `{ready ? "Done" : "Saving"}`, `{error && "Failed"}`, `{"Hi"}`.
+            JSXExpressionContainer(node) {
+                const parent = node.parent?.type
+                if (parent !== "JSXElement" && parent !== "JSXFragment") return
+                if (stringsOf(node.expression).some(isUserText)) {
+                    context.report({node, messageId: "child"})
+                }
             },
             JSXAttribute(node) {
                 if (node.name.type !== "JSXIdentifier" || !TEXT_PROPS.has(node.name.name)) return

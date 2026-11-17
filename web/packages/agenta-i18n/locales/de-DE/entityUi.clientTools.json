@@ -38,5 +38,16 @@
     "youSkippedSecret": "Sie haben <name>{{name}}</name> übersprungen",
     "waitingToAddSecretBelow": "Warten darauf, dass Sie <name>{{name}}</name> unten hinzufügen",
     "couldNotSaveAnswer": "Die Antwort konnte nicht gespeichert werden. Versuchen Sie es erneut.",
-    "theService": "den Dienst"
+    "theService": "den Dienst",
+    "keepSavedValue": "Gespeicherten Wert behalten",
+    "changeValue": "Wert ändern",
+    "moreOptions": "Weitere Optionen",
+    "secretValue": "Secret-Wert",
+    "pasteNewValue": "Neuen Wert einfügen",
+    "pasteValue": "Wert einfügen",
+    "save": "Speichern",
+    "environmentVariable": "Umgebungsvariable",
+    "onlyYou": "· nur Sie",
+    "checking": "Wird geprüft...",
+    "secretOptions": "Secret-Optionen"
 }

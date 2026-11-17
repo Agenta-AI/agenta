@@ -37,5 +37,16 @@
     "youSkippedSecret": "<name>{{name}}</name> をスキップしました",
     "waitingToAddSecretBelow": "下で <name>{{name}}</name> を追加してください",
     "couldNotSaveAnswer": "回答を保存できませんでした。もう一度お試しください。",
-    "theService": "サービス"
+    "theService": "サービス",
+    "keepSavedValue": "保存済みの値を使う",
+    "changeValue": "値を変更",
+    "moreOptions": "その他のオプション",
+    "secretValue": "シークレットの値",
+    "pasteNewValue": "新しい値を貼り付け",
+    "pasteValue": "値を貼り付け",
+    "save": "保存",
+    "environmentVariable": "環境変数",
+    "onlyYou": "· 自分のみ",
+    "checking": "確認中...",
+    "secretOptions": "シークレットのオプション"
 }

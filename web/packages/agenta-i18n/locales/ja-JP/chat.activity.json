@@ -31,5 +31,6 @@
     "youAnsweredQuestions_other": "<count>{{count}} 件の質問</count> に回答しました",
     "youApproved": "承認しました：<action>{{action}}</action>",
     "youDeclined": "回答を辞退しました",
-    "youDenied": "拒否しました：<action>{{action}}</action>"
+    "youDenied": "拒否しました：<action>{{action}}</action>",
+    "fileCount_other": "{{count}} 個のファイル"
 }

@@ -39,5 +39,16 @@
     "youSkippedSecret": "Vous avez ignoré <name>{{name}}</name>",
     "waitingToAddSecretBelow": "En attente de l’ajout de <name>{{name}}</name> ci-dessous",
     "couldNotSaveAnswer": "Impossible d’enregistrer la réponse. Réessayez.",
-    "theService": "le service"
+    "theService": "le service",
+    "keepSavedValue": "Conserver la valeur enregistrée",
+    "changeValue": "Modifier la valeur",
+    "moreOptions": "Plus d’options",
+    "secretValue": "Valeur du secret",
+    "pasteNewValue": "Collez une nouvelle valeur",
+    "pasteValue": "Collez la valeur",
+    "save": "Enregistrer",
+    "environmentVariable": "Variable d’environnement",
+    "onlyYou": "· vous seul",
+    "checking": "Vérification...",
+    "secretOptions": "Options du secret"
 }

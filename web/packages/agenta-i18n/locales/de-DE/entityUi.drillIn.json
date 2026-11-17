@@ -5,5 +5,7 @@
     "expand": "Erweitern",
     "collapse": "Einklappen",
     "goBack": "Zurück",
-    "noItems": "Keine Elemente zum Anzeigen"
+    "noItems": "Keine Elemente zum Anzeigen",
+    "itemCount_one": "{{count}} Element",
+    "itemCount_other": "{{count}} Elemente"
 }
