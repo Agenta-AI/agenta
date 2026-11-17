@@ -107,8 +107,12 @@ The adapter SHALL raise errors that carry the HTTP `status_code` of a failed Tea
 - **THEN** the message SHALL be delivered once and the connection SHALL stay active
 
 #### Scenario: Secret no longer valid
-- **WHEN** the token request is refused because the client secret is wrong or expired, or the retry after a new token also gets 401
+- **WHEN** the token request is refused with `invalid_client` or with one of the Entra codes AADSTS7000215 (wrong secret), AADSTS7000222 (expired secret), AADSTS700016 (no such app), AADSTS7000112 (app disabled) or AADSTS90002 (no such tenant), or the retry after a new token also gets 401
 - **THEN** the adapter SHALL raise `ChannelCredentialRevoked`, and the outbox SHALL switch the connection off
+
+#### Scenario: Token service refuses for another reason
+- **WHEN** the token request is refused with any other error, for example a 400 with `temporarily_unavailable`, or a 429 or a 5xx
+- **THEN** the adapter SHALL raise an error that the outbox retries, and the connection SHALL stay active
 
 #### Scenario: App removed from a chat
 - **WHEN** a send gets 403 with `subCode` `MessageWritesBlocked`
