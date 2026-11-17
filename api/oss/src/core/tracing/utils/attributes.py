@@ -253,6 +253,13 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     else:
         cleaned_ag["user"] = None
 
+    annotation_dict = ag.get("annotation")
+    cleaned_ag["annotation"] = (
+        annotation_dict
+        if annotation_dict and isinstance(annotation_dict, dict)
+        else None
+    )
+
     for key in ["flags", "tags", "meta", "exception", "hashes", "selector"]:
         cleaned_ag[key] = ag.get(key, None)
 

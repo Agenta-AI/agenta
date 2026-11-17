@@ -1,6 +1,6 @@
 """Shared helpers for simple trace-backed entities (invocations/annotations)."""
 
-from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Union
+from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Tuple, Union
 
 from oss.src.core.shared.dtos import Data, Link, Meta, Reference, Tags, Windowing
 from oss.src.core.tracing.dtos import (
@@ -46,8 +46,9 @@ def build_simple_trace_attributes(
     meta: Optional[Meta],
     data: Data,
     references: Mapping[str, Any],
+    general_fields: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    return parse_into_attributes(
+    attributes = parse_into_attributes(
         type={"span": "task"},
         flags=dict(flags) if flags else None,
         tags=tags,
@@ -55,6 +56,9 @@ def build_simple_trace_attributes(
         data=data,
         references=dict(references),
     )
+    if general_fields:
+        attributes["ag"].update(general_fields)
+    return attributes
 
 
 def build_otel_links(links: Optional[SimpleTraceLinks]) -> Optional[OTelLinks]:
@@ -74,13 +78,70 @@ def build_otel_links(links: Optional[SimpleTraceLinks]) -> Optional[OTelLinks]:
             OTelLink(
                 trace_id=link.trace_id,
                 span_id=link.span_id,
-                attributes={"key": "key"},  # type: ignore
+                attributes={"key": link_role(link) or "key"},  # type: ignore
             )
             for link in links
             if link.trace_id and link.span_id
         ]
 
     return None
+
+
+def link_role(link: Link) -> Optional[str]:
+    role = link.attributes.get("key") if isinstance(link.attributes, dict) else None
+    return str(role) if role else None
+
+
+SUBJECT_ROLE = "subject"
+
+
+def subject_link(links: Optional[SimpleTraceLinks]) -> Optional[Link]:
+    """The link with the role `subject`, else the first link."""
+    if isinstance(links, dict):
+        items = list(links.items())
+    elif isinstance(links, list):
+        items = [(link_role(link), link) for link in links]
+    else:
+        return None
+
+    items = [(role, link) for role, link in items if link.trace_id and link.span_id]
+    for role, link in items:
+        if role == SUBJECT_ROLE:
+            return link
+    return items[0][1] if items else None
+
+
+APPLICATION_REFERENCE_KEYS = (
+    "application",
+    "application_variant",
+    "application_revision",
+)
+
+# The general fields an edit keeps from the stored annotation.
+GENERAL_FIELD_KEYS = ("session", "turn", "annotation")
+
+
+def keep_general_fields_on_edit(
+    *,
+    stored_attributes: Optional[Dict[str, Any]],
+    references: Dict[str, Any],
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """The stored `ag.session`, `ag.turn` and `ag.annotation`, and the stored application
+    references when the edit names none: an edit rebuilds every attribute."""
+    stored_ag = (stored_attributes or {}).get("ag") or {}
+    general_fields = {
+        key: stored_ag[key] for key in GENERAL_FIELD_KEYS if stored_ag.get(key)
+    }
+
+    if any(references.get(key) for key in APPLICATION_REFERENCE_KEYS):
+        return general_fields, references
+
+    stored_references = stored_ag.get("references") or {}
+    kept = dict(references)
+    for key in APPLICATION_REFERENCE_KEYS:
+        if stored_references.get(key):
+            kept[key] = stored_references[key]
+    return general_fields, kept
 
 
 def first_link(links: Optional[OTelLinks]) -> Optional[Link]:
