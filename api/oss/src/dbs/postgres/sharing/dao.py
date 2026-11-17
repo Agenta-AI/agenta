@@ -15,7 +15,7 @@ policy with the caller's `expected` and raises `SharingConflict(current)` on a m
 which rolls the transaction back.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from sqlalchemy import text
@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from oss.src.core.sharing.dtos import (
     AccessPolicy,
     AgentPolicyWriteResult,
+    MountAccess,
     SessionGrant,
     SessionGrantInput,
     SessionPolicyState,
@@ -85,6 +86,30 @@ SET visibility = EXCLUDED.visibility,
     owner_user_id = EXCLUDED.owner_user_id,
     updated_at = now(),
     updated_by_id = :user_id
+"""
+
+
+# -- drives -----------------------------------------------------------------------------
+
+_FETCH_MOUNT_ACCESS_SQL = """
+SELECT m.id AS mount_id, m.slug, m.session_id, m.agent_id,
+       v.visibility, v.owner_user_id
+FROM mounts m
+LEFT JOIN mount_visibility v
+    ON v.project_id = m.project_id AND v.mount_id = m.id
+WHERE m.project_id = :project_id AND m.id = :mount_id
+"""
+
+# The owner stays: a shared drive keeps the person who owns it.
+_SHARE_MOUNTS_SQL = """
+UPDATE mount_visibility v
+SET visibility = 'project', updated_at = now(), updated_by_id = :user_id
+FROM mounts m
+WHERE v.project_id = :project_id
+  AND v.mount_id = ANY(CAST(:mount_ids AS uuid[]))
+  AND v.visibility = 'private'
+  AND m.project_id = v.project_id AND m.id = v.mount_id
+RETURNING m.slug
 """
 
 
@@ -297,8 +322,11 @@ class SharingDAO(SharingDAOInterface):
         policy: AccessPolicy,
         #
         user_id: UUID,
+        #
+        share_mount_ids: Sequence[UUID] = (),
     ) -> AgentPolicyWriteResult:
         params = {"project_id": project_id, "artifact_id": artifact_id}
+        drives_made_shared: List[str] = []
         async with self.engine.transaction() as connection:
             locked = (
                 await connection.execute(text(_LOCK_AGENT_ARTIFACT_SQL), params)
@@ -322,8 +350,50 @@ class SharingDAO(SharingDAOInterface):
                     "user_id": user_id,
                 },
             )
+            if share_mount_ids:
+                drives_made_shared = list(
+                    (
+                        await connection.execute(
+                            text(_SHARE_MOUNTS_SQL),
+                            {
+                                "project_id": project_id,
+                                "mount_ids": list(share_mount_ids),
+                                "user_id": user_id,
+                            },
+                        )
+                    ).scalars()
+                )
 
-        return AgentPolicyWriteResult(policy=policy)
+        return AgentPolicyWriteResult(
+            policy=policy, drives_made_shared=sorted(drives_made_shared)
+        )
+
+    # -- drives -------------------------------------------------------------------------
+
+    async def fetch_mount_access(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+    ) -> Optional[MountAccess]:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    text(_FETCH_MOUNT_ACCESS_SQL),
+                    {"project_id": project_id, "mount_id": mount_id},
+                )
+            ).first()
+        if row is None:
+            return None
+        return MountAccess(
+            mount_id=row.mount_id,
+            slug=row.slug,
+            session_id=row.session_id,
+            agent_id=row.agent_id,
+            policy=(
+                map_agent_access_dbe_to_dto(row) if row.visibility is not None else None
+            ),
+        )
 
     # -- sessions -----------------------------------------------------------------------
 

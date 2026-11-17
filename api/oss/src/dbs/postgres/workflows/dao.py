@@ -96,6 +96,17 @@ SELECT EXISTS (
 )
 """
 
+# `json_extract_path`, not a `jsonb` cast: some stored `data` values the cast refuses.
+_AGENT_STATES_DRIVES_SQL = """
+SELECT EXISTS (
+    SELECT 1
+    FROM workflow_revisions r
+    WHERE r.project_id = :project_id
+      AND r.artifact_id = :artifact_id
+      AND json_extract_path(r.data, 'parameters', 'agent', 'drives') IS NOT NULL
+)
+"""
+
 
 class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
     """The constructor is `GitDAO`'s."""
@@ -332,6 +343,22 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                 (
                     await session.execute(
                         text(_IS_AGENT_ARTIFACT_SQL),
+                        {"project_id": project_id, "artifact_id": artifact_id},
+                    )
+                ).scalar()
+            )
+
+    async def agent_states_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> bool:
+        async with self.engine.session() as session:
+            return bool(
+                (
+                    await session.execute(
+                        text(_AGENT_STATES_DRIVES_SQL),
                         {"project_id": project_id, "artifact_id": artifact_id},
                     )
                 ).scalar()

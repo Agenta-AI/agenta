@@ -182,6 +182,7 @@ from oss.src.core.sessions.turns.types import (
 )
 from oss.src.core.sessions.dtos import SessionExpansion
 from oss.src.core.sessions.service import SessionsService
+from oss.src.core.mounts.dtos import MountScope
 from oss.src.core.mounts.types import MountNotFound
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
@@ -2428,11 +2429,10 @@ class SessionMountsRouter:
     async def _require_mount(
         self, request: Request, *, mount_id: UUID, permission: Permission
     ) -> None:
-        """A mount of a hidden session or agent answers as an unknown mount."""
-        scope = await self.mounts_service.fetch_mount_scope(
-            project_id=UUID(request.state.project_id), mount_id=mount_id
-        )
-        if not await allow_mount(request, scope=scope, permission=permission):
+        """A drive the caller may not open answers as an unknown mount."""
+        if not await allow_mount(
+            request, scope=MountScope(id=mount_id), permission=permission
+        ):
             raise MountNotFound()
 
     async def _allow_session(

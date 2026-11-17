@@ -80,6 +80,32 @@ class InvalidTransferTarget(SharingError):
         )
 
 
+class DriveNotOwned(SharingError):
+    """Sharing the agent would share a private drive of another owner."""
+
+    code = "drive_not_owned"
+
+    def __init__(self, *, slug: str):
+        super().__init__(
+            f"The agent lists the private drive '{slug}' of another member, so it "
+            "cannot become shared.",
+            details={"slug": slug},
+        )
+
+
+class HomeDriveNotAllowed(SharingError):
+    """Making the agent private would leave it a home drive the home rule refuses."""
+
+    code = "home_drive_not_allowed"
+
+    def __init__(self, *, slug: str):
+        super().__init__(
+            f"The home drive '{slug}' is not a private drive of the agent's owner, so "
+            "the agent cannot become private.",
+            details={"slug": slug},
+        )
+
+
 class SharedItemNotFound(SharingError):
     """No such agent or session in the project (or one the caller may not see)."""
 

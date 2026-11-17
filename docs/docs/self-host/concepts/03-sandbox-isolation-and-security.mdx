@@ -33,7 +33,7 @@ process environment, or the working directory of another run.
 | An HTTP MCP server's credential or header | No, by default. The sandbox holds a placeholder. |
 | A model credential a provider SDK signs with locally | Yes. Today that means the AWS access keys behind Bedrock and the Google service account credentials behind Vertex AI. |
 | The run's own working directory | Yes, mounted from the durable store. |
-| The agent's drive and the project drives its configuration lists | Yes, mounted from the durable store. The storage credentials for each drive reach only that drive, and only allow reads for a drive with `"read"` access. |
+| The drives its configuration lists | Yes, mounted from the durable store, when the run's person or key may use each drive. The storage credentials for each drive reach only that drive, and only allow reads for a drive with `"read"` access. |
 | The runner's Daytona API key | No. It stays on the runner. |
 | The runner's other environment variables | No. |
 | A mounted personal subscription login | No. It never leaves the runner container. |

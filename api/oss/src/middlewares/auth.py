@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone
@@ -544,10 +544,28 @@ def _build_request_access_from_state(request: Request) -> Optional[RequestAccess
             acting_user_id=UUID(str(user_id)),
             envelope=getattr(state, "run_envelope", None),
             run_accounts=getattr(state, "run_accounts", None) or (),
+            run_agent_id=run_agent_id_of_request(request),
         )
     except (TypeError, ValueError, ValidationError):
         log.warning("[auth] request access could not be built", exc_info=True)
         return None
+
+
+def _run_agent_id_from_claim(value: Any) -> Optional[UUID]:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("run_agent_id must be a string")
+    return UUID(value)
+
+
+def run_agent_id_of_request(request: Request) -> Optional[UUID]:
+    """The agent the presenting run credential executes (its `run_agent_id` claim). None
+    for every caller that is not an agent run, and for a credential minted before the
+    claim existed."""
+
+    value = getattr(request.state, "run_agent_id", None)
+    return value if isinstance(value, UUID) else None
 
 
 def request_run_envelope(request: Request) -> Optional[RunEnvelope]:
@@ -1492,6 +1510,12 @@ async def verify_secret_token(
             )
         except InvalidRunClaims as exc:
             raise DecodeError("Secret token carries invalid run accounts.") from exc
+        try:
+            request.state.run_agent_id = _run_agent_id_from_claim(
+                auth_context.get("run_agent_id")
+            )
+        except ValueError as exc:
+            raise DecodeError("Secret token carries an invalid run agent.") from exc
         request.state.gateway_platform_run = (
             audience == GATEWAY_TOKEN_AUDIENCE
             and auth_context.get("gateway_platform_run") is True
@@ -1588,11 +1612,15 @@ async def sign_secret_token(
     *,
     envelope: RunEnvelope,
     run_accounts: Optional[List[dict]] = None,
+    run_agent_id: Optional[UUID] = None,
 ):
     """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
 
     `run_accounts` is the run's `run_accounts` claim (the ready accounts of its "user"
     items, by id), written only when set. It is not an envelope claim.
+
+    `run_agent_id` is the run's `run_agent_id` claim: the agent the run executes, as
+    the invoke resolved it. Written only when set; `run_agent_id_of_request` reads it.
 
     `envelope` is required: every run credential carries its principal, authority and
     run context as claims (`principal`, `restrictions`, `authority`, `run`, `sender`,
@@ -1668,6 +1696,9 @@ async def sign_secret_token(
 
         if run_accounts:
             auth_context["run_accounts"] = list(run_accounts)
+
+        if run_agent_id is not None:
+            auth_context["run_agent_id"] = str(run_agent_id)
 
         auth_context.update(envelope_to_claims(envelope=envelope))
 
