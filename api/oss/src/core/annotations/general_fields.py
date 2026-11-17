@@ -6,7 +6,7 @@ references. The subject span supplies the session, the turn and the application;
 annotation keeps its link to that span only as an anchor.
 """
 
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -189,9 +189,14 @@ class AnnotationGeneralFieldsService:
             if span is not None and not any(
                 getattr(references, key) for key in APPLICATION_REFERENCE_KEYS
             ):
-                root, session_ids = await self._fetch_root(
-                    project_id=project_id, span=span
-                )
+                path = await self._fetch_path(project_id=project_id, span=span)
+                # The last span is the root only when the walk reached it.
+                root = path[-1] if path[-1].parent_id is None else None
+                session_ids = {
+                    path_session_id
+                    for path_session_id, _ in map(_span_session_and_turn, path)
+                    if path_session_id
+                }
                 root_session_id, _ = (
                     _span_session_and_turn(root) if root is not None else (None, None)
                 )
@@ -283,30 +288,28 @@ class AnnotationGeneralFieldsService:
         )
         return spans[0] if spans else None
 
-    async def _fetch_root(
+    async def _fetch_path(
         self,
         *,
         project_id: UUID,
         span: OTelFlatSpan,
-    ) -> Tuple[Optional[OTelFlatSpan], Set[str]]:
-        """Walk up the parents by key; a trace is a few levels deep. Returns the root
-        (none when a parent is missing) and every session id named on the path."""
-        session_ids: Set[str] = set()
+    ) -> List[OTelFlatSpan]:
+        """The span and its parents by key, up to the root or a missing parent; a
+        trace is a few levels deep."""
+        path = [span]
         for _ in range(_MAX_ANCESTORS):
-            span_session_id, _turn = _span_session_and_turn(span)
-            if span_session_id:
-                session_ids.add(span_session_id)
             if span.parent_id is None:
-                return span, session_ids
+                break
             parent = await self._fetch_span(
                 project_id=project_id,
                 trace_id=str(span.trace_id),
                 span_id=str(span.parent_id),
             )
             if parent is None:
-                return None, session_ids
+                break
+            path.append(parent)
             span = parent
-        return None, session_ids
+        return path
 
     async def _turn_row(
         self,
