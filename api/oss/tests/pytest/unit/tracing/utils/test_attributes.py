@@ -69,6 +69,16 @@ def test_initialize_ag_attributes_cleans_known_fields_and_tracks_unsupported():
     assert "refs" not in ag["unsupported"]
 
 
+def test_initialize_ag_attributes_keeps_turn_id():
+    cleaned = initialize_ag_attributes(
+        {"ag": {"turn": {"id": "turn-1", "legacy": True}}}
+    )
+    ag = cleaned["ag"]
+
+    assert ag["turn"] == {"id": "turn-1"}
+    assert "turn" not in (ag.get("unsupported") or {})
+
+
 def test_initialize_ag_attributes_preserves_dotted_reference_slugs():
     cleaned = initialize_ag_attributes(
         {

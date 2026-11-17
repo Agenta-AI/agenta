@@ -30,6 +30,7 @@ from agenta.sdk.models.tracing import (  # noqa: F401
     AgTypeAttributes,
     AgDataAttributes,
     AgSessionAttributes,
+    AgTurnAttributes,
     AgUserAttributes,
     AgAttributes,
     OTelStatusCode,
@@ -95,6 +96,7 @@ class Fields(str, Enum):
     DELETED_BY_ID = "deleted_by_id"
     CONTENT = "content"
     SESSION_ID = "session_id"
+    TURN_ID = "turn_id"
     USER_ID = "user_id"
     AGENT_ID = "agent_id"
     HAS_ANNOTATION = "has_annotation"

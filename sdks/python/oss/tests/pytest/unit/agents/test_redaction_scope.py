@@ -100,6 +100,7 @@ class _CapturingBackend(Backend):
         session_id=None,
         detached=False,
         turn_id=None,
+        session_turn_id=None,
         project_id=None,
         control_command_id=None,
         # Interface parity only; these tests assert on the redaction scope, not the wire.
