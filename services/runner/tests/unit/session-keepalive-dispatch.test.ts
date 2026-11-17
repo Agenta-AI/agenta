@@ -197,7 +197,7 @@ function makeEngine(options: EngineOptions = {}) {
       const cwd = mountExpiryMs(presigned?.expiresAt);
       if (cwd !== undefined) env.installedMountExpiries.cwd = cwd;
       const agent = mountExpiryMs(options.agentMountExpiresAt);
-      if (agent !== undefined) env.installedMountExpiries.agent = agent;
+      if (agent !== undefined) env.installedMountExpiries.drives = { "/w-agent": agent };
       calls.acquiredEnvs.push(env);
       return { ok: true, env: env as unknown as SessionEnvironment };
     },

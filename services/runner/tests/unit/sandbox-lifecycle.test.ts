@@ -17,8 +17,10 @@ import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 import {
   markSandboxCreated,
+  recordSandboxDrives,
   resetCreatedSandboxIds,
 } from "../../src/engines/sandbox_agent/created-sandboxes.ts";
+import { driveIdentity } from "../../src/engines/sandbox_agent/session-identity.ts";
 
 // This whole suite drives the remote (Daytona) lifecycle: enable it (with a provisioning
 // credential) on top of the hermetic scrub, then drop the memoized config.
@@ -50,7 +52,10 @@ interface FakeOpts {
 
 function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
   // A stored id is this process's own parked sandbox unless the test says otherwise.
-  if (sandboxId && !opts.foreign) markSandboxCreated(sandboxId);
+  if (sandboxId && !opts.foreign) {
+    markSandboxCreated(sandboxId);
+    recordSandboxDrives(sandboxId, driveIdentity(daytonaRequest));
+  }
   const continuityStore = new SessionContinuityStore();
   const calls = {
     starts: [] as Array<{ sandboxId: string | undefined }>,
@@ -259,6 +264,54 @@ describe("remote sandbox reconnect ladder", () => {
       [{ sandboxId: undefined }],
       "one fresh create; the foreign id is never handed to the provider",
     );
+  });
+
+  it("creates fresh when the parked sandbox was set up with other drives, and reconnects for the same ones", async () => {
+    const withDrives = (drives: AgentRunRequest["drives"]) => ({ ...daytonaRequest, drives }) as AgentRunRequest;
+    const both = withDrives([{ slug: "home", access: "read-write" }, { slug: "notes", access: "read" }]);
+    const signed = (async () => ({
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "b",
+      prefix: "p",
+      accessKey: "AK",
+      secretKey: "SK",
+    })) as never;
+    const dropped = fakeSandbox("sbx-99");
+    dropped.deps.signMountCredentialsBySlug = signed;
+    dropped.deps.mountStorageRemote = (async () => false) as never;
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    assert.equal((await runSandboxAgent(withDrives([{ slug: "home", access: "read-write" }]), undefined, undefined, dropped.deps)).ok, true);
+    assert.deepEqual(dropped.calls.starts, [{ sandboxId: undefined }], "a removed drive never reaches a reused sandbox");
+    assert.ok(dropped.calls.logs.some((m) => m.includes("stored sandbox=sbx-99 was set up with other drives")));
+
+    const same = fakeSandbox("sbx-99");
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    same.deps.signMountCredentialsBySlug = signed;
+    same.deps.mountStorageRemote = (async () => false) as never;
+    await runSandboxAgent(both, undefined, undefined, same.deps);
+    assert.equal(same.calls.starts[0]?.sandboxId, "sbx-99");
+  });
+
+  it("creates fresh when this process does not know the drives a parked sandbox was set up with", async () => {
+    const { calls, deps } = fakeSandbox(undefined);
+    markSandboxCreated("sbx-unknown-drives");
+    deps.readStoredSandboxPointer = (async () => ({ sandboxId: "sbx-unknown-drives" })) as never;
+    assert.equal((await runSandboxAgent(daytonaRequest, undefined, undefined, deps)).ok, true);
+    assert.deepEqual(calls.starts, [{ sandboxId: undefined }]);
+  });
+
+  it("creates fresh when a configured drive could not be signed this turn", async () => {
+    const both = {
+      ...daytonaRequest,
+      drives: [{ slug: "home", access: "read-write" }, { slug: "notes", access: "read" }],
+    } as AgentRunRequest;
+    const { calls, deps } = fakeSandbox("sbx-99");
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    deps.signMountCredentialsBySlug = (async () => null) as never;
+    assert.equal((await runSandboxAgent(both, undefined, undefined, deps)).ok, true);
+    assert.deepEqual(calls.starts, [{ sandboxId: undefined }], "the parked sandbox may still hold the old mount");
+    assert.ok(calls.logs.some((m) => m.includes("not reused: a drive could not be signed")));
   });
 
   it("starts fresh (no id) when nothing is recorded", async () => {

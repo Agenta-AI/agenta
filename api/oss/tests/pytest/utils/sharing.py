@@ -11,6 +11,7 @@ from oss.src.core.access.interfaces import ResourcePolicyInterface
 from oss.src.core.sharing.dtos import (
     AccessPolicy,
     AgentPolicyWriteResult,
+    MountVisibility,
     SessionGrant,
     SessionReadScope,
     SessionGrantInput,
@@ -19,6 +20,7 @@ from oss.src.core.sharing.dtos import (
     SessionRole,
     SessionSharingWriteResult,
     UserSessionGrant,
+    Visibility,
 )
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import MembershipsService
@@ -81,6 +83,12 @@ class InMemorySharingDAO(SharingDAOInterface):
         self.grants: Dict[Tuple[UUID, UUID], List[SessionGrant]] = {}
         # (project_id, session_id) -> the former owner of a deleted private session.
         self.tombstones: Dict[Tuple[UUID, str], Optional[UUID]] = {}
+        # (project_id, mount_id) -> the drive's scope and `mount_visibility` row.
+        self.mounts: Dict[Tuple[UUID, UUID], MountVisibility] = {}
+        # (project_id, artifact_id) -> the drive slugs the agent lists.
+        self.listed_drives: Dict[Tuple[UUID, UUID], Set[str]] = {}
+        # Runs once, at the start of the next `set_agent_policy` (a concurrent writer).
+        self.before_agent_write = None
         self.reads: List[str] = []
 
     # -- seeding ------------------------------------------------------------------------
@@ -125,6 +133,51 @@ class InMemorySharingDAO(SharingDAOInterface):
         self.grants.setdefault((project_id, grant.stream_id), []).append(grant)
         return grant
 
+    def add_mount(
+        self,
+        *,
+        project_id: UUID,
+        policy: Optional[AccessPolicy] = None,
+        slug: Optional[str] = None,
+        agent_id: Optional[UUID] = None,
+        session_id: Optional[str] = None,
+    ) -> MountVisibility:
+        access = MountVisibility(
+            mount_id=uuid4(),
+            slug=slug or f"d-{uuid4().hex[:8]}",
+            agent_id=str(agent_id) if agent_id is not None else None,
+            session_id=session_id,
+            policy=policy,
+        )
+        self.mounts[(project_id, access.mount_id)] = access
+        return access
+
+    def _agent_drive_policy(
+        self, project_id: UUID, artifact_id: UUID
+    ) -> Optional[AccessPolicy]:
+        for (project, _), drive in self.mounts.items():
+            if project == project_id and drive.agent_id == str(artifact_id):
+                return drive.policy
+        return None
+
+    async def fetch_agent_drive_policy(
+        self, *, project_id: UUID, artifact_id: UUID
+    ) -> Optional[AccessPolicy]:
+        self.reads.append("fetch_agent_drive_policy")
+        return self._agent_drive_policy(project_id, artifact_id)
+
+    async def fetch_mount_visibility(
+        self, *, project_id: UUID, mount_id: UUID
+    ) -> Optional[MountVisibility]:
+        self.reads.append("fetch_mount_visibility")
+        return self.mounts.get((project_id, mount_id))
+
+    async def agent_lists_drive(
+        self, *, project_id: UUID, artifact_id: UUID, mount: MountVisibility
+    ) -> bool:
+        self.reads.append("agent_lists_drive")
+        return mount.slug in self.listed_drives.get((project_id, artifact_id), set())
+
     # -- agents -------------------------------------------------------------------------
 
     async def fetch_agent_policy(
@@ -141,16 +194,62 @@ class InMemorySharingDAO(SharingDAOInterface):
         expected: Optional[AccessPolicy],
         policy: AccessPolicy,
         user_id: UUID,
+        share_mount_ids=(),
+        check_agent_drive: bool = False,
+        expected_agent_drive_policy: Optional[AccessPolicy] = None,
     ) -> AgentPolicyWriteResult:
         self.reads.append("set_agent_policy")
+        if self.before_agent_write is not None:
+            hook, self.before_agent_write = self.before_agent_write, None
+            hook()
         key = (project_id, artifact_id)
         if key not in self.artifacts:
             raise SharedItemNotFound()
         current = self.agents.get(key)
         if current != expected:
             raise SharingConflict(current=current)
+        if (
+            check_agent_drive
+            and expected_agent_drive_policy
+            != self._agent_drive_policy(project_id, artifact_id)
+        ):
+            raise SharingConflict(current=current)
+        for mount_id in share_mount_ids:
+            # `_LOCK_DRIVE_AGENTS_SQL`: a drive without its row is shared only while its
+            # agent is still private to the acting owner.
+            access = self.mounts.get((project_id, mount_id))
+            if access is not None and access.policy is None and access.agent_id:
+                drive_agent = self.agents.get((project_id, UUID(access.agent_id)))
+                if drive_agent != AccessPolicy(
+                    visibility=Visibility.PRIVATE, owner_user_id=policy.owner_user_id
+                ):
+                    raise SharingConflict(current=current)
         self.agents[key] = policy
-        return AgentPolicyWriteResult(policy=policy)
+        shared = []
+        for mount_id in share_mount_ids:
+            # `_SHARE_MOUNTS_SQL`: a row turns from private to project; a drive with no
+            # row gets a project row owned by the acting owner.
+            access = self.mounts.get((project_id, mount_id))
+            if access is None:
+                continue
+            if access.policy is None or (
+                access.policy.visibility == Visibility.PRIVATE
+                and access.policy.owner_user_id == policy.owner_user_id
+            ):
+                self.mounts[(project_id, mount_id)] = access.model_copy(
+                    update={
+                        "policy": AccessPolicy(
+                            visibility=Visibility.PROJECT,
+                            owner_user_id=(
+                                access.policy.owner_user_id
+                                if access.policy is not None
+                                else policy.owner_user_id
+                            ),
+                        )
+                    }
+                )
+                shared.append(access.slug)
+        return AgentPolicyWriteResult(policy=policy, drives_made_shared=sorted(shared))
 
     # -- sessions -----------------------------------------------------------------------
 
