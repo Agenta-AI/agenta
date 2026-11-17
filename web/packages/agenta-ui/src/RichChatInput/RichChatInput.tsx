@@ -10,6 +10,8 @@ import {
     useState,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {modifierKeyLabel} from "@agenta/shared/utils"
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
 import {HistoryExtension} from "@lexical/history"
@@ -184,7 +186,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
     function RichChatInput(
         {
             onSubmit,
-            placeholder = "Type a message…",
+            placeholder: placeholderProp,
             disabled = false,
             dictating = false,
             dictationWave,
@@ -217,6 +219,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         },
         ref,
     ) {
+        const t = useT(uiChatInputCatalog)
+        const placeholder = placeholderProp ?? t("ui.chatInput.typeMessage")
         const editorRef = useRef<LexicalEditor | null>(null)
         const dictationRef = useRef<DictationSession | null>(null)
         // The palettes span this box and float above it.
@@ -378,7 +382,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     >
                         <div ref={setEditorBox} className="relative">
                             <ContentEditable
-                                aria-label="Chat message"
+                                aria-label={t("ui.chatInput.chatMessage")}
                                 aria-placeholder={placeholder}
                                 className={clsx(
                                     "overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
@@ -441,8 +445,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 {prefix ? (
                                     <span aria-hidden className="h-4 w-px bg-border/60" />
                                 ) : null}
-                                <ShortcutHint keys="↵" label="Send" />
-                                <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
+                                <ShortcutHint keys="↵" label={t("ui.chatInput.send")} />
+                                <ShortcutHint
+                                    keys={`${modKey} ↵`}
+                                    label={t("ui.chatInput.newline")}
+                                />
                             </div>
                         )}
                         <div className="ml-auto flex items-center gap-2">

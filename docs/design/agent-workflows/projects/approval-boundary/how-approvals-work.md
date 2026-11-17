@@ -450,7 +450,7 @@ today, end to end.
 There is a second, newer **interactions plane**: a `session_interactions` table plus
 `/sessions/interactions` endpoints in the API (create, query, transition, respond;
 `api/oss/src/apis/fastapi/sessions/router.py:591-882`). The vision (spec:
-`docs/designs/sessions/interactions/extend/specs.md`) is durable approvals: a parked run
+`docs/design/sessions/interactions/extend/specs.md`) is durable approvals: a parked run
 leaves a pending record that anyone can answer later from any surface, without holding a
 chat open. In that future flow, the park creates the row (as it already does), a respond
 from any surface records the decision, and a resume replays the conversation with the

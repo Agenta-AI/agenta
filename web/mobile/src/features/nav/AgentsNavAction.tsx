@@ -1,5 +1,7 @@
 import {useCallback, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 
@@ -7,6 +9,7 @@ import {AgentsQuickPanel} from "./AgentsQuickPanel"
 
 /** The Agents row's "+": opens the agents flyout with its top-left corner under the button. */
 export const AgentsNavAction = ({base}: {base: string}) => {
+    const t = useT(navigationCatalog)
     const [open, setOpen] = useState(false)
     const [busy, setBusy] = useState(false)
     const close = useCallback(() => setOpen(false), [])
@@ -23,8 +26,8 @@ export const AgentsNavAction = ({base}: {base: string}) => {
                 {/* Same geometry and tokens as the session headings' "+". */}
                 <button
                     type="button"
-                    aria-label="New agent or open an agent"
-                    title="New agent or open an agent"
+                    aria-label={t("navigation.items.newAgentOrOpen")}
+                    title={t("navigation.items.newAgentOrOpen")}
                     className="text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0"
                 >
                     <Plus size={12} />

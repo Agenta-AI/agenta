@@ -10,7 +10,10 @@ from typing import Any, Dict, Optional
 import httpx
 import jwt
 
-from oss.src.core.channels.types import ChannelSignatureInvalid
+from oss.src.core.channels.types import (
+    ChannelSignatureInvalid,
+    ChannelSignatureUnavailable,
+)
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -38,15 +41,24 @@ class BotFrameworkKeys:
         self._keys: Dict[str, Dict[str, Any]] = {}
         self._fetched_at = 0.0
         self._attempted_at: Optional[float] = None
+        self._last_read_failed = False
         self._lock = asyncio.Lock()
 
     async def get(self, key_id: str) -> Optional[Dict[str, Any]]:
+        """The key, or None when Microsoft does not list it. Raises
+        ChannelSignatureUnavailable when the key is not held and the last read
+        of Microsoft's keys failed: then the token cannot be judged, and a 503
+        lets Teams retry."""
+
         if key_id not in self._keys or self._stale():
             async with self._lock:
                 # Another request may have refreshed while this one waited.
                 if (key_id not in self._keys or self._stale()) and self._may_refresh():
                     await self._refresh()
-        return self._keys.get(key_id)
+        key = self._keys.get(key_id)
+        if key is None and self._last_read_failed:
+            raise ChannelSignatureUnavailable(channel="teams")
+        return key
 
     def _stale(self) -> bool:
         return time.monotonic() - self._fetched_at > _KEYS_MAX_AGE_SECONDS
@@ -73,7 +85,9 @@ class BotFrameworkKeys:
             }
         except (httpx.HTTPError, KeyError, ValueError, TypeError) as exc:
             log.warning("[TEAMS] signing key read failed: %s", type(exc).__name__)
+            self._last_read_failed = True
             return
+        self._last_read_failed = not keys
         if keys:
             self._keys = keys
             self._fetched_at = time.monotonic()
@@ -106,7 +120,8 @@ async def verify_token(
     """Raise ChannelSignatureInvalid unless `token` is a Bot Framework JWT for
     `app_id` that vouches for `service_url`, signed by a key that Microsoft
     endorses for Teams, on an activity from Teams. Emulator tokens have
-    another issuer, so they fail."""
+    another issuer, so they fail. Raise ChannelSignatureUnavailable when
+    Microsoft's keys could not be read and the key is not held."""
 
     def refuse() -> ChannelSignatureInvalid:
         return ChannelSignatureInvalid(channel="teams")

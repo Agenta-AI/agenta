@@ -9,6 +9,8 @@
 
 import {useCallback} from "react"
 
+import {useT} from "@agenta/i18n"
+import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
 import type {PathItem, DataPath} from "@agenta/shared/utils"
 import {ChevronRight, ChevronDown} from "lucide-react"
 
@@ -97,6 +99,7 @@ export function FieldItemHeader({
     classNames,
     styles,
 }: FieldItemHeaderProps) {
+    const t = useT(drillInCatalog)
     const handleTitleClick = useCallback(() => {
         if (canDrillIn) {
             onDrillIn()
@@ -121,7 +124,9 @@ export function FieldItemHeader({
                     type="button"
                     onClick={onToggleCollapse}
                     className="mr-1 p-0.5 hover:bg-gray-100 rounded border-0 bg-transparent cursor-pointer"
-                    aria-label={isCollapsed ? "Expand" : "Collapse"}
+                    aria-label={
+                        isCollapsed ? t("entityUi.drillIn.expand") : t("entityUi.drillIn.collapse")
+                    }
                 >
                     {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                 </button>

@@ -1,0 +1,21 @@
+{
+    "agentsBody": "Vous décrivez le travail, connectez les applications nécessaires et l'améliorez grâce à vos retours. Quand il fonctionne, partagez-le avec votre équipe.",
+    "agentsHeadline": "Créez un agent en discutant avec lui",
+    "agentsHowItWorks": "Comment fonctionnent les agents",
+    "automationsBody": "Une automatisation exécute l'un de vos agents sans que vous le demandiez : selon une planification, ou quand quelque chose se produit dans une application connectée.",
+    "automationsHeadline": "Faites travailler vos agents en arrière-plan",
+    "automationsHowItWorks": "Comment fonctionnent les automatisations",
+    "loadTemplatesError": "Impossible de charger les modèles",
+    "readDocs": "Lire la documentation",
+    "sessionsBody": "Chaque conversation avec un agent est une session. Reprenez là où vous vous êtes arrêté, recherchez dans toutes les sessions et inspectez chaque appel de modèle et d'outil.",
+    "sessionsHeadline": "Toutes les conversations avec un agent, au même endroit",
+    "sessionsHowItWorks": "Comment fonctionnent les sessions",
+    "skillsBody": "Définissez votre agent avec AGENTS.md, des skills et des serveurs MCP. Vous pouvez importer dans Agenta des skills et des serveurs MCP de l'écosystème des agents.",
+    "skillsHeadline": "Apprenez à vos agents comment travaille votre équipe",
+    "skillsHowItWorks": "Comment fonctionnent les skills",
+    "startFromTemplate": "Partir d'un modèle",
+    "viewAllTemplates": "Voir tous les modèles",
+    "walkthrough": "Visite guidée : {{title}}",
+    "watch": "Regarder {{title}}",
+    "watchVideo": "Regarder la vidéo"
+}

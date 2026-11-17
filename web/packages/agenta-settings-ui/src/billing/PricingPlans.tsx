@@ -5,18 +5,27 @@
  * current plan; picking one is the host's — checkout, switch and cancel are all its calls.
  */
 
+import {useT, createT} from "@agenta/i18n"
+import billingPageCatalog from "@agenta/i18n/catalogs/billing.page"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {Button, Spinner} from "@agenta/ui/ui"
 
 import type {BillingPlanOption} from "./types"
+
+const tNow = createT(billingPageCatalog, commonCatalog)
 
 const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 
 const formatPrice = (plan: BillingPlanOption) => {
     // A priced plan whose base amount is missing rendered "$undefined /month".
     const amount = plan.price?.base?.amount
-    if (amount == null) return "Contact us"
-    const prefix = plan.price?.base?.starting_at ? "Starts at " : ""
-    return `${prefix}$${amount} /month`
+    if (amount == null) return tNow("billing.page.contactUs")
+    return tNow(
+        plan.price?.base?.starting_at ? "billing.page.priceStartsAt" : "billing.page.price",
+        {
+            amount,
+        },
+    )
 }
 
 export interface PricingPlansProps {
@@ -41,6 +50,7 @@ const PricingCard = ({
     pendingPlan,
     onSelectPlan,
 }: {plan: BillingPlanOption} & Omit<PricingPlansProps, "plans" | "loading">) => {
+    const t = useT(billingPageCatalog, commonCatalog)
     const isPending = pendingPlan === plan.plan
     const isThisPlanCustom = plan.type === "custom"
     const isThisPlanFree = Boolean(freePlanSlug) && plan.plan === freePlanSlug
@@ -57,7 +67,7 @@ const PricingCard = ({
             disabled={isDisabled}
             onClick={() => window.open(CONTACT_URL, "_blank")}
         >
-            {isCurrentPlanCustom ? "Current plan" : "Talk to us"}
+            {isCurrentPlanCustom ? t("billing.page.currentPlan") : t("billing.page.talkToUs")}
         </Button>
     ) : (
         <Button
@@ -67,12 +77,12 @@ const PricingCard = ({
             onClick={() => onSelectPlan?.(plan)}
         >
             {isCurrent
-                ? "Current plan"
+                ? t("billing.page.currentPlan")
                 : isPending
-                  ? "Working…"
+                  ? t("common.working")
                   : isThisPlanFree
-                    ? `Move to ${plan.title}`
-                    : `Upgrade to ${plan.title}`}
+                    ? t("billing.page.moveTo", {plan: plan.title})
+                    : t("billing.page.upgradeTo", {plan: plan.title})}
         </Button>
     )
 
@@ -103,6 +113,7 @@ const PricingCard = ({
 }
 
 export const PricingPlans = ({plans, loading = false, ...cardProps}: PricingPlansProps) => {
+    const t = useT(billingPageCatalog, commonCatalog)
     if (loading) {
         return (
             <div className="flex h-[400px] w-full items-center justify-center">
@@ -113,7 +124,7 @@ export const PricingPlans = ({plans, loading = false, ...cardProps}: PricingPlan
 
     return (
         <section className="mx-auto mt-4 flex flex-col gap-2">
-            <span className="font-medium text-colorText">Choose your plan</span>
+            <span className="font-medium text-colorText">{t("billing.page.choosePlan")}</span>
             <div className="flex flex-col gap-4 md:flex-row">
                 {plans?.map((plan) => (
                     <PricingCard key={plan.title} plan={plan} {...cardProps} />

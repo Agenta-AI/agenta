@@ -1,0 +1,9 @@
+{
+    "copyFailed": "Kopieren fehlgeschlagen. Markieren Sie das Secret oben und kopieren Sie es",
+    "copySecret": "Secret kopieren",
+    "deleteBody": "Agenta liefert keine Events mehr an {{url}}.",
+    "deleteFailed": "Das Abonnement konnte nicht gelöscht werden",
+    "deleteTitle": "Abonnement löschen",
+    "secretDescription": "Wird nur einmal angezeigt. Sie benötigen es, um zu prüfen, dass eingehende Anfragen von Agenta stammen.",
+    "secretTitle": "Webhook-Secret speichern"
+}

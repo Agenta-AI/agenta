@@ -1,0 +1,22 @@
+{
+    "configureProvider": "配置供应商",
+    "howToUse": "使用方法",
+    "cancel": "取消",
+    "submit": "提交",
+    "selectProvider": "请选择供应商",
+    "enterName": "请输入名称",
+    "nameInvalid": "名称只能包含字母、数字、下划线或连字符，且不能有空格。",
+    "nameMatchesDefault": "名称不能与默认供应商相同。请选择其他名称。",
+    "enterField": "请输入{{field}}",
+    "invalidJson": "必须是有效的 JSON",
+    "addModelName": "请添加模型名称",
+    "addModelBeforeSubmit": "提交前请添加模型名称",
+    "validationError": "验证错误",
+    "somethingWrong": "出错了！请使用正确的凭据重试。",
+    "provider": "供应商",
+    "models": "模型",
+    "add": "添加",
+    "noCustomModels": "未配置自定义模型",
+    "enterModelName": "输入模型名称",
+    "removeModel": "移除模型"
+}

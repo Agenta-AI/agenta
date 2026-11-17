@@ -1,0 +1,8 @@
+{
+    "didNotConnect": "{{name}} に接続できなかったため、ツールを利用できませんでした",
+    "needsSignIn": "{{name}} は再サインインが必要です。",
+    "needsSignInDetail": "プロジェクトの誰かが再接続するまで、このツールは失敗します。",
+    "notSetUp": "{{name}} はまだ設定されていないため、ツールはスキップされました。",
+    "reconnect": "再接続",
+    "reconnectNamed": "{{name}} を再接続"
+}

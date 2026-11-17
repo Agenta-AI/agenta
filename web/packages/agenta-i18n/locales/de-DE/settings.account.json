@@ -1,0 +1,14 @@
+{
+    "cannotBeUndone": "Diese Aktion kann nicht rückgängig gemacht werden.",
+    "dangerZone": "Gefahrenbereich",
+    "deleteAccount": "Konto löschen",
+    "deleteAccountDescription": "Löscht Ihr Konto, alle Organisationen, die Ihnen gehören, und alle zugehörigen Arbeitsbereiche, Projekte, Anwendungen und Daten. Sie werden sofort abgemeldet.",
+    "deleteCallout": "Löscht Ihr Konto und alle Organisationen, die Ihnen gehören, dauerhaft, einschließlich aller Arbeitsbereiche, Projekte, Anwendungen und Daten.",
+    "email": "E-Mail",
+    "emailHint": "Wird für die Anmeldung und für Organisationseinladungen verwendet.",
+    "profile": "Profil",
+    "typeToConfirm": "Geben Sie zur Bestätigung <code>{{email}}</code> ein:",
+    "username": "Benutzername",
+    "usernameHint": "So erscheinen Sie in Mitgliederlisten und Audit-Einträgen.",
+    "yourEmail": "Ihre E-Mail"
+}

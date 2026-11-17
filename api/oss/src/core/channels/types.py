@@ -101,6 +101,16 @@ class ChannelSignatureInvalid(ChannelsError):
         super().__init__(f"Invalid signature for channel: {channel}")
 
 
+class ChannelSignatureUnavailable(ChannelsError):
+    """The signature cannot be checked now because a key source on our side
+    failed (Microsoft's signing keys did not load). A temporary error, not a
+    bad signature: ingress answers 503 so the platform retries."""
+
+    def __init__(self, *, channel: str):
+        self.channel = channel
+        super().__init__(f"Signature check unavailable for channel: {channel}")
+
+
 class ChannelConnectionNotFound(ChannelsError):
     def __init__(self, *, connection_id: UUID):
         self.connection_id = connection_id

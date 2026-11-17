@@ -1,6 +1,8 @@
 import {useEffect, useState, type FormEvent} from "react"
 
 import {isValidEmailAddress} from "@agenta/auth"
+import {useT} from "@agenta/i18n"
+import emailFirstCatalog from "@agenta/i18n/catalogs/auth.emailFirstForm"
 import {Input, LoadingButton, cn} from "@agenta/ui/ui"
 
 import {ERROR_TEXT_CLASS, FIELD_CLASS, KEYCAP_CLASS, SURFACE_CLASS} from "./classes"
@@ -31,8 +33,11 @@ export const EmailFirstForm = ({
     primary = true,
     promoted = false,
 }: EmailFirstFormProps) => {
+    const t = useT(emailFirstCatalog)
     const [isLoading, setIsLoading] = useState(false)
-    const [validation, setValidation] = useState<string | null>(null)
+    const [validation, setValidation] = useState<
+        "validEmail" | "addEmail" | "somethingWentWrong" | null
+    >(null)
     const [shakeClass, shake] = useShake()
 
     useEffect(() => {
@@ -43,7 +48,7 @@ export const EmailFirstForm = ({
         event.preventDefault()
         const value = email.trim()
         if (!value || !isValidEmailAddress(value)) {
-            setValidation(value ? "Please enter a valid email address." : "Please add your email.")
+            setValidation(value ? "validEmail" : "addEmail")
             shake()
             return
         }
@@ -54,13 +59,13 @@ export const EmailFirstForm = ({
         } catch {
             // A rejected continuation would otherwise vanish as an unhandled rejection,
             // leaving the form looking like nothing happened.
-            setValidation("Something went wrong. Please try again.")
+            setValidation("somethingWentWrong")
         } finally {
             setIsLoading(false)
         }
     }
 
-    const invalid = message.type === "error" || Boolean(validation)
+    const invalid = message.type === "error" || validation !== null
 
     return (
         <form className="flex w-full flex-col gap-[10px]" onSubmit={handleSubmit} noValidate>
@@ -68,9 +73,9 @@ export const EmailFirstForm = ({
                 <Input
                     type="email"
                     autoComplete="email"
-                    aria-label="Email address"
+                    aria-label={t("auth.emailFirstForm.emailAddress")}
                     aria-invalid={invalid || undefined}
-                    placeholder="Enter your email address"
+                    placeholder={t("auth.emailFirstForm.emailPlaceholder")}
                     value={email}
                     disabled={disabled}
                     onChange={(event) => {
@@ -97,10 +102,14 @@ export const EmailFirstForm = ({
                     key={isLoading ? "busy" : "idle"}
                     className={isLoading ? "auth-swap" : undefined}
                 >
-                    {isLoading ? "Checking…" : "Continue"}
+                    {isLoading
+                        ? t("auth.emailFirstForm.checking")
+                        : t("auth.emailFirstForm.continue")}
                 </span>
             </LoadingButton>
-            {validation && <p className={ERROR_TEXT_CLASS}>{validation}</p>}
+            {validation !== null && (
+                <p className={ERROR_TEXT_CLASS}>{t(`auth.emailFirstForm.${validation}`)}</p>
+            )}
             {message.type === "error" && <ShowErrorMessage info={message} />}
         </form>
     )

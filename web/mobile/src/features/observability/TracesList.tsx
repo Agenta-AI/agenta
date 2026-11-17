@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import screenCatalog from "@agenta/i18n/catalogs/observability.screen"
 import {useObservability} from "@agenta/observability"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {ObservabilityList, TraceRow} from "@agenta/observability-ui"
@@ -18,6 +20,7 @@ import {
  * the same time.
  */
 export const TracesList = () => {
+    const t = useT(screenCatalog)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const {
         traces,
@@ -71,7 +74,7 @@ export const TracesList = () => {
             error={
                 isRateLimited ? (
                     <LoadError
-                        title={rateLimitMessage ?? "Too many requests."}
+                        title={rateLimitMessage ?? t("observability.screen.tooManyRequests")}
                         onRetry={fetchTraces}
                     />
                 ) : undefined

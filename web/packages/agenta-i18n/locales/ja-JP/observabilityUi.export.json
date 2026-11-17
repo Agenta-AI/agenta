@@ -1,0 +1,11 @@
+{
+    "couldNotStart": "エクスポートを開始できませんでした。",
+    "preparing": "エクスポートを準備中",
+    "rateLimited": "レート制限のため {{seconds}} 秒間一時停止します（これまでに {{rows}} 行をエクスポート）",
+    "exporting": "{{rows}} 行をエクスポート中",
+    "nothingToExport": "エクスポートするトレースがありません",
+    "limitReached": "エクスポートの上限に達しました。最初の {{rows}} 行をダウンロードしました。",
+    "exported": "{{rows}} 行をエクスポートしました",
+    "cancelled": "エクスポートをキャンセルしました",
+    "failed": "エクスポートに失敗しました"
+}

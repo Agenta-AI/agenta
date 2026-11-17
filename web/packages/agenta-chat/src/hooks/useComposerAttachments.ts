@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {revalidateSessionMountsAtom} from "@agenta/entities/session"
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
 import {projectIdAtom} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -24,6 +26,8 @@ import type {StagedUpload as UploadFile} from "../model"
 import {attachmentsBySession} from "../state/sessionEphemera"
 
 import {removeUploadFile, useAttachmentUploads} from "./useAttachmentUploads"
+
+const tNow = createT(chatMessagesCatalog)
 
 /** A tray row settles as an attachment reference, or as a file saved to the session drive. */
 export type ComposerUploadResponse = SessionAttachmentResponse | SessionDriveFileResponse
@@ -178,7 +182,7 @@ export const useComposerAttachments = ({
             // now. Guard the pre-hydration null so the attachment is never posted without it.
             if (!projectId) {
                 return Promise.reject(
-                    new AttachmentUploadError("This upload needs an active project."),
+                    new AttachmentUploadError(tNow("chat.messages.uploadNeedsProject")),
                 )
             }
             if (oversizedToDrive && exceedsAttachmentLimit(file, limits)) {
@@ -225,9 +229,9 @@ export const useComposerAttachments = ({
 
     /** Why send is held, for the send button's tooltip. */
     const uploadBlockReason = files.some((file) => file.status === "error")
-        ? "an upload failed"
+        ? tNow("chat.messages.uploadBlockFailed")
         : files.some((file) => file.status === "uploading")
-          ? "waiting for uploads"
+          ? tNow("chat.messages.uploadBlockWaiting")
           : undefined
 
     /** Add files from paste / programmatic sources through the guardrails. */
@@ -295,7 +299,9 @@ export const useComposerAttachments = ({
                       ...staged[index],
                       status: "error" as const,
                       error:
-                          result.reason instanceof Error ? result.reason.message : "Upload failed",
+                          result.reason instanceof Error
+                              ? result.reason.message
+                              : tNow("chat.messages.uploadFailed"),
                   },
         )
         setFiles((prev) => [...prev, ...settledEntries])
@@ -357,7 +363,7 @@ export const useComposerAttachments = ({
             )
             const folderRejections = folderNames.map((name) => ({
                 name,
-                reason: "is a folder — drop the files inside it",
+                reason: tNow("chat.messages.folderReason"),
             }))
 
             if (dropped.length || folderRejections.length) addFiles(dropped, folderRejections)

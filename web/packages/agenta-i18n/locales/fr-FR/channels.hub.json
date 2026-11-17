@@ -1,0 +1,16 @@
+{
+    "apiAlwaysOn": "Toujours actif pour les versions enregistrées",
+    "apiSaveFirst": "Enregistrez l’agent pour l’appeler",
+    "botsConnected_one": "{{count}} bot connecté",
+    "botsConnected_many": "{{count}} bots connectés",
+    "botsConnected_other": "{{count}} bots connectés",
+    "embed": "Intégration web",
+    "embedDescription": "Un chat sur votre site web",
+    "numbersConnected_one": "{{count}} numéro connecté",
+    "numbersConnected_many": "{{count}} numéros connectés",
+    "numbersConnected_other": "{{count}} numéros connectés",
+    "thisAgent": "Cet agent",
+    "workspacesConnected_one": "{{count}} espace de travail connecté",
+    "workspacesConnected_many": "{{count}} espaces de travail connectés",
+    "workspacesConnected_other": "{{count}} espaces de travail connectés"
+}

@@ -1,5 +1,7 @@
 import {useCallback, useMemo} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatCatalog from "@agenta/i18n/catalogs/playground.chat"
 import {executionItemController} from "@agenta/playground"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -55,6 +57,8 @@ function resolveErrorMessage(error: ResolvedResult["error"]): string | null {
     return null
 }
 
+const tNow = createT(chatCatalog)
+
 export function useExecutionCell({entityId, stepId, skip}: UseExecutionCellParams) {
     const resolved = useAtomValue(
         useMemo(
@@ -79,7 +83,10 @@ export function useExecutionCell({entityId, stepId, skip}: UseExecutionCellParam
         entityId: entityId,
         result,
     })
-    const displayResult = status === "error" ? {error: errorMessage ?? "Error"} : currentResult
+    const displayResult =
+        status === "error"
+            ? {error: errorMessage ?? tNow("playground.chat.errorFallback")}
+            : currentResult
 
     const triggerTest = useSetAtom(executionItemController.actions.triggerTest)
     const cancelTests = useSetAtom(executionItemController.actions.cancelTests)

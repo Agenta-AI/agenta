@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import actionsCatalog from "@agenta/i18n/catalogs/observabilityUi.actions"
 import {renderTableMenuItems, type TableMenuItem} from "@agenta/ui/table"
 import {Button} from "@agenta/ui/ui"
 import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from "@agenta/ui/ui"
@@ -25,6 +27,7 @@ const AddActionsDropdown = ({
     queueAction,
     queueAllMatchingAction,
 }: AddActionsDropdownProps) => {
+    const t = useT(actionsCatalog)
     const [dropdownOpen, setDropdownOpen] = useState(false)
     // `null` = picker closed; otherwise which queue action opened it.
     const [queueScope, setQueueScope] = useState<QueueScope | null>(null)
@@ -111,7 +114,7 @@ const AddActionsDropdown = ({
         if (testsetAction) {
             items.push({
                 key: "testset",
-                label: "Add to testset",
+                label: t("observabilityUi.actions.addToTestset"),
                 icon: <DatabaseIcon size={14} />,
                 disabled: testsetAction.disabled ?? false,
             })
@@ -129,7 +132,7 @@ const AddActionsDropdown = ({
         if (queueAction) {
             items.push({
                 key: "queue",
-                label: queueAction.label ?? "Add annotation queue",
+                label: queueAction.label ?? t("observabilityUi.actions.addAnnotationQueue"),
                 icon: <ListChecks size={14} />,
                 disabled: queueAction.disabled ?? false,
             })
@@ -145,7 +148,7 @@ const AddActionsDropdown = ({
         }
 
         return items
-    }, [additionalActions, queueAction, queueAllMatchingAction, testsetAction])
+    }, [additionalActions, queueAction, queueAllMatchingAction, testsetAction, t])
 
     if (actions.length === 0) return null
 
@@ -155,12 +158,12 @@ const AddActionsDropdown = ({
             size={size === "small" ? "sm" : "default"}
             className={clsx(buttonClassName)}
             disabled={isButtonDisabled}
-            aria-label="Add"
+            aria-label={t("observabilityUi.actions.add")}
             data-tour={dataTour}
             onClick={handleButtonClick}
         >
             <PlusIcon size={14} />
-            Add
+            {t("observabilityUi.actions.add")}
         </Button>
     )
 

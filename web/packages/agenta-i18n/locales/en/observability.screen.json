@@ -1,0 +1,19 @@
+{
+    "title": "Observability",
+    "tracesTab": "Traces",
+    "sessionsTab": "Sessions",
+    "addSelectedToQueue": "Add {{count}} selected to queue",
+    "addSelectedToQueueNone": "Add selected to queue",
+    "noSessionsTitle": "No sessions yet",
+    "noSessionsHint": "Sessions appear here once your app groups traces by session id.",
+    "noTracesTitle": "No traces yet",
+    "noTracesHint": "Traces appear here once your app sends them.",
+    "nothingMatchesTitle": "Nothing matches these filters",
+    "nothingMatchesHint": "Try a wider time range, or clear the filters.",
+    "clearFilters": "Clear filters",
+    "filterByApp": "Filter by app",
+    "allApps": "All apps",
+    "tooManyRequests": "Too many requests.",
+    "playgroundNoApp": "This trace has no app, so it cannot open in the playground.",
+    "playgroundSpanType": "\"{{spanType}}\" spans can't be replayed in the playground. Open the parent workflow, task, agent, or chain span instead."
+}

@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {Search} from "lucide-react"
 
 import {cn} from "../components/ui/utils"
@@ -24,6 +26,7 @@ export const FilterMenuFlyoutBody = ({
     onSelect: (value: string) => void
     onDismiss?: () => void
 }) => {
+    const t = useT(uiControlsCatalog)
     const [term, setTerm] = useState("")
     const inputRef = useRef<HTMLInputElement | null>(null)
     const listRef = useRef<HTMLDivElement | null>(null)
@@ -50,8 +53,11 @@ export const FilterMenuFlyoutBody = ({
                         ref={inputRef}
                         value={term}
                         onChange={(event) => setTerm(event.target.value)}
-                        placeholder={section.searchPlaceholder ?? "Search…"}
-                        aria-label={section.searchPlaceholder ?? `Search ${section.label}`}
+                        placeholder={section.searchPlaceholder ?? t("ui.controls.searchEllipsis")}
+                        aria-label={
+                            section.searchPlaceholder ??
+                            t("ui.controls.searchLabel", {label: section.label})
+                        }
                         onKeyDown={(event) => {
                             if (event.key !== "ArrowDown") return
                             event.preventDefault()
@@ -73,8 +79,9 @@ export const FilterMenuFlyoutBody = ({
                     autoFocus={autoFocus && !section.searchable}
                     emptyText={
                         query
-                            ? `Nothing matches “${term.trim()}”.`
-                            : (section.emptyText ?? `No ${section.label.toLowerCase()} options`)
+                            ? t("ui.controls.nothingMatches", {term: term.trim()})
+                            : (section.emptyText ??
+                              t("ui.controls.noOptions", {label: section.label.toLowerCase()}))
                     }
                     onDismiss={onDismiss}
                     onSelect={onSelect}

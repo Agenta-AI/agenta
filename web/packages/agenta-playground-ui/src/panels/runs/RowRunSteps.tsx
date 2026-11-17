@@ -1,4 +1,6 @@
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import runsCatalog from "@agenta/i18n/catalogs/playground.runs"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import type {PlaygroundNode} from "@agenta/playground/state"
 import {
@@ -20,11 +22,14 @@ const StepItem = ({
     disabled: boolean
     onSelect: () => void
 }) => {
+    const t = useT(runsCatalog)
     const name = useAtomValue(workflowMolecule.selectors.artifactName(node.entityId))
     return (
         <DropdownMenuItem disabled={disabled} onSelect={onSelect}>
             <Play aria-hidden size={14} />
-            {`Run ${name?.trim() || node.label || "step"}`}
+            {t("playground.runs.runStep", {
+                name: name?.trim() || node.label || t("playground.runs.stepFallback"),
+            })}
         </DropdownMenuItem>
     )
 }
@@ -46,6 +51,7 @@ export const RowRunSteps = ({
     appHasOutput: boolean
     disabled?: boolean
 }) => {
+    const t = useT(runsCatalog)
     const nodes = [...useAtomValue(playgroundController.selectors.nodes())].sort(
         (a, b) => a.depth - b.depth,
     )
@@ -58,7 +64,7 @@ export const RowRunSteps = ({
                 <Button
                     variant="outline"
                     size="icon-sm"
-                    aria-label="Run one step"
+                    aria-label={t("playground.runs.runOneStep")}
                     disabled={disabled}
                     className="-ml-1.5"
                 >

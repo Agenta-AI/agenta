@@ -1,5 +1,8 @@
 import {useCallback, useMemo} from "react"
 
+import {useT, type CatalogKey} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import sessionFilterCatalog from "@agenta/i18n/catalogs/shell.sessionFilter"
 import {
     clearSidebarManualOrderAtom,
     sidebarSessionFilterDefaults,
@@ -31,31 +34,33 @@ const ALL_AGENTS = "__all__"
 
 const ICON = 14
 
-const GROUP_BY_OPTIONS = [
-    {value: "none", label: "None"},
-    {value: "agent", label: "Agent"},
-    {value: "date", label: "Date"},
-    {value: "status", label: "Status"},
+type FilterTextKey = CatalogKey<typeof sessionFilterCatalog> | CatalogKey<typeof commonCatalog>
+
+const GROUP_BY_OPTIONS: {value: string; labelKey: FilterTextKey}[] = [
+    {value: "none", labelKey: "common.none"},
+    {value: "agent", labelKey: "shell.sessionFilter.agent"},
+    {value: "date", labelKey: "shell.sessionFilter.date"},
+    {value: "status", labelKey: "common.status"},
 ]
 
-const TYPE_OPTIONS = [
-    {value: "all", label: "All"},
-    {value: "chat", label: "Chat"},
-    {value: "automation", label: "Automation"},
+const TYPE_OPTIONS: {value: string; labelKey: FilterTextKey}[] = [
+    {value: "all", labelKey: "common.all"},
+    {value: "chat", labelKey: "shell.sessionFilter.chat"},
+    {value: "automation", labelKey: "shell.sessionFilter.automation"},
 ]
 
-const STATUS_OPTIONS = [
-    {value: "all", label: "All"},
-    {value: "running", label: "Running"},
-    {value: "waiting", label: "Awaiting input"},
-    {value: "idle", label: "Idle"},
+const STATUS_OPTIONS: {value: string; labelKey: FilterTextKey}[] = [
+    {value: "all", labelKey: "common.all"},
+    {value: "running", labelKey: "shell.sessionFilter.running"},
+    {value: "waiting", labelKey: "shell.sessionFilter.awaitingInput"},
+    {value: "idle", labelKey: "shell.sessionFilter.idle"},
 ]
 
-const ACTIVITY_OPTIONS = [
-    {value: "all", label: "All"},
-    {value: "24h", label: "Today"},
-    {value: "7d", label: "Last 7 days"},
-    {value: "30d", label: "Last 30 days"},
+const ACTIVITY_OPTIONS: {value: string; labelKey: FilterTextKey}[] = [
+    {value: "all", labelKey: "common.all"},
+    {value: "24h", labelKey: "shell.sessionFilter.today"},
+    {value: "7d", labelKey: "shell.sessionFilter.last7Days"},
+    {value: "30d", labelKey: "shell.sessionFilter.last30Days"},
 ]
 
 /**
@@ -69,6 +74,12 @@ const ACTIVITY_OPTIONS = [
  * meaning lives here.
  */
 export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
+    const t = useT(sessionFilterCatalog, commonCatalog)
+    const withLabels = useCallback(
+        (options: {value: string; labelKey: FilterTextKey}[]) =>
+            options.map(({value, labelKey}) => ({value, label: t(labelKey)})),
+        [t],
+    )
     const filtersAtom = useMemo(() => sidebarSessionFiltersAtomFamily(scopeId), [scopeId])
     const [filters, setFilters] = useAtom(filtersAtom)
     const dirty = useAtomValue(sidebarSessionMenuDirtyAtomFamily(scopeId))
@@ -86,13 +97,13 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
 
     // Empty already means every agent, so the summary has to say so rather than reading blank.
     const agentLabel = useMemo(() => {
-        if (filters.agentIds.length === 0) return "All agents"
+        if (filters.agentIds.length === 0) return t("shell.sessionFilter.allAgents")
         if (filters.agentIds.length === 1) {
             const only = agentOptions.find((option) => option.value === filters.agentIds[0])
             if (only) return only.label
         }
-        return `${filters.agentIds.length} agents`
-    }, [agentOptions, filters.agentIds])
+        return t("shell.sessionFilter.agentCount", {count: filters.agentIds.length})
+    }, [agentOptions, filters.agentIds, t])
 
     const toggleAgent = useCallback(
         (value: string) => {
@@ -116,25 +127,25 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
             // surface it is the first question, and the rail has no sort to divide it from.
             {
                 key: "groupBy",
-                label: "Group by",
+                label: t("shell.sessionFilter.groupBy"),
                 icon: <ListBulletsIcon size={ICON} />,
                 value: filters.groupBy,
-                options: GROUP_BY_OPTIONS,
+                options: withLabels(GROUP_BY_OPTIONS),
                 onChange: (value) => setFilters({groupBy: value as SidebarSessionGroupBy}),
             },
             {
                 key: "type",
-                label: "Type",
+                label: t("shell.sessionFilter.type"),
                 // A bolt, not the robot: the robot means AGENT throughout the rail, and an
                 // automation is a trigger that ran one — reusing it would conflate the two.
                 icon: <LightningIcon size={ICON} />,
                 value: filters.type,
-                options: TYPE_OPTIONS,
+                options: withLabels(TYPE_OPTIONS),
                 onChange: (value) => setFilters({type: value as SidebarSessionTypeFilter}),
             },
             {
                 key: "agentIds",
-                label: "Agent",
+                label: t("shell.sessionFilter.agent"),
                 icon: <RobotIcon size={ICON} />,
                 // The one multi-choice row: narrowing to two teammates' agents is a real
                 // question, where two statuses or two date windows are not.
@@ -143,27 +154,32 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 // otherwise the panel's only "all agents" state is the one with nothing ticked.
                 value: filters.agentIds.length ? filters.agentIds : [ALL_AGENTS],
                 valueLabel: agentLabel,
-                options: [{value: ALL_AGENTS, label: "All agents"}, ...agentOptions],
+                options: [
+                    {value: ALL_AGENTS, label: t("shell.sessionFilter.allAgents")},
+                    ...agentOptions,
+                ],
                 // The catalog only starts loading when this menu opens, so the facet is briefly
                 // empty. Say so, rather than let it read as "this project has no agents".
-                emptyText: agentOptionsPending ? "Loading agents…" : "No agents yet",
+                emptyText: agentOptionsPending
+                    ? t("shell.sessionFilter.loadingAgents")
+                    : t("shell.sessionFilter.noAgentsYet"),
                 wide: true,
                 onChange: toggleAgent,
             },
             {
                 key: "status",
-                label: "Status",
+                label: t("common.status"),
                 icon: <PulseIcon size={ICON} />,
                 value: filters.status,
-                options: STATUS_OPTIONS,
+                options: withLabels(STATUS_OPTIONS),
                 onChange: (value) => setFilters({status: value as SidebarSessionStatusFilter}),
             },
             {
                 key: "activity",
-                label: "Last activity",
+                label: t("shell.sessionFilter.lastActivity"),
                 icon: <ClockIcon size={ICON} />,
                 value: filters.activity,
-                options: ACTIVITY_OPTIONS,
+                options: withLabels(ACTIVITY_OPTIONS),
                 onChange: (value) => setFilters({activity: value as SidebarSessionActivityFilter}),
             },
         ],
@@ -177,7 +193,9 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
             filters.status,
             filters.type,
             setFilters,
+            t,
             toggleAgent,
+            withLabels,
         ],
     )
 
@@ -204,7 +222,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 // Reports open/closed to the gated agent catalog above.
                 onOpenChange={onOpenChange}
                 label={null}
-                triggerAriaLabel="Filter sessions"
+                triggerAriaLabel={t("shell.sessionFilter.filterSessions")}
                 icon={<FadersHorizontalIcon size={ICON} />}
                 variant="ghost"
                 // The rail's own control geometry, not the toolbar button's: a 22px square on a

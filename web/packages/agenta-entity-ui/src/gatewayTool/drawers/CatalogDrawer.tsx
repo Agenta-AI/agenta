@@ -13,6 +13,8 @@ import {
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {useT} from "@agenta/i18n"
+import toolCatalogCatalog from "@agenta/i18n/catalogs/entityUi.toolCatalog"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {Tag} from "@agenta/ui/components/presentational"
@@ -47,6 +49,7 @@ interface Props {
 }
 
 export default function CatalogDrawer({onConnectionCreated}: Props) {
+    const t = useT(toolCatalogCatalog)
     const [open, setOpen] = useAtom(toolCatalogDrawerOpenAtom)
     const [selectedIntegration, setSelectedIntegration] = useState<CatalogIntegrationItem | null>(
         null,
@@ -86,7 +89,11 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
             <EnhancedDrawer
                 open={open}
                 onClose={handleClose}
-                title={selectedIntegration ? "Browse Actions" : "Browse Integrations"}
+                title={
+                    selectedIntegration
+                        ? t("entityUi.toolCatalog.browseActions")
+                        : t("entityUi.toolCatalog.browseIntegrations")
+                }
                 size="large"
                 destroyOnClose
                 panelRef={setPanel}
@@ -132,6 +139,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
 // ---------------------------------------------------------------------------
 
 function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegrationItem) => void}) {
+    const t = useT(toolCatalogCatalog)
     const setAtom = useSetAtom(toolIntegrationsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -156,14 +164,14 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
             {/* Sticky header */}
             <div className="flex flex-col gap-3 px-6 pt-4 pb-3 shrink-0">
                 <InputAffix
-                    placeholder="Search integrations…"
+                    placeholder={t("entityUi.toolCatalog.searchIntegrations")}
                     prefix={<MagnifyingGlass size={16} />}
                     value={search.value}
                     onValueChange={(value) => search.onChange(value)}
                     allowClear
                 />
                 <span className="text-xs text-colorTextDescription">
-                    {total} integration{total !== 1 ? "s" : ""}
+                    {t("entityUi.toolCatalog.integrationsCount", {count: total})}
                 </span>
             </div>
 
@@ -179,7 +187,7 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                         <Spinner />
                     </div>
                 ) : integrations.length === 0 ? (
-                    <EmptyState description="No integrations found" />
+                    <EmptyState description={t("entityUi.toolCatalog.noIntegrationsFound")} />
                 ) : (
                     <div className="flex flex-col gap-2">
                         {integrations.map((integration, i) => (
@@ -262,6 +270,7 @@ function ActionsView({
     onBack: () => void
     onConnect: () => void
 }) {
+    const t = useT(toolCatalogCatalog)
     const setAtom = useSetAtom(toolActionsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -304,7 +313,7 @@ function ActionsView({
                     <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Go back"
+                        aria-label={t("entityUi.toolCatalog.goBack")}
                         onClick={onBack}
                         className="shrink-0"
                     >
@@ -328,12 +337,12 @@ function ActionsView({
                             <div className="flex items-stretch gap-px">
                                 <Button onClick={onConnect} className="rounded-r-none">
                                     <Plus size={14} />
-                                    Connect
+                                    {t("entityUi.toolCatalog.connect")}
                                 </Button>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
-                                            aria-label="Open connections"
+                                            aria-label={t("entityUi.toolCatalog.openConnections")}
                                             size="icon"
                                             className="rounded-l-none"
                                         >
@@ -362,7 +371,7 @@ function ActionsView({
                         ) : (
                             <Button onClick={onConnect}>
                                 <Plus size={14} />
-                                Connect
+                                {t("entityUi.toolCatalog.connect")}
                             </Button>
                         )}
                     </div>
@@ -370,7 +379,7 @@ function ActionsView({
                 {integration.description && <ExpandableText text={integration.description} />}
 
                 <InputAffix
-                    placeholder="Search actions…"
+                    placeholder={t("entityUi.toolCatalog.searchActions")}
                     prefix={<MagnifyingGlass size={16} />}
                     value={search.value}
                     onValueChange={(value) => search.onChange(value)}
@@ -378,7 +387,7 @@ function ActionsView({
                 />
 
                 <span className="text-xs text-colorTextDescription">
-                    {total} action{total !== 1 ? "s" : ""}
+                    {t("entityUi.toolCatalog.actionsCount", {count: total})}
                 </span>
             </div>
 
@@ -394,7 +403,7 @@ function ActionsView({
                         <Spinner />
                     </div>
                 ) : actions.length === 0 ? (
-                    <EmptyState description="No actions found" />
+                    <EmptyState description={t("entityUi.toolCatalog.noActionsFound")} />
                 ) : (
                     <div className="flex flex-col gap-2">
                         {actions.map((action, i) => (

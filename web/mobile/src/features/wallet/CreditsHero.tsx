@@ -1,5 +1,8 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import walletCreditsCatalog from "@agenta/i18n/catalogs/wallet.credits"
 import {Gift, ShoppingBag} from "@phosphor-icons/react"
 
 import {CreditGroupTile} from "./CreditGroupTile"
@@ -9,20 +12,20 @@ import {WalletCard} from "./WalletCard"
 import {activeCredits, walletHealth} from "./walletCredits"
 
 const STATUS = {
-    active: {label: "Active", tone: "success"},
-    low: {label: "Running low", tone: "warning"},
-    empty: {label: "Empty", tone: "error"},
+    active: {label: "common.active", tone: "success"},
+    low: {label: "wallet.credits.statusLow", tone: "warning"},
+    empty: {label: "wallet.credits.statusEmpty", tone: "error"},
 } as const
 
 /** Credits that come back on a schedule; each keeps its own tile. */
 const RECURRING = ["plan_allowance", "daily_free"]
 
 /** One tile for a single credit, a folded tile for several. */
-const group = (label: string, icon: ReactNode, credits: WalletCredit[]) =>
+const group = (id: string, label: string, icon: ReactNode, credits: WalletCredit[]) =>
     credits.length === 1 ? (
         <CreditSourceTile key={credits[0].id} credit={credits[0]} />
     ) : credits.length ? (
-        <CreditGroupTile key={label} label={label} icon={icon} credits={credits} />
+        <CreditGroupTile key={id} label={label} icon={icon} credits={credits} />
     ) : null
 
 /** The balance as the wallet card, the recurring credits as tiles, and one-time credits folded. */
@@ -34,6 +37,7 @@ export const CreditsHero = ({
     /** The recent average spend per day, for the running-low status. */
     dailyMusd: number | null
 }) => {
+    const t = useT(commonCatalog, walletCreditsCatalog)
     const balance = Math.max(0, wallet.spendable_musd ?? 0)
     const status = STATUS[walletHealth(balance, dailyMusd)]
     const credits = activeCredits(wallet)
@@ -42,7 +46,7 @@ export const CreditsHero = ({
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
             <WalletCard
                 balanceMusd={balance}
-                status={status.label}
+                status={t(status.label)}
                 statusTone={status.tone}
                 interactive
                 size="compact"
@@ -55,7 +59,8 @@ export const CreditsHero = ({
                             .map((credit) => <CreditSourceTile key={credit.id} credit={credit} />),
                     )}
                     {group(
-                        "Bonus credits",
+                        "bonus",
+                        t("wallet.credits.bonusCredits"),
                         <Gift size={14} />,
                         credits.filter(
                             (credit) =>
@@ -64,14 +69,15 @@ export const CreditsHero = ({
                         ),
                     )}
                     {group(
-                        "Purchased",
+                        "purchased",
+                        t("wallet.credits.purchased"),
                         <ShoppingBag size={14} />,
                         credits.filter((credit) => credit.credit_kind === "purchase"),
                     )}
                 </div>
             ) : (
                 <div className="bg-muted text-muted-foreground flex h-[140px] items-center justify-center rounded-xl p-4 text-center text-[13px]">
-                    No credits left right now.
+                    {t("wallet.credits.noCredits")}
                 </div>
             )}
         </div>

@@ -2,6 +2,8 @@ import {useCallback, useMemo} from "react"
 
 import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -32,6 +34,7 @@ export const AgentOverviewScreen = ({
     projectId: string
     agentId: string
 }) => {
+    const t = useT(agentsOverview)
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
 
@@ -85,7 +88,7 @@ export const AgentOverviewScreen = ({
     if (notFound) {
         return (
             <>
-                <PageTitle title="Agents" />
+                <PageTitle title={t("agents.overview.pageTitle")} />
                 <AppShell workspaceId={workspaceId} projectId={projectId}>
                     <AgentNotFound agentsHref={`${base}/agents`} />
                 </AppShell>
@@ -95,7 +98,7 @@ export const AgentOverviewScreen = ({
 
     return (
         <>
-            <PageTitle title="Agents" context={name} />
+            <PageTitle title={t("agents.overview.pageTitle")} context={name} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill

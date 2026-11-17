@@ -6,11 +6,15 @@
 
 import {useCallback} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import deleteModalCatalog from "@agenta/i18n/catalogs/entityUi.deleteModal"
 import {message} from "@agenta/ui/app-message"
 import {ModalFooter} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {deleteModalLoadingAtom, deleteModalCanProceedAtom, executeDeleteAtom} from "../state"
+
+const tNow = createT(deleteModalCatalog)
 
 interface EntityDeleteFooterProps {
     /** Callback when modal is closed/cancelled */
@@ -28,6 +32,7 @@ interface EntityDeleteFooterProps {
  * - Loading state during delete
  */
 export function EntityDeleteFooter({onClose, onSuccess}: EntityDeleteFooterProps) {
+    const t = useT(deleteModalCatalog)
     const isLoading = useAtomValue(deleteModalLoadingAtom)
     const canProceed = useAtomValue(deleteModalCanProceedAtom)
     const executeDelete = useSetAtom(executeDeleteAtom)
@@ -35,7 +40,7 @@ export function EntityDeleteFooter({onClose, onSuccess}: EntityDeleteFooterProps
     const handleDelete = useCallback(async () => {
         const success = await executeDelete()
         if (success) {
-            message.success("Deleted successfully")
+            message.success(tNow("entityUi.deleteModal.deleted"))
             onSuccess?.()
         }
     }, [executeDelete, onSuccess])
@@ -44,7 +49,7 @@ export function EntityDeleteFooter({onClose, onSuccess}: EntityDeleteFooterProps
         <ModalFooter
             onCancel={onClose}
             onConfirm={handleDelete}
-            confirmLabel="Delete"
+            confirmLabel={t("entityUi.deleteModal.delete")}
             isLoading={isLoading}
             canConfirm={canProceed}
             danger

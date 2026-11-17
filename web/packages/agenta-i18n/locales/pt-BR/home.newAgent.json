@@ -1,0 +1,10 @@
+{
+    "label": "Novo agente",
+    "scratchTitle": "Começar do zero",
+    "scratchHint": "Comece com um agente vazio e dê forma a ele no chat",
+    "uploadTitle": "Enviar",
+    "uploadHint": "Um .zip de modelo de agente",
+    "importTitle": "Importar de um repositório",
+    "importHint": "Procure modelos de agente em um repositório público do GitHub",
+    "browseAll": "Ver todos os modelos"
+}

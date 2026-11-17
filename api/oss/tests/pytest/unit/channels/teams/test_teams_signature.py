@@ -6,7 +6,10 @@ from oss.src.core.channels.adapters.teams.signature import (
     bearer_token,
     verify_token,
 )
-from oss.src.core.channels.types import ChannelSignatureInvalid
+from oss.src.core.channels.types import (
+    ChannelSignatureInvalid,
+    ChannelSignatureUnavailable,
+)
 
 from . import fake_teams as f
 from . import payloads as p
@@ -160,6 +163,33 @@ async def test_a_failed_refresh_keeps_the_keys_already_held(fake, keys):
     keys._attempted_at = None
 
     await _verify(keys, f.sign_token())
+
+
+async def test_a_failed_key_read_is_unavailable_not_a_bad_token(fake, keys):
+    fake.keys_status = 500
+
+    with pytest.raises(ChannelSignatureUnavailable):
+        await _verify(keys, f.sign_token())
+
+
+async def test_a_key_read_that_recovers_accepts_the_token(fake, keys):
+    fake.keys_status = 500
+    with pytest.raises(ChannelSignatureUnavailable):
+        await _verify(keys, f.sign_token())
+    fake.keys_status = 200
+    keys._attempted_at = None  # past the refresh interval
+
+    await _verify(keys, f.sign_token())
+
+
+async def test_a_bad_token_after_a_failed_refresh_is_still_refused(fake, keys):
+    await _verify(keys, f.sign_token())
+    fake.keys_status = 500
+    keys._fetched_at -= 24 * 60 * 60 + 1
+    keys._attempted_at = None
+
+    with pytest.raises(ChannelSignatureInvalid):
+        await _verify(keys, f.sign_token(audience="someone-else"))
 
 
 def test_bearer_token_reads_the_authorization_header():

@@ -1,0 +1,17 @@
+{
+    "title": "Tu clave de API",
+    "hint": "OpenAI, Anthropic, Gemini y {{more}} más.",
+    "saved": "Guardada de forma segura. Puedes usarla en cualquier agente.",
+    "using": "Usando {{name}}.",
+    "usingMore": "Usando {{name}} y {{more}} más.",
+    "cancel": "Cancelar",
+    "add": "Añadir clave",
+    "save": "Guardar",
+    "keyLabel": "Clave de API",
+    "provider": "Proveedor",
+    "providerCount": "{{total}} proveedores",
+    "search": "Buscar proveedores",
+    "noMatch": "Ningún proveedor coincide",
+    "invalid": "Eso no parece una clave válida.",
+    "saveFailed": "No se ha podido guardar esta clave. Inténtalo de nuevo."
+}

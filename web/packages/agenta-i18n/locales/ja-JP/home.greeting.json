@@ -1,0 +1,5 @@
+{
+    "morning": "おはようございます、{{name}}さん",
+    "afternoon": "こんにちは、{{name}}さん",
+    "evening": "こんばんは、{{name}}さん"
+}

@@ -9,6 +9,8 @@
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import {safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
@@ -53,10 +55,13 @@ export const McpServerItemControl = memo(function McpServerItemControl({
     disabled = false,
     className,
 }: McpServerItemControlProps) {
+    const t = useT(toolFormCatalog)
     const {SharedEditor} = useDrillInUI()
     const serverObj = toServerObj(value)
     const name =
-        typeof serverObj.name === "string" && serverObj.name ? serverObj.name : "MCP server"
+        typeof serverObj.name === "string" && serverObj.name
+            ? serverObj.name
+            : t("entityUi.toolForm.mcpServer")
 
     const [editorText, setEditorText] = useState<string>(() => safeStringify(serverObj ?? {}))
 
@@ -98,14 +103,14 @@ export const McpServerItemControl = memo(function McpServerItemControl({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Remove"
+                                aria-label={t("entityUi.toolForm.remove")}
                                 onClick={onDelete}
                                 className="invisible group-hover/mcp:visible shrink-0"
                             >
                                 <MinusCircle size={14} />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Remove</TooltipContent>
+                        <TooltipContent>{t("entityUi.toolForm.remove")}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}
@@ -117,7 +122,7 @@ export const McpServerItemControl = memo(function McpServerItemControl({
             <div className={clsx("group/mcp flex flex-col gap-2 border rounded-lg p-3", className)}>
                 {header}
                 <textarea
-                    aria-label="MCP server configuration"
+                    aria-label={t("entityUi.toolForm.mcpServerConfiguration")}
                     className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                     value={editorText}
                     onChange={(e) => handleEditorChange(e.target.value)}

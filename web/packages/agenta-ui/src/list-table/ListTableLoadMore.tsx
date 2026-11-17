@@ -1,5 +1,8 @@
 import {useEffect, useRef} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+
 import {Button} from "../components/ui/button"
 import {Spinner} from "../components/ui/spinner"
 
@@ -14,13 +17,15 @@ export const ListTableLoadMore = ({
     onLoadMore,
     loading = false,
     autoLoad = false,
-    label = "Load more",
+    label: labelProp,
 }: {
     onLoadMore: () => void
     loading?: boolean
     autoLoad?: boolean
     label?: string
 }) => {
+    const t = useT(commonCatalog)
+    const label = labelProp ?? t("common.loadMore")
     const row = useRef<HTMLDivElement>(null)
     const latest = useRef(onLoadMore)
     latest.current = onLoadMore

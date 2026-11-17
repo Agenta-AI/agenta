@@ -24,6 +24,27 @@ const isSuperTokensGeneralError = (error: unknown): error is {message: string} =
     typeof (error as {message?: unknown}).message === "string" &&
     (error as {message: string}).message.length > 0
 
+/** Why an auth request failed, read off what the client already has: the HTTP status or a network error. */
+export type AuthFailure = "unreachable" | "unavailable" | "rate-limited" | "server" | "unknown"
+
+/** SuperTokens throws the raw `Response` for a non-2xx reply, and `fetch` throws a `TypeError` offline. */
+export function classifyAuthFailure(error: unknown): AuthFailure {
+    if (error instanceof TypeError) return "unreachable"
+    if (!(error instanceof Response)) return "unknown"
+    if (error.status === 404) return "unavailable"
+    if (error.status === 429) return "rate-limited"
+    if (error.status >= 500) return "server"
+    return "unknown"
+}
+
+export const AUTH_FAILURE_COPY: Record<AuthFailure, string> = {
+    unreachable: "We can't reach Agenta right now. Check your connection and try again.",
+    unavailable: "Password sign-in isn't available here. Use another sign-in method.",
+    "rate-limited": "Too many attempts. Wait a minute, then try again.",
+    server: "Sign-in is having trouble on our side. Try again in a moment.",
+    unknown: "Something went wrong. Please try again.",
+}
+
 export function mapAuthError(error: unknown, options: MapAuthErrorOptions = {}): AuthErrorCopy {
     if (isSuperTokensGeneralError(error)) return {message: error.message, type: "error"}
     if (options.isBackendDown?.(error)) {
@@ -33,9 +54,10 @@ export function mapAuthError(error: unknown, options: MapAuthErrorOptions = {}):
             type: "error",
         }
     }
+    const failure = classifyAuthFailure(error)
     return {
-        message: "Oops, something went wrong. Please try again",
-        sub: "If the issue persists, please contact support",
+        message: AUTH_FAILURE_COPY[failure],
+        ...(failure === "unknown" ? {sub: "If the issue persists, please contact support"} : {}),
         type: "error",
     }
 }

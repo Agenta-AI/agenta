@@ -39,6 +39,10 @@ The channels ingress SHALL accept `POST /teams/events/` under both `/channels` a
 - **WHEN** the header is missing, the signature does not verify, the issuer differs, the audience names another bot, or the token has expired beyond the leeway
 - **THEN** `verify_signature` SHALL raise `ChannelSignatureInvalid`, and the ingress SHALL answer 401
 
+#### Scenario: Signing keys cannot be read
+- **WHEN** the token names a key that is not held, and the last read of Microsoft's signing keys failed
+- **THEN** `verify_signature` SHALL raise `ChannelSignatureUnavailable`, and the ingress SHALL answer 503 with `Retry-After`, so Teams retries the activity
+
 #### Scenario: Service URL mismatch
 - **WHEN** the JWT's `serviceurl` claim differs from the activity's `serviceUrl` after a trailing `/` is removed from both
 - **THEN** `verify_signature` SHALL raise `ChannelSignatureInvalid`

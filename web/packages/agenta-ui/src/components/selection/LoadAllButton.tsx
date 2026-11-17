@@ -20,6 +20,8 @@
 
 import React from "react"
 
+import {useT} from "@agenta/i18n"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
 import {Download} from "lucide-react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
@@ -107,14 +109,17 @@ export function LoadAllButton({
     onLoadAll,
     isLoading = false,
     hasMore: hasMoreProp = true,
-    label = "Load all",
-    loadingLabel = "Loading all...",
+    label: labelProp,
+    loadingLabel: loadingLabelProp,
     totalCount: totalCountProp,
     loadedCount: loadedCountProp,
     size = "sm",
     className = "",
     block = false,
 }: LoadAllButtonProps) {
+    const t = useT(listControlsCatalog)
+    const label = labelProp ?? t("ui.listControls.loadAll")
+    const loadingLabel = loadingLabelProp ?? t("ui.listControls.loadingAll")
     // Use counts object if provided, otherwise fall back to individual props
     const hasMore = counts?.hasMore ?? hasMoreProp
     const totalCount = counts?.totalCount ?? totalCountProp
@@ -190,9 +195,11 @@ export function LoadAllInline({
     onLoadAll,
     isLoading = false,
     hasMore = true,
-    label = "Load all",
+    label: labelProp,
     className = "",
 }: LoadAllInlineProps) {
+    const t = useT(listControlsCatalog)
+    const label = labelProp ?? t("ui.listControls.loadAll")
     if (!hasMore && !isLoading) {
         return null
     }
@@ -210,7 +217,7 @@ export function LoadAllInline({
             {isLoading ? (
                 <span className={cn(textColors.tertiary, flexLayouts.rowCenter, gapClasses.xs)}>
                     <Spinner size="small" />
-                    Loading...
+                    {t("ui.listControls.loadingDots")}
                 </span>
             ) : (
                 <button

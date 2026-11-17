@@ -1,0 +1,10 @@
+{
+    "clearFilters": "Borrar filtros",
+    "loadFailed": "No se pudieron cargar las sesiones",
+    "loadMore": "Cargar más",
+    "loading": "Cargando sesiones",
+    "loadingMore": "Cargando…",
+    "noMatch": "Ninguna sesión coincide con estos filtros.",
+    "noSessions": "Aún no hay sesiones.",
+    "startConversation": "Inicia una conversación con un agente y aparecerá aquí."
+}

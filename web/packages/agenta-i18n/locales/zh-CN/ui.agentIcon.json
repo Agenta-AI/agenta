@@ -1,0 +1,13 @@
+{
+    "agentIcon": "Agent 图标",
+    "backToPalette": "返回调色板",
+    "couldNotLoad": "无法加载图标",
+    "customColour": "自定义颜色",
+    "hex": "十六进制",
+    "hexColour": "十六进制颜色",
+    "noIconsFound": "未找到图标",
+    "nothingMatches": "没有与“{{search}}”匹配的内容",
+    "reset": "重置",
+    "savesAsYouPick": "选择后自动保存",
+    "searchIcons": "搜索图标"
+}

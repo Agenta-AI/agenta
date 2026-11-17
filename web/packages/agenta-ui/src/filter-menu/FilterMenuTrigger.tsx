@@ -1,5 +1,8 @@
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
+
 import {Button} from "../components/ui/button"
 import {PopoverTrigger} from "../components/ui/popover"
 import {cn} from "../components/ui/utils"
@@ -23,6 +26,7 @@ export const FilterMenuTrigger = ({
     active = false,
     defaultLabel,
 }: FilterMenuTriggerProps & {icon: ReactNode; defaultLabel: string}) => {
+    const t = useT(uiControlsCatalog)
     const text = label === undefined ? defaultLabel : label
     const iconOnly = text === null || text === "" || text === false
     const iconSize = size === "sm" || size === "icon-sm" ? "icon-sm" : "icon"
@@ -46,7 +50,7 @@ export const FilterMenuTrigger = ({
                             aria-hidden
                             className="absolute right-1 top-1 size-1.5 rounded-full bg-primary"
                         />
-                        <span className="sr-only">(filters applied)</span>
+                        <span className="sr-only">{t("ui.controls.filtersApplied")}</span>
                     </>
                 ) : null}
             </Button>

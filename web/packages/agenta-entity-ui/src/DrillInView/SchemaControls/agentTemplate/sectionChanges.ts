@@ -29,9 +29,13 @@ import {
     type ScalarChange,
     type SectionId,
 } from "@agenta/entities/workflow/commitDiff"
+import {createT} from "@agenta/i18n"
+import configItemsCatalog from "@agenta/i18n/catalogs/entityUi.configItems"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
+
+const t = createT(configItemsCatalog)
 
 /** The accordion keys the config panel renders. */
 export type PanelSectionKey =
@@ -94,7 +98,7 @@ export function toSectionChanges(sections: ChangeSection[]): SectionChanges {
             if (permissions.length)
                 sectionsByKey.set("permissions", {
                     ...section,
-                    title: "Permissions",
+                    title: t("entityUi.configItems.permissions"),
                     scalarChanges: permissions,
                     totalCount: permissions.length,
                 })
