@@ -8,15 +8,7 @@ description: Audit and update the supported LLM model list in assets.py against 
 ## Overview
 
 The canonical model list lives in `sdks/python/agenta/sdk/utils/assets.py` → `supported_llm_models`.
-The LLM gateway catalog (`api/oss/src/core/gateways/llms/catalog.py`) builds its endpoints from it,
-and `sdks/python/agenta/sdk/agents/capabilities.py` uses it as the set of model ids each vault
-provider (an Agenta-stored key) accepts for the Pi harness. It also feeds cost metadata and the
-`model_to_provider_mapping`.
-
-This skill owns only which model ids each provider key accepts. The harness catalog (labels,
-descriptions, pricing and ratings per harness, and the Codex, Claude and subscription models)
-belongs to the `sync-model-catalog` skill. When a new model ships, run this skill first, then
-`sync-model-catalog`.
+It drives the model dropdown in the playground, cost metadata, and the `model_to_provider_mapping`.
 
 The authoritative external source is **`litellm.model_cost`** (2 600+ entries), which mirrors
 <https://models.litellm.ai/>.
@@ -33,20 +25,24 @@ A pytest guard lives at:
    - `cohere/command-*` → litellm stores as `command-*`
    - All other providers keep their full prefix (e.g. `gemini/`, `groq/`, `together_ai/`)
 2. **Provider key** (`"anthropic"`, `"gemini"`, …) must match the Secrets API enum in
-   `api/oss/src/core/secrets/enums.py` (`LLMStandardProviderKind`).
+   `api/oss/src/core/secrets/enums.py` (`StandardProviderKind`).
 3. **No duplicates** within a provider list.
 
 ---
 
 ## Step 1 — Check which current models are outdated / wrong
 
-Run this from `sdks/python` with `uv run`. The SDK project depends on litellm and installs
-agenta itself, so the import works:
+Run this with `uvx` (no local install needed):
 
 ```bash
 cat > /tmp/check_agenta_models.py << 'SCRIPT'
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["litellm"]
+# ///
 import litellm, sys
 
+# paste supported_llm_models here or import it
 from agenta.sdk.utils.assets import supported_llm_models
 
 mc = set(litellm.model_cost.keys())
@@ -71,13 +67,13 @@ if fails:
 else:
     print("All models valid ✓")
 SCRIPT
-(cd sdks/python && uv run python /tmp/check_agenta_models.py)
+uvx --with litellm python /tmp/check_agenta_models.py 2>/dev/null
 ```
 
-Alternatively, run the pytest unit test from `sdks/python`:
+Alternatively, run the pytest unit test directly (requires agenta installed):
 
 ```bash
-(cd sdks/python && uv run pytest oss/tests/pytest/unit/test_supported_llm_models.py -v)
+pytest sdks/python/oss/tests/pytest/unit/test_supported_llm_models.py -v
 ```
 
 The test suite pins the price map bundled with the locked litellm (`LITELLM_LOCAL_MODEL_COST_MAP=True`
@@ -94,6 +90,10 @@ noise (audio, video, embeddings, codex, snapshots):
 
 ```bash
 cat > /tmp/find_missing.py << 'SCRIPT'
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["litellm"]
+# ///
 import litellm, re
 
 AGENTA_ANTHROPIC = set()   # fill from assets.py (bare names, no prefix)
@@ -140,7 +140,7 @@ report("OPENAI", OAI, AGENTA_OPENAI)
 report("GEMINI", [m for m in mc if m.startswith("gemini/") and not noise(m)],
        AGENTA_GEMINI, prefix="gemini/")
 SCRIPT
-(cd sdks/python && uv run python /tmp/find_missing.py)
+uvx --with litellm python /tmp/find_missing.py 2>/dev/null
 ```
 
 **Fill in the `AGENTA_*` sets from the current `assets.py`** before running.
@@ -152,6 +152,8 @@ SCRIPT
 File: `sdks/python/agenta/sdk/utils/assets.py`
 
 - Add models inside the correct provider list, newest first.
+- For **Gemini 1.5** models (still widely used): add under `"gemini"`.
+- For **OpenAI o-series pro tiers** (`o1-pro`, `o3-pro`): add after their base model.
 - For **Groq**: always cross-check `litellm.groq_models` — Groq rotates its model catalogue frequently.
 - For **DeepInfra / Together AI**: check `litellm.deepinfra_models` / `litellm.together_ai_models` for current names.
 
@@ -174,10 +176,13 @@ File: `sdks/python/agenta/sdk/utils/assets.py`
 
 ## Step 4 — Run ruff then the test
 
-Format and lint inside the SDK folder, as `AGENTS.md` says, then validate the list again:
-
 ```bash
-(cd sdks/python && ruff format && ruff check --fix && uv run python /tmp/check_agenta_models.py)
+# Format + lint
+uvx --from ruff==0.14.0 ruff format sdks/python/agenta/sdk/utils/assets.py
+uvx --from ruff==0.14.0 ruff check --fix sdks/python/agenta/sdk/utils/assets.py
+
+# Validate all models against litellm (no agenta install needed)
+uvx --with litellm python /tmp/check_agenta_models.py 2>/dev/null
 ```
 
 All checks must pass before committing.
@@ -191,3 +196,4 @@ All checks must pass before committing.
 | `sdks/python/agenta/sdk/utils/assets.py` | Canonical model list + cost metadata builder |
 | `sdks/python/oss/tests/pytest/unit/test_supported_llm_models.py` | Pytest guard (parametrized per model) |
 | `api/oss/src/core/secrets/enums.py` | Provider keys — must stay in sync |
+| `api/oss/src/resources/evaluators/evaluators.py` | Separate (shorter) model list for evaluator dropdown |
