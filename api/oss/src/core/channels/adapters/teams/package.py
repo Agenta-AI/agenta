@@ -18,8 +18,8 @@ from oss.src.core.channels.dtos import ChannelSetupDoc, ChannelSetupIdentity
 MANIFEST_ID_NAMESPACE = UUID("99c7d0eb-7724-473e-aa40-53c4b6bfeed2")
 # Teams ignores an uploaded package whose version it has already seen. Raise
 # it whenever the generated manifest or the icons change.
-MANIFEST_VERSION = "1.0.0"
-MANIFEST_SCHEMA_VERSION = "1.16"
+MANIFEST_VERSION = "1.1.0"
+MANIFEST_SCHEMA_VERSION = "1.20"
 
 DEFAULT_NAME = "Agenta"
 DEFAULT_DESCRIPTION = "An Agenta agent."
@@ -60,7 +60,7 @@ def build_manifest(
     identity = identity or ChannelSetupIdentity()
     return {
         "$schema": (
-            "https://developer.microsoft.com/en-us/json-schemas/teams/"
+            "https://developer.microsoft.com/json-schemas/teams/"
             f"v{MANIFEST_SCHEMA_VERSION}/MicrosoftTeams.schema.json"
         ),
         "manifestVersion": MANIFEST_SCHEMA_VERSION,
