@@ -65,6 +65,8 @@ export function checkNamespace(
             problems.push(`missing in ${lang}: ${key}`)
         } else if (typeof value !== "string") {
             problems.push(`${lang} value is not a string: ${key}`)
+        } else if (value.trim() === "") {
+            problems.push(`${lang} value is empty: ${key}`)
         } else if (!samePlaceholders(en, value)) {
             problems.push(
                 placeholders(en).join() !== placeholders(value).join()
