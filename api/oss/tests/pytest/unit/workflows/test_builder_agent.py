@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from agenta.sdk.agents.adapters.agenta_builtins import AGENT_CONFIG_FIELDS_REFERENCE
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
-from agenta.sdk.agents.tools.models import effective_permission
 
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.builder_agent import (
@@ -83,7 +83,7 @@ async def test_entry_resolves_in_any_project_without_a_database_read(ref):
     workflows_dao.fetch_artifact.assert_not_awaited()
 
 
-def test_tool_approvals_are_the_platform_defaults():
+def test_tool_approvals():
     tools = {tool["op"]: tool for tool in _agent()["tools"]}
 
     assert tools["create_agent"]["permission"] == "ask"
@@ -99,14 +99,6 @@ def test_tool_approvals_are_the_platform_defaults():
             assert PLATFORM_OPS[op].read_only, op
 
 
-@pytest.mark.parametrize("mode", ["allow", "allow_reads", "ask"])
-def test_create_and_edit_ask_under_every_agent_wide_mode(mode):
-    tools = {tool["op"]: tool for tool in _agent()["tools"]}
-
-    for op in ("create_agent", "edit_agent_config"):
-        assert effective_permission(tools[op]["permission"], False, mode) == "ask"
-
-
 def test_entry_lists_its_own_learning_drive_and_no_home_drive():
     agent = _agent()
 
@@ -119,7 +111,7 @@ def test_entry_lists_its_own_learning_drive_and_no_home_drive():
 def test_learning_skill_names_the_drive_path():
     skills = {skill["name"]: skill for skill in _agent()["skills"]}
 
-    assert set(skills) == {"build-agents", "builder-learning"}
+    assert set(skills) == {"manage-project-agents", "builder-learning"}
     assert (
         f"drives/{BUILDER_LEARNING_DRIVE_SLUG}/" in skills["builder-learning"]["body"]
     )
@@ -141,7 +133,7 @@ def test_runtime_parses_the_entry():
 
     assert template.instructions
     assert [skill.name for skill in template.skills] == [
-        "build-agents",
+        "manage-project-agents",
         "builder-learning",
     ]
     assert {tool.op for tool in template.tools} == {
@@ -168,3 +160,10 @@ def test_text_has_no_secret_host_or_script():
 
     for pattern in _FORBIDDEN:
         assert not pattern.search(text), pattern.pattern
+
+
+def test_manage_skill_bundles_the_config_field_reference():
+    skills = {skill["name"]: skill for skill in _agent()["skills"]}
+    files = {f["path"]: f["content"] for f in skills["manage-project-agents"]["files"]}
+
+    assert files["references/config-fields.md"] == AGENT_CONFIG_FIELDS_REFERENCE

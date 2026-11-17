@@ -520,6 +520,12 @@ _CONFIG_SCHEMA_REFERENCE = (
     _CONFIG_SCHEMA_INTRO_ORDERED + _CONFIG_SCHEMA_FIELDS + _CONFIG_SCHEMA_COMMIT_ORDERED
 )
 
+# The field chapter alone, for an agent that edits other agents' configurations with its
+# own tools rather than its own with `commit_revision`.
+AGENT_CONFIG_FIELDS_REFERENCE = (
+    "# The agent config, field by field\n" + _CONFIG_SCHEMA_FIELDS
+)
+
 # Bundled reference file: the `inputs_fields` template language. Verified against the runtime
 # resolver (agenta.sdk.utils.resolvers.resolve_target_fields / resolve_json_selector) and the
 # triggers dispatcher context builder (api/oss/src/tasks/asyncio/triggers/dispatcher.py +

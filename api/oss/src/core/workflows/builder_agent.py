@@ -7,7 +7,8 @@ it learns goes into one shared drive per project, which the platform creates on 
 
 from typing import Any
 
-from agenta.sdk.agents.skills.models import SkillTemplate
+from agenta.sdk.agents.adapters.agenta_builtins import AGENT_CONFIG_FIELDS_REFERENCE
+from agenta.sdk.agents.skills.models import SkillFile, SkillTemplate
 
 from oss.src.core.workflows.build_kit import AGENTA_BUILTIN_AGENT_URI
 from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
@@ -19,8 +20,7 @@ BUILDER_AGENT_DESCRIPTION = (
     "Creates, explains and changes the agents of this project, with the rights of the "
     "person who chats with it."
 )
-# A static agent's own drive is `<agent slug>__<drive name>`; the platform creates it at the
-# agent's first run in a project.
+# The drive slug rule for a static agent: `<agent slug>__<drive name>`.
 BUILDER_LEARNING_DRIVE_SLUG = f"{BUILDER_AGENT_SLUG}__learning"
 
 # Create and edit ask the person first; the reads run without asking.
@@ -51,7 +51,7 @@ agents that this person can see, and you can change only the agents that this pe
 Answer from what your tools return, not from memory. If a tool fails or a field is empty, say \
 so. Do not fill gaps with guesses.
 - Create agents, and change existing agents when the person asks.
-- Load the skill `build-agents` before you create or change an agent.
+- Load the skill `manage-project-agents` before you create or change an agent.
 - Load the skill `builder-learning` at the start of each conversation, and follow it.
 
 ## Before you create an agent
@@ -74,63 +74,50 @@ someone else. Say that you cannot see it.
 the conversation.
 """
 
-BUILD_AGENTS_SKILL = SkillTemplate(
-    name="build-agents",
+MANAGE_PROJECT_AGENTS_SKILL = SkillTemplate(
+    name="manage-project-agents",
     description=(
-        "How to read, create and change the agents of this project with your tools. Load it "
-        "before you create or change an agent."
+        "Which of your tools fits which job, and the steps to create or change an agent of "
+        "this project. Load it before you create or change an agent."
     ),
     body="""\
-# Build and change agents in this project
+# Create and change the agents of this project
 
 ## Words
 
-- **Agent**: a configuration at `parameters.agent`: instructions (`instructions.agents_md`), \
-`llm`, `tools`, `mcps`, `skills`, `harness`, `runner` and `sandbox`.
 - **Revision**: one saved version of an agent. Each save makes a new revision, and the old \
 revisions stay.
-- **Skill**: a folder of know-how that an agent loads when its description fits the task.
 - **Connection**: a connected app (for example Gmail, GitHub or Slack) that gives an agent tools.
 - **Schedule**: a trigger that runs an agent with a fixed message on a cron in UTC. A \
 **subscription** runs an agent when an event arrives from a connected app. A **delivery** is \
 one attempt. A delivery that says "dispatched" only tells you that the run started, not that it \
 succeeded.
 
-## Your tools
+## Which tool for which job
 
-Read (they run without asking):
+- What agents exist: `list_agents`. What one agent does: `read_agent_config`.
+- Which apps are connected: `list_connections`. Which tools a new agent can use: \
+`discover_tools`.
+- Which triggers exist and how they ran: `list_schedules`, `list_subscriptions`, \
+`list_deliveries`.
+- Create an agent: `create_agent`. Change an agent: `edit_agent_config`.
 
-- `list_agents`: the agents you can see. Use the `slug` or `id` it returns in the other tools.
-- `read_agent_config`: one agent's configuration, or one part of it.
-- `list_connections`: the connected apps of the project, with their slugs.
-- `discover_tools`: tools from connected apps for a job, and whether each connection is ready.
-- `list_schedules`, `list_subscriptions`, `list_deliveries`: the triggers of the project and \
-their recent attempts.
-
-Change (the person approves each call first):
-
-- `create_agent`: create a new agent.
-- `edit_agent_config`: change another agent.
+`references/config-fields.md` gives the shape of every field of an agent's configuration. Read \
+it before you write a tool, skill or model entry.
 
 ## Create an agent
 
-1. Find out what the agent must do. If the request is a bare role or a vague wish, write a \
-first version of the instructions and show it.
-2. Ask whether the agent is only for the person or for the team, unless the request makes this \
-clear.
-3. Find the tools it needs with `discover_tools`. Use only connections that are ready.
-4. Call `create_agent` with a short `name`, a one-sentence `description`, the `visibility`, and \
+1. Find the tools it needs with `discover_tools`. Use only connections that are ready.
+2. Call `create_agent` with a short `name`, a one-sentence `description`, the `visibility`, and \
 the instructions in `operations`.
-5. Tell the person the agent's name with its link, what it does, and what is missing, for \
+3. Tell the person the agent's name with its link, what it does, and what is missing, for \
 example a connection the person must set up.
 
 ## Change an agent
 
-1. Call `read_agent_config` for that agent.
-2. Call `edit_agent_config` with the `base_revision_id` of that read. Change only what the \
+1. Call `read_agent_config` for that agent, then `edit_agent_config`. Change only what the \
 person asked for.
-3. If the call is refused because the agent changed, read it again and send the change again.
-4. Tell the person what you changed. The previous revision stays, so a change can be undone \
+2. Tell the person what you changed. The previous revision stays, so a change can be undone \
 with a new edit that puts the old values back.
 
 ## What you cannot do yet
@@ -138,6 +125,12 @@ with a new edit that puts the old values back.
 You cannot run another agent, read its runs or traces, add or remove its schedules, archive an \
 agent, or change yourself. When the person asks for one of these, say that you cannot do it yet.
 """,
+    files=[
+        SkillFile(
+            path="references/config-fields.md",
+            content=AGENT_CONFIG_FIELDS_REFERENCE,
+        )
+    ],
 )
 
 BUILDER_LEARNING_SKILL = SkillTemplate(
@@ -209,7 +202,7 @@ def _builder_agent_parameters() -> dict[str, Any]:
             ],
             "mcps": [],
             "skills": [
-                BUILD_AGENTS_SKILL.model_dump(mode="json"),
+                MANAGE_PROJECT_AGENTS_SKILL.model_dump(mode="json"),
                 BUILDER_LEARNING_SKILL.model_dump(mode="json"),
             ],
             # No home drive: a home drive runs its setup script at session start, and any
