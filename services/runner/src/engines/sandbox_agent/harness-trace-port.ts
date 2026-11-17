@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import type { AgentRunRequest } from "../../protocol.ts";
+import { spanTurnId, type AgentRunRequest } from "../../protocol.ts";
 import {
   modelEnvironmentSecretValues,
   sandboxVisibleSecretValues,
@@ -141,7 +141,8 @@ function piTracePort(options: {
     const control: PiTurnTraceControl = {
       version: PI_TRACE_CONTROL_VERSION,
       channelId,
-      turnId: request.turnId?.trim() || undefined,
+      // The session turn: on an approval resume it differs from the execution's `turnId`.
+      sessionTurnId: spanTurnId(request),
       sessionId: env.sessionId || undefined,
       propagation: {
         traceparent: request.context?.propagation?.traceparent,
