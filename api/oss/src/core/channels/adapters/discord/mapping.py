@@ -18,8 +18,8 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.render.approval import (
     approval_details,
+    approval_label,
     approval_outcome,
-    approval_title,
 )
 from oss.src.core.channels.render.render import _split_text
 
@@ -319,11 +319,33 @@ def split_text(text: str, *, max_chars: int = TEXT_MAX_CHARS) -> List[str]:
     return _split_text(text, max_chars)
 
 
+# Markdown that could hide or restyle a tool call's words on the card: a
+# spoiler (`||rm -rf x||`) hides them until clicked. Escaped with a backslash,
+# Discord shows the character itself.
+_MARKDOWN_INLINE = re.compile(r"([\\*_~`|<\[])")
+_MARKDOWN_LINE_START = re.compile(r"^(\s*)([#>-])", re.MULTILINE)
+
+
+def escape_markdown(text: str) -> str:
+    return _MARKDOWN_LINE_START.sub(r"\1\\\2", _MARKDOWN_INLINE.sub(r"\\\1", text))
+
+
 def _card_text(card: Dict[str, Any]) -> str:
-    lines = [card[key] for key in ("title", "text") if card.get(key)]
+    """The card's words are the recorded tool call, not the agent's Markdown,
+    so they are shown literally. `answered_heading` (set by
+    `answered_message`) replaces "Approval needed" and the scope line."""
+
+    heading = card.get("answered_heading")
+    if heading:
+        label = approval_label(card.get("tool"))
+        lines = [f"{heading}: {escape_markdown(label)}" if label else heading]
+    else:
+        lines = [
+            escape_markdown(card[key]) for key in ("title", "text") if card.get(key)
+        ]
     details = approval_details(card.get("arguments"))
     if details:
-        lines.append(details)
+        lines.append(escape_markdown(details))
     return "\n".join(lines)
 
 
@@ -400,7 +422,7 @@ def _mention(sender: Optional[Dict[str, Any]]) -> Optional[str]:
     if user_id.isdigit():
         return f"<@{user_id}>"
     name = sender.get("name") or sender.get("username")
-    return str(name) if name else None
+    return escape_markdown(str(name)) if name else None
 
 
 def answered_message(
@@ -423,11 +445,7 @@ def answered_message(
             continue
         posted.append(part)
         if part.get("type") == "card":
-            part = {
-                **part,
-                "title": approval_title(part.get("tool"), heading=heading),
-                "text": None,
-            }
+            part = {**part, "answered_heading": heading}
         answered.append(part)
 
     posted_text, _ = render_content(posted)

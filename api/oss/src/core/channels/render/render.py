@@ -407,6 +407,10 @@ def _split_text(text: str, max_chars: int) -> List[str]:
             body = body.rstrip("\n") + "\n" + _FENCE
         else:
             rest = rest.lstrip("\n ")
+            if not body.strip():
+                # only blank space came before a code block moved whole to
+                # the next chunk: a blank message is refused (Discord 50006)
+                continue
         chunks.append(body)
     return chunks
 

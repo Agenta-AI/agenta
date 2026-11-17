@@ -475,3 +475,11 @@ def test_a_blank_message_after_the_last_tool_is_not_the_answer():
 
 def test_a_turn_with_no_text_has_no_answer():
     assert extract_final_answer([_called("Read", "c1"), _returned("c1")]) == ""
+
+
+def test_blank_space_before_a_moved_code_block_is_not_its_own_chunk():
+    from oss.src.core.channels.render.render import _split_text
+
+    chunks = _split_text("\n```\n" + "a" * 50 + "\n```" + " tail" * 10, 60)
+    assert all(chunk.strip() for chunk in chunks)
+    assert chunks[0].startswith("```")
