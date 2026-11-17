@@ -1,6 +1,8 @@
 import {type ReactNode, useCallback, useMemo, useState} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
+import {richText, useT} from "@agenta/i18n"
+import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import type {TraceSpanNode} from "@agenta/observability"
 import {closeTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {
@@ -48,6 +50,7 @@ const TraceTypeHeader = ({
     setIsAnnotationsSectionOpen,
     isAnnotationsSectionOpen,
 }: TraceTypeHeaderProps) => {
+    const t = useT(spanCatalog)
     const {AddToTestsetButton, AnnotateDrawerButton} = getTraceDrawerReferences()
     const {openTraceInPlayground, openWorkflowRevisionDrawer, hasAppReference, buildPlaygroundUrl} =
         getTraceDrawerPlaygroundActions()
@@ -65,7 +68,7 @@ const TraceTypeHeader = ({
 
     const openInPlaygroundState = useMemo<{enabled: boolean; reason?: ReactNode}>(() => {
         if (!activeTrace) {
-            return {enabled: false, reason: "No trace span is selected."}
+            return {enabled: false, reason: t("observabilityUi.traceSpan.noSpanSelected")}
         }
         const spanType = activeTrace.span_type
         if (!spanType) {
@@ -73,15 +76,18 @@ const TraceTypeHeader = ({
                 enabled: false,
                 reason: (
                     <>
-                        The type of this span (<code>ag.type</code> namespace) is not set.{" "}
-                        <a
-                            href="https://agenta.ai/docs/observability/trace-with-opentelemetry/semantic-conventions#agtype"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            Learn more
-                        </a>
-                        .
+                        {richText(t("observabilityUi.traceSpan.typeNotSet"), {
+                            code: (text) => <code>{text}</code>,
+                            link: (text) => (
+                                <a
+                                    href="https://agenta.ai/docs/observability/trace-with-opentelemetry/semantic-conventions#agtype"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {text}
+                                </a>
+                            ),
+                        })}
                     </>
                 ),
             }
@@ -107,26 +113,26 @@ const TraceTypeHeader = ({
         if (!hasApp && !hasExtractableData) {
             return {
                 enabled: false,
-                reason: "This span has no workflow reference or captured inputs to replay in the playground.",
+                reason: t("observabilityUi.traceSpan.noWorkflowOrInputs"),
             }
         }
         if (!hasApp) {
             return {
                 enabled: false,
-                reason: `"${spanType}" spans need a workflow, variant, or revision reference to be opened in the playground.`,
+                reason: t("observabilityUi.traceSpan.needsWorkflowRef", {spanType}),
             }
         }
         if (!hasExtractableData) {
             return {
                 enabled: false,
-                reason: "This span has a workflow reference but no captured parameters or inputs to open.",
+                reason: t("observabilityUi.traceSpan.noParamsOrInputs"),
             }
         }
         return {
             enabled: false,
-            reason: `"${spanType}" spans can't be replayed in the playground — open the parent workflow, task, agent, or chain span instead.`,
+            reason: t("observabilityUi.traceSpan.cannotReplay", {spanType}),
         }
-    }, [activeTrace])
+    }, [activeTrace, t])
 
     const canOpenInPlayground = openInPlaygroundState.enabled
 
@@ -208,16 +214,21 @@ const TraceTypeHeader = ({
         // min-h-10 matches the tree's search row beside it; on a phone-width panel the actions
         // wrap under the span name instead of squeezing it to nothing.
         <div className="box-border min-h-10 px-4 py-1 flex shrink-0 flex-wrap items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
-            <SimpleTooltip side="top" title={activeTrace?.span_name || (error ? "Error" : "")}>
+            <SimpleTooltip
+                side="top"
+                title={
+                    activeTrace?.span_name || (error ? t("observabilityUi.traceSpan.error") : "")
+                }
+            >
                 <span className={clsx("truncate text-nowrap flex-1 min-w-32 text-sm font-medium")}>
-                    {activeTrace?.span_name || (error ? "Error" : "")}
+                    {activeTrace?.span_name || (error ? t("observabilityUi.traceSpan.error") : "")}
                 </span>
             </SimpleTooltip>
 
             <div className="flex min-w-0 flex-wrap gap-2">
                 <TooltipWithCopyAction
                     copyText={activeTrace?.span_id || ""}
-                    title="Copy span id"
+                    title={t("observabilityUi.traceSpan.copySpanId")}
                     tooltipProps={{placement: "bottom", arrow: true}}
                 >
                     <Tag
@@ -240,18 +251,18 @@ const TraceTypeHeader = ({
                             disabled={!canOpenInPlayground || isOpening}
                             onClick={handleOpenInPlayground}
                         >
-                            Playground
+                            {t("observabilityUi.traceSpan.playground")}
                         </EnhancedButton>
                     </SimpleTooltip>
                 )}
                 <AddToTestsetButton
-                    label="Add to testset"
+                    label={t("observabilityUi.traceSpan.addToTestset")}
                     size="small"
                     spanIds={spanIds}
                     disabled={!activeTrace?.span_id}
                 />
                 <AnnotateDrawerButton
-                    label="Annotate"
+                    label={t("observabilityUi.traceSpan.annotate")}
                     size="small"
                     data={activeTrace?.annotations || []}
                     traceSpanIds={{

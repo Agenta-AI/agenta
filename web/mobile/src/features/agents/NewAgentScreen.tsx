@@ -1,3 +1,6 @@
+import {useT} from "@agenta/i18n"
+import agentsFirstRun from "@agenta/i18n/catalogs/agents.firstRun"
+
 import {PageTitle} from "@/components/PageTitle"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -22,12 +25,13 @@ export const NewAgentScreen = ({
     projectId: string
     templateKey?: string
 }) => {
+    const t = useT(agentsFirstRun)
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
 
     return (
         <>
-            <PageTitle title="New agent" />
+            <PageTitle title={t("agents.firstRun.newAgentTitle")} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <FirstRunScreen
                     base={base}

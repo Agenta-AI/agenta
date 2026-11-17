@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import flowCatalog from "@agenta/i18n/catalogs/onboarding.flow"
 import {Button, Input} from "@agenta/ui/ui"
 import {ArrowRight} from "@phosphor-icons/react"
 
@@ -8,7 +10,6 @@ import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
 import {CHOICE_KEYS, type OnboardingChoice} from "./onboardingChoices"
-import {ONBOARDING_COPY} from "./onboardingCopy"
 import {
     answerLabels,
     WRITE_IN_MAX,
@@ -16,6 +17,8 @@ import {
     writeInText,
     type OnboardingAnswer,
 } from "./onboardingQuestions"
+import {ONBOARDING_STYLE} from "./onboardingStyle"
+import {useQuestionText} from "./useQuestionText"
 
 /**
  * A chip question. One-tap: a chip or its letter key answers it, then the flow moves on.
@@ -24,6 +27,7 @@ import {
  * step counts as answered only once the line is there.
  */
 export const OnboardingQuestion = ({
+    questionId,
     headingId,
     title,
     subtitle,
@@ -33,6 +37,7 @@ export const OnboardingQuestion = ({
     onAnswer,
     onAdvance,
 }: {
+    questionId: string
     headingId: string
     title: string
     subtitle: string
@@ -43,6 +48,8 @@ export const OnboardingQuestion = ({
     onAdvance: () => void
 }) => {
     const {answerHoldMs} = useMotionPresets()
+    const t = useT(flowCatalog)
+    const questionText = useQuestionText()
     const [picked, setPicked] = useState<string | null>(null)
     const pickedRef = useRef(false)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -141,7 +148,7 @@ export const OnboardingQuestion = ({
     return (
         <div className="flex flex-col gap-7">
             <div className="flex flex-col gap-1.5">
-                <h1 id={headingId} tabIndex={-1} className={ONBOARDING_COPY.headingClass}>
+                <h1 id={headingId} tabIndex={-1} className={ONBOARDING_STYLE.headingClass}>
                     {title}
                 </h1>
                 <p className="text-muted-foreground m-0 text-[15px] leading-[22px]">{subtitle}</p>
@@ -156,7 +163,7 @@ export const OnboardingQuestion = ({
                             key={label}
                             aria-pressed={active}
                             aria-keyshortcuts={key}
-                            title={ONBOARDING_COPY.keyHint(key)}
+                            title={t("onboarding.flow.keyHint", {key})}
                             onClick={() => pickRef.current(label)}
                             className={cn(
                                 "inline-flex h-[42px] cursor-pointer items-center gap-2 rounded-lg border-0 pl-3.5 pr-4 text-sm font-medium transition-[background-color,color,opacity,box-shadow,scale] motion-reduce:transition-none",
@@ -168,7 +175,7 @@ export const OnboardingQuestion = ({
                             )}
                         >
                             {Icon ? <Icon size={17} /> : null}
-                            {label}
+                            {questionText.choice(questionId, label)}
                         </button>
                     )
                 })}
@@ -179,7 +186,7 @@ export const OnboardingQuestion = ({
                         className="text-[13px] font-medium leading-[18px]"
                         htmlFor="onboarding-other"
                     >
-                        {ONBOARDING_COPY.writeIn}
+                        {t("onboarding.flow.writeIn")}
                     </label>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                         <Input
@@ -187,8 +194,8 @@ export const OnboardingQuestion = ({
                             autoFocus
                             value={typed}
                             maxLength={WRITE_IN_MAX}
-                            placeholder={ONBOARDING_COPY.writeInPlaceholder}
-                            aria-label={ONBOARDING_COPY.writeIn}
+                            placeholder={t("onboarding.flow.writeInPlaceholder")}
+                            aria-label={t("onboarding.flow.writeIn")}
                             onChange={(event) => write(event.target.value)}
                             onKeyDown={(event) => {
                                 // Enter that confirms an IME candidate is not a submit.
@@ -203,7 +210,7 @@ export const OnboardingQuestion = ({
                             disabled={typed.trim().length === 0}
                             className="max-sm:h-11 max-sm:w-full"
                         >
-                            {ONBOARDING_COPY.continue}
+                            {t("onboarding.flow.continue")}
                             <ArrowRight data-icon="inline-end" />
                         </Button>
                     </div>
@@ -215,7 +222,7 @@ export const OnboardingQuestion = ({
                         disabled={labels.length === 0}
                         className="max-sm:h-11 max-sm:w-full"
                     >
-                        {ONBOARDING_COPY.continue}
+                        {t("onboarding.flow.continue")}
                         <ArrowRight data-icon="inline-end" />
                     </Button>
                 </div>

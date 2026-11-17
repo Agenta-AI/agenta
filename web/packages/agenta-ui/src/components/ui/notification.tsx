@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {CheckCircle, Info, WarningCircle, XCircle, X} from "@phosphor-icons/react"
 
 import {cn} from "./utils"
@@ -109,6 +111,7 @@ export function Notification({
     "aria-live": ariaLive,
     ...props
 }: NotificationProps) {
+    const t = useT(commonCatalog)
     // Mount in the "closed" pose, then flip on the next frame so the browser has a start
     // value to transition FROM (see Toast for the same double-rAF reasoning).
     const [entered, setEntered] = React.useState(false)
@@ -193,7 +196,7 @@ export function Notification({
                     type="button"
                     data-slot="notification-close"
                     onClick={onClose}
-                    aria-label="Close"
+                    aria-label={t("common.close")}
                     // Same close-X chrome as AlertDialogContent's. `bg-transparent` + `box-border`
                     // are required on native buttons (preflight is OFF).
                     className={cn(

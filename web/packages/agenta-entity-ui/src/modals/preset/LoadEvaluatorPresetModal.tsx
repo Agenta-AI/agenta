@@ -7,6 +7,8 @@
 
 import {memo, useState, useMemo, useEffect} from "react"
 
+import {useT} from "@agenta/i18n"
+import presetModalCatalog from "@agenta/i18n/catalogs/entityUi.presetModal"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Button} from "@agenta/ui/ui"
 
@@ -21,6 +23,7 @@ export const LoadEvaluatorPresetModal = memo(function LoadEvaluatorPresetModal({
     onCancel,
     ...modalProps
 }: LoadEvaluatorPresetModalProps) {
+    const t = useT(presetModalCatalog)
     const [selectedPresetKey, setSelectedPresetKey] = useState<string>("")
 
     // Reset selection when modal opens
@@ -47,10 +50,10 @@ export const LoadEvaluatorPresetModal = memo(function LoadEvaluatorPresetModal({
                 variant="outline"
                 onClick={(e) => onCancel?.(e as React.MouseEvent<HTMLButtonElement>)}
             >
-                Cancel
+                {t("entityUi.presetModal.cancel")}
             </Button>
             <Button disabled={!selectedPreset} onClick={handleLoadPreset}>
-                Load Preset
+                {t("entityUi.presetModal.loadPreset")}
             </Button>
         </div>
     )
@@ -58,7 +61,7 @@ export const LoadEvaluatorPresetModal = memo(function LoadEvaluatorPresetModal({
     return (
         <EnhancedModal
             width={1150}
-            title="Load Preset"
+            title={t("entityUi.presetModal.loadPreset")}
             footer={footer}
             open={open}
             onCancel={onCancel}

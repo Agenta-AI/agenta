@@ -1,0 +1,9 @@
+{
+    "automations": "Automatisierungen",
+    "recentFiles": "Zuletzt verwendete Dateien",
+    "addAutomation": "Automatisierung hinzufügen",
+    "automationStarter": "Ich möchte eine Automatisierung, die",
+    "createManually": "Manuell erstellen",
+    "runOnScheduleOrEvent": "Nach Zeitplan oder bei einem Ereignis ausführen",
+    "workingFilesHint": "Die Arbeitsdateien des Agents – alles, was er während einer Ausführung liest und schreibt. Öffnen Sie eine Unterhaltung, um sie hier zu durchsuchen; der dauerhafte Ordner des Agents erscheint als Unterordner, sobald Speicher auf Agent-Ebene verfügbar ist."
+}

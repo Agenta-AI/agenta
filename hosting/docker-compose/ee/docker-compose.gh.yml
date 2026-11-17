@@ -157,7 +157,7 @@ services:
         environment:
             - AGENTA_SERVICES_INTERNAL_KEY=
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
-            # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
+            # empty ⇒ all stream loops; see docs/design/workers-sprawl/specs.md
             - AGENTA_WORKER_STREAMS=
         # === NETWORK ============================================== #
         networks:
@@ -199,7 +199,7 @@ services:
         environment:
             - AGENTA_SERVICES_INTERNAL_KEY=
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
-            # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
+            # empty ⇒ all queue loops; see docs/design/workers-sprawl/specs.md
             - AGENTA_WORKER_QUEUES=
         # === NETWORK ============================================== #
         networks:

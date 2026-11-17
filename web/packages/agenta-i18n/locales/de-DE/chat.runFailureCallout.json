@@ -1,0 +1,15 @@
+{
+    "addYourKey": "Eigenen Schlüssel hinzufügen",
+    "buyCredits": "Credits kaufen",
+    "messageNotSent": "Nachricht nicht gesendet",
+    "modelUnavailable": "Dieses Modell ist für Ihre Organisation nicht verfügbar",
+    "openAiProviders": "KI-Anbieter öffnen",
+    "outOfCredits": "Ihre Credits sind aufgebraucht",
+    "plansAndBilling": "Tarife und Abrechnung",
+    "runFailed": "Die Ausführung des Agent ist fehlgeschlagen",
+    "showLess": "Weniger anzeigen",
+    "showMore": "Mehr anzeigen",
+    "taskTookTooLong": "Diese Aufgabe hat zu lange gedauert",
+    "tooManyTasks": "Zu viele Aufgaben laufen gleichzeitig",
+    "tryAgain": "Erneut versuchen"
+}

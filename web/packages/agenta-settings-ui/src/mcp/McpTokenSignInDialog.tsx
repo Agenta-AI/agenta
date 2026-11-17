@@ -1,5 +1,8 @@
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsMcpCatalog from "@agenta/i18n/catalogs/settings.mcp"
 import {
     Button,
     Dialog,
@@ -30,6 +33,7 @@ export const McpTokenSignInDialog = ({
     onClose,
     error,
 }: McpTokenSignInDialogProps) => {
+    const t = useT(commonCatalog, settingsMcpCatalog)
     const [token, setToken] = useState("")
     const [saving, setSaving] = useState(false)
 
@@ -57,9 +61,9 @@ export const McpTokenSignInDialog = ({
         >
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Sign in to {serverName}</DialogTitle>
+                    <DialogTitle>{t("settings.mcp.signInTo", {name: serverName})}</DialogTitle>
                     <DialogDescription>
-                        Paste your own token for this server. Only runs you start use it.
+                        {t("settings.mcp.tokenDialogDescription")}
                     </DialogDescription>
                 </DialogHeader>
                 <form
@@ -69,11 +73,13 @@ export const McpTokenSignInDialog = ({
                         void submit()
                     }}
                 >
-                    <span className="text-sm font-medium text-foreground">Token</span>
+                    <span className="text-sm font-medium text-foreground">
+                        {t("settings.mcp.token")}
+                    </span>
                     <PasswordInput
                         autoFocus
                         autoComplete="off"
-                        aria-label="Token"
+                        aria-label={t("settings.mcp.token")}
                         value={token}
                         onValueChange={setToken}
                     />
@@ -81,10 +87,10 @@ export const McpTokenSignInDialog = ({
                 </form>
                 <DialogFooter>
                     <Button variant="outline" onClick={close} disabled={saving}>
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <Button disabled={!token.trim() || saving} onClick={() => void submit()}>
-                        {saving ? "Signing in…" : "Sign in"}
+                        {saving ? t("settings.mcp.signingIn") : t("common.signIn")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

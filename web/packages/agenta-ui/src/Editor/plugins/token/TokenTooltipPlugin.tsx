@@ -1,5 +1,7 @@
 import React, {useEffect, useState} from "react"
 
+import {richText, useT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 
 import {
@@ -30,6 +32,7 @@ import {
  * Lexical's DOM reconciliation.
  */
 export function TokenTooltipPlugin(): React.ReactElement | null {
+    const t = useT(uiEditorCatalog)
     const [editor] = useLexicalComposerContext()
     const [target, setTarget] = useState<HTMLElement | null>(null)
 
@@ -90,14 +93,16 @@ export function TokenTooltipPlugin(): React.ReactElement | null {
 
     if (!target) return null
 
-    const reason = target.getAttribute("data-tooltip") ?? "Invalid template placeholder."
+    const reason = target.getAttribute("data-tooltip") ?? t("ui.editor.invalidPlaceholder")
     const suggestion = target.getAttribute("data-tooltip-suggestion")
     const content = (
         <div className="flex flex-col gap-1">
             <span>{reason}</span>
             {suggestion ? (
                 <span>
-                    Did you mean <code>{suggestion}</code>?
+                    {richText(t("ui.editor.didYouMean", {suggestion}), {
+                        code: (text) => <code>{text}</code>,
+                    })}
                 </span>
             ) : null}
         </div>

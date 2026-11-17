@@ -1,0 +1,11 @@
+{
+    "skillReference": "Skill-Referenz",
+    "skill": "Skill",
+    "remove": "Entfernen",
+    "staticSkill": "Statischer Skill",
+    "staticSkillHint": "Von Agenta bereitgestellt. Dieser Skill kann nicht bearbeitet oder entfernt werden.",
+    "skillTemplate": "Skill-Vorlage",
+    "couldNotRead": "Das konnte nicht gelesen werden. Legen Sie einen Skill-Ordner, eine .zip- oder eine .skill-Datei ab.",
+    "dragHint": "Ziehen Sie einen Skill-Ordner, eine <mono>.zip</mono> oder eine <mono>.skill</mono> hierher",
+    "browseFiles": "Dateien durchsuchen"
+}

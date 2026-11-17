@@ -5,6 +5,8 @@ import {
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
 } from "@agenta/entities/gatewayTrigger"
+import {createT, useT} from "@agenta/i18n"
+import triggersCatalog from "@agenta/i18n/catalogs/entityUi.triggers"
 import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Clock, Lightning, Plus, Sparkle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
@@ -12,6 +14,8 @@ import {useSetAtom} from "jotai"
 import {AddItemMenu, type AddItemGroup} from "../../../drawers/shared/AddItemMenu"
 
 import {useAgentTriggers} from "./useAgentTriggers"
+
+const tNow = createT(triggersCatalog)
 
 /**
  * The "+ Trigger" add affordance, rendered in the section header's `extra` slot. A
@@ -28,6 +32,7 @@ export function AddTriggerDropdown({
     /** Custom trigger element (e.g. an inline text-link for an empty state). Defaults to a `+`. */
     trigger?: ReactNode
 }) {
+    const t = useT(triggersCatalog)
     const {defaultReferences, defaultBoundLabel} = useAgentTriggers(entityId)
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
@@ -38,13 +43,13 @@ export function AddTriggerDropdown({
     const groups: AddItemGroup[] = useMemo(
         () => [
             {
-                label: "Add new",
+                label: tNow("entityUi.triggers.addNew"),
                 items: [
                     {
                         key: "app",
                         icon: <Lightning size={17} />,
-                        title: "App trigger",
-                        subtitle: "React to an event from a connected app",
+                        title: tNow("entityUi.triggers.appTrigger"),
+                        subtitle: tNow("entityUi.triggers.appTriggerSubtitle"),
                         opensDrawer: true,
                         onSelect: () =>
                             openSubscriptionDrawer({
@@ -56,8 +61,8 @@ export function AddTriggerDropdown({
                     {
                         key: "schedule",
                         icon: <Clock size={17} />,
-                        title: "Scheduled trigger",
-                        subtitle: "Run on a recurring schedule",
+                        title: tNow("entityUi.triggers.scheduledTrigger"),
+                        subtitle: tNow("entityUi.triggers.scheduledTriggerSubtitle"),
                         opensDrawer: true,
                         onSelect: () =>
                             openScheduleDrawer({
@@ -69,10 +74,10 @@ export function AddTriggerDropdown({
                     {
                         key: "ai",
                         icon: <Sparkle size={17} />,
-                        title: "Create with AI",
-                        subtitle: "Describe it and let AI set it up",
+                        title: tNow("entityUi.triggers.createWithAi"),
+                        subtitle: tNow("entityUi.triggers.createWithAiSubtitle"),
                         disabled: true,
-                        disabledHint: "Coming soon",
+                        disabledHint: tNow("entityUi.triggers.comingSoon"),
                     },
                 ],
             },
@@ -87,7 +92,14 @@ export function AddTriggerDropdown({
     )
 
     // A caller-supplied trigger (the empty-state text link) brings its own affordance.
-    if (trigger) return <AddItemMenu groups={groups} ariaLabel="Add trigger" trigger={trigger} />
+    if (trigger)
+        return (
+            <AddItemMenu
+                groups={groups}
+                ariaLabel={t("entityUi.triggers.addTrigger")}
+                trigger={trigger}
+            />
+        )
 
     // Tooltip + popover trigger compose by NESTING both `asChild` triggers on the same
     // button — a Radix Tooltip wrapped AROUND the popover trigger would swallow it
@@ -97,13 +109,13 @@ export function AddTriggerDropdown({
             <Tooltip>
                 <AddItemMenu
                     groups={groups}
-                    ariaLabel="Add trigger"
+                    ariaLabel={t("entityUi.triggers.addTrigger")}
                     trigger={
                         <TooltipTrigger asChild>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                aria-label="Add trigger"
+                                aria-label={t("entityUi.triggers.addTrigger")}
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <Plus size={16} />
@@ -111,7 +123,7 @@ export function AddTriggerDropdown({
                         </TooltipTrigger>
                     }
                 />
-                <TooltipContent>Add trigger</TooltipContent>
+                <TooltipContent>{t("entityUi.triggers.addTrigger")}</TooltipContent>
             </Tooltip>
         </TooltipProvider>
     )

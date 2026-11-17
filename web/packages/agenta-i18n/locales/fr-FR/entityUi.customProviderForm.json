@@ -1,0 +1,22 @@
+{
+    "configureProvider": "Configurer le fournisseur",
+    "howToUse": "Mode d’emploi",
+    "cancel": "Annuler",
+    "submit": "Envoyer",
+    "selectProvider": "Veuillez sélectionner un fournisseur",
+    "enterName": "Veuillez saisir un nom",
+    "nameInvalid": "Le nom ne doit contenir que des lettres, des chiffres, des tirets bas ou des tirets, sans espace.",
+    "nameMatchesDefault": "Le nom ne peut pas correspondre à un fournisseur par défaut. Veuillez choisir un autre nom.",
+    "enterField": "Veuillez saisir {{field}}",
+    "invalidJson": "Doit être un JSON valide",
+    "addModelName": "Veuillez ajouter un nom de modèle",
+    "addModelBeforeSubmit": "Veuillez ajouter un nom de modèle avant l’envoi",
+    "validationError": "Erreur de validation",
+    "somethingWrong": "Une erreur s’est produite ! Veuillez réessayer avec le bon identifiant.",
+    "provider": "Fournisseur",
+    "models": "Modèles",
+    "add": "Ajouter",
+    "noCustomModels": "Aucun modèle personnalisé configuré",
+    "enterModelName": "Saisissez le nom du modèle",
+    "removeModel": "Supprimer le modèle"
+}

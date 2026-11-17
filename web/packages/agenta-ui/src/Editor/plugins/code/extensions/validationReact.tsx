@@ -6,6 +6,8 @@ import {
     useSyncExternalStore,
 } from "react"
 
+import {useT} from "@agenta/i18n"
+import uiEditorCatalog from "@agenta/i18n/catalogs/ui.editor"
 import {useFloating, autoUpdate, flip, offset, shift} from "@floating-ui/react"
 import {ExtensionComponent} from "@lexical/react/ExtensionComponent"
 import {ReactExtension} from "@lexical/react/ReactExtension"
@@ -18,6 +20,7 @@ import type {ErrorInfo} from "../core/validation/types"
 import {ValidationCoreExtension} from "./validationCore"
 
 function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
+    const t = useT(uiEditorCatalog)
     const groupedErrors = errors.reduce(
         (groups, error) => {
             const key = `${error.type}:${error.message}`
@@ -40,7 +43,7 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
     return (
         <div className="bg-gray-900 text-white text-xs rounded-lg shadow-lg p-3 max-w-sm">
             <div className="font-semibold mb-2 text-[12px]">
-                {uniqueErrors.length} Error{uniqueErrors.length !== 1 ? "s" : ""}
+                {t("ui.editor.errorCount", {count: uniqueErrors.length})}
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
                 {uniqueErrors.map((error, index) => {

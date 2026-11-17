@@ -1,0 +1,10 @@
+{
+    "loadError": "項目の読み込み中にエラーが発生しました",
+    "loading": "読み込み中...",
+    "noItems": "項目が見つかりません",
+    "otherGroup": "その他",
+    "selectItem": "項目を選択...",
+    "selectLabel": "{{label}}を選択...",
+    "selectLabelFirst": "先に{{label}}を選択してください",
+    "selectPreviousFirst": "先に前の階層を選択してください"
+}

@@ -7,7 +7,11 @@ import {
     type TriggerDelivery,
     type TriggerSchedule,
     type TriggerSubscription,
+    type ScheduleText,
 } from "@agenta/entities/gatewayTrigger"
+import {englishScheduleText, scheduleTextNow} from "@agenta/entity-ui/gatewayTrigger"
+import {createEnglishT, createT, useT} from "@agenta/i18n"
+import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
 /**
  * The one adapter between the two trigger entities and the single thing this app calls an
@@ -20,6 +24,17 @@ import {
  *
  * Pure by design — no React, no hooks — so the mapping is testable and the hooks stay thin.
  */
+
+const tNow = createT(automationsModelCatalog)
+/** For the generated name, which is saved to the API and so stays English. */
+const tEnglish = createEnglishT(automationsModelCatalog)
+type AutomationsModelT = typeof tNow
+
+/**
+ * Subscribes a component to the language, so the label functions below re-render with it. They
+ * read the language when called and do not re-render on their own.
+ */
+export const useAutomationText = () => useT(automationsModelCatalog)
 
 export type AutomationKind = "schedule" | "event"
 
@@ -43,10 +58,15 @@ export interface Automation {
     raw: TriggerSchedule | TriggerSubscription
 }
 
-export const AUTOMATION_STATUS_LABEL: Record<AutomationStatus, string> = {
-    working: "Working",
-    paused: "Paused",
-    attention: "Needs attention",
+export const automationStatusLabel = (status: AutomationStatus): string => {
+    switch (status) {
+        case "working":
+            return tNow("automations.model.statusWorking")
+        case "paused":
+            return tNow("automations.model.statusPaused")
+        default:
+            return tNow("automations.model.statusAttention")
+    }
 }
 
 export function toAutomation(
@@ -63,7 +83,7 @@ export function toAutomation(
         kind,
         // An unnamed trigger reads as its slug before it reads as nothing; neither ever falls
         // through to the raw id.
-        name: entity.name || entity.slug || "Untitled automation",
+        name: entity.name || entity.slug || UNTITLED_AUTOMATION,
         description: entity.description ?? "",
         agentId: triggerBoundAgentId(entity.data?.references),
         isActive: isEntityActive(entity),
@@ -128,12 +148,16 @@ export function automationStatus(a: Automation, hasRecentFailure: boolean): Auto
  * describe the same cron two different ways. An expression the builder can't represent keeps
  * `describeCron`'s longhand.
  */
-export function runsWhenLabel(a: Automation): string {
-    if (a.kind !== "schedule") return eventPhrase(a.eventKey ?? "")
+export function runsWhenLabel(
+    a: Automation,
+    text: ScheduleText = scheduleTextNow(),
+    tr: AutomationsModelT = tNow,
+): string {
+    if (a.kind !== "schedule") return eventPhrase(a.eventKey ?? "", tr)
 
     const cron = a.cron ?? ""
     const {state, representable} = cronToBuilder(cron)
-    return representable ? summarizeSchedule(state) : describeCron(cron)
+    return representable ? summarizeSchedule(state, text) : describeCron(cron, text)
 }
 
 /**
@@ -144,9 +168,25 @@ export function runsWhenLabel(a: Automation): string {
  * than demanded. Without an agent there is nothing to build from and the generic name stands.
  */
 export function generatedAutomationName(a: Automation, agentName: string | null): string {
+    // Saved to the API, so the schedule words stay English (see RULES: never translate saved text).
+    const runsWhen = runsWhenLabel(a, englishScheduleText(), tEnglish).trim()
+    const agent = (agentName ?? "").trim()
+    if (!agent || !runsWhen) return UNTITLED_AUTOMATION
+    return `${runsWhen} — ${agent}`
+}
+
+/** The English name an unnamed automation falls back to; the screen shows its own translation. */
+export const UNTITLED_AUTOMATION = "Untitled automation"
+
+/** {@link generatedAutomationName} as the screen shows it: in the active language. */
+export function generatedAutomationLabel(
+    a: Automation,
+    agentName: string | null,
+    untitled: string,
+): string {
     const runsWhen = runsWhenLabel(a).trim()
     const agent = (agentName ?? "").trim()
-    if (!agent || !runsWhen) return "Untitled automation"
+    if (!agent || !runsWhen) return untitled
     return `${runsWhen} — ${agent}`
 }
 
@@ -187,24 +227,24 @@ export function agentLabel(
     // A roster that has not answered yet cannot say a binding is unresolvable — calling it
     // unknown mid-load makes a perfectly good agent flash as broken before its name arrives.
     if (!rosterReady) return null
-    return agentId ? "Unknown agent" : null
+    return agentId ? tNow("automations.model.unknownAgent") : null
 }
 
 /** "GITHUB_STAR_ADDED_EVENT" → "When star added in Github". The first segment is the app. */
-function eventPhrase(eventKey: string): string {
+function eventPhrase(eventKey: string, tr: AutomationsModelT): string {
     const parts = eventKey
         .trim()
         .split(/[_\s./-]+/)
         .filter(Boolean)
-    if (!parts.length) return "When its event arrives"
+    if (!parts.length) return tr("automations.model.eventWhenNone")
 
     // Composio keys carry a trailing "EVENT" that adds nothing to the sentence.
     const words = parts.map((part) => part.toLowerCase())
     if (words.length > 1 && words[words.length - 1] === "event") words.pop()
 
     const [app, ...rest] = words
-    if (!rest.length) return `When ${capitalize(app)}`
-    return `When ${rest.join(" ")} in ${capitalize(app)}`
+    if (!rest.length) return tr("automations.model.eventWhenApp", {app: capitalize(app)})
+    return tr("automations.model.eventWhenIn", {event: rest.join(" "), app: capitalize(app)})
 }
 
 function capitalize(word: string): string {

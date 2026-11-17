@@ -7,6 +7,8 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {AgentPickerPanel} from "@agenta/entity-ui/agent"
+import {createT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {
     addSkillToAgents,
     buildSkillEmbedEntry,
@@ -18,6 +20,8 @@ import {message} from "@agenta/ui/app-message"
 import {useQuery} from "@tanstack/react-query"
 
 import type {SkillListItem} from "./types"
+
+const tNow = createT(skillsGalleryCatalog)
 
 /** The usage query's key — the detail drawer reads the same one for its header count. */
 export const skillUsageQueryKey = (projectId: string, workflowId: string) =>
@@ -80,11 +84,14 @@ export function SkillAgentPicker({
                 await usageQuery.refetch()
                 invalidateSkillsListCache()
             } catch (err) {
-                const verb = remove ? "remove from" : "add to"
                 message.error(
                     err instanceof Error && err.message
-                        ? `Couldn't ${verb} that agent: ${err.message}`
-                        : `Couldn't ${verb} that agent`,
+                        ? remove
+                            ? tNow("skills.gallery.couldntRemoveDetail", {error: err.message})
+                            : tNow("skills.gallery.couldntAddDetail", {error: err.message})
+                        : remove
+                          ? tNow("skills.gallery.couldntRemove")
+                          : tNow("skills.gallery.couldntAdd"),
                 )
             } finally {
                 setPendingId(null)

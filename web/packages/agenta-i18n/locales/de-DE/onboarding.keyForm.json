@@ -1,0 +1,17 @@
+{
+    "title": "Ihr API-Schlüssel",
+    "hint": "OpenAI, Anthropic, Gemini und {{more}} weitere.",
+    "saved": "Sicher gespeichert. Sie können ihn für jeden Agent verwenden.",
+    "using": "{{name}} wird verwendet.",
+    "usingMore": "{{name}} und {{more}} weitere werden verwendet.",
+    "cancel": "Abbrechen",
+    "add": "Schlüssel hinzufügen",
+    "save": "Speichern",
+    "keyLabel": "API-Schlüssel",
+    "provider": "Anbieter",
+    "providerCount": "{{total}} Anbieter",
+    "search": "Anbieter suchen",
+    "noMatch": "Keine passenden Anbieter",
+    "invalid": "Das sieht nicht nach einem gültigen Schlüssel aus.",
+    "saveFailed": "Dieser Schlüssel konnte nicht gespeichert werden. Versuchen Sie es erneut."
+}

@@ -1,0 +1,15 @@
+{
+    "start": "开始",
+    "startsRightAway": "立即开始",
+    "end": "结束",
+    "neverEnds": "永不结束",
+    "windowHint": "时间均为 UTC。任一项留空表示不限制。将开始时间设为将来会推迟首次运行，将结束时间设为过去会停止该定时任务。",
+    "messagePlaceholder": "汇总昨天的支持工单，并将摘要发布到 #ops。",
+    "richerInputsSchedule": "此定时任务发送的输入比单条消息更丰富。在此处输入将替换它们。",
+    "sentEveryRun": "每次运行时都会发送给 Agent。",
+    "inputsNotValidJson": "输入不是有效的 JSON",
+    "inputsNotValidJsonSentence": "输入不是有效的 JSON。",
+    "runInPlayground": "在调试台中运行",
+    "createScheduleFirst": "请先创建定时任务再运行",
+    "agentWillReceive": "Agent 将收到"
+}

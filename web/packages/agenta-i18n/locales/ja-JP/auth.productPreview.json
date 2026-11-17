@@ -1,0 +1,19 @@
+{
+    "daysAgo": "{{count}} 日前",
+    "elapsed": "{{seconds}} 秒",
+    "hoursAgo": "{{count}} 時間前",
+    "minutesAgo": "{{count}} 分前",
+    "navAgents": "エージェント",
+    "navAutomations": "自動化",
+    "navHome": "ホーム",
+    "navSessions": "セッション",
+    "navSettings": "設定",
+    "navSkills": "スキル",
+    "navTemplates": "テンプレート",
+    "newAutomation": "新しい自動化",
+    "now": "今",
+    "starting": "開始中",
+    "subtitle": "スケジュールに従って、またはアプリで何かが起きたときに実行されるエージェント。",
+    "title": "自動化",
+    "workedFor": "{{seconds}} 秒間作業しました"
+}

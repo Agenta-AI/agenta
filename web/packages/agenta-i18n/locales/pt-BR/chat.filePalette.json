@@ -1,0 +1,21 @@
+{
+    "acrossDrive": "em todo o drive",
+    "agent": "Agente",
+    "back": "voltar",
+    "dismiss": "dispensar",
+    "enterSends": "Enter envia a mensagem como está escrita.",
+    "files": "Arquivos",
+    "items": "{{count}} itens",
+    "listing": "listando…",
+    "navigate": "navegar",
+    "noFiles": "Ainda não há arquivos neste drive",
+    "noMatch": "Nenhum arquivo ou pasta corresponde a “{{query}}”",
+    "open": "abrir",
+    "openFolder": "abrir pasta",
+    "recentlyTouched": "Tocados recentemente",
+    "reference": "referenciar",
+    "referenceFolder": "referenciar pasta",
+    "searchingInside": "pesquisando em <path>{{cwd}}/</path>",
+    "send": "enviar",
+    "session": "Sessão"
+}

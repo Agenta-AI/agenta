@@ -1,0 +1,21 @@
+{
+    "codeHeading": "Revisa tu bandeja de entrada",
+    "codeSubheading": "Introduce el código de 6 caracteres que hemos enviado a tu correo.",
+    "continueWithSso": "Continuar con SSO ({{provider}})",
+    "headingNew": "Te damos la bienvenida a Agenta",
+    "headingReturning": "Te damos la bienvenida de nuevo",
+    "noAuthMethods": "No hay ningún método de inicio de sesión habilitado en este despliegue. Ponte en contacto con tu administrador.",
+    "noMethodForEmail": "Este correo no tiene ningún método de inicio de sesión aquí. Prueba con otra dirección.",
+    "otpHeading": "Obtén un código de inicio de sesión",
+    "otpSubheading": "Enviaremos un código de un solo uso a esta dirección.",
+    "passwordHeading": "Introduce tu contraseña",
+    "passwordSubheading": "¿Eres nuevo en Agenta? La contraseña que elijas aquí creará tu cuenta.",
+    "providerUnreachable": "No se pudo conectar con ese proveedor. Inténtalo de nuevo.",
+    "redirectingTo": "Redirigiendo a {{provider}}…",
+    "signedInButAppFailed": "Has iniciado sesión, pero no se pudo abrir la aplicación. Inténtalo de nuevo.",
+    "ssoHeading": "Inicia sesión con SSO",
+    "ssoSubheading": "Tu organización gestiona el inicio de sesión de este correo.",
+    "subheadingNew": "Inicia sesión o crea una cuenta.",
+    "subheadingReturning": "Inicia sesión para continuar en tu espacio de trabajo.",
+    "termsNotice": "Al continuar, aceptas los <terms>Términos del servicio</terms> y la <privacy>Política de privacidad</privacy> de Agenta."
+}

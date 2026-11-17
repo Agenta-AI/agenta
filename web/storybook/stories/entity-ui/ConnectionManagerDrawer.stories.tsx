@@ -11,9 +11,6 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 // and the query fixture. Uniqueness across stories is what prevents `atomFamily` collisions,
 // and each id below appears in exactly one story.
 //
-// antd `Drawer` → `EnhancedDrawer` (Sheet facade); `Descriptions bordered` → composed
-// detail table; icon+loading Buttons → `LoadingButton`; `Spin` → `Spinner`.
-// Showcase story (drawer renders in a portal — not a grid parity pair).
 const meta = {
     title: "@agenta/entity-ui/GatewayTool/ConnectionManagerDrawer",
     component: ConnectionManagerDrawer,
@@ -22,7 +19,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Connection details drawer: status badge, bordered detail table (was antd `Descriptions`), Test/Refresh/Revoke/Delete actions. Opens from `connectionDrawerAtom`; data from the seeded connection query.",
+                    "Connection details drawer: status badge, bordered detail table, Test/Refresh/Revoke/Delete actions. Opens from `connectionDrawerAtom`; data from the seeded connection query.",
             },
         },
     },

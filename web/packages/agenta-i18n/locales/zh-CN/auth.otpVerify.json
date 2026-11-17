@@ -1,0 +1,17 @@
+{
+    "authenticationFailed": "身份验证失败。请重试。",
+    "characterN": "第 {{number}} 个字符",
+    "codeExpired": "此验证码已过期。请在下方请求新的验证码。",
+    "codeVerified": "验证码已验证",
+    "couldNotSendNewCode": "无法发送新的验证码。请重试。",
+    "enterAllCharacters": "请输入验证码的全部 6 个字符。",
+    "incorrectCode_other": "这个验证码不正确。还剩 {{count}} 次尝试机会。",
+    "newCodeSent": "新验证码已发送。",
+    "oneTimeCode": "一次性验证码",
+    "openInbox": "打开 {{inbox}} 查找你的验证码",
+    "resendCode": "重新发送验证码",
+    "resendCodeIn": "重新发送验证码 · {{time}}",
+    "sentTo": "已发送至 {{email}}",
+    "useDifferentEmail": "使用其他邮箱",
+    "verifying": "正在验证…"
+}

@@ -1,0 +1,12 @@
+{
+    "hint": "Legen Sie ihn einmal fest. Er wird in SSO-Callback-URLs verwendet und kann später nicht mehr geändert werden.",
+    "invalid": "Verwenden Sie 1–64 Kleinbuchstaben (a-z) und Bindestriche (-)",
+    "label": "Organisations-Slug",
+    "lockedHint": "Dieser Slug wird in SSO-Callback-URLs verwendet und kann nicht geändert werden.",
+    "noSlug": "Es ist kein Slug festgelegt.",
+    "save": "Slug speichern",
+    "saveFailed": "Der Organisations-Slug konnte nicht gespeichert werden",
+    "saving": "Wird gespeichert…",
+    "setBeforeSso": "Legen Sie den Slug fest, bevor Sie einen SSO-Anbieter hinzufügen. Die Callback-URL benötigt ihn.",
+    "taken": "Dieser Slug ist bereits vergeben. Wählen Sie einen anderen."
+}

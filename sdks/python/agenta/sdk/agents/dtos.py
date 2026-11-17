@@ -1677,6 +1677,9 @@ class SessionConfig(BaseModel):
     # per-turn transport metadata: the harness never consumes them, but the runner uses turn_id as
     # the fresh execution guard and control_command_id to deduplicate durable continuation delivery.
     turn_id: Optional[str] = None
+    # The session turn this execution belongs to, when it differs from turn_id: an approval
+    # resume runs as a new execution of the turn that paused. The runner writes it as ag.turn.id.
+    session_turn_id: Optional[str] = None
     project_id: Optional[str] = None
     control_command_id: Optional[str] = None
     # The post-hydration config this turn runs, carried verbatim so the runner can stamp it on

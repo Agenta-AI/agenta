@@ -1,8 +1,8 @@
 """
 End-to-end tests for all six loadable querying strategies.
 
-Reference: docs/designs/loadables/loadables.querying.strategies.md
-Gap analysis: docs/designs/loadables/loadables.querying.gap-analysis.md
+Reference: docs/design/loadables/loadables.querying.strategies.md
+Gap analysis: docs/design/loadables/loadables.querying.gap-analysis.md
 
 Strategy overview:
   [A.0]  Revision endpoint — stored content only (no IDs, no items)

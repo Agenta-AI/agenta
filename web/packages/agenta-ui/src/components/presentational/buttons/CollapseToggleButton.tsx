@@ -11,10 +11,14 @@
 
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {CaretLineDown, CaretLineUp} from "@phosphor-icons/react"
 
 import {Button, type ButtonProps} from "../../ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+
+const tNow = createT(commonCatalog)
 
 // ============================================================================
 // HOOK
@@ -59,7 +63,7 @@ export function useCollapseToggle(options: UseCollapseToggleOptions = {}): UseCo
         collapsed,
         toggle,
         setCollapsed,
-        label: collapsed ? "Expand" : "Collapse",
+        label: collapsed ? tNow("common.expand") : tNow("common.collapse"),
         icon: collapsed ? <CaretLineDown size={14} /> : <CaretLineUp size={14} />,
     }
 }
@@ -77,7 +81,7 @@ export function getCollapseIcon(collapsed: boolean, size = 14): React.ReactEleme
  * Use this when you manage state externally but need the canonical label.
  */
 export function getCollapseLabel(collapsed: boolean): string {
-    return collapsed ? "Expand" : "Collapse"
+    return collapsed ? tNow("common.expand") : tNow("common.collapse")
 }
 
 // ============================================================================

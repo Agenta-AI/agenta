@@ -637,7 +637,7 @@ class EvaluationsService:
         Steps:
           1. prune run cells (and input-only scenarios + their metrics) for
              any step that existed before but is gone from the current graph,
-             per `docs/designs/unified-eval-loops/step-removal-semantics.md`.
+             per `docs/design/unified-eval-loops/step-removal-semantics.md`.
           2. reconcile the default queue + `is_queue` from the current graph.
         """
         await self._prune_removed_steps(

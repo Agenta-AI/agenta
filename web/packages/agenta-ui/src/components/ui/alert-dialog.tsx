@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import {X} from "lucide-react"
 
@@ -54,6 +56,7 @@ function AlertDialogContent({
     /** No close X by default (an alert forces a choice); opting in makes dismiss = cancel. */
     showCloseButton?: boolean
 }) {
+    const t = useT(commonCatalog)
     return (
         <AlertDialogPortal container={container}>
             <AlertDialogOverlay className={container ? "absolute" : undefined} />
@@ -86,7 +89,7 @@ function AlertDialogContent({
                                 variant="ghost"
                                 size="icon-sm"
                                 className="absolute right-2 top-2"
-                                aria-label="Close"
+                                aria-label={t("common.close")}
                             >
                                 <X />
                             </Button>

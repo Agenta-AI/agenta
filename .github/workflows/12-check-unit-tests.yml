@@ -178,10 +178,7 @@ jobs:
   run-storybook-build:
     # web/storybook sits outside the turbo build graph: it has ~200 stories and its own
     # lint/build scripts, but nothing in CI type-checked or built it, so a story could
-    # break silently. Its build task is not wired through `turbo run build` on purpose:
-    # storybook depends on @agenta/oss (for fixtures), so turbo's generic `^build` would
-    # pull in a full `next build` of the OSS app, which no CI job runs today and this
-    # workflow has no env set up for. Run the package's own scripts directly instead.
+    # break silently. Run the package's own lint and build scripts directly.
     if: |
       github.event_name == 'workflow_dispatch' ||
       !github.event.pull_request.draft

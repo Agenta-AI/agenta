@@ -87,8 +87,40 @@ class AgSessionAttributes(BaseModel):
     model_config = {"ser_json_exclude_none": True}
 
 
+class AgTurnAttributes(BaseModel):
+    id: Optional[str] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
 class AgUserAttributes(BaseModel):
     id: Optional[str] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AnnotationScope(str, Enum):
+    SPAN = "span"
+    TRACE = "trace"
+    TURN = "turn"
+    SESSION = "session"
+
+
+class AnnotationPartyType(str, Enum):
+    PERSON = "person"
+
+
+class AgAnnotationPartyAttributes(BaseModel):
+    type: AnnotationPartyType
+    user_id: Optional[str] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AgAnnotationAttributes(BaseModel):
+    scope: Optional[AnnotationScope] = None
+    author: Optional[AgAnnotationPartyAttributes] = None
+    actor: Optional[AgAnnotationPartyAttributes] = None
 
     model_config = {"ser_json_exclude_none": True}
 
@@ -98,7 +130,9 @@ class AgAttributes(BaseModel):
     data: AgDataAttributes = Field(default_factory=AgDataAttributes)
 
     session: Optional[AgSessionAttributes] = None
+    turn: Optional[AgTurnAttributes] = None
     user: Optional[AgUserAttributes] = None
+    annotation: Optional[AgAnnotationAttributes] = None
 
     metrics: Optional[AgMetricsAttributes] = None
     flags: Optional[Flags] = None
@@ -203,9 +237,10 @@ class Span(Lifecycle):
     status_code: Optional[OTelStatusCode] = None
     status_message: Optional[str] = None
 
-    # Root-span-only (parent_id is None); lifted from ag.session/user/agent
-    # attributes at ingestion. Never set on child spans.
+    # Lifted at ingestion: session_id and turn_id from each span's own
+    # ag.session/ag.turn; user_id and agent_id from the root span only.
     session_id: Optional[str] = None
+    turn_id: Optional[str] = None
     user_id: Optional[str] = None
     agent_id: Optional[str] = None
 

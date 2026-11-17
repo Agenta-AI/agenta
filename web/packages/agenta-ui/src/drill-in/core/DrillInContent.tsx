@@ -20,6 +20,10 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiDrillInCatalog from "@agenta/i18n/catalogs/ui.drillIn"
+
 import type {
     DataType,
     DrillInContentProps,
@@ -41,6 +45,8 @@ import {
 import {DrillInBreadcrumb} from "./DrillInBreadcrumb"
 import {DrillInControls} from "./DrillInControls"
 import {DrillInFieldHeader} from "./DrillInFieldHeader"
+
+const tNow = createT(uiDrillInCatalog)
 
 // Re-export types for backward compatibility
 export type {PathItem, SchemaInfo, DrillInContentProps} from "../coreTypes"
@@ -147,6 +153,7 @@ export function DrillInContent({
     drillInEnabled = true,
     ContextProvider,
 }: DrillInContentWithRenderersProps) {
+    const t = useT(uiDrillInCatalog, commonCatalog)
     const resolvedShowFieldCollapse = showFieldCollapse ?? showCollapse
 
     // Parse initialPath to array format, removing rootTitle prefix if present
@@ -415,9 +422,10 @@ export function DrillInContent({
             const strValue = valueToString(value)
             try {
                 const parsed = JSON.parse(strValue)
-                if (Array.isArray(parsed)) return `${parsed.length} items`
+                if (Array.isArray(parsed))
+                    return tNow("ui.drillIn.itemsCount", {count: parsed.length})
                 if (typeof parsed === "object" && parsed !== null)
-                    return `${Object.keys(parsed).length} properties`
+                    return tNow("ui.drillIn.propertiesCount", {count: Object.keys(parsed).length})
             } catch {
                 // Not JSON
             }
@@ -577,7 +585,7 @@ export function DrillInContent({
 
             {/* Current level items */}
             {filteredLevelItems.length === 0 && (
-                <div className="text-gray-500 text-sm">No items to display</div>
+                <div className="text-gray-500 text-sm">{t("ui.drillIn.noItemsToDisplay")}</div>
             )}
 
             <div className={fieldsWrapperClass}>

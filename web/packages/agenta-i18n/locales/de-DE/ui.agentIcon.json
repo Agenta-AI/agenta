@@ -1,0 +1,13 @@
+{
+    "agentIcon": "Agent-Symbol",
+    "backToPalette": "Zurück zur Palette",
+    "couldNotLoad": "Symbole konnten nicht geladen werden",
+    "customColour": "Eigene Farbe",
+    "hex": "Hex",
+    "hexColour": "Hex-Farbe",
+    "noIconsFound": "Keine Symbole gefunden",
+    "nothingMatches": "Keine Treffer für „{{search}}“",
+    "reset": "Zurücksetzen",
+    "savesAsYouPick": "Wird beim Auswählen gespeichert",
+    "searchIcons": "Symbole suchen"
+}
