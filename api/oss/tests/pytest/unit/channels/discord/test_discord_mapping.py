@@ -243,3 +243,20 @@ def test_the_invite_url_has_the_exact_permissions():
         "https://discord.com/oauth2/authorize"
         "?client_id=123&scope=bot&permissions=309237763136"
     )
+
+
+def test_an_approval_card_shows_markdown_in_the_call_literally():
+    """`||...||` is a Discord spoiler: unescaped, the destructive part of the
+    command would be hidden on the card until clicked."""
+
+    from oss.src.core.channels.adapters.discord.mapping import build_messages
+
+    card = {
+        "type": "card",
+        "title": "Approval needed: Bash",
+        "tool": "Bash",
+        "arguments": {"command": "false || rm -rf backups || true"},
+    }
+    content = build_messages([card])[0]["content"]
+    assert "false \\|\\| rm -rf backups \\|\\| true" in content
+    assert "Approval needed: Bash" in content

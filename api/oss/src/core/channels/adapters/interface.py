@@ -228,10 +228,14 @@ class ChannelAdapterInterface(ABC):
         connection: ChannelConnection,
         external_locator: Dict[str, Any],
         content: Optional[List[Dict[str, Any]]] = None,
+        approved: Optional[bool] = None,
+        answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Remove resolved message controls without changing the message text.
-        `content` is the message as it was posted, for platforms (Slack) that
-        can only drop buttons by re-sending the rest of the message."""
+        """Remove resolved message controls. `content` is the message as it
+        was posted, for platforms (Slack) that can only drop buttons by
+        re-sending the rest of the message. `approved` is the decision and
+        `answered_by` the platform sender who made it, for a platform that
+        also shows the outcome on the card (Discord)."""
         return None
 
     async def set_message_status(

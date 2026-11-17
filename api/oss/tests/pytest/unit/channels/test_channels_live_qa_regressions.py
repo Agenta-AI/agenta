@@ -106,7 +106,10 @@ async def test_controls_are_removed_only_after_admission(fail_admission):
     args = dict(
         project_id=uuid4(),
         connection_id=uuid4(),
-        event=SimpleNamespace(id=uuid4()),
+        event=SimpleNamespace(
+            id=uuid4(),
+            data=SimpleNamespace(processed=SimpleNamespace(sender={"id": "42"})),
+        ),
         resolution=resolution,
     )
     if fail_admission:
@@ -117,6 +120,10 @@ async def test_controls_are_removed_only_after_admission(fail_admission):
     else:
         await dispatcher._answer_interaction(**args)
         service.dismiss_approval_choices.assert_awaited_once()
+        # the decision and the person who clicked reach the card edit
+        dismissed = service.dismiss_approval_choices.await_args.kwargs
+        assert dismissed["approved"] is False
+        assert dismissed["answered_by"] == {"id": "42"}
         assert (
             service.set_pending_choice.await_args.kwargs["expected_interaction_id"]
             == resolution.answered_interaction_id
@@ -151,10 +158,14 @@ async def test_ui_failure_does_not_retry_an_admitted_decision():
     await dispatcher._answer_interaction(
         project_id=uuid4(),
         connection_id=uuid4(),
-        event=SimpleNamespace(id=uuid4()),
+        event=SimpleNamespace(
+            id=uuid4(),
+            data=SimpleNamespace(processed=SimpleNamespace(sender={"id": "42"})),
+        ),
         resolution=resolution,
     )
     respond.assert_awaited_once()
+    service.dismiss_approval_choices.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -197,8 +208,14 @@ async def test_cleanup_targets_only_the_answered_cards_stored_receipt(wrong_card
             id=thread_id, data=SimpleNamespace(pending_choice=pending)
         ),
         interaction_id=interaction,
+        approved=True,
+        answered_by={"id": "42"},
     )
     assert adapter.dismiss_choices.await_count == (0 if wrong_card else 1)
+    if not wrong_card:
+        kwargs = adapter.dismiss_choices.await_args.kwargs
+        assert kwargs["approved"] is True
+        assert kwargs["answered_by"] == {"id": "42"}
 
 
 @pytest.mark.asyncio
