@@ -4,7 +4,6 @@ import {
     AgentOperationsSkeleton,
     BooleanToggleControl,
     CodeConfigControl,
-    CollapsibleProviderGroup,
     EnumSelectControl,
     FieldsTagsEditorControl,
     GroupedChoiceControl,
@@ -16,8 +15,7 @@ import {
     SubSectionHeader,
     TextInputControl,
 } from "@agenta/entity-ui/drill-in"
-import {HeightCollapse} from "@agenta/ui"
-import {CollapseToggleButton, Tag} from "@agenta/ui/components/presentational"
+import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {cn, textColors} from "@agenta/ui/styles"
 import {
     Button,
@@ -30,16 +28,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {
-    ArrowSquareOut,
-    CaretDown,
-    CopySimple,
-    Info,
-    Plugs,
-    Plus,
-    Trash,
-    X,
-} from "@phosphor-icons/react"
+import {ArrowSquareOut, CopySimple, Info, Plus, Trash, X} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {
     Button as AntButton,
@@ -358,36 +347,6 @@ const AntdSubSectionHeader = ({label, count}: {label: string; count: number}) =>
         <AntTag bordered className="m-0 !px-1.5 !text-[10px] font-normal leading-[16px]">
             {count}
         </AntTag>
-    </div>
-)
-
-/** sectionGroups `CollapsibleProviderGroup`, pre-migration. */
-const AntdCollapsibleProviderGroup = ({
-    name,
-    countText,
-    addLabel,
-    children,
-}: {
-    name: string
-    countText: string
-    addLabel: string
-    children: React.ReactNode
-}) => (
-    <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
-        <div className="flex cursor-pointer items-center gap-2.5 bg-[var(--ag-colorFillQuaternary)] py-2 pl-3 pr-[21px] transition-colors hover:bg-[var(--ag-colorFillSecondary)]">
-            <CaretDown size={12} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
-            <Plugs size={20} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
-            <span className="min-w-0 flex-1 truncate text-xs font-medium">{name}</span>
-            <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
-                {countText}
-            </span>
-            <AntTooltip title={addLabel}>
-                <AntButton type="text" icon={<Plus size={16} />} aria-label={addLabel} />
-            </AntTooltip>
-        </div>
-        <HeightCollapse open>
-            <div className="flex flex-col gap-0.5 px-1.5 pb-1.5 pt-1">{children}</div>
-        </HeightCollapse>
     </div>
 )
 
@@ -908,30 +867,6 @@ function LeafControlsComparison() {
                 a={<AntdSubSectionHeader label="Connected apps" count={5} />}
                 s={<SubSectionHeader label="Connected apps" count={5} />}
             />
-            <Row
-                label="collapsible provider group"
-                a={
-                    <AntdCollapsibleProviderGroup
-                        name="Slack"
-                        countText="2 active · 3 total"
-                        addLabel="Add trigger"
-                    >
-                        <div className="px-2 py-1 text-xs">#general</div>
-                    </AntdCollapsibleProviderGroup>
-                }
-                s={
-                    <CollapsibleProviderGroup
-                        name="Slack"
-                        countText="2 active · 3 total"
-                        open
-                        onToggle={noop}
-                        onAdd={noop}
-                        addLabel="Add trigger"
-                    >
-                        <div className="px-2 py-1 text-xs">#general</div>
-                    </CollapsibleProviderGroup>
-                }
-            />
 
             {/* JsonObjectEditor */}
             <Row
@@ -1087,38 +1022,6 @@ export const QuickAction: Story = {
             </SectionQuickAction>
         </div>
     ),
-}
-
-/** Grouped provider cards (collapsed + expanded) with the sub-section header. */
-export const ProviderGroups: Story = {
-    render: function ProviderGroupsStory() {
-        const [open, setOpen] = useState<Record<string, boolean>>({slack: true, github: false})
-        return (
-            <div className="flex max-w-[520px] flex-col gap-2">
-                <SubSectionHeader label="Connected apps" count={2} />
-                <CollapsibleProviderGroup
-                    name="Slack"
-                    countText="2 active · 3 total"
-                    open={open.slack}
-                    onToggle={() => setOpen((p) => ({...p, slack: !p.slack}))}
-                    onAdd={noop}
-                    addLabel="Add trigger"
-                    statusTag={<Tag tone="success" size="small" label="Connected" />}
-                >
-                    <div className="px-2 py-1 text-xs">#general</div>
-                    <div className="px-2 py-1 text-xs">#alerts</div>
-                </CollapsibleProviderGroup>
-                <CollapsibleProviderGroup
-                    name="GitHub"
-                    countText="1 tool"
-                    open={open.github}
-                    onToggle={() => setOpen((p) => ({...p, github: !p.github}))}
-                >
-                    <div className="px-2 py-1 text-xs">create_issue</div>
-                </CollapsibleProviderGroup>
-            </div>
-        )
-    },
 }
 
 /** Every leaf that takes a `disabled` prop, in its disabled state. */

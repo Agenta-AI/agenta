@@ -238,6 +238,7 @@ vi.mock("@/features/sessions/useLivenessPoll", () => ({
 }))
 vi.mock("@/features/wallet/useWalletSummary", () => ({
     useWalletSummary: () => ({data: undefined, isLoading: false}),
+    walletSummaryKey: (projectId: string) => ["wallet", "summary", projectId],
 }))
 vi.mock("@/features/chat/buildKitWait", () => ({waitForBuildKit: async () => true}))
 vi.mock("@/features/chat/hasUnsavedConfigEdits", () => ({hasUnsavedConfigEdits: () => false}))
@@ -258,6 +259,7 @@ vi.mock("@/features/chat/states/PendingTaskError", () => ({
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
+vi.mock("@/features/wallet/CreditAlertStrip", () => ({CreditAlertStrip: () => null}))
 vi.mock("@/features/chat/useOpenModelSetup", () => ({useOpenModelSetup: () => vi.fn()}))
 vi.mock("@/features/chat/Composer", () => ({
     Composer: ({

@@ -284,6 +284,10 @@ class WorkflowRevisionQueryRequest(BaseModel):
         default=None,
         description="When true, include archived revisions.",
     )
+    include_data: Optional[bool] = Field(
+        default=None,
+        description="When false, omit each revision's `data` from the response.",
+    )
     #
     grouping: Optional[RevisionGrouping] = Field(
         default=None,

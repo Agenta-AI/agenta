@@ -183,6 +183,9 @@ export const ApprovalCard = ({
         // A read-only card answers nothing, so it binds no keys either.
         if (readOnly) return
         const onKeyDown = (event: KeyboardEvent) => {
+            const approveChord = (event.metaKey || event.ctrlKey) && event.key === "Enter"
+            const denyChord = event.key === "Escape" && !event.metaKey && !event.ctrlKey
+            if (!approveChord && !denyChord) return
             // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
             // Escape for a dialog, menu or popover but still lets it reach us, and it never
             // touches Cmd+Enter, which only the overlay check catches.
@@ -191,9 +194,6 @@ export const ApprovalCard = ({
             // not looking at. Without this, one Cmd+Enter answered every hidden card too.
             if (rootRef.current && !isOnScreen(rootRef.current)) return
             if (steerOpen) return
-            const approveChord = (event.metaKey || event.ctrlKey) && event.key === "Enter"
-            const denyChord = event.key === "Escape" && !event.metaKey && !event.ctrlKey
-            if (!approveChord && !denyChord) return
             // Escape must not deny while the user is typing (e.g. clearing a queued message in the
             // composer). Cmd/Ctrl+Enter still fires from a field — it mirrors the composer's send.
             const target = event.target as HTMLElement | null

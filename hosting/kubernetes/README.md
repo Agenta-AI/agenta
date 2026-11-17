@@ -317,6 +317,34 @@ An idle connection costs a worker a few kilobytes, and the balancer pools its
 connections, so a long keep-alive is cheap. Before 0.122.5 the chart used
 gunicorn's default of 5 seconds, which is below every balancer in the table.
 
+### Agents that call other agents
+
+An agent can call another agent as a tool (a `reference` tool). That call holds two
+requests open, with no bytes sent, until the other agent finishes its turn, for up to
+30 minutes:
+
+- the runner's `POST /api/tools/call` to the api, and
+- the api's `POST /services/<workflow>/invoke` to services.
+
+Both go through the ingress unless `agenta.apiInternalUrl` is set (the first hop) and the
+services URL is internal (the second hop). The usual response timeouts in front of them
+are 30 to 60 seconds, so the call fails after that time. Raise the response timeout to
+1820 seconds on those two routes. The api answers by 30 minutes, and the runner gives up
+at 30 minutes and 10 seconds.
+
+The chart does not set this for you, because the setting belongs to the ingress
+controller or the load balancer:
+
+- ingress-nginx: the `nginx.ingress.kubernetes.io/proxy-read-timeout` annotation. It
+  applies to every path of the Ingress. To limit it to the two routes, put them in a
+  second Ingress with the annotation.
+- A load balancer with a backend response timeout (for example `timeoutSec` on a GKE
+  `BackendConfig`, or the idle timeout of an AWS ALB): raise it for the api and services
+  backends.
+
+A rollout also cuts the call: a stopping api worker keeps its open requests for at most
+`api.gunicorn.gracefulTimeout` seconds (900 by default).
+
 ### api pods and the cluster autoscaler
 
 On GKE Autopilot the api can fall into a loop. The chart spreads api pods over

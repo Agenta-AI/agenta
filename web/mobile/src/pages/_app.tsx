@@ -1,3 +1,6 @@
+// Side effect: must run before anything that can load Prism. See the module.
+import "@/lib/prismManualMode"
+
 import {registerDriveMarkdown} from "@agenta/entity-ui/drive"
 import {DEFAULT_PAGE_TITLE} from "@agenta/shared/utils"
 import AppMessageContext from "@agenta/ui/app-message"

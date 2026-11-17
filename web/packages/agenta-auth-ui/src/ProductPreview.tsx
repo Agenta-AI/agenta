@@ -14,7 +14,7 @@ import {
     Gear,
     GithubLogo,
     GitlabLogo,
-    GraduationCap,
+    Compass,
     House,
     Lightning,
     MagnifyingGlass,
@@ -217,7 +217,7 @@ const NAV: [Icon, string][] = [
     [House, "Home"],
     [Robot, "Agents"],
     [Lightning, "Automations"],
-    [GraduationCap, "Skills"],
+    [Compass, "Skills"],
     [ChatsCircle, "Sessions"],
 ]
 

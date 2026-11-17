@@ -1125,8 +1125,8 @@ means a new `plugin.json` `name`: change it, then zip and validate again.
 ## Steps
 
 1. Run `gh auth status`. If it fails, call `request_secret` with `env_var: "GITHUB_TOKEN"`
-   and tell the person to create a token at https://github.com/settings/tokens. Never ask
-   them to paste a token in the chat.
+   (and `rejected: true` when `GITHUB_TOKEN` is already set) and tell the person to create
+   a token at https://github.com/settings/tokens. Never ask them to paste a token in the chat.
 2. Fork and clone into `/tmp` with a shallow clone:
 
        cd /tmp && gh repo fork Agenta-AI/agenta --clone -- --depth 1

@@ -20,6 +20,7 @@ import type {
 import {flexRender, useTable} from "@tanstack/react-table"
 import {useVirtualizer} from "@tanstack/react-virtual"
 
+import {CollapseCaret} from "../../components/ui/collapse-caret"
 import {Spinner} from "../../components/ui/spinner"
 import {cn} from "../../utils/styles"
 import type {ColumnDef, ColumnDefs, ColumnRenderResult, RenderedColumnCell} from "../columnDef"
@@ -666,14 +667,10 @@ export const VirtualTable = <RecordType extends object>({
                                                                 row.toggleExpanded()
                                                             }}
                                                         >
-                                                            <span
-                                                                className={cn(
-                                                                    "transition-transform",
-                                                                    expanded && "rotate-90",
-                                                                )}
-                                                            >
-                                                                ›
-                                                            </span>
+                                                            <CollapseCaret
+                                                                open={expanded}
+                                                                size={12}
+                                                            />
                                                         </button>
                                                     ) : null}
                                                 </td>

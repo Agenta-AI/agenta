@@ -39,15 +39,14 @@ import {cn} from "@/lib/utils"
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
-import {useBillingRoute, useCanBuyCredits, useProviderRecovery} from "./providerRecovery"
 import {quotedMessageParts} from "./quotedMessageParts"
-import {describeRunFailure, RunErrorMessage} from "./RunErrorMessage"
-import {RunErrorRecovery} from "./RunErrorRecovery"
+import {describeRunFailure, type RunFailureView} from "./RunErrorMessage"
 import {runRetryAction} from "./runRetry"
 import {refreshOnSetupFailure} from "./setupFailureRefresh"
 import {turnFiles} from "./turnFileList"
 import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
+import {TurnRunFailure} from "./TurnRunFailure"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
@@ -59,6 +58,9 @@ const attachmentSize = (metadata: unknown): number | undefined => {
 
 /** One transcript turn: a user bubble, or an assistant fold, answer, meta line and any run error. */
 const ASSISTANT_META: ("tokens" | "cost")[] = ["tokens", "cost"]
+
+/** The fold's failure line reads the same whichever ways out the page can offer. */
+const NO_WAYS_OUT = {providers: false, buyCredits: false, plans: false}
 
 const TurnRowInner = ({
     turn,
@@ -111,9 +113,6 @@ const TurnRowInner = ({
         sessionId,
         traceId: turn.isUser ? turn.turnTraceId : traceId,
     })
-    const openProviders = useProviderRecovery()
-    const openBilling = useBillingRoute()
-    const canBuyCredits = useCanBuyCredits(turn.status.errorCode)
 
     /**
      * Notices about a server that did not join the run, above the timeline rather than in it.
@@ -174,15 +173,13 @@ const TurnRowInner = ({
     const errorText = turn.status.showError
         ? (turn.status.errorText ?? "Something went wrong.")
         : traceError
-    const runError = errorText
-        ? describeRunFailure({
+    const runFailure = errorText
+        ? {
               text: errorText,
               code: turn.status.errorCode ?? undefined,
               transport: isMessageRunErrorTransport(turn.message),
               onRetry: runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined),
-              can: {providers: !!openProviders, buyCredits: canBuyCredits, plans: !!openBilling},
-              onSignIn: openProviders,
-          })
+          }
         : null
     // The latest turn failing for needs-setup refreshes the tags and the banner.
     const lastErrorCode = turn.isLast && errorText ? turn.status.errorCode : null
@@ -251,6 +248,25 @@ const TurnRowInner = ({
         [activity.steps, activity.messages, runOpen],
     )
 
+    // The turn's meta line sits under the answer, revealed on hover or focus like the desktop's;
+    // the row keeps its height so nothing shifts when it appears. Not while the run is parked on
+    // the reader: the turn is not over, only waiting.
+    const renderMetaLine = (failed?: RunFailureView) =>
+        !live && !(turn.isLast && (waitingOnUser || resuming)) ? (
+            <div
+                className={`flex min-h-6 items-center gap-1 ${
+                    inspectorEnabled ? "" : turnToolbarRevealClass
+                }`}
+            >
+                <TurnFooter
+                    {...footer}
+                    isUser={false}
+                    copyText={footer.copyText || failed?.paragraphs.join("\n\n")}
+                    onRetry={failed?.onRetry}
+                />
+            </div>
+        ) : null
+
     const body = turn.isUser ? (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {userParts.map(({key, part}) =>
@@ -280,7 +296,11 @@ const TurnRowInner = ({
                 streamedHere={streamedHereRef.current}
                 runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}
-                failure={runError?.failure}
+                failure={
+                    runFailure
+                        ? describeRunFailure({...runFailure, can: NO_WAYS_OUT}).failure
+                        : undefined
+                }
             />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
@@ -303,11 +323,8 @@ const TurnRowInner = ({
                 <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
             ))}
             {!live ? <TurnFiles files={writtenFiles} /> : null}
-            {runError ? (
-                <>
-                    <RunErrorMessage paragraphs={runError.paragraphs} quote={runError.quote} />
-                    <RunErrorRecovery actions={runError.recoveries} />
-                </>
+            {runFailure ? (
+                <TurnRunFailure failure={runFailure} renderFooter={renderMetaLine} />
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
@@ -317,23 +334,7 @@ const TurnRowInner = ({
                 // running call, the fold hides that failed call, and the turn would read empty.
                 <span className="text-xs italic text-colorTextSecondary">Stopped</span>
             ) : null}
-            {/* The turn's meta line sits under the answer, revealed on hover or focus like the
-                desktop's; the row keeps its height so nothing shifts when it appears. Not while
-                the run is parked on the reader: the turn is not over, only waiting. */}
-            {!live && !(turn.isLast && (waitingOnUser || resuming)) ? (
-                <div
-                    className={`flex min-h-6 items-center gap-1 ${
-                        inspectorEnabled ? "" : turnToolbarRevealClass
-                    }`}
-                >
-                    <TurnFooter
-                        {...footer}
-                        isUser={false}
-                        copyText={footer.copyText || runError?.paragraphs.join("\n\n")}
-                        onRetry={runError?.onRetry}
-                    />
-                </div>
-            ) : null}
+            {runFailure ? null : renderMetaLine()}
         </div>
     )
 

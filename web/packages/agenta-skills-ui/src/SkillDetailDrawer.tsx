@@ -27,6 +27,7 @@ import {
     type SkillRevision,
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
+import {SkillMark} from "@agenta/ui/agent-icon"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -62,6 +63,7 @@ import {useQuery} from "@tanstack/react-query"
 import Link from "next/link"
 
 import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
+import {skillTitle} from "./skillTitle"
 import type {SkillListItem, SkillUsageRef} from "./types"
 
 /** The head-revision query's key; the registry row's Download reads the same cache. */
@@ -474,8 +476,9 @@ export function SkillDetailDrawer({
 
     const title = (
         <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 truncate font-mono text-sm font-medium">
-                {skill?.slug ?? ""}
+            <SkillMark size={24} />
+            <span className="min-w-0 truncate text-sm font-medium">
+                {skill ? skillTitle(skill) : ""}
             </span>
             {provenance}
             {usage}
@@ -570,7 +573,7 @@ export function SkillDetailDrawer({
                 <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
                     {isBuiltin ? (
                         <div className="flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
-                            <span className="font-mono font-medium">{skill?.slug}</span>
+                            <span className="font-medium">{skill ? skillTitle(skill) : ""}</span>
                             <span className="text-[var(--ag-colorTextSecondary)]">
                                 {skill?.description || "No description."}
                             </span>
@@ -625,7 +628,9 @@ export function SkillDetailDrawer({
                     }}
                 >
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Archive {skill?.slug}?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            Archive {skill ? skillTitle(skill) : "skill"}?
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
                             The skill leaves the registry and agents can no longer run it. Its name
                             stays reserved, and restoring it brings back its full history.
