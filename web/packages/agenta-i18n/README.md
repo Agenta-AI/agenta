@@ -43,3 +43,12 @@ language file that does not exist shows English.
 ## Tests
 
 `pnpm test` in this folder.
+
+## Scripts
+
+- `pnpm i18n:check` checks every language against English: keys, plural forms, placeholders and tags.
+  A language in `LANGUAGES_IN_PROGRESS` (`scripts/catalog.ts`) may miss whole catalog files; remove
+  it from that list when its files are complete.
+- `pnpm i18n:translate [--lang <lang>] [--namespace <name>] [--dry-run]` fills missing or changed
+  keys with an LLM (`ANTHROPIC_API_KEY`). Style guides per language are in `scripts/translate.ts`;
+  glossaries are `glossary.<lang>.json`.
