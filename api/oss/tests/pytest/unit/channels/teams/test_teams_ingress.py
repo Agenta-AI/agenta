@@ -80,8 +80,13 @@ def dispatch():
 
 
 @pytest.fixture
-def client(service, dispatch):
-    adapter = f.adapter_for(f.FakeMicrosoft())
+def microsoft():
+    return f.FakeMicrosoft()
+
+
+@pytest.fixture
+def client(service, dispatch, microsoft):
+    adapter = f.adapter_for(microsoft)
     registry = ChannelAdapterRegistry(adapters={"teams": adapter})
     router = ChannelsIngressRouter(
         channels_service=service, adapter_registry=registry, dispatch_task=dispatch
@@ -127,6 +132,17 @@ def test_an_unknown_bot_is_refused_as_a_bad_signature(client, service):
     response = _post(client, p.message(), headers=f.auth_headers())
 
     assert response.status_code == 401
+    assert service.recorded == []
+
+
+def test_a_failed_key_read_answers_503_so_teams_retries(client, service, microsoft):
+    service.connect()
+    microsoft.keys_status = 503
+
+    response = _post(client, p.message(), headers=f.auth_headers())
+
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "60"
     assert service.recorded == []
 
 

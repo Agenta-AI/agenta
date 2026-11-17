@@ -49,6 +49,7 @@ from oss.src.core.channels.types import (
     ChannelLocatorIncomplete,
     ChannelNotSupported,
     ChannelSignatureInvalid,
+    ChannelSignatureUnavailable,
 )
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.adapters.embed.adapter import (
@@ -98,7 +99,8 @@ _embed_live_streams: Counter = Counter()
 def handle_channel_adapter_exceptions():
     """Map adapter/registry failures to HTTP. Mirrors triggers'
     handle_adapter_exceptions: unregistered channel -> 404, bad signature ->
-    401 with no diagnostic detail (ChannelSignatureInvalid carries none)."""
+    401 with no diagnostic detail (ChannelSignatureInvalid carries none), a
+    key source on our side that failed -> 503 so the platform retries."""
 
     def decorator(func):
         @wraps(func)
@@ -114,6 +116,12 @@ def handle_channel_adapter_exceptions():
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"status": "error"},
+                )
+            except ChannelSignatureUnavailable:
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    content={"status": "error"},
+                    headers={"Retry-After": "60"},
                 )
 
         return wrapper
