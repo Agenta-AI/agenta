@@ -14,8 +14,8 @@ import {
     type SessionDriveData,
 } from "@agenta/entities/drive"
 import {createT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"

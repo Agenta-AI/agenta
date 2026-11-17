@@ -93,8 +93,7 @@ export const useUpcomingTriggers = ({agentId, agentNames}: UseUpcomingTriggersAr
         const describeAgent = (references: unknown) => {
             const boundId = triggerBoundAgentId(references as never)
             return (
-                (boundId && agentNames?.get(boundId)) ||
-                tNow("entityUi.agentIntro.unassignedAgent")
+                (boundId && agentNames?.get(boundId)) || tNow("entityUi.agentIntro.unassignedAgent")
             )
         }
         const isInScope = (references: unknown) =>

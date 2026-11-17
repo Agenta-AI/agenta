@@ -6,8 +6,8 @@
 import {type DriveScope} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {useT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {
     Button,
     Empty,
@@ -66,9 +66,7 @@ export function DriveEmptyState({scope}: {scope: DriveScope}) {
                 <EmptyMedia variant="icon">
                     <Tray size={26} />
                 </EmptyMedia>
-                <EmptyTitle className="text-xs">
-                    {t("entityUi.driveBrowser.driveEmpty")}
-                </EmptyTitle>
+                <EmptyTitle className="text-xs">{t("entityUi.driveBrowser.driveEmpty")}</EmptyTitle>
                 <EmptyDescription className="text-xs">
                     {scope === "session"
                         ? t("entityUi.driveBrowser.createdOnFirstRun")

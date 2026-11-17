@@ -12,8 +12,8 @@ import {
     type DriveViewMode,
 } from "@agenta/entities/drive"
 import {useT, type CatalogKey} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {isCommentModeChord} from "@agenta/shared/previewPicker"
 import {getShortcut, isOnScreen, isOverlayOpen, shortcutText} from "@agenta/shared/utils"
 import {

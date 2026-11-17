@@ -6,8 +6,8 @@
 import {type ComponentProps, type ReactElement, type ReactNode} from "react"
 
 import {createT, useT} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {
     ContextMenu,
     ContextMenuContent,

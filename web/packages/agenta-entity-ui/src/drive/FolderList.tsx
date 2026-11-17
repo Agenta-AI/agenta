@@ -10,8 +10,8 @@ import {
     relativeTime,
 } from "@agenta/entities/drive"
 import {createT, useT, type CatalogKey} from "@agenta/i18n"
-import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import driveBrowserCatalog from "@agenta/i18n/catalogs/entityUi.driveBrowser"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"

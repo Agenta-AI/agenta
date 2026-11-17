@@ -12,8 +12,8 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {useT} from "@agenta/i18n"
-import catalogChooserCatalog from "@agenta/i18n/catalogs/entityUi.catalogChooser"
 import catalogAppCardCatalog from "@agenta/i18n/catalogs/entityUi.catalogAppCard"
+import catalogChooserCatalog from "@agenta/i18n/catalogs/entityUi.catalogChooser"
 import {ScrollSentinel} from "@agenta/ui"
 import {
     Button,

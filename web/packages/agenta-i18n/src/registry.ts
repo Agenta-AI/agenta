@@ -14,7 +14,9 @@ export interface CatalogEntry {
     load: CatalogLoader
 }
 
-type LanguageModule = {loadNamespace: (namespace: string) => Promise<{default: Catalog}>}
+interface LanguageModule {
+    loadNamespace: (namespace: string) => Promise<{default: Catalog}>
+}
 
 /**
  * One loader module per language. A catalog carries only its namespace, not a loader of its own,
