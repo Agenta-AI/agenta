@@ -283,7 +283,7 @@ function cloneTemplate(template: unknown): unknown {
  * an array). The behaviour is identical at both levels; the only
  * difference is whether the parent supplies a label.
  *
- * Phase 2d of `docs/designs/mustache-section-support.md` — the
+ * Phase 2d of `docs/design/mustache-section-support.md` — the
  * "form-array editor" piece.
  */
 function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
