@@ -45,11 +45,6 @@
 .ag-navdd[data-open] > .ag-mega > * {
   animation: agMegaKids 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
 }
-.nav-scrolled .ag-mega {
-  top: calc(100% + 30px);
-  border-radius: 18px;
-  box-shadow: var(--th-menu-shadow);
-}
 @keyframes agMegaIn {
   from {
     opacity: 0;
