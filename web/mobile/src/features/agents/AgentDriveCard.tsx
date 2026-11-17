@@ -12,6 +12,8 @@ import {
     driveQuickLookAtomFamily,
     sessionFilesPaneOpenAtomFamily,
 } from "@agenta/entity-ui/drive"
+import {useT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {useAtomValue, useStore} from "jotai"
 
 import {useStartBlankSession} from "../chat/useStartBlankSession"
@@ -34,6 +36,7 @@ export const agentDriveRows = (home: boolean, drives: readonly Drive[]): DriveRo
 
 /** The drives of the agent's configuration. Opening one starts a session with the docked pane on it. */
 export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string}) => {
+    const t = useT(agentsOverview)
     const store = useStore()
     const startBlank = useStartBlankSession(base)
 
@@ -68,17 +71,20 @@ export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string})
 
     return (
         <AgentOverviewCard
-            title="Files"
-            action={rows.length ? "Open files" : undefined}
+            title={t("agents.overview.filesTitle")}
+            action={rows.length ? t("agents.overview.openFiles") : undefined}
             onAction={() => openDrive(null)}
         >
             {failed ? (
-                <AgentOverviewCardError message="Couldn't load files." onRetry={retry} />
+                <AgentOverviewCardError
+                    message={t("agents.overview.filesLoadError")}
+                    onRetry={retry}
+                />
             ) : drives.isPending ? (
                 <AgentOverviewCardSkeleton rows={2} />
             ) : rows.length === 0 ? (
                 <p className="m-0 py-2 text-[13px] text-muted-foreground">
-                    This agent has no drive yet.
+                    {t("agents.overview.driveEmpty")}
                 </p>
             ) : (
                 rows.map((row) => (
@@ -86,7 +92,7 @@ export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string})
                         key={row.folder}
                         icon={<DriveFolderGlyph size={16} />}
                         label={`${row.folder}/`}
-                        detail={row.readOnly ? "read only" : null}
+                        detail={row.readOnly ? t("agents.overview.readOnly") : null}
                         title={row.folder}
                         onClick={() => openDrive(row.folder)}
                         className="py-1.5"

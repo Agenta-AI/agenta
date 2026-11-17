@@ -1,0 +1,12 @@
+{
+    "hint": "只能设置一次。它用于 SSO 回调 URL，设置后无法更改。",
+    "invalid": "请使用 1–64 个小写字母（a-z）和连字符（-）",
+    "label": "组织标识",
+    "lockedHint": "此标识用于 SSO 回调 URL，无法更改。",
+    "noSlug": "尚未设置标识。",
+    "save": "保存标识",
+    "saveFailed": "无法保存组织标识",
+    "saving": "正在保存…",
+    "setBeforeSso": "添加 SSO 供应商前请先设置标识，回调 URL 需要用到它。",
+    "taken": "该标识已被占用，请换一个。"
+}

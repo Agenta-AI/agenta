@@ -1,0 +1,5 @@
+{
+    "free": "無料",
+    "fromPerMonth": "${{amount}} / 月から",
+    "perMonth": "${{amount}} / 月"
+}

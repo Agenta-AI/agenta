@@ -1,0 +1,11 @@
+{
+    "cancelSubscription": "取消订阅",
+    "changePlan": "更改套餐",
+    "contactUs": "就你的套餐联系我们",
+    "creditsAMonth": "每月 {{credits}} 额度",
+    "currentPlan": "当前套餐",
+    "renews": "{{date}} 续订",
+    "trialEnded": "试用已于 {{date}} 结束",
+    "trialEnds": "试用将于 {{date}} 结束",
+    "upgradePlan": "升级套餐"
+}

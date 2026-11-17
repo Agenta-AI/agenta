@@ -1,0 +1,14 @@
+{
+    "agentWaiting": "The agent is waiting for you",
+    "cancel": "Cancel",
+    "checkingHow": "Checking how this toolkit connects…",
+    "connect": "Connect",
+    "connectFirst": "Connect {{label}} first",
+    "connectPrompt": "Connect to <name>{{name}}</name> to give your agent access to its tools",
+    "connecting": "Connecting {{name}}… finish signing in from the popup window.",
+    "connectionFailed": "Connection failed.",
+    "connectionPosition": "Connection {{position}} of {{total}}",
+    "dismissFailed": "The connection request couldn't be dismissed.",
+    "notNow": "Not now",
+    "retry": "Retry"
+}

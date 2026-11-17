@@ -1,6 +1,8 @@
 /** Pick the agents this agent can call. Presentational: every agent arrives as a prop. */
 import {useEffect, useMemo, useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import addSubagentCatalog from "@agenta/i18n/catalogs/entityUi.addSubagent"
 import {agentIconChrome, type AgentIconSelection} from "@agenta/ui/agent-icon"
 import {LogoMarks} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -91,6 +93,7 @@ function SubagentRow({
     onAdd: () => void
     onRemove: () => void
 }) {
+    const t = useT(addSubagentCatalog)
     const integrations = option.integrations ?? []
     return (
         <button
@@ -98,7 +101,11 @@ function SubagentRow({
             disabled={busy}
             onClick={option.added ? onRemove : onAdd}
             aria-pressed={Boolean(option.added)}
-            aria-label={`${option.added ? "Remove" : "Add"} ${option.name} as a subagent`}
+            aria-label={
+                option.added
+                    ? t("entityUi.addSubagent.removeAsSubagent", {name: option.name})
+                    : t("entityUi.addSubagent.addAsSubagent", {name: option.name})
+            }
             className={cn(ROW, option.added && "bg-accent")}
         >
             <SubagentTile icon={option.icon} />
@@ -108,7 +115,7 @@ function SubagentRow({
                     {option.name}
                 </span>
                 <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
-                    {option.description?.trim() || "No description"}
+                    {option.description?.trim() || t("entityUi.addSubagent.noDescription")}
                 </span>
             </span>
             {integrations.length > 0 ? (
@@ -117,14 +124,16 @@ function SubagentRow({
                         items={integrations}
                         size={14}
                         max={5}
-                        label={`Apps connected to ${option.name}`}
+                        label={t("entityUi.addSubagent.appsConnectedTo", {name: option.name})}
                     />
                 </span>
             ) : null}
             {option.added ? (
                 <Check aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
             ) : (
-                <span className="ml-2 shrink-0 text-[13px] text-muted-foreground">Add</span>
+                <span className="ml-2 shrink-0 text-[13px] text-muted-foreground">
+                    {t("entityUi.addSubagent.add")}
+                </span>
             )}
         </button>
     )
@@ -160,6 +169,7 @@ export function AddSubagentDrawer({
     onAdd,
     onRemove,
 }: AddSubagentDrawerProps) {
+    const t = useT(addSubagentCatalog)
     const [search, setSearch] = useState("")
     // One write in flight at a time: two overlapping ones both start from the same array.
     const [busy, setBusy] = useState(false)
@@ -202,9 +212,11 @@ export function AddSubagentDrawer({
             destroyOnClose
             title={
                 <div className="flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 text-sm font-medium">Add subagents</span>
+                    <span className="shrink-0 text-sm font-medium">
+                        {t("entityUi.addSubagent.addSubagents")}
+                    </span>
                     <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                        · Pick the agents this agent can call.
+                        {t("entityUi.addSubagent.pickAgents")}
                     </span>
                 </div>
             }
@@ -215,7 +227,7 @@ export function AddSubagentDrawer({
             footer={
                 <div className="flex items-center justify-end">
                     <Button variant="default" onClick={handleClose}>
-                        Done
+                        {t("entityUi.addSubagent.done")}
                     </Button>
                 </div>
             }
@@ -225,7 +237,7 @@ export function AddSubagentDrawer({
                 className="mb-0 shrink-0 px-4 pt-4 [&>[data-slot=input-group]]:max-w-none"
                 search={search}
                 onSearchChange={setSearch}
-                searchPlaceholder="Search agents by name…"
+                searchPlaceholder={t("entityUi.addSubagent.searchAgents")}
             />
 
             <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 p-2">
@@ -233,12 +245,11 @@ export function AddSubagentDrawer({
                     <div className="mx-1.5 flex items-center gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
                         <Warning size={14} className="shrink-0" />
                         <span className="min-w-0 flex-1">
-                            {failedCount} {failedCount === 1 ? "agent" : "agents"} could not be
-                            loaded, so {failedCount === 1 ? "it is" : "they are"} not listed.
+                            {t("entityUi.addSubagent.agentsNotLoaded", {count: failedCount})}
                         </span>
                         {onRetry ? (
                             <Button variant="outline" size="sm" onClick={onRetry}>
-                                Retry
+                                {t("entityUi.addSubagent.retry")}
                             </Button>
                         ) : null}
                     </div>
@@ -252,11 +263,15 @@ export function AddSubagentDrawer({
                     </div>
                 ) : visible.length === 0 ? (
                     <EmptyState
-                        title={search.trim() ? "No agents match your search" : "No agents yet"}
+                        title={
+                            search.trim()
+                                ? t("entityUi.addSubagent.noAgentsMatch")
+                                : t("entityUi.addSubagent.noAgentsYet")
+                        }
                         description={
                             search.trim()
-                                ? "Try a different name."
-                                : "Create an agent, then come back to add it here."
+                                ? t("entityUi.addSubagent.tryDifferentName")
+                                : t("entityUi.addSubagent.createAgentFirst")
                         }
                     />
                 ) : (

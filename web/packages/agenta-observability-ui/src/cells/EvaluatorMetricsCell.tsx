@@ -1,5 +1,7 @@
 import {memo} from "react"
 
+import {createT} from "@agenta/i18n"
+import cellsCatalog from "@agenta/i18n/catalogs/observabilityUi.cells"
 import {traceAnnotationInfoAtomFamily} from "@agenta/observability"
 import {useAtomValue} from "jotai"
 
@@ -19,6 +21,9 @@ interface Props {
     displayName?: string
 }
 
+// A cell renders once per row of a long table, so it reads text with no hook of its own.
+const tNow = createT(cellsCatalog)
+
 export const EvaluatorMetricsCell = memo(({invocationKey, evaluatorSlug, displayName}: Props) => {
     const {aggregatedEvaluatorMetrics} = useAtomValue(traceAnnotationInfoAtomFamily(invocationKey))
     const metrics = aggregatedEvaluatorMetrics?.[evaluatorSlug]
@@ -35,14 +40,18 @@ export const EvaluatorMetricsCell = memo(({invocationKey, evaluatorSlug, display
             <div className="flex items-center justify-between">
                 <span className="text-[12px]">{label}</span>
                 <span className="text-[12px] text-colorTextSecondary">
-                    {metricCount} {metricCount === 1 ? "metric" : "metrics"}
+                    {tNow("observabilityUi.cells.metrics", {count: metricCount})}
                 </span>
             </div>
             <div className="flex items-center gap-2 max-w-[450px] overflow-x-auto [&::-webkit-scrollbar]:!w-0">
                 {Object.entries(metrics).map(([metricName, rawData]) => {
                     const data = rawData as {average?: number; latest?: boolean}
                     const isBoolean = data.latest !== undefined
-                    const value = isBoolean ? (data.latest ? "True" : "False") : `μ ${data.average}`
+                    const value = isBoolean
+                        ? data.latest
+                            ? tNow("observabilityUi.cells.true")
+                            : tNow("observabilityUi.cells.false")
+                        : `μ ${data.average}`
                     return (
                         <LabelValuePill
                             key={metricName}

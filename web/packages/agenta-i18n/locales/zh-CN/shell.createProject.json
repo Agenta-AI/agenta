@@ -1,0 +1,7 @@
+{
+    "creating": "正在创建…",
+    "description": "项目用于将 Agent 和会话相互分开。",
+    "failed": "无法创建项目",
+    "namePlaceholder": "项目名称",
+    "title": "创建项目"
+}

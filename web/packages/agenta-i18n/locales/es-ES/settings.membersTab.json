@@ -1,0 +1,15 @@
+{
+    "invalidEmail": "Introduce una dirección de correo electrónico válida",
+    "inviteDescription": "Se unen a esta organización cuando aceptan.",
+    "inviteError": "No se ha podido enviar la invitación",
+    "inviteTitle": "Invitar miembros",
+    "loadError": "No se han podido cargar los miembros de esta organización",
+    "removeConfirm": "¿Quitar a {{name}}?",
+    "removeDescription": "Pierden el acceso a esta organización.",
+    "removeError": "No se ha podido quitar al miembro",
+    "removeTitle": "Quitar miembro",
+    "removing": "Quitando…",
+    "roleError": "No se ha podido cambiar el rol",
+    "sendInvitation": "Enviar invitación",
+    "sending": "Enviando…"
+}

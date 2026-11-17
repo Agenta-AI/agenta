@@ -2,6 +2,8 @@
  *  it calls. A subagent always runs that agent's LATEST revision, and this offers no way to pin. */
 import {useMemo, useState} from "react"
 
+import {formatNumber, useT} from "@agenta/i18n"
+import toolFormCatalog from "@agenta/i18n/catalogs/entityUi.toolForm"
 import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
@@ -38,6 +40,7 @@ const Empty = ({children}: {children: React.ReactNode}) => (
 
 /** The agent's instruction file, clamped behind a fade and scrolled inside a fixed well. */
 function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>}) {
+    const t = useT(toolFormCatalog)
     const [open, setOpen] = useState(false)
     return (
         <div className="flex flex-col gap-2">
@@ -45,7 +48,10 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
                 <FileText size={14} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
                 <span className="text-[13px]">{file.fileName}</span>
                 <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                    {file.wordCount.toLocaleString()} words
+                    {t("entityUi.toolForm.wordCount", {
+                        count: file.wordCount,
+                        formatted: formatNumber(file.wordCount),
+                    })}
                 </span>
             </div>
             <div className="relative">
@@ -68,7 +74,9 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
                 aria-expanded={open}
                 className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13px] text-colorInfo"
             >
-                {open ? "Hide instructions" : "Show full instructions"}
+                {open
+                    ? t("entityUi.toolForm.hideInstructions")
+                    : t("entityUi.toolForm.showFullInstructions")}
                 {open ? <CaretUp size={12} /> : <CaretDown size={12} />}
             </button>
         </div>
@@ -102,6 +110,7 @@ function SubagentDetailPanel({
     detail,
     loading,
 }: ReferenceToolFormViewProps & {detail: SubagentDetail | null; loading: boolean}) {
+    const t = useT(toolFormCatalog)
     const tool = value ?? {}
 
     // The bridge knows WHICH apps connect; their logos come from the catalog, which needs a component.
@@ -117,31 +126,34 @@ function SubagentDetailPanel({
     return (
         <div className="flex flex-col gap-6 p-4">
             <div className="flex flex-col gap-2">
-                <span className="text-[13px] font-medium">Description</span>
+                <span className="text-[13px] font-medium">
+                    {t("entityUi.toolForm.description")}
+                </span>
                 <AutosizeTextarea
                     value={description}
                     disabled={disabled}
                     onChange={(e) =>
                         onChange(normalizeSubagentReference({...tool, description: e.target.value}))
                     }
-                    aria-label="Subagent description"
+                    aria-label={t("entityUi.toolForm.subagentDescription")}
                 />
                 <span className="flex items-start gap-1.5 text-xs text-[var(--ag-colorTextTertiary)]">
                     <Info size={13} className="mt-px shrink-0" />
-                    The agent reads this description to decide when to call this subagent. Edit it
-                    to change when it is used.
+                    {t("entityUi.toolForm.subagentDescriptionHint")}
                 </span>
             </div>
 
             <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-medium">Configuration</span>
+                    <span className="text-[13px] font-medium">
+                        {t("entityUi.toolForm.configuration")}
+                    </span>
                     <Badge variant="default" className="m-0 gap-1 px-2 text-xs font-normal">
                         <Lock size={11} />
-                        Read-only
+                        {t("entityUi.toolForm.readOnly")}
                     </Badge>
                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        Managed on the agent itself
+                        {t("entityUi.toolForm.managedOnAgent")}
                     </span>
                 </div>
                 <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)]">
@@ -153,7 +165,7 @@ function SubagentDetailPanel({
                         </div>
                     ) : (
                         <>
-                            <DetailRow label="Model">
+                            <DetailRow label={t("entityUi.toolForm.model")}>
                                 {detail?.model ? (
                                     <span className="flex items-center gap-2">
                                         <span className="flex size-[18px] shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillTertiary)]">
@@ -168,17 +180,17 @@ function SubagentDetailPanel({
                                         </span>
                                     </span>
                                 ) : (
-                                    <Empty>No model</Empty>
+                                    <Empty>{t("entityUi.toolForm.noModel")}</Empty>
                                 )}
                             </DetailRow>
-                            <DetailRow label="Instructions">
+                            <DetailRow label={t("entityUi.toolForm.instructions")}>
                                 {detail?.instructions ? (
                                     <Instructions file={detail.instructions} />
                                 ) : (
-                                    <Empty>No instructions</Empty>
+                                    <Empty>{t("entityUi.toolForm.noInstructions")}</Empty>
                                 )}
                             </DetailRow>
-                            <DetailRow label="Integrations">
+                            <DetailRow label={t("entityUi.toolForm.integrations")}>
                                 {detail?.integrations.length ? (
                                     <div className="flex flex-col gap-2">
                                         {detail.integrations.map((app) => {
@@ -205,10 +217,10 @@ function SubagentDetailPanel({
                                         })}
                                     </div>
                                 ) : (
-                                    <Empty>No connected apps</Empty>
+                                    <Empty>{t("entityUi.toolForm.noConnectedApps")}</Empty>
                                 )}
                             </DetailRow>
-                            <DetailRow label="Skills">
+                            <DetailRow label={t("entityUi.toolForm.skills")}>
                                 {detail?.skills.length ? (
                                     <div className="flex flex-wrap gap-1.5">
                                         {detail.skills.map((skill) => (
@@ -221,7 +233,7 @@ function SubagentDetailPanel({
                                         ))}
                                     </div>
                                 ) : (
-                                    <Empty>No skills</Empty>
+                                    <Empty>{t("entityUi.toolForm.noSkills")}</Empty>
                                 )}
                             </DetailRow>
                         </>

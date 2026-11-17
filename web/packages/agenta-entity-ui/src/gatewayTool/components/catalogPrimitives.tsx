@@ -5,6 +5,8 @@
  */
 import {useState} from "react"
 
+import {useT} from "@agenta/i18n"
+import toolCatalogCatalog from "@agenta/i18n/catalogs/entityUi.toolCatalog"
 import {cn} from "@agenta/ui"
 
 /** antd `Card hoverable size="small"` replacement — bordered surface, shadow on hover. */
@@ -33,6 +35,7 @@ export function CatalogCard({
 
 /** 3-line clamp with a "see more" / "see less" toggle (was antd Paragraph ellipsis). */
 export function ExpandableText({text}: {text: string}) {
+    const t = useT(toolCatalogCatalog)
     const [expanded, setExpanded] = useState(false)
     return (
         <div className="flex flex-col items-start">
@@ -44,7 +47,7 @@ export function ExpandableText({text}: {text: string}) {
                 onClick={() => setExpanded((e) => !e)}
                 className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-xs text-colorPrimary"
             >
-                {expanded ? "see less" : "see more"}
+                {expanded ? t("entityUi.toolCatalog.seeLess") : t("entityUi.toolCatalog.seeMore")}
             </button>
         </div>
     )

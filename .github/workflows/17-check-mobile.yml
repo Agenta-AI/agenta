@@ -15,7 +15,6 @@ on:
       - 'web/pnpm-lock.yaml'
       - 'web/pnpm-workspace.yaml'
       - 'web/turbo.json'
-      - 'web/patches/**'
       - '.github/workflows/17-check-mobile.yml'
   # Dispatch builds an ad-hoc image (a preview, a one-off test). It is NOT the release
   # path: `43 - Release to GHCR` in agenta_cloud publishes agenta-web-mobile:vX.Y.Z and

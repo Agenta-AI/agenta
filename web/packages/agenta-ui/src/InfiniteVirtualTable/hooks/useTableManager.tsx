@@ -1,6 +1,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {Key, MouseEvent, ReactNode, RefObject} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import uiTableCatalog from "@agenta/i18n/catalogs/ui.table"
 import type {WritableAtom} from "jotai"
 import {useAtom} from "jotai"
 import {atom} from "jotai"
@@ -227,12 +230,17 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     columnVisibilityStorageKey,
     enableInfiniteScroll = true,
     onBulkDelete,
-    deleteLabel = "Delete",
-    deleteDisabledTooltip = "Select items to delete",
-    exportLabel = "Export CSV",
-    exportDisabledTooltip = "Select items to export",
+    deleteLabel: deleteLabelProp,
+    deleteDisabledTooltip: deleteDisabledTooltipProp,
+    exportLabel: exportLabelProp,
+    exportDisabledTooltip: exportDisabledTooltipProp,
     exportFilename = "table-export.csv",
 }: UseTableManagerConfig<T>): UseTableManagerReturn<T> {
+    const t = useT(uiTableCatalog, commonCatalog)
+    const deleteLabel = deleteLabelProp ?? t("common.delete")
+    const deleteDisabledTooltip = deleteDisabledTooltipProp ?? t("ui.table.selectItemsToDelete")
+    const exportLabel = exportLabelProp ?? t("ui.table.exportCsv")
+    const exportDisabledTooltip = exportDisabledTooltipProp ?? t("ui.table.selectItemsToExport")
     const isNarrowScreen = useIsNarrowScreen()
 
     // Normalize search config
@@ -449,7 +457,7 @@ export function useTableManager<T extends InfiniteTableRowBase>({
             <SearchInput
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder={searchConfig.placeholder ?? "Search"}
+                placeholder={searchConfig.placeholder ?? t("common.search")}
                 onClear={() => setSearchTerm("")}
                 disabled={searchConfig.disabled}
                 className={cn("w-full", searchConfig.className ?? "max-w-[320px]")}

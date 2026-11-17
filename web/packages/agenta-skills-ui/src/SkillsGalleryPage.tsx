@@ -8,6 +8,8 @@
  * desktop). `"rail"` is the `FilterRailLayout` variant, where the title, search and facets live
  * in the rail and cannot scroll away from the results.
  */
+import {useT} from "@agenta/i18n"
+import skillsGalleryCatalog from "@agenta/i18n/catalogs/skills.gallery"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {SearchInput} from "@agenta/ui/ui"
@@ -91,6 +93,7 @@ export function SkillsGalleryPage({
     onShowArchivedChange,
     layout = "toolbar",
 }: SkillsGalleryPageProps) {
+    const t = useT(skillsGalleryCatalog)
     const gallery = (
         <SkillGallerySections
             sections={sections}
@@ -110,8 +113,8 @@ export function SkillsGalleryPage({
                     <NewSkillMenuButton {...createActions} />
 
                     <SearchInput
-                        placeholder="Search skills..."
-                        aria-label="Search skills"
+                        placeholder={t("skills.gallery.searchPlaceholder")}
+                        aria-label={t("skills.gallery.searchAria")}
                         value={search}
                         onValueChange={onSearchChange}
                         className="max-w-80"
@@ -125,7 +128,9 @@ export function SkillsGalleryPage({
                             onClick={() => onShowArchivedChange(!showArchived)}
                             className="ml-auto shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:underline"
                         >
-                            {showArchived ? "Hide archived" : "Archived skills"}
+                            {showArchived
+                                ? t("skills.gallery.hideArchived")
+                                : t("skills.gallery.archivedSkills")}
                         </button>
                     ) : null}
                 </div>
@@ -133,7 +138,7 @@ export function SkillsGalleryPage({
                 {hasSourceFacets ? (
                     <nav
                         className="flex flex-row gap-1.5 overflow-x-auto"
-                        aria-label="Skill sources"
+                        aria-label={t("skills.gallery.sourcesAria")}
                     >
                         {sources.map((entry) => (
                             <SourceNavRow
@@ -156,14 +161,19 @@ export function SkillsGalleryPage({
         <FilterRailLayout
             rail={
                 <>
-                    <h1 className="m-0 text-lg font-semibold">Skills</h1>
+                    <h1 className="m-0 text-lg font-semibold">
+                        {t("skills.gallery.skillsHeading")}
+                    </h1>
                     <SearchInput
-                        placeholder="Search skills..."
-                        aria-label="Search skills"
+                        placeholder={t("skills.gallery.searchPlaceholder")}
+                        aria-label={t("skills.gallery.searchAria")}
                         value={search}
                         onValueChange={onSearchChange}
                     />
-                    <nav className="flex flex-col gap-0.5" aria-label="Skill sources">
+                    <nav
+                        className="flex flex-col gap-0.5"
+                        aria-label={t("skills.gallery.sourcesAria")}
+                    >
                         {sources.map((entry) => (
                             <SourceNavRow
                                 key={entry.key}
@@ -178,9 +188,9 @@ export function SkillsGalleryPage({
                             <Checkbox
                                 checked={Boolean(showArchived)}
                                 onCheckedChange={(next) => onShowArchivedChange(next === true)}
-                                aria-label="Show archived skills"
+                                aria-label={t("skills.gallery.showArchivedAria")}
                             />
-                            Show archived
+                            {t("skills.gallery.showArchived")}
                         </label>
                     ) : null}
                 </>

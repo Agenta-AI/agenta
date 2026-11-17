@@ -1,15 +1,19 @@
 import {useMemo} from "react"
 
 import {
-    AUTOMATION_STATUS_LABEL,
+    automationStatusLabel,
+    automationTypeLabel,
     DEFAULT_AUTOMATION_LIST_VIEW,
     isDefaultAutomationListView,
     type AutomationGrouping,
     type AutomationListView,
     type AutomationStatusFilter,
     type AutomationTypeFilter,
+    useAutomationText,
 } from "@agenta/automation-ui"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import automationsScreensCatalog from "@agenta/i18n/catalogs/automations.screens"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
     ClockClockwise,
@@ -48,35 +52,53 @@ export const AutomationFilterMenu = ({
     /** The roster the screen already reads, as `{id, name}` in display order. */
     agents: {id: string; name: string}[]
 }) => {
+    const t = useT(automationsScreensCatalog)
+    useAutomationText()
     const sections = useMemo<FilterMenuSection[]>(
         () => [
             {
                 key: "type",
-                label: "Type",
+                label: t("automations.screens.filterType"),
                 icon: <Lightning size={ICON} />,
                 value: view.type,
                 options: [
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
-                    {value: "schedule", label: "Schedule", icon: <ClockClockwise size={ICON} />},
-                    {value: "event", label: "Event", icon: <Lightning size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("automations.screens.filterAll"),
+                        icon: <SquaresFour size={ICON} />,
+                    },
+                    {
+                        value: "schedule",
+                        label: automationTypeLabel("schedule"),
+                        icon: <ClockClockwise size={ICON} />,
+                    },
+                    {
+                        value: "event",
+                        label: automationTypeLabel("event"),
+                        icon: <Lightning size={ICON} />,
+                    },
                 ],
                 onChange: (value) => onChange({...view, type: value as AutomationTypeFilter}),
             },
             {
                 key: "status",
-                label: "Status",
+                label: t("automations.screens.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: view.status,
                 options: [
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("automations.screens.filterAll"),
+                        icon: <SquaresFour size={ICON} />,
+                    },
                     {
                         value: "working",
-                        label: AUTOMATION_STATUS_LABEL.working,
+                        label: automationStatusLabel("working"),
                         icon: <StatusDot className="bg-success" />,
                     },
                     {
                         value: "paused",
-                        label: AUTOMATION_STATUS_LABEL.paused,
+                        label: automationStatusLabel("paused"),
                         icon: <StatusDot className="bg-muted-foreground" />,
                     },
                 ],
@@ -84,11 +106,15 @@ export const AutomationFilterMenu = ({
             },
             {
                 key: "agent",
-                label: "Agent",
+                label: t("automations.screens.filterAgent"),
                 icon: <Robot size={ICON} />,
                 value: view.agent,
                 options: [
-                    {value: "all", label: "All agents", icon: <Robot size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("automations.screens.filterAllAgents"),
+                        icon: <Robot size={ICON} />,
+                    },
                     ...agents.map((agent) => ({
                         value: agent.id,
                         label: agent.name,
@@ -102,26 +128,42 @@ export const AutomationFilterMenu = ({
                         ),
                     })),
                 ],
-                emptyText: "No agents yet",
+                emptyText: t("automations.screens.filterNoAgents"),
                 wide: true,
                 onChange: (value) => onChange({...view, agent: value}),
             },
             {
                 key: "group",
-                label: "Group by",
+                label: t("automations.screens.filterGroupBy"),
                 icon: <Rows size={ICON} />,
                 block: "sort",
                 value: view.group,
                 options: [
-                    {value: "none", label: "None", icon: <Minus size={ICON} />},
-                    {value: "type", label: "Type", icon: <Lightning size={ICON} />},
-                    {value: "status", label: "Status", icon: <Waveform size={ICON} />},
-                    {value: "agent", label: "Agent", icon: <Robot size={ICON} />},
+                    {
+                        value: "none",
+                        label: t("automations.screens.groupNone"),
+                        icon: <Minus size={ICON} />,
+                    },
+                    {
+                        value: "type",
+                        label: t("automations.screens.filterType"),
+                        icon: <Lightning size={ICON} />,
+                    },
+                    {
+                        value: "status",
+                        label: t("automations.screens.filterStatus"),
+                        icon: <Waveform size={ICON} />,
+                    },
+                    {
+                        value: "agent",
+                        label: t("automations.screens.filterAgent"),
+                        icon: <Robot size={ICON} />,
+                    },
                 ],
                 onChange: (value) => onChange({...view, group: value as AutomationGrouping}),
             },
         ],
-        [agents, onChange, view],
+        [agents, onChange, t, view],
     )
 
     return (

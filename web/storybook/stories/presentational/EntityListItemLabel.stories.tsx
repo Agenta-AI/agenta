@@ -2,9 +2,6 @@ import {EntityListItemLabel, VersionBadge} from "@agenta/ui/components/presentat
 import {GitBranch} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// EntityListItemLabel is a dropdown/select list-item label (primary label + optional subtitle,
-// icon, trailing element). Pure presentational, no antd counterpart. The old AppListItemLabel /
-// VariantListItemLabel presets were removed (unused) — use EntityListItemLabel with a subtitle.
 const meta = {
     title: "@agenta/ui/Presentational/Labels/EntityListItemLabel",
     component: EntityListItemLabel,
@@ -13,7 +10,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A dropdown/select list-item label (primary label + optional subtitle, icon, trailing element). Pure @agenta/ui presentational, no antd counterpart.\n\n**Used in:** 3 places — the deployments dashboard card, and the entity picker evaluator-label and workflow-revision adapters (`@agenta/entity-ui/selection/adapters`).",
+                    "A dropdown/select list-item label (primary label + optional subtitle, icon, trailing element). Pure @agenta/ui presentational.\n\n**Used in:** 3 places — the deployments dashboard card, and the entity picker evaluator-label and workflow-revision adapters (`@agenta/entity-ui/selection/adapters`).",
             },
         },
     },
@@ -24,17 +21,12 @@ type Story = StoryObj
 
 const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
     <div className="grid grid-cols-[16rem_1fr] items-center gap-4 border-b border-colorBorderSecondary py-3">
-        <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-colorTextSecondary">{label}</span>
-            <span className="text-[10px] text-colorTextSecondary">
-                no single antd counterpart (composite of @agenta/ui primitives / layout)
-            </span>
-        </div>
+        <div className="text-xs text-colorTextSecondary">{label}</div>
         <div className="flex w-[280px] items-center">{children}</div>
     </div>
 )
 
-export const AgentaOnly: Story = {
+export const Variants: Story = {
     render: () => (
         <div className="flex max-w-[680px] flex-col">
             <Row label="label only">

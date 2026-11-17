@@ -1,0 +1,11 @@
+{
+    "copyError": "No hemos podido copiarla. Selecciona la clave de arriba y cópiala",
+    "copyKey": "Copiar clave",
+    "createError": "No se ha podido crear la clave",
+    "deleteBody": "Las solicitudes firmadas con esta clave dejan de funcionar de inmediato.",
+    "deleteError": "No se ha podido eliminar la clave",
+    "deleteTitle": "Eliminar clave de API",
+    "revealDescription": "Solo se muestra una vez. No se podrá recuperar cuando cierres esto.",
+    "revealTitle": "Guarda tu clave de API",
+    "workspacePending": "Tu espacio de trabajo todavía se está cargando. Inténtalo de nuevo en un momento."
+}

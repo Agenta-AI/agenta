@@ -109,6 +109,7 @@ KNOWN_REQUEST_KEYS = {
     "homeDrive",
     "hasSessionDrive",
     "turnId",
+    "sessionTurnId",
     "detached",
     "projectId",
     "controlCommandId",
@@ -698,6 +699,33 @@ def test_request_to_wire_omits_turn_id_when_none():
         messages=[Message(role="user", content="hi")],
     )
     assert "turnId" not in payload
+
+
+def test_request_to_wire_carries_session_turn_id_when_set():
+    # An approval resume runs as a new execution (turnId) of the turn that paused
+    # (sessionTurnId).
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        turn_id="resume-1",
+        session_turn_id="turn-start",
+    )
+    assert payload["turnId"] == "resume-1"
+    assert payload["sessionTurnId"] == "turn-start"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_omits_session_turn_id_when_none():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        turn_id="turn-abc123",
+    )
+    assert "sessionTurnId" not in payload
 
 
 def test_request_to_wire_carries_detached_only_for_a_session():

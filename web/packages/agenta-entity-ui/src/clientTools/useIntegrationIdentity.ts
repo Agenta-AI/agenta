@@ -6,14 +6,18 @@
  * one catalog fetch per integration, not one per card.
  */
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {createT} from "@agenta/i18n"
+import clientToolsCatalog from "@agenta/i18n/catalogs/entityUi.clientTools"
 import type {ClientToolMeta} from "@agenta/shared/clientTools"
 import {humanizeActionKey} from "@agenta/shared/utils"
+
+const tNow = createT(clientToolsCatalog)
 
 /** `text_to_pdf` → `Text to PDF`: a readable label for the window before the catalog lookup
  * resolves. Shares the approval card's humanizer so one integration is not spelled two ways in two
  * docks that can sit on screen together. */
 export const prettyIntegration = (key: string): string =>
-    key ? humanizeActionKey(key) : "the service"
+    key ? humanizeActionKey(key) : tNow("entityUi.clientTools.theService")
 
 export const useIntegrationIdentity = (integrationKey: string) => {
     const {integration} = useToolIntegrationDetail(integrationKey)

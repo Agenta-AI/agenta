@@ -1,0 +1,6 @@
+{
+    "incompleteDetail": "New activity will keep updating, but this transcript may be missing older events.",
+    "incompleteTitle": "Some earlier history is unavailable",
+    "reconnectingDetail": "Restoring the durable transcript before live updates resume.",
+    "reconnectingTitle": "Reconnecting to this session"
+}

@@ -9,6 +9,8 @@
 
 import {useCallback} from "react"
 
+import {useT} from "@agenta/i18n"
+import drillInCatalog from "@agenta/i18n/catalogs/entityUi.drillIn"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {Copy, Trash2, Plus} from "lucide-react"
 
@@ -88,6 +90,7 @@ export function FieldItemActions({
     classNames,
     styles,
 }: FieldItemActionsProps) {
+    const t = useT(drillInCatalog)
     const handleCopy = useCallback(async () => {
         if (onCopy) {
             onCopy()
@@ -106,7 +109,7 @@ export function FieldItemActions({
                     type="button"
                     onClick={handleCopy}
                     className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer"
-                    aria-label="Copy value"
+                    aria-label={t("entityUi.drillIn.copyValue")}
                 >
                     <Copy size={14} />
                 </button>
@@ -118,7 +121,7 @@ export function FieldItemActions({
                     type="button"
                     onClick={onDelete}
                     className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600 border-0 bg-transparent cursor-pointer"
-                    aria-label="Delete field"
+                    aria-label={t("entityUi.drillIn.deleteField")}
                 >
                     <Trash2 size={14} />
                 </button>
@@ -130,7 +133,7 @@ export function FieldItemActions({
                     type="button"
                     onClick={onAdd}
                     className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-green-600 border-0 bg-transparent cursor-pointer"
-                    aria-label="Add item"
+                    aria-label={t("entityUi.drillIn.addItem")}
                 >
                     <Plus size={14} />
                 </button>

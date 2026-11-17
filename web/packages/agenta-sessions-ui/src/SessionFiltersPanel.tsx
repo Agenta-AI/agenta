@@ -2,6 +2,9 @@
  *  The rail box belongs to `FilterRailLayout`, not here. */
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsFiltersCatalog from "@agenta/i18n/catalogs/sessions.filters"
+
 import {
     SessionAgentControl,
     SessionArchivedControl,
@@ -39,6 +42,7 @@ export const SessionFiltersPanel = ({
     hideAgentFilter,
     className,
 }: SessionFiltersPanelProps) => {
+    const t = useT(sessionsFiltersCatalog)
     return (
         <div className={`flex min-w-0 flex-col gap-6 ${className ?? ""}`}>
             {title || leading ? (
@@ -58,19 +62,19 @@ export const SessionFiltersPanel = ({
 
             {hideAgentFilter || !agents?.length ? null : (
                 <section className="flex flex-col gap-2">
-                    <RailLabel>Agent</RailLabel>
+                    <RailLabel>{t("sessions.filters.agent")}</RailLabel>
                     <SessionAgentControl agents={agents} />
                 </section>
             )}
 
             {/* Two headings: one switch picks WHICH sessions, the other widens the set. */}
             <section className="flex flex-col gap-3">
-                <RailLabel>Show</RailLabel>
+                <RailLabel>{t("sessions.filters.show")}</RailLabel>
                 <SessionModeControl />
             </section>
 
             <section className="flex flex-col gap-3">
-                <RailLabel>Include</RailLabel>
+                <RailLabel>{t("sessions.filters.include")}</RailLabel>
                 <SessionArchivedControl />
             </section>
         </div>

@@ -1,0 +1,7 @@
+{
+    "emptyBody": "连接一个集成，让你的 Agent 可以调用它。",
+    "emptyTitle": "尚未连接任何集成",
+    "noMatch": "没有与“{{term}}”匹配的集成",
+    "run": "运行操作",
+    "searchPlaceholder": "搜索集成"
+}

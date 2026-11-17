@@ -1,0 +1,14 @@
+{
+    "outputFormat": "出力形式",
+    "toneAndStyle": "トーンとスタイル",
+    "guardrails": "ガードレール",
+    "writingGoodAgentsMd": "良い AGENTS.md の書き方",
+    "tipRole": "冒頭の 1、2 行でエージェントの役割と目的を書きます。",
+    "tipSections": "短く、見出し付きのセクションにまとめます（役割、ツール、ガードレール）。",
+    "tipOutput": "出力形式と厳格な制限を具体的に書きます。",
+    "tipImperative": "長い文章より命令形の指示を優先します。",
+    "suggested": "おすすめ",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "placeholder": "# 役割\n\nエージェントが何をし、どのように振る舞うべきかを説明します…"
+}

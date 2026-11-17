@@ -1,0 +1,18 @@
+{
+    "attachmentsLabel": "{{count}} attachments",
+    "attachmentsOnly": "(attachments only)",
+    "cancel": "Cancel",
+    "cancelEditing": "Cancel editing",
+    "editQueued": "Edit queued message",
+    "emptyMessage": "(empty message)",
+    "noLongerQueued": "This message is no longer queued.",
+    "queuedCount_one": "{{count}} queued message",
+    "queuedCount_other": "{{count}} queued messages",
+    "quotesLabel_one": "{{count}} quote",
+    "quotesLabel_other": "{{count}} quotes",
+    "removeQueued": "Remove queued message",
+    "sendBlocked": "Another message is being sent first",
+    "sendNow": "Send Now",
+    "sending": "Sending",
+    "waitsForAnswer": " · waits for your answer"
+}

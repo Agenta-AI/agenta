@@ -1,5 +1,8 @@
 import {useCallback, useEffect, useRef} from "react"
 
+import {createT} from "@agenta/i18n"
+import chatMessagesCatalog from "@agenta/i18n/catalogs/chat.messages"
+
 import type {StagedUpload as UploadFile} from "../model"
 
 /** Owns upload progress, retry, cancellation, and the validated response on each tray entry. */
@@ -26,6 +29,8 @@ export interface AttachmentUploads {
      */
     abort: (uid: string) => void
 }
+
+const tNow = createT(chatMessagesCatalog)
 
 /** What a user-cancelled row reports. Reuses the `error` status (rather than a fourth one every
  * surface would have to learn) so the existing retry/remove affordances apply unchanged. */
@@ -123,7 +128,10 @@ export function useAttachmentUploads<TResponse>(
                     }
                     patch(uid, {
                         status: "error",
-                        error: error instanceof Error ? error.message : "Upload failed",
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : tNow("chat.messages.uploadFailed"),
                     })
                 })
         },

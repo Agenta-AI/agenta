@@ -1,0 +1,22 @@
+{
+    "atTimesUtc": "{{cadence}} at {{times}} UTC",
+    "cronDaysAt": "{{days}} at {{time}}",
+    "cronEveryDayAt": "Every day at {{time}}",
+    "cronEveryHour": "Every hour (UTC)",
+    "cronEveryHourAt": "Every hour at :{{minute}} (UTC)",
+    "cronEveryHoursAt": "Every {{hours}} hours at :{{minute}} (UTC)",
+    "cronEveryMinute": "Every minute (UTC)",
+    "cronEveryMinutes": "Every {{minutes}} minutes (UTC)",
+    "cronEveryWeekdayAt": "Every {{day}} at {{time}}",
+    "cronRaw": "{{expression}} (UTC)",
+    "daily": "Daily",
+    "dayOfMonth": "{{day}}",
+    "everyDay": "Every day",
+    "everyHours": "Every {{hours}}h at :{{minute}}",
+    "monthlyOn": "Monthly on the {{days}}",
+    "nextRun": "Next run {{date}}, {{time}} UTC · {{relative}}",
+    "runsPerDay_one": "{{line}} · {{count}} run a day",
+    "runsPerDay_other": "{{line}} · {{count}} runs a day",
+    "utc": "{{cadence}} UTC",
+    "weekdays": "Weekdays"
+}

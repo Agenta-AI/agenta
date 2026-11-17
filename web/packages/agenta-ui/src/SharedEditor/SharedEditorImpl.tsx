@@ -9,6 +9,8 @@ import {
     useState,
 } from "react"
 
+import {createT, useT} from "@agenta/i18n"
+import uiChatInputCatalog from "@agenta/i18n/catalogs/ui.chatInput"
 import {useDebounceInput} from "@agenta/shared/hooks"
 import clsx from "clsx"
 import {v4 as uuidv4} from "uuid"
@@ -20,6 +22,8 @@ import {Editor, isLargeRichTextDocument} from "../Editor"
 
 import {isSharedAntdTextareaProps, type SharedAntdTextareaProps} from "./types"
 import type {SharedEditorProps} from "./types"
+
+const tNow = createT(uiChatInputCatalog)
 
 const LARGE_INPUT_EXTERNAL_COMMIT_DELAY_MS = 180
 const DEFAULT_MAX_TEXT_PASTE_CHARS = 50_000
@@ -95,7 +99,11 @@ function formatCharacterCount(value: number): string {
 function buildPasteLimitErrorMessage(nextLength: number, maxPasteChars: number): string {
     const overBy = nextLength - maxPasteChars
 
-    return `Paste blocked. This would exceed the ${formatCharacterCount(maxPasteChars)}-character limit by ${formatCharacterCount(overBy)} characters (${formatCharacterCount(nextLength)} total). Reduce the pasted content and try again.`
+    return tNow("ui.chatInput.pasteBlocked", {
+        max: formatCharacterCount(maxPasteChars),
+        over: formatCharacterCount(overBy),
+        total: formatCharacterCount(nextLength),
+    })
 }
 
 function applyPasteToValue(
@@ -174,6 +182,7 @@ const SharedEditor = ({
     onFocusChange,
     ...props
 }: SharedEditorProps) => {
+    const t = useT(uiChatInputCatalog)
     const normalizedInitialValue = initialValue ?? ""
     const controlledValue = value !== undefined ? value : normalizedInitialValue
     const shouldOptimizeLargeInput = optimizeLargeInput && !editorProps?.codeOnly
@@ -495,7 +504,7 @@ const SharedEditor = ({
                 <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-[var(--ag-rgba-fff-78)] backdrop-blur-[1px]">
                     <Spinner size="small" />
                     <span className="text-[13px] text-[var(--ag-rgba-051729-72)]">
-                        Pasting large content…
+                        {t("ui.chatInput.pastingLarge")}
                     </span>
                 </div>
             ) : null}

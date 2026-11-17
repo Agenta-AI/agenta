@@ -4,7 +4,11 @@
  */
 
 import type {PersonalAccountsAccess} from "@agenta/entities/secret"
+import {createT} from "@agenta/i18n"
+import settingsSharedCatalog from "@agenta/i18n/catalogs/settings.shared"
 import type {OwnerKind} from "@agenta/shared/types"
+
+const t = createT(settingsSharedCatalog)
 
 /** Whose account a Settings page adds: the person's own, or the current project's. */
 type AccountOwner = Exclude<OwnerKind, "organization">
@@ -50,13 +54,13 @@ export const agentsBySecret = (
  * change its words under the reader.
  */
 export const usedByLine = (names: (string | null | undefined)[]): string | null => {
-    if (names.length === 0) return "Not used by any agent"
+    if (names.length === 0) return t("settings.shared.notUsedByAnyAgent")
     if (names.some((name) => !name)) return null
-    return `Used by ${[...new Set(names as string[])].join(", ")}`
+    return t("settings.shared.usedBy", {names: [...new Set(names as string[])].join(", ")})
 }
 
 /** The empty "Yours" note: where a person's own account is used. */
 export const yoursEmptyBody = (projectCount?: number): string =>
     projectCount && projectCount > 1
-        ? `Accounts you add here are used in all ${projectCount} of your projects, when an agent uses each person's own account.`
-        : "Accounts you add here are used in all your projects, when an agent uses each person's own account."
+        ? t("settings.shared.yoursEmptyBodyCount", {projectCount})
+        : t("settings.shared.yoursEmptyBody")

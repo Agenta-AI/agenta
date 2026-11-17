@@ -17,6 +17,9 @@
 
 import {memo} from "react"
 
+import {useT} from "@agenta/i18n"
+import listControlsCatalog from "@agenta/i18n/catalogs/ui.listControls"
+
 import {cn, textColors} from "../../../utils/styles"
 import {Field} from "../../ui/field"
 import {AutosizeTextarea} from "../../ui/input-composed"
@@ -59,7 +62,7 @@ export const CommitMessageInput = memo(function CommitMessageInput({
     onChange,
     label = "Notes",
     showOptional = true,
-    placeholder = "Add a brief summary of what changed",
+    placeholder: placeholderProp,
     maxLength = COMMIT_MESSAGE_MAX_LENGTH,
     minRows = 2,
     maxRows = 4,
@@ -68,13 +71,17 @@ export const CommitMessageInput = memo(function CommitMessageInput({
     className,
     fill = false,
 }: CommitMessageInputProps) {
+    const t = useT(listControlsCatalog)
+    const placeholder = placeholderProp ?? t("ui.listControls.commitPlaceholder")
     const labelNode = (
         <>
             {label}
             {showOptional && (
                 <>
                     {" "}
-                    <span className={textColors.quaternary}>(optional)</span>
+                    <span className={textColors.quaternary}>
+                        {t("ui.listControls.optionalSuffix")}
+                    </span>
                 </>
             )}
         </>

@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import filtersCatalog from "@agenta/i18n/catalogs/observabilityUi.filters"
 import type {Filter, FilterValue} from "@agenta/observability"
 import {
     collapseAnnotationAnyEvaluatorRowsFromProps,
@@ -94,6 +96,7 @@ export function FilterDialog({
     trigger,
     className,
 }: FilterDialogProps) {
+    const t = useT(filtersCatalog)
     const fieldMap = useMemo(() => fieldConfigByOptionKey(columns), [columns])
     const getField = (uiKey?: string) => (uiKey ? fieldMap.get(uiKey) : undefined)
 
@@ -284,7 +287,7 @@ export function FilterDialog({
     const defaultTrigger = (
         <EnhancedButton
             className="flex items-center gap-2 px-2"
-            aria-label="Filter"
+            aria-label={t("observabilityUi.filters.filter")}
             {...buttonProps}
         >
             <span className="flex min-w-[18px] items-center gap-1">
@@ -313,7 +316,7 @@ export function FilterDialog({
                 <section className="flex max-h-[min(70vh,640px)] flex-col">
                     <div className="flex items-center justify-between gap-3 py-2 pl-4 pr-2">
                         <span className="text-sm font-medium leading-[1.5714285714285714] text-colorText">
-                            Filter
+                            {t("observabilityUi.filters.filter")}
                         </span>
                     </div>
                     <Divider className="m-0" />
@@ -368,7 +371,7 @@ export function FilterDialog({
                             className="mt-2 self-start"
                             onClick={() => setFilter((prev) => [...prev, createEmptyFilter()])}
                         >
-                            Add
+                            {t("observabilityUi.filters.add")}
                         </EnhancedButton>
                     </div>
 
@@ -380,11 +383,11 @@ export function FilterDialog({
                             icon={<ArrowClockwiseIcon size={14} className="mt-0.5" />}
                             onClick={clearFilter}
                         >
-                            Clear
+                            {t("observabilityUi.filters.clear")}
                         </EnhancedButton>
                         <div className="flex items-center gap-2">
                             <EnhancedButton size="small" onClick={closeDialog}>
-                                Cancel
+                                {t("observabilityUi.filters.cancel")}
                             </EnhancedButton>
                             <EnhancedButton
                                 size="small"
@@ -392,7 +395,7 @@ export function FilterDialog({
                                 disabled={isApplyDisabled}
                                 onClick={applyFilter}
                             >
-                                Apply
+                                {t("observabilityUi.filters.apply")}
                             </EnhancedButton>
                         </div>
                     </div>

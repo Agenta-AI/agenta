@@ -8,6 +8,9 @@ import {
     eventTimestampRangeFilterAtom,
     type EventTableRow,
 } from "@agenta/entities/event"
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import {dayjs} from "@agenta/shared/utils"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
@@ -29,18 +32,18 @@ import AuditLogFilters, {type AuditLogFiltersProps} from "./AuditLogFilters"
 import {AUDIT_LOG_PAGE_SIZE, AUDIT_LOG_SCOPE_ID} from "./constants"
 
 // The count has no heading of its own; ids live in the drawer and the row menu.
-const COLUMNS: ListTableColumn[] = [
-    {key: "event_type", label: "Event", width: "minmax(0,2.2fr)"},
+const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
+    {key: "event_type", label: t("settings.audit.event"), width: "minmax(0,2.2fr)"},
     {
         key: "count",
-        label: "Count",
+        label: t("settings.audit.count"),
         srOnly: true,
         width: "56px",
         headerClassName: "text-right",
     },
-    {key: "timestamp", label: "Time", width: "minmax(0,1fr)"},
-    {key: "actor", label: "User", width: "minmax(0,1.2fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "32px"},
+    {key: "timestamp", label: t("settings.audit.time"), width: "minmax(0,1fr)"},
+    {key: "actor", label: t("settings.audit.user"), width: "minmax(0,1.2fr)"},
+    {key: "actions", label: t("common.actions"), srOnly: true, width: "32px"},
 ]
 const PHONE_KEYS = ["event_type", "timestamp", "actions"]
 
@@ -89,6 +92,7 @@ export const AuditLogTable = ({
     names,
     currentUserId,
 }: AuditLogTableProps) => {
+    const t = useT(commonCatalog, settingsAuditCatalog)
     const refreshEvents = useSetAtom(eventsPaginatedStore.actions.refresh)
     const clearEventsCache = useSetAtom(clearEventsCacheAtom)
     const timestampRange = useAtomValue(eventTimestampRangeFilterAtom)
@@ -122,7 +126,10 @@ export const AuditLogTable = ({
         refreshTable()
     }, [refreshTable])
 
-    const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
+    const {columns, shows} = usePhoneColumns(
+        useMemo(() => columnsFor(t), [t]),
+        PHONE_KEYS,
+    )
 
     const filters: ReactNode = (
         <AuditLogFilters
@@ -139,7 +146,7 @@ export const AuditLogTable = ({
                 filters={filters}
                 onReload={handleReload}
                 reloading={paginationInfo.isFetching}
-                reloadLabel="Reload audit log"
+                reloadLabel={t("settings.audit.reload")}
             />
             <ListTable<EventTableRow>
                 columns={columns}
@@ -153,8 +160,8 @@ export const AuditLogTable = ({
                     <SettingsEmpty
                         plain
                         icon={<ClockCounterClockwise size={18} />}
-                        title="No events in this window"
-                        description="Widen the date range or clear the filters."
+                        title={t("settings.audit.emptyTitle")}
+                        description={t("settings.audit.emptyDescription")}
                     />
                 }
                 renderRow={(record) => (
@@ -181,7 +188,9 @@ export const AuditLogTable = ({
                         onClick={loadNextPage}
                         disabled={paginationInfo.isFetching}
                     >
-                        {paginationInfo.isFetching ? "Loading…" : "Load more"}
+                        {paginationInfo.isFetching
+                            ? t("settings.audit.loading")
+                            : t("common.loadMore")}
                     </Button>
                 </div>
             ) : null}

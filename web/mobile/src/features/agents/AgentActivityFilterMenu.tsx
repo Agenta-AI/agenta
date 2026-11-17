@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import agentsActivity from "@agenta/i18n/catalogs/agents.activity"
 import {useSessionFilters, type SessionStatusFilter} from "@agenta/sessions/state"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {CalendarBlank, Clock, Minus, Rows, SquaresFour, Waveform} from "@phosphor-icons/react"
@@ -37,30 +39,37 @@ export const AgentActivityFilterMenu = ({
     waitingCount?: number
     onReset: () => void
 }) => {
+    const t = useT(agentsActivity)
     const {status, setStatus, archivedOnly, includeArchived} = useSessionFilters()
 
     const sections = useMemo<FilterMenuSection[]>(
         () => [
             {
                 key: "status",
-                label: "Status",
+                label: t("agents.activity.filterStatus"),
                 icon: <Waveform size={ICON} />,
                 value: status,
                 options: [
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("agents.activity.filterAll"),
+                        icon: <SquaresFour size={ICON} />,
+                    },
                     {
                         value: "waiting",
-                        label: waitingCount ? `Waiting ${waitingCount}` : "Waiting",
+                        label: waitingCount
+                            ? t("agents.activity.filterWaitingCount", {n: waitingCount})
+                            : t("agents.activity.filterWaiting"),
                         icon: <StatusDot className="bg-[var(--ag-run-status-warning)]" />,
                     },
                     {
                         value: "running",
-                        label: "Running",
+                        label: t("agents.activity.filterRunning"),
                         icon: <StatusDot className="bg-[var(--ag-run-status-success)]" />,
                     },
                     {
                         value: "idle",
-                        label: "Idle",
+                        label: t("agents.activity.filterIdle"),
                         icon: <StatusDot className="bg-[var(--ag-run-status-default)]" />,
                     },
                 ],
@@ -68,33 +77,61 @@ export const AgentActivityFilterMenu = ({
             },
             {
                 key: "activity",
-                label: "Last activity",
+                label: t("agents.activity.filterLastActivity"),
                 icon: <Clock size={ICON} />,
                 value: view.activity,
                 options: [
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
-                    {value: "24h", label: "Today", icon: <Clock size={ICON} />},
-                    {value: "7d", label: "Last 7 days", icon: <Clock size={ICON} />},
-                    {value: "30d", label: "Last 30 days", icon: <Clock size={ICON} />},
+                    {
+                        value: "all",
+                        label: t("agents.activity.filterAll"),
+                        icon: <SquaresFour size={ICON} />,
+                    },
+                    {
+                        value: "24h",
+                        label: t("agents.activity.filterToday"),
+                        icon: <Clock size={ICON} />,
+                    },
+                    {
+                        value: "7d",
+                        label: t("agents.activity.filterLast7Days"),
+                        icon: <Clock size={ICON} />,
+                    },
+                    {
+                        value: "30d",
+                        label: t("agents.activity.filterLast30Days"),
+                        icon: <Clock size={ICON} />,
+                    },
                 ],
                 onChange: (value) => onChange({...view, activity: value as SessionActivityWindow}),
             },
             {
                 key: "group",
-                label: "Group by",
+                label: t("agents.activity.filterGroupBy"),
                 icon: <Rows size={ICON} />,
                 block: "sort",
                 value: view.group,
                 // The default first, as the Status and window rows lead with theirs.
                 options: [
-                    {value: "none", label: "None", icon: <Minus size={ICON} />},
-                    {value: "date", label: "Date", icon: <CalendarBlank size={ICON} />},
-                    {value: "status", label: "Status", icon: <Waveform size={ICON} />},
+                    {
+                        value: "none",
+                        label: t("agents.activity.filterNone"),
+                        icon: <Minus size={ICON} />,
+                    },
+                    {
+                        value: "date",
+                        label: t("agents.activity.filterDate"),
+                        icon: <CalendarBlank size={ICON} />,
+                    },
+                    {
+                        value: "status",
+                        label: t("agents.activity.filterStatus"),
+                        icon: <Waveform size={ICON} />,
+                    },
                 ],
                 onChange: (value) => onChange({...view, group: value as AgentActivityGrouping}),
             },
         ],
-        [onChange, setStatus, status, view, waitingCount],
+        [onChange, setStatus, status, t, view, waitingCount],
     )
 
     // The archived atoms narrow this query too, set from the sessions page — so they dot the
@@ -107,7 +144,7 @@ export const AgentActivityFilterMenu = ({
             sections={sections}
             align="end"
             label={null}
-            triggerAriaLabel="Filter and group activity"
+            triggerAriaLabel={t("agents.activity.filterTriggerLabel")}
             size="icon-sm"
             active={active}
             onReset={onReset}

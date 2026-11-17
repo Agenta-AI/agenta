@@ -1,0 +1,13 @@
+{
+    "cannotListen": "このモデルは音声を聞き取れません",
+    "hintAudio": "音声メッセージを録音",
+    "hintTranscribe": "音声でメッセージを入力",
+    "holdToDictate": "{{key}} を押し続けて音声入力",
+    "limitReached": "添付ファイルの上限に達しました。音声メッセージを録音するにはファイルを削除してください",
+    "modeAudio": "音声メッセージ",
+    "modeTranscribe": "音声をテキストに",
+    "stopDictation": "音声入力を停止",
+    "stopVoiceInput": "音声入力を停止",
+    "voiceInputMode": "音声入力モード",
+    "waitingPrompt": "ブラウザーのマイクの確認を待っています…"
+}

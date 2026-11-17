@@ -1,5 +1,7 @@
 import {useMemo, type ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
 import {ProjectSwitch, type SwitcherEntry} from "@agenta/navigation-ui"
 import {useRouter} from "next/router"
 
@@ -20,6 +22,7 @@ export const useSettingsProjectGroup = (
     workspaceId: string,
     projectId: string,
 ): SettingsProjectGroup => {
+    const t = useT(commonCatalog)
     const router = useRouter()
     const {currentGroup, currentProject} = useOrganizationProjects(workspaceId, projectId)
 
@@ -27,7 +30,7 @@ export const useSettingsProjectGroup = (
         if (!currentGroup || !currentProject) return {}
         const projects: SwitcherEntry[] = currentGroup.projects.map((project) => ({
             key: project.project_id,
-            name: project.project_name ?? "Project",
+            name: project.project_name ?? t("common.project"),
             isActive: project.project_id === projectId,
             onSelect: () =>
                 switchSettingsContext(router, {
@@ -35,7 +38,7 @@ export const useSettingsProjectGroup = (
                     projectId: project.project_id,
                 }),
         }))
-        const projectName = currentProject.project_name ?? "Project"
+        const projectName = currentProject.project_name ?? t("common.project")
         return {
             projectSwitch: (
                 <ProjectSwitch
@@ -47,5 +50,5 @@ export const useSettingsProjectGroup = (
             projectName,
             projectCount: currentGroup.projects.length,
         }
-    }, [currentGroup, currentProject, projectId, router])
+    }, [currentGroup, currentProject, projectId, router, t])
 }

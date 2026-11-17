@@ -1,0 +1,17 @@
+{
+    "exportJson": "Exporter en JSON",
+    "exportRecords": "Exporter les enregistrements de la session",
+    "inspectSession": "Inspecter la session",
+    "inspectorTitle": "Inspecteur de session",
+    "linkCopied": "Lien copié",
+    "loadingRecords": "Chargement des enregistrements…",
+    "newSession": "Nouvelle session",
+    "noRecords": "Cette session n’a pas encore d’enregistrements.",
+    "noSessions": "Aucune session avec cet agent pour l’instant.",
+    "recordsAndTurns": "{{records}} enregistrements · {{turns}} tours",
+    "recordsFailed": "Impossible de charger les enregistrements de la session.",
+    "refresh": "Actualiser",
+    "refreshInspector": "Actualiser l’inspecteur de session",
+    "sessionHistory": "Historique des sessions",
+    "sessions": "Sessions"
+}

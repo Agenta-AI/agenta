@@ -1,6 +1,8 @@
 import {useMemo} from "react"
 
 import {useTriggerCatalogIntegrations} from "@agenta/entities/gatewayTrigger"
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {Plug} from "lucide-react"
 
@@ -34,6 +36,7 @@ export const EventAppRail = ({
     /** A phone shows the apps as a step of their own, full width, with no rule beside them. */
     full?: boolean
 }) => {
+    const t = useT(automationsEditorCatalog)
     const {integrations, isLoading: catalogLoading} = useTriggerCatalogIntegrations()
     // Name as well as logo: a connection is named for the account it authorises ("gmail-main"),
     // and this rail lists apps.
@@ -63,7 +66,7 @@ export const EventAppRail = ({
                     </div>
                 ) : apps.length === 0 ? (
                     <p className="m-0 px-2 py-3 text-[12px] leading-snug text-muted-foreground">
-                        No connected apps yet.
+                        {t("automations.editor.noConnectedApps")}
                     </p>
                 ) : (
                     apps.map((app) => (
@@ -98,7 +101,9 @@ export const EventAppRail = ({
                         className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2.5 text-left text-[13px] text-muted-foreground hover:bg-accent lg:py-1.5"
                     >
                         <Plug aria-hidden className="size-3.5 shrink-0" />
-                        <span className="min-w-0 truncate">Connect another app</span>
+                        <span className="min-w-0 truncate">
+                            {t("automations.editor.connectAnotherApp")}
+                        </span>
                     </button>
                 </div>
             ) : null}

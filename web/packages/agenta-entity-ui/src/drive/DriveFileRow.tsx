@@ -18,6 +18,8 @@ import {type CSSProperties, type ReactNode} from "react"
 import {isHiddenPath} from "@agenta/entities/drive"
 import {AGENT_FILES_DIR, fileOrigin, type DriveRecentFile} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {ArrowClockwise, CircleNotch, FolderSimple} from "@phosphor-icons/react"
 
@@ -47,23 +49,26 @@ export const FOCUS_RING =
  * a competing link; hover underlines. Busy swaps the glyph for a spinner and reads "Loading…",
  * disabled so it can't double-fire.
  */
-export const DriveRetryButton = ({onRetry, busy}: {onRetry: () => void; busy?: boolean}) => (
-    <button
-        type="button"
-        onClick={onRetry}
-        disabled={busy}
-        aria-busy={busy || undefined}
-        aria-label="Try loading files again"
-        className={`inline cursor-pointer whitespace-nowrap rounded-sm border-0 bg-transparent p-0 [font:inherit] text-current transition-colors hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-70 ${FOCUS_RING}`}
-    >
-        {busy ? (
-            <CircleNotch size={13} className="mr-1 inline animate-spin align-[-0.15em]" />
-        ) : (
-            <ArrowClockwise size={13} className="mr-1 inline align-[-0.15em]" />
-        )}
-        {busy ? "Loading…" : "Try again"}
-    </button>
-)
+export const DriveRetryButton = ({onRetry, busy}: {onRetry: () => void; busy?: boolean}) => {
+    const t = useT(driveExplorerCatalog)
+    return (
+        <button
+            type="button"
+            onClick={onRetry}
+            disabled={busy}
+            aria-busy={busy || undefined}
+            aria-label={t("entityUi.driveExplorer.tryLoadingAgain")}
+            className={`inline cursor-pointer whitespace-nowrap rounded-sm border-0 bg-transparent p-0 [font:inherit] text-current transition-colors hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-70 ${FOCUS_RING}`}
+        >
+            {busy ? (
+                <CircleNotch size={13} className="mr-1 inline animate-spin align-[-0.15em]" />
+            ) : (
+                <ArrowClockwise size={13} className="mr-1 inline align-[-0.15em]" />
+            )}
+            {busy ? t("entityUi.driveExplorer.loading") : t("entityUi.driveExplorer.tryAgain")}
+        </button>
+    )
+}
 
 /**
  * DriveWarningBadge — overlays a small amber dot on the drive-drawer TRIGGER's folder icon when a
@@ -86,6 +91,7 @@ export const DriveWarningBadge = ({
     tooltip?: boolean
     children: ReactNode
 }): ReactNode => {
+    const t = useT(driveExplorerCatalog)
     // Return the child verbatim when healthy — NOT a fragment, so an outer <Tooltip> still gets a
     // single ref-able element to wrap.
     if (!show) return children
@@ -95,13 +101,13 @@ export const DriveWarningBadge = ({
             {children}
             <span
                 role="img"
-                aria-label="Some files couldn’t be loaded"
+                aria-label={t("entityUi.driveExplorer.someFilesFailed")}
                 className={`absolute ${pos} h-2 w-2 rounded-full bg-colorWarning ring-1 ring-[var(--ag-colorBgContainer)]`}
             />
         </span>
     )
     return tooltip ? (
-        <Tooltip title="Some files couldn’t be loaded — open to retry">{badged}</Tooltip>
+        <Tooltip title={t("entityUi.driveExplorer.someFilesFailedRetry")}>{badged}</Tooltip>
     ) : (
         badged
     )

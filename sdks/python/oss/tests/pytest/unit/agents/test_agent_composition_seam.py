@@ -133,6 +133,7 @@ class _FakeBackend(Backend):
         session_id=None,
         detached=False,
         turn_id=None,
+        session_turn_id=None,
         project_id=None,
         control_command_id=None,
         effective_parameters=None,
@@ -147,7 +148,7 @@ class _FakeBackend(Backend):
         self.created_gateway_policies.append(gateway_policy)
         self.created_detached.append(detached)
         self.created_coordination.append(
-            (session_id, turn_id, project_id, control_command_id)
+            (session_id, turn_id, session_turn_id, project_id, control_command_id)
         )
         self.created_configs.append(config)
         self.created_turn_contexts.append(turn_context)
@@ -258,6 +259,7 @@ async def test_detached_coordination_meta_reaches_the_backend_session():
             session_id="session-1",
             meta={
                 "run_id": "turn-continuation-1",
+                "session_turn_id": "turn-start",
                 "project_id": "project-1",
                 "control_command_id": "command-1",
             },
@@ -267,7 +269,56 @@ async def test_detached_coordination_meta_reaches_the_backend_session():
     )
 
     assert backend.created_coordination == [
-        ("session-1", "turn-continuation-1", "project-1", "command-1")
+        (
+            "session-1",
+            "turn-continuation-1",
+            "turn-start",
+            "project-1",
+            "command-1",
+        )
+    ]
+
+
+async def test_a_fresh_session_turn_gets_a_minted_turn_id():
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    ((_, turn_id, _, _, _),) = backend.created_coordination
+    assert turn_id
+
+
+async def test_a_continuation_without_run_id_gets_no_minted_turn_id():
+    # The runner refuses a continuation with no turnId. A minted id would hide that refusal.
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={"control_command_id": "command-1"},
+        ),
+        messages=[{"role": "user", "content": "approved"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_coordination == [
+        ("session-1", None, None, None, "command-1")
     ]
 
 

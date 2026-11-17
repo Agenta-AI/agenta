@@ -512,6 +512,7 @@ class InteractionsDispatcher:
         envelope: RunEnvelope,
         control_command_id: Optional[UUID] = None,
         continuation_execution_id: Optional[str] = None,
+        session_turn_id: Optional[str] = None,
     ) -> None:
         resolved = [
             (
@@ -573,6 +574,12 @@ class InteractionsDispatcher:
             invoke_request.meta = {
                 **(invoke_request.meta or {}),
                 "control_command_id": str(control_command_id),
+            }
+        if session_turn_id is not None:
+            # The turn this resume continues; run_id is the new execution's id.
+            invoke_request.meta = {
+                **(invoke_request.meta or {}),
+                "session_turn_id": session_turn_id,
             }
 
         # Raises `AdmissionDenied` (an `AccessDenied`): a command's delivery settles it

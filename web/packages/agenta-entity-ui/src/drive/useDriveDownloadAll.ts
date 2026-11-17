@@ -7,7 +7,12 @@ import {useCallback, useMemo, useState} from "react"
 import {driveRootLabel} from "@agenta/entities/drive"
 import {downloadMountArchive} from "@agenta/entities/drive"
 import {AGENT_FILES_DIR, driveDir, type SessionDriveData} from "@agenta/entities/drive"
+import {createT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {message} from "@agenta/ui/app-message"
+
+// The toasts fire from the download callback, outside render.
+const tNow = createT(driveExplorerCatalog)
 
 /** Every mount the drive folds in, each under its presented folder; a primary mount is optional. */
 export const driveArchiveMounts = (
@@ -42,7 +47,12 @@ export function useDriveDownloadAll({
         if (!archiveMounts.length || downloadingAll) return
         setDownloadingAll(true)
         const key = "drive-download-all"
-        message.open({type: "loading", key, content: "Preparing download…", duration: 0})
+        message.open({
+            type: "loading",
+            key,
+            content: tNow("entityUi.driveExplorer.preparingDownload"),
+            duration: 0,
+        })
         // `finally`: the in-flight flag gates every retry (above) and the loading toast has no
         // duration, so anything that skips the reset leaves the button dead and the toast pinned.
         try {
@@ -52,8 +62,18 @@ export function useDriveDownloadAll({
                 filename: `${driveRootLabel(drive.mount)}-files.zip`,
             })
             if (result.cancelled) message.destroy(key)
-            else if (result.ok) message.open({type: "success", key, content: "Download ready"})
-            else message.open({type: "error", key, content: result.error ?? "Download failed"})
+            else if (result.ok)
+                message.open({
+                    type: "success",
+                    key,
+                    content: tNow("entityUi.driveExplorer.downloadReady"),
+                })
+            else
+                message.open({
+                    type: "error",
+                    key,
+                    content: result.error ?? tNow("entityUi.driveExplorer.downloadFailed"),
+                })
         } finally {
             setDownloadingAll(false)
         }

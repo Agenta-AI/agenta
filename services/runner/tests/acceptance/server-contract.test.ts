@@ -23,6 +23,7 @@ import {
   createAgentServer,
   type RunAgent,
 } from "../../src/server.ts";
+import { spanTurnId } from "../../src/protocol.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -192,6 +193,57 @@ describe("POST /run response schema contract", () => {
       const body = (await res.json()) as { ok: boolean; output: string };
       assert.equal(body.ok, true);
       assert.equal(typeof body.output, "string");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("accepts a request with and without sessionTurnId and hands it to the engine as sent", async () => {
+    const seen: Array<string | undefined> = [];
+    const s = await listen(async (request) => {
+      seen.push(request.sessionTurnId);
+      return { ok: true, output: "accepted", events: [] };
+    });
+    try {
+      for (const body of [
+        { turnId: "execution-2", sessionTurnId: "turn-1" },
+        { turnId: "turn-1" },
+      ]) {
+        const res = await fetch(`${s.url}/run`, {
+          method: "POST",
+          headers: AUTH,
+          body: JSON.stringify(body),
+        });
+        assert.equal(res.status, 200);
+        assert.equal(((await res.json()) as { ok: boolean }).ok, true);
+      }
+      assert.deepEqual(seen, ["turn-1", undefined]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("a streaming run with no session gets an execution id but no span turn id", async () => {
+    const seen: Array<{ turnId?: string; sessionId?: string; spanTurnId?: string }> = [];
+    const s = await listen(async (request) => {
+      seen.push({
+        turnId: request.turnId,
+        sessionId: request.sessionId,
+        spanTurnId: spanTurnId(request),
+      });
+      return { ok: true, output: "accepted", events: [] };
+    });
+    try {
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: "{}",
+      });
+      await res.text();
+      assert.equal(seen.length, 1);
+      assert.ok(seen[0].turnId, "the server mints an execution id for every streaming run");
+      assert.equal(seen[0].sessionId, undefined);
+      assert.equal(seen[0].spanTurnId, undefined);
     } finally {
       await s.close();
     }

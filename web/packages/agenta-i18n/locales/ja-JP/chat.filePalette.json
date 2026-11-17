@@ -1,0 +1,21 @@
+{
+    "acrossDrive": "ドライブ全体",
+    "agent": "エージェント",
+    "back": "戻る",
+    "dismiss": "閉じる",
+    "enterSends": "Enterキーでメッセージをそのまま送信します。",
+    "files": "ファイル",
+    "items": "{{count}} 件",
+    "listing": "一覧を取得中…",
+    "navigate": "移動",
+    "noFiles": "このドライブにはまだファイルがありません",
+    "noMatch": "「{{query}}」に一致するファイルまたはフォルダーはありません",
+    "open": "開く",
+    "openFolder": "フォルダーを開く",
+    "recentlyTouched": "最近操作したもの",
+    "reference": "参照",
+    "referenceFolder": "フォルダーを参照",
+    "searchingInside": "<path>{{cwd}}/</path> 内を検索中",
+    "send": "送信",
+    "session": "セッション"
+}

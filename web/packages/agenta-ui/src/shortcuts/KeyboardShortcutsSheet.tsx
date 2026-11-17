@@ -8,6 +8,8 @@
  */
 import {useEffect} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {isOverlayOpen, shortcutGroups} from "@agenta/shared/utils"
 
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from "../components/ui"
@@ -26,15 +28,18 @@ export const KeyboardShortcutsSheet = ({
     onOpenChange,
     className,
 }: KeyboardShortcutsSheetProps) => {
+    const t = useT(navigationCatalog)
     const groups = shortcutGroups().filter((group) => group.shortcuts.length > 0)
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className={cn("max-w-[min(1040px,calc(100vw-2rem))] p-0", className)}>
                 <DialogHeader className="border-0 border-b border-solid border-colorBorderSecondary px-5 py-3.5">
-                    <DialogTitle className="text-sm">Keyboard shortcuts</DialogTitle>
+                    <DialogTitle className="text-sm">
+                        {t("navigation.items.keyboardShortcuts")}
+                    </DialogTitle>
                     <DialogDescription className="text-xs">
-                        Press ? at any time to open this list.
+                        {t("navigation.chrome.shortcutsHint")}
                     </DialogDescription>
                 </DialogHeader>
                 {/* The height cap and the scrolling belong to the WRAPPER, never to the column box.

@@ -8,6 +8,7 @@
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
 
+import {tSelection} from "../text"
 import type {
     EntitySelectionResult,
     EntitySelectorConfig,
@@ -56,7 +57,7 @@ export const entitySelectorAllowedTypesAtom = atom((get) => {
  */
 export const entitySelectorTitleAtom = atom((get) => {
     const config = get(entitySelectorConfigAtom)
-    return config?.title ?? "Select Entity"
+    return config?.title ?? tSelection("entityUi.selection.selectEntity")
 })
 
 /**
