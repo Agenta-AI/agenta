@@ -42,12 +42,12 @@ type Translate = (key: AnalyticsKey) => string
 
 /** A failure reason's label in the active language; an unknown label shows as it is. */
 export const failureLabel = (label: string, t: Translate): string => {
-    const keys = FAILURE_KEYS[label]
+    const keys = Object.hasOwn(FAILURE_KEYS, label) ? FAILURE_KEYS[label] : undefined
     return keys ? t(keys.label) : label
 }
 
 /** The fix to try for a failure reason, in the active language. */
 export const failureFix = (label: string, fix: string, t: Translate): string => {
-    const keys = FAILURE_KEYS[label]
+    const keys = Object.hasOwn(FAILURE_KEYS, label) ? FAILURE_KEYS[label] : undefined
     return keys ? t(keys.fix) : fix
 }

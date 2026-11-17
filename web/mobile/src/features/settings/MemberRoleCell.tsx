@@ -28,7 +28,7 @@ const ROLE_KEYS: Record<string, RoleKey> = {
  * (a custom role) reads as its own name.
  */
 export const memberRoleLabel = (role: string, t: (key: RoleKey) => string) => {
-    const key = ROLE_KEYS[role]
+    const key = Object.hasOwn(ROLE_KEYS, role) ? ROLE_KEYS[role] : undefined
     if (key) return t(key)
     return role ? role.charAt(0).toUpperCase() + role.slice(1) : "—"
 }

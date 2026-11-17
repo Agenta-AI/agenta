@@ -37,13 +37,13 @@ const ADAPTER_TEXT_KEYS: Record<string, SelectionKey> = {
 
 /** A level label for display: a built-in label in the active language, any other as it is. */
 export const levelLabelText = (label: string): string => {
-    const key = LEVEL_LABEL_KEYS[label]
+    const key = Object.hasOwn(LEVEL_LABEL_KEYS, label) ? LEVEL_LABEL_KEYS[label] : undefined
     return key ? tSelection(key) : label
 }
 
 /** An adapter's built-in empty or loading text in the active language, any other as it is. */
 export const adapterText = (text: string): string => {
-    const key = ADAPTER_TEXT_KEYS[text]
+    const key = Object.hasOwn(ADAPTER_TEXT_KEYS, text) ? ADAPTER_TEXT_KEYS[text] : undefined
     return key ? tSelection(key) : text
 }
 
@@ -56,6 +56,7 @@ export const labelInSentence = (label: string): string =>
 
 /** A level type ("revision") inside a sentence, translated when it is a built-in level. */
 export const typeInSentence = (type: string): string => {
-    const key = LEVEL_LABEL_KEYS[type.charAt(0).toUpperCase() + type.slice(1)]
+    const level = type.charAt(0).toUpperCase() + type.slice(1)
+    const key = Object.hasOwn(LEVEL_LABEL_KEYS, level) ? LEVEL_LABEL_KEYS[level] : undefined
     return key ? labelInSentence(tSelection(key)) : type
 }

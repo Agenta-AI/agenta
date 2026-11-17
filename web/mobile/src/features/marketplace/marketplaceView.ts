@@ -25,7 +25,7 @@ const CATEGORY_KEYS: Record<string, MarketplaceKey> = {
 
 /** A category as the page shows it; the value stays the catalog's English name. */
 export const categoryText = (category: string): string => {
-    const key = CATEGORY_KEYS[category]
+    const key = Object.hasOwn(CATEGORY_KEYS, category) ? CATEGORY_KEYS[category] : undefined
     return key ? tNow(key) : category
 }
 

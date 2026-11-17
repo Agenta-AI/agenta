@@ -82,12 +82,12 @@ const TraceTreeSettings = ({
                         >
                             <div className="flex flex-col min-w-0">
                                 <span>
-                                    {option.value in VISIBILITY_KEYS
+                                    {Object.hasOwn(VISIBILITY_KEYS, option.value)
                                         ? t(VISIBILITY_KEYS[option.value].label)
                                         : option.label}
                                 </span>
                                 <span className="text-xs leading-tight text-colorTextTertiary">
-                                    {option.value in VISIBILITY_KEYS
+                                    {Object.hasOwn(VISIBILITY_KEYS, option.value)
                                         ? t(VISIBILITY_KEYS[option.value].hint)
                                         : option.hint}
                                 </span>

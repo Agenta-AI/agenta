@@ -64,7 +64,7 @@ const ROLE_KEYS = {
 } as const
 
 const roleLabel = (role: string, t: (key: (typeof ROLE_KEYS)[keyof typeof ROLE_KEYS]) => string) =>
-    role in ROLE_KEYS ? t(ROLE_KEYS[role as keyof typeof ROLE_KEYS]) : role
+    Object.hasOwn(ROLE_KEYS, role) ? t(ROLE_KEYS[role as keyof typeof ROLE_KEYS]) : role
 
 export interface ProjectDialogState<T> {
     open: boolean

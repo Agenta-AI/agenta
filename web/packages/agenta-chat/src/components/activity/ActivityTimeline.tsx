@@ -255,7 +255,9 @@ const STAGE_WORD_KEYS = {
 } as const
 
 const stageWordText = (word: string): string =>
-    word in STAGE_WORD_KEYS ? tNow(STAGE_WORD_KEYS[word as keyof typeof STAGE_WORD_KEYS]) : word
+    Object.hasOwn(STAGE_WORD_KEYS, word)
+        ? tNow(STAGE_WORD_KEYS[word as keyof typeof STAGE_WORD_KEYS])
+        : word
 
 const liveStep = (step: ActivityStep): LiveLine => {
     if (step.kind === "thought") return {text: tNow("chat.activity.thinking"), format: "thinking"}

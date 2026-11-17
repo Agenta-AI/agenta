@@ -94,7 +94,7 @@ const noun = (segment: string, plural: boolean): string => {
 
 /** "Committed workflow revision", "Queried traces", "Viewed workflow revision log". */
 export const eventTypeLabel = (eventType: string, t: EventTypeT): string => {
-    const known = EVENT_KEYS[eventType]
+    const known = Object.hasOwn(EVENT_KEYS, eventType) ? EVENT_KEYS[eventType] : undefined
     if (known) return t(known)
     const segments = eventType.split(".").filter(Boolean)
     if (segments.length < 2) return capitalize(`${segments[0] ?? "unknown"} event`)
@@ -112,7 +112,7 @@ export const eventTypeLabel = (eventType: string, t: EventTypeT): string => {
 /** The resource heading an event type sits under, e.g. "Workflows" or "Test sets". */
 export const eventTypeGroup = (eventType: string, t: EventTypeT): string => {
     const resource = eventType.split(".")[0] ?? ""
-    const known = GROUP_KEYS[resource]
+    const known = Object.hasOwn(GROUP_KEYS, resource) ? GROUP_KEYS[resource] : undefined
     if (known) return t(known)
     return capitalize(noun(resource, true))
 }

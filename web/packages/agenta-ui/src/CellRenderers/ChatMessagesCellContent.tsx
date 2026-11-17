@@ -137,7 +137,7 @@ const SingleMessage = memo(
         return (
             <section key={`${keyPrefix}-${index}`} className="w-full flex flex-col gap-1 text-xs">
                 <span className={`capitalize text-xs font-medium ${roleColorClass}`}>
-                    {message.role in ROLE_LABELS
+                    {Object.hasOwn(ROLE_LABELS, message.role)
                         ? t(ROLE_LABELS[message.role as keyof typeof ROLE_LABELS])
                         : message.role}
                 </span>
