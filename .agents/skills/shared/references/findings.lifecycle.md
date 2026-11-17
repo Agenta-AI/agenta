@@ -1,155 +1,50 @@
-# Findings Lifecycle
+# Findings lifecycle
 
-Use the same five-stage lifecycle across review and testing work:
+Review and testing work uses five stages. Each stage is one skill, and all five share one
+findings record (`<path>/findings.md`, shaped by `findings.schema.md`).
 
-1. `scan-codebase`
-2. `test-codebase`
-3. `sync-findings`
-4. `triage-findings`
-5. `resolve-findings`
+1. `scan-codebase`: read code and docs from fresh context and record findings.
+2. `test-codebase`: run or inspect validation and record findings.
+3. `sync-findings`: align the record with local artifacts and, when asked, a GitHub PR.
+4. `triage-findings`: decide the next step and ask the open questions.
+5. `resolve-findings`: implement the chosen fixes and update the record.
 
-## Scan
+Each skill holds its own workflow. This file holds the inputs and the rules that all stages
+share.
 
-Scan starts from fresh context and reads code and docs first.
+## Inputs
 
-Before starting, confirm the effective variables.
+| Input | Accepted by | Default | Values |
+|---|---|---|---|
+| `path` | all five | `infer` | The local design or findings folder. |
+| `depth` | scan, test | `deep` | `shallow` or `deep`. |
+| `url` | sync, triage | `local-only` | A GitHub PR URL. |
+| `priority` | resolve | `next-highest` | `P0`, `P1`, `P2`, `P3`, or `all`. |
 
-- Required to confirm:
-  - `path` to the local design or findings folder
-  - `depth`
-  - branch or PR scope when inferable
-- `path` may be explicit or inferred
-- If `path` is inferred, state the inferred value before proceeding
+- **`path`.** Use the given folder. If none is given, infer it from the branch, the subsystem,
+  or matching docs, and state the inferred value before you start.
+- **`depth`.** `shallow` covers the changed files and their immediate neighbors. `deep`
+  follows cross-layer flows, adjacent modules, tests, docs, migrations, and earlier review
+  artifacts.
+- **`url`.** With a PR URL, sync reads remote PR state as well as local state, and triage uses
+  it when it needs GitHub context or runs `sync-findings`. Without one, both stay local.
+- **`priority`.** Map a `High`, `Medium` or `Low` severity to `P1`, `P2` or `P3` first, as
+  `findings.schema.md` defines. With no value, resolve only the highest remaining bucket, in the order `P0`,
+  `P1`, `P2`, `P3`. With one level, resolve only that bucket. With `all`, resolve every
+  remaining bucket.
 
-- Do not anchor on prior findings, PR comments, or old docs before the first independent pass.
-- Read code, tests, routes, schemas, migrations, and design docs first.
-- Only after the independent pass should you compare against existing findings or review comments.
-- Scan may surface missing tests or missing validation coverage as findings, but it does not count as running validation.
-- Accept a `depth` hint from the user prompt:
-  - `shallow`: focus on changed files and immediate neighbors
-  - `deep`: follow cross-layer flows, adjacent modules, tests, docs, migrations, and historical review artifacts
+## Shared rules
 
-Default:
-
-- `depth=deep`
-- `path=infer`
-
-## Test
-
-Test is validation work.
-
-Before starting, confirm the effective variables.
-
-- Required to confirm:
-  - `path` to the local design or findings folder
-  - `depth`
-  - test environment or runtime constraints when relevant
-  - branch or subsystem scope when inferable
-- `path` may be explicit or inferred
-- If `path` is inferred, state the inferred value before proceeding
-
-- Run or inspect the smallest relevant validation surface first.
-- Prefer targeted tests, repros, or smoke checks over whole-suite execution unless the user asks for broad coverage.
-- If validation cannot run because of environment or dependency constraints, record that blocker explicitly and turn the missing validation into a finding when appropriate.
-
-Default:
-
-- `depth=deep`
-- `path=infer`
-
-## Sync
-
-Sync keeps findings aligned with local artifacts and GitHub state.
-
-Before starting, confirm the effective variables.
-
-- Required to confirm:
-  - `path` to the local design or findings folder
-  - `url`
-  - branch or PR scope when inferable
-- `path` may be explicit or inferred
-- If `path` is inferred, state the inferred value before proceeding
-
-- Treat the active findings doc as the master record.
-- Pull in open PR comments, review notes, and historical findings.
-- Re-check each item against current code or current behavior.
-- Keep all non-findings sections, such as `Rules`, `Notes`, and `Open Questions`, above the findings sections so context is not buried.
-- When GitHub thread operations are available, resolve or close review threads that are clearly fixed and keep unresolved threads mapped to findings.
-- Bias toward clarification, not silent carry-forward:
-  - if the user commented on a finding but left the intended disposition, uncertainty, or fix path ambiguous, ask follow-up questions in the same turn
-  - do not leave a finding merely `open` or `needs-user-decision` without first asking the concrete question that blocks the next step
-  - when multiple findings are ambiguous, batch the questions clearly by finding ID instead of making the user do another discovery loop
-
-Accept a `url` input from the user prompt:
-
-- PR URL provided: remote plus local sync
-- omitted URL: local-only sync
-
-Default:
-
-- `url=local-only`
-- `path=infer`
-
-## Triage
-
-Triage is the planning and clarification stage.
-
-Before starting, confirm the effective variables.
-
-- Required to confirm:
-  - `path` to the local design or findings folder
-  - `url`
-  - branch or PR scope when inferable
-- `path` may be explicit or inferred
-- If `path` is inferred, state the inferred value before proceeding
-
-- Treat the active findings doc as the master record.
-- Decide whether the next action is more scan work, more test work, a sync pass, or direct resolution.
-- Bias toward clarification, not silent carry-forward:
-  - if the user commented on a finding but left the intended disposition, uncertainty, or fix path ambiguous, ask follow-up questions in the same turn
-  - do not leave a finding merely `open` or `needs-user-decision` without first asking the concrete question that blocks the next step
-  - when multiple findings are ambiguous, batch the questions clearly by finding ID instead of making the user do another discovery loop
-- Ask the user to resolve ambiguity when:
-  - there are multiple legitimate fix paths
-  - reviewer comments conflict
-  - a finding looks real but the desired disposition is product or migration policy
-
-Default:
-
-- `url=local-only`
-- `path=infer`
-
-## Resolve
-
-Resolve is implementation mode.
-
-Before starting, confirm the effective variables.
-
-- Required to confirm:
-  - `path` to the local design or findings folder
-  - `priority`
-  - target findings files when inferable
-- `path` may be explicit or inferred
-- If `path` is inferred, state the inferred value before proceeding
-
-- Assume curated findings are confirmed and ready to act on.
-- Assume the intended plan or disposition has already been chosen.
-- If the plan is not clear, or the finding still needs triage, stop and ask the user before coding.
-- Bias toward readiness checks:
-  - when the user has already responded to findings, convert any remaining ambiguity into direct follow-up questions immediately
-  - do not start implementation while the intended resolution path, mutability rule, compatibility policy, or scope boundary is still underspecified
-- Implement the fix, add verification or validation coverage, and update status artifacts.
-- Preserve document ordering when updating artifacts:
-  - keep all non-findings sections above `Open Findings`
-  - move findings between `Open Findings` and `Closed Findings` as status changes
-
-Accept a `priority` input from the user prompt:
-
-- omitted priority: resolve the highest remaining priority bucket only, in order `P0`, `P1`, `P2`, `P3`
-- explicit level: resolve only that bucket, for example `P2`
-- `all`: resolve all remaining buckets
-
-Default:
-
-- `priority=next-highest`
-- `path=infer`
+- Before you start, confirm the effective inputs with the user, plus the branch, PR, or
+  subsystem scope when you can infer it.
+- Treat the findings record as the master record. The chat history is not the record.
+- Keep the document order that `findings.schema.md` sets: non-findings sections above
+  `## Open Findings`, and each finding in `## Open Findings` or `## Closed Findings` to match
+  its status.
+- Ask before you park ambiguity. If the user commented on a finding but left its disposition,
+  uncertainty, or fix path unclear, ask the next concrete question in the same turn. Do not
+  leave a finding at `open` or `needs-user-decision` without asking the question that blocks
+  the next step. When several findings are unclear, batch the questions by finding ID.
+- Scan reading does not count as validation. `test-codebase` runs validation. `resolve-findings`
+  may also run the checks that prove its own fix.
+- Ask the user before any change to GitHub, such as a reply to a thread or a resolved thread.

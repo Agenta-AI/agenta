@@ -5,10 +5,9 @@ description: Perform a fresh-context scan of code and docs that turns verificati
 
 # Scan Codebase
 
-Read these shared references when needed:
-
-- `../shared/references/findings.schema.md`
-- `../shared/references/findings.lifecycle.md`
+Read `../shared/references/findings.lifecycle.md` for the inputs, their defaults, and the
+rules all findings stages share. Read `../shared/references/findings.schema.md` for the shape
+of `findings.md`.
 
 ## Role
 
@@ -18,28 +17,6 @@ Run a fresh review pass from code and docs into findings.
 - It may surface missing tests or coverage gaps as findings.
 - It does not rely on existing findings as the starting point.
 - It does not replace `test-codebase`; if runtime validation is needed, hand off there.
-
-## Depth
-
-Accept a `depth` parameter from the prompt:
-
-- `shallow`
-- `deep`
-
-Default:
-
-- `depth=deep`
-
-## Path Input
-
-Accept an optional `path` from the prompt.
-
-- If `path` is provided, use it as the local design or findings folder.
-- If `path` is omitted, infer it from the branch, subsystem, or matching docs and state the inferred value before starting.
-
-Default:
-
-- `path=infer`
 
 ## Workflow
 
@@ -51,6 +28,7 @@ Default:
 
 2. Start from fresh context.
    Read current code, docs, tests-as-code, routes, schemas, migrations, and adjacent design material before looking at existing findings.
+   Compare against existing findings and review comments only after this independent pass.
 
 3. Produce findings from review.
    Surface correctness, consistency, completeness, soundness, functionality, security, performance, compatibility, migration, and missing-test findings when supported by evidence.

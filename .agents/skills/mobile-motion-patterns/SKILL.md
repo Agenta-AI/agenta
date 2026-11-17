@@ -27,26 +27,26 @@ const presets = useMotionPresets()
 </AnimatePresence>
 ```
 
-In use today:
+`presets.ts` exports many presets. Read its doc comments for the full list.
+The ones screens use most:
 
-- **`crossfade`** — the only preset components consume. Used for the reply
-  reveal (`features/chat/AnswerReveal.tsx`) and the composer's picker and
-  recording overlays (`features/chat/Composer.tsx`). For skeleton → content
-  swaps, skeleton and content must occupy identical geometry so the fade causes
-  zero layout shift.
-
-Defined but not used by any screen yet:
-
-- **`sharedAxisPush`** — horizontal parent → child push. `custom={1}` forward,
-  `custom={-1}` back, inside `<AnimatePresence custom={direction} initial={false}>`.
-- **`sheetSlideUp`** — spring-based slide-up for a custom bottom sheet.
-- The raw `pushTransition` / `sheetTransition` / `crossfadeTransition` values
-  and the `reduced` flag.
+- **`crossfade`** and **`crossfadeTransition`**: the reply reveal
+  (`features/chat/AnswerReveal.tsx`), the composer overlays
+  (`features/chat/Composer.tsx`), and `features/marketplace/`. For skeleton to
+  content swaps, skeleton and content must occupy identical geometry so the
+  fade causes zero layout shift.
+- **`stepSlide`**, **`fadeUp`**, **`expand`**, **`pop`**: onboarding steps and
+  rows (`features/onboarding/`). `fadeUp` is also used by
+  `features/app/BootLoaderScreen.tsx` and `features/chat/BrowserPreviewSlot.tsx`.
+- **`overlayFade`**: `features/app/PostAuthLoader.tsx`. **`tipSwap`** and
+  **`breathe`**: `features/app/BootLoaderScreen.tsx`.
+- **`digitPop`**: `components/AnimatedNumber.tsx`. **`countUpMs`**:
+  `features/wallet/WalletCard.tsx`.
+- **`sharedAxisPush`** and **`sheetSlideUp`** exist, but no screen uses them yet.
 
 Reach for these before adding a new preset. Screen navigation has no transition
-today, and sheets and drawers (`Sheet` from `@agenta/ui/ui` or the local
-`src/components/ui/sheet.tsx`) animate with their own Tailwind
-`animate-in`/`slide-in-*` classes, not with `motion`.
+today. Sheets and drawers (`Sheet` from `@agenta/ui/ui`) animate with their own
+Tailwind `animate-in`/`slide-in-*` classes, not with `motion`.
 
 ## Rules
 

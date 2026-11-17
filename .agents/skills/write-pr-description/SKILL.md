@@ -7,9 +7,9 @@ user-invocable: true
 
 # Write PR Descriptions
 
-Write PRs that a teammate can understand at a glance. Lead with what was broken from the user's point of view, then show the fix in plain words with a concrete before/after. No padding, no checkbox theater, no jargon-first openings.
+Write PRs that a teammate can understand at a glance. Lead with what was broken from the user's point of view, then show the fix in plain words with a concrete before and after. Leave out padding, checkbox lists and openings that start with jargon.
 
-This is the default quality bar from the first draft. Don't ship a generic version expecting to fix it after feedback.
+This is the default quality bar from the first draft. Don't ship a generic version and expect to fix it after feedback.
 
 ## 0. The prefilled template
 
@@ -17,25 +17,26 @@ GitHub prefills every PR from `.github/PULL_REQUEST_TEMPLATE.md`, which asks for
 
 Two parts of the template still apply:
 
-- **Demo.** UI changes need a capture from the real app running your branch. Never substitute a mock-up, a component harness, or a recreated screen. If you cannot run the app, say the demo is outstanding and why, rather than filling the space with something that proves nothing.
-- **Testing.** Keep the substance under a `## Tests` heading. You do not need the template's three subheadings unless the change is large enough that they help.
+- **Tests.** Keep the substance under a `## Tests` heading. You do not need the template's three subheadings unless the change is large enough that they help.
+- **Demo.** Every PR shows proof of the change in a `## Demo` section after Tests. See section 7.
 
 Drop the Checklist and Contributor Resources if the author is a core maintainer of the repo. They exist for first-time outside contributors and the team does not fill them in.
 
 ## 1. Title
 
-The title states the actual change in plain words.
+The title states the actual change in plain words. Use the format from the "PR instructions" in the root `AGENTS.md`:
 
-- Use the conventional prefix the repo already uses, e.g. `[fix] <Title>`, `[feat] <Title>`, `[chore] <Title>`, `[docs] <Title>`.
-- If the user gave you an issue id, suffix it: `[fix] <Title> [AGE-1234]`.
-- Define the title as an active intent in present tense, e.g `[fix] Resolve broken evaluation links`.
-- Keep it under ~70 characters. Detail goes in the body.
+- `<type>(<area>): <Title>`, where the type is one from the AGENTS.md list (`fix`, `feat`, `chore`, `ci`, `docs`, `test`), and the area is `frontend`, `api`, `sdk`, `runner`, `services`, `docs` and so on.
+- If the user gave you an issue id, put it first: `[AGE-1234] fix(frontend): <Title>`.
+- Write the title as an action in the present tense.
+- Keep it under about 70 characters. Detail goes in the body.
 
-Good vs bad:
+Good and bad titles:
 
-- Good: `[fix] Map OpenInference tool definitions into real tool objects`
-- Bad: `fix(api) parse X into structured objects` (abstract, says nothing concrete)
-- Bad: `Update tool handling` (vague, no symptom, no domain)
+- Good: `fix(frontend): Show agent-created automations without a reload`
+- Good: `fix(runner): let a tool's own time budget extend the tool-call watchdog`
+- Bad: `fix(frontend): improve trigger handling` (vague, no symptom)
+- Bad: `Update chat hooks` (no type, no area, no symptom)
 
 ## 2. Body structure
 
@@ -46,144 +47,174 @@ Use this shape unless the change is truly trivial:
 <one or two sentences: the symptom a user or teammate would notice, then the root cause in plain words>
 
 ## Changes
-<plain-words explanation of the change, with a concrete before/after when a data shape, signature, or behavior changed>
+<plain-words explanation of the change, with a concrete before and after when a data shape, signature, or behavior changed>
 
-## Tests / notes
-<short bullet list or prose: what you verified, anything reviewers should watch for>
+## Tests
+<short bullet list or prose: what you verified, and anything reviewers should watch for>
+
+## Demo
+<proof of the change, see section 7>
 
 ## What to QA
-<only for user-visible changes: short steps for the manual tester, see section 7>
+<only for user-visible changes: short steps for the manual tester, see section 8>
 ```
 
-Adapt the headings if the situation calls for it (e.g. a pure feature PR might use "What this adds" instead of "What was broken"). The order stays the same: the obeservation (symptom or user-visible change first or intent), then the changes, then verification and validation.
+Adapt the headings if the situation calls for it. A feature PR can use "What this adds" in place of "Context". The order stays the same: first the symptom or the user-visible change, then the changes, then the proof.
 
 ## 3. Show, don't restate the diff
 
-When a transformation changed a data shape, signature, or behavior, show it concretely.
+When a change moved a data shape, a name, or a behavior, show it concretely.
 
 Good:
 
-> Tool definitions coming from OpenInference traces arrived as
+> The Claude harness reports the trigger op as
 >
 > ```
-> [{tool: {json_schema: "..."}}]
+> mcp__agenta-tools__create_schedule
 > ```
 >
-> The playground expected
+> The hook matched only the bare name
 >
 > ```
-> [{type: "function", function: {...}}]
+> create_schedule
 > ```
 >
-> So the parser now unwraps `json_schema` and rebuilds each entry in the expected shape before handing it to the playground.
+> So the hook now passes each name through `canonicalClientToolName` before the match. Pi, Claude and Codex names all match, and a third-party `mcp__acme__create_schedule` does not.
 
 Bad:
 
-> - Updated tool parsing logic
-> - Improved data handling
-> - Added support for OpenInference tools
+> - Updated tool name handling
+> - Improved trigger support
+> - Added support for more harnesses
 
-The second version restates the diff in vague bullets. It tells the reader nothing the file list doesn't.
+The bad version restates the diff in vague bullets. It tells the reader nothing the file list doesn't.
 
 ## 4. Cut the padding
 
-Things to remove before you publish:
+Remove these before you publish:
 
-- Generic "Summary" or "Overview" sections that paraphrase the title.
-- Checkbox theater ("- [x] code written - [x] tested") unless the repo's template requires it.
-- Bullet lists that restate every changed file. The diff already shows that.
-- Marketing words: "comprehensive", "robust", "seamlessly", "leverage", "powerful".
-- Bullets that exist only to fill space. Prefer one clear sentence to three vague bullets.
+- Generic "Summary" or "Overview" sections that repeat the title.
+- Checkbox lists ("- [x] code written - [x] tested").
+- Bullet lists that name every changed file. The diff already shows that.
+- Bullets that exist only to fill space. One clear sentence is better than three vague bullets.
 
 ## 5. Prose rules
 
-Apply these general writing rules:
+Follow the `style-editing` skill for all prose. The rules that apply only to PRs are:
 
-- **No em dashes.** Replace with a period and a new sentence, parentheses, or a semicolon. Absolute rule.
-- Active voice.
-- Short sentences by default. Longer ones only when they help the flow.
-- Complete sentences. Snippets are fine when they keep things short and clear.
-- Don't overuse bold or bullets. Use them when they aid quick reading. Otherwise prose.
-- 11th-grade English, except for unavoidable technical terms.
+- Put file, function and test names in backticks so a reviewer can search for them.
+- Use bold and bullets only where they help a reviewer scan. Otherwise write prose.
+- Name the issue or PR that a change builds on (`#8271`), and say what it left undone.
 
-## 6. Tests / notes section
+## 6. Tests section
 
 Keep this section short and concrete. Useful contents:
 
-- What you ran locally (`pnpm test`, `pytest tests/...`, manual UI check on `/observability`).
-- Anything reviewers should poke at (a known-fragile area, a follow-up not in this PR).
-- Migration or rollout notes if relevant.
+- What you ran (`pnpm test` for one package, `pytest` for one file, a manual check of the playground at `/m`).
+- Which test fails without the change and passes with it.
+- Anything reviewers should check (a fragile area, a follow-up that is not in this PR).
+- Migration or rollout notes, if any.
 
-Skip the section entirely if there is nothing real to say. A blank "Tests" heading is worse than no heading.
+Skip the section if there is nothing real to say. An empty "Tests" heading is worse than no heading.
 
-## 7. What to QA section
+## 7. Demo section
 
-If the change is user-visible and a teammate will test it manually, add a "What to QA" section. Write it for a tester who knows the product and has context: skip the basics, point at the right screens, and state the expected result of every check.
+Every change ships with proof that it does what the PR says. Put a `## Demo` section after Tests.
 
-- One line per check: where to go, what to do, what they should see.
+- A visible UI change gets before and after screenshots from the real app running the branch (web/mobile at `/m`). Capture the "before" ahead of the first edit. Never use a mock-up, a component harness, or a recreated screen.
+- Motion, timing or loading states get a short video or a sequence of frames.
+- A logic, data or protocol fix names the test that failed before the change and passes now.
+- A server-only change gets the test and a short runtime transcript.
+
+Use one table per screen, with one line on top that says which screen, which data, and what you did. Add a row under the images that says what to notice:
+
+```markdown
+## Demo
+
+<one line: which screen, which data, what was done>
+
+| Before | After |
+|---|---|
+| <img width="400" alt="before-<what>" src="https://github.com/user-attachments/assets/..." /> | <img width="400" alt="after-<what>" src="https://github.com/user-attachments/assets/..." /> |
+| <what is wrong> | <what is fixed> |
+```
+
+For a new feature with no "before", use one column per state, such as `| Empty | Filled | Error |`. Upload images through the PR page so they get `user-attachments` URLs. Never commit them. If you cannot capture a proof, say which one is missing and why. Don't fill the space with something that proves nothing.
+
+## 8. What to QA section
+
+If the change is user-visible and a teammate will test it by hand, add a "What to QA" section. Write it for a tester who knows the product. Point at the right screens and state the expected result of every check.
+
+- Write one line per check: where to go, what to do, and what they should see.
 - Name the exact pages and flows. "Test the feature" is not a check.
-- Include the regression to watch for: the thing this change is most likely to have broken.
-- If a check needs setup (a seeded project, an older record, a feature flag), say so in the same line.
-- Use simple, clear language. Same prose rules as section 5.
+- Include the regression to watch for, which is the thing this change most likely broke.
+- If a check needs setup (an agent with a given harness, a connected channel, a feature flag), say so in the same line.
 
 Example:
 
 > ## What to QA
-> - Create a new automatic evaluator, name it, save. The table shows your name with a v1 tag, not "default".
-> - Edit it and commit a config change. The name stays, the version bumps to v2.
-> - Regression: run a new evaluation. The variant chips still say "default", not the app name.
+> - Open a playground session and ask the agent to create a schedule. Do not reload. The Automations section shows the schedule when the turn finishes.
+> - Ask the agent to remove the schedule. The section goes back to "Add one" without a reload.
+> - Regression: ask the agent to write a file. The Recent files list still updates during the turn.
 
-Skip the section when nothing is user-visible (pure refactor, CI, docs). A reviewer-only change needs the Tests section, not this one.
+Skip the section when nothing is user-visible (a refactor, CI, docs). A change that only reviewers check needs the Tests section, not this one.
 
-## 8. Reviewer's first-30-seconds test
+## 9. Reviewer's first-30-seconds test
 
 Before you finalize, read your own draft and ask:
 
 1. After 30 seconds, does a reviewer know **the context** and **what changed**?
-2. Is there a concrete before/after anywhere a shape or behavior moved?
-3. Did you delete every sentence that doesn't earn its place?
-4. Did you scan for em dashes and marketing words?
+2. Is there a concrete before and after where a shape or behavior moved?
+3. Does the Demo section hold real proof?
+4. Did you delete every sentence that adds no fact?
 
 If any answer is no, edit before you push.
 
-## 9. Worked example
+## 10. Worked example
 
 A bad first draft:
 
 ```
 ## Summary
-- Updated the tool parsing logic to handle OpenInference traces
-- Improved compatibility with the playground
-- Added robust error handling for edge cases
+- Updated the file activity hook to handle triggers
+- Improved compatibility with all harnesses
+- Added robust handling for edge cases
 
 ## Includes
-- Modified parseTools function
-- Updated type definitions
+- Renamed useFileActivityDetector
+- Updated settledTools model
 - Added new test cases
 ```
 
-A good rewrite:
+A good rewrite, based on PR #8267:
 
 ```
 ## Context
-When you opened an OpenInference trace in the playground, the tools panel was empty. The trace stored tool definitions as `[{tool: {json_schema: "..."}}]`, but the playground expected the OpenAI shape `[{type: "function", function: {...}}]`, so the parser dropped them silently.
+When an agent created an automation from the playground chat, the Automations section in the config pane kept saying "Add one" until a hard refresh. The runner calls the API directly, so the browser gets no signal except the settled tool call in the chat stream, and `/m` never refetched the trigger lists. The Claude harness also names the op `mcp__agenta-tools__create_schedule`, so a match on the bare name missed it.
 
 ## Changes
-`parseToolsFromTrace` now unwraps `json_schema` and rebuilds each entry in the OpenAI shape before it hits the playground. Traces that already use the OpenAI shape pass through unchanged.
+`useFileActivityDetector` becomes `useSettledToolEffects`. It scans the turn's settled tool calls once and applies both side effects:
 
-Before:
-[{tool: {json_schema: "{\"name\": \"get_weather\", ...}"}}]
+- A call that writes files records file activity for the session's drives. This is unchanged.
+- A trigger op that changes data invalidates `["triggers", "schedules"]` or `["triggers", "subscriptions"]`.
 
-After:
-[{type: "function", function: {name: "get_weather", parameters: {...}}}]
+Names go through `canonicalClientToolName` first, so Pi, Claude and Codex names all match.
 
 ## Tests
-- Added a unit test in parseToolsFromTrace.test.ts covering both shapes.
-- Opened a real OpenInference trace from the staging project and confirmed the tools panel renders.
+- `useSettledToolEffects.test.tsx` covers create during the stream, remove, pause and resume, the Claude name, failed and read-only calls, and session switches. With the invalidation removed, 10 of the 14 tests fail.
+- On the local EE stack at `/m`, a Claude Code agent created and removed a schedule, and the pane showed each change within 9 seconds with no reload.
+
+## Demo
+Playground session of the "Competitor Digest" agent. I asked the agent to create a weekly schedule and did not reload the page.
+
+| Before | After |
+|---|---|
+| <img width="400" alt="before-agent-created-automation" src="https://github.com/user-attachments/assets/..." /> | <img width="400" alt="after-agent-created-automation" src="https://github.com/user-attachments/assets/..." /> |
+| The agent reports the schedule as created, but Automations still says "Add one". | The new schedule shows under Automations a few seconds after the turn. |
 
 ## What to QA
-- Open an OpenInference trace in the playground (the staging project has them). The tools panel lists the tools.
-- Regression: open a trace from the OpenAI SDK. The tools panel still renders as before.
+- Ask the agent to create a schedule. Do not reload. The Automations section shows it when the turn finishes.
+- Regression: ask the agent to write a file. The Recent files list still updates during the turn.
 ```
 
-The second version is cleaner and tells the reviewer everything they need to start reading the diff.
+The rewrite tells the reviewer the symptom, the cause, the fix and the proof before they open the diff.

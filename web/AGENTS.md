@@ -421,31 +421,14 @@ the source of truth for this area. Load it when you:
 
 - Decide whether code belongs in the app layer (`web/mobile`) or a package.
 - Import from any `@agenta/*` package (always via subpath exports for tree-shaking).
-- Build a new modal (`Dialog` from `@agenta/ui/ui`; `EnhancedModal` from `@agenta/ui` for
-  antd-style call sites; never raw antd `Modal`).
+- Build a new modal (`Dialog` from `@agenta/ui/ui` for new code; `EnhancedModal` from
+  `@agenta/ui` only at existing call sites; never raw antd `Modal`).
 - Use entity state (molecules), the loadable/runnable bridges, or the `EntityPicker`.
 - Write package unit tests (they live in `tests/unit/`, not `src/`).
 - Decide what to test or review tests: load the **`test-design`** skill (risk list, how to write each test, mutation check).
 
-Quick placement heuristic:
-
-```text
-Is the code used by 2+ features, or could be?
-├─ NO  → keep it in the app layer (web/mobile/src/features/<feature>/)
-└─ YES → move to a package by purpose:
-         UI component / style util         → @agenta/ui
-         entity state (molecule, atoms)     → @agenta/entities
-         entity-specific UI (modals/pickers)→ @agenta/entity-ui
-         domain state / domain UI           → the domain's headless / -ui package
-                                              (sessions, chat, playground, settings, ...)
-         pure utility / type (no React)     → @agenta/shared
-```
-
-Hard rules (full detail in the skill): respect the layers
-(`shared ← ui ← entities ← headless domain packages ← entity-ui / chat / -ui packages`,
-no cycles, headless packages never import UI packages); no legacy compat shims
-in packages; no `any`; use exported subpaths; verify with
-`pnpm turbo run build --filter=@agenta/<package>` and `lint` before pushing.
+The skill owns the placement heuristic and the package hard rules (layers, no shims, no
+`any`, subpath imports, build and lint checks). Do not copy them here.
 
 Bridge and molecule docs also live next to the code:
 `web/packages/agenta-entities/src/{loadable,runnable,shared}/README.md` and

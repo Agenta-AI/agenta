@@ -6,36 +6,20 @@ description: Review one code change, or one design (an OpenSpec change, a spec d
 # Review a change or a design for naming and consistency
 
 You review one target and report where names, patterns and layers are inconsistent, and how
-much it matters. You do not edit code or documents, and you do not post anything. The rules
-live in the `naming-and-resources` skill; this lens applies them.
+much it matters. The rules live in the `naming-and-resources` skill; this lens applies them.
 
-## Targets
+Follow `../shared/references/review-contract.md` for the targets, the inputs, and the shared
+rules. This lens accepts code targets and design targets, with these additions:
 
-The caller names one target.
-
-- **Code (default).** A diff between two commits that changes a contract: a table, column,
-  index, route, DTO field, enum value, config field or UI label.
-- **Design.** An OpenSpec change folder, a spec draft or an architecture doc. No code exists
-  yet, or the code is not the subject. Check the proposal before any migration is written.
-  When the doc describes existing code (an architecture map), review the names in the code
-  it describes: folders, tables, modules, routes, types. The doc is the map, not the target.
-
-## Inputs
-
-The caller gives you these. If the caller leaves one out, work it out and say what you used.
-
-For a code target: **checkout path** (the repo at the head commit), **base** (for a PR, the
-merge base of the head and its base branch), **head**. Read the change with
-`git -C <checkout> diff <base> <head>`.
-
-For a design target: **checkout path** (today's code, to check what the design says about
-today), **design path** (read every file), **version** (commit or date).
-
-For both: **context file (optional)** with settled decisions and owner rules. Do not raise a
-settled point again unless the fix is wrong or incomplete; then say why. Only the caller's
-context file settles a point. A decision log inside the target (for example a `SETTLED.md`
-in the spec folder) is part of the design under review: you may disagree with a naming
-decision recorded there, cite the rule, and say where it was decided.
+- **Code target.** Any diff. Check first the contracts it touches: a table, column, index,
+  route, DTO field, enum value, config field or UI label.
+- **Design target.** Check the proposal before any migration is written. When the doc
+  describes existing code (an architecture map), review the names in the code it describes:
+  folders, tables, modules, routes, types. The doc is the map, not the target.
+- **Context file.** Only the caller's context file settles a point. A decision log inside the
+  target (for example a `SETTLED.md` in the spec folder) is part of the design under review.
+  You may disagree with a naming decision recorded there, cite the rule, and say where it was
+  decided.
 
 ## Procedure
 
@@ -62,15 +46,22 @@ decision recorded there, cite the rule, and say where it was decided.
    Group symptoms under one cause.
 8. **Write the report** in the format of `references/report-template.md`, with the rating.
 
-## Rules
+## Rating
 
-- Read-only. Do not install dependencies, and do not run builds, type checks, linters, or
-  tests.
-- Review the target. Existing code counts where the target adds to it, copies it, or depends
-  on it. A pre-existing mismatch that the target spreads to new surface is the target's.
+- **Low:** names and patterns match the glossary, the conventions and the template, or only
+  optional suggestions remain.
+- **Medium:** on new surface, at least one concept has two names across layers, one word
+  has two meanings, an item kind or an owner level breaks the shared template, or a layering
+  fault adds a real obligation. The change still works.
+- **High:** a mismatch on a shipped or about-to-ship contract (stored data, a migration, a
+  public route or SDK field) that will need a migration to fix, or a name that leads callers
+  to a wrong result.
+
+## Lens rules
+
+- A pre-existing mismatch that the target copies or spreads to new surface is the target's.
 - Project conventions win over generic standards. Never ask to move toward a generic rule
   that `project-conventions.md` overrides.
-- Prefer a few substantial findings to a list of nits.
 - Stay in this lens. Races and data loss go to review-correctness, removable parts and
   needless machinery to review-simplify, secrets and access to a security review, and field
   grouping by role to design-interfaces. Report the naming side of such an issue only. Drop
@@ -78,6 +69,11 @@ decision recorded there, cite the rule, and say where it was decided.
 - With a pull-request procedure (a review loop), the procedure owns the target, the head and
   publication. This lens writes its own report; the loop merges it into one findings list.
 - Do not read `references/evals.md` during a review. It is for testing this skill.
+
+## Report
+
+Use the format in `references/report-template.md`. It extends the contract's shape with the
+Category, Rule and Evidence fields and the Questions and What to keep sections.
 
 ## Optional references
 
@@ -92,16 +88,3 @@ Load only when needed:
   lens format, for example a standalone architecture review.
 - `references/optional/restraint-cases.md`: extra cases for when you are unsure whether a
   pattern is a real finding.
-
-## Rating
-
-- **Low:** names and patterns match the glossary, the conventions and the template, or only
-  optional suggestions remain.
-- **Medium:** on new surface, at least one concept has two names across layers, one word
-  has two meanings, an item kind or an owner level breaks the shared template, or a layering
-  fault adds a real obligation. The change still works.
-- **High:** a mismatch on a shipped or about-to-ship contract (stored data, a migration, a
-  public route or SDK field) that will need a migration to fix, or a name that leads callers
-  to a wrong result.
-
-The report ends with the line `Rating: Low|Medium|High` with nothing after it.

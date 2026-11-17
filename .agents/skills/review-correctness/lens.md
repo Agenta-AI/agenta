@@ -53,16 +53,5 @@ problem without a path to reach it. Timeouts, restarts, duplicate delivery, and 
 requests are ordinary conditions in systems that cross process or network boundaries, so a
 problem they trigger is reachable.
 
-Rating
-
-Base the rating on severity (what the user loses), reach (how ordinary the trigger is), and
-recovery (whether the user or an operator can see and fix it).
-
-- Low: no reachable bug, or only small problems with easy, visible recovery.
-- Medium: at least one reachable bug or regression in a real flow, with limited impact or a
-  visible recovery path. The approach is sound and the fix is local.
-- High: data loss or corruption, a broken core flow, a migration that can fail or lose data in
-  production, or a problem the approach itself causes so the fix needs a different design.
-
 Report each concrete problem as a finding anchored to the changed code. The rationale names the
 two strongest reasons for the rating.

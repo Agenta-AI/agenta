@@ -6,41 +6,12 @@ description: Review one code change, or one design (an OpenSpec change or an arc
 # Review a change or a design for simplicity
 
 You review one target and report what could be removed or made simpler, and how much it
-matters. You do not edit code or documents, and you do not post anything.
+matters.
 
-## Targets
-
-The caller names one target.
-
-- **Code (default).** A diff between two commits.
-- **Design.** An OpenSpec change folder (`openspec/changes/<name>/`: proposal, design,
-  specs, tasks) or one architecture doc. No code exists yet, or the code is not the subject.
-
-## Inputs
-
-The caller gives you these. If the caller leaves one out, work it out and say what you used.
-
-For a code target:
-
-- **Checkout path.** A checkout of the repo at the head commit. Read code there.
-- **Base.** The commit the change starts from. For a PR, use the merge base of the PR head
-  and its base branch, never the current tip of the base branch.
-- **Head.** The last commit of the change.
-
-Read the change with `git -C <checkout> diff <base> <head>`. Add `-- <path>` to read one file.
-
-For a design target:
-
-- **Checkout path.** A checkout of the repo the design applies to. Read today's code there,
-  so you can check what the design claims about today and what it would add.
-- **Design path.** The spec folder or the doc. Read every file in it.
-- **Version.** The commit or date of the design, so the report names what you read.
-
-For both:
-
-- **Context file (optional).** Decisions that are already settled: findings that were fixed,
-  rejected with a reason, or deferred, and product rules from the owner. Do not raise a
-  settled point again unless the fix is wrong or incomplete. Then say why.
+Follow `../shared/references/review-contract.md` for the targets, the inputs, the shared
+rules, and the report shape. This lens accepts code targets and design targets. A design
+target is an OpenSpec change folder (`openspec/changes/<name>/`: proposal, design, specs,
+tasks) or one architecture doc.
 
 ## What to look for
 
@@ -58,15 +29,6 @@ For a design target, apply the lens to what the design would build:
 - Interfaces. Fields that copy each other, or a boundary that only forwards.
 - Tasks. Work whose only purpose is to support a part you suggest removing.
 
-## Rules
-
-- Read-only. Do not install dependencies, and do not run builds, type checks, linters, or
-  tests.
-- Review the target, not the code around it. Existing code counts only where the target adds
-  to it or depends on it.
-- Prefer a few substantial findings to a list of style nits.
-- Keep a design when it is already the simplest one that meets the need, and say so.
-
 ## Rating
 
 - **Low:** nothing to simplify, or only optional suggestions that the owner can take or leave.
@@ -76,32 +38,15 @@ For a design target, apply the lens to what the design would build:
 - **High:** the core approach carries complexity that much of the change should not have,
   or the complexity hides a correctness or reliability problem with a reachable trigger.
 
-## Output format
+## Lens rules
 
-Write the report in plain English, in exactly this shape:
+- Keep a design when it is already the simplest one that meets the need, and say so.
 
-```markdown
-# Simplify review
+## Report
 
-Base: <base sha, or "design" for a design target>
-Head: <head sha, or "<design path> at <commit or date>" for a design target>
-
-## Findings
-
-### 1. <one-line title>
-- Severity: High | Medium | Low
-- Where: <file>:<line> (more locations if needed; for a design, the spec file and heading)
-- What is wrong: <what could disappear, and why the result is easier to reason about>
-- Smallest fix: <the smallest change, and what behavior or tradeoff it changes>
-
-(more findings, most important first; write "No findings." if there are none)
-
-## What to keep
-
-<parts of the design that are already simple and should stay; optional>
-
-Rating: Low | Medium | High
-```
-
-Severity Low means a suggestion the owner may decline. The last line must be
-`Rating: <value>` with nothing after it, so a script can read it.
+- Title: `# Simplify review`.
+- What is wrong: what could disappear, and why the result is easier to reason about.
+- Smallest fix: also say what behavior or tradeoff it changes.
+- Order findings most important first. Severity Low means a suggestion the owner may decline.
+- Closing section: `## What to keep` (optional), with the parts of the design that are
+  already simple and should stay.

@@ -23,26 +23,12 @@ them — styling and import rules here are deliberately different. Design doc:
 - **No slab components.** Pages under `src/pages/` are thin route shells only;
   each feature is a folder of small single-purpose components.
 
-## Structure
+## Structure and states
 
-```text
-web/mobile/src/
-  pages/                # thin route shells only (Pages Router)
-  features/<feature>/   # SessionListScreen.tsx, SessionRowMenu.tsx, ... one component per file
-    states/             # SessionsNoMatch.tsx, SessionsPageSkeleton.tsx — designed sibling states
-  components/           # app-wide shells (ScreenScaffold, PageTitle, ContentRail, ...)
-    ui/                 # local shadcn registry components (installed, then owned)
-  lib/                  # motion presets, cn util, api glue — no JSX except tiny helpers
-  styles/               # globals.css + theme.generated.css (generated, committed)
-```
-
-## States are designed, not defaulted
-
-Every screen and every data-bearing component defines loading, empty, error
-(and partial, where relevant) states as first-class sibling components in the
-feature's `states/` folder. Skeletons mirror the final layout geometry so
-content replaces them without shift. Errors carry a retry affordance and never
-lose entered state (a failed send never loses the draft).
+Load the `mobile-app-structure` skill before you create or move a file here. It
+owns the folder layout, the `states/` convention, and the data-flow rules. In
+short: every data-bearing component has designed loading, empty, and error
+states as sibling components in its feature's `states/` folder.
 
 ## Motion
 
@@ -58,20 +44,16 @@ aware). Never hardcode durations, easings, or springs in components. Load the
 - Style exclusively with the semantic tokens (`bg-background`,
   `text-muted-foreground`, `border-border`, ...). Never hardcode hex/rgb values
   in components.
-- The color source of truth is `web/oss/src/styles/theme/palette.ts`, bridged
-  by `scripts/generate-shadcn-tokens.ts` into `src/styles/theme.generated.css`
-  (committed, never hand-edited). `web/oss/src/styles/theme/` (`palette.ts`,
-  `controlScale.ts`) is the one part of `web/oss` still in use. To change a color: edit `palette.ts` or the
-  role map in the script, then run `pnpm --filter @agenta/mobile generate:tokens`.
-- Dark mode is class-based (`.dark` on `<html>`), keyed off the
-  `agenta-theme` localStorage value.
+- Colors come from `web/oss/src/styles/theme/palette.ts` through a generated
+  token bridge. Load the `mobile-shadcn-conventions` skill before you change a
+  color or the theme. It owns the token bridge and dark mode rules.
 
 ## shadcn registry workflow
 
 Install or update registry components with `pnpm dlx shadcn@latest add <name>`
-run from `web/mobile/`. Installed components live in `src/components/ui/` and
-are owned code — adapt them, but keep diffs from upstream minimal and
-token-driven. Load the `mobile-shadcn-conventions` skill for the full workflow.
+run from `web/mobile/`. Use `@agenta/ui/ui` first. The CLI creates
+`src/components/ui/`, which does not exist today. Installed components are owned
+code: adapt them, but keep diffs from upstream minimal and token-driven. Load the `mobile-shadcn-conventions` skill for the full workflow.
 
 ## Skills to load when working here
 
@@ -87,7 +69,7 @@ specifics), `vercel:shadcn`, `vercel:react-best-practices`.
 - Dev: `pnpm dev-mobile` (→ http://localhost:3000/m)
 - Build: `pnpm build-mobile`
 - Lint / types: `pnpm --filter @agenta/mobile lint` / `pnpm --filter @agenta/mobile types:check`
-- Token bridge: `pnpm --filter @agenta/mobile generate:tokens`
+- Token bridge: `pnpm generate:tailwind-tokens`
 
 ## Speed budget
 

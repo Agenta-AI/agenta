@@ -50,29 +50,29 @@ keep the conventions in their own sections.
 This repo may be in GitButler workspace mode (current branch `gitbutler/workspace`).
 If so, use the `but` CLI instead of raw `git branch`/`git commit`:
 
-- `but status` shows lanes and unassigned changes; `but branch new <name>` creates a
-  parallel lane; add `--anchor <parent-branch>` to stack on a parent.
-- `but commit <branch> -m "..."` commits the uncommitted changes to that branch.
-  Pre-commit hooks (ruff, prettier, gitleaks) run; if a hook reformats files the
-  commit aborts — just rerun it. Changes belonging to another lane's commits stay
-  unassigned rather than being folded in.
+- `but status` shows lanes and uncommitted changes with their IDs. `but branch new <name>`
+  creates a parallel lane; add `-A <parent-branch>` to stack it on a parent.
+- `but commit -b <branch> -m "..." <id> <id>` commits the named changes to that branch.
+  Without IDs it commits every uncommitted change. Pre-commit hooks (ruff, prettier,
+  gitleaks) run; if a hook reformats files the commit aborts, so run it again.
 - `but pr new` needs interactive forge auth; use `but push <branch>` then
   `gh pr create --head <branch> --base <parent-or-main>` instead. For stacked PRs,
   set `--base` to the parent branch so each PR shows only its own diff.
-- **`but push` prints NOTHING on success.** It is not a confirmation — always verify
+- **`but push` prints NOTHING on success.** It is not a confirmation. Always verify
   the push landed by comparing SHAs:
   `git ls-remote --heads origin <branch>` vs `git rev-parse <branch>`. They must match.
-- To update an already-committed file, `but absorb <path>` amends it into the right
-  commit; force-push with `but push <branch> -f`.
+- To update an already-committed file, `but absorb <file-id>` amends it into the right
+  commit (`--dry-run` shows the plan first). A rewritten pushed branch needs a force push;
+  ask the user before any force push.
 - **Recovery:** `but oplog list` then `but oplog restore <sha>` rewinds the whole workspace
   (including uncommitted changes) to any prior snapshot. Take a `but oplog snapshot -m "..."`
   before anything risky.
 
-Sync a lane by **rebasing on main, not by merging main into it** — merge commits between
+Sync a lane by **rebasing on main, not by merging main into it**. Merge commits between
 branches collapse a GitButler series.
 
 **Stacked branches have their own rules**, and they are the source of most `but` pain:
-mis-routed hunks, dropped hunks, stale cliIds, collapsed series. Load the
+hunks on the wrong lane, dropped hunks, stale IDs, collapsed series. Load the
 `gitbutler-stacks` skill before doing any multi-lane work; do not improvise from these
 basics.
 
@@ -133,7 +133,7 @@ For comprehensive testing documentation, see
 ## PR instructions
 
 - If the user provides you with the issue id, title the PR:
-  `[issue-id] fix(frontend): <Title>` where `fix` is the type (fix, feat, chore, ci, doc,
+  `[issue-id] fix(frontend): <Title>` where `fix` is the type (fix, feat, chore, ci, docs,
   test, using better-branch) and `frontend` is the area, which could be API, SDK,
   frontend, docs, and so on.
 - For the PR body (structure, before/after, what to cut), the `write-pr-description`
