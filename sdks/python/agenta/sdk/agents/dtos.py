@@ -2050,8 +2050,14 @@ def _parse_sandbox_credentials(
 
 def _drive_field(params: Dict[str, Any], key: str, default: Any) -> Any:
     """The raw ``drives`` / ``home_drive`` / ``has_session_drive`` value; the model's
-    validators apply the rules."""
-    value = _template(params).get(key) if _has_agent_template(params) else None
+    validators apply the rules. A null reads as absent, except a stated
+    ``home_drive: null``, which means no home drive."""
+    if not _has_agent_template(params):
+        return default
+    template = _template(params)
+    if key == "home_drive" and key in template:
+        return template[key]
+    value = template.get(key)
     return default if value is None else value
 
 

@@ -44,6 +44,7 @@ from oss.src.core.store.types import StoreObjectTooLarge, StorePreconditionFaile
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_NAME,
     ATTACHMENTS_MOUNT_PURPOSE,
+    RESERVED_AGENT_SLUG_PREFIX,
     RESERVED_SLUG_PREFIX,
     SESSION_SLUG_PREFIX,
     MountArtifactIdInvalid,
@@ -130,10 +131,6 @@ def is_organization_keyed(*, mount: Mount, organization_id: UUID) -> bool:
         organization_id=organization_id,
         mount_id=mount.id,
     )
-
-
-# The reserved slug of an agent's own drive: `__ag__agent__<artifact id>__default`.
-RESERVED_AGENT_SLUG_PREFIX = f"{RESERVED_SLUG_PREFIX}agent__"
 
 
 def mint_agent_id(*, artifact_id: str) -> str:

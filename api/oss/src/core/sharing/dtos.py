@@ -237,7 +237,7 @@ class CachedMountVisibility(BaseModel):
     """Namespace `sharing_mount_visibility`, key (project_id, mount_id). Only a row is
     cached, never "no row"."""
 
-    access: Optional[MountVisibility] = None
+    mount: Optional[MountVisibility] = None
 
 
 class CachedSessionAccess(BaseModel):

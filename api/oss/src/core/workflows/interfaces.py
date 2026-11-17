@@ -154,8 +154,8 @@ class WorkflowsDAOInterface(GitDAOInterface):
         project_id: UUID,
         artifact_id: UUID,
     ) -> bool:
-        """True when a stored revision of the artifact has a `drives` key, in one
-        indexed read."""
+        """True when a stored revision of the artifact states `drives` as a list (a
+        `drives: null` does not count), in one indexed read."""
 
     @abstractmethod
     async def fetch_agents_using_drives(

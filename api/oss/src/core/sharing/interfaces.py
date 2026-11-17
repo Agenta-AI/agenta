@@ -48,21 +48,21 @@ class SharingDAOInterface(ABC):
         user_id: UUID,
         #
         share_mount_ids: Sequence[UUID] = (),
-        check_own_drive: bool = False,
-        expected_own_drive: Optional[AccessPolicy] = None,
+        check_agent_drive: bool = False,
+        expected_agent_drive_policy: Optional[AccessPolicy] = None,
     ) -> AgentPolicyWriteResult:
         """Lock `workflow_artifacts (project_id, id)`, compare, upsert. A PRIVATE policy
         also sets the artifact's channel agents inactive in the same transaction.
         `share_mount_ids` are drives the same transaction makes `project` (their owner
-        kept). With `check_own_drive`, the visibility row of the agent's own drive is
-        read again under the lock and compared with `expected_own_drive` (None = no
+        kept). With `check_agent_drive`, the visibility row of the agent's own drive is
+        read again under the lock and compared with `expected_agent_drive_policy` (None = no
         row), so a writer of that row (the release 2 migration) cannot slip between the
         decision and the write. Raises `SharedItemNotFound` (no artifact, or one that
         is no agent: none of its revisions carries `flags.is_agent`) and
         `SharingConflict`."""
 
     @abstractmethod
-    async def fetch_own_drive_policy(
+    async def fetch_agent_drive_policy(
         self,
         *,
         project_id: UUID,

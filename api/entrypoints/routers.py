@@ -2353,7 +2353,7 @@ async def store_jwks():
     return webidentity.jwks()
 
 
-access_router = AccessRouter()
+access_router = AccessRouter(workflows_service=workflows_service)
 app.include_router(
     access_router.router,
     prefix="/access",

@@ -16,7 +16,8 @@ from typing import (
     Union,
     TYPE_CHECKING,
 )
-from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.dtos import ResourceKind, ResourceRef, RunEnvelope
+from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import MissingPrincipal
 from oss.src.core.account_choices.claims import sign_run_accounts
@@ -30,6 +31,7 @@ import httpx
 if TYPE_CHECKING:
     from oss.src.core.environments.service import EnvironmentsService
     from oss.src.core.embeds.service import EmbedsService
+    from oss.src.core.mounts.dtos import Mount
     from oss.src.core.mounts.service import MountsService
     from oss.src.core.triggers.interfaces import TriggersDAOInterface
 
@@ -606,7 +608,7 @@ class WorkflowsService:
         artifact_id: UUID,
         include_archived: bool,
         first_agent_owner_user_id: Optional[UUID] = None,
-    ) -> Optional[Any]:
+    ) -> Optional["Mount"]:
         """The drive created with the agent, created now when the agent has none. The
         new drive's visibility is the agent's; an agent with no access row gets a shared
         drive, owned by ``first_agent_owner_user_id`` when given. None when the agent
@@ -688,6 +690,8 @@ class WorkflowsService:
                     data,
                     {
                         **agent,
+                        "has_session_drive": agent.get("has_session_drive")
+                        is not False,
                         "drives": [
                             *(drives if isinstance(drives, list) else []),
                             {"slug": own.slug},
@@ -743,17 +747,14 @@ class WorkflowsService:
             mount = await lookup.fetch_mount_by_slug(
                 project_id=project_id, slug=drive.slug
             )
+            policy = None
             # No channel exception at save: `context` stays None.
-            policy = (
-                await sharing.fetch_mount_policy(
+            if mount is not None and await sharing.may_use_mount(
+                project_id=project_id, mount_id=mount.id
+            ):
+                policy = await sharing.fetch_mount_policy(
                     project_id=project_id, mount_id=mount.id
                 )
-                if mount is not None
-                and await sharing.may_use_mount(
-                    project_id=project_id, mount_id=mount.id
-                )
-                else None
-            )
             if policy is None:
                 raise AgentDriveNotFoundError(
                     field=f"drives[{index}].slug",
@@ -1145,13 +1146,11 @@ class WorkflowsService:
             and merged_flags.is_agent
             and revision.data is not None
         ):
-            agent = _agent_config(revision.data)
-            if agent is not None and "drives" not in agent:
-                update["data"] = await self.fill_agent_revision_drives(
-                    project_id=project_id,
-                    artifact_id=revision.workflow_id,
-                    data=revision.data,
-                )
+            update["data"] = await self.fill_agent_revision_drives(
+                project_id=project_id,
+                artifact_id=revision.workflow_id,
+                data=revision.data,
+            )
         return revision.model_copy(update=update)
 
     @staticmethod
@@ -1682,6 +1681,56 @@ class WorkflowsService:
         return await self.workflows_dao.has_revision_with_drives(
             project_id=project_id, artifact_id=artifact_id
         )
+
+    async def resolve_run_agent_id(
+        self,
+        *,
+        project_id: UUID,
+        envelope: RunEnvelope,
+        references: Any,
+        resolved_revision: Optional[WorkflowRevision] = None,
+    ) -> Optional[UUID]:
+        """The `run_agent_id` claim of a run credential: the agent the API resolved
+        itself (the revision it resolved, else the agent `references` name, resolved in
+        this project) and that the run's principal may run. None for a run with no
+        stored agent (an inline configuration), a reference that resolves to nothing, or
+        an agent the principal may not run. Never a raw id from the caller."""
+
+        if resolved_revision is not None:
+            artifact_id = resolved_revision.workflow_id
+        else:
+            elements = [
+                SessionReference.model_validate(
+                    {
+                        **(
+                            value.model_dump()
+                            if hasattr(value, "model_dump")
+                            else dict(value or {})
+                        ),
+                        "key": key,
+                    }
+                )
+                for key, value in (
+                    references.items() if isinstance(references, dict) else ()
+                )
+                if key in AGENT_REFERENCE_KEYS
+            ]
+            try:
+                artifact_id = await self.resolve_agent_artifact_id(
+                    project_id=project_id, references=elements
+                )
+            except AgentReferenceUnresolved:
+                return None
+        if artifact_id is None:
+            return None
+        decision = await get_access_service().decide(
+            authority=envelope.authority,
+            principal=envelope.authority.principal,
+            action=Permission.RUN_WORKFLOWS,
+            resource=ResourceRef(kind=ResourceKind.AGENT, id=str(artifact_id)),
+            context=envelope.context,
+        )
+        return artifact_id if decision.allowed else None
 
     async def resolve_agent_artifact_id(
         self,
@@ -3675,9 +3724,15 @@ class WorkflowsService:
         # No agent revision is stored without its drive keys; the first one creates the
         # agent's drive unless the configuration opts out through `home_drive`.
         if _agent_config(_revision_commit.data) is not None:
+            # The stated drives are checked before the fill creates a drive, so a
+            # refused commit leaves no drive behind. The fill's own entries follow the
+            # rules by construction.
+            await self.reject_unusable_agent_drives(
+                project_id=project_id,
+                data=_revision_commit.data,
+                artifact_id=_revision_commit.artifact_id,
+            )
             if self._dump_flags(_revision_commit.flags).get("is_agent"):
-                # A broken drive list is refused before the fill creates a drive.
-                _agent_drives(_agent_config(_revision_commit.data))
                 _revision_commit.data = await self.fill_agent_revision_drives(
                     project_id=project_id,
                     artifact_id=_revision_commit.artifact_id,
@@ -3686,11 +3741,6 @@ class WorkflowsService:
                     user_id=user_id,
                     first_agent_owner_user_id=first_agent_owner_user_id,
                 )
-            await self.reject_unusable_agent_drives(
-                project_id=project_id,
-                data=_revision_commit.data,
-                artifact_id=_revision_commit.artifact_id,
-            )
 
         revision = await self.workflows_dao.commit_revision(
             project_id=project_id,
@@ -4200,9 +4250,11 @@ class WorkflowsService:
                     )
                 ),
             ),
-            # The agent this invoke resolved itself, never the caller's meta or references.
-            run_agent_id=(
-                resolved_revision.workflow_id if resolved_revision is not None else None
+            run_agent_id=await self.resolve_run_agent_id(
+                project_id=project_id,
+                envelope=envelope,
+                references=getattr(request, "references", None),
+                resolved_revision=resolved_revision,
             ),
         )
 
