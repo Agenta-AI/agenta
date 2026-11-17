@@ -82,7 +82,8 @@ _CONFIG_SCHEMA_FIELDS = """\
   "mcps": [],
   "skills": [],
   "has_session_drive": true,
-  "drives": [{ "kind": "agent" }],
+  "drives": [{ "slug": "my-agent-files" }],
+  "home_drive": "my-agent-files",
   "harness": { "kind": "pi_core" },
   "runner": { "kind": "sidecar", "permissions": { "default": "allow" } },
   "sandbox": { "kind": "local" }
@@ -262,10 +263,10 @@ the run:
   `permissions` (optional) is the security boundary: `{ "network": { "mode": "on"|"off"|
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":
   "strict"|"best_effort" }`.
-- `has_session_drive` and `drives` — the folders your files persist in. `drives` lists
-  `{ "kind": "agent" }` (your own `agent-files/`) and project drives
-  `{ "kind": "project", "slug": "<slug>", "access": "read"|"read-write" }` (at
-  `drives/<slug>/`). Your own commit cannot change either; a person changes them.
+- `has_session_drive`, `drives` and `home_drive` — the folders your files persist in. `drives`
+  lists `{ "slug": "<slug>", "access": "read"|"read-write" }`, each at `drives/<slug>/`.
+  `home_drive` names the drive that holds your tools and app files, also at `agent-files/`.
+  Your own commit cannot change these; a person changes them.
 """
 
 # The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the

@@ -6,8 +6,8 @@ last. Keep the always-on part short: it is in the context of every turn, for eve
 it draws on the same attention the author's instructions need.
 
 Two halves. ``AGENTA_PLATFORM_BASE`` applies to every run (``AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE``
-when the configuration lists no agent drive, plus ``PROJECT_DRIVES_GUIDANCE`` when it lists
-project drives). ``AGENTA_CONFIG_SECTIONS`` names the
+when the configuration has no home drive, plus ``DRIVES_GUIDANCE`` when it attaches drives
+other than the home drive). ``AGENTA_CONFIG_SECTIONS`` names the
 configuration tools (``commit_revision``, ``read_config``, the rename and trigger tools) and is
 included only when the run offers ``commit_revision``: a plain agent with no config tools must
 not read a page about tools it does not have.
@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from typing import Optional, Sequence
 
-from .dtos import AgentDrive, SessionContext, default_agent_drives
+from .dtos import AgentDrive, SessionContext
 
 
 # The tool whose presence means "this run can edit its own configuration". Checked by name, not
@@ -165,8 +165,8 @@ they are waiting on.
 
 """
 
-# The platform text is composed from passages; the ones that name `agent-files/` have a
-# variant for an agent whose configuration lists no agent drive.
+# The platform text is composed from passages; the ones that name `agent-files/` (the home
+# drive) have a variant for an agent without a home drive.
 _FILES_WITH_AGENT_DRIVE = """\
 ## Files and storage
 
@@ -372,16 +372,15 @@ def _platform_base(*, has_agent_drive: bool) -> str:
 AGENTA_PLATFORM_BASE = _platform_base(has_agent_drive=True)
 AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE = _platform_base(has_agent_drive=False)
 
-# Added after the platform text when the configuration lists project drives. The runner's
-# environment notes name each drive with its access.
-PROJECT_DRIVES_GUIDANCE = """\
-## Project drives
+# Added after the platform text when the configuration attaches drives other than the home
+# drive. The runner's environment notes name each drive with its access.
+DRIVES_GUIDANCE = """\
+## Drives
 
-The project drives attached to you are folders under `drives/` in your working directory, one
-per drive: `drives/<slug>/`. They are durable and other agents of this project can use them
-too: files there are kept, even where the notes above say your working directory lasts for
-this session only. The environment notes at the end list each drive with its access. You can link a file in
-a project drive like any other file: `[prices.csv](drives/price-lists/prices.csv)`."""
+The drives attached to you are folders under `drives/` in your working directory, one per
+drive. `drives/README.md` lists them with their access. They keep their files after this
+conversation. You can link a file in a drive like any other file:
+`[prices.csv](drives/price-lists/prices.csv)`."""
 
 
 AGENTA_CONFIG_SECTIONS = """\
@@ -565,21 +564,20 @@ def compose_platform_instructions(
     credential_environment_names: Sequence[str] = (),
     tool_names: Sequence[str] = (),
     drives: Optional[Sequence[AgentDrive]] = None,
+    home_drive: Optional[str] = None,
 ) -> str:
     """Compose stable platform guidance; current session facts travel with each turn.
 
-    ``drives`` is the configuration's drive list; ``None`` means today's default, the
-    agent's own drive only.
+    ``drives`` is the configuration's drive list and ``home_drive`` its home pointer;
+    ``drives`` ``None`` is the legacy configuration, whose agent drive is its home.
     """
-    if drives is None:
-        drives = default_agent_drives()
-    has_agent_drive = any(drive.kind == "agent" for drive in drives)
-    has_project_drive = any(drive.kind == "project" for drive in drives)
+    has_home_drive = drives is None or home_drive is not None
+    has_other_drive = any(drive.slug != home_drive for drive in drives or ())
     sections = [
         AGENTA_PLATFORM_BASE
-        if has_agent_drive
+        if has_home_drive
         else AGENTA_PLATFORM_BASE_WITHOUT_AGENT_DRIVE,
-        PROJECT_DRIVES_GUIDANCE if has_project_drive else None,
+        DRIVES_GUIDANCE if has_other_drive else None,
         AGENTA_CONFIG_SECTIONS if CONFIG_COMMIT_TOOL in tool_names else None,
         credential_guidance(credential_environment_names),
         gateway_guidance(integration_names),
