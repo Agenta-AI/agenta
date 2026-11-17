@@ -7,6 +7,7 @@
     "botTokenRevoked": "Bot token revoked",
     "botTokenRevokedUpdate": "Bot token revoked · update it",
     "connectedTo": "Connected to {{agent}}",
+    "discordIdle": "Chat with the agent in your Discord server",
     "pending": "Not linked yet · finish connecting",
     "placesAndDms": "{{places}} + DMs",
     "slackIdle": "Chat with the agent in your team’s workspace",
