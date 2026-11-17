@@ -6,7 +6,7 @@
 }
 .ag-mega {
   position: absolute;
-  top: calc(100% + 28px);
+  top: calc(100% + 16px);
   left: 50%;
   z-index: 60;
   display: none;
@@ -15,8 +15,12 @@
   max-width: calc(100vw - 48px);
   box-sizing: border-box;
   background: var(--lp-surface);
-  border-radius: 18px;
-  box-shadow: var(--th-menu-shadow);
+  border-radius: 0 0 18px 18px;
+  box-shadow:
+    1px 0 0 var(--lp-line-2),
+    -1px 0 0 var(--lp-line-2),
+    0 1px 0 var(--lp-line-2),
+    0 1px 1px rgba(24, 16, 16, 0.03);
   overflow: hidden;
   transform: translateX(-50%);
   text-align: left;
@@ -31,8 +35,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: -32px;
-  height: 32px;
+  top: -16px;
+  height: 16px;
 }
 .ag-navdd[data-open] > .ag-mega {
   display: grid;
@@ -43,6 +47,8 @@
 }
 .nav-scrolled .ag-mega {
   top: calc(100% + 30px);
+  border-radius: 18px;
+  box-shadow: var(--th-menu-shadow);
 }
 @keyframes agMegaIn {
   from {
