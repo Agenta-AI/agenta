@@ -516,12 +516,14 @@ def _artifact_id_of_references(references: Optional[dict]) -> Optional[UUID]:
     return None
 
 
-def new_agent_policy(access: Optional[AccessPolicy]) -> AccessPolicy:
+def new_agent_policy(access: Optional[AccessPolicy], *, is_agent: bool) -> AccessPolicy:
     """The visibility a created agent ends with, for the drive checks before the create
-    writes anything: the asked access when it is a private agent with an owner, else
-    shared (the first agent commit writes a shared row for an agent without one)."""
+    writes anything: the asked access when the create writes it (an agent, private,
+    with an owner), else shared (the first agent commit writes a shared row for an
+    agent without one)."""
     if (
-        access is not None
+        is_agent
+        and access is not None
         and access.visibility == Visibility.PRIVATE
         and access.owner_user_id is not None
     ):
@@ -4908,7 +4910,14 @@ class SimpleWorkflowsService:
                 await self.workflows_service.reject_unusable_agent_drives(
                     project_id=project_id,
                     data=simple_workflow_create.data,
-                    new_agent_policy=new_agent_policy(access),
+                    new_agent_policy=new_agent_policy(
+                        access,
+                        is_agent=bool(
+                            WorkflowsService._dump_flags(
+                                simple_workflow_create.flags
+                            ).get("is_agent")
+                        ),
+                    ),
                 )
                 drives_checked = True
 
@@ -5156,7 +5165,14 @@ class SimpleWorkflowsService:
         await self.workflows_service.reject_unusable_agent_drives(
             project_id=project_id,
             data=simple_workflow_create.data,
-            new_agent_policy=new_agent_policy(access),
+            new_agent_policy=new_agent_policy(
+                access,
+                is_agent=bool(
+                    WorkflowsService._dump_flags(simple_workflow_create.flags).get(
+                        "is_agent"
+                    )
+                ),
+            ),
         )
 
         simple_workflow_flags = SimpleWorkflowFlags(
