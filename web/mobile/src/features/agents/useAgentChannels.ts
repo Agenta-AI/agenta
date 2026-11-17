@@ -19,6 +19,9 @@ const buildSlackInstallUrl = (projectId: string): string => {
     return `${getApiUrl()}/channels/catalog/channels/slack/install/?${params.toString()}`
 }
 
+/** How many times the first read asks again after a failure, waiting 1, 2 and 4 seconds. */
+const FIRST_READ_RETRIES = 3
+
 /** Names each connection's answering agent from the current roster, keeping shared rows shared. */
 const withAgentNames = (
     connections: ChannelConnections,
@@ -80,7 +83,7 @@ export const useAgentChannels = (
     const resolveRef = useRef(resolve)
     resolveRef.current = resolve
 
-    const actions = useMemo(() => {
+    const {actions, read} = useMemo(() => {
         const built = buildAgentChannelsActions({
             client: getChannelsClient(),
             projectId: () => getDefaultStore().get(projectIdAtom),
@@ -88,42 +91,55 @@ export const useAgentChannels = (
             resolveAgentName: (id) => resolveRef.current(id),
             hostedSlackInstallUrl: buildSlackInstallUrl,
         })
-        return {
-            ...built,
-            reload: async () => {
-                const seq = ++reloadSeq.current
-                try {
-                    const next = await built.reload()
-                    if (seq === reloadSeq.current) {
-                        setConnections(next)
-                        setLoadError(null)
-                    }
-                    return next
-                } catch (error) {
-                    if (seq === reloadSeq.current) {
-                        setLoadError("Could not load Channels. Try again.")
-                    }
-                    throw error
+        /** One read into state. `report` false keeps a failure off screen: a retry follows. */
+        const read = async (report: boolean) => {
+            const seq = ++reloadSeq.current
+            try {
+                const next = await built.reload()
+                if (seq === reloadSeq.current) {
+                    setConnections(next)
+                    setLoadError(null)
                 }
-            },
+                return next
+            } catch (error) {
+                if (report && seq === reloadSeq.current) {
+                    setLoadError("Could not load Channels. Try again.")
+                }
+                throw error
+            }
         }
+        return {actions: {...built, reload: () => read(true)}, read}
     }, [appId])
 
     useEffect(() => {
         if (!enabled) return
         let alive = true
         setLoading(true)
-        actions
-            .reload()
-            .catch(() => undefined)
-            .finally(() => {
-                if (alive) setLoading(false)
-            })
+        // The first read asks again on failure, as the app's queries do: right after the API
+        // restarts, the proxy fails the call before the API serves it, and the next try works.
+        const readWithRetries = async () => {
+            for (let attempt = 0; alive; attempt++) {
+                const last = attempt >= FIRST_READ_RETRIES
+                try {
+                    await read(last)
+                    return
+                } catch {
+                    if (last) return
+                    const seq = reloadSeq.current
+                    await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt))
+                    // A read that ran meanwhile ("Try again", an action) owns the state now.
+                    if (seq !== reloadSeq.current) return
+                }
+            }
+        }
+        void readWithRetries().finally(() => {
+            if (alive) setLoading(false)
+        })
         return () => {
             alive = false
             reloadSeq.current++
         }
-    }, [actions, enabled])
+    }, [read, enabled])
 
     // A roster that lands after the read still names the answering agents.
     const named = useMemo(() => withAgentNames(connections, resolve), [connections, resolve])
