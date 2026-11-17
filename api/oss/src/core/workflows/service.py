@@ -4556,18 +4556,18 @@ class SimpleWorkflowsService:
                     )
             if workflow is None:
                 raise EntityCreationConflict("Workflow")
-            if (
-                replayed
-                and read_scope is not None
-                and not await self.workflows_service.query_workflows(
+            if replayed and read_scope is not None:
+                visible = await self.workflows_service.query_workflows(
                     project_id=project_id,
                     read_scope=read_scope,
                     workflow_refs=[Reference(id=workflow_id)],
                     # An archived agent is not handed back as the result of a create.
                     include_archived=False,
                 )
-            ):
-                raise AgentReferenceUnresolved()
+                if not visible:
+                    raise AgentReferenceUnresolved()
+                # The direct read carries no policy; the list row carries the stored one.
+                workflow = workflow.model_copy(update={"access": visible[0].access})
             commit_owner = _commit_owner(
                 workflow=workflow, first_agent_owner_user_id=first_agent_owner_user_id
             )
@@ -4919,8 +4919,9 @@ class SimpleWorkflowsService:
         written, so one that fails creates nothing. The first saved revision then holds the
         template and the operations together, and ``message`` (plus the derived clauses) is
         its commit message. Returns the agent, that message, the engine's warnings and the
-        visibility the agent got: without an owner it is project-visible, as a browser create
-        without one is, because a private agent nobody owns would be hidden from everyone.
+        agent's stored visibility. Without an owner the agent is project-visible, as a browser
+        create without one is, because a private agent nobody owns would be hidden from
+        everyone.
 
         The writes are the idempotent create, keyed by the person, the session and the
         arguments: the same arguments from the same person in the same session make one
@@ -4990,9 +4991,10 @@ class SimpleWorkflowsService:
             first_agent_owner_user_id=first_agent_owner_user_id,
             read_scope=read_scope,
         )
-        applied = (
-            visibility if first_agent_owner_user_id is not None else Visibility.PROJECT
-        )
+        # The stored policy, also on a replay after the owner changed it. An agent with no
+        # policy row is ownerless and project-visible.
+        access = outcome.workflow.access
+        applied = access.visibility if access is not None else Visibility.PROJECT
         return outcome.workflow, message, warnings, applied
 
     async def fetch(

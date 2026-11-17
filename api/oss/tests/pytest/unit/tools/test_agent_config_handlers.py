@@ -1416,6 +1416,43 @@ class TestCreateAgentRetry:
             owner
         )
 
+    async def test_a_replay_reports_the_stored_visibility(
+        self, service, store, workflows
+    ):
+        owner = uuid4()
+
+        async def create():
+            return await handle_create_agent(
+                arguments={
+                    "name": "Invoice helper",
+                    "caller_agent_id": str(CALLER),
+                    "caller_session_id": SESSION,
+                },
+                project_id=PROJECT,
+                user_id=USER,
+                workflows_service=service,
+                first_agent_owner_user_id=owner,
+            )
+
+        with pytest.raises(RuntimeError):
+            await create()
+        first = await create()
+        assert first.content["visibility"] == "private"
+        # The owner shares the agent with the project, then the same call comes again.
+        created_id = UUID(first.content["agent"]["id"])
+        workflows[created_id] = workflows[created_id].model_copy(
+            update={
+                "access": AccessPolicy(
+                    visibility=Visibility.PROJECT, owner_user_id=owner
+                )
+            }
+        )
+
+        again = await create()
+
+        assert again.content["agent"]["id"] == first.content["agent"]["id"]
+        assert again.content["visibility"] == "project"
+
     async def test_a_project_agent_is_owned_by_the_run_owner(self, service, store):
         owner = uuid4()
 
