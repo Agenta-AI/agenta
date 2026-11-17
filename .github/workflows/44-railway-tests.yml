@@ -239,7 +239,8 @@ jobs:
   wait-for-readiness:
     needs: prepare
     if: needs.prepare.outputs.needs_deployment == 'true'
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is Ubuntu 26.04, where Playwright cannot install chromium.
+    runs-on: ubuntu-24.04
     # Backstop only: the real hangs are bounded per-step (wait_for caps at ~10m,
     # the browser install retries with a 180s/attempt cap). This guards against
     # an unexpected hang without cutting off a legitimately slow run (deploy
@@ -632,7 +633,8 @@ jobs:
         contains(fromJSON('["all","web-only"]'), inputs.packages) &&
         (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
       }}
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is Ubuntu 26.04, where Playwright cannot install chromium.
+    runs-on: ubuntu-24.04
     permissions:
       checks: write
       pull-requests: write
