@@ -513,6 +513,25 @@ html,
 /* ── mobile menu (replaces the DC sc-if/menuOpen state) ─────── */
 .ag-menu {
   display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-right: -8px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--th-text-hi);
+  cursor: pointer;
+}
+.ag-menu:hover,
+.ag-menu[aria-expanded="true"] {
+  background: var(--th-hover);
+}
+.ag-menu:focus-visible {
+  outline: 2px solid var(--th-text-hi);
+  outline-offset: 2px;
 }
 .ag-mobile-menu {
   display: none;

@@ -289,3 +289,7 @@
 [data-theme="dark"] .lp img[src$="/logos/apps/github.svg"] {
   filter: invert(1);
 }
+@media (max-width: 600px) {
+  .r3-ag-hero .ag-badge { height: 22px; padding: 1px 10px; gap: 5px; font-size: 10.5px; line-height: 18px; }
+  .r3-ag-hero .ag-badge svg { width: 11px; height: 11px; }
+}
