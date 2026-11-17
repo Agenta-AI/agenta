@@ -480,7 +480,7 @@ export const ActivityTimeline = ({
                     <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-colorTextTertiary">
                         <span>·</span>
                         <FileText size={13} />
-                        {files.length} {files.length === 1 ? "file" : "files"}
+                        {tNow("chat.activity.fileCount", {count: files.length})}
                     </span>
                 ) : null}
                 {/* Nothing to open before the first step. */}

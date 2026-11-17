@@ -19,10 +19,15 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {createT} from "@agenta/i18n"
+import commonCatalog from "@agenta/i18n/catalogs/common"
+
 import {Button} from "./ui/button"
 import {LoadingButton} from "./ui/button-composed"
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from "./ui/dialog"
 import {cn} from "./ui/utils"
+
+const tNow = createT(commonCatalog)
 
 // Local, antd-`Modal`-compatible prop surface. This facade carries 0 antd runtime AND 0 antd
 // type dependency; the shapes below reproduce the antd `ModalProps`/`ButtonProps` fields the
@@ -354,7 +359,9 @@ export function EnhancedModal(props: EnhancedModalProps) {
                 ) : (
                     // A titleless modal still needs a name (axe aria-dialog-name); sr-only is
                     // position:absolute so it takes no space.
-                    <DialogTitle className="sr-only">{ariaLabel ?? "Dialog"}</DialogTitle>
+                    <DialogTitle className="sr-only">
+                        {ariaLabel ?? tNow("common.dialog")}
+                    </DialogTitle>
                 )}
                 <div
                     data-slot="modal-body"

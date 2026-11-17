@@ -38,5 +38,16 @@
     "youSkippedSecret": "You skipped <name>{{name}}</name>",
     "waitingToAddSecretBelow": "Waiting for you to add <name>{{name}}</name> below",
     "couldNotSaveAnswer": "Could not save the answer. Try again.",
-    "theService": "the service"
+    "theService": "the service",
+    "keepSavedValue": "Keep saved value",
+    "changeValue": "Change value",
+    "moreOptions": "More options",
+    "secretValue": "Secret value",
+    "pasteNewValue": "Paste a new value",
+    "pasteValue": "Paste the value",
+    "save": "Save",
+    "environmentVariable": "Environment variable",
+    "onlyYou": "· only you",
+    "checking": "Checking...",
+    "secretOptions": "Secret options"
 }

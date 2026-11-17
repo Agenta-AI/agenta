@@ -5,5 +5,8 @@
     "expand": "Expandir",
     "collapse": "Contraer",
     "goBack": "Volver",
-    "noItems": "No hay elementos que mostrar"
+    "noItems": "No hay elementos que mostrar",
+    "itemCount_one": "{{count}} elemento",
+    "itemCount_many": "{{count}} elementos",
+    "itemCount_other": "{{count}} elementos"
 }

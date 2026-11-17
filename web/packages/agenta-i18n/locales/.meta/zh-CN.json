@@ -1084,7 +1084,8 @@
         "youAnsweredQuestions_other": "51a5427e3646",
         "youApproved": "b43f00e115fb",
         "youDeclined": "6bf352cf9180",
-        "youDenied": "3aa5dbf39377"
+        "youDenied": "3aa5dbf39377",
+        "fileCount_other": "95964e2dcccd"
     },
     "chat.approvalCard": {
         "alwaysAutoApprove": "6a8e32487d23",
@@ -1596,7 +1597,8 @@
         "verify": "eea2745e2867",
         "view": "dcc839a4015c",
         "working": "5474eef8d0f1",
-        "yourRole": "09bdccc5fb69"
+        "yourRole": "09bdccc5fb69",
+        "dialog": "69b51517d04b"
     },
     "context.resolver": {
         "noProjects": "26e92309ba5b",
@@ -2062,7 +2064,18 @@
         "youSkippedSecret": "f6fff9ab6d55",
         "waitingToAddSecretBelow": "41b3ceddb3ab",
         "couldNotSaveAnswer": "bbff1c91d5a2",
-        "theService": "310fdb894dca"
+        "theService": "310fdb894dca",
+        "keepSavedValue": "884e111c1950",
+        "changeValue": "c34cd224d97e",
+        "moreOptions": "bc79cdffbaa8",
+        "secretValue": "6ef47d988031",
+        "pasteNewValue": "aee7f00c47dd",
+        "pasteValue": "c8add458987e",
+        "save": "1509f561f241",
+        "environmentVariable": "b86ad17151eb",
+        "onlyYou": "ab5b6b18fc18",
+        "checking": "2e5f79bb94a8",
+        "secretOptions": "8aa08380c8c4"
     },
     "entityUi.commitModal": {
         "commit": "82a9c46ffa47",
@@ -2249,7 +2262,8 @@
         "expand": "07548c2c6511",
         "collapse": "be6eb1fc3b05",
         "goBack": "6aadac2f2b7a",
-        "noItems": "327ba410805d"
+        "noItems": "327ba410805d",
+        "itemCount_other": "34d726f8f741"
     },
     "entityUi.driveApp": {
         "accessReadWrite": "822da963c0e7",
@@ -4818,7 +4832,11 @@
         "valueLabel": "224a3369a5c9",
         "totalMean": "6f85534b0bde",
         "true": "3cbc87c7681f",
-        "false": "60a33e6cf515"
+        "false": "60a33e6cf515",
+        "panelInputs": "32381523e631",
+        "panelParameters": "f528212a496d",
+        "panelOutputs": "7b8c56be0a5f",
+        "panelInternals": "ce0b7822b9a1"
     },
     "onboarding.creator": {
         "title": "5079253adbe5",
@@ -6723,7 +6741,8 @@
     "ui.repoImport": {
         "scanRepository": "7c378da08b4a",
         "repositoryUrl": "c83db0133850",
-        "scanFailed": "752810133a8a"
+        "scanFailed": "752810133a8a",
+        "noDescription": "06a694820920"
     },
     "ui.status": {
         "cacheRead": "0008ce30b97d",
