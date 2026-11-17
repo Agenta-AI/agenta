@@ -49,8 +49,10 @@ the wrong stack. Use `set -a` around the source, or `export` each variable, and 
 in the results before you trust them.
 
 Paths are relative to this skill's directory. The deployment's vault must hold the provider keys
-the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset the driver stops
-immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
+the cells use (Anthropic / OpenAI / OpenRouter). When the three env vars are unset, the driver reads
+`~/.agenta-bighetzner.env`, or the file passed with `--env-file <path>`. It stops only when that
+file also lacks a value, and it names the missing variables. Check which deployment that file
+names before you run, or the result records against the wrong stack.
 `--all` includes cells P2, P2b, and P3 (a custom OpenAI-compatible provider, with P2 and P2b
 running locally and P3 on Daytona), which need a vault slug passed via `--custom-slug`; the driver
 fails fast if it's missing. `--custom-name` is also required because `model_keys` is built from
@@ -244,7 +246,9 @@ them against the local stack. The other eight cells (`stop-warm`, `double-send`,
 `stop-approval`, `stop-after-finish`, `repeat-stop`, `concurrent-stops`,
 `stop-during-completion`) run over HTTP alone against any deployment. Add
 `--resume <path to a prior run's results.json>` to pick a lost run back up: any cell already
-recorded there is loaded instead of re-run.
+recorded there is loaded instead of re-run. The driver does not check which deployment wrote that
+file, so resume only from a file recorded against the same `AGENTA_BASE` and project in this
+run. A file from another deployment does not count as coverage for this one.
 
 Results land in a timestamped folder under `~/agenta-qa-evidence/` (override with
 `AGENTA_QA_RUNS_DIR`), as `results.json` and `summary.md`, in the same PASS/FAIL/SKIP shape as the

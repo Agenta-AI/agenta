@@ -246,12 +246,19 @@ Imperative API for callbacks:
 
 ```typescript
 async function handleSave(id: string) {
+  const store = getDefaultStore()
   const data = workflowMolecule.get.data(id)
   if (!data || !workflowMolecule.get.isDirty(id)) return
+  // The draft atom changes only on an edit, so its reference tells you if one happened.
+  const draft = store.get(workflowMolecule.atoms.draft(id))
   await api.save(data)
-  workflowMolecule.set.discard(id)
+  // A newer edit is not in `data`, so discarding it here would lose it.
+  if (store.get(workflowMolecule.atoms.draft(id)) === draft) workflowMolecule.set.discard(id)
 }
 ```
+
+If the screen lets the user keep editing while a save runs, compare the draft before you
+discard it, as above, or disable editing until the save resolves.
 
 Examples: `workflowMolecule` (`@agenta/entities/workflow`), `testcaseMolecule`
 (`@agenta/entities/testcase`), `traceSpanMolecule` (`@agenta/entities/trace`),

@@ -31,8 +31,10 @@ but commit -b <branch> -m "message" <id> <id>
 
 - Use `-b <branch>` to put the commit at the tip of that branch. Use `-A <commit>` or
   `-B <commit>` to place it next to a specific commit. Only one targeting flag is allowed.
-- Check every commit at once with `git show --stat <branch>`. If a file from another lane is
-  in it, stop and fix it before you continue.
+- Check the commit you created, by its ID. Read its `commitId` from `but status --json` and
+  run `git show --stat <commitId>`. `git show <branch>` shows only the tip, so it misses a
+  commit that `-B` put below the tip. If a file from another lane is in it, stop and fix it
+  before you continue.
 - Read IDs from `but status --json` (`filePath` and `cliId` pairs). Do not grep the human
   output, because the graph art breaks simple parsing. File and hunk IDs change after every
   mutation, so read them again just before each command that uses them. A commit's change ID
@@ -88,8 +90,9 @@ Isolate one lane at a time with `git stash`:
    untracked files. Remove that residue with `rm -rf`; the tip tree is what counts.
 5. Go to the next lane. When all lanes are done, push each one with
    `but push <lane>`. A push also pushes the lane's workspace ancestors, and `but push` force
-   pushes a rebased lane by default. Before you push, compare each lane in the stack with
-   `git ls-remote --heads origin <lane>`, and ask the user before any push that is not a
+   pushes a rebased lane by default. Before you push, find each lane's real push target with
+   `git rev-parse --abbrev-ref <lane>@{push}` (a lane can track a remote other than `origin`),
+   compare it with `git ls-remote <remote> <ref>`, and ask the user before any push that is not a
    fast-forward. Confirm each push with
    `git rev-parse <lane>` against `git ls-remote --heads origin <lane>`.
 
@@ -117,8 +120,10 @@ that touch separate files, such as `web/**` and `api/**`, can sit anywhere in th
   `<target-branch>`. Use `but move <branch> --unstack` to make it a parallel stack. `-B` only
   works for commits and committed files, not branches. Run `but oplog snapshot -m "..."` first.
 - Check the line by diffing. For each branch, run `git diff --name-only <base>..<branch>`,
-  where `<base>` is the branch below it. The list must hold exactly that lane's files. If a
-  lower lane's files show up, the order is wrong. Move the branch and diff again.
+  where `<base>` is the branch below it. Both lanes can change the same file, so a
+  shared file in the list is not an error by itself. Read the hunks with
+  `git diff <base>..<branch> -- <file>`: they must be this lane's changes only. If a lower
+  lane's changes show up, the order is wrong. Move the branch and diff again.
 - A branch moved to its own parallel stack (base main) gives a wrong diff against an ancestor
   branch. `git diff <ancestor>..<branch>` shows the ancestor's own changes in reverse, because
   their merge base is main. This tells you the branch must be stacked, not parallel.
@@ -151,4 +156,6 @@ that touch separate files, such as `web/**` and `api/**`, can sit anywhere in th
   lane whose tip contains every symbol the test uses, and put the test there.
 - **Remote-tracking refs can be stale after `but push`.** `git show origin/<branch>:<file>`
   can show old content after the push landed. Check pushes only with `git ls-remote` against
-  `git rev-parse <branch>`, and read remote content through the commit object.
+  the commit `but` applied to the lane: the top `commitId` of that branch in
+  `but status --json`. The branch ref can lag that commit after an amend, absorb or rebase.
+  Read remote content through the commit object.

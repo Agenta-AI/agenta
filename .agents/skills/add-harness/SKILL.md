@@ -125,6 +125,9 @@ them; Codex was cheap because it fails only the permission-vocabulary one.
 
 - One worktree per harness with its own deployment. Follow "From a git worktree" in
   `hosting/AGENTS.md`: a distinct `COMPOSE_PROJECT_NAME` and a per-worktree env file.
+  The dev images use fixed tags (for example `agenta-ee-dev-runner:latest`), so worktrees
+  share them. Rebuild the image in this worktree right before you recreate a container
+  (`run.sh ... --build`), or another worktree's build replaces your harness pins.
   Pick ports that no other running stack holds. The repo gitignore is allowlist-style for
   `.env*`, so worktree `.env` files are safe for keys. If the `web` container
   restart-loops on a fresh worktree, check that it can write `__env.js`:

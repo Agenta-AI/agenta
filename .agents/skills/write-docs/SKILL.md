@@ -203,7 +203,7 @@ If a page introduces a term, link to its concept page on first use.
 
 - Use placeholder UUIDs: `019d952f-0000-0000-0000-000000000000`.
 - Use fake but plausible data: `"country": "France"`.
-- **Verify request/response shapes against the live API** (`eu.cloud.agenta.ai`) before publishing. Ask the user for an API key to use. Don't look for one in files or the environment. Shapes must match what the endpoint actually returns.
+- **Verify request/response shapes against a running API** before publishing: `eu.cloud.agenta.ai` for endpoints already in production, or a local or preview deployment of the branch for new endpoints and changed shapes. Ask the user for an API key to use. Don't look for one in files or the environment. Shapes must match what the endpoint actually returns.
 - If you find a bug while verifying, file it. Do not paper over it in the docs.
 
 ## 5. How-to specific rules
@@ -243,7 +243,7 @@ In a domain PR, your job is the source-of-truth changes:
 - `Field(description=...)` on request/response models.
 - The concept page under `docs/docs/reference/api-guide/`.
 
-Leave the auto-MDX regen to the downstream flow. If your task regenerated files under `docs/docs/reference/api/`, discard those files before you commit. Run `but status` to get their CLI IDs, then run `but discard <id> <id>` on those IDs only. Ask before you discard any other change under that path, because it can be another contributor's work. Don't use raw `git checkout` or `git restore`, because this repo uses GitButler.
+Leave the auto-MDX regen to the downstream flow. If your task regenerated files under `docs/docs/reference/api/`, discard only the hunks your task regenerated before you commit. Run `but diff` on each file and read its hunks. When every hunk is from your regeneration, run `but discard` on the file ID. When a file also holds other changes, discard only your hunk IDs, or ask the user first. Ask before you discard any other change under that path, because it can be another contributor's work. Don't use raw `git checkout` or `git restore`, because this repo uses GitButler.
 
 ## 9. Before you ship
 
@@ -281,7 +281,8 @@ Doc type:
 - Endpoint docstrings are Reference. Keep them dry. No narrative inside docstrings.
 
 Verification:
-- Hit each endpoint at least once against eu.cloud.agenta.ai. Ask the user for an API key; don't look for one.
+- Hit each endpoint at least once against a running API: eu.cloud.agenta.ai for endpoints already in production, or a local deployment of the branch for new ones. Ask the user for an API key; don't look for one.
+- Use a test project and resources you created for the check. Never call a destructive endpoint (DELETE, archive, revoke) on real data. Ask the user before any destructive call, even on test data.
 - Obfuscate IDs and payloads in examples, but request/response shapes must match the live API.
 - If you find a bug, flag it with a repro. Do not paper over it.
 

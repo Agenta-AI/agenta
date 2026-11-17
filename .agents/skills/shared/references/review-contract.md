@@ -9,8 +9,9 @@ extra fields or sections for its report.
 The caller names one target.
 
 - **Code (default).** A diff between two commits, or the uncommitted changes in the working
-  tree (staged, unstaged and untracked files; read them with `but diff` or `git status` plus
-  `git diff HEAD`). Every lens accepts it.
+  tree (staged, unstaged and untracked files). Read tracked changes with `but diff` or
+  `git diff HEAD`. `git diff` does not show untracked files, so list them with
+  `git ls-files --others --exclude-standard` and read each one in full. Every lens accepts it.
 - **Design.** An OpenSpec change folder, a spec draft, or an architecture doc. Only the
   lenses that say so accept it (`review-naming` and `review-simplify`).
 
