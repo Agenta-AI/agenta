@@ -19,7 +19,12 @@ import { createSandboxAgentOtel } from "../../tracing/otel.ts";
 import type { PiTraceTurnExport } from "../../tracing/pi-trace-turn-export.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
-import { signAgentMountCredentials } from "./agent-mount.ts";
+import type {
+  RunDrive,
+  signAgentMountCredentials,
+  signMountCredentialsBySlug,
+} from "./run-drives.ts";
+import type { DriveRoot } from "../inprocess/sandbox/sandbox-drive.ts";
 import { probeCapabilities } from "./capabilities.ts";
 import { awaitCredentialSubstitution } from "./credential-preflight.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
@@ -72,8 +77,10 @@ export interface InRunnerRunFacts {
   network: { networkBlockAll: boolean; networkAllowList?: string };
   /** The run's skills on the runner's own disk, where their file modes are intact. */
   skillSources: Array<{ name: string; dir: string }>;
-  /** The object store behind each durable root, with the mount's current credentials. */
-  drives: Array<{ root: string; credentials: () => MountCredentials | null }>;
+  /** The durable roots the command sandbox mounts, each with the mount's current credentials. */
+  roots: DriveRoot[];
+  /** The text of `drives/README.md`; absent for a request without `drives`. */
+  drivesReadme?: string;
   /**
    * Signs the session's own prefix for the harness's conversation file (`pi-sessions`), apart from
    * the session folder. Absent without a session or a run credential.
@@ -147,6 +154,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   sandboxRelayHost?: typeof sandboxRelayHost;
   signSessionMountCredentials?: typeof signSessionMountCredentials;
   signAgentMountCredentials?: typeof signAgentMountCredentials;
+  signMountCredentialsBySlug?: typeof signMountCredentialsBySlug;
   mountStorage?: typeof mountStorage;
   mountStorageRemote?: typeof mountStorageRemote;
   unmountStorage?: typeof unmountStorage;
@@ -427,7 +435,8 @@ export interface SessionEnvironment {
    */
   sandboxMeter?: import("../../metering/sandbox-usage.ts").SandboxMeter;
   mountCreds: MountCredentials | null;
-  agentMountCreds?: MountCredentials | null;
+  /** The run's configured drives, resolved once at acquire (`run-drives.ts`). */
+  drives: RunDrive[];
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
    * `runContext.project.id`); undefined when there is no mount. */
   mountProjectId?: string;
@@ -458,7 +467,6 @@ export interface SessionEnvironment {
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
   sessionDestroyRequested: boolean;
   mountedCwd: string | undefined;
-  agentMountedPath?: string;
   /**
    * Expiry (epoch millis) of the credentials actually installed in each running geesefs daemon,
    * recorded at successful mount time. Per mount, because a remount replaces one mount's
