@@ -53,6 +53,9 @@ dependencies = [
     "puremagic>=1.30,<2",
     "pyyaml>=6,<7",
     "google-auth>=2.40",
+    # The Discord Gateway socket only (connect, heartbeat, resume). Outbound
+    # Discord calls stay on httpx, as in the other channel adapters.
+    "discord.py==2.7.1",
 ]
 
 [dependency-groups]

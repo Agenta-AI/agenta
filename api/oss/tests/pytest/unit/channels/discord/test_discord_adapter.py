@@ -1,6 +1,7 @@
 """DiscordAdapter against the fake Discord API: the token and intent checks,
 the invite link, parsing over the socket, and the outbound REST calls."""
 
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import httpx
@@ -61,7 +62,10 @@ async def _verify(adapter, token=p.BOT_TOKEN):
 
 
 async def test_verify_connection_reads_the_application(adapter):
-    assert await _verify(adapter) == {
+    discovered = await _verify(adapter)
+    connected_at = datetime.fromisoformat(discovered.pop("connected_at"))
+    assert abs(datetime.now(timezone.utc) - connected_at) < timedelta(minutes=1)
+    assert discovered == {
         "application_id": p.APPLICATION_ID,
         "bot_user_id": p.BOT_USER_ID,
         "bot_username": p.BOT_USERNAME,

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import secrets as token_secrets
@@ -31,8 +32,10 @@ from oss.src.core.channels.dtos import (
     ChannelGrantEdit,
     ChannelGrantEffect,
     ChannelGrantQuery,
+    ChannelInboundEvent,
     ChannelInboxEvent,
     ChannelInboxEventCreate,
+    ChannelInboxEventData,
     ChannelInboxTrigger,
     ChannelInboxTriggerCreate,
     ChannelKeyGrain,
@@ -71,6 +74,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionNotFound,
     ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
+    ChannelInboxEnqueueFailed,
     ChannelLocatorIncomplete,
     ChannelsError,
     ChannelSetupFieldInvalid,
@@ -105,6 +109,8 @@ if TYPE_CHECKING:
 
 log = get_module_logger(__name__)
 
+_ENQUEUE_TIMEOUT_SECONDS = 5.0
+
 
 class ChannelsService:
     """Owns the channels domain: configuration, policy, routing, delivery."""
@@ -129,6 +135,10 @@ class ChannelsService:
         self.workflows_service = workflows_service
         # Refuses binding an agent whose model needs setup. Set at wiring.
         self.needs_setup_guard: Optional[Any] = None
+        # The `channels.inbox.dispatch` task. Set at wiring, because the inbox
+        # worker that registers it is built after this service. Without it an
+        # inbound event is stored and nothing is enqueued.
+        self.inbox_dispatch_task: Optional[Any] = None
 
     # --- principal invalidation ------------------------------------------------ #
     #
@@ -2196,6 +2206,16 @@ class ChannelsService:
             external_key=external_key,
         )
 
+    async def query_active_connections(
+        self,
+        *,
+        channel: str,
+    ) -> List[Tuple[UUID, ChannelConnection]]:
+        """Unscoped by necessity: the Discord socket loop serves every project.
+        Credentials are not resolved; read each one with `fetch_connection`."""
+
+        return await self.channels_dao.query_active_connections(channel=channel)
+
     async def record_inbox_event(
         self,
         *,
@@ -2208,6 +2228,54 @@ class ChannelsService:
             project_id=project_id,
             event=event,
         )
+
+    async def record_and_enqueue_inbox_event(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        channel: str,
+        inbound: ChannelInboundEvent,
+    ) -> None:
+        """Store the parsed event and enqueue its dispatch. Shared by the HTTP
+        ingress routes and the Discord socket loop. The enqueue runs even when
+        the row already exists, so a retried delivery recovers from an earlier
+        enqueue failure. Raises ChannelInboxEnqueueFailed when the enqueue
+        fails; the row stays stored."""
+
+        event = ChannelInboxEventCreate(
+            connection_id=connection_id,
+            external_id=inbound.external_id,
+            kind=inbound.kind,
+            origin=inbound.origin,
+            data=ChannelInboxEventData(
+                external_locator=inbound.external_locator,
+                processed=inbound.processed,
+                space_kind=inbound.space_kind,
+                addressed=inbound.addressed,
+            ),
+        )
+        await self.record_inbox_event(
+            project_id=project_id,
+            event=event,
+        )
+        if self.inbox_dispatch_task is None:
+            return
+        try:
+            await asyncio.wait_for(
+                self.inbox_dispatch_task.kiq(
+                    project_id=str(project_id),
+                    connection_id=str(connection_id),
+                    channel=channel,
+                    external_id=inbound.external_id,
+                ),
+                timeout=_ENQUEUE_TIMEOUT_SECONDS,
+            )
+        except Exception as e:
+            log.error("Failed to enqueue channel inbox event: %s", e)
+            raise ChannelInboxEnqueueFailed(
+                channel=channel, external_id=inbound.external_id
+            ) from e
 
     async def verify_signature(self, *, channel, headers, body) -> UUID:
         raise NotImplementedError
