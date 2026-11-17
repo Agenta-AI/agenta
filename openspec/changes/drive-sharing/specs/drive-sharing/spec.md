@@ -241,7 +241,7 @@ An agent commit through an HTTP route SHALL be refused with HTTP 422 and the env
 #### Scenario: Missing drive
 
 - **WHEN** a caller saves an agent that lists the slug `price-list` and no such drive exists in the project
-- **THEN** the save answers HTTP 422 with `drive_not_found` and `details.field` `drives[0].slug`
+- **THEN** the save answers HTTP 422 with `drive_not_found` and `details.field` `parameters.agent.drives[0].slug`
 - **AND** no revision is stored
 
 #### Scenario: Another person's private drive

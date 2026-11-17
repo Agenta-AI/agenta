@@ -6,7 +6,7 @@ The release 2 data migration carries frozen copies of both; keep them pure.
 from re import sub
 from typing import Any, Collection, Dict, Optional
 
-from oss.src.core.sharing.dtos import AccessPolicy
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility
 from oss.src.core.sharing.service import SharingService
 
 # The slug rule of `uq_mounts_project_id_slug` leaves room for the suffix.
@@ -33,21 +33,31 @@ def fill_agent_drive_keys(
     own_drive_policy: Optional[AccessPolicy],
     agent_policy: Optional[AccessPolicy],
 ) -> Dict[str, Any]:
-    """The configuration with `drives` stated, for one that lacks the key.
+    """The configuration with `drives` stated, for one that lacks the key (or holds
+    `null`).
 
-    The agent's own drive is the only entry and the home when the home rule allows it
-    for the agent's current visibility; otherwise the agent gets no drive. A stated
+    The agent's own drive is the only entry and the home when the drive rules allow it
+    for the agent's current visibility: a shared agent and a shared drive, or a private
+    agent and a private drive of its owner. Otherwise the agent gets no drive. An own
+    drive without its visibility row follows its agent, so it passes. A stated
     `has_session_drive` or `home_drive` is kept.
     """
 
-    if "drives" in agent_config:
+    if agent_config.get("drives") is not None:
         return agent_config
     filled = dict(agent_config)
     filled.setdefault("has_session_drive", True)
+    agent_is_private = (
+        agent_policy is not None and agent_policy.visibility == Visibility.PRIVATE
+    )
     allowed = (
         own_drive_slug is not None
         and own_drive_policy is not None
-        and SharingService.check_home_drive(agent_policy, own_drive_policy) is None
+        and (
+            SharingService.check_home_drive(agent_policy, own_drive_policy) is None
+            if agent_is_private
+            else own_drive_policy.visibility == Visibility.PROJECT
+        )
     )
     if allowed:
         filled["drives"] = [{"slug": own_drive_slug}]

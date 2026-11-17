@@ -41,11 +41,11 @@ from oss.src.core.sharing.dtos import (
     AgentReadScope,
     AgentSharingState,
     CachedAgentAccess,
-    CachedMountAccess,
+    CachedMountVisibility,
     CachedSessionAccess,
     CachedUserGrants,
     EffectiveRole,
-    MountAccess,
+    MountVisibility,
     NotShareableReason,
     SessionGrant,
     SessionPolicyState,
@@ -67,6 +67,7 @@ from oss.src.core.access.context import (
 )
 from oss.src.core.sharing.interfaces import SharingDAOInterface
 from oss.src.core.sharing.types import (
+    HOME_DRIVE_NOT_ALLOWED,
     DriveNotOwned,
     HomeDriveNotAllowed,
     InvalidGrantee,
@@ -92,14 +93,11 @@ log = get_module_logger(__name__)
 
 AGENT_ACCESS_NAMESPACE = "sharing_agent_access"
 SESSION_ACCESS_NAMESPACE = "sharing_session_access"
-MOUNT_ACCESS_NAMESPACE = "sharing_mount_access"
+MOUNT_VISIBILITY_NAMESPACE = "sharing_mount_visibility"
 USER_GRANTS_NAMESPACE = "sharing_user_grants"
 # One `sharing_user_grants` entry per (project, user), with a fixed key, so one entry can
 # be deleted directly by its name.
 _USER_GRANTS_KEY = "grants"
-
-# The code of a refused home drive, at sign (403), save (422) and visibility change (409).
-HOME_DRIVE_NOT_ALLOWED = "home_drive_not_allowed"
 
 # Rule S1: the actions that only read a session.
 _SESSION_READ_ACTIONS = frozenset(
@@ -206,12 +204,12 @@ class SharingService(ResourcePolicyInterface):
             mount_id = UUID(resource_id)
         except ValueError:
             return DecisionReason.RESOURCE_DENIED
-        access = await self.fetch_mount_access_cached(
+        mount = await self.fetch_mount_visibility_cached(
             project_id=project_id, mount_id=mount_id
         )
-        if access is None:
+        if mount is None:
             return None
-        if access.session_id:
+        if mount.session_id:
             # A session drive follows its session: reading is S1, writing and signing S2.
             return await self._evaluate_session(
                 principal=principal,
@@ -221,11 +219,11 @@ class SharingService(ResourcePolicyInterface):
                     else Permission.RUN_SESSIONS
                 ),
                 project_id=project_id,
-                session_id=access.session_id,
+                session_id=mount.session_id,
                 context=context,
             )
 
-        policy = await self.mount_policy(project_id=project_id, access=access)
+        policy = await self.mount_policy(project_id=project_id, mount=mount)
         # D1: shared, the role decides.
         if policy.visibility == Visibility.PROJECT:
             return None
@@ -272,16 +270,16 @@ class SharingService(ResourcePolicyInterface):
         )
 
     async def mount_policy(
-        self, *, project_id: UUID, access: MountAccess
+        self, *, project_id: UUID, mount: MountVisibility
     ) -> AccessPolicy:
         """The visibility a drive has: its own row, else (a drive with `agent_id` before
         release 2 writes its row) its agent's, else shared with no owner."""
 
-        if access.policy is not None:
-            return access.policy
-        if access.agent_id:
+        if mount.policy is not None:
+            return mount.policy
+        if mount.agent_id:
             try:
-                artifact_id = UUID(access.agent_id)
+                artifact_id = UUID(mount.agent_id)
             except ValueError:
                 return OWNERLESS_PROJECT_POLICY
             agent_policy = (
@@ -291,6 +289,62 @@ class SharingService(ResourcePolicyInterface):
             ).policy
             return agent_policy or OWNERLESS_PROJECT_POLICY
         return OWNERLESS_PROJECT_POLICY
+
+    async def fetch_mount_policy(
+        self, *, project_id: UUID, mount_id: UUID
+    ) -> Optional[AccessPolicy]:
+        """`mount_policy` of the drive with this id. None when no `mounts` row exists."""
+
+        mount = await self.fetch_mount_visibility_cached(
+            project_id=project_id, mount_id=mount_id
+        )
+        if mount is None:
+            return None
+        return await self.mount_policy(project_id=project_id, mount=mount)
+
+    async def home_drive_refusal(
+        self, *, project_id: UUID, artifact_id: Optional[UUID], mount_id: UUID
+    ) -> Optional[str]:
+        """`check_home_drive` for this agent and this drive, as stored now. No agent, or
+        no drive row, is refused."""
+
+        if artifact_id is None:
+            return HOME_DRIVE_NOT_ALLOWED
+        policy = await self.fetch_mount_policy(project_id=project_id, mount_id=mount_id)
+        if policy is None:
+            return HOME_DRIVE_NOT_ALLOWED
+        agent_policy = (
+            await self.fetch_agent_policy_cached(
+                project_id=project_id, artifact_id=artifact_id
+            )
+        ).policy
+        return self.check_home_drive(agent_policy, policy)
+
+    async def may_use_mount(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        context: Optional[RunContext] = None,
+    ) -> bool:
+        """The drive rule for the request's principal and `USE_MOUNTS`. Code that runs
+        with no request access (a worker) has no principal: it may use a shared drive
+        only. `context` turns on the channel exception of rule D2."""
+
+        access = get_request_access()
+        if access is None:
+            policy = await self.fetch_mount_policy(
+                project_id=project_id, mount_id=mount_id
+            )
+            return policy is not None and policy.visibility == Visibility.PROJECT
+        reason = await self.evaluate(
+            principal=access.principal,
+            action=Permission.USE_MOUNTS,
+            project_id=project_id,
+            resource=ResourceRef(kind=ResourceKind.MOUNT, id=str(mount_id)),
+            context=context,
+        )
+        return reason is None
 
     @staticmethod
     def check_home_drive(
@@ -499,7 +553,7 @@ class SharingService(ResourcePolicyInterface):
                 return
             prefetch.register(agent_access_entry(project_id, artifact_id))
         elif resource.kind == ResourceKind.MOUNT:
-            prefetch.register(mount_access_entry(project_id, resource.id))
+            prefetch.register(mount_visibility_entry(project_id, resource.id))
 
     # -- read scopes ------------------------------------------------------------------------
 
@@ -585,35 +639,35 @@ class SharingService(ResourcePolicyInterface):
             )
         return cached
 
-    async def fetch_mount_access_cached(
+    async def fetch_mount_visibility_cached(
         self,
         *,
         project_id: UUID,
         mount_id: UUID,
-    ) -> Optional[MountAccess]:
-        """The drive's scope and visibility row through `sharing_mount_access`. None
+    ) -> Optional[MountVisibility]:
+        """The drive's scope and visibility row through `sharing_mount_visibility`. None
         when no `mounts` row exists; that answer is never cached."""
 
         key = {"m": str(mount_id)}
         cached = await _get(
-            namespace=MOUNT_ACCESS_NAMESPACE,
+            namespace=MOUNT_VISIBILITY_NAMESPACE,
             project_id=project_id,
             key=key,
-            model=CachedMountAccess,
+            model=CachedMountVisibility,
         )
-        if cached is not None and cached.access is not None:
-            return cached.access
-        access = await self._dao.fetch_mount_access(
+        if cached is not None and cached.mount is not None:
+            return cached.mount
+        mount = await self._dao.fetch_mount_visibility(
             project_id=project_id, mount_id=mount_id
         )
-        if access is not None:
+        if mount is not None:
             await _set(
-                namespace=MOUNT_ACCESS_NAMESPACE,
+                namespace=MOUNT_VISIBILITY_NAMESPACE,
                 project_id=project_id,
                 key=key,
-                value=CachedMountAccess(access=access),
+                value=CachedMountVisibility(mount=mount),
             )
-        return access
+        return mount
 
     async def _session_access(
         self,
@@ -745,8 +799,8 @@ class SharingService(ResourcePolicyInterface):
         artifact_id: UUID,
         visibility: Visibility,
         #
-        drives: Sequence[MountAccess] = (),
-        home_drives: Sequence[MountAccess] = (),
+        drives: Sequence[MountVisibility] = (),
+        home_drives: Sequence[MountVisibility] = (),
     ) -> AgentSharingState:
         """Only the active human owner changes the visibility.
 
@@ -754,9 +808,14 @@ class SharingService(ResourcePolicyInterface):
         their home drives. To `project`, the owner's private drives among them become
         shared in the same transaction (a private drive of another owner refuses with
         `DriveNotOwned`). To `private`, every home drive must pass the home rule
-        (`HomeDriveNotAllowed`)."""
+        (`HomeDriveNotAllowed`).
+
+        Each decision reads the agent's own drive row again (uncached), and the write
+        compares it under the agent's lock: a row written in between (the release 2
+        migration) makes the write conflict and the decision run again on that row."""
 
         share_mount_ids: List[UUID] = []
+        agent_drive_policy: List[Optional[AccessPolicy]] = [None]
 
         async def _decide(current: Optional[AccessPolicy]) -> AccessPolicy:
             owner = await self._require_active_owner(
@@ -764,26 +823,35 @@ class SharingService(ResourcePolicyInterface):
             )
             new = AccessPolicy(visibility=visibility, owner_user_id=owner)
             share_mount_ids.clear()
+            agent_drive_policy[0] = await self._dao.fetch_agent_drive_policy(
+                project_id=project_id, artifact_id=artifact_id
+            )
+
+            def _fresh(drive: MountVisibility) -> MountVisibility:
+                if agent_drive_policy[0] is not None and _follows_agent(
+                    drive, artifact_id
+                ):
+                    return drive.model_copy(update={"policy": agent_drive_policy[0]})
+                return drive
+
+            drives_now = [_fresh(drive) for drive in drives]
+            homes_now = [_fresh(drive) for drive in home_drives]
             if visibility == Visibility.PROJECT:
-                for drive in drives:
+                for drive in drives_now:
                     if _follows_agent(drive, artifact_id):
                         continue
-                    policy = await self.mount_policy(
-                        project_id=project_id, access=drive
-                    )
+                    policy = await self.mount_policy(project_id=project_id, mount=drive)
                     if policy.visibility != Visibility.PRIVATE:
                         continue
                     if policy.owner_user_id != owner:
                         raise DriveNotOwned(slug=drive.slug or str(drive.mount_id))
                     share_mount_ids.append(drive.mount_id)
             else:
-                for drive in home_drives:
+                for drive in homes_now:
                     policy = (
                         new
                         if _follows_agent(drive, artifact_id)
-                        else await self.mount_policy(
-                            project_id=project_id, access=drive
-                        )
+                        else await self.mount_policy(project_id=project_id, mount=drive)
                     )
                     if self.check_home_drive(new, policy) is not None:
                         raise HomeDriveNotAllowed(
@@ -798,6 +866,7 @@ class SharingService(ResourcePolicyInterface):
             artifact_id=artifact_id,
             decide=_decide,
             share_mount_ids=share_mount_ids,
+            agent_drive_policy=agent_drive_policy,
         )
 
     async def transfer_agent(
@@ -1030,11 +1099,13 @@ class SharingService(ResourcePolicyInterface):
         artifact_id: UUID,
         decide,
         share_mount_ids: Sequence[UUID] = (),
+        agent_drive_policy: Optional[List[Optional[AccessPolicy]]] = None,
     ) -> AgentSharingState:
         """Read `expected`, decide, write; on a conflict decide once more on the
         committed policy and retry once. A decision equal to the current policy
         writes nothing. `share_mount_ids` (filled by `decide`) become shared in the
-        same transaction."""
+        same transaction. `agent_drive_policy` (filled by `decide`) is the own drive row the
+        decision saw; the write compares it under the lock."""
 
         principal = access.principal
         current = await self._dao.fetch_agent_policy(
@@ -1055,6 +1126,10 @@ class SharingService(ResourcePolicyInterface):
                     policy=new,
                     user_id=principal.id,
                     share_mount_ids=list(share_mount_ids),
+                    check_agent_drive=agent_drive_policy is not None,
+                    expected_agent_drive_policy=agent_drive_policy[0]
+                    if agent_drive_policy is not None
+                    else None,
                 )
                 break
             except SharingConflict as conflict:
@@ -1278,7 +1353,7 @@ class SharingService(ResourcePolicyInterface):
         )
 
 
-def _follows_agent(drive: MountAccess, artifact_id: UUID) -> bool:
+def _follows_agent(drive: MountVisibility, artifact_id: UUID) -> bool:
     """A drive created with this agent and without its own row yet (before release 2)."""
 
     return drive.policy is None and drive.agent_id == str(artifact_id)
@@ -1394,12 +1469,12 @@ def agent_access_entry(project_id: UUID, artifact_id: UUID) -> dict:
     )
 
 
-def mount_access_entry(project_id: UUID, mount_id: str) -> dict:
+def mount_visibility_entry(project_id: UUID, mount_id: str) -> dict:
     return _entry(
-        namespace=MOUNT_ACCESS_NAMESPACE,
+        namespace=MOUNT_VISIBILITY_NAMESPACE,
         project_id=project_id,
         key={"m": str(mount_id)},
-        model=CachedMountAccess,
+        model=CachedMountVisibility,
     )
 
 
@@ -1689,7 +1764,7 @@ async def invalidate_sharing_caches(
         )
     for mount_id in mount_ids:
         await _invalidate(
-            namespace=MOUNT_ACCESS_NAMESPACE,
+            namespace=MOUNT_VISIBILITY_NAMESPACE,
             project_id=project_id,
             key={"m": str(mount_id)},
         )

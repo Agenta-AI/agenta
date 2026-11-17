@@ -196,16 +196,68 @@ async def test_prepare_invoke_writes_the_resolved_agent_never_the_callers(prelud
     assert _claims(credentials)["run_agent_id"] == str(agent_id)
 
 
-async def test_prepare_invoke_without_a_resolved_revision_names_no_agent(prelude):
+async def _claim_of(prelude, *, references, resolved):
+    prelude.service.resolve_agent_artifact_id = resolved
     envelope = make_envelope(
         project_id=prelude.project_id, organization_id=prelude.organization_id
     )
     credentials, _ = await prelude.service._prepare_invoke(
         project_id=prelude.project_id,
         user_id=envelope.authority.principal.id,
-        request=SimpleNamespace(
-            meta=None, references={"workflow": {"id": str(uuid4())}}
-        ),
+        request=SimpleNamespace(meta=None, references=references),
         envelope=envelope,
     )
-    assert "run_agent_id" not in _claims(credentials)
+    return _claims(credentials).get("run_agent_id")
+
+
+async def test_a_request_carrying_its_revision_names_the_agent_it_references(
+    prelude, _allowing_access_service
+):
+    """A session the API starts sends its revision inline, so the prelude resolves
+    nothing; the agent comes from the references, resolved in the project."""
+    agent_id = uuid4()
+    resolved = AsyncMock(return_value=agent_id)
+    claim = await _claim_of(
+        prelude,
+        references={"workflow": {"slug": "quote"}},
+        resolved=resolved,
+    )
+    assert claim == str(agent_id)
+    elements = resolved.await_args.kwargs["references"]
+    assert [(e.key, e.slug) for e in elements] == [("workflow", "quote")]
+    decision = _allowing_access_service.decisions[-1]
+    assert decision["resource"].id == str(agent_id)
+    assert decision["action"].value == "run_workflows"
+
+
+async def test_an_agent_the_principal_may_not_run_gets_no_claim(prelude, monkeypatch):
+    import oss.src.core.access.service as access_module
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.tests.pytest.utils.principals import AllowingAccessService
+
+    class _Refusing(AllowingAccessService):
+        async def decide(self, **kwargs):
+            return Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED)
+
+    monkeypatch.setattr(access_module, "_access_service", _Refusing())
+    claim = await _claim_of(
+        prelude,
+        references={"workflow": {"id": str(uuid4())}},
+        resolved=AsyncMock(return_value=uuid4()),
+    )
+    assert claim is None
+
+
+async def test_an_unresolved_reference_or_an_inline_run_gets_no_claim(prelude):
+    from oss.src.core.workflows.types import AgentReferenceUnresolved
+
+    unresolved = await _claim_of(
+        prelude,
+        references={"workflow": {"id": str(uuid4())}},
+        resolved=AsyncMock(side_effect=AgentReferenceUnresolved()),
+    )
+    inline = await _claim_of(
+        prelude, references=None, resolved=AsyncMock(return_value=None)
+    )
+    assert unresolved is None
+    assert inline is None

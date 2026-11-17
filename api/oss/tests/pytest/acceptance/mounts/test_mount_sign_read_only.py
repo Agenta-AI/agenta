@@ -1,6 +1,6 @@
-"""Acceptance tests for `POST /mounts/projects/sign` and read-only project drive credentials.
+"""Acceptance tests for `POST /mounts/sign` (a drive by its slug) and read-only credentials.
 
-A project drive signed with `access=read` must read and list its prefix on the real store,
+A drive signed with `access=read` must read and list its prefix on the real store,
 and fail to put or delete there: the STS session policy is the boundary, not the mount flag.
 
 Requires a configured object store with a working STS endpoint, reachable from the test
@@ -34,7 +34,7 @@ def _sign(authed_api, slug, access=None):
     params = {"slug": slug}
     if access:
         params["access"] = access
-    return authed_api("POST", "/mounts/projects/sign", params=params)
+    return authed_api("POST", "/mounts/sign", params=params)
 
 
 def _client(credentials) -> Minio:
@@ -87,7 +87,7 @@ def _run_on_store(credentials):
         pytest.skip("The store endpoint in the credentials is not reachable from here")
 
 
-class TestProjectMountSign:
+class TestMountSignBySlug:
     def test_signs_an_existing_drive_and_never_creates_one(self, authed_api):
         drive = _create_drive(authed_api)
         resp = _sign(authed_api, drive["slug"])
