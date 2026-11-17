@@ -541,6 +541,47 @@ async def test_simple_create_refuses_before_any_write(world, drives):
     workflows_service.create_workflow.assert_not_awaited()
 
 
+class _ReachedCreate(Exception):
+    pass
+
+
+async def test_create_applies_the_new_agents_visibility_before_any_write(
+    world, drives, monkeypatch
+):
+    owner = world.add_member(uuid4())
+    drives.add("my-notes", _private(owner))
+
+    async def saver_may_use(*, project_id, mount_id, context=None):
+        return True
+
+    monkeypatch.setattr(world.service, "may_use_mount", saver_may_use)
+    data = {
+        "uri": "agenta:builtin:agent:v0",
+        "parameters": {
+            "agent": {"drives": [{"slug": "my-notes"}], "home_drive": "my-notes"}
+        },
+    }
+    # A shared agent: refused before the create writes anything.
+    simple, workflows_service = _simple_service(drives)
+    with pytest.raises(AgentDriveNotSharedError):
+        await simple.create(
+            project_id=world.project_id,
+            user_id=owner,
+            simple_workflow_create=SimpleWorkflowCreate(slug="shared", data=data),
+        )
+    workflows_service.create_workflow.assert_not_awaited()
+    # A private agent of the drive's owner passes the check and reaches the create.
+    simple, workflows_service = _simple_service(drives)
+    workflows_service.create_workflow.side_effect = _ReachedCreate()
+    with pytest.raises(_ReachedCreate):
+        await simple.create(
+            project_id=world.project_id,
+            user_id=owner,
+            simple_workflow_create=SimpleWorkflowCreate(slug="private", data=data),
+            access=_private(owner),
+        )
+
+
 async def test_idempotent_create_refuses_before_any_write(world, drives):
     simple, workflows_service = _simple_service(drives)
     workflows_service.fetch_workflow = AsyncMock(return_value=None)

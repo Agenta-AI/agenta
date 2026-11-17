@@ -2052,7 +2052,7 @@ class ToolsRouter:
         try:
             # Resolves the child's target once and leaves it on the request, so the
             # invoke runs what was checked.
-            await self.run_admission.admit_request(
+            agent_artifact_id = await self.run_admission.admit_request(
                 envelope=child,
                 session_id=None,
                 project_id=project_id,
@@ -2074,6 +2074,7 @@ class ToolsRouter:
                     request=invoke_request,
                     envelope=child,
                     timeout=limit_s,
+                    admitted_agent_id=agent_artifact_id,
                 )
         except (httpx.TimeoutException, TimeoutError):
             # A tool result, not an HTTP error: the runner shows the model only the status code

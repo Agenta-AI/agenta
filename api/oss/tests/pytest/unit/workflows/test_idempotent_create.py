@@ -68,7 +68,9 @@ class _MemoryWorkflows:
         self.drive_checks = 0
         self.drive_missing = False
 
-    async def reject_unusable_agent_drives(self, *, project_id, data):
+    async def reject_unusable_agent_drives(
+        self, *, project_id, data, new_agent_policy=None
+    ):
         self.drive_checks += 1
         if self.drive_missing:
             raise AgentDriveNotFoundError(

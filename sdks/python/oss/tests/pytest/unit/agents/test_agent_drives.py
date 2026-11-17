@@ -101,6 +101,8 @@ def test_an_empty_list_means_no_drive():
         ([{"slug": "a\0b"}], "drives[0].slug"),
         ([{"slug": "."}], "drives[0].slug"),
         ([{"slug": ".."}], "drives[0].slug"),
+        ([{"slug": "README.md"}], "drives[0].slug"),
+        ([{"slug": "readme.MD"}], "drives[0].slug"),
         ([{"slug": "a"}, {"slug": "a"}], "drives[1].slug"),
         ([{"slug": "a", "access": "write"}], "drives[0].access"),
         ([{"slug": "a", "path": "/x"}], "drives[0].path"),

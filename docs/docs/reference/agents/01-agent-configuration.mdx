@@ -254,7 +254,7 @@ Rules:
 
 - At most 8 entries.
 - Each slug at most once.
-- A slug is one folder name: no `/`, no `\`, and not `.` or `..`.
+- A slug is one folder name: no `/`, no `\`, and not `.`, `..` or `README.md` (the platform writes `drives/README.md`).
 - An entry accepts only `slug` and `access`.
 - An empty list means the agent attaches no drive. When the agent is created, Agenta still creates its own drive as home unless `home_drive` is stated (see below).
 

@@ -262,7 +262,8 @@ async def _home_drive(
 ) -> Optional[Mount]:
     """The home drive the run's agent configuration names (the variant's latest
     revision), or for a configuration without `drives` the drive created with the agent.
-    Never created here. A drive the run's principal may not use reads as no drive."""
+    Never created here. A drive the run's principal may not use reads as no drive, and
+    a variant that names no revision of this agent reads as no drive."""
     if artifact_id is None:
         return None
     mount: Optional[Mount] = None
@@ -275,6 +276,10 @@ async def _home_drive(
             if workflows_service is not None and variant_id is not None
             else None
         )
+        if variant_id is not None and (
+            revision is None or getattr(revision, "workflow_id", None) != artifact_id
+        ):
+            return None
         agent = _revision_agent(revision, artifact_id=artifact_id)
         if agent is not None and agent.get("drives") is not None:
             home_slug = agent.get("home_drive")

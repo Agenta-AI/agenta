@@ -98,7 +98,7 @@ The design replaces the two-kind model (`{ "kind": "agent" }`, `{ "kind": "proje
 ## 9. After release 2 (once no older runner or agent service remains)
 
 - [ ] 9.1 Delete the legacy route `POST /mounts/agents/sign`.
-- [ ] 9.2 Delete the read-time fill of agent revisions without `drives`.
+- [ ] 9.2 Delete the read-time fill of agent revisions without `drives`. Before the deletion, confirm with a query that no stored agent revision lacks the keys `drives`, `home_drive` and `has_session_drive`, because the release 2 migration leaves a revision unchanged when it cannot write its JSON back with the same values (for example a stored number such as `1e400`).
 - [ ] 9.3 Delete the reserved slug lookup by agent id in `fetch_mount_by_slug`.
 - [ ] 9.4 Delete the runner's path for a run request without `drives`.
 - [ ] 9.5 Make `list_starters` read the revision the run uses, not the variant's latest revision (needs a tool context binding for the run's revision).
