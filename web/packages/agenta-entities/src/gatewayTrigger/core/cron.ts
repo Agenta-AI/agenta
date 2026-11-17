@@ -13,7 +13,7 @@
  * deployment can override — see MIN_CRON_INTERVAL_MINUTES for what that implies.
  */
 
-import {ENGLISH_SCHEDULE_TEXT, type ScheduleText} from "./scheduleText"
+import type {ScheduleText} from "./scheduleText"
 
 const FIELD_BOUNDS: {min: number; max: number}[] = [
     {min: 0, max: 59}, // minute
@@ -82,12 +82,9 @@ function inBounds(value: number, bounds: {min: number; max: number}): boolean {
  * A best-effort human-readable description of a cron expression. Handles the
  * common shapes (every minute/hour, daily at HH:MM, weekly on a weekday); falls
  * back to echoing the raw expression for anything more exotic. `text` gives the
- * words; English by default.
+ * words.
  */
-export function describeCron(
-    expression: string,
-    text: ScheduleText = ENGLISH_SCHEDULE_TEXT,
-): string {
+export function describeCron(expression: string, text: ScheduleText): string {
     const {valid} = validateCron(expression)
     if (!valid) return expression
 

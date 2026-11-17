@@ -17,7 +17,7 @@
  */
 
 import {describeCron, nextCronRuns, validateCron} from "./cron"
-import {ENGLISH_SCHEDULE_TEXT, type ScheduleText} from "./scheduleText"
+import type {ScheduleText} from "./scheduleText"
 
 export type CronCadence = "hourly" | "daily" | "weekly" | "monthly" | "custom"
 
@@ -155,12 +155,9 @@ export function timesFormCleanGrid(times: CronTimeOfDay[]): boolean {
 /**
  * The cadence on its own, with no run times — "Weekdays", "Every 3h at :00",
  * "Monthly on the 1st". Drives the cadence chips and feeds {@link summarizeSchedule}.
- * `text` gives the words; English by default.
+ * `text` gives the words.
  */
-export function describeCadence(
-    state: ScheduleBuilderState,
-    text: ScheduleText = ENGLISH_SCHEDULE_TEXT,
-): string {
+export function describeCadence(state: ScheduleBuilderState, text: ScheduleText): string {
     switch (state.cadence) {
         case "custom":
             return state.cron.trim() || describeCron(state.cron, text)
@@ -187,10 +184,7 @@ export function describeCadence(
  * minute in the cadence phrase, and a raw expression speaks for itself, so neither
  * repeats the times.
  */
-export function summarizeSchedule(
-    state: ScheduleBuilderState,
-    text: ScheduleText = ENGLISH_SCHEDULE_TEXT,
-): string {
+export function summarizeSchedule(state: ScheduleBuilderState, text: ScheduleText): string {
     const cadence = describeCadence(state, text)
     if (state.cadence === "custom") return cadence
     if (state.cadence === "hourly") return text.utc(cadence)
@@ -204,9 +198,9 @@ export function summarizeSchedule(
  */
 export function formatNextRun(
     cron: string,
+    text: ScheduleText,
     state?: ScheduleBuilderState,
     from: Date = new Date(),
-    text: ScheduleText = ENGLISH_SCHEDULE_TEXT,
 ): string {
     const next = nextCronRuns(cron, 1, from)[0]
     if (!next) return ""
@@ -226,13 +220,12 @@ export function formatNextRun(
  */
 export function suggestScheduleName(
     state: ScheduleBuilderState,
+    text: ScheduleText,
     agentName?: string | null,
 ): string {
     const carriesOwnTime = state.cadence === "hourly" || state.cadence === "custom"
-    const cadence = describeCadence(state)
-    const withTime = carriesOwnTime
-        ? cadence
-        : `${cadence} ${timesPhrase(state.times, ENGLISH_SCHEDULE_TEXT)}`
+    const cadence = describeCadence(state, text)
+    const withTime = carriesOwnTime ? cadence : `${cadence} ${timesPhrase(state.times, text)}`
     const agent = agentName?.trim()
     return agent ? `${withTime} — ${agent}` : withTime
 }

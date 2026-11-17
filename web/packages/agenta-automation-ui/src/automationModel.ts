@@ -7,10 +7,9 @@ import {
     type TriggerDelivery,
     type TriggerSchedule,
     type TriggerSubscription,
-    ENGLISH_SCHEDULE_TEXT,
     type ScheduleText,
 } from "@agenta/entities/gatewayTrigger"
-import {scheduleTextNow} from "@agenta/entity-ui/gatewayTrigger"
+import {englishScheduleText, scheduleTextNow} from "@agenta/entity-ui/gatewayTrigger"
 import {createEnglishT, createT, useT} from "@agenta/i18n"
 import automationsModelCatalog from "@agenta/i18n/catalogs/automations.model"
 
@@ -170,7 +169,7 @@ export function runsWhenLabel(
  */
 export function generatedAutomationName(a: Automation, agentName: string | null): string {
     // Saved to the API, so the schedule words stay English (see RULES: never translate saved text).
-    const runsWhen = runsWhenLabel(a, ENGLISH_SCHEDULE_TEXT, tEnglish).trim()
+    const runsWhen = runsWhenLabel(a, englishScheduleText(), tEnglish).trim()
     const agent = (agentName ?? "").trim()
     if (!agent || !runsWhen) return UNTITLED_AUTOMATION
     return `${runsWhen} — ${agent}`

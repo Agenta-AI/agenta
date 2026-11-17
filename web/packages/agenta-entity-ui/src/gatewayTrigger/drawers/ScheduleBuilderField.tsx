@@ -168,8 +168,7 @@ export function useScheduleBuilder(
     const textT = useT(scheduleTextCatalog)
     const summary = validation.valid ? summarizeSchedule(builder, scheduleTextNow()) : value
     const nextLine = useMemo(
-        () =>
-            validation.valid ? formatNextRun(value, builder, new Date(), scheduleTextNow()) : "",
+        () => (validation.valid ? formatNextRun(value, scheduleTextNow(), builder) : ""),
         [validation.valid, value, builder, textT],
     )
 

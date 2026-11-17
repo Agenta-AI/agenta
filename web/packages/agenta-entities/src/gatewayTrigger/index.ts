@@ -93,7 +93,6 @@ export {
     DEFAULT_TIME,
 } from "./core/scheduleBuilder"
 export type {CronCadence, CronTimeOfDay, ScheduleBuilderState} from "./core/scheduleBuilder"
-export {ENGLISH_SCHEDULE_TEXT} from "./core/scheduleText"
 export type {ScheduleText} from "./core/scheduleText"
 export {
     FALLBACK_MESSAGE_SHAPE,
