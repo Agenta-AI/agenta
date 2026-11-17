@@ -1,6 +1,6 @@
 /**
- * The needs-setup words in the active language. `@agenta/entities/workflow` keeps the English
- * constants (and the reason codes); every display reads these helpers instead.
+ * The needs-setup words in the active language. `@agenta/entities/workflow` keeps only the reason
+ * codes; the words live in the entityUi.needsSetup catalog.
  */
 import {createT, type CatalogKey} from "@agenta/i18n"
 import needsSetupCatalog from "@agenta/i18n/catalogs/entityUi.needsSetup"

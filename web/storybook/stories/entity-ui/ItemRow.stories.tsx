@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {NEEDS_SETUP_LABEL, needsSetupReasonLabel} from "@agenta/entities/workflow"
+import {needsSetupLabel, needsSetupReasonText} from "@agenta/entity-ui/needs-setup"
 import {CaretRight, FileText, Plugs, Trash} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Tag as AntTag, Tooltip as AntTooltip, Typography as AntTypography} from "antd"
@@ -96,8 +96,8 @@ const MCP_WITH_URL = describeMcp({
 // The rail's status for a server whose sign-in lapsed (`needsSetupStatus` for `needs_sign_in`).
 const MCP_SIGN_IN_EXPIRED: ItemRowStatus = {
     tone: "incomplete",
-    label: NEEDS_SETUP_LABEL,
-    reason: needsSetupReasonLabel("needs_sign_in") ?? undefined,
+    label: needsSetupLabel(),
+    reason: needsSetupReasonText("needs_sign_in") ?? undefined,
     needsSetup: true,
 }
 

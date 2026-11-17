@@ -103,7 +103,7 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
             ? agent.skills.map(skillName).filter((name): name is string => Boolean(name))
             : [],
         sandbox: prettifyKind(str(nested(agent, "sandbox")?.kind)),
-        permissions: prettifyKind(str(nested(nested(agent, "runner"), "permissions")?.default)),
+        permissions: str(nested(nested(agent, "runner"), "permissions")?.default),
     }
 }
 
@@ -262,17 +262,18 @@ export const AGENT_CONFIG_ROW_TITLES: Record<AgentConfigRowKey, string> = {
  * load.
  */
 export const permissionsSummaryDetail = (permissions: string | null): string => {
-    if (!permissions) return tNow("entityUi.agentConfig.notSet")
-    // `permissions` is the prettified stored value ("Allow reads"); known ones read translated.
-    const key = Object.hasOwn(PERMISSION_DETAIL_KEYS, permissions)
-        ? PERMISSION_DETAIL_KEYS[permissions]
-        : undefined
-    return key ? tNow(key) : permissions
+    const pretty = prettifyKind(permissions)
+    if (!permissions || !pretty) return tNow("entityUi.agentConfig.notSet")
+    // A known stored value reads translated; an unknown one shows prettified.
+    return Object.hasOwn(PERMISSION_DETAIL_KEYS, permissions)
+        ? tNow(PERMISSION_DETAIL_KEYS[permissions])
+        : pretty
 }
 
-const PERMISSION_DETAIL_KEYS: Partial<Record<string, CatalogKey<typeof agentConfigCatalog>>> = {
-    Allow: "entityUi.agentConfig.permissionAllow",
-    "Allow reads": "entityUi.agentConfig.permissionAllowReads",
-    Ask: "entityUi.agentConfig.permissionAsk",
-    Deny: "entityUi.agentConfig.permissionDeny",
+/** Keyed by the stored `runner.permissions.default` value. */
+const PERMISSION_DETAIL_KEYS: Record<string, CatalogKey<typeof agentConfigCatalog>> = {
+    allow: "entityUi.agentConfig.permissionAllow",
+    allow_reads: "entityUi.agentConfig.permissionAllowReads",
+    ask: "entityUi.agentConfig.permissionAsk",
+    deny: "entityUi.agentConfig.permissionDeny",
 }
