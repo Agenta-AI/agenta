@@ -65,7 +65,7 @@ export const SocialAuthButtons = ({
                                 : `Continue with ${provider.label}`}
                         </span>
                         {provider.id === lastUsedProviderId && !pending && (
-                            <LastUsedBadge className="absolute right-3" />
+                            <LastUsedBadge className="sm:absolute sm:right-3" />
                         )}
                     </LoadingButton>
                 )
