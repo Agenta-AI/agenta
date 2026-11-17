@@ -64,7 +64,7 @@ The design replaces the two-kind model (`{ "kind": "agent" }`, `{ "kind": "proje
 - [ ] 5.5 `local`, `daytona`, `inprocess`: mount every drive in the existing parallel group; read drives with `-o ro`; repair every link every turn on all three kinds (`daytona` and `inprocess` gain the `agent-files` repair). (Parallel per sandbox kind.)
 - [ ] 5.6 Home drive: README seed on all three kinds, `.tools` restore from the home drive, cache keyed by mount id; drop `AGENTA_AGENT_MOUNT_DIR`.
 - [ ] 5.7 Write `drives/README.md` at every start, listing only the drives mounted in this run, with the text of design Decision 9.
-- [ ] 5.7a Record in the follow-up pull request that signs again on each warm turn: a drive whose new sign fails is unmounted, its link removed, and the agent told in the same turn.
+- [x] 5.7a Record in the follow-up pull request that signs again on each warm turn: a drive whose new sign fails is unmounted, its link removed, and the agent told in the same turn. Done in #8324: the warm turn signs every mounted drive again, the home drive included; a failed sign deletes the sandbox (on `inprocess`, the command sandbox) and the turn starts a fresh environment without the drive. Checked live on `local` only; `inprocess` and `daytona` are covered by unit tests.
 - [ ] 5.8 Environment notes per drive (path, access, shared-write rule, not available); log `kind=drive_mount slug=` and the stage `drive_mounts` for every drive (`kind=agent_mount` only on the legacy path); write texts that never call a drive shared because it is writable; `drives` and `homeDrive` in the fingerprint.
 - [ ] 5.9 Unit tests for every task above, and `tests/integration/inprocess/sandbox-drive.test.ts` with three roots (one home, one failing).
 
