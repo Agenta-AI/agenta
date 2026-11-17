@@ -116,14 +116,6 @@ import {
 } from "./pi-assets.ts";
 import { isPiModelRegistrationPlan, piModelsJsonProviderId } from "./pi-model-config.ts";
 import {
-  AGENT_MOUNT_ENV_VAR,
-  agentMountPath,
-  linkAgentFiles,
-  linkAgentFilesRemote,
-  seedAgentReadme,
-  seedAgentReadmeRemote,
-} from "./agent-mount.ts";
-import {
   agentMountAppendix,
   agentMountUnavailableAppendix,
 } from "./agent-mount-guidance.ts";
@@ -179,12 +171,21 @@ import {
 } from "./session-continuity.ts";
 import { driveIdentity, mountExpiryMs, projectScopeFor } from "./session-identity.ts";
 import {
-  linkProjectDriveRemote,
-  projectMountPath,
-  pruneProjectDriveLinks,
-  pruneProjectDriveLinksRemote,
-} from "./project-mount.ts";
-import { drivesListedEmpty, projectDrives } from "./run-drives.ts";
+  driveAvailable,
+  driveSubject,
+  drivesListedEmpty,
+  drivesReadme,
+  homeDrive,
+  homeDriveStatus,
+  keptLinks,
+  linkRunDriveRemote,
+  pruneDriveLinks,
+  pruneDriveLinksRemote,
+  runDriveMountPath,
+  seedHomeReadmeRemote,
+  writeDrivesReadme,
+  writeDrivesReadmeRemote,
+} from "./run-drives.ts";
 import {
   commandSandboxDisposition,
   teardownDisposition,
@@ -212,11 +213,9 @@ import {
 } from "../../environment/harness-session-lifecycle.ts";
 import { recordSandboxDrives, sandboxSnapshotOf } from "./created-sandboxes.ts";
 import {
-  activateAgentMountGuidance as activateAgentMountGuidanceUnit,
-  activateAgentMountUnavailableGuidance as activateAgentMountUnavailableGuidanceUnit,
-  mountLocalAgentCwd as mountLocalAgentCwdUnit,
+  activateHomeDriveGuidance as activateHomeDriveGuidanceUnit,
+  mountLocalDrive as mountLocalDriveUnit,
   mountLocalDurableCwd as mountLocalDurableCwdUnit,
-  mountLocalProjectMount as mountLocalProjectMountUnit,
   reSignAndRemountLocalCwd as reSignAndRemountLocalCwdUnit,
   remountLocalCwdAfterRuntimeEnotconn as remountLocalCwdAfterRuntimeEnotconnUnit,
   type MountDeps,
@@ -484,7 +483,6 @@ async function acquireEnvironmentOnce(
   if (!setup.ok) return setup;
   const {
     acquireStartedAt,
-    agentMountDir,
     artifactId,
     binaryPath,
     deferredClientToolRelay,
@@ -509,7 +507,7 @@ async function acquireEnvironmentOnce(
     sessionForMount,
     signAgentMount,
     signMount,
-    signProjectMount,
+    signMountBySlug,
     strictModel,
     timingLog,
   } = setup;
@@ -635,25 +633,8 @@ async function acquireEnvironmentOnce(
         { log },
       );
     }
-    if (!sandboxKeepsMounts && plan.driveOnRunner && environment.agentMountedPath) {
-      const agentMountSafeToDelete = await (
-        environment.deps.unmountStorage ?? unmountStorage
-      )(environment.agentMountedPath, { log }).catch(() => false);
-      if (agentMountSafeToDelete) {
-        try {
-          rmSync(environment.agentMountedPath, {
-            recursive: true,
-            force: true,
-          });
-        } catch (err) {
-          logger(
-            `agent mountpoint cleanup failed path=${environment.agentMountedPath}: ${conciseError(err, plan.harness)}`,
-          );
-        }
-      }
-    }
     if (!sandboxKeepsMounts && plan.driveOnRunner) {
-      for (const drive of projectDrives(environment.drives)) {
+      for (const drive of environment.drives) {
         const mountedPath = drive.mountedPath;
         if (!mountedPath) continue;
         const unmounted = await (environment.deps.unmountStorage ?? unmountStorage)(
@@ -667,7 +648,7 @@ async function acquireEnvironmentOnce(
           rmdirSync(mountedPath);
         } catch (err) {
           logger(
-            `project mountpoint cleanup failed path=${mountedPath}: ${conciseError(err, plan.harness)}`,
+            `drive mountpoint cleanup failed path=${mountedPath}: ${conciseError(err, plan.harness)}`,
           );
         }
       }
@@ -705,20 +686,16 @@ async function acquireEnvironmentOnce(
     ...(deps.unmountStorage ? { unmountStorage: deps.unmountStorage } : {}),
     signMount,
     signAgentMount,
-    signProjectMount,
+    signMountBySlug,
     daytonaPiDir: DAYTONA_PI_DIR,
     signal,
   };
   const mountLocalDurableCwd = (reason: string) =>
     mountLocalDurableCwdUnit(ctx, mountDeps, reason);
-  const mountLocalAgentCwd = (cwdReady?: Promise<unknown>) =>
-    mountLocalAgentCwdUnit(ctx, mountDeps, cwdReady ? { cwdReady } : {});
   const reSignAndRemountLocalCwd = () =>
     reSignAndRemountLocalCwdUnit(ctx, mountDeps);
-  const activateAgentMountGuidance = () =>
-    activateAgentMountGuidanceUnit(ctx, mountDeps);
-  const activateAgentMountUnavailableGuidance = () =>
-    activateAgentMountUnavailableGuidanceUnit(ctx, mountDeps);
+  const activateHomeDriveGuidance = () =>
+    activateHomeDriveGuidanceUnit(ctx, mountDeps, homeDriveStatus(environment.drives));
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown) =>
     remountLocalCwdAfterRuntimeEnotconnUnit(ctx, mountDeps, event);
 
@@ -796,65 +773,59 @@ async function acquireEnvironmentOnce(
     // Local geesefs runs on the host, so mount before spawning the daemon. This lets the
     // mount-success path add guidance/env atomically, while a failed mount starts a normal
     // scratch-only harness with no false durable-storage signal.
-    // The two mounts run at the same time: the agent home is a sibling of the cwd, not inside it,
-    // so neither mount waits on the other. Only the agent mount's `agent-files` link, which lives
-    // in the cwd, waits for the cwd mount (see `cwdReady`). Both are settled before any error is
-    // rethrown, so a failure in one never leaves the other still attaching behind the teardown.
+    // The session folder and every drive mount at the same time: each drive is a sibling of the
+    // cwd, not inside it, so no mount waits on another. Only a drive's links, which live in the
+    // cwd, wait for the cwd mount (see `cwdReady`). All are settled before any error is rethrown,
+    // so a failure in one never leaves another still attaching behind the teardown.
     const cwdMount =
       environment.mountCreds && plan.driveOnRunner
         ? mountLocalDurableCwd("initial")
         : undefined;
-    const agentMount =
-      environment.agentMountCreds && plan.driveOnRunner
-        ? mountLocalAgentCwd(cwdMount)
-        : undefined;
-    // Every listed project drive keeps its `drives/<slug>` entry, signed or not.
-    const listedProjectSlugs = projectDrives(environment.drives).map((d) => d.slug);
-    const localProjects = plan.driveOnRunner
-      ? projectDrives(environment.drives).filter((d) => d.credentials)
+    const localDrives = plan.driveOnRunner
+      ? environment.drives.filter((d) => d.credentials)
       : [];
-    const projectMountsStartedAt = Date.now();
-    const projectMounts = localProjects.map((drive) =>
-      mountLocalProjectMountUnit(ctx, mountDeps, drive, cwdMount ? { cwdReady: cwdMount } : {}),
+    const driveMountsStartedAt = Date.now();
+    const driveMounts = localDrives.map((drive) =>
+      mountLocalDriveUnit(ctx, mountDeps, drive, cwdMount ? { cwdReady: cwdMount } : {}),
     );
-    const projectMountsTimed = timeSettled(projectMounts, () => timingLog("project_mounts", projectMountsStartedAt));
+    const driveMountsTimed = timeSettled(driveMounts, () => timingLog("drive_mounts", driveMountsStartedAt));
     const localMountsStartedAt = Date.now();
-    const [cwdResult, agentResult, ...projectResults] = await Promise.allSettled([
+    const [cwdResult, ...driveResults] = await Promise.allSettled([
       cwdMount,
-      agentMount,
-      ...projectMounts,
+      ...driveMounts,
     ]);
-    const anyLocalMount = !!cwdMount || !!agentMount || projectMounts.length > 0;
+    const anyLocalMount = !!cwdMount || driveMounts.length > 0;
     if (anyLocalMount) timingLog("local_mounts", localMountsStartedAt);
-    await projectMountsTimed;
+    await driveMountsTimed;
     if (cwdResult.status === "rejected") throw cwdResult.reason;
-    if (agentResult.status === "rejected") throw agentResult.reason;
-    for (const result of projectResults) if (result.status === "rejected") throw result.reason;
+    for (const result of driveResults) if (result.status === "rejected") throw result.reason;
     if (cwdResult.value && piSessionDir) environment.nativeHistoryDurable = true;
     if (anyLocalMount) throwIfAcquireAborted(signal);
-    // Only a session drive keeps entries between runs; a throwaway folder has nothing stale.
-    if (plan.driveOnRunner && environment.mountedCwd) {
-      await pruneProjectDriveLinks(plan.workspace.cwd, listedProjectSlugs, { log: logger });
+    if (plan.driveOnRunner) {
+      // Only a session drive keeps entries between runs; a throwaway folder has nothing stale.
+      if (environment.mountedCwd) {
+        await pruneDriveLinks(plan.workspace.cwd, keptLinks(environment.drives, request.drives !== undefined), { log: logger });
+      }
+      if (request.drives !== undefined) {
+        await writeDrivesReadme(plan.workspace.cwd, drivesReadme(environment.drives), { log: logger });
+      }
+      await activateHomeDriveGuidance();
     }
-    // A harness in the runner (`inprocess`) mounts the drive in its own command sandbox when a
-    // tool first needs it, so nothing is mounted here. The credentials' expiry bounds this
+    // A harness in the runner (`inprocess`) mounts the drives in its own command sandbox when a
+    // tool first needs them, so nothing is mounted here. The credentials' expiry bounds this
     // environment as a remote mount's does; the harness keeps the conversation file in the drive
-    // itself; and the model is told about its agent folder, which will be at this path.
+    // itself; and the model is told about its home drive, which will be at this path.
     if (plan.harnessInRunner) {
       if (environment.mountCreds) {
         environment.installedMountExpiries.cwd = mountExpiryMs(environment.mountCreds.expiresAt);
         if (piSessionDir) environment.nativeHistoryDurable = true;
       }
-      if (environment.agentMountCreds && agentMountDir) {
-        environment.agentMountedPath = agentMountDir;
-        environment.installedMountExpiries.agent = mountExpiryMs(environment.agentMountCreds.expiresAt);
-        await activateAgentMountGuidance();
-      }
-      for (const drive of projectDrives(environment.drives)) {
+      for (const drive of environment.drives) {
         if (drive.credentials) {
-          ctx.commitProjectMount(drive, projectMountPath(plan.workspace.cwd, drive.slug), drive.credentials);
+          ctx.commitDriveMount(drive, runDriveMountPath(plan.workspace.cwd, drive), drive.credentials);
         }
       }
+      await activateHomeDriveGuidance();
       throwIfAcquireAborted(signal);
     }
     // INVARIANT 1: the provider takes `env` and `piExtEnv` BY REFERENCE and hands them to the
@@ -943,12 +914,16 @@ async function acquireEnvironmentOnce(
         skillSources: plan.workspace.skillDirs.map((s) => ({ name: s.name, dir: s.dir })),
         roots: [
           ...(sessionDriveRoot ? [{ root: sessionDriveRoot, credentials: () => environment.mountCreds ?? null }] : []),
-          ...(environment.agentMountedPath
-            ? [{ root: environment.agentMountedPath, credentials: () => environment.agentMountCreds ?? null, link: { kind: "agent" as const } }]
-            : []),
-          ...projectDrives(environment.drives).flatMap((drive) =>
+          ...environment.drives.flatMap((drive) =>
             drive.mountedPath
-              ? [{ root: drive.mountedPath, credentials: () => drive.credentials, link: { kind: "project" as const, slug: drive.slug }, readOnly: drive.access === "read" }]
+              ? [
+                  {
+                    root: drive.mountedPath,
+                    credentials: () => drive.credentials,
+                    link: { ...(drive.slug ? { slug: drive.slug } : {}), home: drive.isHome },
+                    readOnly: drive.access === "read",
+                  },
+                ]
               : [],
           ),
         ],
@@ -962,6 +937,7 @@ async function acquireEnvironmentOnce(
                 ),
             }
           : {}),
+        ...(request.drives !== undefined ? { drivesReadme: drivesReadme(environment.drives) } : {}),
         harnessEnv: env,
         extensionEnv: piExtEnv,
         modelEnvironment: plan.credentials.modelEnvironment,
@@ -981,7 +957,7 @@ async function acquireEnvironmentOnce(
         runCred,
         // `inprocess` keeps its command sandbox in its own registry; nothing is reconnected by id.
         ...(plan.harnessInRunner ? {} : { driveIdentity: driveIdentity(request) }),
-        unsignedDrives: projectDrives(environment.drives).some((d) => !d.credentials),
+        unsignedDrives: environment.drives.some((d) => d.slug && !d.credentials),
         log: logger,
         timingLog,
       },
@@ -1192,17 +1168,14 @@ async function acquireEnvironmentOnce(
           })) ?? undefined);
       return { endpoint, refusal: mountRefusal(storeEndpoint, endpoint) };
     };
-    /** Set when a durable mount was ATTEMPTED and refused. Drives the model-facing sentence. */
-    let agentMountSkipped: string | undefined;
-
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
     // workspace materialization (so AGENTS.md, harness files, and skills land in the durable
     // prefix instead of being hidden under the FUSE mount).
-    // The cwd mount (with the harness session dirs) and the agent mount run at the same time. The
-    // three paths are siblings (`<cwd>`, `<cwd>-agent`, `/home/sandbox/...`), never one inside
-    // another, so no mount waits on another. Only the agent mount's `agent-files` link waits for
-    // the cwd mount. Both are settled before any error is rethrown, the cwd error first, so a
-    // failure in one never leaves the other still attaching behind the teardown.
+    // The cwd mount (with the harness session dirs) and the drive mounts run at the same time. The
+    // paths are siblings (`<cwd>`, `<cwd>-drive-<slug>`, `/home/sandbox/...`), never one inside
+    // another, so no mount waits on another. Only the drives' links wait for the cwd mount. All are
+    // settled before any error is rethrown, the cwd error first, so a failure in one never leaves
+    // another still attaching behind the teardown.
     const daytonaCwdMount = (async () => {
       if (environment.mountCreds && plan.isDaytona) {
         const mountsStartedAt = Date.now();
@@ -1311,83 +1284,20 @@ async function acquireEnvironmentOnce(
         if (Number.isFinite(earliest)) environment.installedMountExpiries.transcripts = earliest;
       }
     })();
-    const daytonaAgentMount = (async () => {
-      if (
-        environment.agentMountCreds &&
-        agentMountDir &&
-        plan.isDaytona &&
-        !environment.agentMountedPath
-      ) {
-        const agentMountStartedAt = Date.now();
-        try {
-          const { endpoint, refusal } = await sandboxStoreRoute(environment.agentMountCreds.endpoint);
-          const canMount = !refusal;
-          const mountPath = agentMountDir;
-          if (refusal) {
-            agentMountSkipped = refusal;
-            logger(
-              `WARN durable agent mount SKIPPED for artifact=${artifactId}: ${refusal}. ` +
-                "The agent's durable folder is absent this run; the model is told so explicitly " +
-                "so it does not report the user's saved work as missing.",
-            );
-            // Pi reads its guidance from the append-prompt channel, so the negative sentence has to
-            // be delivered here. Claude takes the same statement through the session-init `_meta`
-            // built below, off `agentMountSkipped`.
-            await activateAgentMountUnavailableGuidance();
-          }
-          if (
-            canMount &&
-            (await (deps.mountStorageRemote ?? mountStorageRemote)(
-              environment.sandbox,
-              mountPath,
-              environment.agentMountCreds,
-              { endpoint, log: logger, signal },
-            ))
-          ) {
-            environment.agentMountedPath = mountPath;
-            environment.installedMountExpiries.agent = mountExpiryMs(
-              environment.agentMountCreds.expiresAt,
-            );
-            await seedAgentReadmeRemote(environment.sandbox, mountPath, {
-              log: logger,
-            });
-            // `agent-files` lives in the cwd: link it only once the cwd mount settled, or the
-            // link would land in the directory that mount then hides. A rejected cwd mount skips
-            // the link and the guidance; the acquire rethrows that rejection below.
-            if (!(await daytonaCwdMount.then(() => true, () => false))) return;
-            await linkAgentFilesRemote(
-              environment.sandbox,
-              plan.workspace.cwd,
-              mountPath,
-              { log: logger },
-            );
-            await activateAgentMountGuidance();
-            logger(`remote agent mount active for artifact=${artifactId}`);
-          }
-        } catch (err) {
-          throwIfAcquireAborted(signal);
-          logger(
-            `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
-          );
-        } finally {
-          timingLog("agent_mount", agentMountStartedAt);
-        }
-      }
-    })();
-    // Each signed project drive mounts beside the others; a refused or failed one is skipped, as
-    // a failed agent drive is, and the prompt says it is not available.
-    const daytonaProjects = plan.isDaytona
-      ? projectDrives(environment.drives).filter((d) => d.credentials)
+    // Each signed drive mounts beside the others; a refused or failed one is skipped, and the
+    // prompt says it is not available.
+    const daytonaDrives = plan.isDaytona
+      ? environment.drives.filter((d) => d.credentials)
       : [];
-    const daytonaProjectMountsStartedAt = Date.now();
-    const daytonaProjectMounts = daytonaProjects.map((drive) =>
+    const daytonaDriveMountsStartedAt = Date.now();
+    const daytonaDriveMounts = daytonaDrives.map((drive) =>
       (async () => {
         const creds = drive.credentials!;
-        const mountPath = projectMountPath(plan.workspace.cwd, drive.slug);
+        const mountPath = runDriveMountPath(plan.workspace.cwd, drive);
         try {
           const { endpoint, refusal } = await sandboxStoreRoute(creds.endpoint);
           if (refusal) {
-            logger(`WARN project drive mount SKIPPED slug=${drive.slug}: ${refusal}.`);
+            logger(`WARN drive mount SKIPPED ${driveSubject(drive)}: ${refusal}.`);
             return;
           }
           if (
@@ -1403,55 +1313,60 @@ async function acquireEnvironmentOnce(
               },
             )
           ) {
-            ctx.commitProjectMount(drive, mountPath, creds);
-            // The `drives/<slug>` link lives in the cwd, so it waits for the cwd mount.
+            ctx.commitDriveMount(drive, mountPath, creds);
+            if (drive.isHome) await seedHomeReadmeRemote(environment.sandbox, mountPath, { log: logger });
+            // The links live in the cwd, so they wait for the cwd mount.
             if (!(await daytonaCwdMount.then(() => true, () => false))) return;
-            ctx.recordProjectLink(
+            ctx.recordDriveLink(
               drive,
-              await linkProjectDriveRemote(
-                environment.sandbox,
-                plan.workspace.cwd,
-                drive.slug,
-                mountPath,
-                { log: logger },
-              ),
+              await linkRunDriveRemote(environment.sandbox, plan.workspace.cwd, drive, mountPath, { log: logger }),
             );
           }
         } catch (err) {
           throwIfAcquireAborted(signal);
           logger(
-            `remote project mount failed slug=${drive.slug}: ${conciseError(err, plan.harness)}`,
+            `remote drive mount failed ${driveSubject(drive)}: ${conciseError(err, plan.harness)}`,
           );
         }
       })(),
     );
-    const daytonaProjectMountsTimed = timeSettled(daytonaProjectMounts, () =>
-      timingLog("project_mounts", daytonaProjectMountsStartedAt),
+    const daytonaDriveMountsTimed = timeSettled(daytonaDriveMounts, () =>
+      timingLog("drive_mounts", daytonaDriveMountsStartedAt),
     );
-    const [daytonaCwdResult, daytonaAgentResult, ...daytonaProjectResults] =
-      await Promise.allSettled([
-        daytonaCwdMount,
-        daytonaAgentMount,
-        ...daytonaProjectMounts,
-      ]);
-    await daytonaProjectMountsTimed;
+    const [daytonaCwdResult, ...daytonaDriveResults] = await Promise.allSettled([
+      daytonaCwdMount,
+      ...daytonaDriveMounts,
+    ]);
+    await daytonaDriveMountsTimed;
     if (daytonaCwdResult.status === "rejected") throw daytonaCwdResult.reason;
-    if (daytonaAgentResult.status === "rejected") throw daytonaAgentResult.reason;
-    for (const result of daytonaProjectResults)
+    for (const result of daytonaDriveResults)
       if (result.status === "rejected") throw result.reason;
-    if (plan.isDaytona && environment.installedMountExpiries.cwd !== undefined) {
-      await pruneProjectDriveLinksRemote(environment.sandbox, plan.workspace.cwd, listedProjectSlugs, { log: logger });
+    if (plan.isDaytona) {
+      if (environment.installedMountExpiries.cwd !== undefined) {
+        await pruneDriveLinksRemote(
+          environment.sandbox,
+          plan.workspace.cwd,
+          keptLinks(environment.drives, request.drives !== undefined),
+          { log: logger },
+        );
+      }
+      if (request.drives !== undefined) {
+        await writeDrivesReadmeRemote(environment.sandbox, plan.workspace.cwd, drivesReadme(environment.drives), { log: logger });
+      }
+      await activateHomeDriveGuidance();
     }
 
-    // Restore the agent's own tools (`agent-files/.tools/`) now that both agent-mount paths
-    // have settled and before the session opens, so a venv or a binary the model saved in an
-    // earlier session is ready on local disk when this one starts. Never fails the turn; see
-    // `agent-tools-setup.ts` for the convention, the permission guard, and why the mount itself
-    // cannot hold a venv.
-    if (environment.agentMountedPath && plan.harnessInRunner) {
+    // Restore the agent's own tools (`.tools/` of the home drive) now that the drive mounts have
+    // settled and before the session opens, so a venv or a binary the model saved in an earlier
+    // session is ready on local disk when this one starts. A home drive that is not available
+    // restores nothing. Never fails the turn; see `agent-tools-setup.ts` for the convention, the
+    // permission guard, and why the mount itself cannot hold a venv.
+    const homeStatus = homeDriveStatus(environment.drives);
+    const home = typeof homeStatus === "object" ? homeStatus : undefined;
+    if (home && plan.harnessInRunner) {
       // `inprocess` never runs owner code on the runner host. The restore runs in the command
       // sandbox right before its first command, after the workspace sync has pushed `.tools/`.
-      const mountPath = environment.agentMountedPath;
+      const mountPath = home.path;
       (environment.sandbox as InRunnerSandboxHandle | undefined)?.onFirstCommand((exec: AgentToolsSetupExec, commandSignal?: AbortSignal) =>
         runAgentToolsSetup(
           {
@@ -1464,9 +1379,9 @@ async function acquireEnvironmentOnce(
           { log: logger, hostEnv: {}, ...(commandSignal ? { signal: commandSignal } : {}) },
         ),
       );
-    } else if (environment.agentMountedPath) {
+    } else if (home) {
       const agentToolsStartedAt = Date.now();
-      const mountPath = environment.agentMountedPath;
+      const mountPath = home.path;
       await runAgentToolsSetup(
         {
           mountPath,
@@ -1478,7 +1393,7 @@ async function acquireEnvironmentOnce(
           // Local only: a Daytona sandbox is fresh, so there is no local disk to reuse.
           ...(plan.isDaytona
             ? {}
-            : { cache: agentToolsCacheFor(environment.projectScopeId, artifactId) }),
+            : { cache: agentToolsCacheFor(environment.projectScopeId, homeDrive(environment.drives)?.credentials?.mountId) }),
         },
         plan.isDaytona
           ? remoteAgentToolsExec(environment.sandbox)
@@ -1511,17 +1426,15 @@ async function acquireEnvironmentOnce(
     });
     // The instructions file is the fourth guidance channel, and the only one every harness reads.
     // It is composed HERE rather than in `run-plan.ts` because the mount arm needs mount state:
-    // both agent-mount paths above run before this point (local at `mountLocalAgentCwd`, Daytona
-    // in the block just above), so `agentMountedPath` and `agentMountSkipped` are settled and the
-    // file can state what is true instead of what was hoped for.
+    // the drive mounts above have settled, so the home drive's state is known and the file can
+    // state what is true instead of what was hoped for.
     //
     // The guidance rides a COPY of the plan. `plan.prompt.agentsMd` is the author's text, and the
     // rest of the run should keep seeing it that way; only the write wants the rendered form.
     const guidance = platformGuidanceAppendix({
       acpAgent: plan.acpAgent,
       isPi: plan.isPi,
-      agentMountedPath: environment.agentMountedPath,
-      agentMountSkipped: !!agentMountSkipped,
+      homeDrive: homeStatus,
       // Mirrors prepareWorkspace's materialization split: Pi reads the immutable snapshot dir
       // (`resolvePiSkillSnapshot`); other harnesses read `.{acpAgent}/skills/<name>`.
       skillsPath: plan.workspace.skillDirs.length
@@ -1530,12 +1443,17 @@ async function acquireEnvironmentOnce(
           : join(plan.workspace.cwd, `.${plan.acpAgent}`, "skills")
         : undefined,
       toolNames: plan.tools.toolSpecs.map((spec) => spec.name),
-      hasAgentDrive: environment.drives.some((d) => d.kind === "agent"),
-      projectDrives: projectDrives(environment.drives).map((drive) => ({
-        slug: drive.slug,
-        access: drive.access,
-        mountedPath: plan.harnessInRunner || drive.linked ? drive.mountedPath : undefined,
-      })),
+      drives: environment.drives.flatMap((drive) =>
+        drive.slug
+          ? [
+              {
+                slug: drive.slug,
+                access: drive.access,
+                mountedPath: driveAvailable(drive) ? drive.mountedPath : undefined,
+              },
+            ]
+          : [],
+      ),
       ...(drivesListedEmpty(request)
         ? {
             noDrives: {
@@ -1710,10 +1628,10 @@ async function acquireEnvironmentOnce(
     const claudeAppendix =
       plan.acpAgent === "claude"
         ? composeSystemPromptAppendix([
-            environment.agentMountedPath
-              ? agentMountAppendix(environment.agentMountedPath)
-              : agentMountSkipped
-                ? agentMountUnavailableAppendix()
+            homeStatus === "unavailable"
+              ? agentMountUnavailableAppendix()
+              : homeStatus
+                ? agentMountAppendix(homeStatus.path)
                 : undefined,
           ])
         : undefined;

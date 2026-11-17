@@ -613,6 +613,7 @@ _AGENT_TEMPLATE_KEYS = frozenset(
         "sandbox",
         "has_session_drive",
         "drives",
+        "home_drive",
     }
 )
 

@@ -148,6 +148,16 @@ class WorkflowsDAOInterface(GitDAOInterface):
         agent access backfill and of `ensure_first_agent_access`."""
 
     @abstractmethod
+    async def agent_states_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> bool:
+        """True when a stored revision of the artifact has a `drives` key, in one
+        indexed read."""
+
+    @abstractmethod
     async def query_artifacts(  # type: ignore[override]
         self,
         *,

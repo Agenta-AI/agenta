@@ -11,7 +11,7 @@
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-approval.test.ts)
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
-import { projectDriveSigns } from "../utils/drive-sign.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -316,7 +316,7 @@ function makeApprovalEngine(
       return applyScript(env as unknown as DispatchFakeEnv, request, opts);
     },
     readLatestTurnIndex: turnLogUnmoved,
-    signProjectDrive: projectDriveSigns,
+    signDrive: driveSigns,
     async runCold(_request, _emit, _signal, _presigned) {
       calls.cold += 1;
       return { ok: true, output: "cold", stopReason: "complete" };
@@ -752,11 +752,11 @@ describe("runWithKeepalive: approval park + resume", () => {
     await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
     const parked = calls.acquiredEnvs[0];
     (parked as unknown as { drives: unknown[] }).drives = [
-      { kind: "project", slug: "prices", access: "read-write", credentials: { accessKey: "AK" } },
+      { slug: "prices", access: "read-write", isHome: false, credentials: { accessKey: "AK" } },
     ];
     const signed: string[] = [];
-    engine.signProjectDrive = async (slug) => {
-      signed.push(slug);
+    engine.signDrive = async (drive) => {
+      signed.push(drive.slug!);
       return null;
     };
     const reasons: Array<string | undefined> = [];
@@ -788,9 +788,9 @@ describe("runWithKeepalive: approval park + resume", () => {
     await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
     const parked = calls.acquiredEnvs[0];
     (parked as unknown as { drives: unknown[] }).drives = [
-      { kind: "project", slug: "prices", access: "read-write", credentials: { accessKey: "AK" } },
+      { slug: "prices", access: "read-write", isHome: false, credentials: { accessKey: "AK" } },
     ];
-    engine.signProjectDrive = async () => null;
+    engine.signDrive = async () => null;
     const reasons: Array<string | undefined> = [];
     parked.destroy = ((opts?: { reason?: string }) => {
       reasons.push(opts?.reason);

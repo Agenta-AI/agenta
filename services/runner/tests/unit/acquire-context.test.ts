@@ -18,7 +18,7 @@ import {
 import { createAcquireContext } from "../../src/environment/acquire-context-impl.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent/runtime-contracts.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
-import type { ProjectRunDrive } from "../../src/engines/sandbox_agent/run-drives.ts";
+import type { RunDrive } from "../../src/engines/sandbox_agent/run-drives.ts";
 
 const CREDS = (expiresAt: string | undefined): MountCredentials =>
   ({
@@ -36,9 +36,7 @@ function makeContext() {
     session: undefined,
     sessionId: "sess-1",
     mountCreds: null,
-    agentMountCreds: undefined,
     mountedCwd: undefined,
-    agentMountedPath: undefined,
     runAgentDir: undefined,
     durableCwdSafeToDelete: false,
     runtimeRemount: undefined,
@@ -99,7 +97,7 @@ describe("FINDING 1: the environment is a read-only projection, not a readonly r
     // after another unit committed must see the new value.
     const { context } = makeContext();
     assert.equal(context.env.mountedCwd, undefined);
-    context.commitLocalMount("cwd", "/run/cwd", CREDS(undefined));
+    context.commitLocalMount("/run/cwd", CREDS(undefined));
     assert.equal(context.env.mountedCwd, "/run/cwd");
   });
 });
@@ -173,7 +171,7 @@ describe("FINDING 2: the freeze throw escapes an operational catch", () => {
 describe("FINDING 3: Daytona records an expiry WITHOUT a path", () => {
   it("commitLocalMount writes path and expiry together", () => {
     const { context, environment } = makeContext();
-    context.commitLocalMount("cwd", "/run/cwd", CREDS("2026-01-01T00:00:00Z"));
+    context.commitLocalMount("/run/cwd", CREDS("2026-01-01T00:00:00Z"));
     assert.equal(context.env.mountedCwd, "/run/cwd");
     assert.ok(environment.installedMountExpiries.cwd);
   });
@@ -182,7 +180,7 @@ describe("FINDING 3: Daytona records an expiry WITHOUT a path", () => {
     // The real Daytona behavior (environment.ts:768-772). Setting a path here would make
     // teardown try to unmount a host path that never existed.
     const { context, environment } = makeContext();
-    context.commitRemoteMountExpiry("cwd", CREDS("2026-01-01T00:00:00Z"));
+    context.commitRemoteMountExpiry(CREDS("2026-01-01T00:00:00Z"));
     assert.ok(environment.installedMountExpiries.cwd);
     assert.equal(
       context.env.mountedCwd,
@@ -195,8 +193,8 @@ describe("FINDING 3: Daytona records an expiry WITHOUT a path", () => {
     // INVARIANT 3. Passing the credential explicitly is what proves the recorded lease belongs
     // to the mount that actually happened, rather than to one that was merely signed.
     const { context, environment } = makeContext();
-    context.recordResignedCredential("cwd", CREDS("2030-01-01T00:00:00Z"));
-    context.commitLocalMount("cwd", "/run/cwd", CREDS("2026-01-01T00:00:00Z"));
+    context.recordResignedCredential(CREDS("2030-01-01T00:00:00Z"));
+    context.commitLocalMount("/run/cwd", CREDS("2026-01-01T00:00:00Z"));
     const mounted = Date.parse("2026-01-01T00:00:00Z");
     assert.equal(environment.installedMountExpiries.cwd, mounted);
   });
@@ -230,24 +228,22 @@ describe("FINDING 4: durableCwdSafeToDelete has three named transitions", () => 
 });
 
 describe("FINDING 5 and INVARIANT 2: credentials and the re-sign path", () => {
-  it("recordResignedCredential is the only writer of both credential fields", () => {
+  it("recordResignedCredential is the only writer of the session credential", () => {
     const { context, environment } = makeContext();
     const fresh = CREDS("2030-01-01T00:00:00Z");
-    context.recordResignedCredential("cwd", fresh);
+    context.recordResignedCredential(fresh);
     assert.strictEqual(environment.mountCreds, fresh);
-    context.recordResignedCredential("agent", fresh);
-    assert.strictEqual(environment.agentMountCreds, fresh);
   });
 
   it("PRESERVED: a failed cwd remount can leave mountedCwd set while the credential is new", () => {
     // The behavior revision 1 described WRONGLY and the reviewer corrected. It is preserved for
     // this split, and pinned here so it is not rediscovered as a surprise later.
     const { context, environment } = makeContext();
-    context.commitLocalMount("cwd", "/run/cwd", CREDS("2026-01-01T00:00:00Z"));
+    context.commitLocalMount("/run/cwd", CREDS("2026-01-01T00:00:00Z"));
 
     // A re-sign lands, then the remount fails: the mount helper returns without clearing the path.
     const fresh = CREDS("2030-01-01T00:00:00Z");
-    context.recordResignedCredential("cwd", fresh);
+    context.recordResignedCredential(fresh);
     context.beginCwdMount();
 
     assert.strictEqual(
@@ -260,13 +256,6 @@ describe("FINDING 5 and INVARIANT 2: credentials and the re-sign path", () => {
       "/run/cwd",
       "and the OLD path is still set: the two disagree until the next successful remount",
     );
-  });
-
-  it("the agent re-sign clears its path so the remount does not short-circuit", () => {
-    const { context } = makeContext();
-    context.commitLocalMount("agent", "/mnt/agent", CREDS(undefined));
-    context.clearMountPath("agent");
-    assert.equal(context.env.agentMountedPath, undefined);
   });
 });
 
@@ -309,9 +298,9 @@ describe("the plan mutation is narrow, and the budgets are per acquire", () => {
       "an ENOTCONN storm must not be able to re-sign forever",
     );
     assert.equal(
-      context.takeRemountBudget("agent"),
+      context.takeRemountBudget("drive:/w-drive-notes"),
       true,
-      "the agent budget is independent of the cwd budget",
+      "a drive's budget is independent of the cwd budget",
     );
   });
 
@@ -325,24 +314,25 @@ describe("the plan mutation is narrow, and the budgets are per acquire", () => {
   });
 });
 
-describe("project drive committers", () => {
-  it("records the mount with its expiry, a re-sign that clears the path, a link outcome, and a budget per slug", () => {
+describe("drive committers", () => {
+  it("records the mount with its expiry, a re-sign that keeps the path, a link outcome, and a budget per drive", () => {
     const { context, environment } = makeContext();
-    const drive: ProjectRunDrive = { kind: "project", slug: "notes", access: "read", credentials: CREDS(undefined) };
-    context.commitProjectMount(drive, "/w-project-notes", CREDS("2030-01-01T00:00:00Z"));
-    assert.equal(drive.mountedPath, "/w-project-notes");
-    assert.equal(environment.installedMountExpiries.projects?.notes, Date.parse("2030-01-01T00:00:00Z"));
+    const drive: RunDrive = { slug: "notes", access: "read", isHome: false, credentials: CREDS(undefined) };
+    context.commitDriveMount(drive, "/w-drive-notes", CREDS("2030-01-01T00:00:00Z"));
+    assert.equal(drive.mountedPath, "/w-drive-notes");
+    assert.equal(environment.installedMountExpiries.drives?.["/w-drive-notes"], Date.parse("2030-01-01T00:00:00Z"));
     const fresh = CREDS("2031-01-01T00:00:00Z");
-    context.recordResignedProjectCredential(drive, fresh);
+    context.recordResignedDriveCredential(drive, fresh);
     assert.equal(drive.credentials, fresh);
-    assert.equal(drive.mountedPath, "/w-project-notes", "kept until the detach is confirmed");
-    context.releaseProjectMount(drive);
+    assert.equal(drive.mountedPath, "/w-drive-notes", "kept until the detach is confirmed");
+    context.releaseDriveMount(drive);
     assert.equal(drive.mountedPath, undefined);
-    context.recordProjectLink(drive, false);
+    assert.equal(environment.installedMountExpiries.drives?.["/w-drive-notes"], undefined, "and its expiry");
+    context.recordDriveLink(drive, false);
     assert.equal(drive.linked, false);
-    assert.equal(context.takeRemountBudget("project:notes"), true);
-    assert.equal(context.takeRemountBudget("project:notes"), true);
-    assert.equal(context.takeRemountBudget("project:notes"), false);
-    assert.equal(context.takeRemountBudget("project:other"), true);
+    assert.equal(context.takeRemountBudget("drive:/w-drive-notes"), true);
+    assert.equal(context.takeRemountBudget("drive:/w-drive-notes"), true);
+    assert.equal(context.takeRemountBudget("drive:/w-drive-notes"), false);
+    assert.equal(context.takeRemountBudget("drive:/w-drive-other"), true);
   });
 });

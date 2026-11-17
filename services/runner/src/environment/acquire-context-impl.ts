@@ -72,14 +72,8 @@ export function createAcquireContext(
     get mountCreds() {
       return environment.mountCreds;
     },
-    get agentMountCreds() {
-      return environment.agentMountCreds;
-    },
     get mountedCwd() {
       return environment.mountedCwd;
-    },
-    get agentMountedPath() {
-      return environment.agentMountedPath;
     },
     get drives() {
       return environment.drives;
@@ -143,50 +137,38 @@ export function createAcquireContext(
     },
 
     // --- mount state, INVARIANTS 2 and 3 ---------------------------------------------- //
-    recordResignedCredential(kind, credential) {
-      if (kind === "cwd") environment.mountCreds = credential;
-      else environment.agentMountCreds = credential;
+    recordResignedCredential(credential) {
+      environment.mountCreds = credential;
     },
-    commitLocalMount(kind, path, credential) {
+    commitLocalMount(path, credential) {
       // Path and expiry together, from ONE credential, so the recorded lease provably belongs to
       // the mount the daemon received.
-      if (kind === "cwd") {
-        environment.mountedCwd = path;
-        environment.installedMountExpiries.cwd = mountExpiryMs(
-          credential.expiresAt,
-        );
-      } else {
-        environment.agentMountedPath = path;
-        environment.installedMountExpiries.agent = mountExpiryMs(
-          credential.expiresAt,
-        );
-      }
+      environment.mountedCwd = path;
+      environment.installedMountExpiries.cwd = mountExpiryMs(credential.expiresAt);
     },
-    commitRemoteMountExpiry(kind, credential) {
+    commitRemoteMountExpiry(credential) {
       // Expiry with NO path. A Daytona mount lives inside the sandbox and dies with it, so there
       // is no host mountpoint for teardown to unmount.
-      const expiry = mountExpiryMs(credential.expiresAt);
-      if (kind === "cwd") environment.installedMountExpiries.cwd = expiry;
-      else environment.installedMountExpiries.agent = expiry;
+      environment.installedMountExpiries.cwd = mountExpiryMs(credential.expiresAt);
     },
-    clearMountPath(kind) {
-      if (kind === "cwd") environment.mountedCwd = undefined;
-      else environment.agentMountedPath = undefined;
-    },
-    commitProjectMount(drive, path, credential) {
+    commitDriveMount(drive, path, credential) {
       drive.mountedPath = path;
-      environment.installedMountExpiries.projects = {
-        ...environment.installedMountExpiries.projects,
-        [drive.slug]: mountExpiryMs(credential.expiresAt),
+      environment.installedMountExpiries.drives = {
+        ...environment.installedMountExpiries.drives,
+        [path]: mountExpiryMs(credential.expiresAt),
       };
     },
-    recordProjectLink(drive, linked) {
+    recordDriveLink(drive, linked) {
       drive.linked = linked;
     },
-    recordResignedProjectCredential(drive, credential) {
+    recordResignedDriveCredential(drive, credential) {
       drive.credentials = credential;
     },
-    releaseProjectMount(drive) {
+    releaseDriveMount(drive) {
+      if (drive.mountedPath && environment.installedMountExpiries.drives) {
+        const { [drive.mountedPath]: _released, ...rest } = environment.installedMountExpiries.drives;
+        environment.installedMountExpiries.drives = rest;
+      }
       drive.mountedPath = undefined;
     },
 

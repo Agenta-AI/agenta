@@ -371,9 +371,9 @@ export class ConversationWorkspace {
     const turn = this.turns;
     if (this.viewRefresh?.turn === turn) return this.viewRefresh.done;
     const done = (async () => {
-      // A new turn on a standing mount: a project link may have been replaced since the last one.
+      // A new turn on a standing mount: a drive link may have been replaced since the last one.
       // Repaired here so concurrent calls share one repair, as they share the refresh.
-      if (this.viewTurn < turn) await this.drive.link(use.sandbox, undefined, { projectsOnly: true });
+      if (this.viewTurn < turn) await this.drive.link(use.sandbox);
       const failure = await use.sandbox.run(this.drive.refreshCommand, { timeoutSeconds: REFRESH_SECONDS }).then(
         (r) => (r.exitCode === 0 ? undefined : `${r.output.trim().slice(0, 80)} root(s) not refreshed`),
         (err) => String(err).slice(0, 120),

@@ -268,16 +268,8 @@ describe("remote sandbox reconnect ladder", () => {
 
   it("creates fresh when the parked sandbox was set up with other drives, and reconnects for the same ones", async () => {
     const withDrives = (drives: AgentRunRequest["drives"]) => ({ ...daytonaRequest, drives }) as AgentRunRequest;
-    const both = withDrives([{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }]);
-    const dropped = fakeSandbox("sbx-99");
-    recordSandboxDrives("sbx-99", driveIdentity(both));
-    assert.equal((await runSandboxAgent(withDrives([{ kind: "agent" }]), undefined, undefined, dropped.deps)).ok, true);
-    assert.deepEqual(dropped.calls.starts, [{ sandboxId: undefined }], "a removed project drive never reaches a reused sandbox");
-    assert.ok(dropped.calls.logs.some((m) => m.includes("stored sandbox=sbx-99 was set up with other drives")));
-
-    const same = fakeSandbox("sbx-99");
-    recordSandboxDrives("sbx-99", driveIdentity(both));
-    same.deps.signProjectMountCredentials = (async () => ({
+    const both = withDrives([{ slug: "home", access: "read-write" }, { slug: "notes", access: "read" }]);
+    const signed = (async () => ({
       endpoint: "https://s3.example.com",
       region: "us-east-1",
       bucket: "b",
@@ -285,6 +277,17 @@ describe("remote sandbox reconnect ladder", () => {
       accessKey: "AK",
       secretKey: "SK",
     })) as never;
+    const dropped = fakeSandbox("sbx-99");
+    dropped.deps.signMountCredentialsBySlug = signed;
+    dropped.deps.mountStorageRemote = (async () => false) as never;
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    assert.equal((await runSandboxAgent(withDrives([{ slug: "home", access: "read-write" }]), undefined, undefined, dropped.deps)).ok, true);
+    assert.deepEqual(dropped.calls.starts, [{ sandboxId: undefined }], "a removed drive never reaches a reused sandbox");
+    assert.ok(dropped.calls.logs.some((m) => m.includes("stored sandbox=sbx-99 was set up with other drives")));
+
+    const same = fakeSandbox("sbx-99");
+    recordSandboxDrives("sbx-99", driveIdentity(both));
+    same.deps.signMountCredentialsBySlug = signed;
     same.deps.mountStorageRemote = (async () => false) as never;
     await runSandboxAgent(both, undefined, undefined, same.deps);
     assert.equal(same.calls.starts[0]?.sandboxId, "sbx-99");
@@ -298,14 +301,14 @@ describe("remote sandbox reconnect ladder", () => {
     assert.deepEqual(calls.starts, [{ sandboxId: undefined }]);
   });
 
-  it("creates fresh when a configured project drive could not be signed this turn", async () => {
+  it("creates fresh when a configured drive could not be signed this turn", async () => {
     const both = {
       ...daytonaRequest,
-      drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }],
+      drives: [{ slug: "home", access: "read-write" }, { slug: "notes", access: "read" }],
     } as AgentRunRequest;
     const { calls, deps } = fakeSandbox("sbx-99");
     recordSandboxDrives("sbx-99", driveIdentity(both));
-    deps.signProjectMountCredentials = (async () => null) as never;
+    deps.signMountCredentialsBySlug = (async () => null) as never;
     assert.equal((await runSandboxAgent(both, undefined, undefined, deps)).ok, true);
     assert.deepEqual(calls.starts, [{ sandboxId: undefined }], "the parked sandbox may still hold the old mount");
     assert.ok(calls.logs.some((m) => m.includes("not reused: a drive could not be signed")));

@@ -57,5 +57,6 @@
     }
   ],
   "drives": [],
+  "homeDrive": null,
   "hasSessionDrive": false
 }

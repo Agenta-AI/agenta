@@ -30,6 +30,7 @@ import httpx
 if TYPE_CHECKING:
     from oss.src.core.environments.service import EnvironmentsService
     from oss.src.core.embeds.service import EmbedsService
+    from oss.src.core.mounts.service import MountsService
     from oss.src.core.triggers.interfaces import TriggersDAOInterface
 
 from oss.src.utils.logging import get_module_logger
@@ -54,10 +55,12 @@ from agenta.sdk.agents import (
     InvalidHarnessKindError,
     InvalidAgentDrivesError as AgentDrivesShapeError,
     InvalidAgentInstructionsError as AgentInstructionsShapeError,
+    InvalidHomeDriveError as HomeDriveShapeError,
     InvalidSessionDriveError as SessionDriveShapeError,
     validate_agent_drives,
     validate_agent_instructions,
     validate_has_session_drive,
+    validate_home_drive,
 )
 
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -177,18 +180,28 @@ from oss.src.core.sharing.dtos import (
     AgentReadScope,
     Visibility,
 )
-from oss.src.core.sharing.service import invalidate_sharing_caches
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.dtos import ResourceKind, ResourceRef
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.mounts.agent_drives import fill_agent_drive_keys
+from oss.src.core.sharing.service import (
+    get_sharing_service,
+    invalidate_sharing_caches,
+)
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
     AgentDriveNotFoundError,
+    AgentDriveNotSharedError,
     AgentReferenceUnresolved,
+    HomeDriveNotAllowedError,
     InvalidAgentDrivesError,
+    InvalidHomeDriveError,
     InvalidSessionDriveError,
     InvalidAgentHarnessError,
     InvalidAgentConnectionError,
     InvalidAgentInstructionsError,
-    ProjectMountLookupMissing,
+    MountLookupMissing,
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
@@ -384,19 +397,25 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
             )
 
 
-def _agent_drives(data: Any) -> Optional[List[Any]]:
-    """The parsed drive entries of an agent commit, or None for a workflow that is not an agent.
-
-    The rules are the SDK's: a broken entry answers ``invalid_drive_entry``, a broken
-    ``has_session_drive`` answers ``invalid_session_drive``.
-    """
+def _agent_config(data: Any) -> Optional[dict]:
+    """``parameters.agent`` of a revision's data, or None for a workflow that is not an
+    agent."""
     if hasattr(data, "model_dump"):
         data = data.model_dump(mode="json", exclude_none=True)
     if not isinstance(data, dict):
         return None
     agent = (data.get("parameters") or {}).get("agent")
-    if not isinstance(agent, dict):
-        return None
+    return agent if isinstance(agent, dict) else None
+
+
+def _agent_drives(agent: dict) -> Tuple[Optional[List[Any]], Optional[str]]:
+    """The parsed drive entries and home drive of an agent configuration. ``None``
+    entries: a legacy configuration without ``drives``.
+
+    The rules are the SDK's: a broken entry answers ``invalid_drive_entry``, a broken
+    ``home_drive`` answers ``invalid_home_drive``, a broken ``has_session_drive`` answers
+    ``invalid_session_drive``.
+    """
     try:
         validate_has_session_drive(agent.get("has_session_drive"))
     except SessionDriveShapeError as e:
@@ -409,7 +428,7 @@ def _agent_drives(data: Any) -> Optional[List[Any]]:
             ),
         ) from e
     try:
-        return validate_agent_drives(agent.get("drives"))
+        drives = validate_agent_drives(agent.get("drives"))
     except AgentDrivesShapeError as e:
         raise InvalidAgentDrivesError(
             field=e.field,
@@ -419,6 +438,27 @@ def _agent_drives(data: Any) -> Optional[List[Any]]:
                 "Correct parameters.agent.drives as the message says, then commit again."
             ),
         ) from e
+    try:
+        home_drive = validate_home_drive(agent.get("home_drive"), drives)
+    except HomeDriveShapeError as e:
+        raise InvalidHomeDriveError(
+            field="home_drive",
+            value=e.value,
+            message=f"The home drive is not valid: parameters.agent.home_drive {e.reason}.",
+            next_step=(
+                "Set home_drive to the slug of a read-write entry of drives, or to null."
+            ),
+        ) from e
+    return drives, home_drive
+
+
+def _with_agent_config(data: Any, agent: dict) -> Any:
+    """``data`` (a dict or a revision data model) with ``parameters.agent`` replaced."""
+    if hasattr(data, "model_copy"):
+        return data.model_copy(
+            update={"parameters": {**(data.parameters or {}), "agent": agent}}
+        )
+    return {**data, "parameters": {**(data.get("parameters") or {}), "agent": agent}}
 
 
 def _validate_persisted_shape(data: dict) -> None:
@@ -518,40 +558,214 @@ class WorkflowsService:
         # root that serves the archive routes (the triggers DAO is built after this
         # service there).
         self._triggers_dao: Optional["TriggersDAOInterface"] = None
-        self._project_mount_lookup: Optional[
-            Callable[..., Awaitable[Optional[Any]]]
-        ] = None
+        self._mount_lookup: Optional["MountsService"] = None
 
     def set_triggers_dao(self, triggers_dao: "TriggersDAOInterface") -> None:
         self._triggers_dao = triggers_dao
 
-    def set_project_mount_lookup(
-        self, lookup: Callable[..., Awaitable[Optional[Any]]]
-    ) -> None:
-        """``lookup(project_id=, slug=)`` returns the active project drive or None. Set by the
-        composition root, because the mounts service depends on this service."""
-        self._project_mount_lookup = lookup
+    def set_mount_lookup(self, mounts_service: "MountsService") -> None:
+        """The mounts service the drive checks read through (``fetch_mount_by_slug``,
+        ``fetch_agent_drive``, ``create_agent_drive``). Set by the composition root,
+        because the mounts service depends on this service."""
+        self._mount_lookup = mounts_service
+
+    def _require_mount_lookup(self) -> "MountsService":
+        if self._mount_lookup is None:
+            raise MountLookupMissing()
+        return self._mount_lookup
+
+    async def _own_drive_and_policy(
+        self, *, project_id: UUID, artifact_id: UUID
+    ) -> Tuple[Optional[Any], Optional[AccessPolicy]]:
+        """The drive created with the agent and its visibility, or (None, None)."""
+        own = await self._require_mount_lookup().fetch_agent_drive(
+            project_id=project_id, artifact_id=str(artifact_id)
+        )
+        if own is None:
+            return None, None
+        sharing = get_sharing_service()
+        access = await sharing.fetch_mount_access_cached(
+            project_id=project_id, mount_id=own.id
+        )
+        if access is None:
+            return None, None
+        return own, await sharing.mount_policy(project_id=project_id, access=access)
+
+    async def _agent_policy(
+        self, *, project_id: UUID, artifact_id: Optional[UUID]
+    ) -> Optional[AccessPolicy]:
+        if artifact_id is None:
+            return None
+        return (
+            await get_sharing_service().fetch_agent_policy_cached(
+                project_id=project_id, artifact_id=artifact_id
+            )
+        ).policy
+
+    async def fill_agent_revision_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: Optional[UUID],
+        data: Any,
+        create_missing: bool = False,
+        user_id: Optional[UUID] = None,
+        first_agent_owner_user_id: Optional[UUID] = None,
+    ) -> Any:
+        """``data`` with the drive keys stated for an agent configuration.
+
+        With ``create_missing`` (a commit): an agent with no drive whose configuration
+        has no ``home_drive`` key gets its own drive, listed and set as home. Then a
+        configuration without ``drives`` is filled (``fill_agent_drive_keys``). On a
+        read, an agent with no drive keeps the legacy configuration."""
+        agent = _agent_config(data)
+        if agent is None or artifact_id is None:
+            return data
+        if "drives" in agent and not create_missing:
+            return data
+        lookup = self._require_mount_lookup()
+        own, own_policy = await self._own_drive_and_policy(
+            project_id=project_id, artifact_id=artifact_id
+        )
+        agent_policy = await self._agent_policy(
+            project_id=project_id, artifact_id=artifact_id
+        )
+        if own is None and create_missing and "home_drive" not in agent:
+            visibility = agent_policy or (
+                AccessPolicy(
+                    visibility=Visibility.PROJECT,
+                    owner_user_id=first_agent_owner_user_id,
+                )
+                if first_agent_owner_user_id is not None
+                else OWNERLESS_PROJECT_POLICY
+            )
+            workflow = await self.fetch_workflow(
+                project_id=project_id,
+                workflow_ref=Reference(id=artifact_id),
+                include_archived=True,
+            )
+            own = await lookup.create_agent_drive(
+                project_id=project_id,
+                user_id=user_id,
+                artifact_id=str(artifact_id),
+                agent_slug=getattr(workflow, "slug", None),
+                agent_name=getattr(workflow, "name", None),
+                visibility=visibility,
+            )
+            drives = agent.get("drives")
+            agent = {
+                **agent,
+                "drives": [
+                    *(drives if isinstance(drives, list) else []),
+                    {"slug": own.slug},
+                ],
+                "home_drive": own.slug,
+            }
+            return _with_agent_config(data, agent)
+        if "drives" in agent:
+            return data
+        if own is None and not create_missing:
+            return data
+        return _with_agent_config(
+            data,
+            fill_agent_drive_keys(
+                agent,
+                own.slug if own is not None else None,
+                own_policy,
+                agent_policy,
+            ),
+        )
+
+    async def _saver_may_use(self, *, project_id: UUID, mount_id: UUID) -> bool:
+        """The drive rule for the request's principal, with no channel exception."""
+        access = get_request_access()
+        sharing = get_sharing_service()
+        if access is None:
+            mount = await sharing.fetch_mount_access_cached(
+                project_id=project_id, mount_id=mount_id
+            )
+            if mount is None:
+                return False
+            policy = await sharing.mount_policy(project_id=project_id, access=mount)
+            return policy.visibility == Visibility.PROJECT
+        reason = await sharing.evaluate(
+            principal=access.principal,
+            action=Permission.USE_MOUNTS,
+            project_id=project_id,
+            resource=ResourceRef(kind=ResourceKind.MOUNT, id=str(mount_id)),
+            context=None,
+        )
+        return reason is None
 
     async def reject_unusable_agent_drives(
-        self, *, project_id: UUID, data: Any
+        self,
+        *,
+        project_id: UUID,
+        data: Any,
+        artifact_id: Optional[UUID] = None,
     ) -> None:
-        """Refuse an agent commit whose drive list breaks a rule or names a missing drive."""
-        drives = _agent_drives(data)
+        """Refuse an agent commit whose drive list breaks a rule, names a drive the saver
+        may not use, or breaks the visibility rules of its agent. Without ``artifact_id``
+        (before the agent exists) only the entry rules and the drive lookups run."""
+        agent = _agent_config(data)
+        if agent is None:
+            return
+        drives, home_drive = _agent_drives(agent)
         if not drives:
             return
+        lookup = self._require_mount_lookup()
+        sharing = get_sharing_service()
+        agent_policy = await self._agent_policy(
+            project_id=project_id, artifact_id=artifact_id
+        )
+        agent_is_private = (
+            agent_policy is not None and agent_policy.visibility == Visibility.PRIVATE
+        )
         for index, drive in enumerate(drives):
-            if drive.kind != "project":
-                continue
-            if self._project_mount_lookup is None:
-                raise ProjectMountLookupMissing()
-            if await self._project_mount_lookup(project_id=project_id, slug=drive.slug):
-                continue
-            raise AgentDriveNotFoundError(
-                field=f"drives[{index}].slug",
-                value=drive.slug,
-                message=f"The drive '{drive.slug}' does not exist in this project.",
-                next_step="Create the drive with POST /mounts/, then commit again.",
+            mount = await lookup.fetch_mount_by_slug(
+                project_id=project_id, slug=drive.slug
             )
+            if mount is None or not await self._saver_may_use(
+                project_id=project_id, mount_id=mount.id
+            ):
+                raise AgentDriveNotFoundError(
+                    field=f"drives[{index}].slug",
+                    value=drive.slug,
+                    message=f"The drive '{drive.slug}' does not exist in this project.",
+                    next_step="Create the drive with POST /mounts/, then commit again.",
+                )
+            if artifact_id is None:
+                continue
+            access = await sharing.fetch_mount_access_cached(
+                project_id=project_id, mount_id=mount.id
+            )
+            policy = await sharing.mount_policy(project_id=project_id, access=access)
+            if not agent_is_private and policy.visibility == Visibility.PRIVATE:
+                raise AgentDriveNotSharedError(
+                    field=f"drives[{index}].slug",
+                    value=drive.slug,
+                    message=(
+                        f"The drive '{drive.slug}' is private, and a shared agent can "
+                        "attach only shared drives."
+                    ),
+                    next_step="Make the agent private, or attach a shared drive.",
+                )
+            if (
+                drive.slug == home_drive
+                and sharing.check_home_drive(agent_policy, policy) is not None
+            ):
+                raise HomeDriveNotAllowedError(
+                    field="home_drive",
+                    value=drive.slug,
+                    message=(
+                        f"The drive '{drive.slug}' cannot be the home drive of a private "
+                        "agent: it is not a private drive of the agent's owner."
+                    ),
+                    next_step=(
+                        "Set home_drive to a private drive you own, or to null. Attach "
+                        "shared drives without making them home."
+                    ),
+                )
 
     def set_session_continuation_resumer(
         self, callback: Callable[..., Awaitable[Optional[str]]]
@@ -899,7 +1113,23 @@ class WorkflowsService:
                 update={"is_static": True}
             )
 
-        return revision.model_copy(update={"flags": merged_flags})
+        update: Dict[str, Any] = {"flags": merged_flags}
+        # A revision stored before drives were configurable reads with its drive keys,
+        # so the agent service and the visibility change see the drive it already uses.
+        if (
+            self._mount_lookup is not None
+            and merged_flags is not None
+            and merged_flags.is_agent
+            and revision.data is not None
+        ):
+            agent = _agent_config(revision.data)
+            if agent is not None and "drives" not in agent:
+                update["data"] = await self.fill_agent_revision_drives(
+                    project_id=project_id,
+                    artifact_id=revision.workflow_id,
+                    data=revision.data,
+                )
+        return revision.model_copy(update=update)
 
     @staticmethod
     def _validate_execution_reference_families(
@@ -1353,6 +1583,61 @@ class WorkflowsService:
         has no sharing. One read, never cached."""
 
         return await self.workflows_dao.is_agent_artifact(
+            project_id=project_id, artifact_id=artifact_id
+        )
+
+    async def listed_agent_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        read_scope: AgentReadScope,
+    ) -> Tuple[List[Any], List[Any]]:
+        """The drives (mounts) that the latest revision of every variant of the agent
+        lists, read with the drive keys filled, and the home drives among them. A slug
+        that names no drive is skipped."""
+
+        lookup = self._require_mount_lookup()
+        variants = await self.query_workflow_variants(
+            project_id=project_id,
+            read_scope=read_scope,
+            workflow_refs=[Reference(id=artifact_id)],
+        )
+        slugs: Dict[str, bool] = {}
+        for variant in variants:
+            revision = await self.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_variant_ref=Reference(id=variant.id),
+            )
+            agent = _agent_config(revision.data) if revision is not None else None
+            entries = agent.get("drives") if agent is not None else None
+            if not isinstance(entries, list):
+                continue
+            home = agent.get("home_drive")
+            for entry in entries:
+                slug = entry.get("slug") if isinstance(entry, dict) else None
+                if isinstance(slug, str) and slug:
+                    slugs[slug] = slugs.get(slug, False) or slug == home
+        drives, homes = [], []
+        for slug, is_home in slugs.items():
+            mount = await lookup.fetch_mount_by_slug(project_id=project_id, slug=slug)
+            if mount is None:
+                continue
+            drives.append(mount)
+            if is_home:
+                homes.append(mount)
+        return drives, homes
+
+    async def agent_states_drives(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> bool:
+        """True when a stored revision of the agent states `drives`: the legacy sign
+        route then refuses. One read, never cached."""
+
+        return await self.workflows_dao.agent_states_drives(
             project_id=project_id, artifact_id=artifact_id
         )
 
@@ -3325,11 +3610,6 @@ class WorkflowsService:
             workflow_revision_commit=workflow_revision_commit,
         )
 
-        await self.reject_unusable_agent_drives(
-            project_id=project_id,
-            data=_revision_commit.data,
-        )
-
         await self._reject_inconsistent_workflow_embeds(
             project_id=project_id,
             data=workflow_revision_commit.data,
@@ -3349,6 +3629,25 @@ class WorkflowsService:
                 return None
 
             _revision_commit.artifact_id = variant.artifact_id
+
+        # No agent revision is stored without its drive keys; the first one creates the
+        # agent's drive unless the configuration opts out through `home_drive`.
+        if _agent_config(_revision_commit.data) is not None:
+            if self._dump_flags(_revision_commit.flags).get("is_agent"):
+                _agent_drives(_agent_config(_revision_commit.data))
+                _revision_commit.data = await self.fill_agent_revision_drives(
+                    project_id=project_id,
+                    artifact_id=_revision_commit.artifact_id,
+                    data=_revision_commit.data,
+                    create_missing=True,
+                    user_id=user_id,
+                    first_agent_owner_user_id=first_agent_owner_user_id,
+                )
+            await self.reject_unusable_agent_drives(
+                project_id=project_id,
+                data=_revision_commit.data,
+                artifact_id=_revision_commit.artifact_id,
+            )
 
         revision = await self.workflows_dao.commit_revision(
             project_id=project_id,
@@ -3857,6 +4156,10 @@ class WorkflowsService:
                         getattr(request, "references", None)
                     )
                 ),
+            ),
+            # The agent this invoke resolved itself, never the caller's meta or references.
+            run_agent_id=(
+                resolved_revision.workflow_id if resolved_revision is not None else None
             ),
         )
 
@@ -4462,9 +4765,18 @@ class SimpleWorkflowsService:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
         _reject_unrunnable_agent_connection(simple_workflow_create.data)
-        await self.workflows_service.reject_unusable_agent_drives(
-            project_id=project_id, data=simple_workflow_create.data
-        )
+
+        # Drives are live state: checked before this call's first write, never on a replay
+        # that writes nothing, so a drive archived after a completed create does not fail it.
+        drives_checked = False
+
+        async def check_drives_before_write() -> None:
+            nonlocal drives_checked
+            if not drives_checked:
+                await self.workflows_service.reject_unusable_agent_drives(
+                    project_id=project_id, data=simple_workflow_create.data
+                )
+                drives_checked = True
 
         workflow_id = resource_identity(
             project_id,
@@ -4507,6 +4819,7 @@ class SimpleWorkflowsService:
                 workflow_flags = WorkflowFlags(
                     **WorkflowsService._dump_flags(request.flags)
                 )
+                await check_drives_before_write()
                 try:
                     workflow = await self.workflows_service.create_workflow(
                         project_id=project_id,
@@ -4550,6 +4863,7 @@ class SimpleWorkflowsService:
                 workflow_variant_ref=Reference(slug=variant_slug),
             )
             if variant is None:
+                await check_drives_before_write()
                 try:
                     variant = await self.workflows_service.create_workflow_variant(
                         project_id=project_id,
@@ -4582,6 +4896,7 @@ class SimpleWorkflowsService:
                 workflow_revision_ref=Reference(slug=blank_slug),
             )
             if blank is None:
+                await check_drives_before_write()
                 try:
                     blank = await self.workflows_service.commit_workflow_revision(
                         project_id=project_id,
@@ -4619,6 +4934,7 @@ class SimpleWorkflowsService:
                 workflow_revision_ref=Reference(slug=content_slug),
             )
             if content is None:
+                await check_drives_before_write()
                 try:
                     content = await self.workflows_service.commit_workflow_revision(
                         project_id=project_id,

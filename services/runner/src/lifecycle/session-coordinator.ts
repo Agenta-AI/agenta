@@ -30,7 +30,6 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentRunRequest,
   AgentRunResult,
-  DriveAccess,
   EmitEvent,
 } from "../protocol.ts";
 import {
@@ -43,7 +42,7 @@ import {
   type SessionEnvironment,
 } from "../engines/sandbox_agent.ts";
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
-import { unsignableProjectDrives } from "../engines/sandbox_agent/project-mount.ts";
+import { unsignableDrives, type RunDrive } from "../engines/sandbox_agent/run-drives.ts";
 import { SESSION_TURN_IN_USE_MESSAGE } from "../sessions/admission.ts";
 import type { PlatformCredentialSource } from "../sessions/auth.ts";
 import {
@@ -180,12 +179,11 @@ export interface KeepaliveEngine {
     authorization: string,
   ): Promise<LatestTurnIndexRead>;
   /**
-   * Sign one project drive again with this turn's credential; null when it no longer signs.
-   * Required, like the turn-log read (see `unsignableProjectDrives`).
+   * Sign one drive again with this turn's credential, by the route it was first signed with; null
+   * when it no longer signs. Required, like the turn-log read (see `unsignableDrives`).
    */
-  signProjectDrive(
-    slug: string,
-    access: DriveAccess,
+  signDrive(
+    drive: RunDrive,
     authorization: string,
     signal: AbortSignal | undefined,
   ): Promise<MountCredentials | null>;
@@ -662,16 +660,16 @@ export async function runWithKeepalive(
   };
 
   /**
-   * True when a project drive this environment mounted no longer signs (`unsignableProjectDrives`).
+   * True when a drive this environment mounted no longer signs (`unsignableDrives`).
    * Fails closed: any failed sign replaces the environment, and the cold acquire signs again.
    */
   const drivesRevoked = async (env: SessionEnvironment): Promise<boolean> => {
     const authorization = credentialLease?.credential() || runCredential(request);
-    const lost = await unsignableProjectDrives(env.drives, async (slug, access) =>
-      authorization ? engine.signProjectDrive(slug, access, authorization, signal) : null,
+    const lost = await unsignableDrives(env.drives, async (drive) =>
+      authorization ? engine.signDrive(drive, authorization, signal) : null,
     );
     if (lost.length === 0) return false;
-    klog(`drive-revoked key=${key} slugs=[${lost.join(",")}]`);
+    klog(`drive-revoked key=${key} drives=[${lost.join(",")}]`);
     return true;
   };
 

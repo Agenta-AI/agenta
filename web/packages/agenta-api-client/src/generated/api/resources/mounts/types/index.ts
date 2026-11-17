@@ -1,2 +1,2 @@
 export * from "./GetMountFilesRequestOrder.js";
-export * from "./SignProjectMountCredentialsRequestAccess.js";
+export * from "./SignMountCredentialsBySlugRequestAccess.js";

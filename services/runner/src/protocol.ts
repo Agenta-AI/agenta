@@ -350,16 +350,14 @@ export interface McpServerConfig {
   };
 }
 
-/** Who may write a project drive in a run. The agent drive is always read-write. */
+/** What a run may do with an attached drive. */
 export type DriveAccess = "read" | "read-write";
 
-/**
- * One entry of the agent's `drives` list: its own drive, or a project drive by slug. Neither names
- * a mount id: the runner finds the agent drive from `runContext.workflow.artifact.id`.
- */
-export type AgentDrive =
-  | { kind: "agent" }
-  | { kind: "project"; slug: string; access: DriveAccess };
+/** One entry of the agent's `drives` list: a drive of the project, named by its slug. */
+export interface AgentDrive {
+  slug: string;
+  access: DriveAccess;
+}
 
 /**
  * The sandbox security boundary an agent runs inside (Layer 2). `network` is the outbound
@@ -934,10 +932,13 @@ export interface AgentRunRequest {
    */
   sandboxPermission?: SandboxPermission;
   /**
-   * The agent's configured drives. Absent from an agent service older than drive sharing: the
-   * runner then mounts the agent drive whenever the run has an artifact id.
+   * The agent's configured drives, each at `drives/<slug>/`. Absent for a legacy configuration
+   * or from an older agent service: the runner then mounts the agent drive found by
+   * `runContext.workflow.artifact.id`, linked at `agent-files`.
    */
   drives?: AgentDrive[];
+  /** The slug of the drive in `drives` linked at `agent-files`; null or absent for none. */
+  homeDrive?: string | null;
   /** Whether the session folder is a durable drive. Absent means true. */
   hasSessionDrive?: boolean;
   /**

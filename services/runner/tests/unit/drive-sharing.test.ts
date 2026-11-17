@@ -1,6 +1,6 @@
 /**
- * Drive sharing in the runner: which drives a run signs and mounts, how it signs them, and what the
- * model is told. The per-backend mount helpers have their own tests (`mount-lifecycle.test.ts`,
+ * Drives in the runner: which drives a run signs and mounts, how it signs them, the links and the
+ * README in the working folder, and what the model is told. The per-backend mount helpers have their own tests (`mount-lifecycle.test.ts`,
  * `sandbox-agent-mount.test.ts`, `inprocess/sandbox-drive` in the integration suite).
  */
 import assert from "node:assert/strict";
@@ -15,17 +15,26 @@ import { runSandboxAgent, runTurn } from "../../src/engines/sandbox_agent.ts";
 import { prepareEnvironmentSetup } from "../../src/engines/sandbox_agent/environment-setup.ts";
 import { acquireEnvironment, resolveKeepaliveMount } from "../../src/engines/sandbox_agent/environment.ts";
 import {
-  linkProjectDrive,
-  linkProjectDriveRemote,
-  PROJECT_DRIVES_DIR_NAME,
-  projectMountPath,
-  pruneProjectDriveLinks,
-  pruneProjectDriveLinksRemote,
-  signProjectMountCredentials,
-} from "../../src/engines/sandbox_agent/project-mount.ts";
-import {
+  DRIVES_DIR_NAME,
+  driveMountPath,
   drivesListedEmpty,
+  drivesReadme,
+  HOME_DRIVE_LINK_NAME,
+  keptLinks,
+  linkRunDrive,
+  linkRunDriveRemote,
+  pruneDriveLinks,
+  pruneDriveLinksRemote,
+  runDriveMountPath,
+  seedHomeReadme,
+  seedHomeReadmeRemote,
   selectRunDrives,
+  signAgentMountCredentials,
+  signMountCredentialsBySlug,
+  unlinkRunDrive,
+  writeDrivesReadme,
+  writeDrivesReadmeRemote,
+  type RunDrive,
 } from "../../src/engines/sandbox_agent/run-drives.ts";
 import {
   configFieldDigests,
@@ -35,9 +44,9 @@ import {
 import { normalizeDesiredState } from "../../src/lifecycle/desired-state.ts";
 import {
   fileCitationAppendix,
+  driveAppendix,
   noDrivesAppendix,
   platformGuidanceAppendix,
-  projectDriveAppendix,
 } from "../../src/engines/sandbox_agent/platform-guidance.ts";
 import { refreshDriveViewsAtTurnStart } from "../../src/engines/sandbox_agent/turn-start-refresh.ts";
 import { sandboxVisibleSecretValues } from "../../src/redaction.ts";
@@ -73,21 +82,37 @@ function request(extra: Partial<AgentRunRequest> = {}): AgentRunRequest {
 }
 
 describe("selectRunDrives", () => {
-  it("keeps today's rule for a request without drives", () => {
-    assert.deepEqual(selectRunDrives(request()), { session: true, agent: true, projects: [] });
+  it("keeps today's rule for a request without drives: the agent's drive by the artifact id", () => {
+    assert.deepEqual(selectRunDrives(request()), { session: true, legacyAgentDrive: true, drives: [] });
     assert.deepEqual(
       selectRunDrives(request({ sessionId: undefined, runContext: undefined })),
-      { session: false, agent: false, projects: [] },
+      { session: false, legacyAgentDrive: false, drives: [] },
     );
   });
 
-  it("mounts the agent drive only when the list names it", () => {
-    assert.equal(selectRunDrives(request({ drives: [] })).agent, false);
-    assert.equal(selectRunDrives(request({ drives: [{ kind: "agent" }] })).agent, true);
+  it("uses no legacy route once the request lists drives, even an empty list", () => {
+    assert.equal(selectRunDrives(request({ drives: [] })).legacyAgentDrive, false);
     assert.equal(
-      selectRunDrives(request({ drives: [{ kind: "project", slug: "notes", access: "read" }] })).agent,
+      selectRunDrives(request({ drives: [{ slug: "notes", access: "read" }] })).legacyAgentDrive,
       false,
     );
+  });
+
+  it("marks the entry homeDrive names as home, only when it is read-write", () => {
+    const drives = [
+      { slug: "quote-files", access: "read-write" as const },
+      { slug: "prices", access: "read" as const },
+    ];
+    assert.deepEqual(selectRunDrives(request({ drives, homeDrive: "quote-files" })).drives, [
+      { slug: "quote-files", access: "read-write", isHome: true },
+      { slug: "prices", access: "read", isHome: false },
+    ]);
+    const logs: string[] = [];
+    const readHome = selectRunDrives(request({ drives, homeDrive: "prices" }), (m) => logs.push(m));
+    assert.ok(readHome.drives.every((d) => !d.isHome));
+    assert.ok(logs.some((m) => m.includes("home drive skipped: slug=prices")));
+    assert.ok(selectRunDrives(request({ drives, homeDrive: null })).drives.every((d) => !d.isHome));
+    assert.ok(selectRunDrives(request({ drives })).drives.every((d) => !d.isHome));
   });
 
   it("reads hasSessionDrive absent as true", () => {
@@ -96,23 +121,23 @@ describe("selectRunDrives", () => {
     assert.equal(selectRunDrives(request({ hasSessionDrive: false })).session, false);
   });
 
-  it("lists each project drive once, with read-write when access is missing, and skips unsafe slugs", () => {
+  it("lists each drive once, with read-write when access is missing, and skips unsafe slugs", () => {
     const logs: string[] = [];
     const selection = selectRunDrives(
       request({
         drives: [
-          { kind: "project", slug: "price-lists", access: "read" },
-          { kind: "project", slug: "price-lists", access: "read-write" },
-          { kind: "project", slug: "notes" } as never,
-          { kind: "project", slug: "../escape", access: "read" },
-          { kind: "project", slug: "..", access: "read" },
+          { slug: "price-lists", access: "read" },
+          { slug: "price-lists", access: "read-write" },
+          { slug: "notes" } as never,
+          { slug: "../escape", access: "read" },
+          { slug: "..", access: "read" },
         ],
       }),
       (m) => logs.push(m),
     );
-    assert.deepEqual(selection.projects, [
-      { slug: "price-lists", access: "read" },
-      { slug: "notes", access: "read-write" },
+    assert.deepEqual(selection.drives, [
+      { slug: "price-lists", access: "read", isHome: false },
+      { slug: "notes", access: "read-write", isHome: false },
     ]);
     assert.equal(logs.length, 2);
   });
@@ -120,13 +145,13 @@ describe("selectRunDrives", () => {
   it("tells an empty list from an absent one", () => {
     assert.equal(drivesListedEmpty(request({ drives: [] })), true);
     assert.equal(drivesListedEmpty(request()), false);
-    assert.equal(drivesListedEmpty(request({ drives: [{ kind: "agent" }] })), false);
+    assert.equal(drivesListedEmpty(request({ drives: [{ slug: "notes", access: "read" }] })), false);
   });
 });
 
-describe("signProjectMountCredentials", () => {
+describe("signing drives", () => {
   const SIGNED = {
-    mount: { project_id: "proj-1" },
+    mount: { id: "m-1", project_id: "proj-1" },
     credentials: {
       endpoint: "http://seaweedfs:8333",
       bucket: "agenta-store",
@@ -136,42 +161,57 @@ describe("signProjectMountCredentials", () => {
       expires_at: "2026-12-01T00:00:00Z",
     },
   };
+  const capture = () => {
+    const seen: { url: string; init?: RequestInit } = { url: "" };
+    const fetchImpl = (async (u: string, i: RequestInit) => {
+      seen.url = u;
+      seen.init = i;
+      return { ok: true, status: 200, json: async () => SIGNED } as Response;
+    }) as unknown as typeof fetch;
+    return { seen, fetchImpl };
+  };
 
-  it("posts the slug and access to the project sign route, bounded like the agent sign", async () => {
-    let url = "";
-    let init: RequestInit | undefined;
-    const signed = await signProjectMountCredentials("price lists", "read", {
+  it("posts the slug and access to POST /mounts/sign, bounded in time", async () => {
+    const { seen, fetchImpl } = capture();
+    const signed = await signMountCredentialsBySlug("price lists", "read", false, {
       apiBase: "http://api",
       authorization: "ApiKey abc",
-      fetchImpl: (async (u: string, i: RequestInit) => {
-        url = u;
-        init = i;
-        return { ok: true, status: 200, json: async () => SIGNED } as Response;
-      }) as unknown as typeof fetch,
+      fetchImpl,
       log: SILENT,
     });
-    assert.equal(url, "http://api/mounts/projects/sign?slug=price%20lists&access=read");
-    assert.equal(init?.method, "POST");
-    assert.equal((init?.headers as Record<string, string>).authorization, "ApiKey abc");
-    assert.ok(init?.signal, "the sign carries a time limit");
+    assert.equal(seen.url, "http://api/mounts/sign?slug=price%20lists&access=read");
+    assert.equal(seen.init?.method, "POST");
+    assert.equal((seen.init?.headers as Record<string, string>).authorization, "ApiKey abc");
+    assert.ok(seen.init?.signal, "the sign carries a time limit");
     assert.equal(signed?.accessKey, "AK");
     assert.equal(signed?.projectId, "proj-1");
+    assert.equal(signed?.mountId, "m-1");
   });
 
-  it("answers null for a missing drive or an API without the route (404)", async () => {
-    const logs: string[] = [];
-    const signed = await signProjectMountCredentials("gone", "read-write", {
+  it("asks for the home rule with is_home=true on the home drive only", async () => {
+    const { seen, fetchImpl } = capture();
+    await signMountCredentialsBySlug("quote-files", "read-write", true, {
       apiBase: "http://api",
       authorization: "ApiKey abc",
-      fetchImpl: (async () => ({ ok: false, status: 404, json: async () => ({}) }) as Response) as unknown as typeof fetch,
-      log: (m) => logs.push(m),
+      fetchImpl,
+      log: SILENT,
     });
-    assert.equal(signed, null);
-    assert.match(logs[0] ?? "", /sign HTTP 404 slug=gone access=read-write/);
+    assert.equal(seen.url, "http://api/mounts/sign?slug=quote-files&access=read-write&is_home=true");
   });
 
-  it("answers null when the call fails", async () => {
-    const signed = await signProjectMountCredentials("notes", "read", {
+  it("answers null for a refused home (403), a missing drive (404) or a failed call", async () => {
+    for (const status of [403, 404]) {
+      const logs: string[] = [];
+      const signed = await signMountCredentialsBySlug("gone", "read-write", status === 403, {
+        apiBase: "http://api",
+        authorization: "ApiKey abc",
+        fetchImpl: (async () => ({ ok: false, status, json: async () => ({}) }) as Response) as unknown as typeof fetch,
+        log: (m) => logs.push(m),
+      });
+      assert.equal(signed, null);
+      assert.match(logs[0] ?? "", new RegExp(`sign HTTP ${status} slug=gone access=read-write`));
+    }
+    const signed = await signMountCredentialsBySlug("notes", "read", false, {
       apiBase: "http://api",
       authorization: "ApiKey abc",
       fetchImpl: (async () => {
@@ -181,229 +221,368 @@ describe("signProjectMountCredentials", () => {
     });
     assert.equal(signed, null);
   });
+
+  it("keeps the legacy agent route for a request without drives", async () => {
+    const { seen, fetchImpl } = capture();
+    await signAgentMountCredentials("artifact-1", { apiBase: "http://api", authorization: "ApiKey abc", fetchImpl, log: SILENT });
+    assert.equal(seen.url, "http://api/mounts/agents/sign?artifact_id=artifact-1&name=default");
+    assert.equal(seen.init?.method, "POST");
+  });
 });
 
-describe("project drive paths and links", () => {
-  it("mounts beside the session folder and links under drives/", async () => {
-    assert.equal(PROJECT_DRIVES_DIR_NAME, "drives");
-    assert.equal(projectMountPath("/var/lib/agenta/run-1", "notes"), "/var/lib/agenta/run-1-project-notes");
-    const cwd = join(tmpdir(), `agenta-project-link-${process.pid}-${Date.now()}`);
+/** Runs a remote sandbox's `sh -c` script on this host. */
+const sh: Parameters<typeof linkRunDriveRemote>[0] = {
+  runProcess: async ({ args }) => {
+    try {
+      return { exitCode: 0, result: execFileSync("sh", args ?? []).toString() };
+    } catch (err) {
+      return { exitCode: (err as { status?: number }).status ?? 1 };
+    }
+  },
+};
+
+function drive(slug: string | undefined, extra: Partial<RunDrive> = {}): RunDrive {
+  return {
+    ...(slug ? { slug } : { artifactId: "artifact-1" }),
+    access: "read-write",
+    isHome: false,
+    credentials: creds(slug ?? "agent"),
+    ...extra,
+  };
+}
+
+describe("drive paths and links", () => {
+  it("mounts every drive beside the session folder at <cwd>-drive-<slug>; the legacy drive keeps <cwd>-agent", () => {
+    assert.equal(DRIVES_DIR_NAME, "drives");
+    assert.equal(HOME_DRIVE_LINK_NAME, "agent-files");
+    assert.equal(driveMountPath("/var/lib/agenta/run-1", "notes"), "/var/lib/agenta/run-1-drive-notes");
+    assert.equal(runDriveMountPath("/w", drive("notes")), "/w-drive-notes");
+    assert.equal(runDriveMountPath("/w", drive(undefined, { isHome: true })), "/w-agent");
+  });
+
+  it("links a drive at drives/<slug>, the home drive also at agent-files, and the legacy drive only at agent-files", async () => {
+    const cwd = join(tmpdir(), `agenta-drive-link-${process.pid}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });
     try {
-      assert.equal(await linkProjectDrive(cwd, "notes", "/target/notes", { log: SILENT }), true);
-      assert.equal(readlinkSync(join(cwd, "drives", "notes")), "/target/notes");
+      assert.equal(await linkRunDrive(cwd, drive("notes"), "/t/notes", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "notes")), "/t/notes");
+      assert.equal(existsSync(join(cwd, "agent-files")), false);
+      assert.equal(await linkRunDrive(cwd, drive("home", { isHome: true }), "/t/home", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "home")), "/t/home");
+      assert.equal(readlinkSync(join(cwd, "agent-files")), "/t/home");
       // Renewed each turn: a correct link is kept, a wrong one replaced.
-      assert.equal(await linkProjectDrive(cwd, "notes", "/target/other", { log: SILENT }), true);
-      assert.equal(readlinkSync(join(cwd, "drives", "notes")), "/target/other");
+      assert.equal(await linkRunDrive(cwd, drive(undefined, { isHome: true }), "/t/legacy", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "agent-files")), "/t/legacy");
+      assert.equal(await linkRunDriveRemote(sh, cwd, drive("prices"), "/t/prices", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "prices")), "/t/prices");
+      assert.equal(await linkRunDriveRemote(sh, cwd, drive("prices", { isHome: true }), "/t/moved", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "prices")), "/t/moved");
+      assert.equal(readlinkSync(join(cwd, "agent-files")), "/t/moved");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
   });
 
-  it("never replaces a folder at the link path, locally or in a sandbox, and reports the failure", async () => {
-    const cwd = join(tmpdir(), `agenta-project-folder-${process.pid}-${Date.now()}`);
+  it("never replaces a folder or a file with content at any link path, locally or in a sandbox", async () => {
+    const cwd = join(tmpdir(), `agenta-drive-folder-${process.pid}-${Date.now()}`);
     mkdirSync(join(cwd, "drives", "notes"), { recursive: true });
     writeFileSync(join(cwd, "drives", "notes", "kept.md"), "mine");
-    const sh: Parameters<typeof linkProjectDriveRemote>[0] = {
-      runProcess: async ({ args }) => {
-        try {
-          execFileSync("sh", args ?? []);
-          return { exitCode: 0 };
-        } catch (err) {
-          return { exitCode: (err as { status?: number }).status ?? 1 };
-        }
-      },
-    };
+    mkdirSync(join(cwd, "agent-files"), { recursive: true });
+    writeFileSync(join(cwd, "agent-files", "memory.md"), "remember");
+    writeFileSync(join(cwd, "drives", "prices"), "someone's prices");
     try {
       const logs: string[] = [];
-      assert.equal(await linkProjectDrive(cwd, "notes", "/target/notes", { log: (m) => logs.push(m) }), false);
-      assert.equal(await linkProjectDriveRemote(sh, cwd, "notes", "/target/notes", { log: (m) => logs.push(m) }), false);
+      const log = (m: string) => logs.push(m);
+      assert.equal(await linkRunDrive(cwd, drive("notes"), "/t/notes", { log }), false);
+      assert.equal(await linkRunDriveRemote(sh, cwd, drive("notes"), "/t/notes", { log }), false);
+      assert.equal(await linkRunDrive(cwd, drive("prices"), "/t/prices", { log }), false);
+      assert.equal(await linkRunDriveRemote(sh, cwd, drive("prices"), "/t/prices", { log }), false);
+      // The home link blocked by a real folder: the files stay where they are, nothing is moved.
+      assert.equal(await linkRunDrive(cwd, drive(undefined, { isHome: true }), "/t/home", { log }), false);
+      assert.equal(await linkRunDriveRemote(sh, cwd, drive(undefined, { isHome: true }), "/t/home", { log }), false);
       assert.equal(readFileSync(join(cwd, "drives", "notes", "kept.md"), "utf-8"), "mine");
-      assert.equal(logs.filter((m) => m === "mount degraded kind=project_mount cause=link_failed slug=notes").length, 2);
-      // The remote script makes a missing link, keeps a correct one, and replaces a wrong one.
-      assert.equal(await linkProjectDriveRemote(sh, cwd, "prices", "/target/prices", { log: SILENT }), true);
-      assert.equal(readlinkSync(join(cwd, "drives", "prices")), "/target/prices");
-      assert.equal(await linkProjectDriveRemote(sh, cwd, "prices", "/target/prices", { log: SILENT }), true);
-      assert.equal(await linkProjectDriveRemote(sh, cwd, "prices", "/target/moved", { log: SILENT }), true);
-      assert.equal(readlinkSync(join(cwd, "drives", "prices")), "/target/moved");
+      assert.equal(readFileSync(join(cwd, "drives", "prices"), "utf-8"), "someone's prices");
+      assert.equal(readFileSync(join(cwd, "agent-files", "memory.md"), "utf-8"), "remember");
+      assert.equal(logs.filter((m) => m === "mount degraded kind=drive_mount cause=link_failed slug=notes").length, 2);
+      assert.equal(logs.filter((m) => m === "mount degraded kind=agent_mount cause=link_failed artifact=artifact-1").length, 2);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
   });
 
-  it("never replaces a file with content at the link path, and repairs the empty file geesefs leaves", async () => {
-    const cwd = join(tmpdir(), `agenta-project-file-${process.pid}-${Date.now()}`);
+  it("repairs the empty file geesefs leaves of a link, at drives/<slug> and at agent-files", async () => {
+    const cwd = join(tmpdir(), `agenta-drive-empty-${process.pid}-${Date.now()}`);
     mkdirSync(join(cwd, "drives"), { recursive: true });
-    const sh: Parameters<typeof linkProjectDriveRemote>[0] = {
-      runProcess: async ({ args }) => {
-        try {
-          execFileSync("sh", args ?? []);
-          return { exitCode: 0 };
-        } catch (err) {
-          return { exitCode: (err as { status?: number }).status ?? 1 };
-        }
-      },
-    };
     try {
-      writeFileSync(join(cwd, "drives", "notes"), "someone's notes");
-      const logs: string[] = [];
-      assert.equal(await linkProjectDrive(cwd, "notes", "/target/notes", { log: (m) => logs.push(m) }), false);
-      assert.equal(await linkProjectDriveRemote(sh, cwd, "notes", "/target/notes", { log: (m) => logs.push(m) }), false);
-      assert.equal(readFileSync(join(cwd, "drives", "notes"), "utf-8"), "someone's notes");
-      assert.equal(logs.filter((m) => m === "mount degraded kind=project_mount cause=link_failed slug=notes").length, 2);
       writeFileSync(join(cwd, "drives", "local"), "");
-      assert.equal(await linkProjectDrive(cwd, "local", "/target/local", { log: SILENT }), true);
-      assert.equal(readlinkSync(join(cwd, "drives", "local")), "/target/local");
+      writeFileSync(join(cwd, "agent-files"), "");
+      assert.equal(await linkRunDrive(cwd, drive("local", { isHome: true }), "/t/local", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "local")), "/t/local");
+      assert.equal(readlinkSync(join(cwd, "agent-files")), "/t/local");
       writeFileSync(join(cwd, "drives", "remote"), "");
-      assert.equal(await linkProjectDriveRemote(sh, cwd, "remote", "/target/remote", { log: SILENT }), true);
-      assert.equal(readlinkSync(join(cwd, "drives", "remote")), "/target/remote");
+      rmSync(join(cwd, "agent-files"));
+      writeFileSync(join(cwd, "agent-files"), "");
+      assert.equal(await linkRunDriveRemote(sh, cwd, drive("remote", { isHome: true }), "/t/remote", { log: SILENT }), true);
+      assert.equal(readlinkSync(join(cwd, "drives", "remote")), "/t/remote");
+      assert.equal(readlinkSync(join(cwd, "agent-files")), "/t/remote");
     } finally {
       rmSync(cwd, { recursive: true, force: true });
     }
   });
 
-  it("removes stale drives/ links and empty files of drives no longer listed, never a folder or a file with content", async () => {
-    const sh: Parameters<typeof pruneProjectDriveLinksRemote>[0] = {
-      runProcess: async ({ args }) => {
-        try {
-          return { exitCode: 0, result: execFileSync("sh", args ?? []).toString() };
-        } catch (err) {
-          return { exitCode: (err as { status?: number }).status ?? 1 };
-        }
-      },
-    };
+  it("removes leftover links of drives no longer listed and a leftover agent-files without a home, never a folder or a file with content", async () => {
     for (const [name, prune] of [
-      ["local", (cwd: string, keep: string[], log: (m: string) => void) => pruneProjectDriveLinks(cwd, keep, { log })],
-      ["remote", (cwd: string, keep: string[], log: (m: string) => void) => pruneProjectDriveLinksRemote(sh, cwd, keep, { log })],
+      ["local", (cwd: string, keep: { slugs: string[] | null; home: boolean }, log: (m: string) => void) => pruneDriveLinks(cwd, keep, { log })],
+      ["remote", (cwd: string, keep: { slugs: string[] | null; home: boolean }, log: (m: string) => void) => pruneDriveLinksRemote(sh, cwd, keep, { log })],
     ] as const) {
-      const cwd = join(tmpdir(), `agenta-project-prune-${name}-${process.pid}-${Date.now()}`);
+      const cwd = join(tmpdir(), `agenta-drive-prune-${name}-${process.pid}-${Date.now()}`);
       const drives = join(cwd, "drives");
       mkdirSync(join(drives, "folder"), { recursive: true });
       writeFileSync(join(drives, "folder", "kept.md"), "mine");
       writeFileSync(join(drives, "notes-file"), "someone's notes");
+      writeFileSync(join(drives, "README.md"), "# Drives");
       writeFileSync(join(drives, "empty"), "");
       symlinkSync("/nowhere/old", join(drives, "dangling"));
       symlinkSync(join(drives, "folder"), join(drives, "to-folder"));
       symlinkSync("/nowhere/kept", join(drives, "kept"));
+      symlinkSync("/nowhere/home", join(cwd, "agent-files"));
       const logs: string[] = [];
       try {
-        await prune(cwd, ["kept"], (m) => logs.push(m));
-        assert.deepEqual(readdirSync(drives).sort(), ["folder", "kept", "notes-file"], name);
-        assert.equal(readFileSync(join(drives, "folder", "kept.md"), "utf-8"), "mine");
-        assert.equal(readFileSync(join(drives, "notes-file"), "utf-8"), "someone's notes");
+        await prune(cwd, { slugs: ["kept"], home: true }, (m) => logs.push(m));
+        assert.deepEqual(readdirSync(drives).sort(), ["README.md", "folder", "kept", "notes-file"], name);
+        assert.equal(readlinkSync(join(cwd, "agent-files")), "/nowhere/home", `${name}: a home keeps agent-files`);
         assert.deepEqual(
           logs.filter((m) => m.startsWith("removed stale")).sort(),
           ["removed stale drives/dangling", "removed stale drives/empty", "removed stale drives/to-folder"],
           name,
         );
+        await prune(cwd, { slugs: ["kept"], home: false }, (m) => logs.push(m));
+        assert.equal(existsSync(join(cwd, "agent-files")), false, `${name}: no home, no agent-files link`);
+        assert.ok(logs.includes("removed stale agent-files"), name);
+        // A real folder at agent-files is someone's files: never removed.
+        mkdirSync(join(cwd, "agent-files"));
+        writeFileSync(join(cwd, "agent-files", "memory.md"), "remember");
+        await prune(cwd, { slugs: [], home: false }, SILENT);
+        assert.equal(readFileSync(join(cwd, "agent-files", "memory.md"), "utf-8"), "remember", name);
+        assert.equal(readFileSync(join(drives, "README.md"), "utf-8"), "# Drives", name);
       } finally {
         rmSync(cwd, { recursive: true, force: true });
       }
     }
     // No drives/ folder at all: nothing to do, no error.
-    await pruneProjectDriveLinks(join(tmpdir(), `agenta-no-such-${process.pid}`), [], { log: SILENT });
+    await pruneDriveLinks(join(tmpdir(), `agenta-no-such-${process.pid}`), { slugs: [], home: false }, { log: SILENT });
   });
 
-  it("makes the same link in a remote sandbox", async () => {
-    const commands: string[] = [];
-    await linkProjectDriveRemote(
-      {
-        runProcess: async ({ args }) => {
-          commands.push(args?.[1] ?? "");
-          return { exitCode: 0 };
-        },
-      },
-      "/home/sandbox/agenta/run-1",
-      "notes",
-      "/home/sandbox/agenta/run-1-project-notes",
-      { log: SILENT },
+  it("keeps the links of mounted drives only, and leaves drives/ alone on the legacy path", () => {
+    const mounted = { mountedPath: "/m" };
+    assert.deepEqual(
+      keptLinks([drive("a", { isHome: true, ...mounted }), drive("b", { credentials: null }), drive("c")], true),
+      { slugs: ["a"], home: true },
     );
-    assert.match(commands[0] ?? "", /mkdir -p '\/home\/sandbox\/agenta\/run-1\/drives'/);
-    assert.match(commands[0] ?? "", /ln -s '\/home\/sandbox\/agenta\/run-1-project-notes' '\/home\/sandbox\/agenta\/run-1\/drives\/notes'/);
+    assert.deepEqual(keptLinks([drive("a", { isHome: true, credentials: null })], true), { slugs: [], home: false });
+    assert.deepEqual(keptLinks([drive(undefined, { isHome: true, ...mounted })], false), { slugs: null, home: true });
+    assert.deepEqual(keptLinks([drive(undefined, { isHome: true })], false), { slugs: null, home: false });
+  });
+
+  it("on the legacy path, leaves every entry under drives/ in place", async () => {
+    for (const [name, prune] of [
+      ["local", (cwd: string) => pruneDriveLinks(cwd, { slugs: null, home: true }, { log: SILENT })],
+      ["remote", (cwd: string) => pruneDriveLinksRemote(sh, cwd, { slugs: null, home: true }, { log: SILENT })],
+    ] as const) {
+      const cwd = join(tmpdir(), `agenta-drive-legacy-${name}-${process.pid}-${Date.now()}`);
+      mkdirSync(join(cwd, "drives"), { recursive: true });
+      try {
+        writeFileSync(join(cwd, "drives", "empty"), "");
+        symlinkSync("/nowhere", join(cwd, "drives", "link"));
+        await prune(cwd);
+        assert.deepEqual(readdirSync(join(cwd, "drives")).sort(), ["empty", "link"], name);
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("never links, prunes or writes through a link at drives/", async () => {
+    for (const name of ["local", "remote"] as const) {
+      const base = join(tmpdir(), `agenta-drive-parent-${name}-${process.pid}-${Date.now()}`);
+      const cwd = join(base, "cwd");
+      const outside = join(base, "outside");
+      mkdirSync(cwd, { recursive: true });
+      mkdirSync(outside, { recursive: true });
+      try {
+        writeFileSync(join(outside, "notes"), "");
+        symlinkSync("/nowhere", join(outside, "old"));
+        writeFileSync(join(outside, "README.md"), "theirs");
+        symlinkSync(outside, join(cwd, "drives"));
+        const d = drive("notes", { mountedPath: "/t/notes" });
+        if (name === "local") {
+          assert.equal(await linkRunDrive(cwd, d, "/t/notes", { log: SILENT }), false);
+          await pruneDriveLinks(cwd, { slugs: [], home: false }, { log: SILENT });
+          await writeDrivesReadme(cwd, "# Drives", { log: SILENT });
+          await unlinkRunDrive(cwd, drive("old"), { log: SILENT });
+        } else {
+          assert.equal(await linkRunDriveRemote(sh, cwd, d, "/t/notes", { log: SILENT }), false);
+          await pruneDriveLinksRemote(sh, cwd, { slugs: [], home: false }, { log: SILENT });
+          await writeDrivesReadmeRemote(sh, cwd, "# Drives", { log: SILENT });
+        }
+        assert.deepEqual(readdirSync(outside).sort(), ["README.md", "notes", "old"], name);
+        assert.equal(readFileSync(join(outside, "notes"), "utf-8"), "", name);
+        assert.equal(readlinkSync(join(outside, "old")), "/nowhere", name);
+        assert.equal(readFileSync(join(outside, "README.md"), "utf-8"), "theirs", name);
+        assert.equal(readlinkSync(join(cwd, "drives")), outside, `${name}: the link at drives/ is left as it is`);
+      } finally {
+        rmSync(base, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("never writes a README through a link", async () => {
+    for (const name of ["local", "remote"] as const) {
+      const base = join(tmpdir(), `agenta-drive-readme-link-${name}-${process.pid}-${Date.now()}`);
+      const cwd = join(base, "cwd");
+      const home = join(base, "home");
+      mkdirSync(join(cwd, "drives"), { recursive: true });
+      mkdirSync(home, { recursive: true });
+      try {
+        symlinkSync(join(base, "victim.md"), join(cwd, "drives", "README.md"));
+        symlinkSync(join(base, "seed-victim.md"), join(home, "README.md"));
+        if (name === "local") {
+          await writeDrivesReadme(cwd, "# Drives", { log: SILENT });
+          await seedHomeReadme(home, { log: SILENT });
+        } else {
+          await writeDrivesReadmeRemote(sh, cwd, "# Drives", { log: SILENT });
+          await seedHomeReadmeRemote(sh, home, { log: SILENT });
+        }
+        assert.equal(existsSync(join(base, "victim.md")), false, name);
+        assert.equal(existsSync(join(base, "seed-victim.md")), false, name);
+      } finally {
+        rmSync(base, { recursive: true, force: true });
+      }
+    }
+  });
+});
+
+describe("drives/README.md", () => {
+  it("lists the mounted drives with their access and the home note, in the design's words", () => {
+    const text = drivesReadme([
+      drive("quote-agent-files", { isHome: true, mountedPath: "/w-drive-quote-agent-files", linked: true }),
+      drive("price-lists", { access: "read", mountedPath: "/w-drive-price-lists", linked: true }),
+      drive("gone", { credentials: null }),
+      drive("blocked", { mountedPath: "/w-drive-blocked", linked: false }),
+    ]);
+    assert.equal(
+      text,
+      `# Drives
+
+Each folder here is a drive: a folder of files that Agenta keeps after this
+conversation ends. This list comes from the agent's configuration.
+
+| Folder | Access | Note |
+| --- | --- | --- |
+| drives/quote-agent-files/ | read and write | Home drive. Also at agent-files/. |
+| drives/price-lists/ | read only |  |
+
+Other agents with access to a drive may also write files in it. If two
+agents write the same file, the last write wins.
+
+Agenta writes this file again at the start of every conversation. Changes to
+it are not kept.
+`,
+    );
+  });
+
+  it("says no drive is attached when none is mounted", () => {
+    const text = drivesReadme([drive("gone", { credentials: null })]);
+    assert.match(text, /\n\nNo drives are attached to this agent\.\n\n/);
+    assert.doesNotMatch(text, /\| Folder/);
   });
 });
 
 describe("environment fingerprint", () => {
-  it("changes with the drive list and the session setting, and keeps the old identity without them", () => {
+  it("changes with the drive list, the home drive and the session setting, and keeps the old identity without them", () => {
     const base = request();
-    const withAgent = request({ drives: [{ kind: "agent" }] });
-    const withProject = request({
-      drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }],
-    });
-    const readWrite = request({
-      drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read-write" }],
-    });
-    const noSession = request({ drives: [{ kind: "agent" }], hasSessionDrive: false });
-    const prints = [base, withAgent, withProject, readWrite, noSession].map(configFingerprint);
+    const one = request({ drives: [{ slug: "notes", access: "read-write" }] });
+    const home = request({ drives: [{ slug: "notes", access: "read-write" }], homeDrive: "notes" });
+    const readOnly = request({ drives: [{ slug: "notes", access: "read" }] });
+    const noSession = request({ drives: [{ slug: "notes", access: "read-write" }], hasSessionDrive: false });
+    const prints = [base, one, home, readOnly, noSession].map(configFingerprint);
     assert.equal(new Set(prints).size, prints.length);
     assert.equal(configFingerprint(request()), configFingerprint(base));
     assert.ok(!("drives" in configFieldDigests(base)));
-    assert.ok("drives" in configFieldDigests(withAgent));
+    assert.ok("drives" in configFieldDigests(one));
     assert.notEqual(
-      normalizeDesiredState(withAgent, "x").digests.sandbox,
-      normalizeDesiredState(withProject, "x").digests.sandbox,
+      normalizeDesiredState(one, "x").digests.sandbox,
+      normalizeDesiredState(home, "x").digests.sandbox,
     );
   });
 
-  it("bounds the lease by the earliest drive expiry, project drives and transcript folders included", () => {
-    assert.equal(installedMountLease({ cwd: 300, agent: 200, projects: { notes: 100, other: undefined } }), 100);
-    assert.equal(installedMountLease({ transcripts: 70, projects: { notes: 100 } }), 70);
-    assert.equal(installedMountLease({ projects: { notes: 50 } }), 50);
-    assert.equal(installedMountLease({ projects: {} }), undefined);
+  it("bounds the lease by the earliest drive expiry, transcript folders included", () => {
+    assert.equal(installedMountLease({ cwd: 300, drives: { "/w-drive-a": 100, "/w-drive-b": undefined } }), 100);
+    assert.equal(installedMountLease({ transcripts: 70, drives: { "/w-agent": 100 } }), 70);
+    assert.equal(installedMountLease({ drives: { "/w-drive-a": 50 } }), 50);
+    assert.equal(installedMountLease({ drives: {} }), undefined);
   });
 });
 
 describe("prepareEnvironmentSetup signs every drive at the same time", () => {
-  it("sends the session, agent and project signs before the first answer", async () => {
+  const setupDeps = (cwd: string, logs: string[]) => ({
+    log: (m: string) => logs.push(m),
+    sandboxProvider: "local" as const,
+    createLocalCwd: () => cwd,
+    resolveSkillDirs: () => ({ skills: [], dropped: [], cleanup: () => {} }),
+    buildDaemonEnv: () => ({ PI_ACP_PI_COMMAND: "/bin/pi" }),
+    resolveDaemonBinary: () => "/bin/sandbox-agent",
+  });
+
+  it("sends the session sign and one sign per drive, the home with is_home, before the first answer", async () => {
     const started: string[] = [];
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const signer = (name: string, value: MountCredentials | null) => async () => {
-      started.push(name);
-      await gate;
-      return value;
-    };
     const logs: string[] = [];
     const cwd = join(tmpdir(), `agenta-sign-${process.pid}-${Date.now()}`);
+    let agentSigns = 0;
     const pending = prepareEnvironmentSetup(
       request({
         drives: [
-          { kind: "agent" },
-          { kind: "project", slug: "price-lists", access: "read" },
-          { kind: "project", slug: "gone", access: "read-write" },
+          { slug: "quote-files", access: "read-write" },
+          { slug: "price-lists", access: "read" },
+          { slug: "gone", access: "read-write" },
         ],
+        homeDrive: "quote-files",
       }),
       {
-        log: (m) => logs.push(m),
-        sandboxProvider: "local",
-        createLocalCwd: () => cwd,
-        resolveSkillDirs: () => ({ skills: [], dropped: [], cleanup: () => {} }),
-        buildDaemonEnv: () => ({ PI_ACP_PI_COMMAND: "/bin/pi" }),
-        resolveDaemonBinary: () => "/bin/sandbox-agent",
-        signSessionMountCredentials: signer("session", creds("session")) as never,
-        signAgentMountCredentials: signer("agent", creds("agent")) as never,
-        signProjectMountCredentials: (async (slug: string, access: string) => {
-          started.push(`project:${slug}:${access}`);
+        ...setupDeps(cwd, logs),
+        signSessionMountCredentials: (async () => {
+          started.push("session");
+          await gate;
+          return creds("session");
+        }) as never,
+        signAgentMountCredentials: (async () => {
+          agentSigns += 1;
+          return creds("agent");
+        }) as never,
+        signMountCredentialsBySlug: (async (slug: string, access: string, isHome: boolean) => {
+          started.push(`${slug}:${access}${isHome ? ":home" : ""}`);
           await gate;
           return slug === "gone" ? null : creds(slug);
         }) as never,
       },
     );
     for (let i = 0; i < 10 && started.length < 4; i++) await new Promise((r) => setTimeout(r, 0));
-    assert.deepEqual(started.sort(), ["agent", "project:gone:read-write", "project:price-lists:read", "session"]);
+    assert.deepEqual(started.sort(), ["gone:read-write", "price-lists:read", "quote-files:read-write:home", "session"]);
     release();
     const setup = await pending;
     try {
       assert.equal(setup.ok, true);
       if (!setup.ok) return;
-      const drives = setup.environment.drives;
+      assert.equal(agentSigns, 0, "no legacy sign once the request lists drives");
       assert.deepEqual(
-        drives.map((d) => (d.kind === "project" ? `${d.slug}:${d.access}:${d.credentials ? "signed" : "none"}` : d.kind)),
-        ["agent", "price-lists:read:signed", "gone:read-write:none"],
+        setup.environment.drives.map((d) => `${d.slug}:${d.access}:${d.isHome ? "home" : "-"}:${d.credentials ? "signed" : "none"}`),
+        ["quote-files:read-write:home:signed", "price-lists:read:-:signed", "gone:read-write:-:none"],
       );
-      assert.ok(logs.includes("mount degraded kind=project_mount cause=sign_returned_no_mount slug=gone"));
+      assert.ok(logs.includes("mount degraded kind=drive_mount cause=sign_returned_no_mount slug=gone"));
       assert.ok(!logs.some((m) => m.includes("kind=agent_mount")));
     } finally {
       if (setup.ok) setup.plan.workspace.skillsCleanup();
@@ -411,16 +590,38 @@ describe("prepareEnvironmentSetup signs every drive at the same time", () => {
     }
   });
 
-  it("signs no agent or project drive for an empty list, and no session drive when it is off", async () => {
+  it("signs the legacy agent route for a request without drives, and logs it as the agent mount", async () => {
+    const logs: string[] = [];
+    const cwd = join(tmpdir(), `agenta-sign-legacy-${process.pid}-${Date.now()}`);
+    let bySlug = 0;
+    const setup = await prepareEnvironmentSetup(request(), {
+      ...setupDeps(cwd, logs),
+      signSessionMountCredentials: (async () => creds("session")) as never,
+      signAgentMountCredentials: (async () => null) as never,
+      signMountCredentialsBySlug: (async () => {
+        bySlug += 1;
+        return null;
+      }) as never,
+    });
+    try {
+      assert.equal(setup.ok, true);
+      if (!setup.ok) return;
+      assert.equal(bySlug, 0);
+      assert.deepEqual(setup.environment.drives, [
+        { artifactId: "artifact-1", access: "read-write", isHome: true, credentials: null },
+      ]);
+      assert.ok(logs.includes("mount degraded kind=agent_mount cause=sign_returned_no_mount artifact=artifact-1"));
+    } finally {
+      if (setup.ok) setup.plan.workspace.skillsCleanup();
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("signs no drive for an empty list, and no session drive when it is off", async () => {
     const signed: string[] = [];
     const cwd = join(tmpdir(), `agenta-sign-empty-${process.pid}-${Date.now()}`);
     const setup = await prepareEnvironmentSetup(request({ drives: [], hasSessionDrive: false }), {
-      log: SILENT,
-      sandboxProvider: "local",
-      createLocalCwd: () => cwd,
-      resolveSkillDirs: () => ({ skills: [], dropped: [], cleanup: () => {} }),
-      buildDaemonEnv: () => ({ PI_ACP_PI_COMMAND: "/bin/pi" }),
-      resolveDaemonBinary: () => "/bin/sandbox-agent",
+      ...setupDeps(cwd, []),
       signSessionMountCredentials: (async () => {
         signed.push("session");
         return creds("session");
@@ -435,7 +636,6 @@ describe("prepareEnvironmentSetup signs every drive at the same time", () => {
       if (!setup.ok) return;
       assert.deepEqual(signed, []);
       assert.equal(setup.environment.mountCreds, null);
-      assert.equal(setup.environment.agentMountCreds, null);
       assert.deepEqual(setup.environment.drives, []);
     } finally {
       if (setup.ok) setup.plan.workspace.skillsCleanup();
@@ -446,14 +646,14 @@ describe("prepareEnvironmentSetup signs every drive at the same time", () => {
   it("refuses a run without a session drive on inprocess, before signing anything", async () => {
     let signs = 0;
     const setup = await prepareEnvironmentSetup(
-      request({ sandbox: "inprocess", hasSessionDrive: false, drives: [{ kind: "agent" }] }),
+      request({ sandbox: "inprocess", hasSessionDrive: false, drives: [{ slug: "notes", access: "read" }] }),
       {
         log: SILENT,
         signSessionMountCredentials: (async () => {
           signs += 1;
           return null;
         }) as never,
-        signAgentMountCredentials: (async () => {
+        signMountCredentialsBySlug: (async () => {
           signs += 1;
           return null;
         }) as never,
@@ -485,34 +685,36 @@ describe("prepareEnvironmentSetup signs every drive at the same time", () => {
 });
 
 describe("prompt guidance for drives", () => {
-  it("states path, access and the shared-write rules per project drive", () => {
-    const rw = projectDriveAppendix({ slug: "notes", access: "read-write", mountedPath: "/w-project-notes" }).text;
-    assert.match(rw, /`drives\/notes\/`/);
-    assert.match(rw, /\/w-project-notes/);
-    assert.match(rw, /last write wins/);
-    assert.match(rw, /Prefer adding new files/);
-    assert.match(rw, /Never delete a folder you did not create/);
-    const ro = projectDriveAppendix({ slug: "prices", access: "read", mountedPath: "/w-project-prices" }).text;
-    assert.match(ro, /read-only for you/);
-    const gone = projectDriveAppendix({ slug: "gone", access: "read", mountedPath: undefined }).text;
-    assert.match(gone, /`drives\/gone\/` is not available/);
+  it("states path, access and the write rule per drive, in the design's words, and never calls a drive shared", () => {
+    const rw = driveAppendix({ slug: "notes", access: "read-write", mountedPath: "/w-drive-notes" }).text;
+    assert.equal(
+      rw,
+      "`drives/notes/` is a drive you can read and write. It is a drive in your working directory, at the absolute path `/w-drive-notes`. " +
+        "Other agents with access to this drive may also write files here. If two agents write the same file, the last write wins. " +
+        "Prefer adding new files to editing existing ones. Never delete a folder you did not create.",
+    );
+    const ro = driveAppendix({ slug: "prices", access: "read", mountedPath: "/w-drive-prices" }).text;
+    assert.equal(ro, "`drives/prices/` is read-only for you. It is a drive in your working directory, at the absolute path `/w-drive-prices`.");
+    const gone = driveAppendix({ slug: "gone", access: "read", mountedPath: undefined }).text;
+    assert.equal(gone, "`drives/gone/` is not available in this conversation.");
+    for (const text of [rw, ro, gone]) assert.doesNotMatch(text, /shared/);
   });
 
   it("says no drive is attached and how long the working folder lasts", () => {
-    assert.match(noDrivesAppendix(true).text, /No agent drive and no project drive/);
+    assert.match(noDrivesAppendix(true).text, /^No drives are attached to you, so you have no `agent-files\/` folder\./);
     assert.match(noDrivesAppendix(true).text, /persists for this session only/);
     assert.match(noDrivesAppendix(false).text, /only until this sandbox is removed/);
   });
 
-  it("names agent-files/ in the file-citation sentence only when the agent drive is listed", () => {
-    const base = { acpAgent: "codex", isPi: false, agentMountedPath: undefined, agentMountSkipped: false, toolNames: [] };
+  it("names agent-files/ in the file-citation sentence only when the run has a home drive", () => {
+    const base = { acpAgent: "codex", isPi: false, homeDrive: undefined, toolNames: [] };
     assert.equal(fileCitationAppendix(true).text, fileCitationAppendix().text);
     assert.match(fileCitationAppendix().text, /agent-files\//);
     assert.doesNotMatch(fileCitationAppendix(false).text, /agent-files/);
     assert.match(fileCitationAppendix(false).text, /Link only files in your working directory;/);
-    assert.ok(platformGuidanceAppendix(base)?.includes(fileCitationAppendix().text));
-    assert.ok(platformGuidanceAppendix({ ...base, hasAgentDrive: true })?.includes(fileCitationAppendix().text));
-    assert.doesNotMatch(platformGuidanceAppendix({ ...base, hasAgentDrive: false }) ?? "", /agent-files/);
+    assert.doesNotMatch(platformGuidanceAppendix(base) ?? "", /agent-files/);
+    assert.ok(platformGuidanceAppendix({ ...base, homeDrive: { path: "/w-drive-h" } })?.includes(fileCitationAppendix().text));
+    assert.ok(platformGuidanceAppendix({ ...base, homeDrive: "unavailable" })?.includes(fileCitationAppendix().text));
   });
 
   it("delivers the drive paragraphs on every harness", () => {
@@ -520,10 +722,9 @@ describe("prompt guidance for drives", () => {
       const text = platformGuidanceAppendix({
         acpAgent,
         isPi: acpAgent === "pi",
-        agentMountedPath: undefined,
-        agentMountSkipped: false,
+        homeDrive: undefined,
         toolNames: [],
-        projectDrives: [{ slug: "notes", access: "read", mountedPath: "/x" }],
+        drives: [{ slug: "notes", access: "read", mountedPath: "/x" }],
         noDrives: { sessionDurable: true },
       });
       assert.match(text ?? "", /drives\/notes\//);
@@ -532,7 +733,7 @@ describe("prompt guidance for drives", () => {
 });
 
 describe("drive views and secrets", () => {
-  it("refreshes each mounted read-write project drive at the start of a turn, never a read-only one", async () => {
+  it("refreshes each mounted read-write drive at the start of a turn, never a read-only one", async () => {
     const commands: string[][] = [];
     await refreshDriveViewsAtTurnStart(
       {
@@ -543,25 +744,24 @@ describe("drive views and secrets", () => {
           },
         },
         mountedCwd: undefined,
-        agentMountedPath: "/w-agent",
         installedMountExpiries: { cwd: 1 },
         drives: [
-          { kind: "agent", access: "read-write" },
-          { kind: "project", slug: "a", access: "read-write", credentials: creds("a"), mountedPath: "/w-project-a" },
-          { kind: "project", slug: "b", access: "read", credentials: null },
-          { kind: "project", slug: "c", access: "read", credentials: creds("c"), mountedPath: "/w-project-c" },
+          drive("h", { isHome: true, mountedPath: "/w-drive-h" }),
+          drive("a", { mountedPath: "/w-drive-a" }),
+          drive("b", { access: "read", credentials: null }),
+          drive("c", { access: "read", mountedPath: "/w-drive-c" }),
         ],
       },
       { isDaytona: true, harnessInRunner: false, workspace: { cwd: "/w" } },
       SILENT,
     );
-    assert.deepEqual(commands[0]?.slice(2), ["/w", "/w-agent", "/w-project-a"]);
+    assert.deepEqual(commands[0]?.slice(2), ["/w", "/w-drive-h", "/w-drive-a"]);
   });
 
-  it("redacts project drive credentials like the session and agent ones", () => {
+  it("redacts every drive's credentials like the session ones", () => {
     const values = sandboxVisibleSecretValues({
       mountCreds: null,
-      drives: [{ kind: "project", credentials: { accessKey: "PAK", secretKey: "PSK", sessionToken: "PTOK" } }, { kind: "agent" }],
+      drives: [{ credentials: { accessKey: "PAK", secretKey: "PSK", sessionToken: "PTOK" } }, { credentials: null }],
     });
     assert.ok(values.includes("PAK") && values.includes("PSK") && values.includes("PTOK"));
   });
@@ -569,16 +769,26 @@ describe("drive views and secrets", () => {
 
 describe("local runs with drives (engine composition)", () => {
   const signed = (tag: string) => (async () => creds(tag)) as never;
+  const bySlug = (refuse: string[] = []) =>
+    (async (slug: string) => (refuse.includes(slug) ? null : creds(slug))) as never;
+  const cleanup = (cwd: string, slugs: string[]) => {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(`${cwd}-agent`, { recursive: true, force: true });
+    for (const slug of slugs) rmSync(`${cwd}-drive-${slug}`, { recursive: true, force: true });
+  };
 
-  it("mounts a listed project drive read-only, links it and tells the model", async () => {
+  it("mounts every drive at <cwd>-drive-<slug>, the read one read-only, links them, the home also at agent-files, and writes the README", async () => {
     const cwd = join(tmpdir(), `agenta-drives-local-${process.pid}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });
     const { calls, deps } = fakeHarness({ cwd });
     const mounts: Array<{ path: string; readOnly?: boolean }> = [];
     const unmounted: string[] = [];
-    deps.signSessionMountCredentials = signed("session");
-    deps.signAgentMountCredentials = signed("agent");
-    deps.signProjectMountCredentials = signed("prices");
+    let agentSigns = 0;
+    deps.signAgentMountCredentials = (async () => {
+      agentSigns += 1;
+      return creds("agent");
+    }) as never;
+    deps.signMountCredentialsBySlug = bySlug();
     deps.mountStorage = (async (path: string, _c: unknown, opts?: { geesefs?: { readOnly?: boolean } }) => {
       mounts.push({ path, readOnly: opts?.geesefs?.readOnly });
       return true;
@@ -591,25 +801,94 @@ describe("local runs with drives (engine composition)", () => {
       const result = await runSandboxAgent(
         request({
           sessionId: undefined,
-          drives: [{ kind: "agent" }, { kind: "project", slug: "prices", access: "read" }],
+          harness: "claude",
+          drives: [
+            { slug: "home", access: "read-write" },
+            { slug: "prices", access: "read" },
+          ],
+          homeDrive: "home",
         }),
         undefined,
         undefined,
         deps,
       );
       assert.equal(result.ok, true);
-      assert.deepEqual(
-        mounts.find((m) => m.path === `${cwd}-project-prices`),
-        { path: `${cwd}-project-prices`, readOnly: true },
-      );
-      assert.equal(readlinkSync(join(cwd, "drives", "prices")), `${cwd}-project-prices`);
-      assert.match(calls.workspacePlan.prompt.agentsMd, /`drives\/prices\/`[^]*read-only for you/);
-      assert.ok(unmounted.includes(`${cwd}-project-prices`), "teardown unmounts the project drive");
-      assert.equal(existsSync(`${cwd}-project-prices`), false);
+      assert.equal(agentSigns, 0);
+      assert.deepEqual(mounts.sort((a, b) => a.path.localeCompare(b.path)), [
+        { path: `${cwd}-drive-home`, readOnly: false },
+        { path: `${cwd}-drive-prices`, readOnly: true },
+      ]);
+      assert.equal(readlinkSync(join(cwd, "drives", "prices")), `${cwd}-drive-prices`);
+      assert.equal(readlinkSync(join(cwd, "drives", "home")), `${cwd}-drive-home`);
+      assert.equal(readlinkSync(join(cwd, "agent-files")), `${cwd}-drive-home`);
+      const readme = readFileSync(join(cwd, "drives", "README.md"), "utf-8");
+      assert.match(readme, /\| drives\/home\/ \| read and write \| Home drive\. Also at agent-files\/\. \|/);
+      assert.match(readme, /\| drives\/prices\/ \| read only \|/);
+      assert.equal(readFileSync(join(`${cwd}-drive-home`, "README.md"), "utf-8").startsWith("This folder belongs to your agent."), true);
+      assert.equal(existsSync(join(`${cwd}-drive-prices`, "README.md")), false, "only the home drive gets the README seed");
+      assert.match(calls.workspacePlan.prompt.agentsMd, /`drives\/prices\/` is read-only for you/);
+      assert.match(calls.createSessionOptions.sessionInit._meta.systemPrompt.append, new RegExp(`${cwd}-drive-home`));
+      assert.equal((calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR, undefined);
+      assert.ok(unmounted.includes(`${cwd}-drive-prices`) && unmounted.includes(`${cwd}-drive-home`), "teardown unmounts every drive");
+      assert.equal(existsSync(`${cwd}-drive-prices`), false);
     } finally {
-      rmSync(cwd, { recursive: true, force: true });
-      rmSync(`${cwd}-agent`, { recursive: true, force: true });
-      rmSync(`${cwd}-project-prices`, { recursive: true, force: true });
+      cleanup(cwd, ["home", "prices"]);
+    }
+  });
+
+  it("runs without a home when the home sign is refused: no agent-files, no tool restore, and the agent is told", async () => {
+    const cwd = join(tmpdir(), `agenta-drives-nohome-${process.pid}-${Date.now()}`);
+    mkdirSync(join(cwd, "drives"), { recursive: true });
+    symlinkSync(`${cwd}-drive-home`, join(cwd, "agent-files"));
+    const { calls, deps, logs } = fakeHarness({ cwd });
+    deps.signSessionMountCredentials = signed("session");
+    deps.signMountCredentialsBySlug = bySlug(["home"]);
+    deps.mountStorage = (async () => true) as never;
+    deps.unmountStorage = (async () => true) as never;
+    deps.createLocalCwd = () => cwd;
+    try {
+      const result = await runSandboxAgent(
+        request({ drives: [{ slug: "home", access: "read-write" }], homeDrive: "home" }),
+        undefined,
+        undefined,
+        deps,
+      );
+      assert.equal(result.ok, true);
+      assert.ok(logs.includes("mount degraded kind=drive_mount cause=sign_returned_no_mount slug=home"));
+      assert.equal(existsSync(join(cwd, "agent-files")), false, "the leftover agent-files link is removed");
+      assert.ok(logs.includes("removed stale agent-files"));
+      assert.ok(!logs.some((m) => m.includes("stage=agent_tools_setup")), "no tool restore");
+      assert.match(calls.workspacePlan.prompt.appendSystemPrompt ?? "", /durable agent folder is not available/);
+      assert.match(calls.workspacePlan.prompt.agentsMd, /`drives\/home\/` is not available in this conversation\./);
+      assert.match(readFileSync(join(cwd, "drives", "README.md"), "utf-8"), /No drives are attached to this agent\./);
+    } finally {
+      cleanup(cwd, ["home"]);
+    }
+  });
+
+  it("tells the agent the home drive is not available when a real folder holds agent-files, and moves nothing", async () => {
+    const cwd = join(tmpdir(), `agenta-drives-homefolder-${process.pid}-${Date.now()}`);
+    mkdirSync(join(cwd, "agent-files"), { recursive: true });
+    writeFileSync(join(cwd, "agent-files", "memory.md"), "remember");
+    const { calls, deps, logs } = fakeHarness({ cwd });
+    deps.signMountCredentialsBySlug = bySlug();
+    deps.mountStorage = (async () => true) as never;
+    deps.unmountStorage = (async () => true) as never;
+    try {
+      const result = await runSandboxAgent(
+        request({ sessionId: undefined, drives: [{ slug: "home", access: "read-write" }], homeDrive: "home" }),
+        undefined,
+        undefined,
+        deps,
+      );
+      assert.equal(result.ok, true);
+      assert.ok(logs.includes("mount degraded kind=drive_mount cause=link_failed slug=home"));
+      assert.equal(readFileSync(join(cwd, "agent-files", "memory.md"), "utf-8"), "remember");
+      assert.equal(existsSync(join(`${cwd}-drive-home`, "memory.md")), false);
+      assert.match(calls.workspacePlan.prompt.appendSystemPrompt ?? "", /durable agent folder is not available/);
+      assert.ok(!logs.some((m) => m.includes("stage=agent_tools_setup")), "no tool restore without the home");
+    } finally {
+      cleanup(cwd, ["home"]);
     }
   });
 
@@ -619,7 +898,7 @@ describe("local runs with drives (engine composition)", () => {
     writeFileSync(join(cwd, "drives", "prices", "kept.md"), "mine");
     const { calls, deps, logs } = fakeHarness({ cwd });
     const unmounted: string[] = [];
-    deps.signProjectMountCredentials = signed("prices");
+    deps.signMountCredentialsBySlug = bySlug();
     deps.mountStorage = (async () => true) as never;
     deps.unmountStorage = (async (path: string) => {
       unmounted.push(path);
@@ -627,63 +906,63 @@ describe("local runs with drives (engine composition)", () => {
     }) as never;
     try {
       const result = await runSandboxAgent(
-        request({ sessionId: undefined, drives: [{ kind: "project", slug: "prices", access: "read" }] }),
+        request({ sessionId: undefined, drives: [{ slug: "prices", access: "read" }] }),
         undefined,
         undefined,
         deps,
       );
       assert.equal(result.ok, true);
-      assert.ok(logs.includes("mount degraded kind=project_mount cause=link_failed slug=prices"));
+      assert.ok(logs.includes("mount degraded kind=drive_mount cause=link_failed slug=prices"));
       assert.match(calls.workspacePlan.prompt.agentsMd, /`drives\/prices\/` is not available/);
       assert.equal(readFileSync(join(cwd, "drives", "prices", "kept.md"), "utf-8"), "mine");
-      assert.ok(unmounted.includes(`${cwd}-project-prices`));
+      assert.doesNotMatch(readFileSync(join(cwd, "drives", "README.md"), "utf-8"), /drives\/prices\//);
+      assert.ok(unmounted.includes(`${cwd}-drive-prices`));
     } finally {
-      rmSync(cwd, { recursive: true, force: true });
-      rmSync(`${cwd}-project-prices`, { recursive: true, force: true });
+      cleanup(cwd, ["prices"]);
     }
   });
 
-  it("times project_mounts by the project mounts alone, not the whole mount group", async () => {
+  it("logs one drive_mounts stage for every drive, and no per-kind stages", async () => {
     const cwd = join(tmpdir(), `agenta-drives-timing-${process.pid}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });
     const { deps, logs } = fakeHarness({ cwd });
-    deps.signAgentMountCredentials = signed("agent");
-    deps.signProjectMountCredentials = signed("notes");
-    deps.mountStorage = (async (path: string) => {
-      if (path === `${cwd}-agent`) await new Promise((r) => setTimeout(r, 400));
-      return true;
-    }) as never;
+    deps.signMountCredentialsBySlug = bySlug();
+    deps.mountStorage = (async () => true) as never;
     deps.unmountStorage = (async () => true) as never;
     try {
       await runSandboxAgent(
-        request({ sessionId: undefined, drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }] }),
+        request({ sessionId: undefined, drives: [{ slug: "notes", access: "read" }, { slug: "home", access: "read-write" }], homeDrive: "home" }),
         undefined,
         undefined,
         deps,
       );
-      const ms = (stage: string) => Number(logs.find((m) => m.includes(`stage=${stage} `))?.match(/ms=(\d+)/)?.[1]);
-      assert.ok(ms("local_mounts") >= 350, `local_mounts ${ms("local_mounts")}`);
-      assert.ok(ms("project_mounts") < ms("local_mounts") - 200, `project_mounts ${ms("project_mounts")}`);
+      assert.equal(logs.filter((m) => m.includes("stage=drive_mounts ")).length, 1);
+      assert.ok(!logs.some((m) => /stage=(project_mounts|agent_mount) /.test(m)));
     } finally {
-      rmSync(cwd, { recursive: true, force: true });
-      rmSync(`${cwd}-agent`, { recursive: true, force: true });
-      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+      cleanup(cwd, ["notes", "home"]);
     }
   });
 
-  it("tells the model before the turn when a link was replaced by a folder since the last turn", async () => {
+  it("repairs every link each turn and tells the model when a drive or the home is lost or back", async () => {
     const cwd = join(tmpdir(), `agenta-drives-replaced-${process.pid}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });
     const { calls, deps } = fakeHarness({ cwd });
-    deps.signProjectMountCredentials = signed("notes");
+    deps.signMountCredentialsBySlug = bySlug();
     deps.mountStorage = (async () => true) as never;
     deps.unmountStorage = (async () => true) as never;
-    const req = request({ sessionId: undefined, drives: [{ kind: "project", slug: "notes", access: "read-write" }] });
+    const req = request({
+      sessionId: undefined,
+      drives: [
+        { slug: "notes", access: "read-write" },
+        { slug: "home", access: "read-write" },
+      ],
+      homeDrive: "home",
+    });
     const acquired = await acquireEnvironment(req, deps);
     assert.equal(acquired.ok, true);
     if (!acquired.ok) return;
     try {
-      const notice = projectDriveAppendix({ slug: "notes", access: "read-write", mountedPath: undefined }).text;
+      const notice = driveAppendix({ slug: "notes", access: "read-write", mountedPath: undefined }).text;
       await runTurn(acquired.env, req);
       assert.ok(!JSON.stringify(calls.promptBlocks).includes("is not available"));
       rmSync(join(cwd, "drives", "notes"));
@@ -695,68 +974,55 @@ describe("local runs with drives (engine composition)", () => {
       // The person moves the folder away: the next turn repairs the link and says so.
       rmSync(join(cwd, "drives", "notes"), { recursive: true, force: true });
       await runTurn(acquired.env, req);
-      const back = projectDriveAppendix({ slug: "notes", access: "read-write", mountedPath: `${cwd}-project-notes` }).text;
+      const back = driveAppendix({ slug: "notes", access: "read-write", mountedPath: `${cwd}-drive-notes` }).text;
       assert.equal(calls.promptBlocks[0]?.text, `${back}\n\n`);
       await runTurn(acquired.env, req);
       assert.ok(!JSON.stringify(calls.promptBlocks).includes("drives/notes/"), "said once");
+      // A lost agent-files link (geesefs leaves an empty file) is repaired silently.
+      rmSync(join(cwd, "agent-files"));
+      writeFileSync(join(cwd, "agent-files"), "");
+      await runTurn(acquired.env, req);
+      assert.equal(readlinkSync(join(cwd, "agent-files")), `${cwd}-drive-home`);
+      assert.ok(!JSON.stringify(calls.promptBlocks).includes("not available"));
+      // A folder at agent-files: the home is not available, and the model is told this turn.
+      rmSync(join(cwd, "agent-files"));
+      mkdirSync(join(cwd, "agent-files"));
+      writeFileSync(join(cwd, "agent-files", "memory.md"), "remember");
+      await runTurn(acquired.env, req);
+      assert.ok(JSON.stringify(calls.promptBlocks).includes("durable agent folder is not available"));
+      assert.equal(readFileSync(join(cwd, "agent-files", "memory.md"), "utf-8"), "remember");
     } finally {
       await acquired.env.destroy();
-      rmSync(cwd, { recursive: true, force: true });
-      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+      cleanup(cwd, ["notes", "home"]);
     }
   });
 
   it("removes the stale link of a drive the list dropped at setup, and keeps the listed one", async () => {
     const cwd = join(tmpdir(), `agenta-drives-stale-${process.pid}-${Date.now()}`);
     mkdirSync(join(cwd, "drives"), { recursive: true });
-    symlinkSync(`${cwd}-project-old`, join(cwd, "drives", "old"));
+    symlinkSync(`${cwd}-drive-old`, join(cwd, "drives", "old"));
     const { deps, logs } = fakeHarness({ cwd });
     deps.signSessionMountCredentials = signed("session");
-    deps.signProjectMountCredentials = signed("notes");
+    deps.signMountCredentialsBySlug = bySlug();
     deps.mountStorage = (async () => true) as never;
     deps.unmountStorage = (async () => true) as never;
     deps.createLocalCwd = () => cwd;
     try {
       const result = await runSandboxAgent(
-        request({ drives: [{ kind: "project", slug: "notes", access: "read" }] }),
+        request({ drives: [{ slug: "notes", access: "read" }] }),
         undefined,
         undefined,
         deps,
       );
       assert.equal(result.ok, true);
-      assert.deepEqual(readdirSync(join(cwd, "drives")), ["notes"]);
+      assert.deepEqual(readdirSync(join(cwd, "drives")).sort(), ["README.md", "notes"]);
       assert.ok(logs.includes("removed stale drives/old"));
     } finally {
-      rmSync(cwd, { recursive: true, force: true });
-      rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+      cleanup(cwd, ["notes"]);
     }
   });
 
-  it("goes on without a project drive that could not be signed and says so", async () => {
-    const cwd = join(tmpdir(), `agenta-drives-unsigned-${process.pid}-${Date.now()}`);
-    mkdirSync(cwd, { recursive: true });
-    const { calls, deps, logs } = fakeHarness({ cwd });
-    deps.signAgentMountCredentials = signed("agent");
-    deps.signProjectMountCredentials = (async () => null) as never;
-    deps.mountStorage = (async () => true) as never;
-    deps.unmountStorage = (async () => true) as never;
-    try {
-      const result = await runSandboxAgent(
-        request({ sessionId: undefined, drives: [{ kind: "project", slug: "gone", access: "read-write" }] }),
-        undefined,
-        undefined,
-        deps,
-      );
-      assert.equal(result.ok, true);
-      assert.ok(logs.includes("mount degraded kind=project_mount cause=sign_returned_no_mount slug=gone"));
-      assert.match(calls.workspacePlan.prompt.agentsMd, /`drives\/gone\/` is not available/);
-      assert.equal(existsSync(join(cwd, "drives")), false);
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  });
-
-  it("gives an empty list no agent drive, no agent-files link and no mount variable", async () => {
+  it("gives an empty list no drive, no agent-files link and no mount variable", async () => {
     const cwd = join(tmpdir(), `agenta-drives-empty-${process.pid}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });
     const { calls, deps } = fakeHarness({ cwd });
@@ -773,27 +1039,28 @@ describe("local runs with drives (engine composition)", () => {
       assert.equal(agentSigns, 0);
       assert.equal((calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR, undefined);
       assert.equal(existsSync(join(cwd, "agent-files")), false);
-      assert.match(calls.workspacePlan.prompt.agentsMd ?? "", /No agent drive and no project drive/);
+      assert.match(calls.workspacePlan.prompt.agentsMd ?? "", /No drives are attached to you/);
       assert.match(calls.workspacePlan.prompt.agentsMd ?? "", /only until this sandbox is removed/);
       assert.ok(calls.workspacePlan.prompt.agentsMd.includes(fileCitationAppendix(false).text));
       assert.ok(!calls.workspacePlan.prompt.agentsMd.includes(fileCitationAppendix().text));
+      assert.match(readFileSync(join(cwd, "drives", "README.md"), "utf-8"), /No drives are attached to this agent\./);
     } finally {
-      rmSync(cwd, { recursive: true, force: true });
+      cleanup(cwd, []);
     }
   });
 
-  it("names agent-files/ in the citation sentence exactly when the resolved list has the agent drive", async () => {
+  it("names agent-files/ in the citation sentence exactly when the run has a home drive", async () => {
     for (const [extra, named] of [
       [{}, true],
-      [{ drives: [{ kind: "agent" }] }, true],
-      [{ drives: [{ kind: "project", slug: "notes", access: "read" }] }, false],
+      [{ drives: [{ slug: "notes", access: "read-write" }], homeDrive: "notes" }, true],
+      [{ drives: [{ slug: "notes", access: "read" }] }, false],
       [{ runContext: undefined }, false],
     ] as Array<[Partial<AgentRunRequest>, boolean]>) {
       const cwd = join(tmpdir(), `agenta-drives-cite-${process.pid}-${Date.now()}`);
       mkdirSync(cwd, { recursive: true });
       const { calls, deps } = fakeHarness({ cwd });
       deps.signAgentMountCredentials = signed("agent");
-      deps.signProjectMountCredentials = signed("notes");
+      deps.signMountCredentialsBySlug = bySlug();
       deps.mountStorage = (async () => true) as never;
       deps.unmountStorage = (async () => true) as never;
       try {
@@ -802,28 +1069,34 @@ describe("local runs with drives (engine composition)", () => {
         assert.equal(md.includes(fileCitationAppendix(true).text), named, JSON.stringify(extra));
         assert.equal(md.includes(fileCitationAppendix(false).text), !named, JSON.stringify(extra));
       } finally {
-        rmSync(cwd, { recursive: true, force: true });
-        rmSync(`${cwd}-agent`, { recursive: true, force: true });
-        rmSync(`${cwd}-project-notes`, { recursive: true, force: true });
+        cleanup(cwd, ["notes"]);
       }
     }
   });
 
-  it("keeps today's agent drive for a request without drives", async () => {
+  it("keeps today's agent drive for a request without drives: legacy route, <cwd>-agent, agent-files only, no README", async () => {
     const cwd = join(tmpdir(), `agenta-drives-legacy-${process.pid}-${Date.now()}`);
     mkdirSync(cwd, { recursive: true });
     const { calls, deps } = fakeHarness({ cwd });
+    let bySlugSigns = 0;
     deps.signAgentMountCredentials = signed("agent");
+    deps.signMountCredentialsBySlug = (async () => {
+      bySlugSigns += 1;
+      return null;
+    }) as never;
     deps.mountStorage = (async () => true) as never;
     deps.unmountStorage = (async () => true) as never;
     try {
       const result = await runSandboxAgent(request({ sessionId: undefined }), undefined, undefined, deps);
       assert.equal(result.ok, true);
-      assert.equal((calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR, `${cwd}-agent`);
-      assert.doesNotMatch(calls.workspacePlan.prompt.agentsMd ?? "", /No agent drive/);
+      assert.equal(bySlugSigns, 0);
+      assert.equal(readlinkSync(join(cwd, "agent-files")), `${cwd}-agent`);
+      assert.equal(existsSync(join(cwd, "drives")), false);
+      assert.equal((calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR, undefined);
+      assert.match(calls.workspacePlan.prompt.appendSystemPrompt ?? "", new RegExp(`${cwd}-agent`));
+      assert.doesNotMatch(calls.workspacePlan.prompt.agentsMd ?? "", /No drives are attached/);
     } finally {
-      rmSync(cwd, { recursive: true, force: true });
-      rmSync(`${cwd}-agent`, { recursive: true, force: true });
+      cleanup(cwd, []);
     }
   });
 });
@@ -839,12 +1112,11 @@ describe("daytona runs with drives (engine composition)", () => {
     resetRunnerConfigCache();
   });
 
-  it("mounts each project drive in the group with the cwd, read drives read-only, and links after the cwd", async () => {
+  it("mounts each drive in the group with the cwd, read drives read-only, and links after the cwd, agent-files included", async () => {
     const { calls, deps } = fakeHarness();
     const remote = (prefix: string): MountCredentials => ({ ...creds(prefix), endpoint: "https://s3.example.com" });
     deps.signSessionMountCredentials = (async (_s: string, _o: unknown, name?: string) => remote(name ?? "cwd")) as never;
-    deps.signAgentMountCredentials = (async () => remote("agent")) as never;
-    deps.signProjectMountCredentials = (async (slug: string) => remote(slug)) as never;
+    deps.signMountCredentialsBySlug = (async (slug: string) => remote(slug)) as never;
     deps.mountHarnessSessionDirs = (async () => {}) as never;
     const order: string[] = [];
     const readOnly: Record<string, boolean | undefined> = {};
@@ -853,7 +1125,7 @@ describe("daytona runs with drives (engine composition)", () => {
       releaseCwd = resolve;
     });
     deps.mountStorageRemote = (async (_sb: unknown, path: string, _c: unknown, opts: { geesefs?: { readOnly?: boolean } }) => {
-      const kind = path.endsWith("-agent") ? "agent" : path.includes("-project-") ? path.slice(path.indexOf("-project-") + 9) : "cwd";
+      const kind = path.includes("-drive-") ? path.slice(path.indexOf("-drive-") + 7) : "cwd";
       readOnly[kind] = opts?.geesefs?.readOnly;
       order.push(`start:${kind}`);
       if (kind === "cwd") await cwdHeld;
@@ -866,7 +1138,7 @@ describe("daytona runs with drives (engine composition)", () => {
       const sandbox = (await (startSandboxAgent as unknown as (o: unknown) => Promise<Record<string, unknown>>)(opts)) as Record<string, unknown>;
       sandbox.runProcess = async (o: { args?: string[] }) => {
         const script = o.args?.[1] ?? "";
-        const m = script.match(/\/drives\/([a-z-]+)'/);
+        const m = script.match(/ln -s '[^']*' '[^']*\/(drives\/[a-z-]+|agent-files)'/);
         if (m) order.push(`link:${m[1]}`);
         return { exitCode: 0 };
       };
@@ -878,10 +1150,11 @@ describe("daytona runs with drives (engine composition)", () => {
         harness: "claude",
         sandbox: "daytona",
         drives: [
-          { kind: "agent" },
-          { kind: "project", slug: "prices", access: "read" },
-          { kind: "project", slug: "notes", access: "read-write" },
+          { slug: "home", access: "read-write" },
+          { slug: "prices", access: "read" },
+          { slug: "notes", access: "read-write" },
         ],
+        homeDrive: "home",
       }),
       undefined,
       undefined,
@@ -890,11 +1163,12 @@ describe("daytona runs with drives (engine composition)", () => {
     assert.equal(result.ok, true, JSON.stringify(result));
     assert.ok(order.indexOf("start:prices") < order.indexOf("done:cwd"), `${order}`);
     assert.ok(order.indexOf("start:notes") < order.indexOf("done:cwd"), `${order}`);
-    assert.ok(order.indexOf("link:prices") > order.indexOf("done:cwd"), `${order}`);
-    assert.ok(order.indexOf("link:notes") > order.indexOf("done:cwd"), `${order}`);
+    for (const link of ["link:drives/prices", "link:drives/notes", "link:drives/home", "link:agent-files"]) {
+      assert.ok(order.indexOf(link) > order.indexOf("done:cwd"), `${link}: ${order}`);
+    }
     assert.equal(readOnly.prices, true);
     assert.equal(readOnly.notes, false);
-    assert.equal(readOnly.agent, undefined, "the agent drive mounts as before");
+    assert.equal(readOnly.home, false);
     assert.match(calls.workspacePlan.prompt.agentsMd, /`drives\/notes\/`[^]*last write wins/);
   });
 });
@@ -956,8 +1230,7 @@ describe("inprocess runs with drives (engine composition)", () => {
   it("hands the command sandbox one root per signed drive, read drives read-only, each with its link", async () => {
     const { deps } = fakeHarness();
     deps.signSessionMountCredentials = (async () => creds("session")) as never;
-    deps.signAgentMountCredentials = (async () => creds("agent")) as never;
-    deps.signProjectMountCredentials = (async (slug: string) => (slug === "gone" ? null : creds(slug))) as never;
+    deps.signMountCredentialsBySlug = (async (slug: string) => (slug === "gone" ? null : creds(slug))) as never;
     let roots: Array<{ root: string; readOnly?: boolean; link?: unknown; credentials: () => MountCredentials | null }> = [];
     const start = deps.startSandboxAgent as unknown as (o: unknown) => Promise<Record<string, unknown>>;
     deps.inRunnerHarness = {
@@ -975,10 +1248,11 @@ describe("inprocess runs with drives (engine composition)", () => {
       request({
         sandbox: "inprocess",
         drives: [
-          { kind: "agent" },
-          { kind: "project", slug: "prices", access: "read" },
-          { kind: "project", slug: "gone", access: "read" },
+          { slug: "home", access: "read-write" },
+          { slug: "prices", access: "read" },
+          { slug: "gone", access: "read" },
         ],
+        homeDrive: "home",
       }),
       undefined,
       undefined,
@@ -989,8 +1263,8 @@ describe("inprocess runs with drives (engine composition)", () => {
       roots.map((r) => ({ root: r.root, readOnly: !!r.readOnly, link: r.link ?? null, key: r.credentials()?.accessKey })),
       [
         { root: cwd, readOnly: false, link: null, key: "AK-session" },
-        { root: `${cwd}-agent`, readOnly: false, link: { kind: "agent" }, key: "AK-agent" },
-        { root: `${cwd}-project-prices`, readOnly: true, link: { kind: "project", slug: "prices" }, key: "AK-prices" },
+        { root: `${cwd}-drive-home`, readOnly: false, link: { slug: "home", home: true }, key: "AK-home" },
+        { root: `${cwd}-drive-prices`, readOnly: true, link: { slug: "prices", home: false }, key: "AK-prices" },
       ],
     );
   });

@@ -40,6 +40,8 @@ from oss.src.core.sharing.service import (
 )
 from oss.src.core.sharing.types import (
     AgentCreationFailed,
+    DriveNotOwned,
+    HomeDriveNotAllowed,
     InvalidGrantee,
     InvalidTransferTarget,
     OwnerStillActive,
@@ -90,6 +92,7 @@ class ResourceCheck(str, Enum):
 _VIEW_ACTIONS = {
     ResourceKind.SESSION: Permission.VIEW_SESSIONS,
     ResourceKind.AGENT: Permission.VIEW_WORKFLOWS,
+    ResourceKind.MOUNT: Permission.VIEW_MOUNTS,
 }
 
 
@@ -99,6 +102,10 @@ def session_resource(session_id: str) -> ResourceRef:
 
 def agent_resource(artifact_id: Union[UUID, str]) -> ResourceRef:
     return ResourceRef(kind=ResourceKind.AGENT, id=str(artifact_id))
+
+
+def mount_resource(mount_id: Union[UUID, str]) -> ResourceRef:
+    return ResourceRef(kind=ResourceKind.MOUNT, id=str(mount_id))
 
 
 async def check_resource_for(
@@ -471,15 +478,19 @@ async def allow_mount(
     scope: Optional[MountScope],
     permission: Permission,
 ) -> bool:
-    """`allow_resource` for a mount, with the route's mounts `permission`. A session
-    mount follows its session: reading (`VIEW_MOUNTS`) is rule S1, writing and signing
-    are rule S2 (`RUN_SESSIONS`). An agent mount follows its agent (rules A1, A2, which
-    do not depend on the action, so the route's own permission is the action). A
-    project mount, and an unknown mount (`scope` None: the route's own not-found path
-    answers), are allowed."""
+    """`allow_resource` for a drive, with the route's mounts `permission`. A drive named
+    by id follows the drive rule (`evaluate` with `ResourceKind.MOUNT`: D1, D2, the legacy
+    branch, and the session rules for a session drive). A drive not created yet that
+    will belong to a session follows that session (S1 to read, S2 to write). An unknown
+    drive (`scope` None, or an id with no row: the route's own not-found path answers)
+    is allowed."""
 
     if scope is None:
         return True
+    if scope.id is not None:
+        return await allow_resource(
+            request, action=permission, resource=mount_resource(scope.id)
+        )
     if scope.session_id:
         return await allow_resource(
             request,
@@ -489,12 +500,6 @@ async def allow_mount(
                 else Permission.RUN_SESSIONS
             ),
             resource=session_resource(scope.session_id),
-        )
-    if scope.agent_id:
-        return await allow_resource(
-            request,
-            action=permission,
-            resource=agent_resource(scope.agent_id),
         )
     return True
 
@@ -587,6 +592,18 @@ _SHARING_ERRORS = (
     (OwnerStillActive, 409, False, None),
     (InvalidTransferTarget, 422, False, None),
     (AgentCreationFailed, 500, True, "Send the same request again."),
+    (
+        DriveNotOwned,
+        409,
+        False,
+        "Remove the drive from the agent, or ask its owner to share it.",
+    ),
+    (
+        HomeDriveNotAllowed,
+        409,
+        False,
+        "Set home_drive to a private drive you own, or to null, then try again.",
+    ),
 )
 
 

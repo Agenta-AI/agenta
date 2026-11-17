@@ -8,7 +8,7 @@
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
-import { projectDriveSigns } from "../utils/drive-sign.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
@@ -754,7 +754,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
-      signProjectDrive: projectDriveSigns,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -886,7 +886,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
-      signProjectDrive: projectDriveSigns,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -1287,7 +1287,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
-      signProjectDrive: projectDriveSigns,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },

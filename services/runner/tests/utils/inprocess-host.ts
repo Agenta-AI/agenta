@@ -137,7 +137,7 @@ export function createHostFixture(
     skillSources: skills,
     roots: [
       { root: cwd, credentials: () => TEST_CREDENTIALS },
-      { root: agent, credentials: () => TEST_CREDENTIALS, link: { kind: "agent" } },
+      { root: agent, credentials: () => TEST_CREDENTIALS, link: { home: true } },
     ],
     signTranscriptMount: async () => TEST_TRANSCRIPT_CREDENTIALS,
     harnessEnv: {

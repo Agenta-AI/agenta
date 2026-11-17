@@ -20,7 +20,7 @@
  * Run: pnpm exec vitest run tests/unit/lifecycle-live-routes.test.ts
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
-import { projectDriveSigns } from "../utils/drive-sign.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
@@ -155,7 +155,7 @@ function makeEngine(options: EngineOptions = {}) {
       return { ok: true, output: "ok", stopReason: "complete" };
     },
     readLatestTurnIndex: turnLogUnmoved,
-    signProjectDrive: projectDriveSigns,
+    signDrive: driveSigns,
     async runCold(): Promise<AgentRunResult> {
       return { ok: true, output: "cold", stopReason: "complete" };
     },

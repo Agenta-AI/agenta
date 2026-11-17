@@ -1,5 +1,5 @@
 /**
- * A warm turn signs every project drive its environment mounted again, and replaces the
+ * A warm turn signs every drive its environment mounted again, the home drive included, and replaces the
  * environment when one no longer signs (archived, deleted, or no longer shared). Without this, a
  * parked environment kept writing an archived drive through the credentials it signed at acquire,
  * for as long as they stayed valid.
@@ -24,12 +24,11 @@ import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import { appliedStateForRequest } from "../../src/engines/sandbox_agent/applied-state.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
-import type { RunDrive } from "../../src/engines/sandbox_agent/run-drives.ts";
+import { unsignableDrives, type RunDrive } from "../../src/engines/sandbox_agent/run-drives.ts";
 import {
   commandSandboxDisposition,
   teardownDisposition,
 } from "../../src/engines/sandbox_agent/teardown.ts";
-import { unsignableProjectDrives } from "../../src/engines/sandbox_agent/project-mount.ts";
 import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { captureStderr } from "../utils/capture-stderr.ts";
 
@@ -55,7 +54,7 @@ interface FakeEnv {
 /** Slugs that do not sign at acquire; `revoked` holds the ones that stop signing later. */
 function makeEngine(opts: { unsignedAtAcquire?: string[] } = {}) {
   const revoked = new Set<string>();
-  const signs: Array<{ slug: string; access: DriveAccess; authorization: string }> = [];
+  const signs: Array<{ slug: string; access: DriveAccess; isHome: boolean; authorization: string }> = [];
   const acquired: FakeEnv[] = [];
   const turns: Array<{ env: FakeEnv; continuation: boolean }> = [];
   let inFlight = 0;
@@ -78,17 +77,13 @@ function makeEngine(opts: { unsignedAtAcquire?: string[] } = {}) {
         installedMountExpiries: {},
         clearTurn: () => {},
         // The acquire signs as the real one does: a drive that does not sign has no credentials.
-        drives: (request.drives ?? []).flatMap((d): RunDrive[] =>
-          d.kind === "project"
-            ? [{
-                kind: "project",
-                slug: d.slug,
-                access: d.access ?? "read-write",
-                credentials:
-                  revoked.has(d.slug) || opts.unsignedAtAcquire?.includes(d.slug) ? null : creds(d.slug),
-              }]
-            : [],
-        ),
+        drives: (request.drives ?? []).map((d): RunDrive => ({
+          slug: d.slug,
+          access: d.access ?? "read-write",
+          isHome: request.homeDrive === d.slug,
+          credentials:
+            revoked.has(d.slug) || opts.unsignedAtAcquire?.includes(d.slug) ? null : creds(d.slug),
+        })),
         destroyReasons: [] as Array<string | undefined>,
         destroy: async (o?: { reason?: string }) => {
           env.destroyReasons.push(o?.reason);
@@ -102,8 +97,9 @@ function makeEngine(opts: { unsignedAtAcquire?: string[] } = {}) {
       return { ok: true, output: "ok", stopReason: "complete" };
     },
     readLatestTurnIndex: turnLogUnmoved,
-    async signProjectDrive(slug, access, authorization) {
-      signs.push({ slug, access, authorization });
+    async signDrive(drive, authorization) {
+      const slug = drive.slug!;
+      signs.push({ slug, access: drive.access, isHome: drive.isHome, authorization });
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
       await new Promise((r) => setTimeout(r, 5));
@@ -126,8 +122,9 @@ function makeCtx(engine: KeepaliveEngine): KeepaliveContext {
 }
 
 const DRIVES: AgentRunRequest["drives"] = [
-  { kind: "project", slug: "prices", access: "read" },
-  { kind: "project", slug: "notes", access: "read-write" },
+  { slug: "prices", access: "read" },
+  { slug: "notes", access: "read-write" },
+  { slug: "home", access: "read-write" },
 ];
 
 function turn(sandbox: string, n: 1 | 2 | 3, drives = DRIVES): AgentRunRequest {
@@ -142,40 +139,46 @@ function turn(sandbox: string, n: 1 | 2 | 3, drives = DRIVES): AgentRunRequest {
     sessionId: "s1",
     telemetry: AUTH,
     drives,
+    homeDrive: "home",
     messages: [...history, { role: "user", content: `m${n}` }],
   } as AgentRunRequest;
 }
 
-describe("unsignableProjectDrives", () => {
+describe("unsignableDrives", () => {
   it("signs each drive that holds credentials once, all at once, and names the ones that fail", async () => {
     let inFlight = 0;
     let maxInFlight = 0;
     const signed: string[] = [];
-    const lost = await unsignableProjectDrives(
+    const lost = await unsignableDrives(
       [
-        { kind: "agent", access: "read-write" },
-        { kind: "project", slug: "a", access: "read", credentials: creds("a") },
-        { kind: "project", slug: "b", access: "read-write", credentials: creds("b") },
-        { kind: "project", slug: "never", access: "read", credentials: null },
-        { kind: "project", slug: "boom", access: "read", credentials: creds("boom") },
+        { slug: "a", access: "read", isHome: false, credentials: creds("a") },
+        { slug: "b", access: "read-write", isHome: true, credentials: creds("b") },
+        { slug: "never", access: "read", isHome: false, credentials: null },
+        { slug: "boom", access: "read", isHome: false, credentials: creds("boom") },
+        { artifactId: "art-1", access: "read-write", isHome: true, credentials: creds("legacy") },
       ],
-      async (slug) => {
+      async (drive) => {
+        const slug = drive.slug ?? drive.artifactId!;
         signed.push(slug);
         inFlight += 1;
         maxInFlight = Math.max(maxInFlight, inFlight);
         await new Promise((r) => setTimeout(r, 5));
         inFlight -= 1;
         if (slug === "boom") throw new Error("network");
-        return slug === "b" ? null : creds(slug);
+        return slug === "b" || slug === "art-1" ? null : creds(slug);
       },
     );
-    assert.deepEqual(signed.sort(), ["a", "b", "boom"], "an unmounted drive is not signed");
-    assert.equal(maxInFlight, 3, "every sign starts before the first answer");
-    assert.deepEqual(lost, ["b", "boom"], "a sign that throws counts as failed");
+    assert.deepEqual(signed.sort(), ["a", "art-1", "b", "boom"], "an unmounted drive is not signed");
+    assert.equal(maxInFlight, 4, "every sign starts before the first answer");
+    assert.deepEqual(
+      lost,
+      ["slug=b", "slug=boom", "artifact=art-1"],
+      "a sign that throws counts as failed; the home and legacy drives are checked too",
+    );
   });
 
-  it("costs nothing without project drives", async () => {
-    assert.deepEqual(await unsignableProjectDrives(undefined, async () => { throw new Error("no"); }), []);
+  it("costs nothing without drives", async () => {
+    assert.deepEqual(await unsignableDrives(undefined, async () => { throw new Error("no"); }), []);
   });
 });
 
@@ -188,7 +191,7 @@ describe("the revoked drive teardown deletes on every backend", () => {
 
 {
   const sandbox = "local";
-  describe("a warm turn signs its project drives again", () => {
+  describe("a warm turn signs its drives again", () => {
     it("stays warm while every drive signs, with one sign per drive per turn, in parallel", async () => {
       const { engine, signs, acquired, turns, maxInFlight } = makeEngine();
       const ctx = makeCtx(engine);
@@ -200,11 +203,17 @@ describe("the revoked drive teardown deletes on every backend", () => {
 
       assert.equal(acquired.length, 1, "no rebuild");
       assert.deepEqual(turns.map((t) => t.continuation), [false, true, true]);
+      const perTurn = [
+        "prices:read:false:ApiKey run",
+        "notes:read-write:false:ApiKey run",
+        "home:read-write:true:ApiKey run",
+      ];
       assert.deepEqual(
-        signs.map((s) => `${s.slug}:${s.access}:${s.authorization}`),
-        ["prices:read:ApiKey run", "notes:read-write:ApiKey run", "prices:read:ApiKey run", "notes:read-write:ApiKey run"],
+        signs.map((s) => `${s.slug}:${s.access}:${s.isHome}:${s.authorization}`),
+        [...perTurn, ...perTurn],
+        "the home drive is signed as home",
       );
-      assert.equal(maxInFlight(), 2);
+      assert.equal(maxInFlight(), 3);
     });
 
     it("an archived drive evicts the environment, deletes its sandbox, and the next turn runs without it", async () => {
@@ -226,8 +235,20 @@ describe("the revoked drive teardown deletes on every backend", () => {
       assert.equal(acquired.length, 2, "a fresh environment");
       assert.equal(turns[1]!.continuation, false);
       assert.equal(turns[1]!.env, acquired[1]);
-      assert.match(log.lines.join(""), /drive-revoked key=\S+ slugs=\[notes\]/);
+      assert.match(log.lines.join(""), /drive-revoked key=\S+ drives=\[slug=notes\]/);
       assert.match(log.lines.join(""), /mismatch \(drive-revoked\)/);
+    });
+
+    it("a home drive that is no longer allowed evicts the environment too", async () => {
+      const { engine, revoked, acquired } = makeEngine();
+      const ctx = makeCtx(engine);
+      await runWithKeepalive(turn(sandbox, 1), undefined, undefined, ctx);
+
+      revoked.add("home");
+      await runWithKeepalive(turn(sandbox, 2), undefined, undefined, ctx);
+
+      assert.deepEqual(acquired[0]!.destroyReasons, ["drive-revoked"]);
+      assert.equal(acquired.length, 2);
     });
 
     it("a rebuild for another reason still checks the drives, and a revoked one deletes the sandbox", async () => {
@@ -250,7 +271,7 @@ describe("the revoked drive teardown deletes on every backend", () => {
       await runWithKeepalive(turn(sandbox, 2), undefined, undefined, ctx);
 
       assert.equal(acquired.length, 1);
-      assert.deepEqual(signs.map((s) => s.slug), ["prices"]);
+      assert.deepEqual(signs.map((s) => s.slug), ["prices", "home"]);
     });
   });
 }

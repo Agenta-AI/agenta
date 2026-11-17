@@ -39,7 +39,7 @@ import {
   type SystemPromptAppendix,
 } from "./system-prompt-appendix.ts";
 import type { DriveAccess } from "../../protocol.ts";
-import { PROJECT_DRIVES_DIR_NAME } from "./project-mount.ts";
+import { DRIVES_DIR_NAME } from "./run-drives.ts";
 
 /**
  * The READ side of the skills folder: its real absolute path.
@@ -137,8 +137,8 @@ export function codexBundledSkillsAppendix(): SystemPromptAppendix {
   };
 }
 
-/** One project drive of the run, as the prompt describes it. */
-export interface ProjectDriveGuidance {
+/** One attached drive of the run, as the prompt describes it. */
+export interface DriveGuidance {
   readonly slug: string;
   readonly access: DriveAccess;
   /** The absolute path where the drive serves files; undefined when it is not available. */
@@ -146,25 +146,23 @@ export interface ProjectDriveGuidance {
 }
 
 /**
- * One paragraph per project drive. A shared drive states the only rules the platform promises
- * for two writers: a write replaces the whole file and the last write wins.
+ * One paragraph per attached drive: its folder, its absolute path and its access. A writable drive
+ * states the only rule the platform promises for two writers: the last write wins. The text never
+ * calls a drive "shared": that word names who may open it, not who may write it.
  */
-export function projectDriveAppendix(
-  drive: ProjectDriveGuidance,
-): SystemPromptAppendix {
-  const folder = `\`${PROJECT_DRIVES_DIR_NAME}/${drive.slug}/\``;
-  const where = `${folder} in your working directory (absolute path \`${drive.mountedPath}\`)`;
+export function driveAppendix(drive: DriveGuidance): SystemPromptAppendix {
+  const folder = `\`${DRIVES_DIR_NAME}/${drive.slug}/\``;
+  const where = `It is a drive in your working directory, at the absolute path \`${drive.mountedPath}\`.`;
   return {
-    id: `project-drive:${drive.slug}`,
+    id: `drive:${drive.slug}`,
     text: !drive.mountedPath
-      ? `The project drive ${folder} is not available in this run. Do not look for its files, ` +
-        "and do not tell the user that they are missing or were deleted."
+      ? `${folder} is not available in this conversation.`
       : drive.access === "read"
-        ? `${where} is a project drive shared with other agents of this project. It is ` +
-          "read-only for you."
-        : `${where} is a project drive shared with other agents of this project, and they can ` +
-          "write it at the same time. A write replaces the whole file, and the last write wins. " +
-          "Prefer adding new files to editing shared ones. Never delete a folder you did not create.",
+        ? `${folder} is read-only for you. ${where}`
+        : `${folder} is a drive you can read and write. ${where} Other agents with access to ` +
+          "this drive may also write files here. If two agents write the same file, the last " +
+          "write wins. Prefer adding new files to editing existing ones. Never delete a folder " +
+          "you did not create.",
   };
 }
 
@@ -173,8 +171,7 @@ export function noDrivesAppendix(sessionDurable: boolean): SystemPromptAppendix 
   return {
     id: "no-drives",
     text:
-      "No agent drive and no project drive are attached to you, so you have no `agent-files/` " +
-      "folder. " +
+      "No drives are attached to you, so you have no `agent-files/` folder. " +
       (sessionDurable
         ? "Your working directory persists for this session only."
         : "Your working directory lasts only until this sandbox is removed."),
@@ -187,18 +184,17 @@ export interface PlatformGuidanceInput {
   readonly acpAgent: string;
   /** True when this run takes the Pi append-prompt channel. */
   readonly isPi: boolean;
-  /** The resolved absolute mount path, when the durable agent folder is live. */
-  readonly agentMountedPath: string | undefined;
+  /**
+   * The home drive: its absolute path when it serves files at `agent-files`, `"unavailable"` when
+   * the run has one that could not be attached, undefined when the run has none.
+   */
+  readonly homeDrive: { readonly path: string } | "unavailable" | undefined;
   /** The absolute rendered-skills directory, when this run materialized any skills. */
   readonly skillsPath?: string | undefined;
-  /** True when a durable agent folder was ATTEMPTED for this run and refused. */
-  readonly agentMountSkipped: boolean;
   /** The names of the tools this run offers the model. */
   readonly toolNames: readonly string[];
-  /** False when the run's `drives` list leaves out the agent drive; absent means true. */
-  readonly hasAgentDrive?: boolean;
-  /** The run's project drives. */
-  readonly projectDrives?: readonly ProjectDriveGuidance[];
+  /** The run's attached drives, by slug. */
+  readonly drives?: readonly DriveGuidance[];
   /** Set when the agent's `drives` list is empty; says whether the working directory persists. */
   readonly noDrives?: { readonly sessionDurable: boolean };
 }
@@ -253,14 +249,13 @@ export function platformGuidanceAppendix(
   const skillsReadPath = input.skillsPath
     ? skillsReadPathAppendix(input.skillsPath)
     : undefined;
-  const fileCitations = fileCitationAppendix(input.hasAgentDrive ?? true);
-  const mount = mountGuidanceServedElsewhere(input)
-    ? undefined
-    : input.agentMountedPath
-      ? agentMountAppendix(input.agentMountedPath)
-      : input.agentMountSkipped
+  const fileCitations = fileCitationAppendix(input.homeDrive !== undefined);
+  const mount =
+    mountGuidanceServedElsewhere(input) || !input.homeDrive
+      ? undefined
+      : input.homeDrive === "unavailable"
         ? agentMountUnavailableAppendix()
-        : undefined;
+        : agentMountAppendix(input.homeDrive.path);
   // Codex only. It is a rebuttal to a specific bundled tool rather than standalone guidance, and
   // it costs codex context that the other harnesses do not pay, which is correct: they do not
   // have the problem.
@@ -274,7 +269,7 @@ export function platformGuidanceAppendix(
     codexSkills,
     fileCitations,
     mount,
-    ...(input.projectDrives ?? []).map(projectDriveAppendix),
+    ...(input.drives ?? []).map(driveAppendix),
     input.noDrives ? noDrivesAppendix(input.noDrives.sessionDurable) : undefined,
   ]);
 }

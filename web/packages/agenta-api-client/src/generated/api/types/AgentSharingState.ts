@@ -7,4 +7,5 @@ export interface AgentSharingState {
     owner_is_active: boolean;
     my_role: AgentaApi.EffectiveRole;
     can_take_ownership: boolean;
+    drives_made_shared?: string[] | undefined;
 }

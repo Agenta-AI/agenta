@@ -214,18 +214,22 @@ describe("seedForRun (WP1.1 — the deny-set source)", () => {
 });
 
 describe("sandbox-visible redaction inputs", () => {
-  it("returns all three credentials from both mount sets", () => {
+  it("returns all three credentials of the session mount and of each drive", () => {
     const values = sandboxVisibleSecretValues({
       mountCreds: {
         accessKey: MOUNT_ACCESS_KEY,
         secretKey: MOUNT_SECRET_KEY,
         sessionToken: MOUNT_SESSION_TOKEN,
       },
-      agentMountCreds: {
-        accessKey: AGENT_MOUNT_ACCESS_KEY,
-        secretKey: AGENT_MOUNT_SECRET_KEY,
-        sessionToken: AGENT_MOUNT_SESSION_TOKEN,
-      },
+      drives: [
+        {
+          credentials: {
+            accessKey: AGENT_MOUNT_ACCESS_KEY,
+            secretKey: AGENT_MOUNT_SECRET_KEY,
+            sessionToken: AGENT_MOUNT_SESSION_TOKEN,
+          },
+        },
+      ],
     });
 
     expect(values).toEqual([

@@ -1,10 +1,10 @@
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 
 /**
- * A fake engine's answer to the warm-path project drive sign: the drive still signs. Fake
- * environments carry no project drives, so this is called only by a test that adds some.
+ * A fake engine's answer to the warm-path drive sign: the drive still signs. Fake environments
+ * carry no drives, so this is called only by a test that adds some.
  */
-export async function projectDriveSigns(): Promise<MountCredentials | null> {
+export async function driveSigns(): Promise<MountCredentials | null> {
   return {
     region: "us-east-1",
     bucket: "b",
