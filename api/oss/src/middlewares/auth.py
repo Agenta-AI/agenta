@@ -161,6 +161,12 @@ _PUBLIC_ENDPOINTS = (
     "/api/channels/whatsapp/events/",
     "/preview/channels/whatsapp/events/",
     "/api/preview/channels/whatsapp/events/",
+    # Teams: the Bot Framework JWT, checked in the adapter, authorises each
+    # activity.
+    "/channels/teams/events/",
+    "/api/channels/teams/events/",
+    "/preview/channels/teams/events/",
+    "/api/preview/channels/teams/events/",
     "/channels/bridge/events/",
     "/api/channels/bridge/events/",
     "/preview/channels/bridge/events/",
