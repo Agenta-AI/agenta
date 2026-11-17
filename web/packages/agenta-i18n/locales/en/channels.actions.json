@@ -10,6 +10,7 @@
     "discoverSpacesFailed": "Could not list the channels this app can see.",
     "hostedTelegramUnavailable": "The hosted Telegram bot is not available on this deployment.",
     "loadConnectionsFailed": "Could not load the channel connections.",
+    "loadInviteFailed": "Could not load the invite link.",
     "loadSetupFailed": "Could not load the {{platform}} setup.",
     "loadSpacesFailed": "Could not load where this connection answers.",
     "noAgentYet": "This connection answers as no agent yet.",

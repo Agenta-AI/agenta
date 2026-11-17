@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import secrets as token_secrets
@@ -31,8 +32,10 @@ from oss.src.core.channels.dtos import (
     ChannelGrantEdit,
     ChannelGrantEffect,
     ChannelGrantQuery,
+    ChannelInboundEvent,
     ChannelInboxEvent,
     ChannelInboxEventCreate,
+    ChannelInboxEventData,
     ChannelInboxTrigger,
     ChannelInboxTriggerCreate,
     ChannelKeyGrain,
@@ -71,6 +74,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionNotFound,
     ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
+    ChannelInboxEnqueueFailed,
     ChannelLocatorIncomplete,
     ChannelsError,
     ChannelSetupFieldInvalid,
@@ -105,6 +109,8 @@ if TYPE_CHECKING:
 
 log = get_module_logger(__name__)
 
+_ENQUEUE_TIMEOUT_SECONDS = 5.0
+
 
 class ChannelsService:
     """Owns the channels domain: configuration, policy, routing, delivery."""
@@ -129,6 +135,10 @@ class ChannelsService:
         self.workflows_service = workflows_service
         # Refuses binding an agent whose model needs setup. Set at wiring.
         self.needs_setup_guard: Optional[Any] = None
+        # The `channels.inbox.dispatch` task. Set at wiring, because the inbox
+        # worker that registers it is built after this service. Without it an
+        # inbound event is stored and nothing is enqueued.
+        self.inbox_dispatch_task: Optional[Any] = None
 
     # --- principal invalidation ------------------------------------------------ #
     #
@@ -2196,6 +2206,16 @@ class ChannelsService:
             external_key=external_key,
         )
 
+    async def query_active_connections(
+        self,
+        *,
+        channel: str,
+    ) -> List[Tuple[UUID, ChannelConnection]]:
+        """Unscoped by necessity: the Discord socket loop serves every project.
+        Credentials are not resolved; read each one with `fetch_connection`."""
+
+        return await self.channels_dao.query_active_connections(channel=channel)
+
     async def record_inbox_event(
         self,
         *,
@@ -2208,6 +2228,54 @@ class ChannelsService:
             project_id=project_id,
             event=event,
         )
+
+    async def record_and_enqueue_inbox_event(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        channel: str,
+        inbound: ChannelInboundEvent,
+    ) -> None:
+        """Store the parsed event and enqueue its dispatch. Shared by the HTTP
+        ingress routes and the Discord socket loop. The enqueue runs even when
+        the row already exists, so a retried delivery recovers from an earlier
+        enqueue failure. Raises ChannelInboxEnqueueFailed when the enqueue
+        fails; the row stays stored."""
+
+        event = ChannelInboxEventCreate(
+            connection_id=connection_id,
+            external_id=inbound.external_id,
+            kind=inbound.kind,
+            origin=inbound.origin,
+            data=ChannelInboxEventData(
+                external_locator=inbound.external_locator,
+                processed=inbound.processed,
+                space_kind=inbound.space_kind,
+                addressed=inbound.addressed,
+            ),
+        )
+        await self.record_inbox_event(
+            project_id=project_id,
+            event=event,
+        )
+        if self.inbox_dispatch_task is None:
+            return
+        try:
+            await asyncio.wait_for(
+                self.inbox_dispatch_task.kiq(
+                    project_id=str(project_id),
+                    connection_id=str(connection_id),
+                    channel=channel,
+                    external_id=inbound.external_id,
+                ),
+                timeout=_ENQUEUE_TIMEOUT_SECONDS,
+            )
+        except Exception as e:
+            log.error("Failed to enqueue channel inbox event: %s", e)
+            raise ChannelInboxEnqueueFailed(
+                channel=channel, external_id=inbound.external_id
+            ) from e
 
     async def verify_signature(self, *, channel, headers, body) -> UUID:
         raise NotImplementedError
@@ -2289,6 +2357,8 @@ class ChannelsService:
                     connection_id=connection_id,
                     kind=event.data.space_kind or ChannelSpaceKind.GROUP,
                     external_key=space_key,
+                    # the platform's own name, when the event carries one
+                    name=(event.data.external_locator or {}).get("title"),
                     data=ChannelSpaceData(external_locator=event.data.external_locator),
                 ),
             )
@@ -2916,43 +2986,67 @@ class ChannelsService:
         connection_id: UUID,
         thread: ChannelThread,
         interaction_id: str,
+        approved: Optional[bool] = None,
+        answered_by: Optional[Dict[str, Any]] = None,
     ) -> None:
+        def skip(reason: str) -> None:
+            # Each early return is named, so a card left pending says why.
+            log.info(
+                "[CHANNELS] approval controls not dismissed thread=%s "
+                "interaction=%s: %s",
+                thread.id,
+                interaction_id,
+                reason,
+            )
+
         pending = thread.data.pending_choice
-        if (
-            pending is None
-            or pending.interaction_id != interaction_id
-            or pending.outbox_event_id is None
-        ):
-            return
+        if pending is None:
+            return skip("the thread has no pending choice")
+        if pending.interaction_id != interaction_id:
+            return skip(f"the pending choice is for {pending.interaction_id}")
+        if pending.outbox_event_id is None:
+            return skip("the pending choice names no outbox event")
         event = await self.channels_dao.fetch_outbox_event(
             project_id=project_id,
             event_id=pending.outbox_event_id,
         )
-        if (
-            event is None
-            or event.thread_id != thread.id
-            or event.connection_id != connection_id
-            or not event.data.external_locator
-        ):
-            return
+        if event is None:
+            return skip(f"outbox event {pending.outbox_event_id} not found")
+        if event.thread_id != thread.id or event.connection_id != connection_id:
+            return skip(
+                f"outbox event {event.id} belongs to thread {event.thread_id} "
+                f"and connection {event.connection_id}, not connection "
+                f"{connection_id}"
+            )
+        if not event.data.external_locator:
+            return skip(f"outbox event {event.id} has no receipt")
         content = (event.data.processed or {}).get("content") or []
         if not any(
             part.get("type") == "button"
             and str(part.get("value", "")).startswith(f"{interaction_id}:")
             for part in content
         ):
-            return
+            return skip(f"outbox event {event.id} has no button for it")
         connection = await self.fetch_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
         if connection is None:
-            return
+            return skip(f"connection {connection_id} not found")
         adapter = self.adapter_registry.get(connection.channel)
         await adapter.dismiss_choices(
             connection=connection,
             external_locator=event.data.external_locator,
             content=content,
+            approved=approved,
+            answered_by=answered_by,
+        )
+        log.info(
+            "[CHANNELS] approval controls dismissed thread=%s interaction=%s "
+            "outbox_event=%s",
+            thread.id,
+            interaction_id,
+            event.id,
         )
 
     async def enqueue_output(self, *, project_id, thread_id, turn_id, items):
@@ -3044,7 +3138,10 @@ def _fill_connection_name_and_slug(
     if not connection.name:
         connection.name = (
             str(
-                discovered.get("team_name") or discovered.get("verified_name") or ""
+                discovered.get("team_name")
+                or discovered.get("verified_name")
+                or discovered.get("application_name")
+                or ""
             ).strip()
             or connection.channel.capitalize()
         )

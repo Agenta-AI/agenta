@@ -7,7 +7,7 @@
     "statusPending2": "Loading your workspace",
     "statusReturning1": "Loading your agents",
     "statusReturning2": "Restoring recent sessions",
-    "tip1": "You can talk to your agents in Slack, Telegram or WhatsApp.",
+    "tip1": "You can talk to your agents in Slack, Telegram, WhatsApp and Discord.",
     "tip2": "Correct an agent once and it remembers next time.",
     "tip3": "Every session runs in its own sandbox, isolated from the others.",
     "tip4": "Agents can run on a schedule or when something happens in a connected app.",

@@ -3,6 +3,7 @@
     "allChannels": "All channels the bot is in",
     "allGroups": "All groups the bot is in",
     "answersInHelp": "Where it answers when mentioned. Private chats follow the switch above.",
+    "answersInHelpChannels": "Where it answers when mentioned. Direct messages follow the switch above.",
     "answersInHelpSlack": "Where it answers when mentioned. Direct messages follow the switch above. Channels include group DMs.",
     "canPostHelpChannel": "Whether the agent may post to a channel other than the conversation it answers in. Its replies there are not affected.",
     "canPostHelpGroup": "Whether the agent may post to a group other than the conversation it answers in. Its replies there are not affected.",

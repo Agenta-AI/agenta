@@ -29,7 +29,7 @@ import {useCurrentProject} from "../context/useCurrentProject"
 
 import {useDisclosureProviderLabel} from "./useDisclosureProviderLabel"
 
-const PLATFORMS = ["slack", "telegram", "whatsapp"] as const
+const PLATFORMS = ["slack", "telegram", "whatsapp", "discord"] as const
 
 /** The platforms with a connection of this agent that is still off. */
 const channelsOffOf = (connections: ChannelConnections): string[] =>

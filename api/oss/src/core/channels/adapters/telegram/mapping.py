@@ -208,7 +208,9 @@ def _card_to_text(card: Dict[str, Any]) -> str:
         lines.append(title)
     if card.get("text"):
         lines.append(card["text"])
-    lines.append(approval_details(card.get("arguments")))
+    details = approval_details(card.get("arguments"))
+    if details:
+        lines.append(details)
     return "\n".join(lines)
 
 
