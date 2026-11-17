@@ -51,6 +51,10 @@ from oss.src.core.workflows.build_kit import (
     build_agent_template_overlay,
     build_kit_op_access,
 )
+from oss.src.core.workflows.builder_agent import (
+    BUILDER_AGENT_SLUG,
+    builder_agent_revision,
+)
 from oss.src.core.workflows.dtos import (
     WorkflowRevision,
     WorkflowRevisionData,
@@ -414,6 +418,12 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "embeddable": False,
         "latest": "v1",
         "versions": {"v1": _agenta_tools_revision},
+    },
+    BUILDER_AGENT_SLUG: {
+        "kind": "agent",
+        "embeddable": False,
+        "latest": "v1",
+        "versions": {"v1": builder_agent_revision},
     },
     AGENTA_APPS_SLUG: {
         "kind": "skill",
