@@ -7,7 +7,7 @@ a caller that may read it but not change it gets 403 `access_denied`. The sharin
 state reads and writes go to `SharingService`, which reads the policy uncached.
 """
 
-from typing import Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, status
@@ -42,6 +42,7 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.sharing.disclosure import build_share_disclosure
 from oss.src.core.sharing.dtos import (
+    MountAccess,
     SessionGrantInput,
     SessionSharingChange,
     SessionSharingState,
@@ -213,15 +214,44 @@ class SharingRouter:
         )
         await self._require_agent(request, artifact_id=workflow_id)
 
+        drives, homes = await self._listed_drives(request, artifact_id=workflow_id)
         state = await self.sharing_service.set_agent_visibility(
             **await _write_scope(request),
             artifact_id=workflow_id,
             visibility=body.visibility,
+            drives=drives,
+            home_drives=homes,
         )
         return AgentSharingResponse(
             sharing=state,
             disclosure=await self._agent_disclosure(request, artifact_id=workflow_id),
         )
+
+    async def _listed_drives(
+        self, request: Request, *, artifact_id: UUID
+    ) -> Tuple[List[MountAccess], List[MountAccess]]:
+        """The drives the agent's latest revisions list, and their home drives."""
+
+        project_id = _project_id(request)
+        mounts, home_mounts = await self.workflows_service.listed_agent_drives(
+            project_id=project_id,
+            artifact_id=artifact_id,
+            read_scope=await self.sharing_service.agent_read_scope(
+                principal=_request_access().principal
+            ),
+        )
+        home_ids = {mount.id for mount in home_mounts}
+        drives, homes = [], []
+        for mount in mounts:
+            access = await self.sharing_service.fetch_mount_access_cached(
+                project_id=project_id, mount_id=mount.id
+            )
+            if access is None:
+                continue
+            drives.append(access)
+            if mount.id in home_ids:
+                homes.append(access)
+        return drives, homes
 
     @intercept_exceptions()
     @handle_sharing_exceptions()
@@ -458,7 +488,18 @@ class SharingRouter:
             workflow_ref=Reference(id=artifact_id),
         )
         data = getattr(revision, "data", None) if revision is not None else None
-        return build_share_disclosure(parameters=getattr(data, "parameters", None))
+        disclosure = build_share_disclosure(
+            parameters=getattr(data, "parameters", None)
+        )
+        drives, _ = await self._listed_drives(request, artifact_id=artifact_id)
+        private_drives = []
+        for drive in drives:
+            policy = await self.sharing_service.mount_policy(
+                project_id=_project_id(request), access=drive
+            )
+            if policy.visibility == Visibility.PRIVATE and drive.slug:
+                private_drives.append(drive.slug)
+        return disclosure.model_copy(update={"private_drives": sorted(private_drives)})
 
     async def _session_disclosure(
         self, request: Request, *, session_id: str

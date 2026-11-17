@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from oss.src.middlewares.auth import (
+    run_agent_id_of_request,
     SECRET_RESOLVE_GRANT,
     request_run_envelope,
     sign_secret_token,
@@ -351,5 +352,7 @@ class AccessRouter:
             organization_name=getattr(request.state, "organization_name", None),
             grants=grants or None,
             envelope=envelope,
+            # A renewed run credential runs the same agent; a first mint names none.
+            run_agent_id=run_agent_id_of_request(request),
         )
         return Allow(f"Secret {secret_token}")

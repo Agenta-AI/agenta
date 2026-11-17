@@ -1,16 +1,16 @@
 ---
 title: "Files and knowledge"
 sidebar_label: "Files and knowledge"
-description: "Learn how AI agents use session files, agent files, and project drives to work with documents, build knowledge, and share files with other agents."
+description: "Learn how AI agents use session files and drives to work with documents, build knowledge, and share files with other agents."
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
 
-An agent in Agenta works with up to three kinds of folder. Session files belong to one session. Agent files persist and are shared across every session of that agent. Project drives persist and are shared by the agents of a project that list them.
+An agent in Agenta works with two kinds of folder. Session files belong to one session. Drives persist after the session ends: an agent keeps its own knowledge in its home drive, and several agents can share a drive.
 
-Each folder is a drive: a folder of files that Agenta keeps in storage. The agent's configuration lists the drives it mounts, in [`drives` and `has_session_drive`](/reference/agents/agent-configuration#drives). A new agent has a session drive and its own agent drive.
+A drive is a folder of files that Agenta keeps in storage. Every drive belongs to the project and has a name, its slug. The agent's configuration lists the drives it attaches, in [`drives` and `home_drive`](/reference/agents/agent-configuration#drives). A new agent gets one drive of its own, named after the agent and set as its home drive.
 
 ## Session files support the work happening now
 
@@ -27,41 +27,43 @@ Session files are useful for:
 
 Think of the session files as the desk for today's work.
 
-## Agent files carry useful context forward
+## The home drive carries useful context forward
 
 Suppose the launch agent writes an email your team approves with one small edit. You want the next launch to benefit from that example.
 
-Save the email in the agent's files, alongside the brand voice guide and approved product notes. Those files belong to the agent and are available across its sessions.
+Save the email in the agent's home drive, alongside the brand voice guide and approved product notes. The agent sees its home drive at `agent-files/`, and the files are available across its sessions. The home drive also holds the tools and apps the agent saves for later sessions.
 
-Agent files are useful for:
+The home drive is useful for:
 
 - Brand, product, and policy reference material.
 - Examples of work your team approved.
 - Finished reports worth consulting later.
 - Notes and indexes that help the agent find its way around the collection.
 
-Think of the agent files as the shared shelf the agent returns to from one conversation to the next.
+Think of the home drive as the shelf the agent returns to from one conversation to the next.
 
-## Project drives share files between agents
+## Drives share files between agents
 
-Suppose the launch agent and the support agent both need the current price list. Copying it into each agent's files means two copies that drift apart.
+Suppose the launch agent and the support agent both need the current price list. Copying it into each agent's home drive means two copies that drift apart.
 
-Put the price list in a project drive instead, and list that drive in the configuration of both agents. Each agent sees it at `drives/price-lists/`. When someone updates the file, both agents see the new version on their next turn.
+Put the price list in its own drive instead, and list that drive in the configuration of both agents. Each agent sees it at `drives/price-lists/`. When someone updates the file, both agents see the new version on their next turn. Every attached drive appears under `drives/`, the home drive too, and `drives/README.md` lists them with their access.
 
 Each agent that lists a drive gets one of two kinds of access:
 
 - **Read**: the agent can open the files but cannot change them. Use this for reference material that people maintain, such as the price list.
 - **Read-write**: the agent can also add, change, and delete files. Use this for a folder that a team of agents builds together, such as shared research notes.
 
-An agent that does not list a drive cannot see it. An agent also cannot add a drive to its own configuration; a person decides which drives each agent gets.
+An agent that does not list a drive cannot see it. An agent also cannot change its own drives; a person decides which drives each agent gets.
+
+A drive is shared or private, like an agent. A shared drive is open to every project member whose role allows it. A private drive is open only to its owner. A shared agent can attach only shared drives. A personal agent can also attach its owner's private drives, and its home drive must be one of them. When a personal agent becomes shared, its owner's private drives that it lists become shared too.
 
 When several agents write the same drive, a write replaces the whole file, and the last write wins. Agents that add new files, instead of editing the same shared file, do not overwrite each other's work.
 
 | File scope | Best for | Launch agent example |
 | --- | --- | --- |
 | **Session** | The task in front of you | This month's campaign spreadsheet |
-| **Agent** | Work and knowledge worth reusing | The brand guide and approved launch email |
-| **Project drive** | Files several agents use | The price list the launch and support agents both read |
+| **Home drive** | Work and knowledge worth reusing | The brand guide and approved launch email |
+| **Other drive** | Files several agents use | The price list the launch and support agents both read |
 
 ## Patterns for using files
 
@@ -71,13 +73,13 @@ You can build a wiki for your agent with Markdown files. Over time, it can colle
 
 ### Write knowledge into files, then point at them from the instructions
 
-To make the agent folder useful, write what the agent learns into files, then point to them from the [instructions](/concepts/instructions).
+To make the home drive useful, write what the agent learns into files, then point to them from the [instructions](/concepts/instructions).
 
-For example, after the marketing agent writes a few good launch emails, save them in `examples/launch-emails/` in the agent folder. Then add one line to the instructions: "Before writing a launch email, read the files in `examples/launch-emails/` and follow their structure."
+For example, after the marketing agent writes a few good launch emails, save them in `agent-files/examples/launch-emails/`. Then add one line to the instructions: "Before writing a launch email, read the files in `agent-files/examples/launch-emails/` and follow their structure."
 
 ### A subfolder can carry its own AGENTS.md
 
-You can put an `AGENTS.md` file inside a subfolder of the agent folder. When the agent works in that folder, the harness reads the file automatically along with the agent's main instructions.
+You can put an `AGENTS.md` file inside a subfolder of a drive. When the agent works in that folder, the harness reads the file automatically along with the agent's main instructions.
 
 A `twitter-ads` folder can carry its own rules for campaign names, spending limits, and report formats. An agent working elsewhere never loads those rules, which keeps the main instructions short.
 
@@ -90,4 +92,4 @@ A file adds nothing to the context until the agent opens it. This lets the agent
 
 - [Instructions](/concepts/instructions) covers how to point the agent at these files.
 - [Skills](/concepts/skills) covers the other on-demand way to give an agent know-how.
-- [Share a drive between agents](/reference/agents/files-and-attachments#share-a-drive-between-agents) shows how to create a project drive and attach it.
+- [Share a drive between agents](/reference/agents/files-and-attachments#share-a-drive-between-agents) shows how to create a drive and attach it.

@@ -11,6 +11,7 @@ from oss.src.core.access.interfaces import ResourcePolicyInterface
 from oss.src.core.sharing.dtos import (
     AccessPolicy,
     AgentPolicyWriteResult,
+    MountAccess,
     SessionGrant,
     SessionReadScope,
     SessionGrantInput,
@@ -19,6 +20,7 @@ from oss.src.core.sharing.dtos import (
     SessionRole,
     SessionSharingWriteResult,
     UserSessionGrant,
+    Visibility,
 )
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import MembershipsService
@@ -81,6 +83,8 @@ class InMemorySharingDAO(SharingDAOInterface):
         self.grants: Dict[Tuple[UUID, UUID], List[SessionGrant]] = {}
         # (project_id, session_id) -> the former owner of a deleted private session.
         self.tombstones: Dict[Tuple[UUID, str], Optional[UUID]] = {}
+        # (project_id, mount_id) -> the drive's scope and `mount_visibility` row.
+        self.mounts: Dict[Tuple[UUID, UUID], MountAccess] = {}
         self.reads: List[str] = []
 
     # -- seeding ------------------------------------------------------------------------
@@ -125,6 +129,31 @@ class InMemorySharingDAO(SharingDAOInterface):
         self.grants.setdefault((project_id, grant.stream_id), []).append(grant)
         return grant
 
+    def add_mount(
+        self,
+        *,
+        project_id: UUID,
+        policy: Optional[AccessPolicy] = None,
+        slug: Optional[str] = None,
+        agent_id: Optional[UUID] = None,
+        session_id: Optional[str] = None,
+    ) -> MountAccess:
+        access = MountAccess(
+            mount_id=uuid4(),
+            slug=slug or f"d-{uuid4().hex[:8]}",
+            agent_id=str(agent_id) if agent_id is not None else None,
+            session_id=session_id,
+            policy=policy,
+        )
+        self.mounts[(project_id, access.mount_id)] = access
+        return access
+
+    async def fetch_mount_access(
+        self, *, project_id: UUID, mount_id: UUID
+    ) -> Optional[MountAccess]:
+        self.reads.append("fetch_mount_access")
+        return self.mounts.get((project_id, mount_id))
+
     # -- agents -------------------------------------------------------------------------
 
     async def fetch_agent_policy(
@@ -141,6 +170,7 @@ class InMemorySharingDAO(SharingDAOInterface):
         expected: Optional[AccessPolicy],
         policy: AccessPolicy,
         user_id: UUID,
+        share_mount_ids=(),
     ) -> AgentPolicyWriteResult:
         self.reads.append("set_agent_policy")
         key = (project_id, artifact_id)
@@ -150,7 +180,23 @@ class InMemorySharingDAO(SharingDAOInterface):
         if current != expected:
             raise SharingConflict(current=current)
         self.agents[key] = policy
-        return AgentPolicyWriteResult(policy=policy)
+        shared = []
+        for mount_id in share_mount_ids:
+            access = self.mounts.get((project_id, mount_id))
+            if (
+                access
+                and access.policy
+                and access.policy.visibility == Visibility.PRIVATE
+            ):
+                self.mounts[(project_id, mount_id)] = access.model_copy(
+                    update={
+                        "policy": access.policy.model_copy(
+                            update={"visibility": Visibility.PROJECT}
+                        )
+                    }
+                )
+                shared.append(access.slug)
+        return AgentPolicyWriteResult(policy=policy, drives_made_shared=sorted(shared))
 
     # -- sessions -----------------------------------------------------------------------
 
