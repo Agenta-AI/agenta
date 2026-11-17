@@ -120,14 +120,15 @@ export const useAgentChannels = (
         const readWithRetries = async () => {
             for (let attempt = 0; alive; attempt++) {
                 const last = attempt >= FIRST_READ_RETRIES
+                // The sequence this attempt's read takes. A later read ("Try again", an action)
+                // owns the state from then on, so this loop stops.
+                const seq = reloadSeq.current + 1
                 try {
                     await read(last)
                     return
                 } catch {
-                    if (last) return
-                    const seq = reloadSeq.current
+                    if (last || seq !== reloadSeq.current) return
                     await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** attempt))
-                    // A read that ran meanwhile ("Try again", an action) owns the state now.
                     if (seq !== reloadSeq.current) return
                 }
             }

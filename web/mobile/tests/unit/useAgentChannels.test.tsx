@@ -98,4 +98,22 @@ describe("useAgentChannels", () => {
         expect(reload).toHaveBeenCalledTimes(2)
         expect(latest.loadError).toBeNull()
     })
+
+    it("stops retrying when another read succeeded while the first one was pending", async () => {
+        vi.useFakeTimers()
+        let failFirst!: (error: Error) => void
+        reload.mockImplementationOnce(
+            () => new Promise((_, reject) => (failFirst = reject)) as Promise<object>,
+        )
+
+        await act(async () => root.render(<Probe />))
+        await act(async () => {
+            await latest.actions.reload()
+        })
+        await act(async () => failFirst(new Error("Bad Gateway")))
+        await act(async () => vi.advanceTimersByTimeAsync(10_000))
+
+        expect(reload).toHaveBeenCalledTimes(2)
+        expect(latest.loadError).toBeNull()
+    })
 })
