@@ -322,13 +322,7 @@ class TeamsAdapter(ChannelAdapterInterface):
             "type": "message",
             "id": message_id,
             "attachments": [
-                mapping.card_attachment(
-                    content,
-                    with_actions=False,
-                    outcome=None
-                    if approved is None
-                    else ("Approved" if approved else "Denied"),
-                )
+                mapping.card_attachment(content, with_actions=False, approved=approved)
             ],
         }
         await self._send(connection, "PUT", url, _outbound(activity, connection))

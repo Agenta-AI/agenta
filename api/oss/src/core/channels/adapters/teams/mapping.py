@@ -385,18 +385,19 @@ def card_attachment(
     *,
     thread_id: str = "",
     with_actions: bool = True,
-    outcome: Optional[str] = None,
+    approved: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """An Adaptive Card with the content's text and one `Action.Submit` per
     button. A click comes back as a message whose `value` is the button's
     `data`. The data carries the thread root too, because a click in a
     channel thread may arrive without `;messageid=` in its conversation id.
-    `outcome` ends the card with a status line, for an answered card."""
+    `approved` ends an answered card with "Approved" or "Denied"."""
 
     body = _card_body(content)
-    if outcome:
+    if approved is not None:
+        status = "Approved" if approved else "Denied"
         body.append(
-            {"type": "TextBlock", "text": outcome, "weight": "Bolder", "wrap": True}
+            {"type": "TextBlock", "text": status, "weight": "Bolder", "wrap": True}
         )
     card: Dict[str, Any] = {
         "type": "AdaptiveCard",
