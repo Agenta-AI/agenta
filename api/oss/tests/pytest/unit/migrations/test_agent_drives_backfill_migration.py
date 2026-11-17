@@ -6,18 +6,21 @@ touches, and checks that a second run changes nothing."""
 import asyncio
 import importlib.util
 import json
+import os
 from pathlib import Path
 from uuid import UUID, uuid4
 
 import asyncpg
 import pytest
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import create_async_engine
 
 DATABASE_NAME = "agenta_agent_drives_backfill"
-ADMIN_DSN = "postgresql://username:password@localhost:5444/postgres"
-DATABASE_DSN = f"postgresql://username:password@localhost:5444/{DATABASE_NAME}"
+PORT = os.environ.get("MIGRATION_TEST_POSTGRES_PORT", "5444")
+ADMIN_DSN = f"postgresql://username:password@localhost:{PORT}/postgres"
+DATABASE_DSN = f"postgresql://username:password@localhost:{PORT}/{DATABASE_NAME}"
 SQLALCHEMY_URL = (
-    f"postgresql+asyncpg://username:password@localhost:5444/{DATABASE_NAME}"
+    f"postgresql+asyncpg://username:password@localhost:{PORT}/{DATABASE_NAME}"
 )
 REVISION = (
     Path(__file__).resolve().parents[4]
@@ -174,7 +177,8 @@ class _Db:
             )
         return mount_id
 
-    async def revision(self, artifact_id, data, flags=AGENT):
+    async def revision(self, artifact_id, data, flags=AGENT, *, raw=None):
+        """`raw` is stored JSON text as is, for numbers that Python would rewrite."""
         revision_id = uuid4()
         await self.connection.execute(
             "INSERT INTO workflow_revisions VALUES ($1, $2, $3, $4, $5)",
@@ -182,9 +186,14 @@ class _Db:
             revision_id,
             artifact_id,
             None if flags is None else json.dumps(flags),
-            None if data is None else json.dumps(data),
+            raw if raw is not None else None if data is None else json.dumps(data),
         )
         return revision_id
+
+    async def text(self, revision_id):
+        return await self.connection.fetchval(
+            "SELECT data::text FROM workflow_revisions WHERE id = $1", revision_id
+        )
 
     async def data(self, revision_id):
         text = await self.connection.fetchval(
@@ -421,6 +430,7 @@ async def _run():
             "agent_visibility": 5,
             "project_visibility": 1,
             "revisions": 13,
+            "skipped": 0,
             "corrected": 0,
         }
 
@@ -431,6 +441,7 @@ async def _run():
             "agent_visibility": 0,
             "project_visibility": 0,
             "revisions": 0,
+            "skipped": 0,
             "corrected": 0,
         }
         assert await db.snapshot() == after
@@ -486,6 +497,117 @@ async def _run_concurrent_visibility_change():
 
 def test_agent_drive_visibility_follows_a_concurrent_agent_change():
     asyncio.run(_run_concurrent_visibility_change())
+
+
+async def _run_stored_numbers():
+    revision = _revision()
+    connection = await _scratch()
+    project, organization = uuid4(), uuid4()
+    await connection.execute(
+        "INSERT INTO projects VALUES ($1, $2)", project, organization
+    )
+    db = _Db(connection, project, organization)
+    try:
+        agent = await db.agent("number-agent")
+        await db.drive(_reserved(agent), agent_id=agent)
+        # Python reads these as inf, 0.0 and 1.0, so writing them back would change
+        # them or fail; the revision stays as stored
+        kept = {
+            number: await db.revision(
+                agent,
+                None,
+                raw='{"parameters": {"agent": {}, "threshold": %s}}' % number,
+            )
+            for number in ("1e400", "1e-400", "1.00000000000000000001")
+        }
+        kept_before = {number: await db.text(r) for number, r in kept.items()}
+        # these keep their value through the round trip, so the revision is written
+        exact = await db.revision(
+            agent,
+            None,
+            raw='{"parameters": {"agent": {}, "big": 123456789012345678901234567890, '
+            '"wide": 1.5e10, "tenth": 0.1, "zero": -0.0}}',
+        )
+
+        counts = await _backfill(revision)
+
+        for number, revision_id in kept.items():
+            assert await db.text(revision_id) == kept_before[number], number
+        assert await db.data(exact) == {
+            "parameters": {
+                "agent": {
+                    "has_session_drive": True,
+                    "drives": [{"slug": "number-agent-files"}],
+                    "home_drive": "number-agent-files",
+                },
+                "big": 123456789012345678901234567890,
+                "wide": 1.5e10,
+                "tenth": 0.1,
+                "zero": -0.0,
+            }
+        }
+        assert (counts["revisions"], counts["skipped"]) == (1, 3)
+    finally:
+        await connection.close()
+        await _drop()
+
+
+def test_stored_numbers_are_never_rewritten_with_another_value():
+    asyncio.run(_run_stored_numbers())
+
+
+async def _run_agent_made_private_before_the_fill():
+    revision = _revision()
+    connection = await _scratch()
+    project, organization, owner = uuid4(), uuid4(), uuid4()
+    await connection.execute(
+        "INSERT INTO projects VALUES ($1, $2)", project, organization
+    )
+    db = _Db(connection, project, organization)
+    owner_connection = await asyncpg.connect(DATABASE_DSN)
+    engine = create_async_engine(SQLALCHEMY_URL)
+    try:
+        agent = await db.agent("late-private", access=("project", owner))
+        bare = await db.revision(agent, _data({}))
+
+        async with engine.begin() as migration:
+            await migration.run_sync(
+                lambda sync: (
+                    revision._name_drives(sync),
+                    sync.execute(sa.text(revision._AGENT_DRIVE_VISIBILITY_SQL)),
+                )
+            )
+            # the owner makes the agent private after its drive row was written
+            await owner_connection.execute(
+                "UPDATE agent_access SET visibility = 'private' "
+                "WHERE project_id = $1 AND artifact_id = $2",
+                project,
+                agent,
+            )
+            await migration.run_sync(
+                lambda sync: (
+                    revision._state_drives(sync, batch_size=2),
+                    sync.execute(sa.text(revision._CORRECT_AGENT_DRIVE_VISIBILITY_SQL)),
+                )
+            )
+
+        # the drive follows the agent, and the revision keeps the drive as home
+        drive = await db.mount(await db.agent_mount(agent))
+        assert (drive["visibility"], drive["owner_user_id"]) == ("private", owner)
+        assert (await db.data(bare))["parameters"]["agent"] == {
+            "has_session_drive": True,
+            "drives": [{"slug": "late-private-files"}],
+            "home_drive": "late-private-files",
+        }
+    finally:
+        await engine.dispose()
+        await owner_connection.close()
+        await connection.close()
+        await _drop()
+
+
+def test_an_agent_made_private_during_the_run_keeps_its_home_drive():
+    asyncio.run(_run_agent_made_private_before_the_fill())
 
 
 def test_agent_drives_get_slugs_visibility_and_stated_revisions_once():

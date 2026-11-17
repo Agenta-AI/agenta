@@ -9,14 +9,15 @@ service runs release 1. Data only, no schema change.
 | 2 | An agent that has no drive row and is not archived gets one, with the same slug rule. |
 | 3 | Every agent drive without a `mount_visibility` row gets one copied from `agent_access` (`project` with no owner when the agent has no row). |
 | 4 | Every other drive with no session and no visibility row gets `project` with no owner. |
-| 5 | In every agent revision, a reserved agent slug in `drives` or `home_drive` becomes the drive's slug, and missing keys are added: `has_session_drive: true`, and when `drives` is absent, the agent's own drive as the only entry and as home if it is not archived and the home rule allows it, else `drives: []` and `home_drive: null`. |
+| 5 | In every agent revision, a reserved agent slug in `drives` or `home_drive` becomes the drive's slug, and missing keys are added: `has_session_drive: true`, and when `drives` is absent, the agent's own drive as the only entry and as home if it is not archived and the home rule allows it (always for a visibility row that step 3 wrote, which equals the agent's policy), else `drives: []` and `home_drive: null`. |
 | 6 | Every agent drive visibility row that this run wrote and that no longer equals its agent's `agent_access` (an agent visibility change committed while this run ran) gets the agent's value again. |
 
 A static catalog agent has no artifact in the database: its drive keeps its reserved slug
 and gets no visibility row. A stated JSON null counts as absent, except in `home_drive`,
 where a stated value (null included) is kept, as the app's fill keeps it. The slug rule and the
 fill are frozen copies, not imports, so this revision does what it did when it was
-written. A second run changes nothing.
+written. A second run changes nothing. A revision that holds a number Python cannot write
+back with the same value (for example `1e400`) is left unchanged, and its id is logged.
 
 An agent visibility change that commits after step 6 and before this migration commits
 still leaves its own drive with the old value; release 1 rechecks the drive row under the
@@ -29,9 +30,11 @@ Create Date: 2026-11-17 00:00:00.000000
 
 import json
 import logging
+import math
 import re
 from datetime import datetime, timezone
-from typing import Dict, Optional, Sequence, Set, Tuple, Union
+from decimal import Decimal
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -132,7 +135,7 @@ ON CONFLICT (project_id, mount_id) DO NOTHING
 
 _AGENT_DRIVES_SQL = """
 SELECT m.project_id, m.agent_id, m.slug, mv.visibility, mv.owner_user_id,
-       m.deleted_at IS NULL
+       m.deleted_at IS NULL, COALESCE(mv.xmin = pg_current_xact_id()::xid, false)
 FROM mounts m
 LEFT JOIN mount_visibility mv ON mv.project_id = m.project_id AND mv.mount_id = m.id
 WHERE m.agent_id IS NOT NULL AND m.session_id IS NULL
@@ -161,8 +164,8 @@ WHERE project_id = :project_id AND id = :id
 
 # (visibility, owner_user_id)
 Policy = Tuple[str, Optional[UUID]]
-# (slug, visibility row or None, not archived)
-Drive = Tuple[str, Optional[Policy], bool]
+# (slug, visibility row or None, not archived, visibility row written by this run)
+Drive = Tuple[str, Optional[Policy], bool, bool]
 Key = Tuple[UUID, str]
 
 
@@ -185,6 +188,17 @@ def _home_allowed(agent: Policy, drive: Optional[Policy]) -> bool:
     return drive[0] == "project"
 
 
+class _Unfaithful(ValueError):
+    """The stored JSON holds a number that Python would write back with another value."""
+
+
+def _float(text: str) -> float:
+    value = float(text)
+    if not math.isfinite(value) or Decimal(repr(value)) != Decimal(text):
+        raise _Unfaithful(text)
+    return value
+
+
 def _merged(
     text: str,
     *,
@@ -193,8 +207,9 @@ def _merged(
     drives: Dict[Key, Drive],
     agents: Dict[Key, Policy],
 ) -> Optional[str]:
-    """The data with renamed references and missing keys, or None when nothing changes."""
-    data = json.loads(text)
+    """The data with renamed references and missing keys, or None when nothing changes.
+    Raises ValueError when the stored JSON cannot be written back with the same values."""
+    data = json.loads(text, parse_float=_float)
     parameters = data.get("parameters") if isinstance(data, dict) else None
     agent = parameters.get("agent") if isinstance(parameters, dict) else None
     if not isinstance(agent, dict):
@@ -229,7 +244,7 @@ def _merged(
             own is not None
             and own[2]
             and not _RESERVED_AGENT_SLUG.match(own[0])
-            and _home_allowed(policy, own[1])
+            and (own[3] or _home_allowed(policy, own[1]))
         ):
             agent["drives"] = [{"slug": own[0]}]
             agent.setdefault("home_drive", own[0])
@@ -237,7 +252,7 @@ def _merged(
             agent["drives"] = []
             agent.setdefault("home_drive", None)
         changed = True
-    return json.dumps(data) if changed else None
+    return json.dumps(data, allow_nan=False) if changed else None
 
 
 def _name_drives(connection) -> Tuple[int, int]:
@@ -289,16 +304,23 @@ def _name_drives(connection) -> Tuple[int, int]:
     return renamed, created
 
 
-def _state_drives(connection, *, batch_size: int) -> int:
+def _state_drives(connection, *, batch_size: int) -> Tuple[int, List[UUID]]:
     drives: Dict[Key, Drive] = {
         (project_id, agent_id): (
             slug,
             (visibility, owner) if visibility is not None else None,
             active,
+            written_here,
         )
-        for project_id, agent_id, slug, visibility, owner, active in connection.execute(
-            sa.text(_AGENT_DRIVES_SQL)
-        ).all()
+        for (
+            project_id,
+            agent_id,
+            slug,
+            visibility,
+            owner,
+            active,
+            written_here,
+        ) in connection.execute(sa.text(_AGENT_DRIVES_SQL)).all()
     }
     agents: Dict[Key, Policy] = {
         (project_id, artifact_id): (visibility, owner)
@@ -307,22 +329,27 @@ def _state_drives(connection, *, batch_size: int) -> int:
         ).all()
     }
     changed = 0
+    skipped: List[UUID] = []
     last = {"project_id": UUID(int=0), "id": UUID(int=0)}
     while True:
         rows = connection.execute(
             sa.text(_READ_SQL), {**last, "limit": batch_size}
         ).all()
         if not rows:
-            return changed
+            return changed, skipped
         updates = []
         for project_id, revision_id, artifact_id, text in rows:
-            merged = _merged(
-                text,
-                project_id=project_id,
-                artifact_id=artifact_id,
-                drives=drives,
-                agents=agents,
-            )
+            try:
+                merged = _merged(
+                    text,
+                    project_id=project_id,
+                    artifact_id=artifact_id,
+                    drives=drives,
+                    agents=agents,
+                )
+            except ValueError:
+                skipped.append(revision_id)
+                continue
             if merged is not None:
                 updates.append(
                     {"project_id": project_id, "id": revision_id, "data": merged}
@@ -337,7 +364,14 @@ def _backfill(connection, *, batch_size: int = BATCH_SIZE) -> Dict[str, int]:
     renamed, created = _name_drives(connection)
     agent_rows = connection.execute(sa.text(_AGENT_DRIVE_VISIBILITY_SQL)).rowcount
     project_rows = connection.execute(sa.text(_PROJECT_DRIVE_VISIBILITY_SQL)).rowcount
-    revisions = _state_drives(connection, batch_size=batch_size)
+    revisions, skipped = _state_drives(connection, batch_size=batch_size)
+    if skipped:
+        log.warning(
+            "agent drives: %s agent revisions left unchanged, their stored JSON holds "
+            "a number that cannot be written back with the same value: %s",
+            len(skipped),
+            ", ".join(str(revision_id) for revision_id in skipped),
+        )
     corrected = connection.execute(
         sa.text(_CORRECT_AGENT_DRIVE_VISIBILITY_SQL)
     ).rowcount
@@ -347,6 +381,7 @@ def _backfill(connection, *, batch_size: int = BATCH_SIZE) -> Dict[str, int]:
         "agent_visibility": agent_rows,
         "project_visibility": project_rows,
         "revisions": revisions,
+        "skipped": len(skipped),
         "corrected": corrected,
     }
 
@@ -357,7 +392,8 @@ def upgrade() -> None:
     log.info(
         "agent drives: %(renamed)s renamed, %(created)s created; visibility rows: "
         "%(agent_visibility)s agent, %(project_visibility)s project; "
-        "%(revisions)s agent revisions written; %(corrected)s visibility rows "
+        "%(revisions)s agent revisions written, %(skipped)s left unchanged; "
+        "%(corrected)s visibility rows "
         "corrected",
         counts,
     )
