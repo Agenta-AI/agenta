@@ -656,7 +656,8 @@ export async function seedHomeReadmeRemote(
       command: "sh",
       args: [
         "-c",
-        `[ -e ${shellQuote(readmePath)} ] || [ -L ${shellQuote(readmePath)} ] || printf %s ${shellQuote(HOME_README_CONTENT)} > ${shellQuote(readmePath)}`,
+        // `set -C` makes the write fail on a README another run created after the check, as `wx` does.
+        `set -C; [ -e ${shellQuote(readmePath)} ] || [ -L ${shellQuote(readmePath)} ] || printf %s ${shellQuote(HOME_README_CONTENT)} 2>/dev/null > ${shellQuote(readmePath)} || [ -e ${shellQuote(readmePath)} ]`,
       ],
       timeoutMs: 30_000,
     });

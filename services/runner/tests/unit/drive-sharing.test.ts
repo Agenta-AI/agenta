@@ -997,6 +997,31 @@ describe("local runs with drives (engine composition)", () => {
     }
   }, 20_000);
 
+  it("holds a lost drive's notice back from a Claude slash command and sends it on the next turn", async () => {
+    const cwd = join(tmpdir(), `agenta-drives-slash-${process.pid}-${Date.now()}`);
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.signMountCredentialsBySlug = bySlug();
+    deps.mountStorage = (async () => true) as never;
+    deps.unmountStorage = (async () => true) as never;
+    const req = request({ harness: "claude", sessionId: undefined, drives: [{ slug: "notes", access: "read-write" }] });
+    const acquired = await acquireEnvironment(req, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const notice = driveAppendix({ slug: "notes", access: "read-write", mountedPath: undefined }).text;
+      rmSync(join(cwd, "drives", "notes"));
+      mkdirSync(join(cwd, "drives", "notes"));
+      await runTurn(acquired.env, { ...req, messages: [{ role: "user", content: "/compact" }] });
+      assert.ok(!JSON.stringify(calls.promptBlocks).includes("is not available"));
+      await runTurn(acquired.env, req);
+      assert.equal(calls.promptBlocks[0]?.text, `${notice}\n\n`);
+    } finally {
+      await acquired.env.destroy();
+      cleanup(cwd, ["notes"]);
+    }
+  }, 20_000);
+
   it("removes the stale link of a drive the list dropped at setup, and keeps the listed one", async () => {
     const cwd = join(tmpdir(), `agenta-drives-stale-${process.pid}-${Date.now()}`);
     mkdirSync(join(cwd, "drives"), { recursive: true });
