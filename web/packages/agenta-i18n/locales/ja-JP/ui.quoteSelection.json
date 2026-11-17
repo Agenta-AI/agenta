@@ -1,0 +1,11 @@
+{
+    "addToMessage": "メッセージに追加",
+    "askAboutThis": "これについて質問…",
+    "comment": "コメント",
+    "commentN": "コメント {{n}}",
+    "quoteActions": "引用の操作",
+    "quoteAdded": "引用を追加しました。{{count}} 件を添付済み。",
+    "reply": "返信",
+    "replyToSelection": "選択した部分に返信",
+    "sendNow": "今すぐ送信"
+}

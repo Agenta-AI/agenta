@@ -16,6 +16,8 @@
 import {useMemo, useState, type ReactNode} from "react"
 
 import type {WorkspaceMember} from "@agenta/entities/organization"
+import {useT} from "@agenta/i18n"
+import settingsAuditCatalog from "@agenta/i18n/catalogs/settings.audit"
 import {getSettingsSidebarIcon} from "@agenta/settings"
 import {Spinner} from "@agenta/ui/ui"
 
@@ -57,6 +59,7 @@ export const AuditLogPage = ({
     members,
     currentUserId,
 }: AuditLogPageProps) => {
+    const t = useT(settingsAuditCatalog)
     const names = useMemo(
         () =>
             new Map(
@@ -84,8 +87,8 @@ export const AuditLogPage = ({
         return (
             <UpgradeNotice
                 icon={getSettingsSidebarIcon("auditLog")}
-                title="Audit Log is not available on your plan"
-                description="Query the full history of platform events — who did what, and when — across your organization."
+                title={t("settings.audit.upgradeTitle")}
+                description={t("settings.audit.upgradeDescription")}
                 action={upgradeAction}
             />
         )

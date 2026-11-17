@@ -1,0 +1,16 @@
+{
+    "loadError": "このテンプレートを読み込めませんでした",
+    "notFound": "テンプレートが見つかりません",
+    "allTemplates": "すべてのテンプレート",
+    "use": "このテンプレートを使う",
+    "slotOr": "{{first}} または {{second}}",
+    "connectionsUsed": "使用する接続",
+    "optionalConnections": "オプションの接続",
+    "alsoIncluded": "その他の内容",
+    "trigger": "トリガー",
+    "exampleSession": "セッション例",
+    "exampleSteps": "{{name}} · {{total}} ステップ",
+    "exampleNote": "このテンプレートがどのように動くかの例です。記録されたセッションではありません。",
+    "instructions": "指示 · AGENTS.md",
+    "tools": "呼び出せるツール"
+}

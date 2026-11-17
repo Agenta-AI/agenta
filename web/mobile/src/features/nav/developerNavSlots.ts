@@ -7,7 +7,7 @@ import {
 } from "../developer/developerNavItems"
 import type {DeveloperView} from "../developer/developerViews"
 
-import {observabilityNavItems} from "./observabilityNavItems"
+import {observabilityNavItems, tNow, type NavTranslate} from "./observabilityNavItems"
 
 /** The Prompts row's key: the prompt apps load under it when it opens. */
 export const PROMPTS_ROW_KEY = developerRowKey("prompts")
@@ -29,6 +29,7 @@ export const developerNavSlots = (
     views: readonly DeveloperView[],
     developerMode: boolean,
     promptsChildren: SidebarConfig[] = [],
+    t: NavTranslate = tNow,
 ): DeveloperNavSlots => {
     if (!developerMode) {
         return {afterHome: [], afterSessions: developerNavItems(projectURL, views)}
@@ -41,6 +42,6 @@ export const developerNavSlots = (
                 ? {...row, submenu: promptsChildren, hideChildrenWhenCollapsed: true}
                 : row,
         ),
-        afterSessions: [...rail.evaluation, ...observabilityNavItems(projectURL, true)],
+        afterSessions: [...rail.evaluation, ...observabilityNavItems(projectURL, true, t)],
     }
 }

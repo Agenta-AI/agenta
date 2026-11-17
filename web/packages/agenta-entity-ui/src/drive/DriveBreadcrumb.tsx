@@ -1,6 +1,8 @@
 import {Fragment} from "react"
 
 import {driveRootLabel} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -32,6 +34,7 @@ export const DriveBreadcrumb = ({
     /** The leaf is a file. */
     isFile?: boolean
 }) => {
+    const t = useT(driveExplorerCatalog)
     const segs = shown.split("/").filter(Boolean)
     if (variant === "icons") {
         // `inline-flex` restated: BreadcrumbLink's `inline-block` would stack glyph over label.
@@ -47,7 +50,7 @@ export const DriveBreadcrumb = ({
                         {segs.length === 0 ? (
                             <BreadcrumbPage className="flex h-auto items-center gap-1.5 px-1.5 py-[3px] font-medium">
                                 <House size={15} />
-                                All files
+                                {t("entityUi.driveExplorer.allFiles")}
                             </BreadcrumbPage>
                         ) : (
                             <BreadcrumbLink asChild>
@@ -55,7 +58,7 @@ export const DriveBreadcrumb = ({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => onNavigate("")}
-                                    aria-label="All files"
+                                    aria-label={t("entityUi.driveExplorer.allFiles")}
                                     title={rootLabel}
                                     className={crumbLink}
                                 >
@@ -125,7 +128,9 @@ export const DriveBreadcrumb = ({
                 <House size={12} />
                 {/* Label the root "root" only when it's alone — a bare home icon reads as empty. Once
                     there's a path the icon stays bare (the segments give the context). */}
-                {segs.length === 0 ? <span className="font-mono">root</span> : null}
+                {segs.length === 0 ? (
+                    <span className="font-mono">{t("entityUi.driveExplorer.root")}</span>
+                ) : null}
             </button>
             {segs.map((seg, i) => {
                 const path = segs.slice(0, i + 1).join("/")

@@ -1,3 +1,5 @@
+import {useT} from "@agenta/i18n"
+import automationsEditorCatalog from "@agenta/i18n/catalogs/automations.editor"
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {Funnel, MagnifyingGlass} from "@phosphor-icons/react"
 
@@ -18,31 +20,42 @@ export const AutomationListNoMatch = ({
     /** The search that matched nothing. Absent ⇒ the filters are what narrowed it. */
     term?: string
     onClear?: () => void
-}) => (
-    <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
-        <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
-            {term ? <MagnifyingGlass size={19} aria-hidden /> : <Funnel size={19} aria-hidden />}
-        </span>
-        <p className="m-0 text-[14px] font-medium text-foreground">
-            {term ? `Nothing matches \u201C${term}\u201D` : "No automation matches these filters"}
-        </p>
-        <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
-            {term
-                ? "Try a shorter search, or check the filters — they narrow this list too."
-                : "Every automation is hidden by the filters on this list."}
-        </p>
-        {onClear ? (
-            <Button
-                size="sm"
-                variant="outline"
-                className="mt-1 text-xs font-normal"
-                onClick={onClear}
-            >
-                {term ? "Clear search" : "Reset filters"}
-            </Button>
-        ) : null}
-    </div>
-)
+}) => {
+    const t = useT(automationsEditorCatalog)
+    return (
+        <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
+            <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
+                {term ? (
+                    <MagnifyingGlass size={19} aria-hidden />
+                ) : (
+                    <Funnel size={19} aria-hidden />
+                )}
+            </span>
+            <p className="m-0 text-[14px] font-medium text-foreground">
+                {term
+                    ? t("automations.editor.noMatchTerm", {term})
+                    : t("automations.editor.noMatchFilters")}
+            </p>
+            <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
+                {term
+                    ? t("automations.editor.noMatchTermBody")
+                    : t("automations.editor.noMatchFiltersBody")}
+            </p>
+            {onClear ? (
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-1 text-xs font-normal"
+                    onClick={onClear}
+                >
+                    {term
+                        ? t("automations.editor.clearSearch")
+                        : t("automations.editor.resetFilters")}
+                </Button>
+            ) : null}
+        </div>
+    )
+}
 
 /** Mirrors the detail body's own rhythm — identity, meta row, field stack — at its measurements. */
 export const AutomationDetailSkeleton = () => (

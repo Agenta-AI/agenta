@@ -1,0 +1,21 @@
+{
+    "codeHeading": "Consultez votre boîte de réception",
+    "codeSubheading": "Saisissez le code à 6 caractères que nous avons envoyé à votre adresse e-mail.",
+    "continueWithSso": "Continuer avec le SSO ({{provider}})",
+    "headingNew": "Bienvenue sur Agenta",
+    "headingReturning": "Content de vous revoir",
+    "noAuthMethods": "Aucune méthode de connexion n’est activée sur ce déploiement. Contactez votre administrateur.",
+    "noMethodForEmail": "Cette adresse e-mail n’a aucune méthode de connexion ici. Essayez une autre adresse.",
+    "otpHeading": "Recevoir un code de connexion",
+    "otpSubheading": "Nous enverrons un code à usage unique à cette adresse.",
+    "passwordHeading": "Saisissez votre mot de passe",
+    "passwordSubheading": "Nouveau sur Agenta ? Le mot de passe que vous choisissez ici crée votre compte.",
+    "providerUnreachable": "Impossible de joindre ce fournisseur. Veuillez réessayer.",
+    "redirectingTo": "Redirection vers {{provider}}…",
+    "signedInButAppFailed": "Connexion réussie, mais l’application n’a pas pu s’ouvrir. Veuillez réessayer.",
+    "ssoHeading": "Se connecter avec le SSO",
+    "ssoSubheading": "Votre organisation gère la connexion pour cette adresse e-mail.",
+    "subheadingNew": "Connectez-vous ou créez un compte.",
+    "subheadingReturning": "Connectez-vous pour accéder à votre espace de travail.",
+    "termsNotice": "En continuant, vous acceptez les <terms>Conditions d’utilisation</terms> et la <privacy>Politique de confidentialité</privacy> d’Agenta."
+}

@@ -94,6 +94,16 @@ class SessionTurnsDAOInterface(ABC):
     ) -> Optional[SessionTurn]: ...
 
     @abstractmethod
+    async def find_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: Optional[str] = None,
+        turn_id: Optional[UUID] = None,
+        trace_id: Optional[UUID] = None,
+    ) -> Optional[SessionTurn]: ...
+
+    @abstractmethod
     async def latest_turn_per_harness_kind(
         self,
         *,

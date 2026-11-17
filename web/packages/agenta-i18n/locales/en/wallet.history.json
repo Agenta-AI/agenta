@@ -1,0 +1,16 @@
+{
+    "columnAdded": "Added",
+    "columnAmount": "Amount",
+    "columnCredit": "Credit",
+    "columnExpires": "Expires",
+    "columnPaid": "Paid",
+    "empty": "No credits yet.",
+    "free": "Free",
+    "included": "Included",
+    "never": "Never",
+    "opening": "Opening…",
+    "statusExpired": "Expired",
+    "statusUsedUp": "Used up",
+    "title": "Credit history",
+    "viewInvoices": "View invoices"
+}

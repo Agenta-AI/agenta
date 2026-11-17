@@ -1,0 +1,17 @@
+{
+    "popupBlocked": "Ventana emergente bloqueada. Redirigiendo en esta pestaña.",
+    "onlyMe": "Solo yo",
+    "onlyMeNote": "Se usa cuando ejecutas un agente que utiliza la cuenta de {{name}} de cada persona. Tu primera cuenta de {{name}} pasa a ser la predeterminada.",
+    "everyoneInProject": "Todos en {{project}}",
+    "everyoneInThisProject": "Todos en este proyecto",
+    "everyoneNote": "Un agente de este proyecto puede usarla como cuenta del agente, para cada persona que lo ejecute.",
+    "connectName": "Conectar {{name}}",
+    "name": "Nombre",
+    "required": "Obligatorio",
+    "namePlaceholder": "p. ej., Mi cuenta de {{name}}",
+    "whoCanUseIt": "Quién puede usarla",
+    "authMethod": "Método de autenticación",
+    "apiKey": "Clave de API",
+    "submitFailed": "No se ha podido iniciar la conexión: el servidor la ha rechazado. Inténtalo de nuevo; si sigue fallando, el proveedor de conexiones de esta instalación no está configurado.",
+    "connect": "Conectar"
+}

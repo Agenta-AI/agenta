@@ -1,0 +1,21 @@
+{
+    "agentsBody": "描述要做的工作，连接它需要的应用，并通过反馈不断改进。它能正常工作后，就可以分享给团队。",
+    "agentsHeadline": "通过对话构建 Agent",
+    "agentsHowItWorks": "Agent 的工作方式",
+    "automationsBody": "自动化会在无需你开口的情况下运行你的某个 Agent：按计划运行，或在你已连接的应用中发生某件事时运行。",
+    "automationsHeadline": "让你的 Agent 在后台工作",
+    "automationsHowItWorks": "自动化的工作方式",
+    "loadTemplatesError": "无法加载模板",
+    "readDocs": "查看文档",
+    "sessionsBody": "与 Agent 的每次聊天都是一个会话。你可以从上次中断的地方继续，在会话中搜索，并查看每一次模型和工具调用。",
+    "sessionsHeadline": "与 Agent 的每一次对话，都在一个地方",
+    "sessionsHowItWorks": "会话的工作方式",
+    "skillsBody": "用 AGENTS.md、Skill 和 MCP 服务器定义你的 Agent。你可以把 Agent 生态中的 Skill 和 MCP 服务器带入 Agenta。",
+    "skillsHeadline": "教会你的 Agent 了解团队的工作方式",
+    "skillsHowItWorks": "Skill 的工作方式",
+    "startFromTemplate": "从模板开始",
+    "viewAllTemplates": "查看全部模板",
+    "walkthrough": "{{title}}演示",
+    "watch": "观看{{title}}",
+    "watchVideo": "观看视频"
+}

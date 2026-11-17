@@ -1,0 +1,8 @@
+{
+    "deleteBody": "{{name}} と、そのすべてのエージェント、データセット、デプロイを完全に削除します。",
+    "deleteTitle": "プロジェクトを削除",
+    "deleting": "削除中…",
+    "namePlaceholder": "プロジェクト名",
+    "newDescription": "プロジェクトは、エージェント、データセット、デプロイをまとめます。",
+    "newTitle": "新しいプロジェクト"
+}

@@ -1,0 +1,10 @@
+{
+    "noProject": "Não é possível excluir: nenhum projeto selecionado.",
+    "failedMany": "Falha ao excluir os rastreamentos.",
+    "failedOne": "Falha ao excluir o rastreamento.",
+    "confirmOne": "Tem certeza de que deseja excluir?",
+    "confirmMany": "Tem certeza de que deseja excluir {{count}} rastreamentos?",
+    "notReversible": "Esta ação não pode ser desfeita.",
+    "cancel": "Cancelar",
+    "delete": "Excluir"
+}

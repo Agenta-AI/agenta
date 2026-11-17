@@ -283,8 +283,8 @@ export async function runWithKeepalive(
   normalizeRequestModel(request);
   const turnCredential = credentialLease ? { credentialLease } : {};
   const sessionId = request.sessionId?.trim();
-  // Every execution carries an id: callers that omit `turnId` get one minted here, so the
-  // turns-ledger append and interaction rows are never written without their execution id.
+  // Every execution carries an id. The SDK sends one on every session run; a direct runner
+  // caller that omits it gets one minted here, so ledger and interaction rows always have one.
   request.turnId = request.turnId?.trim() || randomUUID();
 
   // Track whether anything reached the client on this streaming edge. A live continuation/resume

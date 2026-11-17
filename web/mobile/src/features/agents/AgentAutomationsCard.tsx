@@ -1,4 +1,6 @@
 import {useUpcomingTriggers} from "@agenta/entity-ui/agent"
+import {useT} from "@agenta/i18n"
+import agentsOverview from "@agenta/i18n/catalogs/agents.overview"
 import {Clock, Lightning} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
@@ -23,18 +25,22 @@ export const AgentAutomationsCard = ({
     /** `/w/:workspace/p/:project` — a row opens its automation's screen. */
     base: string
 }) => {
+    const t = useT(agentsOverview)
     const router = useRouter()
     const {rows, isLoading, hasError, retry} = useUpcomingTriggers({agentId, agentNames})
 
     return (
-        <AgentOverviewCard title="Automations">
+        <AgentOverviewCard title={t("agents.overview.automationsTitle")}>
             {isLoading ? (
                 <AgentOverviewCardSkeleton rows={2} />
             ) : hasError ? (
-                <AgentOverviewCardError message="Couldn't load automations." onRetry={retry} />
+                <AgentOverviewCardError
+                    message={t("agents.overview.automationsLoadError")}
+                    onRetry={retry}
+                />
             ) : rows.length === 0 ? (
                 <p className="m-0 py-2 text-[13px] text-muted-foreground">
-                    No automations bound to this agent yet.
+                    {t("agents.overview.automationsEmpty")}
                 </p>
             ) : (
                 rows.map((row) => (

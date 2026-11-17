@@ -1,0 +1,11 @@
+{
+    "agentReply": "Agent reply",
+    "attachment": "Attachment",
+    "messageNotSent": "Message not sent",
+    "noResponse": "No response — the agent ended its turn without answering.",
+    "retryMessage": "Retry message",
+    "savedAttachments": "Saved attachments",
+    "somethingWentWrong": "Something went wrong.",
+    "stopped": "Stopped",
+    "textSaved": "Your text and attachments are saved."
+}

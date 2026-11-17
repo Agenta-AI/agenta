@@ -1,0 +1,16 @@
+{
+    "rateLimitReached": "Limite de taxa atingido",
+    "quotaReached": "Você atingiu o limite da sua cota mensal. Tente novamente mais tarde ou faça upgrade do seu plano.",
+    "noTracesFound": "Nenhum rastreamento encontrado",
+    "adjustTraces": "Tente ajustar os filtros ou o intervalo de tempo para ver os rastreamentos.",
+    "demoAlt": "Demonstração de observabilidade mostrando a visualização de rastreamentos",
+    "noTracesYet": "Ainda não há rastreamentos",
+    "onboardingDescription": "Adicione algumas linhas de código para começar a capturar rastreamentos do seu aplicativo LLM. Monitore a latência e o uso de tokens e depure problemas com insights detalhados.",
+    "setUpTracing": "Configurar o rastreamento",
+    "learnMore": "Saiba mais",
+    "noSessionsFound": "Nenhuma sessão encontrada",
+    "adjustSessions": "Tente ajustar os filtros ou o intervalo de tempo para ver as sessões.",
+    "noSessionsObserved": "Nenhuma sessão observada",
+    "sessionsDescription": "As sessões permitem acompanhar conversas de vários turnos com seu aplicativo LLM, incluindo as etapas intermediárias.",
+    "gettingStartedSessions": "Primeiros passos com sessões"
+}

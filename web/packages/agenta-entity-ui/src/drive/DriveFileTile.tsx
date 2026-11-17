@@ -8,6 +8,8 @@ import {
     type ResolvedMountPath,
 } from "@agenta/entities/drive"
 import type {FileActivityOp} from "@agenta/entities/session"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {Button, cn, SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
@@ -39,15 +41,16 @@ export const DriveFileGlyph = ({path}: {path: string}) => (
 )
 
 const DownloadButton = ({name, target}: {name: string; target: ResolvedMountPath}) => {
+    const t = useT(driveExplorerCatalog)
     const downloadFile = useDriveFileDownload()
     return (
-        <Tooltip title="Download">
+        <Tooltip title={t("entityUi.driveExplorer.download")}>
             <Button
                 variant="ghost"
                 size="icon-sm"
                 className="relative shrink-0 text-muted-foreground hover:text-foreground"
                 onClick={() => void downloadFile(target.mount, target.path)}
-                aria-label={`Download ${name}`}
+                aria-label={t("entityUi.driveExplorer.downloadName", {name})}
             >
                 <DownloadSimple size={14} />
             </Button>
@@ -57,11 +60,12 @@ const DownloadButton = ({name, target}: {name: string; target: ResolvedMountPath
 
 /** The whole card opens the file; the actions sit above it, so no button nests. */
 const OpenOverlay = ({path, name}: {path: string; name: string}) => {
+    const t = useT(driveExplorerCatalog)
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(useDriveSessionId() ?? ""))
     return (
         <button
             type="button"
-            aria-label={`Open ${name}`}
+            aria-label={t("entityUi.driveExplorer.openName", {name})}
             onClick={() => openQuickLook({path})}
             className="absolute inset-0 cursor-pointer rounded-lg border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         />
@@ -79,12 +83,13 @@ export function DriveFileTile({
     size?: number | null
     target?: ResolvedMountPath | null
 }) {
+    const t = useT(driveExplorerCatalog)
     const name = path.split("/").pop() ?? path
     const deleted = op === "delete"
     const meta = [
         fileTypeLabel(path),
         size != null ? humanSize(size) : null,
-        op === "edit" ? "Updated" : null,
+        op === "edit" ? t("entityUi.driveExplorer.updated") : null,
     ].filter(Boolean)
 
     return (

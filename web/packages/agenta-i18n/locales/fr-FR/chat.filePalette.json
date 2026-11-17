@@ -1,0 +1,21 @@
+{
+    "acrossDrive": "sur tout le lecteur",
+    "agent": "Agent",
+    "back": "retour",
+    "dismiss": "fermer",
+    "enterSends": "Entrée envoie le message tel qu’il est écrit.",
+    "files": "Fichiers",
+    "items": "{{count}} éléments",
+    "listing": "liste en cours…",
+    "navigate": "naviguer",
+    "noFiles": "Aucun fichier sur ce lecteur pour l’instant",
+    "noMatch": "Aucun fichier ni dossier ne correspond à « {{query}} »",
+    "open": "ouvrir",
+    "openFolder": "ouvrir le dossier",
+    "recentlyTouched": "Récemment modifiés",
+    "reference": "référencer",
+    "referenceFolder": "référencer le dossier",
+    "searchingInside": "recherche dans <path>{{cwd}}/</path>",
+    "send": "envoyer",
+    "session": "Session"
+}

@@ -1,6 +1,8 @@
 import {useState} from "react"
 
 import {createLocalDraftFromWorkflowRevision} from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import panelsCatalog from "@agenta/i18n/catalogs/playground.panels"
 import {playgroundController} from "@agenta/playground"
 import {Button, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {CaretDown, Plus} from "@phosphor-icons/react"
@@ -14,6 +16,7 @@ import {RevisionTree} from "./RevisionTree"
  * Nothing is saved: a local draft lives in the browser until it is committed.
  */
 export const CompareButton = ({appId}: {appId: string}) => {
+    const t = useT(panelsCatalog)
     const store = useStore()
     const [open, setOpen] = useState(false)
 
@@ -30,14 +33,14 @@ export const CompareButton = ({appId}: {appId: string}) => {
         <span className="inline-flex shrink-0">
             <Button variant="outline" size="sm" className="rounded-r-none" onClick={copyLast}>
                 <Plus aria-hidden />
-                <span className="max-sm:sr-only">Compare</span>
+                <span className="max-sm:sr-only">{t("playground.panels.compare")}</span>
             </Button>
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <Button
                         variant="outline"
                         size="icon-sm"
-                        aria-label="Compare options"
+                        aria-label={t("playground.panels.compareOptions")}
                         className="-ml-px rounded-l-none"
                     >
                         <CaretDown aria-hidden size={12} />

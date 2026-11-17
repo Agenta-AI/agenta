@@ -100,26 +100,44 @@ describe("SandboxDrive with drives", () => {
     await expect(drive.ensure(use(fakeSandbox([])))).rejects.toBeInstanceOf(DriveUnreachableError);
   });
 
-  it("stops file commands with a sentence naming the drive when its drives/<slug> link is blocked", async () => {
+  it("skips a drives/<slug> link that a folder blocks, keeps the mount, and names it in a sentence for the agent", async () => {
+    const logs: string[] = [];
     const { mounter } = fakeMounter();
     const sandbox = fakeSandbox([], "'/w/drives/prices'");
-    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
-    const err = await drive.ensure(use(sandbox)).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(DriveUnreachableError);
-    expect((err as Error).message).toBe(driveLinkBlockedMessage("drives/prices"));
-    expect((err as Error).message).toBe(
-      "The drive at drives/prices/ could not be attached in the command sandbox, usually because a folder of that name is already in the working directory, so nothing was read or changed. Ask the user to move or rename that folder in the session's files.",
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: (m) => logs.push(m) });
+    await drive.ensure(use(sandbox));
+    expect(drive.mountedOn("sbx-1", 1)).toBe(true);
+    expect(drive.blockedLinks).toEqual(["drives/prices"]);
+    expect(driveLinkBlockedMessage("drives/prices")).toBe(
+      "The drive at drives/prices/ could not be attached in the command sandbox, usually because a folder of that name is already in the working directory. Files under drives/prices/ are in that folder, not on the drive. Ask the user to move or rename that folder in the session's files.",
     );
-    expect(drive.mountedOn("sbx-1", 1)).toBe(false);
+    // Tried again at the next turn, logged once while it stays blocked.
+    await drive.link(sandbox);
+    expect(logs.filter((l) => l.includes("drives/prices link failed")).length).toBe(1);
   });
 
-  it("stops file commands the same way when a folder blocks the agent-files link of the home drive", async () => {
+  it("skips the agent-files link of the home drive the same way, and clears it once the link is made", async () => {
     const { mounter } = fakeMounter();
-    const sandbox = fakeSandbox([], "'/w/agent-files'");
     const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
-    const err = await drive.ensure(use(sandbox)).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(DriveUnreachableError);
-    expect((err as Error).message).toBe(driveLinkBlockedMessage("agent-files"));
+    await drive.ensure(use(fakeSandbox([], "'/w/agent-files'")));
+    expect(drive.blockedLinks).toEqual(["agent-files"]);
+    await drive.link(fakeSandbox([]));
+    expect(drive.blockedLinks).toEqual([]);
+  });
+
+  it("fails the file command when the link call itself fails, instead of going on without the link", async () => {
+    const { mounter } = fakeMounter();
+    const drive = new SandboxDrive(roots(), mounter, { cwd: "/w", log: () => {} });
+    const sandbox = {
+      id: "sbx-1",
+      run: async (command: string) => {
+        if (command.includes("'/w/drives/prices'")) throw new Error("connection reset");
+        return { exitCode: 0, output: "" };
+      },
+    } as unknown as DaytonaSandbox;
+    await expect(drive.ensure(use(sandbox))).rejects.toBeInstanceOf(DriveUnreachableError);
+    expect(drive.mountedOn("sbx-1", 1)).toBe(false);
+    expect(drive.blockedLinks).toEqual([]);
   });
 
   it("repairs every link, agent-files included, when asked at the start of a turn", async () => {

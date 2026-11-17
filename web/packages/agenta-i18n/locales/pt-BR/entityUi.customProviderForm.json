@@ -1,0 +1,22 @@
+{
+    "configureProvider": "Configurar provedor",
+    "howToUse": "Como usar",
+    "cancel": "Cancelar",
+    "submit": "Enviar",
+    "selectProvider": "Selecione um provedor",
+    "enterName": "Digite um nome",
+    "nameInvalid": "O nome deve conter apenas letras, números, sublinhado ou hífen, sem espaços.",
+    "nameMatchesDefault": "O nome não pode coincidir com um provedor padrão. Escolha outro nome.",
+    "enterField": "Digite {{field}}",
+    "invalidJson": "Deve ser um JSON válido",
+    "addModelName": "Adicione um nome de modelo",
+    "addModelBeforeSubmit": "Adicione um nome de modelo antes de enviar",
+    "validationError": "Erro de validação",
+    "somethingWrong": "Algo deu errado! Tente novamente com a credencial correta.",
+    "provider": "Provedor",
+    "models": "Modelos",
+    "add": "Adicionar",
+    "noCustomModels": "Nenhum modelo personalizado configurado",
+    "enterModelName": "Digite o nome do modelo",
+    "removeModel": "Remover modelo"
+}

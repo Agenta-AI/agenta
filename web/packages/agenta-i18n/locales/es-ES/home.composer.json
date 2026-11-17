@@ -1,0 +1,7 @@
+{
+    "taskPlaceholder": "Describe la tarea o empieza la conversación…",
+    "createPlaceholder": "Describe el agente que quieres: qué hace, cuándo se ejecuta…",
+    "clearTemplate": "Quitar esta plantilla",
+    "newAgent": "Nuevo agente",
+    "agent": "Agente"
+}

@@ -1,0 +1,11 @@
+{
+    "agentReply": "エージェントの返信",
+    "attachment": "添付ファイル",
+    "messageNotSent": "メッセージは送信されませんでした",
+    "noResponse": "応答なし：エージェントは回答せずにターンを終了しました。",
+    "retryMessage": "メッセージを再送信",
+    "savedAttachments": "保存済みの添付ファイル",
+    "somethingWentWrong": "問題が発生しました。",
+    "stopped": "停止しました",
+    "textSaved": "テキストと添付ファイルは保存されています。"
+}

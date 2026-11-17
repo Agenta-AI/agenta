@@ -1,0 +1,18 @@
+{
+    "copyId": "組織 ID をコピー",
+    "copyIdFailed": "ID をコピーできませんでした",
+    "current": "現在",
+    "delete": "組織を削除",
+    "emptyDescription": "組織は、ワークスペース、プロジェクト、そこで作業するメンバーをまとめます。",
+    "emptyTitle": "組織はまだありません",
+    "idCopied": "組織 ID をコピーしました",
+    "leave": "組織から退出",
+    "member": "メンバー",
+    "newOrganization": "新しい組織",
+    "organization": "組織",
+    "organizationActions": "組織の操作",
+    "organizationName": "組織名",
+    "owner": "オーナー",
+    "switchTo": "この組織に切り替え",
+    "transferOwnership": "オーナー権限を移譲"
+}

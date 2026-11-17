@@ -19,11 +19,18 @@ const state = vi.hoisted(() => ({
     modal: {props: null as null | {open: boolean; request?: {envVar?: string}}},
 }))
 
-vi.mock("jotai", () => ({
-    useAtomValue: (atom: {read?: () => unknown}) => atom.read?.(),
-    useSetAtom: () => state.commit,
-    atom: () => ({}),
-}))
+vi.mock("jotai", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("jotai")>()
+    return {
+        ...actual,
+        // The faked entity atoms read with no arguments; real atoms (the language) read for real.
+        useAtomValue: (atom: {read: (...args: unknown[]) => unknown}) =>
+            atom.read.length === 0
+                ? atom.read()
+                : actual.useAtomValue(atom as Parameters<typeof actual.useAtomValue>[0]),
+        useSetAtom: () => state.commit,
+    }
+})
 vi.mock("@agenta/entities/accountChoice", () => ({userItemKey: () => "key"}))
 vi.mock("@agenta/entities/secret", () => ({
     CustomSecretFormat: {Text: "text", Json: "json"},

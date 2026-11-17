@@ -3,6 +3,8 @@
  * the tree toggle · an optional close. Actions on the path live in row 2 ({@link DriveToolbar}).
  */
 import {type DriveId} from "@agenta/entities/drive"
+import {useT} from "@agenta/i18n"
+import driveExplorerCatalog from "@agenta/i18n/catalogs/entityUi.driveExplorer"
 import {getShortcut, shortcutAria, shortcutText} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
@@ -103,14 +105,15 @@ export const DriveHeader = ({
     onRetry?: () => void
     retrying?: boolean
 }) => {
+    const t = useT(driveExplorerCatalog)
     const expandLabel =
         expandPlacement === "before-options"
             ? expanded
-                ? "Restore files pane"
-                : "Expand files pane"
+                ? t("entityUi.driveExplorer.restoreFilesPane")
+                : t("entityUi.driveExplorer.expandFilesPane")
             : expanded
-              ? "Collapse drawer"
-              : "Expand drawer"
+              ? t("entityUi.driveExplorer.collapseDrawer")
+              : t("entityUi.driveExplorer.expandDrawer")
     const expandButton = onToggleExpand ? (
         <Tooltip title={expandLabel}>
             <Button
@@ -129,11 +132,11 @@ export const DriveHeader = ({
         // The session bar's height and border token, so its line continues across the divider.
         <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
             {onClose && closeVariant === "close" ? (
-                <Tooltip title="Close">
+                <Tooltip title={t("entityUi.driveExplorer.close")}>
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label="Close"
+                        aria-label={t("entityUi.driveExplorer.close")}
                         onClick={onClose}
                         className={ROW_ICON_BTN}
                     >
@@ -146,7 +149,7 @@ export const DriveHeader = ({
                     variant="ghost"
                     size="icon-sm"
                     aria-keyshortcuts={shortcutAria("panel.files")}
-                    aria-label="Close files pane"
+                    aria-label={t("entityUi.driveExplorer.closeFilesPane")}
                     onClick={onClose}
                     className={ROW_ICON_BTN}
                 >
@@ -157,8 +160,10 @@ export const DriveHeader = ({
             <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Back"
-                title={`Back (${shortcutText(getShortcut("drive.back")!)})`}
+                aria-label={t("entityUi.driveExplorer.back")}
+                title={t("entityUi.driveExplorer.backShortcut", {
+                    shortcut: shortcutText(getShortcut("drive.back")!),
+                })}
                 aria-keyshortcuts={shortcutAria("drive.back")}
                 disabled={!canGoBack}
                 onClick={onBack}
@@ -169,8 +174,10 @@ export const DriveHeader = ({
             <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Forward"
-                title={`Forward (${shortcutText(getShortcut("drive.forward")!)})`}
+                aria-label={t("entityUi.driveExplorer.forward")}
+                title={t("entityUi.driveExplorer.forwardShortcut", {
+                    shortcut: shortcutText(getShortcut("drive.forward")!),
+                })}
                 aria-keyshortcuts={shortcutAria("drive.forward")}
                 disabled={!canGoForward}
                 onClick={onForward}
@@ -190,7 +197,7 @@ export const DriveHeader = ({
             </div>
             {/* One mount failed but the drive still browses: a compact warning + retry. */}
             {partialErrored && onRetry ? (
-                <Tooltip title="Some files couldn’t be loaded">
+                <Tooltip title={t("entityUi.driveExplorer.someFilesFailed")}>
                     <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
                         <WarningCircle
                             size={14}
@@ -207,8 +214,8 @@ export const DriveHeader = ({
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label="View options"
-                        title="View options"
+                        aria-label={t("entityUi.driveExplorer.viewOptions")}
+                        title={t("entityUi.driveExplorer.viewOptions")}
                         className={ROW_ICON_BTN}
                     >
                         <Sliders size={15} />
@@ -226,7 +233,7 @@ export const DriveHeader = ({
                             }}
                         >
                             <ClockCountdown />
-                            Show temporary files
+                            {t("entityUi.driveExplorer.showTemporaryFiles")}
                             <SelectedMark on={showTemporary} />
                         </DropdownMenuItem>
                     ) : null}
@@ -239,7 +246,7 @@ export const DriveHeader = ({
                         }}
                     >
                         <EyeSlash />
-                        Show hidden files
+                        {t("entityUi.driveExplorer.showHiddenFiles")}
                         <SelectedMark on={showHidden} />
                     </DropdownMenuItem>
                     {inGitScope ? (
@@ -252,7 +259,7 @@ export const DriveHeader = ({
                             }}
                         >
                             <GitBranch />
-                            Show git-ignored files
+                            {t("entityUi.driveExplorer.showGitignoredFiles")}
                             <SelectedMark on={showGitignored} />
                         </DropdownMenuItem>
                     ) : null}
@@ -260,11 +267,18 @@ export const DriveHeader = ({
                     {ids.map((id) => (
                         <DropdownMenuItem
                             key={id.key}
-                            onSelect={() => copyText(id.value, `${id.label} copied`)}
+                            onSelect={() =>
+                                copyText(
+                                    id.value,
+                                    t("entityUi.driveExplorer.labelCopied", {label: id.label}),
+                                )
+                            }
                         >
                             <Copy />
                             <span className="flex flex-col gap-0.5 py-0.5">
-                                <span className="text-xs font-medium">Copy {id.label}</span>
+                                <span className="text-xs font-medium">
+                                    {t("entityUi.driveExplorer.copyLabel", {label: id.label})}
+                                </span>
                                 <span className="font-mono text-[12px] text-colorTextTertiary">
                                     {id.value}
                                 </span>
@@ -273,11 +287,17 @@ export const DriveHeader = ({
                     ))}
                 </DropdownMenuContent>
             </DropdownMenu>
-            <Tooltip title={treeVisible ? "Hide file tree" : "Show file tree"}>
+            <Tooltip
+                title={
+                    treeVisible
+                        ? t("entityUi.driveExplorer.hideFileTree")
+                        : t("entityUi.driveExplorer.showFileTree")
+                }
+            >
                 <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Show file tree"
+                    aria-label={t("entityUi.driveExplorer.showFileTree")}
                     aria-pressed={treeVisible}
                     onClick={onToggleTree}
                     className={treeVisible ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
@@ -291,7 +311,8 @@ export const DriveHeader = ({
                 <Tooltip
                     title={
                         <span className="flex items-center gap-1.5">
-                            Collapse files <ShortcutKeys id="panel.files" tone="inverse" />
+                            {t("entityUi.driveExplorer.collapseFiles")}{" "}
+                            <ShortcutKeys id="panel.files" tone="inverse" />
                         </span>
                     }
                 >
@@ -299,7 +320,7 @@ export const DriveHeader = ({
                         variant="ghost"
                         size="icon-sm"
                         aria-keyshortcuts={shortcutAria("panel.files")}
-                        aria-label="Collapse files pane"
+                        aria-label={t("entityUi.driveExplorer.collapseFilesPane")}
                         onClick={onClose}
                         className={ROW_ICON_BTN}
                     >

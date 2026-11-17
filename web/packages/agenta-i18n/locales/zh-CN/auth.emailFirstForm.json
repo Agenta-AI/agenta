@@ -1,0 +1,9 @@
+{
+    "addEmail": "请填写你的邮箱。",
+    "checking": "正在检查…",
+    "continue": "继续",
+    "emailAddress": "邮箱地址",
+    "emailPlaceholder": "输入你的邮箱地址",
+    "somethingWentWrong": "出了点问题。请重试。",
+    "validEmail": "请输入有效的邮箱地址。"
+}

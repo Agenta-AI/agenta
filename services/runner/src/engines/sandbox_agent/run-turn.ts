@@ -7,6 +7,7 @@ import {
 import {
   currentUserTurn,
   resolvePromptText,
+  spanTurnId,
   type AgentRunRequest,
   type AgentRunResult,
   type AgentUsage,
@@ -674,6 +675,8 @@ export async function runTurn(
       skillsDropped: plan.workspace.skillsDropped,
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
+      // On an approval resume the spans carry the session turn, not the new execution.
+      sessionTurnId: spanTurnId(request),
       endpoint: otlpTarget.endpoint,
       // The session keepalive owns this getter and refreshes its value while a long turn runs.
       // Resolve it only when the trace batch leaves the runner, not when the turn starts.

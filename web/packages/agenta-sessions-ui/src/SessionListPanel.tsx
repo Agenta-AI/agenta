@@ -1,5 +1,7 @@
 import {useCallback, useMemo} from "react"
 
+import {useT} from "@agenta/i18n"
+import sessionsRowsCatalog from "@agenta/i18n/catalogs/sessions.rows"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {applySessionScopeAtom, useSessionCardList} from "@agenta/sessions/state"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
@@ -55,6 +57,7 @@ export const SessionListPanel = ({
     onRenameRow,
     alwaysShowPin,
 }: SessionListPanelProps) => {
+    const t = useT(sessionsRowsCatalog)
     // Only the header badge reads the list here; the shared card list runs the same hook (one
     // query — the args match, so the fetch is shared through the query cache).
     const list = useSessionCardList({
@@ -90,13 +93,13 @@ export const SessionListPanel = ({
                         onClick={handleWaitingClick}
                         className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText"
                     >
-                        {list.waitingTotal} waiting
+                        {t("sessions.rows.waitingBadge", {count: list.waitingTotal})}
                     </Link>
                 ) : null
             }
             extra={
                 <Link href={viewAllHref} onClick={handleViewAll} className={PANEL_ACTION_CLASS}>
-                    View all
+                    {t("sessions.rows.viewAll")}
                     <ArrowRightIcon size={12} />
                 </Link>
             }

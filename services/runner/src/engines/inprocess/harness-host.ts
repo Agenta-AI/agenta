@@ -33,6 +33,7 @@ import type { SandboxRequirements } from "./sandbox/command-sandbox.ts";
 import { createSandboxBashTool } from "./tools/bash-tool.ts";
 import { EditDiffs } from "./tools/edit-diffs.ts";
 import { buildFileTools, type SandboxToolAccess } from "./tools/file-tools.ts";
+import { withNotice } from "./tools/tool-notice.ts";
 import { attachmentFiles } from "./workspace/attachment-files.ts";
 import type { ObjectStore } from "./workspace/drive-objects.ts";
 import { publishDrivesReadme, publishSkillSnapshot } from "./workspace/skill-snapshot.ts";
@@ -174,7 +175,7 @@ export class InProcessHarnessHost {
       tmpDir: workspace.tmpDir,
       maxFileBytes: this.runtime.config.fileToolMaxBytes,
     };
-    return [...buildFileTools(cwd, access, diffs), bash];
+    return [...buildFileTools(cwd, access, diffs), bash].map((tool) => withNotice(tool, () => workspace.takeDriveNotice()));
   }
 
   /** The start of a turn: the sandbox's view of the drive is refreshed before its next tool call. */

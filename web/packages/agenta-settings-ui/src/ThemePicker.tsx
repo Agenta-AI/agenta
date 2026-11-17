@@ -56,28 +56,30 @@ const ThemeThumbnail = ({mode}: {mode: string}) => (
  * The theme chooser: a thumbnail per mode. Presentational — the host owns what a mode means
  * and how it is applied, so the sidebar fly-out and this page stay one set of choices.
  */
-export const ThemePicker = ({options, mode, onSelect}: ThemePickerProps) => (
-    <RadioGroup
-        value={mode}
-        onValueChange={onSelect}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-3"
-    >
-        {options.map((option) => (
-            <Label
-                key={option.mode}
-                className={clsx(
-                    "flex cursor-pointer flex-col gap-2 rounded-lg border border-solid p-2 transition-colors",
-                    option.mode === mode
-                        ? "border-colorPrimary"
-                        : "border-colorBorderSecondary hover:border-colorBorder",
-                )}
-            >
-                <ThemeThumbnail mode={option.mode} />
-                <span className="flex items-center gap-2">
-                    <RadioGroupItem value={option.mode} aria-label={option.label} />
-                    <span className="text-colorText">{option.label}</span>
-                </span>
-            </Label>
-        ))}
-    </RadioGroup>
-)
+export const ThemePicker = ({options, mode, onSelect}: ThemePickerProps) => {
+    return (
+        <RadioGroup
+            value={mode}
+            onValueChange={onSelect}
+            className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+        >
+            {options.map((option) => (
+                <Label
+                    key={option.mode}
+                    className={clsx(
+                        "flex cursor-pointer flex-col gap-2 rounded-lg border border-solid p-2 transition-colors",
+                        option.mode === mode
+                            ? "border-colorPrimary"
+                            : "border-colorBorderSecondary hover:border-colorBorder",
+                    )}
+                >
+                    <ThemeThumbnail mode={option.mode} />
+                    <span className="flex items-center gap-2">
+                        <RadioGroupItem value={option.mode} aria-label={option.label} />
+                        <span className="text-colorText">{option.label}</span>
+                    </span>
+                </Label>
+            ))}
+        </RadioGroup>
+    )
+}

@@ -7,7 +7,6 @@ import {
 } from "@agenta/entity-ui/drill-in"
 import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Button as AntButton, Select as AntSelect} from "antd"
 import {useSetAtom} from "jotai"
 
 import type {StoryScope} from "../../.storybook/decorators/withAgentaData"
@@ -26,7 +25,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Output-type picker (text / JSON / JSON schema) with a schema editor in an EnhancedModal. antd `Select` → `@agenta/ui` `Select` composition (`popupMatchSelectWidth={false}` → `w-auto` on the content; `style={{height:24}}` → `h-control-sm`), antd `Button variant="outlined"` → `variant="outline"`, antd `Typography.Text` → `<span>`.',
+                    "Output-type picker (text / JSON / JSON schema) with a schema editor in an EnhancedModal.",
             },
         },
     },
@@ -132,78 +131,25 @@ function SeedOpenModal({controlId, children}: {controlId: string; children: Reac
     return <>{children}</>
 }
 
-// ---------------------------------------------------------------------------
-// Parity: the two migrated controls
-// ---------------------------------------------------------------------------
-
-const RESPONSE_FORMAT_OPTIONS = [
-    {label: "Output type: Text", value: "text"},
-    {label: "Output type: JSON", value: "json_object"},
-    {label: "Output type: JSON Schema", value: "json_schema"},
-]
-
-const Row = ({
-    label,
-    a,
-    s,
-    expected,
-}: {
-    label: string
-    a: React.ReactNode
-    s: React.ReactNode
-    expected?: string
-}) => (
-    <div
-        className="grid grid-cols-[12rem_1fr_1fr] items-center gap-4 border-b border-colorBorderSecondary py-3"
-        data-vrt-expected={expected}
-    >
+const Row = ({label, children}: {label: string; children: React.ReactNode}) => (
+    <div className="grid grid-cols-[12rem_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3">
         <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject className="flex-1">
-                {a}
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject className="flex-1">
-                {s}
-            </div>
-        </div>
+        <div>{children}</div>
     </div>
 )
 
-export const AntdVsAgenta: Story = {
+export const Variants: Story = {
     args: {value: {type: "text"}, onChange: noop},
     render: () => (
-        <div className="flex max-w-[1000px] flex-col">
-            <Row
-                label="output type select"
-                a={
-                    <AntSelect
-                        size="small"
-                        value="text"
-                        options={RESPONSE_FORMAT_OPTIONS}
-                        className="min-w-[130px]"
-                        popupMatchSelectWidth={false}
-                        style={{height: 24}}
-                    />
-                }
-                s={<ResponseFormatControlView value={{type: "text"}} onChange={noop} size="sm" />}
-            />
-            <Row
-                label="edit-schema button"
-                a={
-                    <AntButton variant="outlined" color="default" size="small">
-                        Verdict
-                    </AntButton>
-                }
-                s={
-                    <Button variant="outline" size="sm">
-                        Verdict
-                    </Button>
-                }
-            />
+        <div className="flex max-w-[640px] flex-col">
+            <Row label="output type select">
+                <ResponseFormatControlView value={{type: "text"}} onChange={noop} size="sm" />
+            </Row>
+            <Row label="edit-schema button">
+                <Button variant="outline" size="sm">
+                    Verdict
+                </Button>
+            </Row>
         </div>
     ),
 }

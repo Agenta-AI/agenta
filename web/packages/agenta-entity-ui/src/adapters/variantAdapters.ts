@@ -16,14 +16,19 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {classifyAgentChanges, buildCommitSummaryMessage} from "@agenta/entities/workflow/commitDiff"
+import {createT} from "@agenta/i18n"
+import commitModalCatalog from "@agenta/i18n/catalogs/entityUi.commitModal"
 import {stripAgentaMetadataDeep, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
 import {
     createAndRegisterEntityAdapter,
+    getEntityTypeLabel,
     type CommitContext,
     type EntityModalAdapter,
 } from "../modals"
+
+const tNow = createT(commitModalCatalog)
 
 // ============================================================================
 // DATA ATOM
@@ -106,9 +111,9 @@ function buildGenericCommitContext(
     const suggestedMessage = sections.length ? buildCommitSummaryMessage(sections) : undefined
 
     const descriptions: string[] = []
-    if (hasDiff) descriptions.push("Configuration modified")
+    if (hasDiff) descriptions.push(tNow("entityUi.commitModal.configurationModified"))
     if (isLocalDraft && descriptions.length === 0) {
-        descriptions.push("New draft variant")
+        descriptions.push(tNow("entityUi.commitModal.newDraftVariant"))
     }
 
     return {
@@ -210,7 +215,7 @@ export const variantModalAdapter: EntityModalAdapter<Workflow> = createAndRegist
         const version = entity.version ?? 0
         return `${name} ${getVersionLabel(version)}`
     },
-    getDisplayLabel: (count) => (count === 1 ? "Variant" : "Variants"),
+    getDisplayLabel: (count) => getEntityTypeLabel("variant", count),
     deleteAtom: variantDeleteAtom,
     dataAtom: workflowDataAtom,
     canDelete: () => true,

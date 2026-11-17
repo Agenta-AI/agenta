@@ -16,6 +16,8 @@ import {
     retryHarnessCatalogAtom,
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
+import {useT} from "@agenta/i18n"
+import modelHarnessCatalog from "@agenta/i18n/catalogs/entityUi.modelHarness"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -105,6 +107,7 @@ export function useModelHarness({
     /** The picker lists only the stored connection's models (a model it no longer offers). */
     onlyCurrentConnection?: boolean
 }) {
+    const t = useT(modelHarnessCatalog)
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
         (section: string): Record<string, SchemaProperty> =>
@@ -396,7 +399,9 @@ export function useModelHarness({
     )
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
     // "Policy · Allow all" — the label lives here, so the body's select can run full width.
-    const runnerPermissionSummary = `Policy · ${permissionPolicyLabel(currentRunnerPermission)}`
+    const runnerPermissionSummary = t("entityUi.modelHarness.policySummary", {
+        policy: permissionPolicyLabel(currentRunnerPermission) ?? currentRunnerPermission,
+    })
 
     const agentaToolsSection = useAgentaTools({
         config,
@@ -416,7 +421,9 @@ export function useModelHarness({
     // `SectionDrawer` uses `destroyOnClose`, so this re-evaluates on every open.
     const sandboxChanged = useHasChangedUnder("sandbox.kind")
     const changedIndicator = (changed: boolean) =>
-        changed ? ({tone: "draft", tooltip: "Unsaved changes in this group."} as const) : undefined
+        changed
+            ? ({tone: "draft", tooltip: t("entityUi.modelHarness.unsavedGroupChanges")} as const)
+            : undefined
 
     // Section-scoped undo: restore every changed property in this group to its committed value. The
     // per-row dot reverts ONE property; this is "undo the whole group". Null when nothing changed or
@@ -495,7 +502,7 @@ export function useModelHarness({
                     })
                 }}
                 disabled={disabled}
-                placeholder="Select a model…"
+                placeholder={t("entityUi.modelHarness.selectModel")}
                 className="w-full"
                 footerContent={llmProviderConfig?.footerContent}
             />
@@ -559,7 +566,9 @@ export function useModelHarness({
 
     // Advanced header summary: sandbox only — the connection mode now comes with the picked model.
     const advancedSummary =
-        hasExecutionGroup && sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined
+        hasExecutionGroup && sandbox.kind
+            ? t("entityUi.modelHarness.sandboxSummary", {kind: String(sandbox.kind)})
+            : undefined
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
     // and tools drawers); inside, configuration reads as the drawer's `[rail | content]` rhythm via
@@ -605,7 +614,11 @@ export function useModelHarness({
     const executionBody = (
         <>
             {hasExecutionGroup ? (
-                <RailField label="Sandbox" align="center" path="sandbox.kind">
+                <RailField
+                    label={t("entityUi.modelHarness.sandbox")}
+                    align="center"
+                    path="sandbox.kind"
+                >
                     <EnumSelectControl
                         schema={sandboxProps.kind}
                         options={sandboxOptions}
@@ -634,7 +647,7 @@ export function useModelHarness({
                     }
                     options={runnerPermissionOptions}
                     disabled={disabled}
-                    aria-label="Policy"
+                    aria-label={t("entityUi.modelHarness.policy")}
                 />
             ) : null}
         </>
@@ -655,8 +668,8 @@ export function useModelHarness({
     )
 
     const secretsSummary = secretBindings.length
-        ? `${secretBindings.length} attached`
-        : "None attached"
+        ? t("entityUi.modelHarness.attachedCount", {count: secretBindings.length})
+        : t("entityUi.modelHarness.noneAttached")
 
     const advancedControls = (
         <>
@@ -672,11 +685,15 @@ export function useModelHarness({
                           indicator: changedIndicator(sandboxChanged),
                           extra: revertAction(revertSandbox),
                           icon: <Cube size={15} />,
-                          title: "Execution environment",
-                          summary: sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined,
+                          title: t("entityUi.modelHarness.executionEnvironment"),
+                          summary: sandbox.kind
+                              ? t("entityUi.modelHarness.sandboxSummary", {
+                                    kind: String(sandbox.kind),
+                                })
+                              : undefined,
                           caption: (
                               <span className="text-xs leading-snug text-colorTextDescription">
-                                  Where the agent&apos;s tools and code run.
+                                  {t("entityUi.modelHarness.executionCaptionShort")}
                               </span>
                           ),
                       },
@@ -689,7 +706,7 @@ export function useModelHarness({
                     size="compact"
                     defaultOpen={secretBindings.length > 0}
                     icon={<Vault size={15} />}
-                    title="Custom secrets"
+                    title={t("entityUi.modelHarness.customSecrets")}
                     summary={secretsSummary}
                     summaryCollapsedOnly
                 >
@@ -705,14 +722,13 @@ export function useModelHarness({
             hasExecutionGroup && {
                 item: {
                     value: "execution",
-                    label: "Execution",
+                    label: t("entityUi.modelHarness.execution"),
                     icon: <Cube size={14} />,
                     status: sandboxChanged ? ("warning" as const) : undefined,
                 },
                 header: {
-                    title: "Execution environment",
-                    caption:
-                        "Where the agent's tools and code run, and what that sandbox may touch.",
+                    title: t("entityUi.modelHarness.executionEnvironment"),
+                    caption: t("entityUi.modelHarness.executionCaption"),
                     extra: revertAction(revertSandbox),
                 },
                 body: executionBody,
@@ -723,12 +739,12 @@ export function useModelHarness({
             {
                 item: {
                     value: "secrets",
-                    label: "Custom secrets",
+                    label: t("entityUi.modelHarness.customSecrets"),
                     icon: <Vault size={14} />,
                 },
                 header: {
-                    title: "Custom secrets",
-                    caption: `Credentials this agent can use while it works. ${secretsSummary}.`,
+                    title: t("entityUi.modelHarness.customSecrets"),
+                    caption: t("entityUi.modelHarness.secretsCaption", {summary: secretsSummary}),
                     extra: <span ref={setSecretsHeaderSlot} className="flex shrink-0" />,
                 },
                 body: secretsBody,
@@ -736,7 +752,7 @@ export function useModelHarness({
             agentaToolsSection && {
                 item: {
                     value: "agenta-tools",
-                    label: "Agenta tools",
+                    label: t("entityUi.modelHarness.agentaTools"),
                     icon: <Toolbox size={14} />,
                 },
                 body: agentaToolsSection,
@@ -744,7 +760,7 @@ export function useModelHarness({
             hasBuildKitOverlay && {
                 item: {
                     value: "build-kit",
-                    label: "Build kit",
+                    label: t("entityUi.modelHarness.buildKit"),
                     icon: <Hammer size={14} />,
                 },
                 // The block carries its own title + enable switch, so it needs no panel header.
@@ -795,7 +811,7 @@ export function useModelHarness({
                 // the focus ring clear of the body's clip and lines up with the panel title.
                 railWidth="w-[112px] pt-1 sm:w-[148px]"
                 drillIn
-                listLabel="Advanced"
+                listLabel={t("entityUi.modelHarness.advanced")}
                 items={advancedPanels.map((panel) => panel.item)}
                 value={activeAdvancedPanel?.item.value ?? ""}
                 onChange={setAdvancedPanelValue}

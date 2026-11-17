@@ -1,0 +1,17 @@
+{
+    "evaluatorName": "评测器名称",
+    "appName": "应用名称",
+    "variantName": "变体名称",
+    "asNewVersion": "作为新版本",
+    "updateName": "更新 {{name}}",
+    "saveAsNewVariant": "另存为新变体",
+    "create": "创建",
+    "commit": "提交",
+    "createdSuccessfully": "创建成功",
+    "published": "已将 {{label}} 发布到 {{environments}}",
+    "publishFailed": "无法将 {{label}} 发布到 {{environments}}",
+    "failedToCreateWorkflow": "创建工作流失败",
+    "variantNameRequired": "必须填写变体名称",
+    "failedToCreateVariant": "创建新变体失败",
+    "failedToCommit": "提交修订版本失败"
+}

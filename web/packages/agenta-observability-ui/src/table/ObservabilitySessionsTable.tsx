@@ -10,7 +10,7 @@ import {
 } from "@agenta/ui/table"
 import {useStore} from "jotai"
 
-import {getSessionColumns, type SessionRow} from "../columns/getSessionColumns"
+import {useSessionColumns, type SessionRow} from "../columns/getSessionColumns"
 
 /**
  * The sessions table both surfaces render.
@@ -55,7 +55,7 @@ export const ObservabilitySessionsTable = ({
     // The cells read page-level atoms; an isolated store leaves them empty.
     const ambientStore = useStore()
 
-    const columns = useMemo(() => getSessionColumns(), [])
+    const columns = useSessionColumns()
 
     // The cells read their own data from atoms keyed by session id, so a row only carries the id.
     const rows = useMemo<SessionRow[]>(

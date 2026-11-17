@@ -1,5 +1,7 @@
 import type {MouseEvent, ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import navigationCatalog from "@agenta/i18n/catalogs/navigation"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -36,8 +38,9 @@ export const WorkflowPickerView = ({
     triggerContent,
     entries,
     onSelect,
-    ariaLabel = "Switch workflow",
+    ariaLabel,
 }: WorkflowPickerViewProps) => {
+    const t = useT(navigationCatalog)
     // Pick here: the prevented default also stops Radix from calling the item's onSelect.
     const handleLinkClick = (event: MouseEvent, key: string) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
@@ -55,7 +58,7 @@ export const WorkflowPickerView = ({
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    aria-label={ariaLabel}
+                    aria-label={ariaLabel ?? t("navigation.items.switchWorkflow")}
                     className={clsx(
                         "flex cursor-pointer items-center justify-between overflow-hidden rounded-md border-0 bg-transparent text-colorText transition-[width,height,padding,gap,border-color] duration-300 ease-in-out hover:bg-colorFillTertiary",
                         // No border when expanded: the header row it sits in is already

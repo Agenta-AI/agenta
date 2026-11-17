@@ -16,6 +16,8 @@
  */
 import * as React from "react"
 
+import {useT} from "@agenta/i18n"
+import uiControlsCatalog from "@agenta/i18n/catalogs/ui.controls"
 import {dayjs} from "@agenta/shared/utils"
 
 import {DatePicker} from "./date-picker"
@@ -50,6 +52,7 @@ function DateTimePicker({
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
 }: DateTimePickerProps) {
+    const t = useT(uiControlsCatalog)
     const uid = React.useId()
     const dateNameId = `${uid}-date`
     const timeNameId = `${uid}-time`
@@ -64,10 +67,10 @@ function DateTimePicker({
                 can't tell which has focus. aria-labelledby concatenates, so each half appends
                 its own word to the caller's label. */}
             <span id={dateNameId} className="sr-only">
-                date
+                {t("ui.controls.datePart")}
             </span>
             <span id={timeNameId} className="sr-only">
-                time
+                {t("ui.controls.timePart")}
             </span>
             <DatePicker
                 value={current}

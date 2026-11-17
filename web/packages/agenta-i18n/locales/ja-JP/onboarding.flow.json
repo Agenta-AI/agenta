@@ -1,0 +1,13 @@
+{
+    "pageTitle": "はじめる",
+    "preparing": "ワークスペースを準備しています",
+    "mintError": "エージェントをセットアップできませんでした。",
+    "stepCounter": "ステップ {{current}} / {{total}}",
+    "skip": "今はスキップ",
+    "dotCredits": "クレジット",
+    "dotTemplates": "最初のエージェント",
+    "keyHint": "{{key}} を押す",
+    "continue": "続ける",
+    "writeIn": "詳しく教えてください",
+    "writeInPlaceholder": "一行で十分です"
+}

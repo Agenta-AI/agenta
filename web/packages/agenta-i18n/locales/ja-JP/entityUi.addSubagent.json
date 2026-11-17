@@ -1,0 +1,17 @@
+{
+    "removeAsSubagent": "{{name}} をサブエージェントから外す",
+    "addAsSubagent": "{{name}} をサブエージェントとして追加",
+    "noDescription": "説明なし",
+    "appsConnectedTo": "{{name}} に接続されたアプリ",
+    "add": "追加",
+    "addSubagents": "サブエージェントを追加",
+    "pickAgents": "· このエージェントが呼び出せるエージェントを選択します。",
+    "done": "完了",
+    "searchAgents": "名前でエージェントを検索…",
+    "agentsNotLoaded_other": "{{count}} 件のエージェントを読み込めなかったため、表示されていません。",
+    "retry": "再試行",
+    "noAgentsMatch": "検索に一致するエージェントはありません",
+    "noAgentsYet": "エージェントはまだありません",
+    "tryDifferentName": "別の名前を試してください。",
+    "createAgentFirst": "エージェントを作成してから、ここに戻って追加してください。"
+}

@@ -170,7 +170,7 @@ function DrawerHost({
     const [live, setLive] = useState(policy)
 
     return (
-        <div data-vrt-subject className="min-h-[640px]">
+        <div className="min-h-[640px]">
             <Button variant="outline" onClick={() => setOpen(true)}>
                 Open permissions
             </Button>
@@ -409,7 +409,7 @@ export const OpenState: Story = {
         const [open, setOpen] = useState(false)
         const [live, setLive] = useState<McpServerPolicy>({permission: "allow"})
         return (
-            <div data-vrt-subject className="min-h-[200px]">
+            <div className="min-h-[200px]">
                 <Button variant="outline" onClick={() => setOpen(true)}>
                     Open permissions
                 </Button>

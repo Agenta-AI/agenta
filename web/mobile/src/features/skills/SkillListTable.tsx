@@ -1,6 +1,8 @@
 import {useCallback, useState} from "react"
 import type {ReactNode} from "react"
 
+import {useT} from "@agenta/i18n"
+import skillsListCatalog from "@agenta/i18n/catalogs/skills.list"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
 
@@ -18,36 +20,50 @@ import {SkillSourceUpdateAction} from "./SkillSourceUpdateAction"
  * A phone drops Source and Used by rather than scrolling them off: the rows sit under a heading
  * that already names the source, and the drawer's header carries the usage.
  */
-const NAME_COLUMN: ListTableColumn = {key: "name", label: "Name", width: "minmax(160px,2fr)"}
+type ListText = ReturnType<typeof useT<[typeof skillsListCatalog]>>
+
+const nameColumn = (t: ListText): ListTableColumn => ({
+    key: "name",
+    label: t("skills.list.columnName"),
+    width: "minmax(160px,2fr)",
+})
 /** Grouped by source, the heading already names it, so the column names the author instead. */
-const provenanceColumn = (group: SkillGrouping): ListTableColumn => ({
+const provenanceColumn = (t: ListText, group: SkillGrouping): ListTableColumn => ({
     key: "provenance",
-    label: group === "source" ? "Created by" : "Source",
+    label: group === "source" ? t("skills.list.columnCreatedBy") : t("skills.list.columnSource"),
     width: "minmax(120px,1fr)",
 })
-const USED_BY_COLUMN: ListTableColumn = {key: "usedBy", label: "Used by", width: "88px"}
-const updatedColumn = (width: string): ListTableColumn => ({
+const usedByColumn = (t: ListText): ListTableColumn => ({
+    key: "usedBy",
+    label: t("skills.list.columnUsedBy"),
+    width: "88px",
+})
+const updatedColumn = (t: ListText, width: string): ListTableColumn => ({
     key: "updated",
-    label: "Last updated",
+    label: t("skills.list.columnLastUpdated"),
     width,
 })
-const ACTIONS_COLUMN: ListTableColumn = {
+const actionsColumn = (t: ListText): ListTableColumn => ({
     key: "actions",
-    label: "Actions",
+    label: t("skills.list.columnActions"),
     srOnly: true,
     // Two icon buttons and their gap: the kebab, and the Update mark a check can put beside it.
     // Fixed, so a row with something to update keeps its cells on the others' tracks.
     width: "52px",
-}
+})
 
-const wideColumns = (group: SkillGrouping): ListTableColumn[] => [
-    NAME_COLUMN,
-    provenanceColumn(group),
-    USED_BY_COLUMN,
-    updatedColumn("96px"),
-    ACTIONS_COLUMN,
+const wideColumns = (t: ListText, group: SkillGrouping): ListTableColumn[] => [
+    nameColumn(t),
+    provenanceColumn(t, group),
+    usedByColumn(t),
+    updatedColumn(t, "96px"),
+    actionsColumn(t),
 ]
-const NARROW_COLUMNS: ListTableColumn[] = [NAME_COLUMN, updatedColumn("84px"), ACTIONS_COLUMN]
+const narrowColumns = (t: ListText): ListTableColumn[] => [
+    nameColumn(t),
+    updatedColumn(t, "84px"),
+    actionsColumn(t),
+]
 
 /** Tailwind's `sm`. Below it Source and Used by go; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
@@ -86,6 +102,7 @@ export const SkillListTable = ({
     // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
     // "wide?" because the shared hook starts false before it reads the viewport, and a phone
     // is the common case here.
+    const t = useT(skillsListCatalog)
     const narrow = !useMediaQuery(WIDE_QUERY)
 
     const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
@@ -111,7 +128,7 @@ export const SkillListTable = ({
 
     return (
         <ListTable
-            columns={narrow ? NARROW_COLUMNS : wideColumns(group)}
+            columns={narrow ? narrowColumns(t) : wideColumns(t, group)}
             minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
             view={view}
             // A card holds three lines of description; narrower than this they wrap to four

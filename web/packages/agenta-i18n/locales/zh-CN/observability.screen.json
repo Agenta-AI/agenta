@@ -1,0 +1,19 @@
+{
+    "title": "可观测性",
+    "tracesTab": "追踪",
+    "sessionsTab": "会话",
+    "addSelectedToQueue": "将已选的 {{count}} 项加入队列",
+    "addSelectedToQueueNone": "将已选项加入队列",
+    "noSessionsTitle": "暂无会话",
+    "noSessionsHint": "当你的应用按会话 ID 对追踪进行分组后，会话会显示在这里。",
+    "noTracesTitle": "暂无追踪",
+    "noTracesHint": "当你的应用发送追踪后，会显示在这里。",
+    "nothingMatchesTitle": "没有符合这些筛选条件的内容",
+    "nothingMatchesHint": "请尝试更长的时间范围，或清除筛选条件。",
+    "clearFilters": "清除筛选",
+    "filterByApp": "按应用筛选",
+    "allApps": "所有应用",
+    "tooManyRequests": "请求过多。",
+    "playgroundNoApp": "此追踪没有关联应用，因此无法在调试台中打开。",
+    "playgroundSpanType": "无法在调试台中重放“{{spanType}}”类型的 Span。请改为打开其父级工作流、任务、Agent 或链 Span。"
+}
