@@ -316,7 +316,7 @@ One difference from `agent_access`, on purpose: `owner_user_id` may be null. An 
 
 **The agent of a run** (Proposed). The channel exception and the home rule need to know which agent a run executes. Today the run credential does not say it: it carries the run envelope (principal, restrictions, authority, run context, sender, approver; `api/oss/src/core/access/principals.py:43-75`) and the `run_accounts` claim (`api/oss/src/middlewares/auth.py:1575-1596`), and nothing names the agent. The run context's `run_id` comes from the caller's `meta.run_id` (`api/oss/src/core/workflows/service.py:3822-3830`), so it is not a trusted source. `POST /mounts/agents/sign` learns the agent from its `artifact_id` query parameter (`api/oss/src/apis/fastapi/mounts/router.py:484-510`).
 
-The design adds one claim, `run_agent_id`, beside `run_accounts`. `_prepare_invoke` writes it when it mints the run credential (`service.py:3783`, `3839-3860`), from the workflow it resolved itself (`resolved_revision.workflow_id`, the value it already passes to `sign_run_accounts`, `service.py:3851-3857`), never from caller meta or references. One function reads it: `run_agent_id_of_request(request) -> Optional[UUID]`. The sign routes take the agent from it only. A child run gets its own credential from its own invoke, with its own agent, and is never resolved through its parent. Triggers and evaluations go through the same invoke, so they carry the claim too. A credential without the claim (no agent run, or minted by an older API pod) gives no channel exception and no home sign.
+The design adds one claim, `run_agent_id`, beside `run_accounts`. Two places mint a run credential, and both set the claim through one function, `WorkflowsService.resolve_run_agent_id`. `_prepare_invoke` sets it for a run the API starts (playground through the API, sessions the API starts, triggers, evaluations, child runs): the agent is the workflow it resolved itself, or, when the request already carries its revision, the agent its references name, resolved in the caller's project. `GET /access/permissions/check` sets it on a first mint, when the agent service runs a turn for an API key or a browser session and names the turn's agent (`workflow_id`); a renewal carries the claim of the credential it renews and never takes a new one. In every case the API resolves the agent in the caller's project and checks that the run's principal may run it (`RUN_WORKFLOWS`) before it writes the claim; it never copies a raw id from the request. One function reads it: `run_agent_id_of_request(request) -> Optional[UUID]`. The sign routes take the agent from it only. A child run gets its own credential from its own invoke, with its own agent, and is never resolved through its parent. A run with no stored agent (an inline configuration with no agent reference) gets no claim, so it has no home drive. A credential without the claim (no stored agent, or minted by an older API pod) gives no channel exception and no home sign.
 
 **The channel exception** (Proposed). Today a channel turn of a private agent is refused its agent drive (Measured above; not verified live). D2 lets a channel turn sign a private drive only when all of these hold:
 
@@ -569,7 +569,7 @@ For a backend developer: the pane is a function of (configuration, list of drive
 | home | `home_drive` | `homeDrive` | `home_drive`, `validate_home_drive` | `home_drive` | `RunDrive.isHome` | `"home"` origin | `agent-files/`, "home drive" |
 | session drive | `has_session_drive` | `hasSessionDrive` | `has_session_drive` | `get_or_create_session_mount` | `mountedCwd` | `"session"` origin | the working folder |
 | visibility rule | | | | `SharingService.evaluate` with `ResourceKind.MOUNT` (`_evaluate_mount`, `mount_resource`), reached by `allow_mount` | | | |
-| the agent of a run | | | | claim `run_agent_id` (written in `_prepare_invoke`), read by `run_agent_id_of_request` | | | |
+| the agent of a run | | | | claim `run_agent_id` (written by `resolve_run_agent_id` in `_prepare_invoke` and the permissions exchange), read by `run_agent_id_of_request` | | | |
 | key fill, slug rule | | | | `fill_agent_drive_keys`, `agent_drive_slug` (pure; the migration has frozen copies) | | | |
 | agent's drive creation | | | | `MountsService.create_agent_drive` | | | |
 | created with agent | | | | `mounts.agent_id` (legacy route and migration only) | | | |
@@ -666,7 +666,7 @@ Run with `py-run-tests` in `api` and `sdks/python`, `pnpm test` in `services/run
 ## What could not be verified
 
 - That a channel turn of a private agent is refused its agent drive today. It comes from reading the code.
-- That every run path, child runs, triggers and evaluations included, mints its run credential through `_prepare_invoke`, so every agent run carries `run_agent_id`.
+- That no run path mints a run credential outside `_prepare_invoke` and the permissions exchange. Live QA found the second path (a turn the agent service runs for an API key or a browser session); both now set `run_agent_id`.
 - That every agent run reads its revision through `_normalize_revision_for_read`, so the read-time fill reaches the agent service.
 - That no two `mounts` rows share an agent id in production data.
 - That every harness behaves the same with two links to one mount (`agent-files` and `drives/<home slug>`).
