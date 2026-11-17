@@ -1460,8 +1460,8 @@ export async function runTurn(
     // Here rather than at the top of the function because of the INVARIANT above: no unconditional
     // I/O may delay `attachPermissionResponder`. This is the first point past it.
     //
-    // Per turn rather than per tool call: one `lstat` per link per turn rather than one per tool
-    // call on a FUSE mount. The prompt was written at acquire, so a link lost or regained since then
+    // Per turn rather than per tool call: one `lstat` per link per turn on `local`, and one
+    // remote command per link per turn on `daytona`, rather than one per tool call. The prompt was written at acquire, so a link lost or regained since then
     // is told this turn.
     if (plan.driveOnRunner || plan.isDaytona) {
       for (const drive of env.drives) {

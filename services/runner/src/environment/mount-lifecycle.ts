@@ -160,7 +160,7 @@ export async function mountLocalDurableCwd(
     { log: ctx.log, signal: deps.signal },
   );
   if (mounted) {
-    ctx.commitLocalMount("cwd", plan.workspace.cwd, creds);
+    ctx.commitLocalMount(plan.workspace.cwd, creds);
     throwIfAcquireAborted(deps.signal);
     // Session-local links belong to the mount's lifecycle, not to first acquire: this mount is
     // object storage, which has no symlinks, so a remount hands back a 0-byte file where the link
@@ -333,7 +333,7 @@ export async function reSignAndRemountLocalCwd(
     );
     return false;
   }
-  ctx.recordResignedCredential("cwd", fresh);
+  ctx.recordResignedCredential(fresh);
   return mountLocalDurableCwd(ctx, deps, "enotconn-retry");
 }
 

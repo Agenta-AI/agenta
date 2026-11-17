@@ -924,13 +924,14 @@ export interface MountHarnessSessionDirsDeps {
   signal?: AbortSignal;
   /**
    * The sandbox's endpoint for each dir's own credentials, when the caller has no session cwd
-   * mount to take it from; null skips the dir. Replaces `tunnelEndpoint`.
+   * mount to take it from; null skips the dir. Used instead of `tunnelEndpoint` when set.
    */
   endpointFor?: (creds: MountCredentials) => Promise<string | undefined | null>;
 }
 
 /**
- * Sign and mount every durable session-scoped dir (returns the credential expiry of each one mounted) a harness needs, INSIDE a remote sandbox.
+ * Sign and mount every durable session-scoped dir a harness needs, INSIDE a remote sandbox, and
+ * return the credential expiry of each one mounted.
  * Local runs call none of this: `~/.claude` there is the runner container's own disk (see
  * module doc), so this function is Daytona/remote-only by construction (it always mounts
  * INSIDE the given sandbox, mirroring `mountStorageRemote`). Each dir is its own sign call +

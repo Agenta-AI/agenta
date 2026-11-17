@@ -137,22 +137,19 @@ export function createAcquireContext(
     },
 
     // --- mount state, INVARIANTS 2 and 3 ---------------------------------------------- //
-    recordResignedCredential(_kind, credential) {
+    recordResignedCredential(credential) {
       environment.mountCreds = credential;
     },
-    commitLocalMount(_kind, path, credential) {
+    commitLocalMount(path, credential) {
       // Path and expiry together, from ONE credential, so the recorded lease provably belongs to
       // the mount the daemon received.
       environment.mountedCwd = path;
       environment.installedMountExpiries.cwd = mountExpiryMs(credential.expiresAt);
     },
-    commitRemoteMountExpiry(_kind, credential) {
+    commitRemoteMountExpiry(credential) {
       // Expiry with NO path. A Daytona mount lives inside the sandbox and dies with it, so there
       // is no host mountpoint for teardown to unmount.
       environment.installedMountExpiries.cwd = mountExpiryMs(credential.expiresAt);
-    },
-    clearMountPath() {
-      environment.mountedCwd = undefined;
     },
     commitDriveMount(drive, path, credential) {
       drive.mountedPath = path;
@@ -168,6 +165,10 @@ export function createAcquireContext(
       drive.credentials = credential;
     },
     releaseDriveMount(drive) {
+      if (drive.mountedPath && environment.installedMountExpiries.drives) {
+        const { [drive.mountedPath]: _released, ...rest } = environment.installedMountExpiries.drives;
+        environment.installedMountExpiries.drives = rest;
+      }
       drive.mountedPath = undefined;
     },
 

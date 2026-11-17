@@ -171,6 +171,7 @@ import {
 } from "./session-continuity.ts";
 import { driveIdentity, mountExpiryMs, projectScopeFor } from "./session-identity.ts";
 import {
+  driveAvailable,
   driveSubject,
   drivesListedEmpty,
   drivesReadme,
@@ -780,8 +781,6 @@ async function acquireEnvironmentOnce(
       environment.mountCreds && plan.driveOnRunner
         ? mountLocalDurableCwd("initial")
         : undefined;
-    // Every listed drive keeps its `drives/<slug>` entry, signed or not.
-    const kept = keptLinks(environment.drives);
     const localDrives = plan.driveOnRunner
       ? environment.drives.filter((d) => d.credentials)
       : [];
@@ -804,7 +803,9 @@ async function acquireEnvironmentOnce(
     if (anyLocalMount) throwIfAcquireAborted(signal);
     if (plan.driveOnRunner) {
       // Only a session drive keeps entries between runs; a throwaway folder has nothing stale.
-      if (environment.mountedCwd) await pruneDriveLinks(plan.workspace.cwd, kept, { log: logger });
+      if (environment.mountedCwd) {
+        await pruneDriveLinks(plan.workspace.cwd, keptLinks(environment.drives, request.drives !== undefined), { log: logger });
+      }
       if (request.drives !== undefined) {
         await writeDrivesReadme(plan.workspace.cwd, drivesReadme(environment.drives), { log: logger });
       }
@@ -1342,7 +1343,12 @@ async function acquireEnvironmentOnce(
       if (result.status === "rejected") throw result.reason;
     if (plan.isDaytona) {
       if (environment.installedMountExpiries.cwd !== undefined) {
-        await pruneDriveLinksRemote(environment.sandbox, plan.workspace.cwd, kept, { log: logger });
+        await pruneDriveLinksRemote(
+          environment.sandbox,
+          plan.workspace.cwd,
+          keptLinks(environment.drives, request.drives !== undefined),
+          { log: logger },
+        );
       }
       if (request.drives !== undefined) {
         await writeDrivesReadmeRemote(environment.sandbox, plan.workspace.cwd, drivesReadme(environment.drives), { log: logger });
@@ -1443,7 +1449,7 @@ async function acquireEnvironmentOnce(
               {
                 slug: drive.slug,
                 access: drive.access,
-                mountedPath: plan.harnessInRunner || drive.linked ? drive.mountedPath : undefined,
+                mountedPath: driveAvailable(drive) ? drive.mountedPath : undefined,
               },
             ]
           : [],

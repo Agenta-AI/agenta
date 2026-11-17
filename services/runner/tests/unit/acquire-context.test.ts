@@ -97,7 +97,7 @@ describe("FINDING 1: the environment is a read-only projection, not a readonly r
     // after another unit committed must see the new value.
     const { context } = makeContext();
     assert.equal(context.env.mountedCwd, undefined);
-    context.commitLocalMount("cwd", "/run/cwd", CREDS(undefined));
+    context.commitLocalMount("/run/cwd", CREDS(undefined));
     assert.equal(context.env.mountedCwd, "/run/cwd");
   });
 });
@@ -171,7 +171,7 @@ describe("FINDING 2: the freeze throw escapes an operational catch", () => {
 describe("FINDING 3: Daytona records an expiry WITHOUT a path", () => {
   it("commitLocalMount writes path and expiry together", () => {
     const { context, environment } = makeContext();
-    context.commitLocalMount("cwd", "/run/cwd", CREDS("2026-01-01T00:00:00Z"));
+    context.commitLocalMount("/run/cwd", CREDS("2026-01-01T00:00:00Z"));
     assert.equal(context.env.mountedCwd, "/run/cwd");
     assert.ok(environment.installedMountExpiries.cwd);
   });
@@ -180,7 +180,7 @@ describe("FINDING 3: Daytona records an expiry WITHOUT a path", () => {
     // The real Daytona behavior (environment.ts:768-772). Setting a path here would make
     // teardown try to unmount a host path that never existed.
     const { context, environment } = makeContext();
-    context.commitRemoteMountExpiry("cwd", CREDS("2026-01-01T00:00:00Z"));
+    context.commitRemoteMountExpiry(CREDS("2026-01-01T00:00:00Z"));
     assert.ok(environment.installedMountExpiries.cwd);
     assert.equal(
       context.env.mountedCwd,
@@ -193,8 +193,8 @@ describe("FINDING 3: Daytona records an expiry WITHOUT a path", () => {
     // INVARIANT 3. Passing the credential explicitly is what proves the recorded lease belongs
     // to the mount that actually happened, rather than to one that was merely signed.
     const { context, environment } = makeContext();
-    context.recordResignedCredential("cwd", CREDS("2030-01-01T00:00:00Z"));
-    context.commitLocalMount("cwd", "/run/cwd", CREDS("2026-01-01T00:00:00Z"));
+    context.recordResignedCredential(CREDS("2030-01-01T00:00:00Z"));
+    context.commitLocalMount("/run/cwd", CREDS("2026-01-01T00:00:00Z"));
     const mounted = Date.parse("2026-01-01T00:00:00Z");
     assert.equal(environment.installedMountExpiries.cwd, mounted);
   });
@@ -231,7 +231,7 @@ describe("FINDING 5 and INVARIANT 2: credentials and the re-sign path", () => {
   it("recordResignedCredential is the only writer of the session credential", () => {
     const { context, environment } = makeContext();
     const fresh = CREDS("2030-01-01T00:00:00Z");
-    context.recordResignedCredential("cwd", fresh);
+    context.recordResignedCredential(fresh);
     assert.strictEqual(environment.mountCreds, fresh);
   });
 
@@ -239,11 +239,11 @@ describe("FINDING 5 and INVARIANT 2: credentials and the re-sign path", () => {
     // The behavior revision 1 described WRONGLY and the reviewer corrected. It is preserved for
     // this split, and pinned here so it is not rediscovered as a surprise later.
     const { context, environment } = makeContext();
-    context.commitLocalMount("cwd", "/run/cwd", CREDS("2026-01-01T00:00:00Z"));
+    context.commitLocalMount("/run/cwd", CREDS("2026-01-01T00:00:00Z"));
 
     // A re-sign lands, then the remount fails: the mount helper returns without clearing the path.
     const fresh = CREDS("2030-01-01T00:00:00Z");
-    context.recordResignedCredential("cwd", fresh);
+    context.recordResignedCredential(fresh);
     context.beginCwdMount();
 
     assert.strictEqual(
@@ -256,13 +256,6 @@ describe("FINDING 5 and INVARIANT 2: credentials and the re-sign path", () => {
       "/run/cwd",
       "and the OLD path is still set: the two disagree until the next successful remount",
     );
-  });
-
-  it("clearMountPath clears the cwd path so a remount does not short-circuit", () => {
-    const { context } = makeContext();
-    context.commitLocalMount("cwd", "/run/cwd", CREDS(undefined));
-    context.clearMountPath("cwd");
-    assert.equal(context.env.mountedCwd, undefined);
   });
 });
 

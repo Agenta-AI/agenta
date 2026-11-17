@@ -82,7 +82,7 @@ describe("SandboxDrive with drives", () => {
     await drive.ensure(use(fakeSandbox(commands)));
     const prune = commands.find((c) => c.includes("for e in"));
     expect(prune).toContain("/w'\"'\"' 2>/dev/null || exit 0");
-    expect(prune).toMatch(/'sh' '1' 'home' 'prices'$/);
+    expect(prune).toMatch(/'sh' '1' '1' 'home' 'prices'$/);
   });
 
   it("keeps today's rule: a root that fails to mount fails the file command", async () => {

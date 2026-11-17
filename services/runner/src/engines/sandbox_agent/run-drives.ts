@@ -14,6 +14,7 @@
  * the key. It keeps the old rule: the agent's drive found by the artifact id through the legacy
  * sign route, mounted at `<cwd>-agent` and linked only at `agent-files`.
  */
+import { constants } from "node:fs";
 import { lstat, mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -126,6 +127,11 @@ export function homeDrive(
   return drives?.find((d) => d.isHome);
 }
 
+/** The drive serves files at its links in the working folder (on `inprocess`, once it is a root). */
+export function driveAvailable(drive: RunDrive): boolean {
+  return !!drive.mountedPath && drive.linked !== false;
+}
+
 /**
  * The home drive's state for the prompt: its path when it serves files at `agent-files`,
  * `"unavailable"` when the run has one that could not be signed, mounted or linked, and undefined
@@ -136,9 +142,7 @@ export function homeDriveStatus(
 ): { path: string } | "unavailable" | undefined {
   const home = homeDrive(drives);
   if (!home) return undefined;
-  return home.mountedPath && home.linked !== false
-    ? { path: home.mountedPath }
-    : "unavailable";
+  return driveAvailable(home) ? { path: home.mountedPath! } : "unavailable";
 }
 
 export function driveMountPath(cwd: string, slug: string): string {
@@ -172,8 +176,8 @@ function defaultLog(msg: string): void {
   process.stderr.write(`[sandbox_agent/run-drives] ${msg}\n`);
 }
 
-function detail(err: unknown): string {
-  return String(err instanceof Error ? err.message : err).slice(0, 200);
+function detail(err: unknown, max = 200): string {
+  return String(err instanceof Error ? err.message : err).slice(0, max);
 }
 
 // ---- Signing ------------------------------------------------------------------------------- //
@@ -241,7 +245,7 @@ async function signMountCredentialsAt(
     };
   } catch (err) {
     throwIfAcquireAborted(deps.signal);
-    log(`sign failed ${subject}: ${detail(err).slice(0, 160)}`);
+    log(`sign failed ${subject}: ${detail(err, 160)}`);
     return null;
   }
 }
@@ -298,6 +302,29 @@ export function signRunDrive(
 // ---- Links --------------------------------------------------------------------------------- //
 
 /**
+ * Make `<cwd>/drives` a real folder when it is missing. False when something else is there: a link
+ * there could lead out of the working folder, so nothing under `drives/` is touched through it.
+ */
+async function ensureDrivesDir(
+  cwd: string,
+  deps: { lstat?: typeof lstat; mkdir?: typeof mkdir },
+): Promise<boolean> {
+  const dir = join(cwd, DRIVES_DIR_NAME);
+  await (deps.mkdir ?? mkdir)(dir).catch((err: NodeJS.ErrnoException) => {
+    if (err.code !== "EEXIST") throw err;
+  });
+  return (await (deps.lstat ?? lstat)(dir)).isDirectory();
+}
+
+/** True when `<cwd>/drives` is a real folder (not a link). */
+async function isDrivesDir(cwd: string): Promise<boolean> {
+  return lstat(join(cwd, DRIVES_DIR_NAME)).then(
+    (st) => st.isDirectory(),
+    () => false,
+  );
+}
+
+/**
  * Point `<cwd>/<name>` at `target`. Re-run on every turn: the link lives on the session folder,
  * where geesefs turns a symlink into an empty file across a remount.
  *
@@ -314,8 +341,9 @@ async function linkInCwd(
 ): Promise<boolean> {
   const linkPath = join(cwd, name);
   try {
-    if (name.includes("/")) {
-      await (deps.mkdir ?? mkdir)(join(cwd, DRIVES_DIR_NAME), { recursive: true });
+    if (name.includes("/") && !(await ensureDrivesDir(cwd, deps))) {
+      log(`${DRIVES_DIR_NAME} is not a folder in ${cwd}; ${name} not linked`);
+      return false;
     }
     const existing = await (deps.lstat ?? lstat)(linkPath).catch(
       (err: NodeJS.ErrnoException) => {
@@ -323,6 +351,7 @@ async function linkInCwd(
         throw err;
       },
     );
+    // Checked here, not left to `ensureDurableSymlink`, which removes an empty folder.
     if (existing?.isDirectory()) {
       log(`${name} is a folder in ${cwd}; not replaced`);
       return false;
@@ -363,15 +392,26 @@ export async function unlinkRunDrive(
   deps: { log?: (msg: string) => void } = {},
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
+  const drivesDir = await isDrivesDir(cwd);
   for (const name of driveLinkNames(drive)) {
+    if (name.includes("/") && !drivesDir) continue;
     try {
       if ((await lstat(join(cwd, name))).isSymbolicLink()) await unlink(join(cwd, name));
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-        log(`${name} not removed: ${detail(err).slice(0, 160)}`);
+        log(`${name} not removed: ${detail(err, 160)}`);
       }
     }
   }
+}
+
+/**
+ * A shell check that `<cwd>/drives` is a real folder, made when missing. A link there could lead out
+ * of the working folder, so the script stops.
+ */
+function drivesDirScript(cwd: string): string {
+  const dir = shellQuote(join(cwd, DRIVES_DIR_NAME));
+  return `{ [ ! -L ${dir} ] && mkdir -p ${dir} && [ -d ${dir} ] && [ ! -L ${dir} ]; }`;
 }
 
 /** The same link, made inside a remote sandbox, with the same rule for what is at the link path. */
@@ -386,7 +426,7 @@ export async function linkDriveRemote(
     command: "sh",
     args: [
       "-c",
-      `mkdir -p ${shellQuote(join(cwd, DRIVES_DIR_NAME))} && { [ "$(readlink ${link} 2>/dev/null)" = ${shellQuote(target)} ] || { { [ -L ${link} ] || { [ ! -d ${link} ] && [ ! -s ${link} ]; }; } && rm -f ${link} && ln -s ${shellQuote(target)} ${link}; }; }`,
+      `${name.includes("/") ? `${drivesDirScript(cwd)} && ` : ""}{ [ "$(readlink ${link} 2>/dev/null)" = ${shellQuote(target)} ] || { { [ -L ${link} ] || { [ ! -d ${link} ] && [ ! -s ${link} ]; }; } && rm -f ${link} && ln -s ${shellQuote(target)} ${link}; }; }`,
     ],
     timeoutMs: 30_000,
   });
@@ -418,17 +458,26 @@ export async function linkRunDriveRemote(
   return ok;
 }
 
-/** What the prune keeps: the `drives/<slug>` of every listed drive, and `agent-files` when there is a home. */
+/**
+ * What the prune keeps: the `drives/<slug>` of every mounted drive, and `agent-files` when the home
+ * drive is mounted. `slugs` is null on the legacy path (a request without `drives`): the runner
+ * does not own `drives/` there, so nothing under it is removed.
+ */
 export interface KeptLinks {
-  slugs: readonly string[];
+  slugs: readonly string[] | null;
   home: boolean;
 }
 
-/** The prune's input for a run's drive list: every listed slug; `agent-files` only for a signed home. */
-export function keptLinks(drives: readonly RunDrive[]): KeptLinks {
+/**
+ * The prune's input for a run's drive list, read after the mounts settle. A drive that could not
+ * be signed or mounted is not available, so its links go: a link left behind could still open an
+ * earlier mount of that drive.
+ */
+export function keptLinks(drives: readonly RunDrive[], listed: boolean): KeptLinks {
+  const mounted = drives.filter((d) => d.mountedPath);
   return {
-    slugs: drives.flatMap((d) => (d.slug ? [d.slug] : [])),
-    home: drives.some((d) => d.isHome && !!d.credentials),
+    slugs: listed ? mounted.flatMap((d) => (d.slug ? [d.slug] : [])) : null,
+    home: mounted.some((d) => d.isHome),
   };
 }
 
@@ -449,13 +498,16 @@ export async function pruneDriveLinks(
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
   const candidates: string[] = [];
-  try {
-    const dir = join(cwd, DRIVES_DIR_NAME);
-    for (const entry of await readdir(dir)) {
-      if (!keep.slugs.includes(entry)) candidates.push(`${DRIVES_DIR_NAME}/${entry}`);
+  const slugs = keep.slugs;
+  // Never through a link at `drives`: its entries would be outside the working folder.
+  if (slugs && (await isDrivesDir(cwd))) {
+    try {
+      for (const entry of await readdir(join(cwd, DRIVES_DIR_NAME))) {
+        if (!slugs.includes(entry)) candidates.push(`${DRIVES_DIR_NAME}/${entry}`);
+      }
+    } catch {
+      // Unreadable `drives/` folder: nothing to prune there.
     }
-  } catch {
-    // No `drives/` folder: nothing to prune there.
   }
   if (!keep.home) candidates.push(HOME_DRIVE_LINK_NAME);
   for (const name of candidates) {
@@ -466,7 +518,7 @@ export async function pruneDriveLinks(
       log(`removed stale ${name}`);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") continue;
-      log(`stale ${name} not removed: ${detail(err).slice(0, 160)}`);
+      log(`stale ${name} not removed: ${detail(err, 160)}`);
     }
   }
 }
@@ -481,16 +533,16 @@ export async function pruneDriveLinksRemote(
   const log = deps.log ?? defaultLog;
   const residue = (e: string) => `{ [ -L ${e} ] || { [ -f ${e} ] && [ ! -s ${e} ]; }; }`;
   const script =
-    `cd ${shellQuote(cwd)} 2>/dev/null || exit 0; keep_home="$1"; shift; ` +
+    `cd ${shellQuote(cwd)} 2>/dev/null || exit 0; keep_home="$1"; prune_drives="$2"; shift 2; ` +
     `if [ "$keep_home" != 1 ] && ${residue(HOME_DRIVE_LINK_NAME)}; then rm -f ${HOME_DRIVE_LINK_NAME} && echo ${HOME_DRIVE_LINK_NAME}; fi; ` +
-    `cd ${DRIVES_DIR_NAME} 2>/dev/null || exit 0; ` +
+    `[ "$prune_drives" = 1 ] && [ ! -L ${DRIVES_DIR_NAME} ] && cd ${DRIVES_DIR_NAME} 2>/dev/null || exit 0; ` +
     `for e in * .[!.]*; do [ -e "$e" ] || [ -L "$e" ] || continue; ` +
     `k=0; for s in "$@"; do [ "$s" = "$e" ] && k=1; done; [ "$k" = 1 ] && continue; ` +
     `if ${residue('"$e"')}; then rm -f "$e" && echo "${DRIVES_DIR_NAME}/$e"; fi; done`;
   try {
     const res = (await sandbox.runProcess({
       command: "sh",
-      args: ["-c", script, "sh", keep.home ? "1" : "0", ...keep.slugs],
+      args: ["-c", script, "sh", keep.home ? "1" : "0", keep.slugs ? "1" : "0", ...(keep.slugs ?? [])],
       timeoutMs: 30_000,
     })) as { exitCode?: number; result?: string; stdout?: string } | undefined;
     const removed = String(res?.result ?? res?.stdout ?? "")
@@ -499,7 +551,7 @@ export async function pruneDriveLinksRemote(
       .filter(Boolean);
     for (const name of removed) log(`removed stale ${name}`);
   } catch (err) {
-    log(`stale drive links cleanup failed in ${cwd}: ${detail(err).slice(0, 160)}`);
+    log(`stale drive links cleanup failed in ${cwd}: ${detail(err, 160)}`);
   }
 }
 
@@ -511,7 +563,7 @@ export async function pruneDriveLinksRemote(
  */
 export function drivesReadme(drives: readonly RunDrive[]): string {
   const rows = drives
-    .filter((d) => d.slug && d.mountedPath && d.linked !== false)
+    .filter((d) => d.slug && driveAvailable(d))
     .map(
       (d) =>
         `| ${DRIVES_DIR_NAME}/${d.slug}/ | ${d.access === "read" ? "read only" : "read and write"} | ${d.isHome ? `Home drive. Also at ${HOME_DRIVE_LINK_NAME}/.` : ""} |`,
@@ -534,21 +586,25 @@ it are not kept.
 `;
 }
 
-/** Write `drives/README.md` in `cwd`. Never throws. */
+/** Write `drives/README.md` in `cwd`, never through a link. Never throws. */
 export async function writeDrivesReadme(
   cwd: string,
   content: string,
   deps: { log?: (msg: string) => void } = {},
 ): Promise<void> {
   try {
-    await mkdir(join(cwd, DRIVES_DIR_NAME), { recursive: true });
-    await writeFile(join(cwd, DRIVES_README_PATH), content);
+    if (!(await ensureDrivesDir(cwd, {}))) {
+      (deps.log ?? defaultLog)(`${DRIVES_README_PATH} not written in ${cwd}: ${DRIVES_DIR_NAME} is not a folder`);
+      return;
+    }
+    const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW;
+    await writeFile(join(cwd, DRIVES_README_PATH), content, { flag: flags });
   } catch (err) {
     (deps.log ?? defaultLog)(`${DRIVES_README_PATH} not written in ${cwd}: ${detail(err)}`);
   }
 }
 
-/** Write `drives/README.md` inside a remote sandbox. Never throws. */
+/** Write `drives/README.md` inside a remote sandbox, never through a link. Never throws. */
 export async function writeDrivesReadmeRemote(
   sandbox: SandboxExec,
   cwd: string,
@@ -561,7 +617,7 @@ export async function writeDrivesReadmeRemote(
       command: "sh",
       args: [
         "-c",
-        `mkdir -p ${shellQuote(join(cwd, DRIVES_DIR_NAME))} && printf %s ${shellQuote(content)} > ${shellQuote(join(cwd, DRIVES_README_PATH))}`,
+        `${drivesDirScript(cwd)} && [ ! -L ${shellQuote(join(cwd, DRIVES_README_PATH))} ] && printf %s ${shellQuote(content)} > ${shellQuote(join(cwd, DRIVES_README_PATH))}`,
       ],
       timeoutMs: 30_000,
     });
@@ -600,7 +656,7 @@ export async function seedHomeReadmeRemote(
       command: "sh",
       args: [
         "-c",
-        `[ -e ${shellQuote(readmePath)} ] || printf %s ${shellQuote(HOME_README_CONTENT)} > ${shellQuote(readmePath)}`,
+        `[ -e ${shellQuote(readmePath)} ] || [ -L ${shellQuote(readmePath)} ] || printf %s ${shellQuote(HOME_README_CONTENT)} > ${shellQuote(readmePath)}`,
       ],
       timeoutMs: 30_000,
     });

@@ -36,6 +36,8 @@ export interface ConversationSpec {
   cwd: string;
   /** The drive's roots (the session folder, the agent folder, project drives) with the runner mounts' credentials. */
   roots: DriveRoot[];
+  /** The request lists its drives (`drives/` is the runner's); false on the legacy path. */
+  drivesListed?: boolean;
   /** Executable skill files (runner path) and their modes. */
   skillModes: Map<string, number>;
   /** Signs the conversation-file prefix. */
@@ -74,6 +76,7 @@ export class ConversationRegistry {
       const sandbox = new CommandSandbox(spec.key, this.settings, this.api, this.owner, labels, this.log);
       const drive = new SandboxDrive(spec.roots, this.options.mounter, {
         cwd: spec.cwd,
+        ...(spec.drivesListed !== undefined ? { drivesListed: spec.drivesListed } : {}),
         ...(this.options.sandboxPrefix ? { sandboxPrefix: this.options.sandboxPrefix } : {}),
         log: this.log,
       });
@@ -85,7 +88,7 @@ export class ConversationRegistry {
       this.entries.set(spec.key, workspace);
     } else {
       // The newest environment's credentials: an older environment's may have expired.
-      workspace.drive.setRoots(spec.roots);
+      workspace.drive.setRoots(spec.roots, spec.drivesListed);
       workspace.signTranscriptMount = spec.signTranscriptMount;
     }
     workspace.drive.addModes(spec.skillModes);

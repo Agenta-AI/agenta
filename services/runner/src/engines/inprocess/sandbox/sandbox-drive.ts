@@ -156,6 +156,8 @@ export function modesScript(modes: Array<[string, number]>): string {
 
 export class SandboxDrive {
   private roots: DriveRoot[];
+  /** The request lists its drives, so `drives/` is the runner's to prune; false on the legacy path. */
+  private drivesListed: boolean;
   /** `<sandbox id>:<boot>` the mounts were made for; undefined when they must be made. */
   private mountedFor: string | undefined;
   /** What the current mounts hold (`rootsShape`). */
@@ -174,12 +176,15 @@ export class SandboxDrive {
     private readonly options: {
       /** The session folder, which holds each root's `link`. */
       cwd?: string;
+      /** False for a request without `drives`: leftovers under `drives/` are then left alone. */
+      drivesListed?: boolean;
       /** Where the runner's "/" sits in the sandbox: empty in production, a folder in tests. */
       sandboxPrefix?: string;
       log: Log;
     },
   ) {
     this.roots = roots;
+    this.drivesListed = options.drivesListed ?? true;
   }
 
   /** The root at `path`, with its newest credentials. */
@@ -231,8 +236,9 @@ export class SandboxDrive {
   }
 
   /** The newest environment's credentials: an older one's may have expired. */
-  setRoots(roots: DriveRoot[]): void {
+  setRoots(roots: DriveRoot[], drivesListed: boolean = this.drivesListed): void {
     this.roots = roots;
+    this.drivesListed = drivesListed;
   }
 
   /**
@@ -322,7 +328,7 @@ export class SandboxDrive {
     }
     await this.link(use.sandbox, signal);
     if (this.options.cwd) {
-      const slugs = roots.flatMap((r) => (r.link?.slug ? [r.link.slug] : []));
+      const slugs = this.drivesListed ? roots.flatMap((r) => (r.link?.slug ? [r.link.slug] : [])) : null;
       await pruneDriveLinksRemote(sandboxExec(use.sandbox, signal), this.inSandbox(this.options.cwd), { slugs, home: roots.some((r) => r.link?.home) }, { log: this.options.log });
     }
     this.modesApplied.clear();

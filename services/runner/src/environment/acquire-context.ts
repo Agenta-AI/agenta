@@ -102,11 +102,8 @@ import type { RunDrive } from "../engines/sandbox_agent/run-drives.ts";
 import type { SessionEnvironment } from "../engines/sandbox_agent/runtime-contracts.ts";
 import type { Log, TimingLog } from "./timing.ts";
 
-/** The session folder's mount; each attached drive has its own committers. */
-export type MountKind = "cwd";
-
 /** A remount budget: one for the session folder, one per drive by its mount path. */
-export type RemountBudgetKey = MountKind | `drive:${string}`;
+export type RemountBudgetKey = "cwd" | `drive:${string}`;
 
 /**
  * A violation of an acquire ORDERING rule. It means the code called things in the wrong order,
@@ -250,7 +247,7 @@ export interface AcquireContext {
    * reviewer's answer 2: keeping the committer total forces each signer to handle and log its own
    * null result, which is what both signers already do.
    */
-  recordResignedCredential(kind: MountKind, credential: MountCredentials): void;
+  recordResignedCredential(credential: MountCredentials): void;
 
   /**
    * Record a LOCAL mount that is now live: its host path and the expiry of the credential the
@@ -259,11 +256,7 @@ export interface AcquireContext {
    * Local only. The path matters because teardown must unmount that host mountpoint before
    * deleting anything under it.
    */
-  commitLocalMount(
-    kind: MountKind,
-    path: string,
-    credential: MountCredentials,
-  ): void;
+  commitLocalMount(path: string, credential: MountCredentials): void;
 
   /**
    * Record a DAYTONA cwd mount: the expiry ONLY, with no path.
@@ -273,14 +266,7 @@ export interface AcquireContext {
    * `mountedCwd` must stay unset. Setting it would make teardown attempt to unmount a path that
    * never existed on this host.
    */
-  commitRemoteMountExpiry(kind: MountKind, credential: MountCredentials): void;
-
-  /**
-   * Clear a mount's path so a later attempt does not short-circuit.
-   *
-   * Used by a cwd remount path that must not short-circuit on its identity check.
-   */
-  clearMountPath(kind: MountKind): void;
+  commitRemoteMountExpiry(credential: MountCredentials): void;
 
   /**
    * Record a drive that now serves I/O: its path (local and Daytona alike, so the turn refresh and
@@ -398,9 +384,8 @@ export interface AcquireContextHandle {
  * | # | environment field        | owner unit          | written via                  |
  * |---|--------------------------|---------------------|------------------------------|
  * | 1 | `mountCreds`             | mount               | recordResignedCredential     |
- * | 2 | `drives[]` mount state   | mount               | commitDriveMount / recordDriveLink / releaseDriveMount / recordResignedDriveCredential |
+ * | 2 | `drives[]` mount state   | mount               | commitDriveMount / recordDriveLink / releaseDriveMount / recordResignedDriveCredential; after the acquire, teardown and the per-turn link repair write `mountedPath` and `linked` directly |
  * | 3 | `mountedCwd`             | mount (LOCAL only)  | commitLocalMount             |
- * | 4 | (removed)                |                     |                              |
  * | 5 | `installedMountExpiries` | mount               | commitLocalMount / commitRemoteMountExpiry |
  * | 6 | `durableCwdSafeToDelete` | mount + teardown    | beginCwdMount / markCwdDetachConfirmed / recordCwdUnmountResult |
  * | 7 | `runtimeRemount`         | runtime             | setRuntimeRemount            |

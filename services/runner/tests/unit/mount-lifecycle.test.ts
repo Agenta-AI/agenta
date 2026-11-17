@@ -60,7 +60,7 @@ const contextFor = (cwd: string, commits: string[]): AcquireContext =>
     log: () => {},
     beginCwdMount: () => {},
     markCwdDetachConfirmed: () => {},
-    commitLocalMount: (kind: string) => commits.push(kind),
+    commitLocalMount: () => commits.push("cwd"),
   }) as unknown as AcquireContext;
 
 /** A cwd mount that failed; the acquire observes the rejection, so the test marks it handled. */

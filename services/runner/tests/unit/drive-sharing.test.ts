@@ -26,9 +26,14 @@ import {
   pruneDriveLinks,
   pruneDriveLinksRemote,
   runDriveMountPath,
+  seedHomeReadme,
+  seedHomeReadmeRemote,
   selectRunDrives,
   signAgentMountCredentials,
   signMountCredentialsBySlug,
+  unlinkRunDrive,
+  writeDrivesReadme,
+  writeDrivesReadmeRemote,
   type RunDrive,
 } from "../../src/engines/sandbox_agent/run-drives.ts";
 import {
@@ -327,8 +332,8 @@ describe("drive paths and links", () => {
 
   it("removes leftover links of drives no longer listed and a leftover agent-files without a home, never a folder or a file with content", async () => {
     for (const [name, prune] of [
-      ["local", (cwd: string, keep: { slugs: string[]; home: boolean }, log: (m: string) => void) => pruneDriveLinks(cwd, keep, { log })],
-      ["remote", (cwd: string, keep: { slugs: string[]; home: boolean }, log: (m: string) => void) => pruneDriveLinksRemote(sh, cwd, keep, { log })],
+      ["local", (cwd: string, keep: { slugs: string[] | null; home: boolean }, log: (m: string) => void) => pruneDriveLinks(cwd, keep, { log })],
+      ["remote", (cwd: string, keep: { slugs: string[] | null; home: boolean }, log: (m: string) => void) => pruneDriveLinksRemote(sh, cwd, keep, { log })],
     ] as const) {
       const cwd = join(tmpdir(), `agenta-drive-prune-${name}-${process.pid}-${Date.now()}`);
       const drives = join(cwd, "drives");
@@ -368,10 +373,92 @@ describe("drive paths and links", () => {
     await pruneDriveLinks(join(tmpdir(), `agenta-no-such-${process.pid}`), { slugs: [], home: false }, { log: SILENT });
   });
 
-  it("keeps every listed slug, and agent-files only for a signed home", () => {
-    assert.deepEqual(keptLinks([drive("a", { isHome: true }), drive("b", { credentials: null })]), { slugs: ["a", "b"], home: true });
-    assert.deepEqual(keptLinks([drive("a", { isHome: true, credentials: null })]), { slugs: ["a"], home: false });
-    assert.deepEqual(keptLinks([drive(undefined, { isHome: true })]), { slugs: [], home: true });
+  it("keeps the links of mounted drives only, and leaves drives/ alone on the legacy path", () => {
+    const mounted = { mountedPath: "/m" };
+    assert.deepEqual(
+      keptLinks([drive("a", { isHome: true, ...mounted }), drive("b", { credentials: null }), drive("c")], true),
+      { slugs: ["a"], home: true },
+    );
+    assert.deepEqual(keptLinks([drive("a", { isHome: true, credentials: null })], true), { slugs: [], home: false });
+    assert.deepEqual(keptLinks([drive(undefined, { isHome: true, ...mounted })], false), { slugs: null, home: true });
+    assert.deepEqual(keptLinks([drive(undefined, { isHome: true })], false), { slugs: null, home: false });
+  });
+
+  it("on the legacy path, leaves every entry under drives/ in place", async () => {
+    for (const [name, prune] of [
+      ["local", (cwd: string) => pruneDriveLinks(cwd, { slugs: null, home: true }, { log: SILENT })],
+      ["remote", (cwd: string) => pruneDriveLinksRemote(sh, cwd, { slugs: null, home: true }, { log: SILENT })],
+    ] as const) {
+      const cwd = join(tmpdir(), `agenta-drive-legacy-${name}-${process.pid}-${Date.now()}`);
+      mkdirSync(join(cwd, "drives"), { recursive: true });
+      try {
+        writeFileSync(join(cwd, "drives", "empty"), "");
+        symlinkSync("/nowhere", join(cwd, "drives", "link"));
+        await prune(cwd);
+        assert.deepEqual(readdirSync(join(cwd, "drives")).sort(), ["empty", "link"], name);
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("never links, prunes or writes through a link at drives/", async () => {
+    for (const name of ["local", "remote"] as const) {
+      const base = join(tmpdir(), `agenta-drive-parent-${name}-${process.pid}-${Date.now()}`);
+      const cwd = join(base, "cwd");
+      const outside = join(base, "outside");
+      mkdirSync(cwd, { recursive: true });
+      mkdirSync(outside, { recursive: true });
+      try {
+        writeFileSync(join(outside, "notes"), "");
+        symlinkSync("/nowhere", join(outside, "old"));
+        writeFileSync(join(outside, "README.md"), "theirs");
+        symlinkSync(outside, join(cwd, "drives"));
+        const d = drive("notes", { mountedPath: "/t/notes" });
+        if (name === "local") {
+          assert.equal(await linkRunDrive(cwd, d, "/t/notes", { log: SILENT }), false);
+          await pruneDriveLinks(cwd, { slugs: [], home: false }, { log: SILENT });
+          await writeDrivesReadme(cwd, "# Drives", { log: SILENT });
+          await unlinkRunDrive(cwd, drive("old"), { log: SILENT });
+        } else {
+          assert.equal(await linkRunDriveRemote(sh, cwd, d, "/t/notes", { log: SILENT }), false);
+          await pruneDriveLinksRemote(sh, cwd, { slugs: [], home: false }, { log: SILENT });
+          await writeDrivesReadmeRemote(sh, cwd, "# Drives", { log: SILENT });
+        }
+        assert.deepEqual(readdirSync(outside).sort(), ["README.md", "notes", "old"], name);
+        assert.equal(readFileSync(join(outside, "notes"), "utf-8"), "", name);
+        assert.equal(readlinkSync(join(outside, "old")), "/nowhere", name);
+        assert.equal(readFileSync(join(outside, "README.md"), "utf-8"), "theirs", name);
+        assert.equal(readlinkSync(join(cwd, "drives")), outside, `${name}: the link at drives/ is left as it is`);
+      } finally {
+        rmSync(base, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("never writes a README through a link", async () => {
+    for (const name of ["local", "remote"] as const) {
+      const base = join(tmpdir(), `agenta-drive-readme-link-${name}-${process.pid}-${Date.now()}`);
+      const cwd = join(base, "cwd");
+      const home = join(base, "home");
+      mkdirSync(join(cwd, "drives"), { recursive: true });
+      mkdirSync(home, { recursive: true });
+      try {
+        symlinkSync(join(base, "victim.md"), join(cwd, "drives", "README.md"));
+        symlinkSync(join(base, "seed-victim.md"), join(home, "README.md"));
+        if (name === "local") {
+          await writeDrivesReadme(cwd, "# Drives", { log: SILENT });
+          await seedHomeReadme(home, { log: SILENT });
+        } else {
+          await writeDrivesReadmeRemote(sh, cwd, "# Drives", { log: SILENT });
+          await seedHomeReadmeRemote(sh, home, { log: SILENT });
+        }
+        assert.equal(existsSync(join(base, "victim.md")), false, name);
+        assert.equal(existsSync(join(base, "seed-victim.md")), false, name);
+      } finally {
+        rmSync(base, { recursive: true, force: true });
+      }
+    }
   });
 });
 
