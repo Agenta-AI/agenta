@@ -36,6 +36,7 @@ import {
     driveHasMixedOrigins,
     fileOrigin,
     isListableDrivePath,
+    isReadableToolPath,
     presentToolPath,
     resolveDriveMount,
     summarizeDrives,
@@ -391,5 +392,22 @@ describe("presentToolPath", () => {
         expect(presentToolPath(prices, "quote-agent-files")).toBe("drives/price-lists/b.csv")
         expect(presentToolPath({origin: "agent", path: "c.md"})).toBe("agent-files/c.md")
         expect(presentToolPath({origin: "session", path: "d.md"})).toBe("d.md")
+    })
+})
+
+describe("isReadableToolPath", () => {
+    const team = {slug: "team", access: "read-write" as const, mount: {id: "m-team"} as never}
+    const entries = [{slug: "team"}, {slug: "prices"}]
+
+    it("drops a write into a configured drive that has no mount", () => {
+        expect(isReadableToolPath({origin: "drive", slug: "prices", path: "a.md"}, [team], entries)).toBe(false)
+        expect(isReadableToolPath({origin: "session", path: "drives/prices/a.md"}, [team], entries)).toBe(false)
+    })
+
+    it("keeps a write into a mounted drive, the session or the older agent mount", () => {
+        expect(isReadableToolPath({origin: "drive", slug: "team", path: "a.md"}, [team], entries)).toBe(true)
+        expect(isReadableToolPath({origin: "session", path: "drives/team/a.md"}, [team], entries)).toBe(true)
+        expect(isReadableToolPath({origin: "session", path: "notes/a.md"}, [team], entries)).toBe(true)
+        expect(isReadableToolPath({origin: "agent", path: "a.md"}, [], entries)).toBe(true)
     })
 })

@@ -107,6 +107,17 @@ export const resolveDriveMount = (
     return resolveDrivePath(path, entries) ? null : undefined
 }
 
+/** A tool path in a drive the session has a mount for, or in no drive: a configured drive without
+ * a mount (the member cannot read it, or its lookup has not answered) holds nothing to list. */
+export const isReadableToolPath = (
+    tool: DriveToolPath,
+    linked: readonly Drive[],
+    entries: DriveSlugs,
+): boolean =>
+    tool.origin === "drive"
+        ? linked.some((d) => d.slug === tool.slug)
+        : tool.origin === "agent" || resolveDriveMount(tool.path, linked, entries) !== null
+
 /** Present a drive's mount-relative entries under its `drives/<slug>/` folder. */
 export const foldDriveFiles = (drive: Drive, files: readonly MountFile[]): MountFile[] =>
     files.map((f) => ({...f, path: `${driveDir(drive.slug)}/${cleanPath(f.path)}`}))
@@ -549,6 +560,8 @@ export function useSessionDriveSummary(
     // mount-relative path, before the fold prefix, exactly as the root listing filters its own.
     // ONE derivation, shared with the gate below, so the gate can't withhold the root-listing
     // fallback over a row the list then drops.
+    // A write into a drive this member cannot read (no mount came back for it) is not listed.
+    const linked = drivesState.linked
     const recordFiles = useMemo(
         () =>
             [...recordRecency.entries()]
@@ -559,9 +572,10 @@ export function useSessionDriveSummary(
                         isSummaryDrivePath(entry.resolved.path, {
                             fromDriveMount: entry.resolved.origin !== "session",
                             drives: entries,
-                        }),
+                        }) &&
+                        isReadableToolPath(entry.resolved, linked, entries),
                 ),
-        [recordRecency, entries],
+        [recordRecency, entries, linked],
     )
     // Does the record log hold ANY change this surface would actually LIST? When it doesn't, the
     // "recent changes" list would be empty even though the drive has files — so fall back to the
@@ -686,7 +700,8 @@ export function useSessionDriveSummary(
         const lastTouchedAt = recents.length ? (recents[0].touchedAt ?? null) : null
 
         // The cwd count is the store's, so it counts the runner's `drives/<slug>` link per linked
-        // drive; take them out without listing the folder.
+        // drive; take them out without listing the folder. An approximate count: a session whose
+        // runner did not link every drive counts a few files less.
         const cwdLinks = mount ? drivesState.linked.length : 0
         const others = summarizeDrives(
             drivesState,
