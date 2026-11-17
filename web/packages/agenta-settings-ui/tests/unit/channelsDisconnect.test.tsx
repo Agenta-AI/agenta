@@ -124,15 +124,13 @@ const openAndDisconnect = async () => {
 
 it("closes the panel when the backend archived the row but answered with an error", async () => {
     const disconnect = vi.fn().mockRejectedValue(new Error("Internal Server Error"))
-    const reload = vi
-        .fn()
-        .mockResolvedValue({
-            slack: null,
-            telegram: null,
-            whatsapp: null,
-            discord: null,
-            teams: null,
-        })
+    const reload = vi.fn().mockResolvedValue({
+        slack: null,
+        telegram: null,
+        whatsapp: null,
+        discord: null,
+        teams: null,
+    })
     await act(async () =>
         root.render(
             <Host
@@ -151,15 +149,13 @@ it("closes the panel when the backend archived the row but answered with an erro
 
 it("shows a failed disconnect next to the Disconnect button when the row is still there", async () => {
     const disconnect = vi.fn().mockRejectedValue(new Error("Could not disconnect."))
-    const reload = vi
-        .fn()
-        .mockResolvedValue({
-            slack: SLACK,
-            telegram: null,
-            whatsapp: null,
-            discord: null,
-            teams: null,
-        })
+    const reload = vi.fn().mockResolvedValue({
+        slack: SLACK,
+        telegram: null,
+        whatsapp: null,
+        discord: null,
+        teams: null,
+    })
     await act(async () =>
         root.render(
             <Host
@@ -181,15 +177,13 @@ it("shows a failed disconnect next to the Disconnect button when the row is stil
 
 it("closes the panel after a clean disconnect", async () => {
     const disconnect = vi.fn().mockResolvedValue(undefined)
-    const reload = vi
-        .fn()
-        .mockResolvedValue({
-            slack: null,
-            telegram: null,
-            whatsapp: null,
-            discord: null,
-            teams: null,
-        })
+    const reload = vi.fn().mockResolvedValue({
+        slack: null,
+        telegram: null,
+        whatsapp: null,
+        discord: null,
+        teams: null,
+    })
     await act(async () =>
         root.render(
             <Host
