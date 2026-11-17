@@ -1,4 +1,9 @@
-import {formatQueueReviewed, queueKindLabel, queueKindTone} from "@agenta/annotation"
+import {
+    displayQueueStatus,
+    formatQueueReviewed,
+    queueKindLabel,
+    queueKindTone,
+} from "@agenta/annotation"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {simpleQueueMolecule, type SimpleQueueTableRow} from "@agenta/entities/simpleQueue"
 import {timeAgo} from "@agenta/shared/utils"
@@ -31,15 +36,13 @@ const ReviewedCell = ({queueId}: {queueId: string}) => {
 }
 
 /** The live status, derived from the queue's scenarios. Same query as the progress cell. */
-const LiveStatus = ({
-    queueId,
-    fallback,
-}: {
-    queueId: string
-    fallback: string | null | undefined
-}) => {
-    const status = useAtomValue(simpleQueueMolecule.selectors.status(queueId))
-    return <QueueStatusBadge status={status ?? fallback ?? "pending"} />
+const LiveStatus = ({queueId}: {queueId: string}) => {
+    const derived = useAtomValue(simpleQueueMolecule.selectors.status(queueId))
+    const progress = useAtomValue(simpleQueueMolecule.selectors.scenarioProgress(queueId))
+    // Waits for the items, so the stored status never shows and then flips.
+    const status = displayQueueStatus({derived, progress})
+    if (!status) return <SkeletonBlock active className="h-5 w-16 rounded" />
+    return <QueueStatusBadge status={status} />
 }
 
 const TypeBadge = ({kind}: {kind: string | null | undefined}) => {
@@ -122,9 +125,9 @@ export const QueueRowCells = ({
 
             <span className="flex">
                 {inView ? (
-                    <LiveStatus queueId={row.id} fallback={row.status} />
+                    <LiveStatus queueId={row.id} />
                 ) : (
-                    <QueueStatusBadge status={row.status} />
+                    <SkeletonBlock active className="h-5 w-16 rounded" />
                 )}
             </span>
 

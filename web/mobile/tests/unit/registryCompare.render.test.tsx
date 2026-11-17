@@ -15,7 +15,8 @@ vi.mock("next/dynamic", () => ({
 vi.mock("@agenta/entities/workflow", () => ({
     workflowMolecule: {
         selectors: {
-            data: (id: string) => ({id: `revision:${id}`}),
+            data: (id: string) => ({id: `draft:${id}`}),
+            serverData: (id: string) => ({id: `revision:${id}`}),
         },
     },
 }))
@@ -81,7 +82,7 @@ describe("comparing two revisions", () => {
         expect(selectedPair(rows, new Set(["v4"]))).toBeNull()
     })
 
-    it("shows the older revision as the original and diffs the two configs", () => {
+    it("diffs the committed configs, not playground drafts", () => {
         host = document.createElement("div")
         document.body.append(host)
         const mounted = createRoot(host)
@@ -92,9 +93,9 @@ describe("comparing two revisions", () => {
             ),
         )
         const text = document.body.textContent ?? ""
-        expect(text.indexOf("Original Version")).toBeLessThan(text.indexOf("verbose v3"))
-        expect(text.indexOf("verbose v3")).toBeLessThan(text.indexOf("Modified Version"))
-        expect(text.indexOf("Modified Version")).toBeLessThan(text.indexOf("verbose v4"))
+        expect(text.indexOf("Original version")).toBeLessThan(text.indexOf("verbose v3"))
+        expect(text.indexOf("verbose v3")).toBeLessThan(text.indexOf("Modified version"))
+        expect(text.indexOf("Modified version")).toBeLessThan(text.indexOf("verbose v4"))
         expect(diff).toHaveBeenLastCalledWith(
             expect.objectContaining({original: {prompt: "v3"}, modified: {prompt: "v4"}}),
         )

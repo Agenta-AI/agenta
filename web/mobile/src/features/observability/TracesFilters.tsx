@@ -12,6 +12,9 @@ import {useDeveloperViewEnabled} from "@/features/developer/developerViewAccess"
 import {AnnotatedTracesFilter} from "./filters/AnnotatedTracesFilter"
 import {TRACE_ACTIONS_VIEW_ID} from "./useTraceActionAccess"
 
+// The Root / LLM / All switch already shows the trace type.
+const UNCOUNTED_KEYS = ["trace_type"]
+
 /**
  * The traces filter control, on the shared dialog and column builder. With the trace actions view
  * on, its annotation row gets the evaluator and feedback controls.
@@ -31,7 +34,7 @@ export const TracesFilters = () => {
             filterData={filters}
             columns={columns}
             onApplyFilter={setFilters}
-            onClearFilter={setFilters}
+            uncountedKeys={UNCOUNTED_KEYS}
         />
     )
 }

@@ -159,6 +159,30 @@ describe("useAppRevisions", () => {
         expect(latest?.rows.map((row: AppRevisionRow) => row.revisionId)).toEqual(["rev-script"])
     })
 
+    it("A new variant's builtin seed (uri, url and schemas, no parameters) is left out; a custom workflow's first commit is kept", async () => {
+        fixture.queryVariants.mockResolvedValue({workflow_variants: []})
+        fixture.queryRevisions.mockResolvedValue({
+            workflow_revisions: [
+                {
+                    ...revision("rev-builtin-seed", 0),
+                    data: {
+                        uri: "agenta:builtin:completion:v0",
+                        url: "http://services/completion/v0",
+                        schemas: {parameters: {type: "object"}},
+                    },
+                },
+                {
+                    ...revision("rev-custom", 0),
+                    data: {url: "http://my-service.test/app"},
+                },
+            ],
+            windowing: {next: null},
+        })
+        render(createElement(Probe, {search: ""}))
+        await flush()
+        expect(latest?.rows.map((row: AppRevisionRow) => row.revisionId)).toEqual(["rev-custom"])
+    })
+
     it("Load more sends the cursor the server returned", async () => {
         fixture.queryVariants.mockResolvedValue({workflow_variants: []})
         fixture.queryRevisions.mockResolvedValueOnce({

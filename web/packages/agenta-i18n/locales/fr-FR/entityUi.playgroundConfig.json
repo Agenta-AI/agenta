@@ -31,5 +31,7 @@
     "resetToDefault": "Rétablir les valeurs par défaut",
     "tabModel": "Modèle",
     "tabFallback": "Secours",
-    "tabRetry": "Nouvelle tentative"
+    "tabRetry": "Nouvelle tentative",
+    "noConfiguration": "Aucune configuration",
+    "revisionNoConfig": "Cette révision n'a pas encore de prompt ni de paramètres."
 }

@@ -32,6 +32,7 @@ export const formatMetric = (
     switch (metric) {
         case "cost":
             if (!short) return formatMoney(value)
+            if (value === 0) return "$0"
             if (value >= 1000) return `$${formatCompact(value)}`
             if (value >= 10) return `$${Math.round(value)}`
             return value >= 1 ? `$${value.toFixed(1)}` : `$${value.toFixed(2)}`

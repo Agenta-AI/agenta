@@ -6,5 +6,10 @@
     "confirmMany": "¿Seguro que quieres eliminar {{count}} trazas?",
     "notReversible": "Esta acción no se puede deshacer.",
     "cancel": "Cancelar",
-    "delete": "Eliminar"
+    "delete": "Eliminar",
+    "descriptionOne": "Esta traza y todos sus spans se eliminan de forma permanente. No se puede deshacer.",
+    "descriptionMany": "Estas trazas y todos sus spans se eliminan de forma permanente. No se puede deshacer.",
+    "deleting": "Eliminando…",
+    "deletedOne": "Traza eliminada",
+    "deletedMany": "{{count}} trazas eliminadas"
 }

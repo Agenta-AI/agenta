@@ -68,7 +68,7 @@ export const FocusScenarioPicker = ({
                 </SelectContent>
             </Select>
             {displayId ? (
-                <SimpleTooltip title={traceId ? "Copy trace ID" : "Copy testcase ID"}>
+                <SimpleTooltip title={traceId ? "Copy trace ID" : "Copy test case ID"}>
                     <button
                         type="button"
                         onClick={copy}

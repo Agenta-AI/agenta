@@ -173,7 +173,16 @@ describe("app usage charts", () => {
             expect(cardText(title)).toContain("No data")
             expect(chartRows(title)).toEqual([])
         }
-        expect(cardText("Requests")).toContain("Total:-")
+        expect(cardText("Requests")).toContain("Total:—")
+    })
+
+    it("A metric no trace reported shows No data, not a flat line at 0", async () => {
+        buckets = [{timestamp: "2026-11-05T12:00:00Z", metrics: {[TRACES]: {count: 4}}}]
+        await mount()
+        expect(cardText("Tokens")).toContain("Total:—")
+        expect(cardText("Tokens")).toContain("No data")
+        expect(chartRows("Tokens")).toEqual([])
+        expect(chartRows("Requests")).toEqual([["5 Nov", "4"]])
     })
 
     it("A failed request shows the reason once and no No data", async () => {

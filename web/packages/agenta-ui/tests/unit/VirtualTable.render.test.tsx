@@ -146,3 +146,30 @@ describe("VirtualTable render warnings", () => {
         expect(container.textContent).toContain("no traces")
     })
 })
+
+describe("VirtualTable grouped headers", () => {
+    it("a column outside every group spans both header rows instead of a blank cell", () => {
+        const {container} = render(
+            <VirtualTable<Row>
+                {...base}
+                dataSource={rows(2)}
+                columns={[
+                    {key: "id", title: "ID", dataIndex: "id", width: 100},
+                    {
+                        key: "grp",
+                        title: "Group",
+                        children: [{key: "name", title: "Name", dataIndex: "name", width: 200}],
+                    } as ColumnDefs<Row>[number],
+                ]}
+            />,
+        )
+        const headerRows = [...container.querySelectorAll("thead tr")]
+        expect(headerRows).toHaveLength(2)
+        const top = [...headerRows[0].querySelectorAll("th")]
+        expect(top.map((cell) => cell.textContent)).toEqual(["ID", "Group"])
+        expect(top[0].rowSpan).toBe(2)
+        expect([...headerRows[1].querySelectorAll("th")].map((cell) => cell.textContent)).toEqual([
+            "Name",
+        ])
+    })
+})

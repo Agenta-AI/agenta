@@ -150,7 +150,10 @@ describe("BarChart", () => {
         render(<BarChart title="Scores" height={200} series={twoRuns} data={data} />)
         expect(screen.getByRole("img", {name: "Scores"})).toBeTruthy()
         const table = screen.getByRole("table", {name: "Scores"})
-        expect(table.className).toContain("sr-only")
+        // A table ignores the 1px sr-only width; a hiding div wrapper does not widen the page.
+        expect(table.className).not.toContain("sr-only")
+        expect(table.parentElement?.tagName).toBe("DIV")
+        expect(table.parentElement?.className).toContain("sr-only")
         const rows = within(table).getAllByRole("row")
         expect(rows.map((row) => row.textContent)).toEqual([
             "Run ARun B",

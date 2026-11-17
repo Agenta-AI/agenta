@@ -208,11 +208,11 @@ describe("run summary table", () => {
         const dot = () => host.querySelector('[data-testid="summary-status"] dd span[aria-hidden]')
         render(input({header: header({status: "evaluation_failed"})}))
         expect(rowText("status")).toBe("Evaluation Failed")
-        expect(dot()?.className).toContain("bg-destructive")
+        expect(dot()?.className).toContain("--ag-run-status-error")
 
         render(input({header: header({status: "success"})}))
         expect(rowText("status")).toBe("Success")
-        expect(dot()?.className).toContain("bg-success")
+        expect(dot()?.className).toContain("--ag-run-status-success")
     })
 
     it("Metric names are in title case, as in /w", () => {

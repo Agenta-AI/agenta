@@ -291,9 +291,5 @@ export const getSettingsSidebarTabs = (access: SettingsAccess) =>
         isHidden: !isSettingsTabVisible(tab.key, access),
     }))
 
-/** The one tab that wants the whole width: the Audit Log's timestamp + event type + full UUID. */
-const FULL_WIDTH_TABS = new Set<SettingsTabKey>(["auditLog"])
-
-/** A Settings tab's `SettingsPageShell` variant: the Audit Log runs full width, the rest centered. */
-export const getSettingsTabVariant = (key: SettingsTabKey): "full" | "table" =>
-    FULL_WIDTH_TABS.has(key) ? "full" : "table"
+/** A Settings tab's `SettingsPageShell` variant: every tab shares one centered width. */
+export const getSettingsTabVariant = (_key: SettingsTabKey): "full" | "table" => "table"

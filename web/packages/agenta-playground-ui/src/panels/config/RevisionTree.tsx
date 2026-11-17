@@ -63,17 +63,24 @@ export const RevisionTree = ({appId, selectedValue, onSelect}: RevisionTreeProps
                     variantName?: string
                 }
                 return (
-                    <VariantDetailsWithStatus
-                        // The deployment dots sit right after the version, as in the old
-                        // playground, not at the far edge of the row.
-                        className="gap-2 !justify-start"
-                        variantName={revision.variantName ?? ""}
-                        revision={revision.version ?? 0}
-                        variant={revision}
-                        hideName
-                        showBadges
-                        isLatest={revision.id === latestId}
-                    />
+                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                        <VariantDetailsWithStatus
+                            // Deployment dots sit right after the version.
+                            className="gap-2 !justify-start"
+                            variantName={revision.variantName ?? ""}
+                            revision={revision.version ?? 0}
+                            variant={revision}
+                            hideName
+                            showBadges
+                            isLatest={revision.id === latestId}
+                        />
+                        {/* A revision already on screen says so; it cannot be added twice. */}
+                        {disabledIds.has(revision.id) ? (
+                            <span className="shrink-0 pr-1 text-muted-foreground">
+                                {t("playground.panels.revisionOpen")}
+                            </span>
+                        ) : null}
+                    </span>
                 )
             }}
             onSelect={(selection) => onSelect(selection.id)}

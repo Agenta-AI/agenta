@@ -256,7 +256,7 @@ describe("scenarios table", () => {
         await click(metrics?.querySelector("button") ?? undefined)
         expect(headers()).toContain("Cost")
         await click(metrics?.querySelector("button") ?? undefined)
-        expect(headers().slice(-1)).toEqual(["Exact Match · success"])
+        expect(headers().slice(-1)).toEqual(["Exact Match · Success"])
 
         await click(button("Show all"))
         expect(headers().slice(-4)).toEqual(["Cost", "Duration", "Tokens", "Errors"])

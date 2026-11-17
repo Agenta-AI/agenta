@@ -122,7 +122,7 @@ describe("the annotation form panel", () => {
         expect(callsOf("submitAnnotations")).toEqual([
             {scenarioId: "s-1", queueId: "queue-1", markComplete: true},
         ])
-        expect(toast.success).toHaveBeenCalledWith("Scenario completed")
+        expect(toast.success).toHaveBeenCalledWith("Item marked completed")
     })
 
     it("Update is disabled until a value changes", async () => {

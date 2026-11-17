@@ -111,7 +111,7 @@ const mount = async () => {
 }
 
 const openMenu = async () => {
-    const trigger = host.querySelector("[aria-label='App actions']")
+    const trigger = host.querySelector("[aria-label='Prompt actions']")
     await act(async () => {
         trigger?.dispatchEvent(
             new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true, cancelable: true}),
@@ -199,23 +199,23 @@ describe("validateAppName", () => {
 })
 
 describe("app actions menu", () => {
-    it("A reader without edit_workflows sees only Copy Slug", async () => {
+    it("A reader without edit_workflows sees only Copy slug", async () => {
         env.permissions = {}
         await mount()
         await openMenu()
-        expect(items()).toEqual(["Copy Slug"])
+        expect(items()).toEqual(["Copy slug"])
     })
 
-    it("An editor sees Rename, Copy Slug and Archive app", async () => {
+    it("An editor sees Rename, Copy slug and Archive prompt", async () => {
         await mount()
         await openMenu()
-        expect(items()).toEqual(["Rename", "Copy Slug", "Archive app"])
+        expect(items()).toEqual(["Rename", "Copy slug", "Archive prompt"])
     })
 
-    it("Copy Slug copies the slug and says so", async () => {
+    it("Copy slug copies the slug and says so", async () => {
         await mount()
         await openMenu()
-        await clickItem("Copy Slug")
+        await clickItem("Copy slug")
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith("support-bot")
         expect(toast.success).toHaveBeenCalledWith("Slug copied")
     })
@@ -347,10 +347,10 @@ describe("app actions menu", () => {
         )
         await mount()
         await openMenu()
-        await clickItem("Archive app")
-        expect(document.body.textContent).toContain("Support bot will move to archived apps.")
+        await clickItem("Archive prompt")
+        expect(document.body.textContent).toContain("Support bot will move to the archive.")
         const confirm = [...document.querySelectorAll<HTMLElement>("button")].filter(
-            (el) => el.textContent?.trim() === "Archive app",
+            (el) => el.textContent?.trim() === "Archive prompt",
         )
         await act(async () => {
             confirm.at(-1)?.click()
@@ -374,9 +374,9 @@ describe("app actions menu", () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         await mount()
         await openMenu()
-        await clickItem("Archive app")
+        await clickItem("Archive prompt")
         const confirm = [...document.querySelectorAll<HTMLElement>("button")].filter(
-            (el) => el.textContent?.trim() === "Archive app",
+            (el) => el.textContent?.trim() === "Archive prompt",
         )
         await act(async () => confirm.at(-1)?.click())
         await settle()
@@ -392,9 +392,9 @@ describe("app actions menu", () => {
         vi.spyOn(console, "error").mockImplementation(() => undefined)
         await mount()
         await openMenu()
-        await clickItem("Archive app")
+        await clickItem("Archive prompt")
         const confirm = [...document.querySelectorAll<HTMLElement>("button")].filter(
-            (el) => el.textContent?.trim() === "Archive app",
+            (el) => el.textContent?.trim() === "Archive prompt",
         )
         await act(async () => confirm.at(-1)?.click())
         await settle()

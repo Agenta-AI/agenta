@@ -22,7 +22,7 @@
     "noVariants": "No variants found",
     "loadingVariants": "Loading variants...",
     "discardTitle": "Discard unsaved changes?",
-    "discardBody": "This revision has changes that are not committed. They will be lost.",
+    "discardBody": "This revision has changes that are not committed. Closing it discards them.",
     "keepEditing": "Keep editing",
     "discard": "Discard",
     "couldNotLoadRevision": "Could not load this revision",
@@ -32,7 +32,7 @@
     "kindRevision": "Revision",
     "kindDeployment": "Deployment",
     "kindEvaluator": "Evaluator",
-    "newEvaluator": "New Evaluator",
+    "newEvaluator": "New evaluator",
     "newApp": "New App",
     "testEvaluator": "Test evaluator",
     "testApp": "Test app",
@@ -46,5 +46,9 @@
     "callId": "Call id",
     "promptRefined": "Prompt refined successfully.",
     "leaveWarning": "You have local draft revisions or unsaved changes that will be lost if you leave. Are you sure you want to continue?",
-    "rerunning": "Re-running..."
+    "rerunning": "Re-running...",
+    "averageTokens": "Average tokens",
+    "newAgent": "New agent",
+    "newPrompt": "New prompt",
+    "revisionOpen": "Open"
 }

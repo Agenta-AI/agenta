@@ -1,6 +1,6 @@
 {
     "describeRefine": "Describe how you want to refine your prompt",
-    "orPickSuggestion": "Or pick a suggestion below",
+    "orPickSuggestion": "Or use the suggestion below",
     "refining": "Refining prompt…",
     "describePlaceholder": "Describe how to refine your prompt…",
     "send": "Send",
@@ -14,5 +14,6 @@
     "toggleDiff": "Toggle diff view",
     "cancel": "Cancel",
     "useRefined": "Use refined prompt",
-    "refineFailed": "Couldn't refine the prompt. Try again."
+    "refineFailed": "Couldn't refine the prompt. Try again.",
+    "refineAiDisabled": "Couldn't refine the prompt: AI services are turned off on this deployment."
 }

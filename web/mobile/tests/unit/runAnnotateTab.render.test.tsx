@@ -660,6 +660,7 @@ describe("run the app of a human run", () => {
 
         expect(toast.error).toHaveBeenCalledWith("Couldn't run this scenario")
         expect(text()).toContain("Couldn't run this scenario")
+        expect(text()).not.toContain("Generate output to annotate")
         // The raw error stays out of the screen.
         expect(text()).not.toContain("The model refused")
         expect(bodyOf("/evaluations/scenarios/")).toEqual({

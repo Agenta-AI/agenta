@@ -39,8 +39,9 @@ export const ListTableToolbar = ({
 }) => {
     const t = useT(commonCatalog)
     return (
-        <div className={cn("mb-3 flex items-center gap-2", className)}>
-            <InputGroup className="min-w-0 max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
+        // Wraps on a narrow screen, so the actions never squeeze the search to nothing.
+        <div className={cn("mb-3 flex flex-wrap items-center gap-2", className)}>
+            <InputGroup className="min-w-[160px] max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
                 <InputGroupAddon>
                     <Search size={14} aria-hidden />
                 </InputGroupAddon>

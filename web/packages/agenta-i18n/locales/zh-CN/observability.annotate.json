@@ -23,5 +23,6 @@
     "saveFailed": "更新标注失败",
     "saveSuccess": "标注更新成功",
     "savePending": "标注已保存，可能需要片刻才会显示。",
-    "required": "必填"
+    "required": "必填",
+    "noAnnotationsHint": "选择一个评估器为此追踪打分。"
 }

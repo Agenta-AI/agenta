@@ -75,6 +75,7 @@ export function renderEvaluatorTypeTag(
     }
 
     if (!tagLabel) return undefined
+    if (tagLabel.trim().toLowerCase() === (w.name ?? "").trim().toLowerCase()) return undefined
 
     const color = colorSource ? getWorkflowTypeColor(colorSource) : null
 

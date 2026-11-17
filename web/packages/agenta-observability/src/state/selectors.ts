@@ -4,7 +4,7 @@ import {
     formatTokenUsage,
     splitTokenUsage,
 } from "@agenta/shared/utils"
-import {dayjs} from "@agenta/shared/utils/dateTime"
+import {formatLocalDateTime} from "@agenta/shared/utils/dateTime"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
@@ -108,13 +108,30 @@ export const getTraceOutputs = (span?: TraceSpanNode): unknown => {
             const out = spanOutputs(node)
             if (out !== undefined && out !== null) agentOutput = out
         }
-        node.children?.forEach((child) => visit(child as TraceSpanNode))
+        childSpans(node).forEach(visit)
     }
     visit(span)
     if (agentOutput !== undefined) return agentOutput
 
     const own = spanOutputs(span) ?? null
     return typeof own === "string" && GENERATOR_REPR.test(own) ? null : own
+}
+
+// A built tree carries `children`; a raw API span nests its children in a `spans` map.
+const childSpans = (node: TraceSpanNode): TraceSpanNode[] => {
+    if (node.children?.length) return node.children as TraceSpanNode[]
+    const nested = node.spans
+    if (!nested) return []
+    return Object.values(nested).flatMap((child) => child) as TraceSpanNode[]
+}
+
+/** The span's own outputs, or, when it has none, the same derived output the traces table shows. */
+export const getSpanDisplayOutputs = (span?: TraceSpanNode): unknown => {
+    if (!span) return null
+    const own = spanOutputs(span)
+    const meaningful =
+        own !== undefined && own !== null && !(typeof own === "string" && GENERATOR_REPR.test(own))
+    return meaningful ? own : getTraceOutputs(span)
 }
 
 // General attribute helpers ----------------------------------------------------
@@ -137,11 +154,11 @@ const getSpanException = (span?: TraceSpanNode) =>
 
 // Raw metric selectors ---------------------------------------------------------
 export const spanStartTimeAtomFamily = atomFamily((span?: TraceSpanNode) =>
-    atom(() => dayjs(span?.start_time).utc().format("DD/MM/YYYY, hh:mm:ss A")),
+    atom(() => formatLocalDateTime(span?.start_time)),
 )
 
 export const spanEndTimeAtomFamily = atomFamily((span?: TraceSpanNode) =>
-    atom(() => dayjs(span?.end_time).utc().format("DD/MM/YYYY, hh:mm:ss A")),
+    atom(() => formatLocalDateTime(span?.end_time)),
 )
 
 export const spanMetaConfigurationAtomFamily = atomFamily((span?: TraceSpanNode) =>

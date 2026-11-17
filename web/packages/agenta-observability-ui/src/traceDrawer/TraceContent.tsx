@@ -55,7 +55,7 @@ const TraceContent = ({
     useEffect(() => {
         const el = tabsWrapperRef.current
         if (!el) return
-        const nav = el.querySelector<HTMLElement>(".ant-tabs-nav")
+        const nav = el.querySelector<HTMLElement>("[data-trace-tabs-band]")
         if (!nav) return
         const observer = new ResizeObserver(() => {
             setTabNavHeight(nav.getBoundingClientRect().height)
@@ -80,6 +80,25 @@ const TraceContent = ({
         // When activeTrace is missing (e.g., failed generation), show just Raw Data/Error
         if (!activeTrace) {
             const errorPayload = error
+            const response = (traceResponse as {response?: unknown} | undefined)?.response
+            if (!errorPayload && !response) {
+                return [
+                    {
+                        key: "raw_data",
+                        label: t("observabilityUi.traceDrawer.tabOverview"),
+                        children: (
+                            <div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
+                                <span className="text-sm font-medium">
+                                    {t("observabilityUi.traceDrawer.traceNotFound")}
+                                </span>
+                                <span className="text-xs text-colorTextSecondary">
+                                    {t("observabilityUi.traceDrawer.traceNotFoundHint")}
+                                </span>
+                            </div>
+                        ),
+                    },
+                ]
+            }
             const rawPayload =
                 (traceResponse as {response?: unknown} | undefined)?.response ??
                 (errorPayload ? {error: errorPayload} : {})
@@ -196,15 +215,24 @@ const TraceContent = ({
                                 onValueChange={setTab}
                                 className="flex flex-col h-full"
                             >
-                                <TabsList className="sticky top-0 z-30 px-4 mb-2">
-                                    {(items || []).map(
-                                        (item: {key?: string; label?: ReactNode}) => (
-                                            <TabsTrigger key={item.key} value={String(item.key)}>
-                                                {item.label}
-                                            </TabsTrigger>
-                                        ),
-                                    )}
-                                </TabsList>
+                                {/* Opaque band: scrolled content must not show through the tabs. */}
+                                <div
+                                    data-trace-tabs-band
+                                    className="sticky top-0 z-30 mb-2 bg-colorBgContainer px-4"
+                                >
+                                    <TabsList>
+                                        {(items || []).map(
+                                            (item: {key?: string; label?: ReactNode}) => (
+                                                <TabsTrigger
+                                                    key={item.key}
+                                                    value={String(item.key)}
+                                                >
+                                                    {item.label}
+                                                </TabsTrigger>
+                                            ),
+                                        )}
+                                    </TabsList>
+                                </div>
                                 {(items || []).map((item: {key?: string; children?: ReactNode}) => (
                                     <TabsContent
                                         key={item.key}
@@ -217,7 +245,7 @@ const TraceContent = ({
                             </Tabs>
                         </div>
                     </div>
-                    {isAnnotationsSectionOpen && (
+                    {isAnnotationsSectionOpen && (activeTrace || isLoading) && (
                         <div
                             className={
                                 stacked

@@ -21,14 +21,14 @@ import {flattenTree, toggleKey, type TreeRow} from "./treeRows"
 
 const PICK: ListTableColumn = {key: "pick", label: "Select", srOnly: true, width: "20px"}
 const NAME: ListTableColumn = {key: "name", label: "Name", width: "minmax(200px,2fr)"}
-const CREATED_ON: ListTableColumn = {key: "createdOn", label: "Created on", width: "110px"}
+const CREATED_ON: ListTableColumn = {key: "createdOn", label: "Date created", width: "110px"}
 const WIDE_COLUMNS = [
     PICK,
     NAME,
     {key: "model", label: "Model", width: "minmax(120px,1fr)"},
     CREATED_ON,
     {key: "createdBy", label: "Created by", width: "minmax(110px,1fr)"},
-    {key: "notes", label: "Commit notes", width: "minmax(120px,1.5fr)"},
+    {key: "notes", label: "Commit message", width: "minmax(120px,1.5fr)"},
 ]
 const NARROW_COLUMNS = [PICK, {...NAME, width: "minmax(150px,2fr)"}, CREATED_ON]
 
@@ -75,7 +75,13 @@ export const RevisionSection = ({
     const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId)) ?? null
     const selectedIds = useMemo(() => new Set(selected.map((revision) => revision.id)), [selected])
     const tree = useMemo(
-        () => flattenTree(rows, (row) => row.variantId || row.variantName, expanded),
+        () =>
+            flattenTree(
+                // A v0 is the empty revision a new variant starts with: nothing to evaluate.
+                rows.filter((row) => row.version > 0),
+                (row) => row.variantId || row.variantName,
+                expanded,
+            ),
         [rows, expanded],
     )
     const groups = useMemo(() => [{key: "all", label: null, rows: tree}], [tree])
@@ -93,6 +99,7 @@ export const RevisionSection = ({
         if (row) pick(row)
     }
 
+    const canExpand = tree.some((entry) => entry.olderCount > 0)
     const renderRow = ({row, groupKey, depth, olderCount}: TreeRow<AppRevisionRow>) => (
         <>
             <PickCell
@@ -103,10 +110,15 @@ export const RevisionSection = ({
                 disabled={disabled}
                 onToggle={() => pick(row)}
             />
-            <span className="flex min-w-0 items-center gap-2" style={{paddingLeft: depth * 20}}>
+            <span
+                className="flex min-w-0 items-center gap-2"
+                // An older row starts past its parent's toggle, so it reads as nested.
+                style={{paddingLeft: depth * (canExpand ? 40 : 20)}}
+            >
                 {depth === 0 ? (
                     <ExpandToggle
                         count={olderCount}
+                        reserve={canExpand}
                         expanded={expanded.has(groupKey)}
                         label={`Show older revisions of ${row.variantName}`}
                         onToggle={() => setExpanded((current) => toggleKey(current, groupKey))}

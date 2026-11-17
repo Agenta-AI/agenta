@@ -42,6 +42,22 @@ export const parseDate = ({date, inputFormat}: {date: dayjs.ConfigType; inputFor
     return dayjs(date)
 }
 
+// Reads a timestamp as UTC (a stamp with no zone designator is UTC on the API) via the tolerant chain.
+const parseUtc = (date: dayjs.ConfigType, inputFormat?: string): dayjs.Dayjs | null => {
+    const formatsToTry = inputFormat
+        ? [inputFormat, ...FALLBACK_FORMATS.filter((format) => format !== inputFormat)]
+        : FALLBACK_FORMATS
+
+    for (const format of formatsToTry) {
+        const parsed = dayjs.utc(date, format)
+        if (parsed.isValid()) return parsed
+    }
+
+    const direct = dayjs.utc(date)
+    return direct.isValid() ? direct : null
+}
+
+/** Formats a timestamp in UTC. */
 export const formatDay = ({
     date,
     inputFormat = "YYYY-MM-DD H:mm:ssAZ",
@@ -50,20 +66,15 @@ export const formatDay = ({
     date: dayjs.ConfigType
     inputFormat?: string
     outputFormat?: string
-}): string => {
-    const formatsToTry = inputFormat
-        ? [inputFormat, ...FALLBACK_FORMATS.filter((format) => format !== inputFormat)]
-        : FALLBACK_FORMATS
+}): string => parseUtc(date, inputFormat)?.format(outputFormat) ?? ""
 
-    for (const format of formatsToTry) {
-        const parsed = dayjs.utc(date, format)
-        if (parsed.isValid()) {
-            return parsed.format(outputFormat)
-        }
-    }
-
-    const direct = dayjs.utc(date)
-    return direct.isValid() ? direct.format(outputFormat) : ""
+/** Formats an API timestamp in the reader's local time, as "17 Nov 2026, 10:04:05". */
+export const formatLocalDateTime = (
+    date: dayjs.ConfigType,
+    outputFormat = "DD MMM YYYY, HH:mm:ss",
+): string => {
+    if (date === null || date === undefined || date === "") return ""
+    return parseUtc(date, "YYYY-MM-DD H:mm:ssAZ")?.local().format(outputFormat) ?? ""
 }
 
 /**

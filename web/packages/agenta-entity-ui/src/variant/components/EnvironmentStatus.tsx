@@ -1,6 +1,8 @@
 import {type FC} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
+import {useT} from "@agenta/i18n"
+import variantCatalog from "@agenta/i18n/catalogs/entityUi.variant"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -20,6 +22,7 @@ const EnvironmentStatus: FC<{
     variant: Pick<VariantStatusInfo, "deployedIn"> & Partial<Pick<VariantStatusInfo, "id">>
     className?: string
 }> = ({variant, className}) => {
+    const t = useT(variantCatalog)
     // Fallback to environment entity if deployedIn is not embedded on the variant
     const fallbackDeployedIn = useAtomValue(
         environmentMolecule.atoms.revisionDeployment(variant?.id || ""),
@@ -40,7 +43,10 @@ const EnvironmentStatus: FC<{
                                 <div>
                                     {/* antd Badge status dot: 6px (measured), -1px optical lift. */}
                                     <span
-                                        title={env.name}
+                                        role="img"
+                                        aria-label={t("entityUi.variant.deployedTo", {
+                                            name: env.name,
+                                        })}
                                         className="relative -top-px inline-block size-1.5 rounded-full align-middle"
                                         style={{
                                             backgroundColor:
@@ -49,7 +55,9 @@ const EnvironmentStatus: FC<{
                                     />
                                 </div>
                             </TooltipTrigger>
-                            <TooltipContent>{env.name}</TooltipContent>
+                            <TooltipContent>
+                                {t("entityUi.variant.deployedTo", {name: env.name})}
+                            </TooltipContent>
                         </Tooltip>
                     )
                 })}

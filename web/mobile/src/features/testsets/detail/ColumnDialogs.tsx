@@ -65,7 +65,7 @@ export const ColumnDialog = ({
     const isDelete = step.kind === "delete"
     const title =
         step.kind === "add"
-            ? "Add Column"
+            ? "Add column"
             : step.kind === "rename"
               ? "Rename Column"
               : step.isGroup
@@ -74,8 +74,8 @@ export const ColumnDialog = ({
     const confirmLabel = step.kind === "add" ? "Add" : step.kind === "rename" ? "Rename" : "Delete"
     const description = isDelete
         ? step.isGroup
-            ? `Are you sure you want to delete the group "${step.columnKey}" and every column in it? This will remove them from all testcases.`
-            : `Are you sure you want to delete the column "${step.columnKey}"? This will remove the column from all testcases.`
+            ? `Are you sure you want to delete the group "${step.columnKey}" and every column in it? This will remove them from all test cases.`
+            : `Are you sure you want to delete the column "${step.columnKey}"? This will remove the column from all test cases.`
         : null
 
     const submit = async () => {

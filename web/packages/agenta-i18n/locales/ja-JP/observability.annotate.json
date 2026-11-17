@@ -23,5 +23,6 @@
     "saveFailed": "注釈を更新できませんでした",
     "saveSuccess": "注釈を更新しました",
     "savePending": "注釈を保存しました。表示されるまで少し時間がかかる場合があります。",
-    "required": "必須"
+    "required": "必須",
+    "noAnnotationsHint": "評価器を選んでこのトレースを採点してください。"
 }

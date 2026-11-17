@@ -10,7 +10,7 @@
     "required": "Required",
     "namePlaceholder": "e.g. My {{name}} Account",
     "whoCanUseIt": "Who can use it",
-    "authMethod": "Auth Method",
+    "authMethod": "Auth method",
     "apiKey": "API Key",
     "submitFailed": "Couldn't start the connection — the server rejected it. Try again; if it keeps failing, this deployment's connections provider isn't configured.",
     "connect": "Connect"

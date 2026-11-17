@@ -46,5 +46,9 @@
     "callId": "ID da chamada",
     "promptRefined": "Prompt refinado com sucesso.",
     "leaveWarning": "Você tem revisões em rascunho locais ou alterações não salvas que serão perdidas se você sair. Tem certeza de que deseja continuar?",
-    "rerunning": "Executando novamente..."
+    "rerunning": "Executando novamente...",
+    "averageTokens": "Média de tokens",
+    "newAgent": "Novo agente",
+    "newPrompt": "Novo prompt",
+    "revisionOpen": "Aberta"
 }

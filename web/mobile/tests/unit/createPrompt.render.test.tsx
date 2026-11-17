@@ -275,9 +275,10 @@ describe("New prompt", () => {
             ),
         )
         act(() => drawerCreate.click())
-        const dialog = await waitFor(() => findDialog("App name"))
+        const dialog = await waitFor(() => findDialog("Prompt name"))
         const nameInput = dialog.querySelector("input") as HTMLInputElement
-        expect(nameInput.value).toBe("Chat")
+        // The template's type is not a name: the user names the prompt.
+        expect(nameInput.value).toBe("")
         const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
         act(() => {
             setValue?.call(nameInput, "Support bot")
@@ -329,13 +330,49 @@ describe("New prompt", () => {
                 },
                 flags: {is_chat: true},
                 // The shared dialog fills the message in; the user can change it.
-                message: "Edited the instructions.",
+                message: "First version",
             },
         })
         expect(router.push).toHaveBeenCalledWith(
             "/w/ws/p/project-1/apps/app-1/playground?revisions=rev-1",
         )
         expect(findDialog("Test app")).toBeUndefined()
+    }, 60_000)
+    it("New prompt inside a folder creates the prompt in that folder", async () => {
+        store.set(betaDeveloperModeActiveAtom as never, true as never)
+        router.query = {folderId: "f1"}
+        mount()
+        await settle()
+
+        openCreateNew()
+        press(itemByText("New prompt") as Element, "ArrowRight")
+        act(() => itemByText("Chat")?.click())
+        const drawer = await waitFor(() => findDialog("Test app"))
+        const drawerCreate = await waitFor(() =>
+            [...drawer.querySelectorAll("button")].find(
+                (button) => button.textContent?.trim() === "Create" && !button.disabled,
+            ),
+        )
+        act(() => drawerCreate.click())
+        const dialog = await waitFor(() => findDialog("Prompt name"))
+        const nameInput = dialog.querySelector("input") as HTMLInputElement
+        const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+        act(() => {
+            setValue?.call(nameInput, "Folder bot")
+            nameInput.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        sent.length = 0
+        const modalCreate = [...dialog.querySelectorAll("button")].find(
+            (button) => button.textContent?.trim() === "Create",
+        ) as HTMLButtonElement
+        await act(async () => modalCreate.click())
+        await waitFor(() => router.push.mock.calls.length > 0)
+
+        const create = sent.find(
+            (request) => request.method === "POST" && /\/workflows\/$/.test(request.url),
+        )
+        // ArtifactCreate takes the folder at the top level (FolderScope), not in meta.
+        expect((create?.body as {workflow: {folder_id?: unknown}}).workflow.folder_id).toBe("f1")
     }, 60_000)
     it("Closing the drawer before Create saves nothing and leaves the list as it was", async () => {
         store.set(betaDeveloperModeActiveAtom as never, true as never)
@@ -347,10 +384,9 @@ describe("New prompt", () => {
         act(() => itemByText("Completion")?.click())
         const drawer = await waitFor(() => findDialog("Test app"))
         act(() => (drawer.querySelector("[aria-label=Close]") as HTMLElement).click())
-        // The new draft counts as unsaved, so the drawer asks first, as for any edit.
-        const discard = await waitFor(() => buttonByText("Discard"))
-        act(() => discard.click())
+        // An untouched new prompt has nothing to lose: the drawer closes without asking.
         await waitFor(() => !findDialog("Test app"))
+        expect(buttonByText("Discard")).toBeUndefined()
         await settle()
 
         // Reads (the template, list queries) may run; nothing is written.
@@ -380,7 +416,7 @@ describe("New prompt", () => {
                 input.dispatchEvent(new Event("input", {bubbles: true}))
             })
         type(nameInput, "Billing bot")
-        const create = () => buttonByText("Create new app") as HTMLButtonElement
+        const create = () => buttonByText("Create workflow") as HTMLButtonElement
         expect(create().disabled).toBe(true)
 
         type(urlInput, "http://my-service.test/app/")
@@ -439,12 +475,12 @@ describe("New prompt", () => {
                 setValue?.call(input, value)
                 input.dispatchEvent(new Event("input", {bubbles: true}))
             })
-        const create = () => buttonByText("Create new app") as HTMLButtonElement
+        const create = () => buttonByText("Create workflow") as HTMLButtonElement
 
         type(nameInput, "support bot")
         type(urlInput, "http://my-service.test/app")
         await waitFor(() => dialog.textContent?.includes("Success"))
-        expect(dialog.textContent).toContain("App name already exists")
+        expect(dialog.textContent).toContain("Workflow name already exists")
         expect(create().disabled).toBe(true)
 
         type(nameInput, "Billing bot")

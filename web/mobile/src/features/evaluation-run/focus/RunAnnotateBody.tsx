@@ -53,6 +53,7 @@ export const RunAnnotateBody = ({
                     groups={contentGroups}
                     labels={labels}
                     onRetry={onRetry}
+                    awaitingRun={!hasOutput && !invocation.running}
                 />
             </div>
             <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-solid border-border bg-background md:w-[340px] lg:w-[400px]">

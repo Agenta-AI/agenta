@@ -32,6 +32,11 @@ function useHoverOpen(enterDelay: number, leaveDelay: number) {
             clear()
             timer.current = setTimeout(() => setOpen(false), leaveDelay)
         },
+        // A row click opens a drawer; the preview must not stay over it.
+        onPointerDown: () => {
+            clear()
+            setOpen(false)
+        },
     }
 }
 
@@ -76,7 +81,7 @@ interface CellContentPopoverProps {
 }
 
 /**
- * Wraps table cell content with a hover popover that shows the full content.
+ * Wraps table cell content with a hover popover that shows the full content beside the cell.
  * Used to preview truncated cell content without opening the focus drawer.
  *
  * Features:
@@ -118,13 +123,16 @@ const CellContentPopover = memo(
                         className="self-start h-fit"
                         onMouseEnter={hover.onMouseEnter}
                         onMouseLeave={hover.onMouseLeave}
+                        onPointerDown={hover.onPointerDown}
                     >
                         {children}
                     </div>
                 </PopoverAnchor>
                 <PopoverContent
-                    side="top"
-                    align="center"
+                    // Beside the cell, not over the rows above it; flips left at the edge.
+                    side="right"
+                    align="start"
+                    sideOffset={4}
                     className="p-3"
                     onMouseEnter={hover.onMouseEnter}
                     onMouseLeave={hover.onMouseLeave}

@@ -21,6 +21,7 @@
     "orgEmptyBody": "Connect a provider below. Then choose which projects can use it.",
     "orgEmptyTitle": "No organization connections yet",
     "orgLoadFailed": "Couldn't load the organization connections.",
+    "projectConnectionsLoadFailed": "Couldn't load the project connections.",
     "removeFailed": "Agenta could not remove {{name}}. Try again.",
     "signInAgain": "Sign in again",
     "vertexFields": "Project, location and credentials"

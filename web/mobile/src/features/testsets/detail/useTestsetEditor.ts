@@ -82,7 +82,7 @@ const savedColumns = async (
     if (!ids?.length && !testcases?.length) return {keys, hasRows: false}
     // Every row must be here: a missing row could hold the name being checked.
     if (!Array.isArray(testcases) || (ids && ids.length !== testcases.length)) {
-        throw new Error("The revision did not return all its testcases")
+        throw new Error("The revision did not return all its test cases")
     }
     for (const testcase of testcases) {
         const data = (testcase as {data?: Record<string, unknown> | null}).data

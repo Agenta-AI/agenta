@@ -6,6 +6,7 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {useT} from "@agenta/i18n"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
 import {useEvaluatorNavigation} from "@agenta/observability/traceDrawer"
+import {formatLocalDateTime} from "@agenta/shared/utils/dateTime"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -20,14 +21,8 @@ interface EvaluatorDetailsPopoverProps {
     children?: ReactNode
 }
 
-const formatDateTime = (value: string | number | Date | null | undefined) => {
-    if (!value) return "—"
-    try {
-        return new Date(value).toLocaleString()
-    } catch {
-        return "—"
-    }
-}
+const formatDateTime = (value: string | number | Date | null | undefined) =>
+    formatLocalDateTime(value) || "—"
 
 const getShortId = (value?: string | null) => {
     if (!value) return "—"

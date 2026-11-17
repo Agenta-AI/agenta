@@ -138,7 +138,7 @@ describe("Testsets list in beta developer mode", () => {
         })
     }
     const openRowMenu = async (index: number) => {
-        const triggers = document.querySelectorAll('[aria-label="Testset actions"]')
+        const triggers = document.querySelectorAll('[aria-label="Test set actions"]')
         await act(async () => {
             triggers[index]?.dispatchEvent(
                 new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
@@ -244,7 +244,7 @@ describe("Testsets list in beta developer mode", () => {
             (cell) => cell.textContent,
         )
         const text = host.textContent ?? ""
-        expect(text.indexOf("Created by")).toBeLessThan(text.indexOf("Date Created"))
+        expect(text.indexOf("Created by")).toBeLessThan(text.indexOf("Date created"))
         expect(headers.join("|")).not.toContain("Select all")
         expect(text).not.toContain("7:32")
 
@@ -258,7 +258,7 @@ describe("Testsets list in beta developer mode", () => {
         await mount(true)
 
         const text = host.textContent ?? ""
-        expect(text.indexOf("Date Created")).toBeLessThan(text.indexOf("Created by"))
+        expect(text.indexOf("Date created")).toBeLessThan(text.indexOf("Created by"))
         expect(text).toMatch(/Nov 5, 2026, \d{1,2}:32/)
         expect(checkbox("Select Capitals")).not.toBeNull()
         expect(text).toContain("No filters applied")
@@ -370,7 +370,7 @@ describe("Testsets list in beta developer mode", () => {
         await act(async () => button("Filters")!.click())
         await press(
             Array.from(document.querySelectorAll("[role=dialog] *")).find(
-                (item) => item.textContent === "Date Created",
+                (item) => item.textContent === "Date created",
             ),
         )
         await press(
@@ -390,7 +390,7 @@ describe("Testsets list in beta developer mode", () => {
                 include_archived: false,
             }),
         )
-        expect(host.textContent).toContain("Date Created: Last 7 days")
+        expect(host.textContent).toContain("Date created: Last 7 days")
 
         await press(button("Clear the date filter"))
         await until(() =>

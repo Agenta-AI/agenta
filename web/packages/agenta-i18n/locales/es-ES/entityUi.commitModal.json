@@ -44,7 +44,7 @@
     "newVersion": "Nueva versión",
     "newVariant": "Nueva variante",
     "variantNote": "Crea una variante independiente. <name>{{name}}</name> se queda en v{{version}}.",
-    "versionNote": "Se guarda como <version>versión {{version}}</version>. Todos los que usan {{name}} reciben tus cambios.",
+    "versionNote": "Se guarda como <version>v{{version}}</version> de {{name}}. Los entornos desplegados mantienen su versión hasta que despliegues esta.",
     "createsVariantFrom": "Se creará una variante nueva a partir de <name>{{name}}</name>.",
     "createsRevisionOf": "Se creará una revisión nueva de <name>{{name}}</name>.",
     "newVariantFallback": "nueva variante",

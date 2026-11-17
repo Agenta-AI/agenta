@@ -21,6 +21,7 @@
     "orgEmptyBody": "Verbinden Sie unten einen Anbieter. Wählen Sie dann, welche Projekte ihn nutzen dürfen.",
     "orgEmptyTitle": "Noch keine Organisationsverbindungen",
     "orgLoadFailed": "Die Organisationsverbindungen konnten nicht geladen werden.",
+    "projectConnectionsLoadFailed": "Die Projektverbindungen konnten nicht geladen werden.",
     "removeFailed": "Agenta konnte {{name}} nicht entfernen. Versuchen Sie es erneut.",
     "signInAgain": "Erneut anmelden",
     "vertexFields": "Projekt, Standort und Zugangsdaten"

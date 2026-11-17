@@ -47,5 +47,7 @@
     "completionTokens": "Completion-Tokens",
     "trace": "Trace",
     "copyTraceId": "Trace-ID kopieren",
-    "addAnnotationQueue": "Annotationswarteschlange hinzufügen"
+    "addAnnotationQueue": "Annotationswarteschlange hinzufügen",
+    "traceNotFound": "Trace nicht gefunden",
+    "traceNotFoundHint": "Er wurde möglicherweise gelöscht, oder der Link verweist auf ein anderes Projekt."
 }

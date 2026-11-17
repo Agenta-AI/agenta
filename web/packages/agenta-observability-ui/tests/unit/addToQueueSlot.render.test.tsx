@@ -129,7 +129,7 @@ it("The trace header renders the registered add to queue picker", async () => {
     expect(picker).not.toBeNull()
     expect(picker?.getAttribute("data-type")).toBe("traces")
     expect(picker?.getAttribute("data-ids")).toBe("trace-1")
-    expect(picker?.textContent).toContain("Add annotation queue")
+    expect(picker?.textContent).toContain("Add to queue")
     expect(node.querySelector('[data-testid="default-picker"]')).toBeNull()
 })
 

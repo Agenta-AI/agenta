@@ -25,5 +25,6 @@
     "testcaseData": "测试用例数据",
     "root": "根",
     "unsavedChanges": "未保存的更改",
-    "noTestcases": "未找到测试用例"
+    "noTestcases": "未找到测试用例",
+    "invalidCode": "无效的 {{format}}：{{error}}。修正后即可应用更改。"
 }

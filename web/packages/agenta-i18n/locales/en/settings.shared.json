@@ -3,6 +3,7 @@
     "reload": "Reload",
     "renameFailed": "Couldn't rename this",
     "rowActions": "Row actions",
+    "seePlans": "See plans",
     "usedBy": "Used by {{names}}",
     "yours": "Yours",
     "yoursEmptyBody": "Accounts you add here are used in all your projects, when an agent uses each person's own account.",

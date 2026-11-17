@@ -226,7 +226,8 @@ describe("application section", () => {
 
     it("Shows the prompt template of the revision the run used", async () => {
         await render(createElement(ApplicationConfigSection, {application: APPLICATION}))
-        expect(host.textContent).toContain("Prompt Template")
+        // The prompt view draws its own "Prompt Template" header; the section only names it.
+        expect(host.querySelector('section[aria-label="Prompt Template"]')).not.toBeNull()
         expect(host.querySelector('[data-testid="prompt-template"]')?.textContent).toBe("rev-app")
     })
 

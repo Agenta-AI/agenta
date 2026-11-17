@@ -18,7 +18,7 @@ export interface RevisionResultCardProps {
 
 /**
  * A bordered card around one revision's output, as in the old playground: the revision's name
- * and version sit on the top border ("Workflow v5"), with an amber "draft" tag while the revision
+ * and version sit on the top border ("Workflow v5"), with an amber "Draft" tag while the revision
  * has unsaved edits.
  */
 export const RevisionResultCard = ({entityId, children, className}: RevisionResultCardProps) => {

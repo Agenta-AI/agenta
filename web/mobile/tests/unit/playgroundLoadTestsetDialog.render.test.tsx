@@ -216,14 +216,14 @@ describe("The load dialog", () => {
         expect(footer()).toContain("0 of 3 test cases selected")
     })
 
-    it("Load Selected hands over the picked rows without writing them to the playground first", async () => {
+    it("Load selected hands over the picked rows without writing them to the playground first", async () => {
         await render({})
         await clickText("Capitals")
         await pick("France")
         await pick("Peru")
         expect(footer()).toContain("2 of 3 test cases selected")
 
-        await click(dialog(), "Load Selected")
+        await click(dialog(), "Load selected")
 
         expect(onConfirm).toHaveBeenCalledWith({
             revisionId: CAPITALS_V2,
@@ -253,7 +253,7 @@ describe("The load dialog", () => {
         await render({})
         await clickText("Capitals")
 
-        expect(button(dialog(), "Load Selected")?.disabled).toBe(true)
+        expect(button(dialog(), "Load selected")?.disabled).toBe(true)
     })
 
     it("The connected revision cannot be picked again", async () => {
@@ -274,7 +274,7 @@ describe("The load dialog", () => {
         await pick("Italy")
 
         expect(footer()).toContain("1 of 3 test cases selected")
-        await click(dialog(), "Load Selected")
+        await click(dialog(), "Load selected")
         expect(onConfirm.mock.calls[0][0].testcaseIds).toEqual([CAPITAL_ROWS[1].id])
     })
 
@@ -313,7 +313,7 @@ describe("The load dialog", () => {
         expect(text()).toContain("Edit test case selection")
         expect(footer()).toContain("1 of 3 test cases selected")
         await pick("Italy")
-        await click(dialog(), "Update Selection")
+        await click(dialog(), "Update selection")
 
         expect(onConfirm).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -333,7 +333,7 @@ describe("The load dialog", () => {
 
         expect(text()).toContain("Nile")
         expect(footer()).toContain("0 of 1 test cases selected")
-        expect(button(dialog(), "Import Selected")?.disabled).toBe(true)
+        expect(button(dialog(), "Import selected")?.disabled).toBe(true)
         store.set(testcaseMolecule.ids, [])
     })
 

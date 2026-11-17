@@ -21,6 +21,7 @@
     "orgEmptyBody": "Conecte um provedor abaixo. Depois, escolha quais projetos podem usá-lo.",
     "orgEmptyTitle": "Nenhuma conexão da organização ainda",
     "orgLoadFailed": "Não foi possível carregar as conexões da organização.",
+    "projectConnectionsLoadFailed": "Não foi possível carregar as conexões do projeto.",
     "removeFailed": "A Agenta não conseguiu remover {{name}}. Tente novamente.",
     "signInAgain": "Entrar novamente",
     "vertexFields": "Projeto, localização e credenciais"

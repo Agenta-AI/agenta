@@ -33,8 +33,7 @@ export const RunsTable = ({
     <ListTable
         columns={layout.columns}
         minWidth={layout.minWidth}
-        stickyHeader
-        // An empty list has no column to read, so its header row would only be noise.
+        // No sticky header, so the table scrolls sideways in its own box; an empty list hides it.
         hideHeader={!isLoading && runs.length === 0}
         loading={isLoading}
         groups={[{key: "runs", label: null, rows: [...runs]}]}

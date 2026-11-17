@@ -29,7 +29,7 @@ import type {RevisionsList} from "./useRevisionsList"
 
 /** Shown when a test set has no description. It tells a new reader what the columns are for. */
 export const DEFAULT_DESCRIPTION =
-    "Specify column names similar to the Input parameters. A column with 'correct_answer' name will be treated as a ground truth column."
+    "Name the columns after the prompt's input variables. A column named 'correct_answer' holds the expected output."
 
 export interface TestsetHeaderProps {
     header: TestsetRevisionHeader | null

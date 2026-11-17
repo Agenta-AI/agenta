@@ -41,27 +41,26 @@ const col = (key: string, label: string, width: string): ListTableColumn => ({ke
 
 const PICK: ListTableColumn = {key: "pick", label: "Select", srOnly: true, width: "20px"}
 const NAME = col("name", "Name", "minmax(180px,2fr)")
-const CREATED = col("created", "Date Created", "minmax(110px,1fr)")
 const LAST_MODIFIED = col("updated", "Last modified", "minmax(110px,1fr)")
 const MODIFIED_BY = col("modifiedBy", "Modified by", "minmax(120px,1fr)")
 const TYPE = col("type", "Type", "minmax(120px,1fr)")
 const FEEDBACK = col("feedback", "Feedback", "minmax(140px,1.5fr)")
 
+// The step sits beside the step list in a sheet of at most 1200 px: no room for a created date.
 const AUTOMATIC_COLUMNS = [
     PICK,
     NAME,
     TYPE,
     col("tags", "Tags", "minmax(120px,1fr)"),
-    CREATED,
     LAST_MODIFIED,
     MODIFIED_BY,
     col("message", "Commit message", "minmax(140px,1.5fr)"),
 ]
-const HUMAN_COLUMNS = [PICK, NAME, FEEDBACK, CREATED, LAST_MODIFIED, MODIFIED_BY]
+const HUMAN_COLUMNS = [PICK, NAME, FEEDBACK, LAST_MODIFIED, MODIFIED_BY]
 const NARROW_NAME = col("name", "Name", "minmax(130px,2fr)")
 
-/** Tailwind's `sm`. Below it the table keeps the name and the type, or the feedback. */
-const WIDE_QUERY = "(min-width: 640px)"
+/** Tailwind's `lg`. Below it the sheet is 640 px wide, so the table keeps the name and the type. */
+const WIDE_QUERY = "(min-width: 1024px)"
 
 const NONE: ReadonlySet<string> = new Set()
 
@@ -87,6 +86,7 @@ export const EvaluatorsSection = ({
     evaluatorsHref,
     onPick,
     allowAutomaticCreate = false,
+    compact = false,
 }: {
     kind: NewEvaluationKind
     projectId: string
@@ -97,8 +97,11 @@ export const EvaluatorsSection = ({
     onPick: (evaluator: DraftEvaluator) => void
     /** The automatic create drawer uses the playground state: a host inside a playground says no. */
     allowAutomaticCreate?: boolean
+    /** A dialog: the narrow columns at any window width. */
+    compact?: boolean
 }) => {
-    const narrow = !useMediaQuery(WIDE_QUERY)
+    const wide = useMediaQuery(WIDE_QUERY)
+    const narrow = compact || !wide
     const category = kind === "human" ? "human" : "automatic"
     const human = category === "human"
     const [search, setSearch] = useState("")
@@ -171,6 +174,7 @@ export const EvaluatorsSection = ({
           ? HUMAN_COLUMNS
           : AUTOMATIC_COLUMNS
 
+    const canExpand = tree.some((entry) => entry.olderCount > 0)
     const renderRow = ({row, groupKey, depth, olderCount}: TreeRow<EvaluatorRevisionRow>) => {
         const name = row.name ?? row.slug ?? "—"
         return (
@@ -183,10 +187,15 @@ export const EvaluatorsSection = ({
                     disabled={disabled}
                     onToggle={() => pick(row)}
                 />
-                <span className="flex min-w-0 items-center gap-2" style={{paddingLeft: depth * 20}}>
+                <span
+                    className="flex min-w-0 items-center gap-2"
+                    // An older row starts past its parent's toggle, so it reads as nested.
+                    style={{paddingLeft: depth * (canExpand ? 40 : 20)}}
+                >
                     {depth === 0 ? (
                         <ExpandToggle
                             count={olderCount}
+                            reserve={canExpand}
                             expanded={expanded.has(groupKey)}
                             label={`Show older versions of ${name}`}
                             onToggle={() => setExpanded((current) => toggleKey(current, groupKey))}
@@ -212,7 +221,6 @@ export const EvaluatorsSection = ({
                     </span>
                 )}
                 {narrow || human ? null : <EvaluatorTemplateTags evaluatorKey={row.evaluatorKey} />}
-                {narrow ? null : <MutedCell>{formatDay(row.createdAt)}</MutedCell>}
                 {narrow ? null : <MutedCell>{formatDay(row.updatedAt)}</MutedCell>}
                 {narrow ? null : (
                     <MutedCell>
@@ -256,7 +264,7 @@ export const EvaluatorsSection = ({
                 <div role="group" aria-label="Evaluators">
                     <ListTable
                         columns={columns}
-                        minWidth={narrow ? 300 : human ? 760 : 1060}
+                        minWidth={narrow ? 300 : human ? 600 : 900}
                         loading={entries.isPending}
                         groups={groups}
                         rowKey={({row}) => row.id}

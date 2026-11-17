@@ -688,6 +688,7 @@ function IntegrationCatalogContent({
                     open
                     container={container}
                     name={finishing.name}
+                    apiKey={finishing.connection.data?.auth_scheme === "api_key"}
                     logo={<ProviderLogo logo={finishing.logo} size={18} />}
                     onAuthorize={() => refreshConnection(finishing.connection)}
                     onDelete={() =>

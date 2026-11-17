@@ -62,7 +62,11 @@ export const RevertDeploymentDialog = ({
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Revert {environment.name}</DialogTitle>
-                    <DialogDescription>Are you sure you want to revert?</DialogDescription>
+                    <DialogDescription>
+                        {row.deployedRevisionVersion !== null
+                            ? `This deploys v${row.deployedRevisionVersion} to ${environment.name} again.`
+                            : "Are you sure you want to revert?"}
+                    </DialogDescription>
                 </DialogHeader>
                 <CommitMessageInput value={note} onChange={setNote} label="Revert message" />
                 <DialogFooter>

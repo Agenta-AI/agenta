@@ -14,5 +14,6 @@
     "toggleDiff": "切换差异视图",
     "cancel": "取消",
     "useRefined": "使用优化后的提示词",
-    "refineFailed": "无法优化提示词，请重试。"
+    "refineFailed": "无法优化提示词，请重试。",
+    "refineAiDisabled": "无法优化提示词：此部署已关闭 AI 服务。"
 }

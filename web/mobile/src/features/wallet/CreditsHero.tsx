@@ -52,7 +52,8 @@ export const CreditsHero = ({
                 size="compact"
             />
             {credits.length ? (
-                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
+                // auto-fit, so a lone tile takes the full row instead of half of it.
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2.5 lg:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
                     {RECURRING.flatMap((kind) =>
                         credits
                             .filter((credit) => credit.credit_kind === kind)

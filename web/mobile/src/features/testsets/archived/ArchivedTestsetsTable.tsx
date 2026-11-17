@@ -9,7 +9,7 @@ import {ArchivedTestsetRowCells, type ArchivedTestsetRow} from "./ArchivedTestse
 const NAME_COLUMN: ListTableColumn = {key: "name", label: "Name", width: "minmax(140px,2fr)"}
 const CREATED_COLUMN: ListTableColumn = {
     key: "created",
-    label: "Date Created",
+    label: "Date created",
     width: "minmax(100px,1fr)",
 }
 const AUTHOR_COLUMN: ListTableColumn = {

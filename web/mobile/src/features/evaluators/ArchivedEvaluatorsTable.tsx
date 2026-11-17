@@ -11,7 +11,7 @@ const col = (key: string, label: string, width: string): ListTableColumn => ({ke
 
 const NAME = col("name", "Name", "minmax(180px,2fr)")
 const ARCHIVED_BY = col("archivedBy", "Archived by", "minmax(120px,1fr)")
-const ACTIONS: ListTableColumn = {key: "actions", label: "Actions", srOnly: true, width: "24px"}
+const ACTIONS: ListTableColumn = {key: "actions", label: "Actions", srOnly: true, width: "32px"}
 
 const AUTOMATIC_COLUMNS = [
     NAME,

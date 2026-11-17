@@ -112,7 +112,7 @@ describe("Testset row actions", () => {
             fileType: "json",
             filename: "Alpha-set---v2.json",
         })
-        expect(message.success).toHaveBeenCalledWith("Testset exported as JSON")
+        expect(message.success).toHaveBeenCalledWith("Test set exported as JSON")
     })
 
     it("A failed export shows Failed to export", async () => {
@@ -155,7 +155,7 @@ describe("Testset row actions", () => {
         expect(testsetMolecule.lifecycle.archive).toHaveBeenCalledWith(["t-alpha"], {
             projectId: "pr",
         })
-        expect(message.success).toHaveBeenCalledWith("Testset archived")
+        expect(message.success).toHaveBeenCalledWith("Test set archived")
         expect(invalidate).toHaveBeenCalledWith({queryKey: ["testsets"]})
     })
 

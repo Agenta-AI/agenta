@@ -89,7 +89,7 @@ export const VariantRowMenu = ({
             {row.variantSlug ? (
                 <DropdownMenuItem onSelect={() => void copyToClipboard(row.variantSlug ?? "")}>
                     <Copy aria-hidden size={14} />
-                    Copy Slug
+                    Copy slug
                 </DropdownMenuItem>
             ) : null}
         </DropdownMenuContent>

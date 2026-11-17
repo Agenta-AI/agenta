@@ -174,7 +174,7 @@ describe("Archived apps list, matching the classic app", () => {
         expect(document.querySelector('a[aria-label="Back to prompts"]')).toBeNull()
     })
 
-    it("Created At and Archived At show the date with the time", async () => {
+    it("Created at and Archived at show the date with the time", async () => {
         await mountWithViews("archived-apps")
         expect(host.textContent).toMatch(/Sep 1, 2026,? 9:05\s?AM/)
         expect(host.textContent).toMatch(/Oct 1, 2026,? 6:30\s?PM/)
@@ -236,7 +236,7 @@ describe("Archived apps list, matching the classic app", () => {
         await mountWithViews("archived-apps")
         await act(async () => button("Export CSV")?.click())
         expect(await readBlob(blobs[0])).toBe(
-            "Name,Created At,Archived At\r\n" +
+            "Name,Created at,Archived at\r\n" +
                 "Support bot,2026-09-01T09:05:00,2026-10-01T18:30:00\r\n" +
                 "Summarizer,2026-09-01T09:05:00,2026-10-01T18:30:00",
         )
@@ -246,7 +246,7 @@ describe("Archived apps list, matching the classic app", () => {
         )
         await act(async () => bulkExport[bulkExport.length - 1].click())
         expect(await readBlob(blobs[1])).toBe(
-            "Name,Created At,Archived At\r\n" +
+            "Name,Created at,Archived at\r\n" +
                 "Summarizer,2026-09-01T09:05:00,2026-10-01T18:30:00",
         )
     })

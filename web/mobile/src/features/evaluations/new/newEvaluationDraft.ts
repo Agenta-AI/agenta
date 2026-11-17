@@ -77,23 +77,35 @@ export const CONCURRENCY_FIELDS: readonly {
     field: ConcurrencyField
     label: string
     help: string
+    /** The smallest value that means something. */
+    min: number
 }[] = [
     {
         field: "batch_size",
-        label: "Batch Size",
+        label: "Batch size",
         help: "Maximum number of concurrent invocations",
+        min: 1,
     },
     {
         field: "max_retries",
-        label: "Max Retries",
+        label: "Max retries",
         help: "How many times to retry a failed invocation",
+        min: 0,
     },
     {
         field: "retry_delay",
-        label: "Retry Delay (s)",
+        label: "Retry delay (s)",
         help: "Seconds to wait before retrying a failed invocation",
+        min: 0,
     },
 ]
+
+/** What is wrong with one concurrency value, or null when it can start. */
+export const concurrencyError = (field: ConcurrencyField, value: number | null): string | null => {
+    if (value === null) return "This field is required"
+    const min = CONCURRENCY_FIELDS.find((entry) => entry.field === field)?.min ?? 0
+    return value < min ? `Must be at least ${min}` : null
+}
 
 export const defaultConcurrency = (): DraftConcurrency => ({...DEFAULT_EVALUATION_CONCURRENCY})
 
@@ -121,6 +133,15 @@ export const buildAutoName = (
             ? `${revisions[0].variantName}-v${revisions[0].version}`
             : `${revisions.length}-variants`
     return `${head}-${testset.name}-${suffix}`
+}
+
+/** One revision's run name; with several revisions each name adds its variant and version. */
+export const runNameFor = (draft: NewEvaluationDraft, revision: DraftRevision): string => {
+    const name = draft.name.trim()
+    if (draft.revisions.length <= 1) return name
+    if (name === draft.autoName.trim())
+        return buildAutoName([revision], draft.testset, draft.suffix)
+    return `${name}-${revision.variantName}-v${revision.version}`
 }
 
 export interface InitialDraftOptions {
@@ -284,24 +305,24 @@ export interface DraftProblem {
 /** The first failing check, in the order the user meets them. Null when the draft can start. */
 export const validateDraft = (draft: NewEvaluationDraft): DraftProblem | null => {
     if (!draft.name.trim()) {
-        return {section: draft.section, message: "Please enter evaluation name"}
+        return {section: draft.section, message: "Enter an evaluation name"}
     }
     if (!draft.testset) {
-        return {section: "testset", message: "Please select a test set revision"}
+        return {section: "testset", message: "Select a test set"}
     }
     if (draft.revisions.length === 0) {
-        return {section: "revision", message: "Please select a revision"}
+        return {section: "revision", message: "Select a revision"}
     }
     if (draft.evaluators.length === 0) {
-        return {section: "evaluators", message: "Please select evaluator configuration"}
+        return {section: "evaluators", message: "Select at least one evaluator"}
     }
     if (
         draft.kind === "auto" &&
-        CONCURRENCY_FIELDS.some(({field}) => draft.concurrency[field] === null)
+        CONCURRENCY_FIELDS.some(({field}) => concurrencyError(field, draft.concurrency[field]))
     ) {
-        return {section: "settings", message: "This field is required"}
+        return {section: "settings", message: "Fix the advanced settings"}
     }
-    if (!draft.app) return {section: "application", message: "Please select an application"}
+    if (!draft.app) return {section: "application", message: "Select an application"}
     return null
 }
 

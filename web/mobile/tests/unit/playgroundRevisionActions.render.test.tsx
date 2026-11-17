@@ -434,17 +434,17 @@ describe("Discard and revert", () => {
         expect(calls).toHaveLength(0)
     })
 
-    it("Revert Changes is disabled without edits and discards with them", async () => {
+    it("Revert changes is disabled without edits and discards with them", async () => {
         await mount()
         await openMenu("Revision actions")
-        expect(find("Revert Changes")!.getAttribute("aria-disabled")).toBe("true")
+        expect(find("Revert changes")!.getAttribute("aria-disabled")).toBe("true")
         document.body.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))
         await settle()
 
         await edit("Changed")
         await openMenu("Revision actions")
-        expect(find("Revert Changes")!.getAttribute("aria-disabled")).not.toBe("true")
-        await click("Revert Changes")
+        expect(find("Revert changes")!.getAttribute("aria-disabled")).not.toBe("true")
+        await click("Revert changes")
 
         expect(isDirty("rev-2")).toBe(false)
     })

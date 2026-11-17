@@ -89,7 +89,7 @@ export const EvaluatorConfigCard = ({
                         {latest ? (
                             <Badge variant="outlined">Latest</Badge>
                         ) : version === null ? null : (
-                            <Badge variant="outlined">V{version}</Badge>
+                            <Badge variant="outlined">v{version}</Badge>
                         )}
                         {differs ? <DiffersBadge /> : null}
                     </div>

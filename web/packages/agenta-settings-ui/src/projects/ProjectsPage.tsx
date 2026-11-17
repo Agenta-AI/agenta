@@ -52,7 +52,7 @@ const columnsFor = (t: ReturnType<typeof useT>): ListTableColumn[] => [
 ]
 const PHONE_KEYS = ["project_name", "status", "actions"]
 
-/** Display names of the stored roles. English shows the stored value, as before. */
+/** Display names of the stored roles, in sentence case like the Organizations page's "Owner". */
 const ROLE_KEYS = {
     owner: "settings.projects.roleOwner",
     admin: "settings.projects.roleAdmin",
@@ -63,8 +63,16 @@ const ROLE_KEYS = {
     member: "settings.projects.roleMember",
 } as const
 
+/** "workspace_admin" → "Workspace admin" for a role with no catalog name. */
+const humanizeRole = (role: string) => {
+    const text = role.replace(/_/g, " ")
+    return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 const roleLabel = (role: string, t: (key: (typeof ROLE_KEYS)[keyof typeof ROLE_KEYS]) => string) =>
-    Object.hasOwn(ROLE_KEYS, role) ? t(ROLE_KEYS[role as keyof typeof ROLE_KEYS]) : role
+    Object.hasOwn(ROLE_KEYS, role)
+        ? t(ROLE_KEYS[role as keyof typeof ROLE_KEYS])
+        : humanizeRole(role)
 
 export interface ProjectDialogState<T> {
     open: boolean

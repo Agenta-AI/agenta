@@ -1,3 +1,4 @@
+import {metricDisplayLabel} from "../metricLabel"
 import {ScenarioCellValue} from "../scenarios/ScenarioCellValue"
 import type {ScenarioCell} from "../scenarios/scenarioColumns"
 
@@ -15,7 +16,10 @@ export const ScenarioMetricsBlock = ({cells, error}: {cells: ScenarioCell[]; err
     ) : (
         <div className="flex flex-col gap-2">
             {cells.map((cell) => (
-                <ScenarioFieldCard key={cell.path || cell.name} label={cell.name}>
+                <ScenarioFieldCard
+                    key={cell.path || cell.name}
+                    label={metricDisplayLabel(cell.name)}
+                >
                     <ScenarioCellValue cell={cell} lines={10} />
                 </ScenarioFieldCard>
             ))}

@@ -19,7 +19,7 @@ import type {TestsetExportFormat, TestsetRow, TestsetRowActions} from "./testset
 const NAME_COLUMN: ListTableColumn = {key: "name", label: "Name", width: "minmax(140px,2fr)"}
 const COMMIT_COLUMN: ListTableColumn = {
     key: "commit",
-    label: "Commit Message",
+    label: "Commit message",
     width: "minmax(120px,2fr)",
 }
 const AUTHOR_COLUMN: ListTableColumn = {
@@ -29,7 +29,7 @@ const AUTHOR_COLUMN: ListTableColumn = {
 }
 const dateColumn = (width: string): ListTableColumn => ({
     key: "created",
-    label: "Date Created",
+    label: "Date created",
     width,
 })
 const ACTIONS_COLUMN: ListTableColumn = {
@@ -161,10 +161,12 @@ export const TestsetsTable = ({
         onCopyId: onCopyId ? () => onCopyId(row) : undefined,
     })
 
+    const columns = columnsFor(developerMode, narrow)
+
     return (
         <>
             <ListTable
-                columns={columnsFor(developerMode, narrow)}
+                columns={columns}
                 minWidth={narrow ? 300 : 560}
                 selection={selection}
                 stickyHeader
@@ -184,6 +186,8 @@ export const TestsetsTable = ({
                                           testsetId={row.id}
                                           testsetName={row.name}
                                           onOpenRevision={revisions.onOpen}
+                                          columns={columns}
+                                          selecting={Boolean(selection)}
                                       />
                                   ) : null}
                               </>

@@ -28,31 +28,41 @@ export interface NewPromptAction {
  *
  * The draft lives only in this browser until the create. Closing the naming step drops it.
  */
-export const useCreatePrompt = ({projectBase}: {projectBase: string}) => {
+export const useCreatePrompt = ({
+    projectBase,
+    folderId,
+}: {
+    projectBase: string
+    /** The open folder: the new prompt is created in it. */
+    folderId: string | null
+}) => {
     const router = useRouter()
     const discard = useSetAtom(discardLocalServerDataAtom)
     const [pending, setPending] = useState(false)
     const [draftId, setDraftId] = useState<string | null>(null)
     const inflight = useRef<AbortController | null>(null)
 
-    const start = useCallback((type: AppType) => {
-        // One draft at a time: a second click while the first is set up does nothing.
-        if (inflight.current) return
-        const controller = new AbortController()
-        inflight.current = controller
-        setPending(true)
-        void createEphemeralAppFromTemplate({type, signal: controller.signal})
-            .then((id) => {
-                if (controller.signal.aborted) return
-                if (id) setDraftId(id)
-                else message.error(promptsCopy.failure.startPrompt)
-            })
-            .finally(() => {
-                if (inflight.current !== controller) return
-                inflight.current = null
-                setPending(false)
-            })
-    }, [])
+    const start = useCallback(
+        (type: AppType) => {
+            // One draft at a time: a second click while the first is set up does nothing.
+            if (inflight.current) return
+            const controller = new AbortController()
+            inflight.current = controller
+            setPending(true)
+            void createEphemeralAppFromTemplate({type, signal: controller.signal, folderId})
+                .then((id) => {
+                    if (controller.signal.aborted) return
+                    if (id) setDraftId(id)
+                    else message.error(promptsCopy.failure.startPrompt)
+                })
+                .finally(() => {
+                    if (inflight.current !== controller) return
+                    inflight.current = null
+                    setPending(false)
+                })
+        },
+        [folderId],
+    )
 
     const close = useCallback(() => {
         if (draftId) discard(draftId)

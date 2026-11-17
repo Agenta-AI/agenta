@@ -24,7 +24,7 @@ export const ADD_TO_TESTSET_TARGET_ADAPTER: EntitySelectionAdapter<AddToTestsetT
         levels: [
             {
                 type: "testset",
-                label: "Testset",
+                label: "Test set",
                 listAtom: testsetsListAtom as unknown as Atom<ListQueryState<Testset>>,
                 getId: (testset: unknown) => (testset as Testset).id,
                 getLabel: (testset: unknown) => (testset as Testset).name,
@@ -45,6 +45,6 @@ export const ADD_TO_TESTSET_TARGET_ADAPTER: EntitySelectionAdapter<AddToTestsetT
         }
     },
     isComplete: (path: SelectionPathItem[]) => Boolean(path[0]?.id),
-    emptyMessage: "No testsets found",
-    loadingMessage: "Loading testsets...",
+    emptyMessage: "No test sets found",
+    loadingMessage: "Loading test sets...",
 }

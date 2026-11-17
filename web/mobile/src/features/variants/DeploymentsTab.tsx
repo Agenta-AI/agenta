@@ -199,6 +199,7 @@ export const DeploymentsTab = ({
         <div className="flex flex-col gap-4">
             <EnvironmentCards
                 environments={environments.data}
+                history={{projectId, appId: app.id, appSlug: app.slug ?? null}}
                 selectedSlug={selected?.slug ?? null}
                 onSelect={(slug) => {
                     setSelectedRows(new Set())

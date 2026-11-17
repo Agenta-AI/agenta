@@ -603,7 +603,7 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
                 code: "missing_testcase",
                 scenarioId: completed.scenarioId,
                 testcaseId: completed.testcaseId,
-                message: "The source testcase could not be loaded.",
+                message: "The source test case could not be loaded.",
             })
             continue
         }
@@ -614,7 +614,7 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
                 code: "missing_testset",
                 scenarioId: completed.scenarioId,
                 testcaseId: completed.testcaseId,
-                message: "The source testcase is not linked to a testset.",
+                message: "The source test case is not linked to a test set.",
             })
             continue
         }
@@ -716,7 +716,7 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
                 scenarioId: target.rows[0]?.scenarioId ?? "",
                 testcaseId: target.rows[0]?.testcaseId,
                 testsetId: target.testsetId,
-                message: "The latest revision for this testset could not be resolved.",
+                message: "The latest revision for this test set could not be resolved.",
             })
             continue
         }

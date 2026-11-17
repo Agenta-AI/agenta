@@ -2,6 +2,7 @@ import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useStat
 
 import {createT, useT, type CatalogKey} from "@agenta/i18n"
 import spanCatalog from "@agenta/i18n/catalogs/observabilityUi.traceSpan"
+import {messagesToText} from "@agenta/observability/traceDrawer"
 import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {getStringOrJson} from "@agenta/shared/utils"
 import {CopyButton, EnhancedButton} from "@agenta/ui/components/presentational"
@@ -305,9 +306,14 @@ const AccordionTreePanel = ({
         getDefaultJsonViewMode(availableViewModes),
     )
 
+    // Until the user picks a mode, follow the data: the first value can be a loading placeholder.
+    const userPickedViewMode = useRef(false)
     useEffect(() => {
+        const fallback = getDefaultJsonViewMode(availableViewModes)
         if (!availableViewModes.includes(panelViewMode)) {
-            setPanelViewMode(getDefaultJsonViewMode(availableViewModes))
+            setPanelViewMode(fallback)
+        } else if (!userPickedViewMode.current && panelViewMode !== fallback) {
+            setPanelViewMode(fallback)
         }
     }, [availableViewModes, panelViewMode])
 
@@ -376,20 +382,28 @@ const AccordionTreePanel = ({
     }, [isStringValue, parsedStructuredString, sanitizedValue])
 
     const textOutput = useMemo(() => {
+        // Chat messages read as role headings and content, not a JSON dump.
+        const messagesText = messagesToText(sanitizedValue, {
+            markdown: panelViewMode === "markdown",
+        })
+        if (messagesText !== null) return messagesText
         if (typeof sanitizedValue === "string") {
             return parsedStructuredString !== null
                 ? normalizeEscapedLineBreaks(sanitizedValue)
                 : sanitizedValue
         }
         return getStringOrJson(sanitizedValue)
-    }, [parsedStructuredString, sanitizedValue])
+    }, [panelViewMode, parsedStructuredString, sanitizedValue])
 
     const viewModeMenuItems = useMemo(
         () =>
             availableViewModes.map((mode) => ({
                 key: mode,
                 label: viewModeLabel(t, mode),
-                onClick: () => setPanelViewMode(mode),
+                onClick: () => {
+                    userPickedViewMode.current = true
+                    setPanelViewMode(mode)
+                },
             })),
         [availableViewModes, t],
     )
@@ -484,9 +498,10 @@ const AccordionTreePanel = ({
                                     availableViewModes[1] === "yaml" ? (
                                         <Segmented
                                             value={panelViewMode}
-                                            onChange={(value) =>
+                                            onChange={(value) => {
+                                                userPickedViewMode.current = true
                                                 setPanelViewMode(value as PanelViewMode)
-                                            }
+                                            }}
                                             options={[
                                                 {label: "JSON", value: "json"},
                                                 {label: "YAML", value: "yaml"},
@@ -510,11 +525,7 @@ const AccordionTreePanel = ({
                                                 {viewModeMenuItems.map((item) => (
                                                     <DropdownMenuItem
                                                         key={item.key}
-                                                        onSelect={() =>
-                                                            setPanelViewMode(
-                                                                item.key as PanelViewMode,
-                                                            )
-                                                        }
+                                                        onSelect={item.onClick}
                                                     >
                                                         {item.label}
                                                     </DropdownMenuItem>
@@ -587,6 +598,8 @@ const AccordionTreePanel = ({
                                 />
                             ) : (
                                 <TextModeViewer
+                                    // The text differs per mode, and the editor reads it on mount only.
+                                    key={panelViewMode}
                                     editorId={`accordion-${textViewerId}`}
                                     value={textOutput}
                                     mode={panelViewMode as "text" | "markdown"}

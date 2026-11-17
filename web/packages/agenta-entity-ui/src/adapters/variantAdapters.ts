@@ -78,6 +78,14 @@ function buildGenericCommitContext(
     const latestVersion = Math.max(currentVersion, newestVersion ?? 0)
     const targetVersion = latestVersion + 1
 
+    // A brand-new prompt has no saved side to compare: listing its template as "changes" misleads.
+    if (isLocalDraft && remoteData === null) {
+        return {
+            versionInfo: {currentVersion, targetVersion, latestVersion},
+            suggestedMessage: "First version",
+        }
+    }
+
     // Diff the whole data object; parameters keep metadata-strip + input-key sync. Empty
     // collections are dropped so an add-then-remove (`skills: []` vs an absent key) doesn't read
     // as a change — matching the semantic classifier, which already normalizes empty to absent.
