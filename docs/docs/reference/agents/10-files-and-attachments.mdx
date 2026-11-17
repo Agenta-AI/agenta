@@ -149,11 +149,11 @@ The file appears at that path in the agent's working directory on its next turn.
 
 ## Share a drive between agents
 
-A project drive is a folder of files that several agents of one project can mount. Use it for files that more than one agent reads, such as a price list, or for a folder that a team of agents writes. An agent mounts a project drive only when its configuration lists the drive.
+A drive is a folder of files that belongs to the project. Several agents can attach one drive. Use it for files that more than one agent reads, such as a price list, or for a folder that a team of agents writes. An agent mounts a drive only when its configuration lists it.
 
 ### 1. Create the drive
 
-Create the drive with a slug, and no session or agent. The call needs permission to edit drives in the project.
+Create the drive with a slug and a name. The call needs permission to edit drives in the project. A drive created this way is shared: every project member whose role allows it can use it.
 
 ```
 POST {AGENTA_HOST}/api/mounts/?project_id={PROJECT_ID}
@@ -179,7 +179,7 @@ curl -X POST \
 }
 ```
 
-A slug that already exists in the project returns `409`. Slugs that start with `__ag__` are reserved and are refused.
+A slug that already exists in the project returns `409`. Slugs that start with `__ag__` are reserved and are refused. The request cannot bind the drive to an agent: a body with `agent_id` returns `422`.
 
 To add files to the drive, upload them with `POST /api/mounts/{MOUNT_ID}/files/upload`, where `MOUNT_ID` is the `id` from the response.
 
@@ -190,17 +190,18 @@ Add an entry to `drives` in the agent configuration and save a new revision:
 ```json
 {
   "drives": [
-    { "kind": "agent" },
-    { "kind": "project", "slug": "price-lists", "access": "read" }
-  ]
+    { "slug": "quote-files" },
+    { "slug": "price-lists", "access": "read" }
+  ],
+  "home_drive": "quote-files"
 }
 ```
 
-Keep `{"kind": "agent"}` in the list if the agent should keep its own drive. A save that names a slug with no drive in the project returns `422` with the code `drive_not_found`. All the fields and rules are in [drives](/reference/agents/agent-configuration#drives).
+Keep the agent's own drive in the list, and `home_drive` pointing to it, if the agent should keep its files and saved tools. A save that names a slug with no drive in the project returns `422` with the code `drive_not_found`. All the fields and rules are in [drives](/reference/agents/agent-configuration#drives).
 
 ### What the agent sees
 
-The drive appears in the agent's working folder at `drives/<slug>/`, next to the agent's own drive at `agent-files/`. The session files pane shows each project drive under the same path.
+The drive appears in the agent's working folder at `drives/<slug>/`. The home drive appears at `drives/<slug>/` too, and also at `agent-files/`. `drives/README.md` lists the drives of the run with their access. The session files pane shows each drive under the same path, and the home drive under `agent-files/`.
 
 | `access`       | What the agent can do                                                                                                    |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -209,7 +210,7 @@ The drive appears in the agent's working folder at `drives/<slug>/`, next to the
 
 ### Several agents on one drive
 
-Any number of agents in the project can list the same drive, each with its own access. An agent that does not list the drive does not mount it and gets no credentials for it.
+Any number of agents in the project can list the same drive, each with its own access. An agent that does not list the drive does not mount it and gets no credentials for it. A private drive is mounted only in the runs of its owner; a run of anyone else does not get it.
 
 When agents write the same drive:
 
