@@ -59,6 +59,9 @@ const KNOWN_REQUEST_KEYS = [
   "sandboxPermission",
   "sandboxCredentials",
   "harnessFiles",
+  "drives",
+  "homeDrive",
+  "hasSessionDrive",
   "turnId",
   "sessionTurnId",
   "detached",
@@ -113,6 +116,31 @@ describe("wire contract: requests (vs Python golden)", () => {
       }
     });
   }
+
+  it("pi_core request: carries the configured drives with access filled in, and the home", () => {
+    const req = loadGolden("run_request.pi_core.json") as AgentRunRequest;
+    assert.deepEqual(req.drives, [
+      { slug: "quote-agent-files", access: "read-write" },
+      { slug: "price-lists", access: "read" },
+      { slug: "team-notes", access: "read-write" },
+    ]);
+    assert.equal(req.homeDrive, "quote-agent-files");
+    assert.equal(req.hasSessionDrive, true);
+  });
+
+  it("codex request: an empty drive list, no home and no session drive", () => {
+    const req = loadGolden("run_request.codex.json") as AgentRunRequest;
+    assert.deepEqual(req.drives, []);
+    assert.equal(req.homeDrive, null);
+    assert.equal(req.hasSessionDrive, false);
+  });
+
+  it("claude request: a legacy configuration sends no drives and no home", () => {
+    const req = loadGolden("run_request.claude.json") as AgentRunRequest;
+    assert.equal(req.drives, undefined);
+    assert.equal("homeDrive" in req, false);
+    assert.equal(req.hasSessionDrive, true);
+  });
 
   it("attachment request: carries the resource handle and resolved modalities", () => {
     const req = loadGolden("run_request.attachment.json") as AgentRunRequest;

@@ -74,6 +74,8 @@ from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import SimpleTestsetsService, TestsetsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.mounts.service import MountsService
+from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.environments.dbes import (
     EnvironmentArtifactDBE,
@@ -188,6 +190,13 @@ def _selected_queues() -> List[str]:
     return selected
 
 
+def _install_mount_lookup(workflows_service: WorkflowsService) -> None:
+    """Let a worker's ``WorkflowsService`` check and fill agent drives, as the API does."""
+    workflows_service.set_mount_lookup(
+        MountsService(mounts_dao=MountsDAO(), workflows_service=workflows_service)
+    )
+
+
 def _install_session_context_resolver(
     workflows_service: WorkflowsService,
     *,
@@ -266,6 +275,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         workflows_dao=workflows_dao,
         watch_publisher=SessionsWatchPublisher(),
     )
+    _install_mount_lookup(workflows_service)
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -344,6 +354,7 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         RevisionDBE=EnvironmentRevisionDBE,
     )
     workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    _install_mount_lookup(workflows_service)
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -483,6 +494,7 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
         workflows_dao=workflows_dao,
         watch_publisher=SessionsWatchPublisher(),
     )
+    _install_mount_lookup(workflows_service)
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -563,6 +575,7 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
         workflows_dao=workflows_dao,
         watch_publisher=SessionsWatchPublisher(),
     )
+    _install_mount_lookup(workflows_service)
     evaluators_service = EvaluatorsService(workflows_service=workflows_service)
     simple_evaluators_service = SimpleEvaluatorsService(
         evaluators_service=evaluators_service
