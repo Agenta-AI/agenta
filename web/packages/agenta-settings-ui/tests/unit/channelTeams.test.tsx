@@ -311,7 +311,7 @@ describe("Teams connect flow", () => {
 })
 
 describe("Teams actions", () => {
-    const fixture = () => {
+    const fixture = (agentName: string | null = null) => {
         const client = {
             fetchChannelSetup: vi.fn().mockResolvedValue({
                 setup: {fields: FIELDS, hosted_available: false},
@@ -336,7 +336,7 @@ describe("Teams actions", () => {
             client: client as unknown as ChannelsClientLike,
             projectId: () => "project-1",
             appId: "app-1",
-            resolveAgentName: () => null,
+            resolveAgentName: (id) => (id === "app-1" ? agentName : null),
             hostedSlackInstallUrl: () => null,
         })
         return {client, actions}
@@ -361,6 +361,36 @@ describe("Teams actions", () => {
         )
         expect(created?.platform).toBe("teams")
         expect(created?.webhookUrl).toBe(ENDPOINT)
+    })
+
+    it("names a new Teams connection after its agent, so the app package carries that name", async () => {
+        const {client, actions} = fixture("Support bot")
+        await actions.connectCustom("teams", {
+            app_id: APP_ID,
+            client_secret: "secret-value",
+            tenant_id: TENANT_ID,
+        })
+        expect(client.createChannelConnection).toHaveBeenCalledWith(
+            {
+                connection: {
+                    channel: "teams",
+                    name: "Support bot",
+                    data: {app_id: APP_ID, tenant_id: TENANT_ID},
+                    credentials: {client_secret: "secret-value"},
+                },
+            },
+            {queryParams: {project_id: "project-1"}},
+        )
+    })
+
+    it("sends no name for other platforms, which keep their discovered name", async () => {
+        const {client, actions} = fixture("Support bot")
+        await actions.connectCustom("slack", {client_secret: "secret-value"})
+        const body = client.createChannelConnection.mock.calls[0]?.[0] as {
+            connection: Record<string, unknown>
+        }
+        expect(body.connection.channel).toBe("slack")
+        expect(body.connection).not.toHaveProperty("name")
     })
 
     it("reads the package from the connection's setup document, keeping format and filename", async () => {

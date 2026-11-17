@@ -872,9 +872,19 @@ export const buildAgentChannelsActions = ({
             if (field.secret) credentials[field.name] = value
             else data[field.name] = value
         }
+        // Teams verification discovers no name, and the app package takes the connection's
+        // name as the bot's, so a Teams connection is named after the agent it answers as.
+        const name = platform === "teams" && appId ? resolveAgentName(appId) : null
         const res = await client
             .createChannelConnection(
-                {connection: {channel: channelKey(platform, false), data, credentials}},
+                {
+                    connection: {
+                        channel: channelKey(platform, false),
+                        ...(name ? {name} : {}),
+                        data,
+                        credentials,
+                    },
+                },
                 scope(),
             )
             .catch(rethrow(`${platformLabel(platform)} rejected the credentials.`))
