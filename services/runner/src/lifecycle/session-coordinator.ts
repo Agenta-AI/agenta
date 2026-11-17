@@ -181,10 +181,7 @@ export interface KeepaliveEngine {
   ): Promise<LatestTurnIndexRead>;
   /**
    * Sign one project drive again with this turn's credential; null when it no longer signs.
-   *
-   * Required, like the turn-log read: an environment keeps the credentials it signed at acquire
-   * until they expire, so a drive archived or unshared since then stays writable through a warm
-   * reuse unless the reuse asks the API again.
+   * Required, like the turn-log read (see `unsignableProjectDrives`).
    */
   signProjectDrive(
     slug: string,
@@ -665,12 +662,8 @@ export async function runWithKeepalive(
   };
 
   /**
-   * True when a project drive this environment mounted no longer signs. One sign per mounted
-   * drive, all at once; an environment with no mounted project drive costs nothing.
-   *
-   * Fails closed: a sign that fails for any reason (archived, deleted, access removed, or the API
-   * did not answer) replaces the environment. The cold acquire then signs again, and a drive that
-   * still cannot be signed is not mounted and the prompt says it is not available.
+   * True when a project drive this environment mounted no longer signs (`unsignableProjectDrives`).
+   * Fails closed: any failed sign replaces the environment, and the cold acquire signs again.
    */
   const drivesRevoked = async (env: SessionEnvironment): Promise<boolean> => {
     const authorization = credentialLease?.credential() || runCredential(request);
@@ -713,7 +706,6 @@ export async function runWithKeepalive(
     // same dead mount this probe just caught, so it must delete — and deleting is what lets the
     // cold acquire below mkdir and remount the path from scratch.
     if (mismatch === "mount-lost") return "runtime-incompatible";
-    // The sandbox holds credentials for a drive the agent lost. Deleted on every backend.
     if (mismatch === "drive-revoked") return "drive-revoked";
     // `config` covers every remaining configuration change, including a changed model connection
     // or MCP credential shape. Until the reconciliation router can say which facet moved, treat

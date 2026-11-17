@@ -39,11 +39,7 @@ export type TeardownReason =
   | "runtime-incompatible"
   | "sandbox-incompatible"
   | "continuity-invalid"
-  /**
-   * A project drive this environment mounted no longer signs (archived, deleted, or access
-   * removed). Its credentials stay valid until they expire, so the sandbox that holds them is
-   * deleted, never parked, on every backend.
-   */
+  /** A mounted project drive no longer signs; the sandbox holds its credentials, so it is deleted on every backend. */
   | "drive-revoked"
   | "clean-resumable"
   /**

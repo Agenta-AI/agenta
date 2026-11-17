@@ -389,7 +389,7 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
     signProjectMountCredentials(slug, access, {
       apiBase: apiBase(),
       authorization,
-      log: klog,
+      log: (message) => klog(`warm re-sign: ${message}`),
       signal,
     }),
   readLatestTurnIndex: async (sessionId, authorization) => {

@@ -68,8 +68,8 @@ Release 1 has four parts. The SDK and agent service part (section 2) fixes the s
 
 ## 7. Archive on a warm session (own pull request, stacked on the runner)
 
-- [x] 7.1 In `session-coordinator.ts`, before a warm or approval reuse, sign every project drive that the environment holds credentials for again (`unsignableProjectDrives` in `project-mount.ts`, through the engine seam `signProjectDrive`), in parallel with the turn-log read. A failed sign evicts with the mismatch and teardown reason `drive-revoked`, and the turn runs cold.
+- [x] 7.1 In `session-coordinator.ts`, before a warm or approval reuse, sign every project drive that the environment holds credentials for again (`unsignableProjectDrives` in `project-mount.ts`, through the engine seam `signProjectDrive`); on the warm path at the same time as the turn-log read, on the approval path before it. A failed sign evicts with the mismatch and teardown reason `drive-revoked`, and the turn runs cold.
 - [x] 7.2 `drive-revoked` deletes the sandbox on `local` and `daytona` (`teardownDisposition`) and the command sandbox on `inprocess` (`commandSandboxDisposition`).
-- [x] 7.3 Unit tests per backend, the approval path, and the parallel sign.
-- [x] 7.4 Live check on the local deployment: archive a shared drive between two turns of a warm session; the second turn cannot write it.
+- [x] 7.3 Unit tests: the warm and approval paths, the parallel sign, and the teardown disposition per backend.
+- [ ] 7.4 Live check on the local deployment: archive a shared drive between two turns of a warm session; the second turn cannot write it.
 
