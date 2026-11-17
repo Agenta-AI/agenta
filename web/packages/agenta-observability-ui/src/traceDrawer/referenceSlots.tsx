@@ -70,7 +70,7 @@ export interface TraceDrawerReferenceSlots {
  * (`TraceDrawerReferenceSlots[keyof TraceDrawerReferenceSlots]`) is not forced to widen them.
  */
 export interface TraceDrawerPickerSlots {
-    /** The "add to annotation queue" picker. Absent until the host registers one. */
+    /** The "add to annotation queue" picker. Until the host registers one, the trigger shows alone. */
     AddToQueuePopover: ComponentType<AddToQueuePopoverSlotProps>
 }
 
@@ -84,7 +84,8 @@ const PlainReference: ComponentType<ReferenceLabelProps> = ({label}) => (
 /** Renders nothing — an unregistered action is absent, not broken. */
 const NoSlot: ComponentType<ActionSlotProps> = () => null
 
-const NoPicker: ComponentType<AddToQueuePopoverSlotProps> = () => null
+/** Shows the trigger with no picker, so the menu around it keeps its other actions. */
+const NoPicker: ComponentType<AddToQueuePopoverSlotProps> = ({children}) => <>{children}</>
 
 const slots: TraceDrawerSlots = {
     TraceSpanDrillInView: NoSlot,
