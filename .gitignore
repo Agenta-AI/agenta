@@ -108,6 +108,7 @@ clients/python/tests/results/
 !.agents/skills/write-pr-description/
 !.agents/skills/write-social-announcement/
 !.agents/skills/write-template-playbooks/
+!.agents/skills/update-public-surfaces/
 !.agents/skills/mobile-app-structure/
 !.agents/skills/mobile-shadcn-conventions/
 !.agents/skills/mobile-motion-patterns/
@@ -140,6 +141,7 @@ clients/python/tests/results/
 !.claude/skills/write-pr-description
 !.claude/skills/write-social-announcement
 !.claude/skills/write-template-playbooks
+!.claude/skills/update-public-surfaces
 !.claude/skills/scan-codebase
 !.claude/skills/triage-findings
 !.claude/skills/resolve-findings
