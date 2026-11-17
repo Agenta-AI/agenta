@@ -71,6 +71,35 @@ describe("turnFiles", () => {
         ])
     })
 
+    it("matches a link to a write under a drive's own mount, the home under agent-files", () => {
+        const prices = write("/var/lib/agenta/mounts/s/m-drive-price-lists/2026.md")
+        const home = write("/var/lib/agenta/mounts/s/m-drive-quote-files/plan.md")
+        expect(
+            turnFiles(
+                [tool("1", [prices, home])],
+                ["[prices](drives/price-lists/2026.md) [plan](agent-files/plan.md)"],
+                "quote-files",
+            ),
+        ).toEqual([prices, home])
+    })
+
+    it("matches a link to the home drive's drives/<slug>/ alias to its agent-files/ write", () => {
+        const home = write("/var/lib/agenta/mounts/s/m-drive-quote-files/plan.md")
+        expect(
+            turnFiles([tool("1", [home])], ["[plan](drives/quote-files/plan.md)"], "quote-files"),
+        ).toEqual([home])
+    })
+
+    it("matches a link into a drive to a write through its drives/<slug> link", () => {
+        const written = write("/var/lib/agenta/mounts/s/m/drives/price-lists/2026.md")
+        expect(turnFiles([tool("1", [written])], ["[prices](drives/price-lists/2026.md)"])).toEqual(
+            [written],
+        )
+        expect(turnFiles([], ["[prices](drives/price-lists/2026.md)"])).toEqual([
+            {op: "link", path: "drives/price-lists/2026.md"},
+        ])
+    })
+
     it("keeps a linked file that only shares a name with a written one", () => {
         const written = write("/var/lib/agenta/mounts/s/m/notes/report.md")
         expect(turnFiles([tool("1", [written])], ["[report](report.md)"])).toEqual([

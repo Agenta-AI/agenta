@@ -38,6 +38,8 @@ import {
   composeSystemPromptAppendix,
   type SystemPromptAppendix,
 } from "./system-prompt-appendix.ts";
+import type { DriveAccess } from "../../protocol.ts";
+import { DRIVES_DIR_NAME } from "./run-drives.ts";
 
 /**
  * The READ side of the skills folder: its real absolute path.
@@ -78,7 +80,17 @@ const CONFIG_COMMIT_TOOL = "commit_revision";
  * link gate (`chatFileRefs.tsx`) resolves a path RELATIVE to the working directory, with
  * `agent-files/` for the durable folder (#7715).
  */
-export function fileCitationAppendix(): SystemPromptAppendix {
+export function fileCitationAppendix(hasAgentDrive = true): SystemPromptAppendix {
+  if (!hasAgentDrive) {
+    return {
+      id: "file-citations",
+      text:
+        "When you mention a local file in your response, use a Markdown link whose target is the " +
+        "file's path relative to your working directory, with no leading slash: " +
+        "`[notes.md](drafts/notes.md)`. Link only files in your working directory; nothing else, " +
+        "such as `/tmp`, can open. A bare basename such as `README.md` does not open for a nested file.",
+    };
+  }
   return {
     id: "file-citations",
     text:
@@ -125,20 +137,66 @@ export function codexBundledSkillsAppendix(): SystemPromptAppendix {
   };
 }
 
+/** One attached drive of the run, as the prompt describes it. */
+export interface DriveGuidance {
+  readonly slug: string;
+  readonly access: DriveAccess;
+  /** The absolute path where the drive serves files; undefined when it is not available. */
+  readonly mountedPath: string | undefined;
+}
+
+/**
+ * One paragraph per attached drive: its folder, its absolute path and its access. A writable drive
+ * states the only rule the platform promises for two writers: the last write wins. The text never
+ * calls a drive "shared": that word names who may open it, not who may write it.
+ */
+export function driveAppendix(drive: DriveGuidance): SystemPromptAppendix {
+  const folder = `\`${DRIVES_DIR_NAME}/${drive.slug}/\``;
+  const where = `It is a drive in your working directory, at the absolute path \`${drive.mountedPath}\`.`;
+  return {
+    id: `drive:${drive.slug}`,
+    text: !drive.mountedPath
+      ? `${folder} is not available in this conversation.`
+      : drive.access === "read"
+        ? `${folder} is read-only for you. ${where}`
+        : `${folder} is a drive you can read and write. ${where} Other agents with access to ` +
+          "this drive may also write files here. If two agents write the same file, the last " +
+          "write wins. Prefer adding new files to editing existing ones. Never delete a folder " +
+          "you did not create.",
+  };
+}
+
+/** For an agent whose `drives` list is empty: nothing persists beyond the working directory. */
+export function noDrivesAppendix(sessionDurable: boolean): SystemPromptAppendix {
+  return {
+    id: "no-drives",
+    text:
+      "No drives are attached to you, so you have no `agent-files/` folder. " +
+      (sessionDurable
+        ? "Your working directory persists for this session only."
+        : "Your working directory lasts only until this sandbox is removed."),
+  };
+}
+
 /** What the caller knows about this run's durable agent folder and its tools. */
 export interface PlatformGuidanceInput {
   /** The harness's ACP agent id: `pi`, `claude` or `codex`. */
   readonly acpAgent: string;
   /** True when this run takes the Pi append-prompt channel. */
   readonly isPi: boolean;
-  /** The resolved absolute mount path, when the durable agent folder is live. */
-  readonly agentMountedPath: string | undefined;
+  /**
+   * The home drive: its absolute path when it serves files at `agent-files`, `"unavailable"` when
+   * the run has one that could not be attached, undefined when the run has none.
+   */
+  readonly homeDrive: { readonly path: string } | "unavailable" | undefined;
   /** The absolute rendered-skills directory, when this run materialized any skills. */
   readonly skillsPath?: string | undefined;
-  /** True when a durable agent folder was ATTEMPTED for this run and refused. */
-  readonly agentMountSkipped: boolean;
   /** The names of the tools this run offers the model. */
   readonly toolNames: readonly string[];
+  /** The run's attached drives, by slug. */
+  readonly drives?: readonly DriveGuidance[];
+  /** Set when the agent's `drives` list is empty; says whether the working directory persists. */
+  readonly noDrives?: { readonly sessionDurable: boolean };
 }
 
 /**
@@ -191,14 +249,13 @@ export function platformGuidanceAppendix(
   const skillsReadPath = input.skillsPath
     ? skillsReadPathAppendix(input.skillsPath)
     : undefined;
-  const fileCitations = fileCitationAppendix();
-  const mount = mountGuidanceServedElsewhere(input)
-    ? undefined
-    : input.agentMountedPath
-      ? agentMountAppendix(input.agentMountedPath)
-      : input.agentMountSkipped
+  const fileCitations = fileCitationAppendix(input.homeDrive !== undefined);
+  const mount =
+    mountGuidanceServedElsewhere(input) || !input.homeDrive
+      ? undefined
+      : input.homeDrive === "unavailable"
         ? agentMountUnavailableAppendix()
-        : undefined;
+        : agentMountAppendix(input.homeDrive.path);
   // Codex only. It is a rebuttal to a specific bundled tool rather than standalone guidance, and
   // it costs codex context that the other harnesses do not pay, which is correct: they do not
   // have the problem.
@@ -206,10 +263,13 @@ export function platformGuidanceAppendix(
     hasCommitTool && input.acpAgent === "codex"
       ? codexBundledSkillsAppendix()
       : undefined;
+  // The drive paragraphs ride this channel on every harness: no other channel carries them.
   return composeSystemPromptAppendix([
     skillsReadPath,
     codexSkills,
     fileCitations,
     mount,
+    ...(input.drives ?? []).map(driveAppendix),
+    input.noDrives ? noDrivesAppendix(input.noDrives.sessionDurable) : undefined,
   ]);
 }

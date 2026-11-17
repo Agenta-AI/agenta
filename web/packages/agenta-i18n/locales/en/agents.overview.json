@@ -17,12 +17,13 @@
     "descriptionUpdateFailed": "Couldn't update this agent's description",
     "driveEmpty": "This agent has no drive yet.",
     "edit": "Edit",
-    "filesEmpty": "This agent isn't carrying any files yet.",
+    "filesLoadError": "Couldn't load files.",
     "filesTitle": "Files",
     "needsAttention": "Needs attention",
     "openChat": "Open chat",
     "openFiles": "Open files",
     "pageTitle": "Agents",
+    "readOnly": "read only",
     "renameFailed": "Couldn't rename this agent",
     "retry": "Retry"
 }

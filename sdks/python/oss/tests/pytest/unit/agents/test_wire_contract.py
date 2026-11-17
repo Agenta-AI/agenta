@@ -23,6 +23,7 @@ from agenta.sdk.redaction.context import redaction_context
 from agenta.sdk.redaction.redactor import Redactor
 
 from agenta.sdk.agents import (
+    AgentDrive,
     AgentRunFailed,
     AgentTemplate,
     ClaudeAgentTemplate,
@@ -104,6 +105,9 @@ KNOWN_REQUEST_KEYS = {
     "skills",
     "sandboxPermission",
     "harnessFiles",
+    "drives",
+    "homeDrive",
+    "hasSessionDrive",
     "turnId",
     "sessionTurnId",
     "detached",
@@ -191,6 +195,12 @@ def _pi_payload():
         tool_callback=_CALLBACK,
         skills=[dict(_SKILL)],
         sandbox_permission=SandboxPermission(network={"mode": "off"}),
+        drives=[
+            AgentDrive(slug="quote-agent-files"),
+            AgentDrive(slug="price-lists", access="read"),
+            AgentDrive(slug="team-notes"),
+        ],
+        home_drive="quote-agent-files",
         system="You are Pi.",
         append_system="Be terse.",
     )
@@ -299,6 +309,9 @@ def _codex_payload():
                 value="github-secret",
             )
         ],
+        # An agent with no drive and no session drive.
+        drives=[],
+        has_session_drive=False,
     )
     return request_to_wire(
         harness=HarnessKind.CODEX,

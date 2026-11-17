@@ -23,6 +23,7 @@ export const TreeRow = ({
     isOpen,
     selected,
     showOrigin,
+    otherDrives,
     parent,
     scrollX,
     loading,
@@ -41,6 +42,8 @@ export const TreeRow = ({
     loading?: boolean
     /** Tag top-level nodes with their origin (agent-files vs session) — only when mixed. */
     showOrigin?: boolean
+    /** The session's drives other than the home: they tell a drive file from a session file. */
+    otherDrives?: readonly {slug: string}[]
     /** The parent folder path — the horizontal-scroll GROUP key (siblings share one offset). */
     parent: string
     /** This group's current horizontal offset, applied as a transform to the row's content. */
@@ -141,7 +144,7 @@ export const TreeRow = ({
                     {/* Only the top-level items carry the tag; nested rows inherit it from their
                         (already-tagged) agent-files folder, so the tree stays quiet. */}
                     {showOrigin && depth === 0 ? (
-                        <OriginTag origin={fileOrigin(node.path)} />
+                        <OriginTag origin={fileOrigin(node.path, otherDrives)} />
                     ) : null}
                     {/* In-flight upload status, trailing the name — the row is otherwise a normal file row. */}
                     {pending && !pending.error && pending.percent < 100 ? (

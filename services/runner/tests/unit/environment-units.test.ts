@@ -286,8 +286,8 @@ describe("a skipped durable mount is LOUD at both surfaces", () => {
     );
     assert.match(
       source,
-      /WARN durable agent mount SKIPPED/,
-      "and so does the agent mount",
+      /WARN drive mount SKIPPED/,
+      "and so does each drive, the home drive included",
     );
   });
 
@@ -302,11 +302,11 @@ describe("a skipped durable mount is LOUD at both surfaces", () => {
     // A stack whose tunnel is permanently down would otherwise carry the caveat in every prompt
     // forever, and a warning in every prompt is one a model learns to ignore.
     const source = environment();
-    assert.match(source, /agentMountSkipped/);
+    assert.match(source, /homeDriveStatus\(environment\.drives\)/);
     assert.match(
       source,
-      /environment\.agentMountedPath\s*\?\s*agentMountAppendix\(/,
-      "a live mount advertises its resolved path",
+      /homeStatus\s*\?\s*agentMountAppendix\(homeStatus\.path\)/,
+      "a live home drive advertises its resolved path",
     );
     assert.match(
       source,
@@ -347,15 +347,13 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
   it("the unit captures nothing: every helper takes ctx as its first parameter", () => {
     const source = SRC("environment/mount-lifecycle.ts");
     for (const fn of [
-      "activateAgentMountGuidance",
-      // The negative sibling: it tells the model the durable folder is unreachable, and it must
-      // obey the same no-capture rule as the rest of the unit.
-      "activateAgentMountUnavailableGuidance",
+      // Both the live path and the "not available" sentence of the home drive.
+      "activateHomeDriveGuidance",
       "mountLocalDurableCwd",
-      "mountLocalAgentCwd",
-      "reSignAndRemountLocalAgentMount",
       "reSignAndRemountLocalCwd",
       "remountLocalCwdAfterRuntimeEnotconn",
+      "mountLocalDrive",
+      "reSignAndRemountLocalDrive",
       // The prompt writer both guidance helpers share; it reads the run's dirs off the context
       // like everything else here.
       "writeRunSystemPromptLocal",
@@ -367,8 +365,8 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
     }
     assert.equal(
       source.split("ctx: AcquireContext").length - 1,
-      8,
-      "all eight helpers take ctx; a captured variable would defeat the split",
+      7,
+      "all seven helpers take ctx; a captured variable would defeat the split",
     );
   });
 
@@ -439,13 +437,13 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
   });
 
   it("the composer kept every call site it had before", () => {
-    // `reSignAndRemountLocalAgentMount` is absent on purpose: it was only ever reached from the
-    // ENOTCONN handler, so it is now internal to the unit.
+    // `reSignAndRemountLocalDrive` is absent on purpose: it is only reached from the ENOTCONN
+    // handler, so it is internal to the unit.
     const source = SRC("engines/sandbox_agent/environment.ts");
     for (const call of [
       'mountLocalDurableCwd("initial")',
-      "mountLocalAgentCwd(cwdMount)",
-      "activateAgentMountGuidance()",
+      "mountLocalDriveUnit(ctx, mountDeps, drive",
+      "activateHomeDriveGuidance()",
       "reSignAndRemountLocalCwd()",
       "remountLocalCwdAfterRuntimeEnotconn",
     ]) {
