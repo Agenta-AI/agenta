@@ -225,31 +225,19 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
   <details class="ag-mm-group">
     <summary class="ag-mm-link">Templates<span class="ag-mm-chev" set:html={chevron} /></summary>
     <div class="ag-mm-panel ag-art">
-      <div class="ag-mm-chips" role="tablist" aria-label="Template categories">
+      <div class="ag-mm-cols">
         {
-          templateGroups.map((g, i) => (
-            <button type="button" class="ag-mm-chip" role="tab" id={`ag-mm-tab-${i}`} aria-controls={`ag-mm-rail-${i}`} aria-selected={i === 0 ? "true" : "false"} tabindex={i === 0 ? 0 : -1} data-mm-tab={i}>
-              {g.label}<em>{g.count}</em>
-            </button>
+          templateGroups.map((g) => (
+            <div class="ag-mm-col">
+              <a class="ag-mm-head" href={g.href}>
+                {g.label}
+                <em>{g.count}</em>
+              </a>
+              {g.items.map((t) => <a class="ag-mm-item" href={t.href}>{t.name}</a>)}
+            </div>
           ))
         }
       </div>
-      {
-        templateGroups.map((g, i) => (
-          <div class="ag-mm-tabpanel" role="tabpanel" id={`ag-mm-rail-${i}`} aria-labelledby={`ag-mm-tab-${i}`} hidden={i > 0}>
-            <div class="ag-mm-rail">
-              {g.items.map((t) => (
-                <a class="ag-mm-card spv" href={t.href}>
-                  <TemplatePreviewArt templateKey={t.key} />
-                  <h4>{t.name}</h4>
-                  <p>{t.summary}</p>
-                </a>
-              ))}
-            </div>
-            <a class="ag-mm-more" href={g.href}>All {g.label} templates<span set:html={arrow} /></a>
-          </div>
-        ))
-      }
       <a class="ag-mm-all" href="/marketplace">See all {templates.length} templates<span set:html={arrow} /></a>
     </div>
   </details>
@@ -266,13 +254,6 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
           ))
         }
       </div>
-      {
-        latestPost && (
-          <a class="ag-mm-post rv" href={`/blog/${latestPost.id}`}>
-            <ResourcePreviewArt item="blog" post={latestPost} />
-          </a>
-        )
-      }
     </div>
   </details>
   <div style="display:flex;gap:10px;margin-top:10px;">
@@ -457,32 +438,6 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
       if (!menus.some((m) => m.contains(e.target as Node))) closeAll();
     });
   }
-
-  // Mobile menu: template category chips switch the card rail.
-  {
-    const tabs = [...document.querySelectorAll<HTMLButtonElement>("[data-mm-tab]")];
-    const select = (tab: HTMLButtonElement, focus = false) => {
-      tabs.forEach((t) => {
-        const on = t === tab;
-        t.setAttribute("aria-selected", String(on));
-        t.tabIndex = on ? 0 : -1;
-        const panel = document.getElementById(t.getAttribute("aria-controls") ?? "");
-        if (panel) panel.hidden = !on;
-      });
-      if (focus) tab.focus();
-      tab.scrollIntoView({ block: "nearest", inline: "nearest" });
-    };
-    tabs.forEach((tab, i) => {
-      tab.addEventListener("click", () => select(tab));
-      tab.addEventListener("keydown", (e) => {
-        const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-        if (!step) return;
-        e.preventDefault();
-        select(tabs[(i + step + tabs.length) % tabs.length], true);
-      });
-    });
-  }
-
 
   // Nav-pill: landing only. The rAF loop toggles `.nav-scrolled` on <html> past
   // 24px so the sticky bar floats into the glass pill (styles in global.css). It
