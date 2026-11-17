@@ -356,6 +356,7 @@ export type OtpDetailedOutcome =
     | ({kind: "ok"} & AuthUserPayload)
     | {kind: "incorrect"; attemptsLeft: number}
     | {kind: "expired"}
+    | {kind: "failed"; failure: AuthFailure}
     | {kind: "restart"}
 
 export async function submitEmailCodeDetailed(code: string): Promise<OtpDetailedOutcome> {
@@ -378,7 +379,11 @@ export async function submitEmailCodeDetailed(code: string): Promise<OtpDetailed
             }
         if (response.status === "EXPIRED_USER_INPUT_CODE_ERROR") return {kind: "expired"}
         return {kind: "restart"}
-    } catch {
+    } catch (error) {
+        // Offline, rate-limited or a server error says nothing about the code, so the attempt stays open.
+        const failure = classifyAuthFailure(error)
+        if (failure === "unreachable" || failure === "rate-limited" || failure === "server")
+            return {kind: "failed", failure}
         return {kind: "restart"}
     }
 }

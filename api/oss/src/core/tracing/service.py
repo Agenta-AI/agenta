@@ -1261,7 +1261,7 @@ class SimpleTracesService:
             meta=trace_create.meta,
             data=trace_create.data,
             references=references,
-            links=trace_create.links or {},
+            links=general_fields.links or {},
         )
 
     async def fetch(
