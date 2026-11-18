@@ -238,10 +238,17 @@ export const ArrangeablePages = ({
         setDraft((current) => current ?? keys)
     }
 
-    const trackMore = (x: number, y: number) => {
+    // The last page left in the sidebar cannot be hidden; a page pulled from "More" can go back.
+    const lastPage = keys.length <= 1
+    const trackMore = (x: number, y: number, canHide = !lastPage) => {
         const rect = moreRef.current?.getBoundingClientRect()
         const over = Boolean(
-            rect && x >= rect.left && x <= rect.right && y >= rect.top - 4 && y <= rect.bottom + 8,
+            canHide &&
+            rect &&
+            x >= rect.left &&
+            x <= rect.right &&
+            y >= rect.top - 4 &&
+            y <= rect.bottom + 8,
         )
         if (over === live.current.overMore) return
         live.current.overMore = over
@@ -268,7 +275,7 @@ export const ArrangeablePages = ({
                 live.current.draft = next
                 setDraft(next)
             }
-            trackMore(e.clientX, e.clientY)
+            trackMore(e.clientX, e.clientY, true)
         }
         const release = (e: PointerEvent) => {
             window.removeEventListener("pointermove", place)
@@ -345,6 +352,7 @@ export const ArrangeablePages = ({
     }
 
     const dropping = overMore && dragging !== null
+    const keepsLast = dragging !== null && lastPage && keys.includes(dragging)
     return (
         <div
             className="flex flex-col"
@@ -400,7 +408,11 @@ export const ArrangeablePages = ({
                     >
                         <DotsThree size={16} weight="bold" className="shrink-0" />
                         <span className="min-w-0 flex-1 truncate">
-                            {dragging ? "Drop here to hide" : "More"}
+                            {keepsLast
+                                ? "Keep one page here"
+                                : dragging
+                                  ? "Drop here to hide"
+                                  : "More"}
                         </span>
                     </button>
                 </PopoverTrigger>
