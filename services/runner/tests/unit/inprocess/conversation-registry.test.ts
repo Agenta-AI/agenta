@@ -37,7 +37,7 @@ function conversationWithRunScope(key: string, run: object) {
   const scope = { run, mountCreds: TEST_CREDENTIALS };
   return {
     ...testConversation(key),
-    drive: [{ root: "/x", credentials: () => scope.mountCreds }],
+    roots: [{ root: "/x", credentials: () => scope.mountCreds }],
     signTranscriptMount: async () => (scope.run ? TEST_TRANSCRIPT_CREDENTIALS : null),
   };
 }
@@ -94,7 +94,7 @@ describe("a parked conversation", () => {
     expect(await workspace.signTranscriptMount()).toBeNull();
 
     const fresh: MountCredentials = { ...TEST_CREDENTIALS, expiresAt: new Date(Date.now() + 3_600_000).toISOString() };
-    const next = registry.hold({ ...testConversation("c"), drive: [{ root: "/x", credentials: () => fresh }] });
+    const next = registry.hold({ ...testConversation("c"), roots: [{ root: "/x", credentials: () => fresh }] });
     expect(next).toBe(workspace);
     expect(workspace.drive.root("/x")!.credentials()).toBe(fresh);
     expect(await workspace.signTranscriptMount()).toEqual(TEST_TRANSCRIPT_CREDENTIALS);

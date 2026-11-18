@@ -577,6 +577,9 @@ AGENT_COMMIT_SCOPE: ScopePolicy = subtree_scope(
         ["parameters", "agent", "sandbox", "kind"],
         ["parameters", "agent", "sandbox", "permissions"],
         ["parameters", "agent", "sandbox", "credentials"],
+        ["parameters", "agent", "drives"],
+        ["parameters", "agent", "home_drive"],
+        ["parameters", "agent", "has_session_drive"],
     ),
 )
 

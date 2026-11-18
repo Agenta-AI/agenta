@@ -49,5 +49,6 @@
         "accountId": "acct-1"
       }
     }
-  }
+  },
+  "hasSessionDrive": true
 }

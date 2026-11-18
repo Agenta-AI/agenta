@@ -8,6 +8,7 @@
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
 import { turnLogUnmoved } from "../utils/turn-log.ts";
+import { driveSigns } from "../utils/drive-sign.ts";
 import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
@@ -147,6 +148,33 @@ describe("createAgentServer", () => {
       const body = (await res.json()) as { ok: boolean; output: string };
       assert.equal(body.ok, true);
       assert.equal(body.output, "hi");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /run accepts a field it does not know and passes the drive fields to the engine", async () => {
+    // An older runner must keep running requests from a newer agent service (drive sharing).
+    let seen: Record<string, unknown> | undefined;
+    const s = await listen(async (request) => {
+      seen = request as Record<string, unknown>;
+      return { ok: true, output: "hi", events: [] };
+    });
+    try {
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({
+          harness: "pi_core",
+          aFieldFromTheFuture: { nested: true },
+          drives: [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }],
+          hasSessionDrive: false,
+        }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(seen?.aFieldFromTheFuture, { nested: true });
+      assert.deepEqual(seen?.drives, [{ kind: "agent" }, { kind: "project", slug: "notes", access: "read" }]);
+      assert.equal(seen?.hasSessionDrive, false);
     } finally {
       await s.close();
     }
@@ -726,6 +754,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -857,6 +886,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },
@@ -1257,6 +1287,7 @@ describe("createAgentServer", () => {
         return { ok: true, output: "must not run" };
       },
       readLatestTurnIndex: turnLogUnmoved,
+      signDrive: driveSigns,
       async runCold() {
         return { ok: false, error: "must not run cold fallback" };
       },

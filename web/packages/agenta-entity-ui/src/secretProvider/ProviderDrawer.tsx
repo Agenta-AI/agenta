@@ -50,6 +50,7 @@ import ProviderConnectionCard, {
     type ProviderCardSaveState,
     type ProviderOwnerChoice,
 } from "./ProviderConnectionCard"
+import {providerDisplayTitle} from "./providerFieldText"
 import {providerIconFor} from "./providerIcon"
 import SubscriptionConnectionCard from "./SubscriptionConnectionCard"
 import SubscriptionPairCard, {type SubscriptionPairCardSaveState} from "./SubscriptionPairCard"
@@ -290,7 +291,8 @@ const ProviderDrawer = ({
                 {view.pushed ? backButton : null}
                 <ProviderTile kind={view.kind} />
                 <span className="truncate">
-                    {view.connection?.name ?? providerTitleForKind(view.kind)}
+                    {view.connection?.name ??
+                        providerDisplayTitle(view.kind, providerTitleForKind(view.kind))}
                 </span>
                 {readOnly ? (
                     <Badge className="shrink-0">{t("entityUi.providerDrawer.organization")}</Badge>
