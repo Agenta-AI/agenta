@@ -416,3 +416,10 @@
 @media (max-width: 600px) {
   .r3 .r3-ag-hero .r3-ag-sub { font-size:14px !important; line-height:22px !important; }
 }
+
+/* The live demo's "Worked for" toggle; the caret points right while the steps are hidden. */
+.r3 .ws-worked { display:inline-flex; align-items:center; gap:4px; padding:0px; border:0; background:transparent; font:inherit; color:inherit; cursor:pointer; }
+.r3 .ws-worked svg { transition:transform 0.15s ease; }
+.r3 .ws-worked[aria-expanded="false"] svg { transform:rotate(-90deg); }
+.r3 .ws-worked:focus-visible { outline:2px solid var(--lp-text); outline-offset:2px; border-radius:4px; }
+.r3 .ws-chat .r3-hx-wk + .r3-ap-prose { margin-top:12px; }

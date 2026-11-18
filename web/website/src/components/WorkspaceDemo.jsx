@@ -1702,35 +1702,47 @@ export default class WorkspaceDemo extends Component {
                 <div className="r3-ap-user">
                   <p>{ss.ask}</p>
                 </div>
+                {/* Collapsed by default, like a finished run in the product. */}
                 <div className="r3-ap-worked r3-hx-wk">
-                  <span>
+                  <button
+                    type="button"
+                    className="ws-worked"
+                    aria-expanded={this.state.stepsFor === ss.ask}
+                    onClick={() =>
+                      this.setState((state) => ({
+                        stepsFor: state.stepsFor === ss.ask ? null : ss.ask,
+                      }))
+                    }
+                  >
                     {ss.worked}
                     <CaretDown size={13} weight="regular" aria-hidden="true" />
-                  </span>
+                  </button>
                 </div>
-                <div className="r3-ap-tl r3-hx-tl">
-                  {ss.steps.map((st, index11) => (
-                    <div className="r3-ap-step" key={index11}>
-                      <span className="r3-ap-node">
-                        <span>
-                          <span style={css(st.logoStyle)}></span>
+                {this.state.stepsFor === ss.ask && (
+                  <div className="r3-ap-tl r3-hx-tl">
+                    {ss.steps.map((st, index11) => (
+                      <div className="r3-ap-step" key={index11}>
+                        <span className="r3-ap-node">
+                          <span>
+                            <span style={css(st.logoStyle)}></span>
+                          </span>
                         </span>
-                      </span>
-                      <span className="r3-ap-st">
-                        {`${st.pre} `}
-                        <b>{st.bold}</b>
-                        {st.post ? ` ${st.post}` : ""}
-                      </span>
-                      <span className="r3-ap-c">
-                        <CaretDown
-                          size={13}
-                          weight="regular"
-                          aria-hidden="true"
-                        />
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                        <span className="r3-ap-st">
+                          {`${st.pre} `}
+                          <b>{st.bold}</b>
+                          {st.post ? ` ${st.post}` : ""}
+                        </span>
+                        <span className="r3-ap-c">
+                          <CaretDown
+                            size={13}
+                            weight="regular"
+                            aria-hidden="true"
+                          />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="r3-ap-prose">
                   <p>{ss.reply}</p>
                 </div>
