@@ -87,12 +87,12 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         return (
             <div
                 className={[
-                    "mb-1 flex w-full shrink-0 items-center",
+                    "flex w-full shrink-0 items-center",
                     // The collapsed rail is 48px wide, too narrow for Back and the toggle side by
                     // side, so stack them instead of squeezing both into one row.
                     collapsed
                         ? "flex-col justify-center gap-1 py-1"
-                        : "h-[48px] justify-between gap-0.5 px-2",
+                        : "h-10 justify-between gap-0.5 px-2",
                 ].join(" ")}
             >
                 <SidebarBackButton
