@@ -10,13 +10,13 @@ export interface CollapseCaretProps {
     className?: string
 }
 
-/** The one collapse/expand caret: a filled right caret that turns 90° when open. */
+/** The one collapse/expand caret: an outline chevron that turns 90° when open. */
 function CollapseCaret({open, size = 12, className}: CollapseCaretProps) {
     return (
         <CaretRight
             aria-hidden
             data-slot="collapse-caret"
-            weight="fill"
+            weight="bold"
             size={size}
             className={cn(
                 "shrink-0 text-colorTextTertiary transition-transform duration-150 motion-reduce:transition-none",
