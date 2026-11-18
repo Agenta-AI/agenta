@@ -10,7 +10,7 @@ export const ROW_HEIGHT = "h-7 text-sm leading-7"
 // squeezed them below their own height instead of scrolling. The Sessions group owns the
 // scrolling; every other row holds its size.
 export const ROW_BASE = `relative box-border mb-1 flex ${ROW_HEIGHT} shrink-0 w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-[6px] px-3 select-none`
-export const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillQuaternary"
+export const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillSecondary"
 // The rail's own selection tokens, not neutral fills: a raised pill with a hairline in both
 // themes. The ring is inset rather than a border so the row's box never changes size
 // between states.

@@ -67,7 +67,7 @@ export interface ProjectOrgSwitcherViewProps {
 type Panel = "projects" | "orgs"
 
 export const ROW_CLASS =
-    "flex w-full items-center gap-2 h-8 px-2 rounded-[6px] text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillTertiary transition-colors"
+    "flex w-full items-center gap-2 h-8 px-2 rounded-[6px] text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillSecondary transition-colors"
 
 /** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
 export const ITEM_ROW_CLASS = "shrink-0"

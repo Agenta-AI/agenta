@@ -30,7 +30,7 @@ const LIFTED =
 const DROP_TARGET =
     "bg-[var(--ag-shell-selected-bg)] !text-colorText shadow-[inset_0_0_0_1px_currentColor]"
 const MENU_ROW =
-    "flex h-8 w-full cursor-pointer items-center gap-[10px] rounded-[6px] border-0 bg-transparent px-2 text-left text-sm text-colorText no-underline [font-family:inherit] select-none hover:bg-colorFillTertiary"
+    "flex h-8 w-full cursor-pointer items-center gap-[10px] rounded-[6px] border-0 bg-transparent px-2 text-left text-sm text-colorText no-underline [font-family:inherit] select-none hover:bg-colorFillSecondary"
 
 /** Calls `begin` after a small mouse move or a touch long-press, so a tap still clicks and a swipe still scrolls. */
 const pressToDrag = (press: ReactPointerEvent, begin: (event: PointerEvent) => void) => {
@@ -148,7 +148,7 @@ const MoreMenu = ({
     onReset: () => void
 }) => (
     <div className="flex flex-col p-1">
-        <div className="px-2 pb-1 pt-1.5 text-xs text-colorTextTertiary">More pages</div>
+        <div className="px-2 pb-1 pt-1.5 text-xs text-colorTextSecondary">More pages</div>
         {hidden.length ? (
             hidden.map((item) => (
                 <Link
