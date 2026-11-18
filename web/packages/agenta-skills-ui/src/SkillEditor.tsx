@@ -6,6 +6,10 @@ import {useScrollFadeEdges} from "@agenta/ui/hooks"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
     Switch,
     Tooltip,
     TooltipContent,
@@ -17,11 +21,14 @@ import {
     FilePlus,
     FileText,
     Folder,
+    PencilSimple,
     Plus,
     Question,
     Trash,
+    UploadSimple,
 } from "@phosphor-icons/react"
 
+import {SkillFileNameRow} from "./SkillFileNameRow"
 import {descriptionTooLong, type SkillDraft} from "./skillDraft"
 
 export interface SkillEditorProps {
@@ -50,6 +57,8 @@ const MISSING =
 const MISSING_TEXT = "m-0 text-[13px] leading-[18px] text-destructive"
 const ROW_ICON =
     "flex size-7 shrink-0 items-center justify-center rounded-[6px] bg-muted text-muted-foreground"
+const ROW_ACTION =
+    "inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-background hover:text-foreground"
 const ROW_BUTTON =
     "cursor-pointer truncate border-0 bg-transparent p-0 text-left font-[inherit] text-sm " +
     "font-medium text-foreground after:absolute after:inset-0 after:content-['']"
@@ -104,6 +113,8 @@ export function SkillEditor({
 }: SkillEditorProps) {
     const [openPath, setOpenPath] = useState<string | null>(null)
     const [dragging, setDragging] = useState(false)
+    /** The inline name row: a new file in `dir`, or a rename of `path`. */
+    const [naming, setNaming] = useState<{path: string | null; dir: string} | null>(null)
     const [bodyToolbar, setBodyToolbar] = useState<HTMLDivElement | null>(null)
     const [fileToolbar, setFileToolbar] = useState<HTMLDivElement | null>(null)
     const filesListRef = useRef<HTMLDivElement>(null)
@@ -142,6 +153,33 @@ export function SkillEditor({
         set({files: draft.files.filter((file) => file.path !== path)})
         if (openPath === path) setOpenPath(null)
     }
+    const folders = groups.map(([dir]) => dir).filter(Boolean)
+    const takenExcept = (path: string | null) =>
+        new Set(draft.files.map((file) => file.path).filter((each) => each !== path))
+    const createFile = (path: string) => {
+        set({files: [...latest.current.files, {path, content: ""}]})
+        setNaming(null)
+        setOpenPath(path)
+    }
+    const renameFile = (from: string, to: string) => {
+        set({
+            files: latest.current.files.map((file) =>
+                file.path === from ? {...file, path: to} : file,
+            ),
+        })
+        setNaming(null)
+        if (openPath === from) setOpenPath(to)
+    }
+    const nameRow = (path: string | null, dir: string) => (
+        <SkillFileNameRow
+            key={path ?? `new:${dir}`}
+            isNew={path === null}
+            initialPath={path ?? (dir ? `${dir}/` : "")}
+            taken={takenExcept(path)}
+            onSubmit={(next) => (path ? renameFile(path, next) : createFile(next))}
+            onCancel={() => setNaming(null)}
+        />
+    )
     const setFileContent = (content: string) =>
         set({
             files: draft.files.map((file) => (file.path === openPath ? {...file, content} : file)),
@@ -155,6 +193,7 @@ export function SkillEditor({
     }
 
     const fileRow = (file: SkillFile) => {
+        if (naming?.path === file.path) return nameRow(file.path, dirOf(file.path))
         const on = openPath === file.path
         const exec = Boolean(file.executable)
         return (
@@ -174,6 +213,9 @@ export function SkillEditor({
                         type="button"
                         aria-current={on ? "true" : undefined}
                         onClick={() => setOpenPath(file.path)}
+                        onDoubleClick={() =>
+                            readOnly ? undefined : setNaming({path: file.path, dir: dirOf(file.path)})
+                        }
                         className={ROW_BUTTON}
                     >
                         {baseOf(file.path)}
@@ -190,14 +232,26 @@ export function SkillEditor({
                     ) : null}
                 </span>
                 {readOnly ? null : (
-                    <button
-                        type="button"
-                        aria-label={`Remove ${baseOf(file.path)}`}
-                        onClick={() => removeFile(file.path)}
-                        className="relative z-[1] inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 max-sm:opacity-100"
-                    >
-                        <Trash size={15} />
-                    </button>
+                    <span className="relative z-[1] flex shrink-0 items-center opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100">
+                        <button
+                            type="button"
+                            aria-label={`Rename ${baseOf(file.path)}`}
+                            title="Rename or move"
+                            onClick={() => setNaming({path: file.path, dir: dirOf(file.path)})}
+                            className={ROW_ACTION}
+                        >
+                            <PencilSimple size={13} />
+                        </button>
+                        <button
+                            type="button"
+                            aria-label={`Remove ${baseOf(file.path)}`}
+                            title="Remove"
+                            onClick={() => removeFile(file.path)}
+                            className={ROW_ACTION}
+                        >
+                            <Trash size={13} />
+                        </button>
+                    </span>
                 )}
             </div>
         )
@@ -208,6 +262,7 @@ export function SkillEditor({
         onValue: (next: string) => void,
         toolbar: HTMLDivElement | null,
         missing = false,
+        placeholder = "Write the steps the agent should follow, in plain words.",
     ) => (
         <div
             className={cn(
@@ -220,7 +275,7 @@ export function SkillEditor({
             <MarkdownEditor
                 value={value}
                 onChange={onValue}
-                placeholder="Write the steps the agent should follow, in plain words."
+                placeholder={placeholder}
                 editable={!readOnly}
                 showToolbar={!readOnly}
                 toolbarContainer={toolbar}
@@ -278,7 +333,13 @@ export function SkillEditor({
             </div>
             {fileIsMd ? (
                 <div className="flex min-h-0 flex-1 flex-col">
-                    {richEditor(current.content, setFileContent, fileToolbar)}
+                    {richEditor(
+                        current.content,
+                        setFileContent,
+                        fileToolbar,
+                        false,
+                        "Write this file in plain words.",
+                    )}
                 </div>
             ) : (
                 <textarea
@@ -403,16 +464,36 @@ export function SkillEditor({
                         </Hint>
                         <span className="flex-1" />
                         {hasFiles && !readOnly ? (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="text-muted-foreground"
-                                onClick={browse}
-                            >
-                                <Plus size={14} />
-                                Add
-                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-muted-foreground"
+                                    >
+                                        <Plus size={14} />
+                                        Add
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                    align="end"
+                                    className="min-w-[160px]"
+                                    onCloseAutoFocus={(event) => event.preventDefault()}
+                                >
+                                    <DropdownMenuItem
+                                        onSelect={() => setNaming({path: null, dir: ""})}
+                                        className="gap-2 text-[13px]"
+                                    >
+                                        <FilePlus size={15} className="text-muted-foreground" />
+                                        New file
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={browse} className="gap-2 text-[13px]">
+                                        <UploadSimple size={15} className="text-muted-foreground" />
+                                        Upload files
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         ) : null}
                     </div>
                     <div
@@ -432,7 +513,7 @@ export function SkillEditor({
                             ref={filesListRef}
                             className="ag-scroll-fade flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5"
                         >
-                        {hasFiles ? (
+                        {hasFiles || naming ? (
                             <>
                                 <div
                                     className={cn(
@@ -454,14 +535,31 @@ export function SkillEditor({
                                         </button>
                                     </span>
                                 </div>
+                                {naming?.path === null && !folders.includes(naming.dir)
+                                    ? nameRow(null, naming.dir)
+                                    : null}
                                 {groups.map(([dir, files]) => (
                                     <div key={dir || "root"} className="flex flex-col gap-0.5">
                                         {dir ? (
-                                            <div className="flex items-center gap-1.5 px-2 pb-1 pt-2.5 text-xs font-medium text-muted-foreground">
+                                            <div className="group/folder flex items-center gap-1.5 px-2 pb-1 pt-2.5 text-xs font-medium text-muted-foreground">
                                                 <Folder size={14} />
-                                                <span className="truncate">{dir}</span>
+                                                <span className="flex-1 truncate">{dir}</span>
+                                                {readOnly ? null : (
+                                                    <button
+                                                        type="button"
+                                                        aria-label={`New file in ${dir}`}
+                                                        title="New file here"
+                                                        onClick={() => setNaming({path: null, dir})}
+                                                        className="-my-1 inline-flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/folder:opacity-100 max-sm:opacity-100"
+                                                    >
+                                                        <Plus size={13} />
+                                                    </button>
+                                                )}
                                             </div>
                                         ) : null}
+                                        {dir && naming?.path === null && naming.dir === dir
+                                            ? nameRow(null, dir)
+                                            : null}
                                         {files.map(fileRow)}
                                     </div>
                                 ))}
@@ -483,15 +581,21 @@ export function SkillEditor({
                                     </span>
                                 </span>
                                 {readOnly ? null : (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={browse}
-                                    >
-                                        <Plus size={14} />
-                                        Add files
-                                    </Button>
+                                    <span className="flex items-center gap-1">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setNaming({path: null, dir: ""})}
+                                        >
+                                            <FilePlus size={14} />
+                                            New file
+                                        </Button>
+                                        <Button type="button" variant="ghost" size="sm" onClick={browse}>
+                                            <UploadSimple size={14} />
+                                            Upload
+                                        </Button>
+                                    </span>
                                 )}
                             </div>
                         )}
