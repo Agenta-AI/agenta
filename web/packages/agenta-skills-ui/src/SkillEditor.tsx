@@ -323,7 +323,7 @@ export function SkillEditor({
                     ) : null}
                     {meta}
                 </div>
-                {actions ? <div className="flex items-center gap-2 pt-0.5">{actions}</div> : null}
+                {actions ? <div className="flex items-center gap-1 pt-0.5">{actions}</div> : null}
             </div>
 
             {notices}
