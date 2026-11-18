@@ -17,10 +17,17 @@
     max-height: 1000px;
     /* Breathing room above the heading and below the demo. */
     box-sizing: border-box;
-    padding-block: clamp(40px, 7svh, 88px);
+    /* Little vertical padding: the demo gets the height instead of empty space. */
+    padding-block: clamp(16px, 3svh, 40px);
   }
   .sx-hiw .hw .hw-hd {
-    margin-bottom: clamp(24px, 5svh, 56px);
+    margin-bottom: clamp(16px, 3svh, 40px);
+  }
+}
+/* Wide screens: a heading that fits on fewer lines leaves more height for the demo. */
+@media (min-width: 1200px) {
+  .sx-hiw .hw .hw-hd {
+    max-width: 820px;
   }
 }
 
