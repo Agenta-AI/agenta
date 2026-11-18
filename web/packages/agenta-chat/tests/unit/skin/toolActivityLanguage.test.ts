@@ -45,7 +45,9 @@ describe("tool activity back in English", () => {
     beforeAll(() => getDefaultStore().set(activeLanguageAtom, "en"))
 
     it("reads as before", () => {
-        expect(resolveToolDisplay("mcp__agenta-tools__commit_revision").activity.done).toBe("Saved changes")
+        expect(resolveToolDisplay("mcp__agenta-tools__commit_revision").activity.done).toBe(
+            "Saved changes",
+        )
         expect(resolveToolDisplay("Read", {path: SKILL_PATH}).detail).toBe("build-an-agent skill")
     })
 })
