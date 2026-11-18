@@ -255,8 +255,7 @@ export function SkillEditor({
                 <Hint label="About the instructions">
                     The steps the agent follows when it uses this skill.
                 </Hint>
-                <span className="flex-1" />
-                <div ref={setBodyToolbar} className="max-sm:hidden" />
+                <div ref={setBodyToolbar} className="flex min-w-0 flex-1 justify-end max-sm:hidden" />
             </div>
             {richEditor(
                 draft.body,
@@ -289,11 +288,10 @@ export function SkillEditor({
                         {baseOf(current.path)}
                     </label>
                 </span>
-                <span className="flex-1" />
                 {fileIsMd ? (
-                    <div ref={setFileToolbar} className="max-sm:hidden" />
+                    <div ref={setFileToolbar} className="flex min-w-0 flex-1 justify-end max-sm:hidden" />
                 ) : (
-                    <span className="text-xs text-muted-foreground">{kindOf(current.path)}</span>
+                    <span className="ml-auto text-xs text-muted-foreground">{kindOf(current.path)}</span>
                 )}
             </div>
             {fileIsMd ? (
