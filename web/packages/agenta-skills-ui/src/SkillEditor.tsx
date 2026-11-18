@@ -208,7 +208,7 @@ export function SkillEditor({
     ) => (
         <div
             className={cn(
-                "flex min-h-[360px] flex-1 flex-col rounded-[10px]",
+                "md-doc flex min-h-[360px] flex-1 flex-col rounded-[10px]",
                 fill ? "lg:min-h-0" : "sm:min-h-[600px]",
                 missing &&
                     "[&_div:has(>.md-prose)]:border-destructive [&_div:has(>.md-prose)]:ring-[3px] [&_div:has(>.md-prose)]:ring-destructive/15",
