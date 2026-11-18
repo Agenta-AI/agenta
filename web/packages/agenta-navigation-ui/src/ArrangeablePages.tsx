@@ -153,14 +153,17 @@ const MoreMenu = ({
         <div className="px-2 pb-1 pt-1.5 text-xs text-colorTextSecondary">More pages</div>
         {hidden.length ? (
             hidden.map((item) => (
-                <div key={item.key} className="flex items-center gap-0.5">
+                <div
+                    key={item.key}
+                    className="flex items-center rounded-[6px] hover:bg-colorFillSecondary"
+                >
                     <Link
                         href={item.link ?? "#"}
                         draggable={false}
                         prefetch={item.prefetch}
                         className={cn(
                             MENU_ROW,
-                            "min-w-0 flex-1",
+                            "min-w-0 flex-1 hover:bg-transparent",
                             onPull && "[-webkit-touch-callout:none]",
                         )}
                         onClick={onPick}
